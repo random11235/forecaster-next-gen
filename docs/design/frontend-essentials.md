@@ -22,7 +22,7 @@ This is the minimal front-end for the Forecaster, reduced from a first prototype
 | 2 | Forecast gap | The headline. The chance of finishing by the committed date, and how many days the 85% date falls after it, plus how both have moved across previous forecasts. |
 | 3 | Forecast history | The Forecaster reads its own log directly (`forecastLogGet`), so the EM view does not depend on the aggregator. The aggregator (the "analyser") reads it separately for cross-team analysis. |
 | 4 | Split rate | One per team, measured from completed epics (final item count ÷ count when committed). Below about 7 completed epics, fall back to other teams' reference rates from the aggregator (`referenceSplitRatesGet`). Understanding levels are dropped for now; add them only if the forecast log shows split rates differ by level. |
-| 5 | KTLO (incidents, second-party support) | Treated as part of capacity: pace is counted from milestone tickets only, so KTLO load is already reflected in it. Limitation: the forecast assumes KTLO load stays similar to the measured window. No dedicated UI. |
+| 5 | KTLO (incidents, second-party support) | In v1, pace counts every ticket the team finishes, including KTLO, bugs and tickets outside any epic. All of it is spent on the milestone's epics, so forecasts are optimistic by roughly the share of non-milestone work. Every screen that shows pace or a forecast says so ("Pace includes all completed tickets, including KTLO"). A later feature lets the EM filter which tickets count as pace (engine doc: Deferred, "Throughput filter"). |
 | 6 | Capacity | Pace is measured for the current team setup. After a team change, the previous setup's pace is used until 4 weeks of new data exist; no assumption about how output scales with headcount. Absences and holidays are entered manually by the EM. |
 | 7 | Track record | One line on the forecast screen: how often past "85% sure" dates were met, read from the forecast log. |
 
@@ -46,6 +46,7 @@ Checkout v2 · committed 18 Dec                 Jira data as of 13 Oct 07:10 [Re
                       15 Sep   22 Sep   6 Oct    13 Oct
 
  Track record: our "85% sure" dates were met 78% of the time
+ Pace includes all completed tickets, including KTLO
                                             [Publish to roadmap] last published 6 Oct
 ─────────────────────────────────────────────────────────────────────────────
  Epics in this milestone      Items now   Status
@@ -61,7 +62,7 @@ Architecture: split rate estimator, capacity calendar, `splitRatesSet/Get`, `set
 | Section | Shows | Source |
 |---|---|---|
 | Milestones | Name, committed date, epics in it | EM |
-| Pace | Items finished per week for the current team setup, weeks of data | Measured |
+| Pace | Items finished per week for the current team setup, weeks of data, and the note "includes all completed tickets, including KTLO" | Measured |
 | Split rate | Team's typical split rate and the number of epics behind it | Measured; falls back to reference rates from the aggregator |
 | Capacity | Absences and holidays (from, to, who) | EM |
 | Settings | Ticketing board, which statuses mean started / done, when an epic counts as committed | EM |
@@ -74,6 +75,8 @@ Architecture: aggregator, `projectForecastSummary`, `projectTrendsGet`. A separa
  Team       Milestone        Committed   Chance   85% sure by   vs previous    Published
  Payments   Checkout v2      18 Dec      74%      25 Dec        ▼ 6 pts        6 Oct (not updated for 8 days)
  Platform   Observability    30 Nov      92%      20 Nov        —              12 Oct
+
+ Forecasts use pace from all completed tickets, including KTLO
 ```
 
 The roadmap shows the last *published* forecast, so it can lag the EM's latest run (Checkout v2 is 67% in the Forecaster but 74% here until the EM publishes again). Forecasts not published for more than a week are flagged.
@@ -113,5 +116,6 @@ Made in `EM_usecase-arch.excalidraw`, on the Forecaster ↔ database link:
 
 ## Open questions
 
-- How should the Forecaster handle a sustained change in KTLO load (decision 5) once it is visible in the data?
+- How should the Forecaster handle a sustained change in KTLO load (decision 5) once it is visible in the data? While pace counts KTLO tickets, a KTLO spike raises measured pace even though less milestone work gets done.
+- Which tickets the later pace filter (decision 5) should offer: children of milestone epics, children of any epic, or by work type.
 - Permissions and access control (noted on the architecture diagram) are not yet designed: who may define milestones, publish, and see other teams.
