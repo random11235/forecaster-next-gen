@@ -12,6 +12,7 @@ This builds on the recommendations in [`../research/forecasting-approaches.md`](
 - **No risks or added-scope events** are modelled.
 - **One reference class per team.** Growth and epic-size samples are pooled per team. Splitting them by work type or understanding level comes later, once there is enough history.
 - **Counts, not story points.** Throughput and scope are measured in tickets.
+- **Throughput counts every ticket the team finishes**, including KTLO (incidents, support), bugs and tickets outside any epic. The forecast spends all of it on the target epics, so dates are optimistic by roughly the share of non-epic work. The UI must say so wherever a forecast is shown, e.g. "Pace includes all completed tickets, including KTLO." Filtering throughput is a later feature (see [Deferred](#deferred-beyond-v1)).
 
 The data model is designed so that each of these can be relaxed later without re-ingesting data (see [Deferred](#deferred-beyond-v1)).
 
@@ -59,8 +60,11 @@ GrowthSample     { epicId, teamId, baselineRule, committedCount, finalCount,
 
 EpicSizeSample   { epicId, teamId, finalCount, completedAt }
 
-ThroughputSample { teamId, periodStart, periodDays /* 1 | 7 */, workTypes: string[], count }
+ThroughputSample { teamId, periodStart, periodDays /* 1 | 7 */, workTypes: string[],
+                   scope: 'all' /* v1; later 'epic_children' etc. */, count }
 ```
+
+In v1 every `ThroughputSample` has `scope: 'all'`. Because `WorkItem.parentId` is ingested, filtered samples can later be derived from the same data without re-ingesting.
 
 `baselineRule` is stored on every growth sample. How to define "committed" scope is still an open question, and different rules give materially different ratios. Storing the rule lets the rules be compared through back-testing.
 
@@ -123,6 +127,7 @@ ForecastResult {
   perEpic: Array<{ epicId, quantiles: number[101] }>,   // cut-line view
   diagnostics: {
     throughputSampleCount, splitHalvesError,  // < 25% is "good" (Magennis)
+    throughputScope: 'all',                   // shown in the UI: pace includes KTLO
     growthSource: 'samples'|'override'|'default',
     trialsHittingHorizon,                     // trials that hit maxPeriods without finishing
     warnings: string[],
@@ -247,6 +252,7 @@ How much of this applies depends on deployment. A local, single-user tool needs 
 
 | Feature | What changes |
 |---|---|
+| Throughput filter | Let the EM choose which tickets count as pace, e.g. only children of epics, excluding KTLO and unparented work. Derive `ThroughputSample`s with that `scope` from `WorkItem.parentId` and `type`; `diagnostics.throughputScope` reports the choice so the UI label stays accurate. |
 | Capacity calendar | Add `Person`, `Allocation` and `Absence` tables, plus `capacityFractionThen` on `ThroughputSample`. Add `capacityByPeriod` and an explicit `capacityModel` (linear by default) to `SimulationCase`. |
 | Risks / added-scope events | Add `AddedScopeEvent { probability, impactLow, impactHigh }`, applied once per trial. |
 | Reference classes | Add `ReferenceClass { workType, understanding }`. Growth and epic-size samples become maps keyed by class. |
@@ -257,4 +263,5 @@ How much of this applies depends on deployment. A local, single-user tool needs 
 
 - **Definition of "committed" scope** (`baselineRule`): decide by back-testing the candidate rules.
 - **Minimum growth samples** before measured samples beat the fallback range: start at 7 (Magennis), then test.
+- **Per-epic dates assume epics are worked one at a time.** Step 2 of a trial spends throughput on epics in rank order, so the cut-line view puts early epics too early and later ones too late when the team works epics in parallel. The milestone date is unaffected. Decide whether per-epic likelihood is shown in the UI, or labelled as rougher than the milestone figure, after back-testing.
 - **Deployment model** (local or hosted): this decides how much of the security section applies to v1.
