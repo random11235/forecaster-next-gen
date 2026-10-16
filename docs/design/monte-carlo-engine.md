@@ -27,7 +27,7 @@ The data model is designed so that each of these can be relaxed later without re
    - forecasts (never changed once written)
 2. **The engine is a pure function: `simulateCase(SimulationCase) → ForecastResult`.** It does no I/O, uses no clock, and gets all its randomness from a seed in the case. That makes forecasts reproducible, and it makes the calibration ledger trustworthy.
 3. **Store samples, not summaries.** Keep the raw growth ratios and weekly throughputs, not just a mean or min/max. That keeps the tail, and it lets you change the sampling method later.
-4. **Key data by team, not by user.** Throughput belongs to a team. Users own only settings and authorship of forecasts. (This differs from the diagram, which keys Logs and Projects by `userId`.)
+4. **Key data by team, not by user.** Throughput belongs to a team. Users own only settings and authorship of forecasts. The architecture diagram follows this: the Logs and Projects stores are keyed by `teamId`, and the EM request carries `userId` only to check access and record who created a forecast.
 
 ---
 
@@ -66,6 +66,8 @@ ThroughputSample { teamId, periodStart, periodDays /* 1 | 7 */, workTypes: strin
 
 In v1 every `ThroughputSample` has `scope: 'all'`. Because `WorkItem.parentId` is ingested, filtered samples can later be derived from the same data without re-ingesting.
 
+Epics committed with no children (`committedCount` of 0) produce no `GrowthSample`, since their ratio is undefined. They still produce an `EpicSizeSample`.
+
 `baselineRule` is stored on every growth sample. How to define "committed" scope is still an open question, and different rules give materially different ratios. Storing the rule lets the rules be compared through back-testing.
 
 ### Layer 3: settings
@@ -73,11 +75,14 @@ In v1 every `ThroughputSample` has `scope: 'all'`. Because `WorkItem.parentId` i
 ```ts
 ForecastSettings { teamId, windowWeeks /* 8..12 */, trials /* 10_000 */,
                    percentiles /* [50, 70, 85, 95] */, minGrowthSamples /* 7 */,
-                   maxPeriods /* horizon cap, e.g. 156 weeks */ }
+                   periodDays /* 7 */,
+                   maxPeriods /* horizon cap in periods, e.g. 156 when periodDays is 7 */ }
 
 GrowthOverride   { teamId, low, high, reason, setBy, setAt }
                  // used when there are fewer than minGrowthSamples
 ```
+
+An 8–12 week window gives only 8–12 weekly throughput samples, 4–6 per half for the split-halves check. With so few samples that check is noisy, so it raises a warning rather than blocking a forecast. A team whose setup has been stable for longer can widen the window.
 
 ### Layer 5: calibration ledger
 
@@ -86,12 +91,14 @@ GrowthOverride   { teamId, low, high, reason, setBy, setAt }
 ```ts
 ForecastLog   { id, createdAt, createdBy, teamId, targetEpicIds: string[],
                 caseHash, caseSnapshotRef /* full SimulationCase, stored as a blob */,
-                quantiles: number[101], percentileDates }
+                quantiles: (number | null)[101], percentileDates }
 
-Outcome       { targetEpicIds, actualDoneAt, actualFinalCount, recordedAt }
+Outcome       { id, teamId, forecastLogId, targetEpicIds,
+                actualDoneAt, actualFinalCount, recordedAt }
 
 ForecastScore { forecastLogId, outcomeId,
-                pit /* fraction of trials that finished before the actual */,
+                pit /* fraction of trials that finished before the actual;
+                       trials that hit the horizon count as finishing after it */,
                 hit: Record<percentile, boolean> }
 ```
 
@@ -107,24 +114,28 @@ The ledger is append-only.
 SimulationCase {
   engineVersion, seed, trials, maxPeriods,
   question: { kind: 'when' } | { kind: 'howMany', byDate },
-  startDate, periodDays,               // e.g. 7
+  startDate, periodDays,               // e.g. 7; maxPeriods is counted in these periods
 
   scope: Array<{
     epicId, rank,
-    baseCount: number | null,          // count at commit; null = not broken down yet
+    baseCount: number | null,          // count at commit; null or 0 = not broken down at commit
+    currentCount,                      // children now, done or not
     doneCount,
   }>,
 
-  throughputSamples: number[],                 // done counts per period, from the recent window
+  throughputSamples: number[],                 // done counts per periodDays-long period, from the recent window
   growthSamples:   number[] | { low, high },   // ratios; the range is the fallback with < minGrowthSamples
   epicSizeSamples: number[] | { low, high },   // only used for epics not yet broken down
 }
 
 ForecastResult {
   caseHash,
-  quantiles: number[101],              // completion period (or item count) at p0..p100
-  percentileDates: Record<percentile, Date>,
-  perEpic: Array<{ epicId, quantiles: number[101] }>,   // cut-line view
+  quantiles: (number | null)[101],     // 'when': finish period at p0..p100; null = beyond the horizon
+                                       // 'howMany': items done by byDate at p0..p100
+  finishedFraction,                    // 'when': share of trials that finished within maxPeriods
+  percentileDates: Record<percentile, Date | null>,     // 'when' only; null = beyond the horizon
+  percentileCounts: Record<percentile, number>,         // 'howMany' only; see below
+  perEpic: Array<{ epicId, quantiles: (number | null)[101] }>,   // cut-line view ('when' only)
   diagnostics: {
     throughputSampleCount, splitHalvesError,  // < 25% is "good" (Magennis)
     throughputScope: 'all',                   // shown in the UI: pace includes KTLO
@@ -138,18 +149,29 @@ ForecastResult {
 ### What the scope distributions are for
 
 - **`growthSamples`** answers: "This epic had 10 tickets when committed. How many will it have when it's done?" Each sample is `finalCount / committedCount` from a finished epic, e.g. `[1.4, 2.0, 1.08]`. This replaces hand-entered split rates.
-- **`epicSizeSamples`** answers: "This epic has no tickets yet. How many will it have?" A growth ratio can't help there (0 × 1.4 = 0), so the engine draws a total size from the final sizes of finished epics.
+- **`epicSizeSamples`** answers: "This epic had no tickets when committed. How many will it have?" A growth ratio can't help there (0 × 1.4 = 0), so the engine draws a total size from the final sizes of finished epics.
 
-Growth ratios are measured from the count at commit, so they are applied to `baseCount` (the count at commit), not to the epic's current count. Applying them to an epic that has already grown would double-count the growth.
+Growth ratios are measured from the count at commit, so they are applied to `baseCount` (the count at commit), not to the epic's current count. Applying them to an epic that has already grown would double-count the growth. A drawn total is never allowed below `currentCount`, though: tickets that already exist are known work, so a low ratio can't make them disappear.
 
-### One trial
+`throughputSamples` must be in the same period length as the case. `forecast/buildCase.ts` sums daily `ThroughputSample`s into `periodDays`-long periods and rejects samples with a different `periodDays`. Feeding daily counts into a weekly case would make the forecast about 7 times too slow.
 
-1. For each epic, set its total to `baseCount × one random growth ratio`, or draw one epic size if `baseCount` is null. Remaining work is `max(total − doneCount, 0)`. **Draw one ratio per epic; do not average several draws.** Averaging narrows the distribution and hides the tail (research §1.1).
+### One trial ('when')
+
+1. For each epic, set its total to `baseCount × one random growth ratio`, or draw one epic size if `baseCount` is null or 0. Floor the total at `currentCount`. Remaining work is `max(total − doneCount, 0)`. **Draw one ratio per epic; do not average several draws.** Averaging narrows the distribution and hides the tail (research §1.1).
 2. Each period, draw one throughput sample with replacement (bootstrap) and subtract it from the remaining work, taking epics in rank order.
 3. Record the period in which each epic finishes, and the period in which all of them finish.
-4. Stop at `maxPeriods`. A trial that hasn't finished by then is reported as "not finishing within the horizon", which also guards against all-zero throughput samples looping forever.
+4. Stop at `maxPeriods`. A trial that hasn't finished by then is recorded as "beyond the horizon", which also guards against all-zero throughput samples looping forever.
 
-Collect the trial results and compute 101 quantiles overall and per epic.
+Collect the trial results and compute 101 quantiles overall and per epic. Trials beyond the horizon sort after every finishing trial and are kept, not dropped or clamped to `maxPeriods`. Dropping them would make every percentile too early, and clamping them would show the horizon as if it were a real finish date. Any quantile that lands on such a trial is `null`, and the UI shows it as "later than <horizon date>". `finishedFraction` says how many trials finished, and the forecast warns when it is below the highest reported percentile.
+
+### One trial ('howMany')
+
+"How many items will be done by `byDate`?" uses no scope draws.
+
+1. Run `floor((byDate − startDate) / periodDays)` periods, drawing one throughput sample per period with replacement.
+2. Record the total items done.
+
+Collect the totals and compute 101 quantiles. Confidence runs the other way from 'when': "85% sure" means at least this many items get done in 85% of trials, which is the **15th** percentile of the totals. So `percentileCounts[p] = quantiles[100 − p]`. `percentileDates` and `perEpic` are empty for this question.
 
 ---
 
