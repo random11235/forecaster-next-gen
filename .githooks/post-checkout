@@ -9,6 +9,11 @@
 command -v npx >/dev/null 2>&1 || exit 0
 
 echo "post-checkout: restoring skills from skills-lock.json..."
-npx -y skills experimental_install </dev/null \
-  || echo "post-checkout: skills restore failed; run mp_skills manually"
+# experimental_install only writes to .agents/skills; Claude Code reads .claude/skills
+if npx -y skills experimental_install </dev/null >/dev/null 2>&1 && [ -d .agents/skills ]; then
+  mkdir -p .claude && cp -R .agents/skills .claude/skills
+  echo "post-checkout: restored $(ls .claude/skills | wc -l | tr -d ' ') skills"
+else
+  echo "post-checkout: skills restore failed; run mp_skills manually"
+fi
 exit 0
