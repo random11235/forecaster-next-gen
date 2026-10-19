@@ -6,7 +6,7 @@ GitHub Issues on random11235/forecaster-next-gen, via the `gh` CLI. See `docs/ag
 
 ### Testing
 
-Production code is written test-first through the agreed seams (`/tdd`), one red-green slice at a time.
+Production code is written test-first through the agreed seams (`/tdd`).
 
 ### Ticket lifecycle
 

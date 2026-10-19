@@ -4,11 +4,15 @@
     {
       // -is:blocked only works in GitHub's advanced search; if this list shows blocked tickets, the extension isn't using it
       "label": "Workable now",
-      "query": "repo:${owner}/${repository} is:issue is:open label:ready-for-agent -is:blocked has:parent-issue sort:created-asc"
+      "query": "repo:${owner}/${repository} is:issue is:open label:ready-for-agent -label:in-progress -label:epic -is:blocked has:parent-issue sort:created-asc"
     },
     {
       "label": "v1 tickets (spec #6)",
       "query": "repo:${owner}/${repository} is:issue parent-issue:${owner}/${repository}#6 sort:created-asc"
+    },
+    {
+      "label": "Epics",
+      "query": "repo:${owner}/${repository} is:issue is:open label:epic sort:created-asc"
     },
     {
       "label": "Ready for agent",
