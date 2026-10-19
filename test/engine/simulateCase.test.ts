@@ -50,6 +50,15 @@ describe("simulateCase: 'when' for one committed epic", () => {
     expect(result.quantiles[50]).toBe(6)
   })
 
+  test("floating-point error in the epic's total does not add a period", () => {
+    // 100 × 1.1 is 110.00000000000001 in floating point; 110 per period finishes it in one
+    const result = simulateCase(
+      whenCase({ scope: [epic({ baseCount: 100, growth: [1.1] })], throughputSamples: [110] }),
+    )
+
+    expect(result.quantiles.every((q) => q === 1)).toBe(true)
+  })
+
   test('an epic with more done than its drawn total has no remaining work', () => {
     // 10 × 0.5 = 5 total, 8 done
     const result = simulateCase(whenCase({ scope: [epic({ growth: [0.5], doneCount: 8 })] }))
