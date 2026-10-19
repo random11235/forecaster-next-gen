@@ -124,6 +124,7 @@ SimulationCase {
   }>,
 
   throughputSamples: number[],                 // done counts per periodDays-long period, from the recent window
+  throughputSampler: { kind: 'bootstrap' },    // how a period's throughput is drawn; see "Swappable samplers"
   growthSamples:   number[] | { low, high },   // ratios; the range is the fallback with < minGrowthSamples
   epicSizeSamples: number[] | { low, high },   // only used for epics not yet broken down
 }
@@ -158,7 +159,7 @@ Growth ratios are measured from the count at commit, so they are applied to `bas
 ### One trial ('when')
 
 1. For each epic, set its total to `baseCount × one random growth ratio`, or draw one epic size if `baseCount` is null or 0. Floor the total at `currentCount`. Remaining work is `max(total − doneCount, 0)`. **Draw one ratio per epic; do not average several draws.** Averaging narrows the distribution and hides the tail (research §1.1).
-2. Each period, draw one throughput sample with replacement (bootstrap) and subtract it from the remaining work, taking epics in rank order.
+2. Each period, draw one throughput value from the case's `throughputSampler` (in v1, one sample with replacement: a bootstrap) and subtract it from the remaining work, taking epics in rank order.
 3. Record the period in which each epic finishes, and the period in which all of them finish.
 4. Stop at `maxPeriods`. A trial that hasn't finished by then is recorded as "beyond the horizon", which also guards against all-zero throughput samples looping forever.
 
@@ -168,10 +169,25 @@ Collect the trial results and compute 101 quantiles overall and per epic. Trials
 
 "How many items will be done by `byDate`?" uses no scope draws.
 
-1. Run `floor((byDate − startDate) / periodDays)` periods, drawing one throughput sample per period with replacement.
+1. Run `floor((byDate − startDate) / periodDays)` periods, drawing one throughput value per period from the case's `throughputSampler`.
 2. Record the total items done.
 
 Collect the totals and compute 101 quantiles. Confidence runs the other way from 'when': "85% sure" means at least this many items get done in 85% of trials, which is the **15th** percentile of the totals. So `percentileCounts[p] = quantiles[100 − p]`. `percentileDates` and `perEpic` are empty for this question.
+
+### Swappable samplers
+
+v1 draws throughput by bootstrap: each draw returns one observed period's count, every period equally likely. It keeps the empirical shape and tail, unlike the triangular draw it replaces (research §1.1). Other ways of drawing (interpolated empirical, smoothed bootstrap, parametric fits, block or recency-weighted bootstrap) are worth testing later, so the draw sits behind one seam:
+
+```ts
+type ThroughputSamplerConfig = { kind: 'bootstrap' }   // later kinds add their own parameters
+interface Sampler { draw(rng: Rng): number }
+makeThroughputSampler(config, samples: Float64Array): Sampler
+```
+
+- **The trial loop knows only `Sampler`.** Adding a sampler means adding one file in `engine/samplers/` and one entry in the registry. `simulate.ts` doesn't change.
+- **The sampler is part of the case.** `throughputSampler` is in `SimulationCase`, so it is covered by `caseHash` and recorded in the ledger with every forecast. Back-testing can then compare samplers on the same history by PIT and hit rate, the same way `baselineRule` lets "committed" rules be compared.
+- **`makeThroughputSampler` runs once per case.** It may precompute (sort, fit, build a CDF) but `draw` must not allocate, to keep the trial loop fast.
+- **Every sampler is deterministic for a given seed,** and has a fixture test with known output. Adding a sampler doesn't change existing results: the default stays `bootstrap` until back-testing shows something better, and changing the default bumps `engineVersion`.
 
 ---
 
@@ -192,6 +208,9 @@ src/
     types.ts              # SimulationCase, ForecastResult
     simulate.ts           # simulateCase(case) → result
     random.ts             # seeded PRNG; drawFrom(samples | {low, high})
+    samplers/
+      index.ts            # registry: makeThroughputSampler(config, samples) → Sampler
+      bootstrap.ts        # v1 default
     quantiles.ts
     index.ts              # exports simulateCase and the types only
 
@@ -279,6 +298,7 @@ How much of this applies depends on deployment. A local, single-user tool needs 
 | Risks / added-scope events | Add `AddedScopeEvent { probability, impactLow, impactHigh }`, applied once per trial. |
 | Reference classes | Add `ReferenceClass { workType, understanding }`. Growth and epic-size samples become maps keyed by class. |
 | Unplanned work (bugs) | Choose between a separate arrival stream and counting it in throughput. |
+| Sampling experiments | Add throughput sampler kinds beside `bootstrap` (interpolated empirical, smoothed bootstrap/KDE, Poisson or negative binomial fit, block bootstrap, recency-weighted bootstrap), each with its parameters in `ThroughputSamplerConfig`. Back-test each against the ledger and switch the default only on better calibration. Can extend to the growth and epic-size draws. |
 | Flow signals | Feed Work Item Age against cycle-time percentiles back in as "likely to split". |
 
 ## Open questions
