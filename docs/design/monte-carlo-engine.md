@@ -1,18 +1,23 @@
 # Monte Carlo engine: design
 
-Design date: 2026-10-14. Status: draft for v1.
+Design date: 2026-10-14. Updated 2026-10-18 with the design grill decisions (Q1–Q31). Status: draft for v1. The v1 spec is [issue #6](https://github.com/random11235/forecaster-next-gen/issues/6).
 
 This builds on the recommendations in [`../research/forecasting-approaches.md`](../research/forecasting-approaches.md) ("Implications for a new tool") and the stores in [`../research/EM_usecase-arch.excalidraw`](../research/EM_usecase-arch.excalidraw).
+
+The engine is built and tested in isolation first (build order: engine → app on canned data → Jira → GitHub → capacity). The app design ([`frontend-essentials.md`](frontend-essentials.md)) need not match it until the app is built.
 
 ---
 
 ## v1 assumptions
 
-- **Capacity is fixed** for the whole forecast. Historical throughput is used as it is, with no capacity calendar or scale factor. The throughput window must start after the team's last staffing change.
+- **Single team, run locally.** The tool is a local web app started with one command, holding its data in a local SQLite file. There is no aggregator and no access control in v1.
+- **Capacity is fixed** for the whole forecast. Planned absences come last in the build order (as a capacity fraction per period, linear by default). Until then the absence input is hidden.
 - **No risks or added-scope events** are modelled.
-- **One reference class per team.** Growth and epic-size samples are pooled per team. Splitting them by work type or understanding level comes later, once there is enough history.
+- **One reference class per team.** Growth and epic-size samples are pooled per team. The EM expresses how well each epic is understood through its ambiguity level (see [Settings](#layer-3-settings)), not through separate reference classes.
 - **Counts, not story points.** Throughput and scope are measured in tickets.
-- **Throughput counts every ticket the team finishes**, including KTLO (incidents, support), bugs and tickets outside any epic. The forecast spends all of it on the target epics, so dates are optimistic by roughly the share of non-epic work. The UI must say so wherever a forecast is shown, e.g. "Pace includes all completed tickets, including KTLO." Filtering throughput is a later feature (see [Deferred](#deferred-beyond-v1)).
+- **Pace counts only children of the milestone's epics.** KTLO, bugs and tickets outside the milestone's epics are excluded. Time spent on them shows up as slower milestone pace, which is what the forecast needs.
+- **Pace is earned, not assumed.** Nothing from before installation is used automatically. Pace starts as a range the EM enters by hand. Older data can only pre-fill that range as a labelled suggestion. Measured pace is offered once the milestone has 8 weeks of its own throughput, and is used only when the EM accepts it.
+- **Committing an epic is manual.** The EM commits an epic in the tool after kickoff, or a configured label in the ticketing tool commits it. Only epics committed in the tool produce growth samples.
 
 The data model is designed so that each of these can be relaxed later without re-ingesting data (see [Deferred](#deferred-beyond-v1)).
 
@@ -27,7 +32,8 @@ The data model is designed so that each of these can be relaxed later without re
    - forecasts (never changed once written)
 2. **The engine is a pure function: `simulateCase(SimulationCase) → ForecastResult`.** It does no I/O, uses no clock, and gets all its randomness from a seed in the case. That makes forecasts reproducible, and it makes the calibration ledger trustworthy.
 3. **Store samples, not summaries.** Keep the raw growth ratios and weekly throughputs, not just a mean or min/max. That keeps the tail, and it lets you change the sampling method later.
-4. **Key data by team, not by user.** Throughput belongs to a team. Users own only settings and authorship of forecasts. The architecture diagram follows this: the Logs and Projects stores are keyed by `teamId`, and the EM request carries `userId` only to check access and record who created a forecast.
+4. **Key data by team, not by user.** Throughput belongs to a team. v1 has one team, but keeping every store keyed by `teamId` means a later multi-team phase needs no migration.
+5. **Measured data suggests; the EM decides.** Wherever measured data could replace an EM input (pace, the medium growth range), the tool shows it as a suggestion and switches only when the EM accepts.
 
 ---
 
@@ -36,64 +42,85 @@ The data model is designed so that each of these can be relaxed later without re
 ### Layer 1: observed facts (ingested)
 
 ```ts
-Team          { id, name, source: 'jira'|'linear'|'ado'|'github', sourceRef,
-                workflowMap: Record<sourceStatus, 'not_started'|'started'|'done'|'cancelled'> }
+Team          { id, name, source: 'jira'|'github', sourceRef,
+                workflowMap: Record<sourceStatus, 'not_started'|'started'|'done'|'cancelled'>,
+                startedSignal?,      // GitHub: the label, project column or assignee that means "started"
+                spikeRule,           // issue types and/or labels that mark a spike
+                commitLabel? }       // optional label that commits an epic when applied
 
 WorkItem      { id, teamId, sourceKey, type: 'story'|'bug'|'task'|'epic'|...,
-                parentId?, createdAt, startedAt?, doneAt?, cancelledAt?, lastSyncedAt }
+                parentId?, labels, createdAt, startedAt?, doneAt?, cancelledAt?, lastSyncedAt }
 
-WorkItemEvent { itemId, at, kind: 'status'|'parent'|'type', from?, to? }
+WorkItemEvent { itemId, at, kind: 'status'|'parent'|'type'|'label', from?, to? }
 ```
 
-`WorkItemEvent` holds parent-change history (Jira changelog, Linear `IssueHistory`, ADO revisions, GitHub sub-issue events). That history tells you how many children an epic had at any point in time, which is what makes growth measurable.
+`WorkItemEvent` holds parent-change history (Jira changelog, GitHub sub-issue events). That history tells you how many children an epic had at any point in time, which is what makes growth measurable.
 
-Titles, descriptions, comments and assignees are deliberately **not** ingested (see [Security](#security)).
+`startedAt` comes from the status mapped as "started" in `workflowMap` (or `startedSignal` on GitHub). Cycle time is `startedAt → doneAt`. Created-to-done (lead time) is not used in v1.
+
+Titles, descriptions, comments and assignees are deliberately **not** ingested (see [Security](#security)). On GitHub, an assignee used as `startedSignal` is read only as "has an assignee".
 
 ### Layer 2: derived samples (recomputable, cacheable)
 
 ```ts
-ScopeBaseline    { epicId, committedAt, childCountAtCommit,
-                   rule: 'entered_in_progress'|'first_breakdown'|'user_marked' }
+EpicCommit       { epicId, committedAt, childCountAtCommit,
+                   source: 'user_marked'|'label',
+                   resetAt? }            // set when the epic is pulled back to not started
 
-GrowthSample     { epicId, teamId, baselineRule, committedCount, finalCount,
+GrowthSample     { epicId, teamId, committedCount, finalCount,
                    ratio /* finalCount / committedCount */, completedAt }
 
 EpicSizeSample   { epicId, teamId, finalCount, completedAt }
 
-ThroughputSample { teamId, periodStart, periodDays /* 1 | 7 */, workTypes: string[],
-                   scope: 'all' /* v1; later 'epic_children' etc. */, count }
+ThroughputSample { teamId, milestoneId, periodStart, periodDays /* 1 | 7 */,
+                   scope: 'milestone_epics', count }
 ```
 
-In v1 every `ThroughputSample` has `scope: 'all'`. Because `WorkItem.parentId` is ingested, filtered samples can later be derived from the same data without re-ingesting.
+**Committing.** The EM's commit (or the label) records the epic's child count at that moment. Spikes never commit an epic. A pull-back (from started to not started) resets the commit: `resetAt` is set and the EM commits again on restart. Only the latest commit counts towards the growth ratio. A blocked epic keeps its commit.
 
-Epics committed with no children (`committedCount` of 0) produce no `GrowthSample`, since their ratio is undefined. They still produce an `EpicSizeSample`.
+**The uncommitted-but-active warning.** "The epic moved to in progress, or a non-spike child started" is no longer a commit rule. It only triggers a warning when the epic isn't committed.
 
-`baselineRule` is stored on every growth sample. How to define "committed" scope is still an open question, and different rules give materially different ratios. Storing the rule lets the rules be compared through back-testing.
+**Samples.** Only epics committed in the tool that have since finished produce samples. Epics committed with no children (`committedCount` of 0) produce no `GrowthSample`, since their ratio is undefined. They still produce an `EpicSizeSample`. Old epics are excluded either way.
+
+**Throughput.** `ThroughputSample`s count done tickets whose parent is one of the milestone's epics. Because `WorkItem.parentId` is ingested, other scopes (e.g. children of any epic, or all tickets) can be derived later from the same data without re-ingesting.
 
 ### Layer 3: settings
 
 ```ts
-ForecastSettings { teamId, windowWeeks /* 8..12 */, trials /* 10_000 */,
+ForecastSettings { teamId, trials /* 10_000 */,
                    percentiles /* [50, 70, 85, 95] */, minGrowthSamples /* 7 */,
+                   minMeasuredPaceWeeks /* 8 */, staleWeeksAfterTeamChange /* 4 */,
+                   minResolvedMilestones /* 5, for the track record */,
                    periodDays /* 7 */,
                    maxPeriods /* horizon cap in periods, e.g. 156 when periodDays is 7 */ }
 
-GrowthOverride   { teamId, low, high, reason, setBy, setAt }
-                 // used when there are fewer than minGrowthSamples
+PaceSetting      { teamId, milestoneId, mode: 'manual'|'measured',
+                   manualLow, manualHigh,           // tickets per period
+                   suggestion?: { low, high, basis }, // pre-fill only, e.g. "previous milestone"
+                   setBy, setAt }
+
+TeamChange       { teamId, at, note }   // restarts the measured window; flags pace stale
+
+AmbiguityRanges  { teamId, low: { low: 1, high: 1.5 }, medium: { low: 1, high: 2 },
+                   high: { low: 1.5, high: 3 }, setBy, setAt }    // editable
+
+EpicSetting      { epicId, milestoneId, rank, ambiguity: 'low'|'medium'|'high' /* default medium */ }
 ```
 
-An 8–12 week window gives only 8–12 weekly throughput samples, 4–6 per half for the split-halves check. With so few samples that check is noisy, so it raises a warning rather than blocking a forecast. A team whose setup has been stable for longer can widen the window.
+**Pace.** `PaceSetting.mode` stays `'manual'` until the EM accepts measured pace. The tool offers the switch once the milestone has `minMeasuredPaceWeeks` of its own throughput since the last `TeamChange`. After a team change, the measured window restarts and the EM is prompted to review the manual range. Pace that predates the change is flagged stale until `staleWeeksAfterTeamChange` of new data exist.
+
+**Growth.** Each epic's growth range comes from its ambiguity level. Once at least `minGrowthSamples` growth samples exist, the tool suggests the measured distribution for `medium`. If the EM adopts it, epics marked medium draw from the pooled samples; low and high keep their ranges.
 
 ### Layer 5: calibration ledger
 
 (Layer 4 is the engine contract, in the next section.)
 
 ```ts
-ForecastLog   { id, createdAt, createdBy, teamId, targetEpicIds: string[],
+ForecastLog   { id, createdAt, createdBy, teamId, milestoneId, targetEpicIds: string[],
                 caseHash, caseSnapshotRef /* full SimulationCase, stored as a blob */,
                 quantiles: (number | null)[101], percentileDates }
 
-Outcome       { id, teamId, forecastLogId, targetEpicIds,
+Outcome       { id, teamId, milestoneId, forecastLogId, targetEpicIds,
                 actualDoneAt, actualFinalCount, recordedAt }
 
 ForecastScore { forecastLogId, outcomeId,
@@ -103,6 +130,8 @@ ForecastScore { forecastLogId, outcomeId,
 ```
 
 Storing 101 quantiles, not just p50/p85/p95, gives every forecast a PIT value: the share of simulated trials that finished before the actual date. A histogram of PIT values across many forecasts is a direct calibration check ("our 85% dates were met 78% of the time"). It also gives the empirical correction factor the research recommends (Jørgensen [27]).
+
+Every forecast is logged from the first run. The track record is shown only once `minResolvedMilestones` milestones have an `Outcome`.
 
 The ledger is append-only.
 
@@ -118,14 +147,16 @@ SimulationCase {
 
   scope: Array<{
     epicId, rank,
-    baseCount: number | null,          // count at commit; null or 0 = not broken down at commit
+    committed: boolean,
+    baseCount: number | null,          // count at commit; for an uncommitted epic, its current count
+                                       // (provisional); null or 0 = no children
     currentCount,                      // children now, done or not
     doneCount,
+    growth: number[] | { low, high },  // pooled samples, or the epic's ambiguity range
   }>,
 
-  throughputSamples: number[],                 // done counts per periodDays-long period, from the recent window
-  growthSamples:   number[] | { low, high },   // ratios; the range is the fallback with < minGrowthSamples
-  epicSizeSamples: number[] | { low, high },   // only used for epics not yet broken down
+  throughputSamples: number[] | { low, high },  // measured done counts per period, or the EM's manual range
+  epicSizeSamples:   number[] | { low, high },  // only used for epics with no children
 }
 
 ForecastResult {
@@ -135,11 +166,13 @@ ForecastResult {
   finishedFraction,                    // 'when': share of trials that finished within maxPeriods
   percentileDates: Record<percentile, Date | null>,     // 'when' only; null = beyond the horizon
   percentileCounts: Record<percentile, number>,         // 'howMany' only; see below
-  perEpic: Array<{ epicId, quantiles: (number | null)[101] }>,   // cut-line view ('when' only)
+  perEpic: Array<{ epicId, quantiles: (number | null)[101] }>,   // computed, not shown in the v1 UI
   diagnostics: {
-    throughputSampleCount, splitHalvesError,  // < 25% is "good" (Magennis)
-    throughputScope: 'all',                   // shown in the UI: pace includes KTLO
-    growthSource: 'samples'|'override'|'default',
+    throughputSampleCount, splitHalvesError,  // < 25% is "good" (Magennis); measured pace only
+    throughputScope: 'milestone_epics',       // shown in the UI
+    throughputSource: 'manual'|'measured',
+    growthSource: Array<{ epicId, source: 'samples'|'ambiguity'|'epic_size' }>,
+    uncommittedEpicIds: string[],             // labelled "not committed: wide range"
     trialsHittingHorizon,                     // trials that hit maxPeriods without finishing
     warnings: string[],
   },
@@ -148,30 +181,47 @@ ForecastResult {
 
 ### What the scope distributions are for
 
-- **`growthSamples`** answers: "This epic had 10 tickets when committed. How many will it have when it's done?" Each sample is `finalCount / committedCount` from a finished epic, e.g. `[1.4, 2.0, 1.08]`. This replaces hand-entered split rates.
-- **`epicSizeSamples`** answers: "This epic had no tickets when committed. How many will it have?" A growth ratio can't help there (0 × 1.4 = 0), so the engine draws a total size from the final sizes of finished epics.
+- **`growth`** answers: "This epic had 10 tickets when committed. How many will it have when it's done?" Each sample is `finalCount / committedCount` from a finished epic, e.g. `[1.4, 2.0, 1.08]`, or the epic's ambiguity range when measured samples aren't in use. This replaces hand-entered split rates.
+- **`epicSizeSamples`** answers: "This epic has no tickets. How many will it have?" A growth ratio can't help there (0 × 1.4 = 0), so the engine draws a total size from the final sizes of finished epics, or from the default range.
 
 Growth ratios are measured from the count at commit, so they are applied to `baseCount` (the count at commit), not to the epic's current count. Applying them to an epic that has already grown would double-count the growth. A drawn total is never allowed below `currentCount`, though: tickets that already exist are known work, so a low ratio can't make them disappear.
 
-`throughputSamples` must be in the same period length as the case. `forecast/buildCase.ts` sums daily `ThroughputSample`s into `periodDays`-long periods and rejects samples with a different `periodDays`. Feeding daily counts into a weekly case would make the forecast about 7 times too slow.
+An **uncommitted epic** has no baseline yet. `forecast/buildCase.ts` passes its current count as a provisional `baseCount` and sets `committed: false`. The engine treats it the same way, and the forecast labels it "not committed: wide range".
+
+`throughputSamples` must be in the same period length as the case. `forecast/buildCase.ts` sums daily `ThroughputSample`s into `periodDays`-long periods and rejects samples with a different `periodDays`. Feeding daily counts into a weekly case would make the forecast about 7 times too slow. A manual range is already per period.
 
 ### One trial ('when')
 
-1. For each epic, set its total to `baseCount × one random growth ratio`, or draw one epic size if `baseCount` is null or 0. Floor the total at `currentCount`. Remaining work is `max(total − doneCount, 0)`. **Draw one ratio per epic; do not average several draws.** Averaging narrows the distribution and hides the tail (research §1.1).
-2. Each period, draw one throughput sample with replacement (bootstrap) and subtract it from the remaining work, taking epics in rank order.
+1. **Correlated growth.** Draw one uniform `u` in [0, 1) for the trial. For each epic, its growth ratio is the `u`-quantile of its own `growth` distribution: the empirical quantile of the samples, or `low + u × (high − low)` for a range. Set its total to `baseCount × ratio`, or draw one epic size (independently) if `baseCount` is null or 0. Floor the total at `currentCount`. Remaining work is `max(total − doneCount, 0)`.
+   - A milestone's epics tend to over-run together (same team, same planning habits), so one shared `u` per trial keeps the range from coming out falsely narrow. Each epic still keeps its own range.
+   - **Do not average several draws.** Averaging narrows the distribution and hides the tail (research §1.1).
+2. **Pace.** Each period, draw one throughput value: a bootstrap draw with replacement from measured samples, or a whole number drawn uniformly from `[low, high]` for a manual range. Subtract it from the remaining work, taking epics in rank order.
 3. Record the period in which each epic finishes, and the period in which all of them finish.
-4. Stop at `maxPeriods`. A trial that hasn't finished by then is recorded as "beyond the horizon", which also guards against all-zero throughput samples looping forever.
+4. Stop at `maxPeriods`. A trial that hasn't finished by then is recorded as "beyond the horizon", which also guards against all-zero throughput looping forever.
 
-Collect the trial results and compute 101 quantiles overall and per epic. Trials beyond the horizon sort after every finishing trial and are kept, not dropped or clamped to `maxPeriods`. Dropping them would make every percentile too early, and clamping them would show the horizon as if it were a real finish date. Any quantile that lands on such a trial is `null`, and the UI shows it as "later than <horizon date>". `finishedFraction` says how many trials finished, and the forecast warns when it is below the highest reported percentile.
+Collect the trial results and compute 101 quantiles overall and per epic.
+
+**Trials beyond the horizon** sort after every finishing trial and are kept, not dropped or clamped to `maxPeriods`. Dropping them would make every percentile too early, and clamping them would show the horizon as if it were a real finish date. Any quantile that lands on such a trial is `null`, and the UI shows it as "later than <horizon date>". `finishedFraction` says how many trials finished, and the forecast warns when it is below the highest reported percentile.
+
+**Per-epic results** assume epics are worked one at a time (step 2), so they are computed and logged but not shown in v1.
 
 ### One trial ('howMany')
 
 "How many items will be done by `byDate`?" uses no scope draws.
 
-1. Run `floor((byDate − startDate) / periodDays)` periods, drawing one throughput sample per period with replacement.
+1. Run `floor((byDate − startDate) / periodDays)` periods, drawing one throughput value per period as in 'when' step 2.
 2. Record the total items done.
 
 Collect the totals and compute 101 quantiles. Confidence runs the other way from 'when': "85% sure" means at least this many items get done in 85% of trials, which is the **15th** percentile of the totals. So `percentileCounts[p] = quantiles[100 − p]`. `percentileDates` and `perEpic` are empty for this question.
+
+### Not enough data
+
+The forecast states plainly when an input is thin rather than hiding it, e.g. "Only 4 weeks of finished tickets. Forecast needs 8." These go in `diagnostics.warnings`, alongside:
+
+- an epic in progress but not committed;
+- a blocked epic;
+- pace marked stale after a team change;
+- wide cycle-time spread, or tickets ageing beyond the team's usual cycle time.
 
 ---
 
@@ -184,35 +234,37 @@ src/
     workItem.ts           # WorkItem, WorkItemEvent
 
   samples/                # Layer 2: pure derivations from model/
-    throughput.ts         # WorkItems → ThroughputSample[]
-    growth.ts             # baselines + final counts → GrowthSample[]
+    commits.ts            # commits, pull-back resets, uncommitted-but-active detection
+    throughput.ts         # WorkItems → ThroughputSample[] (milestone epics only)
+    growth.ts             # commits + final counts → GrowthSample[]
     epicSize.ts           # finished epics → EpicSizeSample[]
+    cycleTime.ts          # started → done; spread and ageing
 
   engine/                 # pure: no I/O, no DB, no clock
     types.ts              # SimulationCase, ForecastResult
     simulate.ts           # simulateCase(case) → result
-    random.ts             # seeded PRNG; drawFrom(samples | {low, high})
+    random.ts             # seeded PRNG; drawFrom(samples | {low, high}); quantileAt(u)
     quantiles.ts
     index.ts              # exports simulateCase and the types only
 
   forecast/               # the only module that knows both stored data and the engine
-    buildCase.ts          # picks the window, gathers samples, applies fallbacks and limits
-    settings.ts           # ForecastSettings defaults
+    buildCase.ts          # pace mode, ambiguity ranges, provisional baselines, limits
+    settings.ts           # ForecastSettings and AmbiguityRanges defaults
+    suggestions.ts        # suggested pace range, measured medium range, switch offers
     diagnostics.ts        # sample counts, split-halves stability, warnings
 
   ledger/                 # Layer 5
     forecastLog.ts
     outcomes.ts           # record actuals; compute PIT and hit rates
 
-  access/                 # team-scoped authorization checks
-  secrets/                # credential storage interface (env / KMS / OS keychain)
-  connectors/             # later: jira/, linear/, ado/, github/ → model/ types
-  storage/                # later: DB and cache adapters behind interfaces
+  secrets/                # credential storage interface; v1: OS keychain
+  connectors/             # jira/ (first), github/ (second) → model/ types; read-only
+  storage/                # interfaces; v1: SQLite file
 
 test/
-  engine/                 # deterministic tests with fixed seeds, plus a performance benchmark
-  samples/
-  fixtures/               # small hand-made histories (.json) with known answers
+  engine/                 # Seam A: fixed seeds, plus a performance benchmark
+  forecast/               # Seam B: facts + settings + ledger → milestone forecast view
+  fixtures/               # canned histories and recorded Jira/GitHub responses (.json)
 ```
 
 **Dependency rules:**
@@ -220,13 +272,19 @@ test/
 - `samples/` imports only `model/`.
 - `forecast/` is the only module that depends on both stored data and `engine/`.
 - `ledger/` depends only on `engine/types.ts`.
-- `connectors/` and `storage/` sit at the edges, so v1 can run from fixture files or a CSV export.
+- `connectors/`, `storage/` and `secrets/` sit at the edges behind interfaces, so v1 can run from canned data and the same code can be hosted later.
 
 **File types:**
 - Source is `.ts`.
 - Tests are `.test.ts`.
-- Fixtures are `.json`, in the same shape a connector produces.
+- Fixtures are `.json`, in the same shape a connector produces (or the raw API response, for connector replay tests).
 - Settings defaults are a typed `.ts` constant.
+
+**Test seams.** There are two, as set in the spec:
+- **Seam A** is `simulateCase`, tested with fixed seeds.
+- **Seam B** is `forecast/`: stored facts, settings and the ledger go in, and the milestone forecast view comes out.
+
+Connectors are tested through Seam B by replaying recorded API responses, with no seam of their own.
 
 ---
 
@@ -245,28 +303,25 @@ test/
 
 ## Security
 
-Most of the risk is at the edges, not in the engine. Roughly in priority order:
+v1 is a local, single-user tool, so items 1 and 2 are what matter. Items 3 and 4 still apply; the rest becomes relevant only with a hosted or multi-team version.
 
 1. **Ticketing credentials.**
-   - Prefer OAuth or app installs with read-only scopes: Jira OAuth 2.0 (3LO), a Linear OAuth app, a GitHub App, and Entra ID for Azure DevOps. A Jira API token or a PAT carries all of that user's permissions, including write access.
-   - Keep tokens server-side only and encrypt them at rest. Never put them in the browser, `localStorage`, logs or error messages.
-   - Store credentials per connection (team or workspace), not per app.
-   - Verify webhook signatures (GitHub Projects v2 capture).
-2. **Data minimisation.** The model needs only IDs, types, parent links, status timestamps and counts. Don't ingest titles, descriptions, comments or assignees. With fixed capacity there is no `Person` table, so v1 stores no personal data beyond the user who created each forecast.
-3. **Access control.**
-   - Scope every query by team. A user should see a team's data only if their own connection to the ticketing tool can see that project.
-   - The aggregator and stakeholders see summaries only (`projectForecastSummary`), never item-level data.
-   - The forecast ledger is append-only, with `createdBy` recorded. Calibration numbers mean nothing if old forecasts can be edited.
-4. **Engine input limits.**
+   - Use read-only access: Jira OAuth 2.0 (3LO) with read scopes, and a GitHub App or fine-grained token with read-only issue access. A classic API token or PAT carries all of that user's permissions, including write access.
+   - Store tokens in the OS keychain. Never put them in the browser, `localStorage`, the SQLite file, logs or error messages.
+   - No webhooks in v1. Connectors poll on refresh.
+2. **Data minimisation.** The model needs only IDs, types, parent links, labels, status timestamps and counts. Don't ingest titles, descriptions, comments or assignee identities. With fixed capacity there is no `Person` table.
+3. **Engine input limits.**
    - Cap `trials`, sample-array sizes and `maxPeriods` in `forecast/buildCase.ts`, and check them again at the engine boundary.
    - The horizon cap also prevents non-termination when throughput is all zeros.
    - The PRNG does **not** need to be cryptographic. A fast seeded PRNG is correct.
-5. **Dependencies.**
+4. **Dependencies.**
    - Keep `engine/` free of dependencies.
    - Commit a lockfile and run `npm audit` or Dependabot.
    - TypeScript and Rust/WASM are both memory-safe, so the language choice doesn't change the security picture.
-
-How much of this applies depends on deployment. A local, single-user tool needs mostly items 1 and 2. A hosted service shared across teams needs all of them.
+5. **Later, for hosted or multi-team use:**
+   - Scope every query by team. Aggregators and stakeholders see summaries only, never item-level data.
+   - Encrypt tokens at rest server-side, and verify webhook signatures.
+   - The forecast ledger is append-only, with `createdBy` recorded. Calibration numbers mean nothing if old forecasts can be edited.
 
 ---
 
@@ -274,16 +329,18 @@ How much of this applies depends on deployment. A local, single-user tool needs 
 
 | Feature | What changes |
 |---|---|
-| Throughput filter | Let the EM choose which tickets count as pace, e.g. only children of epics, excluding KTLO and unparented work. Derive `ThroughputSample`s with that `scope` from `WorkItem.parentId` and `type`; `diagnostics.throughputScope` reports the choice so the UI label stays accurate. |
-| Capacity calendar | Add `Person`, `Allocation` and `Absence` tables, plus `capacityFractionThen` on `ThroughputSample`. Add `capacityByPeriod` and an explicit `capacityModel` (linear by default) to `SimulationCase`. |
+| Pre-installation history (v1.1 or v2) | Read ticket history from before installation to measure pace and growth. The risks to handle: a different team, a different KTLO load, different products, company-wide efforts, or a change of method (e.g. story points to Kanban). In v1, old data may only pre-fill a suggestion. |
+| Other pace scopes (v2) | Pace from children of any epic, or from all of the team's work. Derive `ThroughputSample`s with that `scope` from `WorkItem.parentId`; `diagnostics.throughputScope` reports the choice. |
+| Capacity calendar | The last step of v1's build order: absences as a capacity fraction per period, with `capacityByPeriod` and a `capacityModel` (linear by default) on `SimulationCase`. A per-person allocation table comes later, if ever. |
+| Per-epic dates in the UI | Shown only after evidence (back-testing or the ledger) that they're reliable despite parallel work. |
+| Multi-team | An aggregator, the stakeholder roadmap, publishing, cross-team reference split rates, and access control. The data is already keyed by team. |
 | Risks / added-scope events | Add `AddedScopeEvent { probability, impactLow, impactHigh }`, applied once per trial. |
-| Reference classes | Add `ReferenceClass { workType, understanding }`. Growth and epic-size samples become maps keyed by class. |
-| Unplanned work (bugs) | Choose between a separate arrival stream and counting it in throughput. |
+| Reference classes | Add `ReferenceClass { workType }` if the ledger shows growth differs by work type beyond what the ambiguity levels capture. |
 | Flow signals | Feed Work Item Age against cycle-time percentiles back in as "likely to split". |
+| Other trackers | Linear, Azure DevOps. Webhooks. |
 
 ## Open questions
 
-- **Definition of "committed" scope** (`baselineRule`): decide by back-testing the candidate rules.
-- **Minimum growth samples** before measured samples beat the fallback range: start at 7 (Magennis), then test.
-- **Per-epic dates assume epics are worked one at a time.** Step 2 of a trial spends throughput on epics in rank order, so the cut-line view puts early epics too early and later ones too late when the team works epics in parallel. The milestone date is unaffected. Decide whether per-epic likelihood is shown in the UI, or labelled as rougher than the milestone figure, after back-testing.
-- **Deployment model** (local or hosted): this decides how much of the security section applies to v1.
+- **Minimum growth samples** before measured samples are suggested: start at 7 (Magennis), then test against the ledger.
+- **Default ambiguity ranges** (low 1–1.5×, medium 1–2×, high 1.5–3×): check against the ledger once milestones finish.
+- **Default epic-size range** for epics with no children before enough `EpicSizeSample`s exist.
