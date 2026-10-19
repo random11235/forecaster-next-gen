@@ -157,6 +157,7 @@ describe('simulateCase: input limits', () => {
     ['maxPeriods', { maxPeriods: 10_001 }],
     ['throughputSamples', { throughputSamples: [] }],
     ['throughputSamples', { throughputSamples: [2, -1] }],
+    ['throughputSamples', { throughputSamples: [2, 1.5] }],
     ['throughputSamples', { throughputSamples: Array(100_001).fill(1) }],
     ['growth', { scope: [epic({ growth: [] })] }],
     ['growth', { scope: [epic({ growth: [Number.NaN] })] }],
