@@ -9,6 +9,7 @@ export function assertValidCase({ trials, maxPeriods, question, scope, throughpu
   assertWholeNumberIn('trials', trials, 1, MAX_TRIALS)
   assertWholeNumberIn('maxPeriods', maxPeriods, 1, MAX_PERIODS)
   assertSamples('throughputSamples', throughputSamples)
+  assertWholeNumbers('throughputSamples', throughputSamples)
   if (question.kind !== 'when') throw new RangeError(`question must be 'when', got ${question.kind}`)
   if (scope.length !== 1) throw new RangeError(`scope must hold exactly one epic, got ${scope.length}`)
   for (const epic of scope) {
@@ -27,6 +28,13 @@ function assertWholeNumberIn(field: string, value: number, min: number, max: num
 function assertNonNegative(field: string, value: number): void {
   if (!Number.isFinite(value) || value < 0) {
     throw new RangeError(`${field} must be a finite number of at least 0, got ${value}`)
+  }
+}
+
+/** Throughput counts done tickets, so a fractional sample is bad input, and whole numbers keep remaining work free of float error. */
+function assertWholeNumbers(field: string, samples: readonly number[]): void {
+  for (const sample of samples) {
+    if (!Number.isInteger(sample)) throw new RangeError(`${field} must hold whole numbers, got ${sample}`)
   }
 }
 

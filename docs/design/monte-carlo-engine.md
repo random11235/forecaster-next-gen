@@ -155,7 +155,7 @@ SimulationCase {
     growth: number[] | { low, high },  // pooled samples, or the epic's ambiguity range
   }>,
 
-  throughputSamples: number[] | { low, high },  // measured done counts per period, or the EM's manual range
+  throughputSamples: number[] | { low, high },  // measured done counts per period (whole numbers), or the EM's manual range
   epicSizeSamples:   number[] | { low, high },  // only used for epics with no children
 }
 
@@ -192,7 +192,7 @@ An **uncommitted epic** has no baseline yet. `forecast/buildCase.ts` passes its 
 
 ### One trial ('when')
 
-1. **Correlated growth.** Draw one uniform `u` in [0, 1) for the trial. For each epic, its growth ratio is the `u`-quantile of its own `growth` distribution: the empirical quantile of the samples, or `low + u × (high − low)` for a range. Set its total to `baseCount × ratio`, or draw one epic size (independently) if `baseCount` is null or 0. Floor the total at `currentCount`. Remaining work is `max(total − doneCount, 0)`.
+1. **Correlated growth.** Draw one uniform `u` in [0, 1) for the trial. For each epic, its growth ratio is the `u`-quantile of its own `growth` distribution: the empirical quantile of the samples, or `low + u × (high − low)` for a range. Set its total to `baseCount × ratio`, rounded to 9 decimal places to clear float error (100 × 1.1 is 110.00000000000001) while keeping real fractions, or draw one epic size (independently) if `baseCount` is null or 0. Floor the total at `currentCount`. Remaining work is `max(total − doneCount, 0)`.
    - A milestone's epics tend to over-run together (same team, same planning habits), so one shared `u` per trial keeps the range from coming out falsely narrow. Each epic still keeps its own range.
    - **Do not average several draws.** Averaging narrows the distribution and hides the tail (research §1.1).
 2. **Pace.** Each period, draw one throughput value: a bootstrap draw with replacement from measured samples, or a whole number drawn uniformly from `[low, high]` for a manual range. Subtract it from the remaining work, taking epics in rank order.
