@@ -5,11 +5,12 @@ const MAX_PERIODS = 10_000
 const MAX_SAMPLES = 100_000
 
 /** Rejects cases outside the engine's limits, so a bad input fails loudly instead of forecasting. */
-export function assertValidCase({ trials, maxPeriods, scope, throughputSamples }: SimulationCase): void {
+export function assertValidCase({ trials, maxPeriods, question, scope, throughputSamples }: SimulationCase): void {
   assertWholeNumberIn('trials', trials, 1, MAX_TRIALS)
   assertWholeNumberIn('maxPeriods', maxPeriods, 1, MAX_PERIODS)
   assertSamples('throughputSamples', throughputSamples)
-  if (scope.length === 0) throw new RangeError('scope must hold at least one epic')
+  if (question.kind !== 'when') throw new RangeError(`question must be 'when', got ${question.kind}`)
+  if (scope.length !== 1) throw new RangeError(`scope must hold exactly one epic, got ${scope.length}`)
   for (const epic of scope) {
     assertNonNegative('baseCount', epic.baseCount)
     assertNonNegative('doneCount', epic.doneCount)
