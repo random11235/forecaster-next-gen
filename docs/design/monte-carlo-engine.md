@@ -164,7 +164,7 @@ ForecastResult {
   quantiles: (number | null)[101],     // 'when': finish period at p0..p100; null = beyond the horizon
                                        // 'howMany': items done by byDate at p0..p100
   finishedFraction,                    // 'when': share of trials that finished within maxPeriods
-  percentileDates: Record<percentile, Date | null>,     // 'when' only; null = beyond the horizon
+  percentileDates: Record<percentile, string | null>,   // 'when' only, ISO YYYY-MM-DD; null = beyond the horizon
   percentileCounts: Record<percentile, number>,         // 'howMany' only; see below
   perEpic: Array<{ epicId, quantiles: (number | null)[101] }>,   // computed, not shown in the v1 UI
   diagnostics: {
