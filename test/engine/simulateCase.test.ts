@@ -51,7 +51,8 @@ describe("simulateCase: 'when' for one committed epic", () => {
   })
 
   test('an epic with more done than its drawn total has no remaining work', () => {
-    const result = simulateCase(whenCase({ scope: [epic({ currentCount: 14, doneCount: 14 })] }))
+    // 10 × 0.5 = 5 total, 8 done
+    const result = simulateCase(whenCase({ scope: [epic({ growth: [0.5], doneCount: 8 })] }))
 
     expect(result.quantiles.every((q) => q === 0)).toBe(true)
     expect(result.percentileDates[95]).toBe('2026-01-05')
@@ -136,5 +137,23 @@ describe('simulateCase: reproducibility', () => {
     const reseeded = { ...stochasticCase, seed: stochasticCase.seed + 1 }
 
     expect(simulateCase(reseeded).caseHash).not.toBe(simulateCase(stochasticCase).caseHash)
+  })
+})
+
+describe('simulateCase: input limits', () => {
+  test.each<[string, Partial<SimulationCase>]>([
+    ['trials', { trials: 0 }],
+    ['trials', { trials: 1_000_001 }],
+    ['maxPeriods', { maxPeriods: 0 }],
+    ['maxPeriods', { maxPeriods: 10_001 }],
+    ['throughputSamples', { throughputSamples: [] }],
+    ['throughputSamples', { throughputSamples: [2, -1] }],
+    ['throughputSamples', { throughputSamples: Array(100_001).fill(1) }],
+    ['growth', { scope: [epic({ growth: [] })] }],
+    ['growth', { scope: [epic({ growth: [Number.NaN] })] }],
+    ['baseCount', { scope: [epic({ baseCount: -1 })] }],
+    ['scope', { scope: [] }],
+  ])('rejects a case with invalid %s', (field, overrides) => {
+    expect(() => simulateCase(whenCase(overrides))).toThrow(new RegExp(field))
   })
 })

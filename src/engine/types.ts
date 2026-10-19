@@ -1,4 +1,6 @@
-export type Percentile = 50 | 85 | 95
+/** The confidence levels reported as dates. */
+export const PERCENTILES = [50, 85, 95] as const
+export type Percentile = (typeof PERCENTILES)[number]
 
 export interface ScopeEntry {
   epicId: string
