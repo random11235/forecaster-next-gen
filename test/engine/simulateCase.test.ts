@@ -153,6 +153,8 @@ describe('simulateCase: input limits', () => {
     ['growth', { scope: [epic({ growth: [Number.NaN] })] }],
     ['baseCount', { scope: [epic({ baseCount: -1 })] }],
     ['scope', { scope: [] }],
+    ['scope', { scope: [epic(), epic({ epicId: 'EPIC-2', rank: 2 })] }],
+    ['question', { question: { kind: 'howMany' } as unknown as SimulationCase['question'] }],
   ])('rejects a case with invalid %s', (field, overrides) => {
     expect(() => simulateCase(whenCase(overrides))).toThrow(new RegExp(field))
   })
