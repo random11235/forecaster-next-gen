@@ -16,11 +16,11 @@ Infer the repo from `git remote -v`; `gh` does this automatically when run insid
 
 ## Ticket lifecycle
 
-We measure ticket cycle time: from the `in-progress` label being added to the issue being closed.
+We measure ticket cycle time: from the `in-progress` label being added to the ticket being done. A ticket is done when it closes, or under `/implement-spec` when it is commented `merged`.
 
-- Before writing any code for a ticket, run `gh issue edit <n> --add-label in-progress`. With `/implement-spec`, label each ticket when its implementer starts, not when the run starts.
+- Before writing any code for a ticket, run `gh issue edit <n> --add-label in-progress`. Under `/implement-spec`, the orchestrator labels each ticket `in-progress` when it dispatches it, and comments `merged` on the ticket when its branch merges into the integration branch (tickets close together at the end of the run, so closing doesn't time them).
 - If work on a ticket stops without finishing, remove the label: the ticket goes back to the backlog. Restarting it is a new start, so cycle time counts from the last time the label was added.
-- Issues labelled `epic` only group child tickets. Never work on, label or close an epic directly.
+- An `epic` only groups child tickets: work happens on its children, and it never gets `in-progress`. Close it when its last child closes.
 - Non-epic tickets should be roughly the same size. When splitting work, aim for similar cycle times.
 
 ## Pull requests as a triage surface
