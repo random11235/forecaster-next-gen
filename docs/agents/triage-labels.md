@@ -13,3 +13,12 @@ The skills speak in terms of five canonical triage roles. This file maps those r
 When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table.
 
 Edit the "Label in our tracker" column to match whatever vocabulary you actually use.
+
+## Lifecycle labels
+
+These aren't triage roles. Their rules live in `issue-tracker.md` (Ticket lifecycle).
+
+| Label         | Meaning                                         |
+| ------------- | ----------------------------------------------- |
+| `in-progress` | Work has started; marks the start of cycle time |
+| `epic`        | Groups child tickets; not worked directly       |

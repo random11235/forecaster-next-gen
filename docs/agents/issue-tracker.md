@@ -14,6 +14,15 @@ Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all o
 
 Infer the repo from `git remote -v`; `gh` does this automatically when run inside a clone.
 
+## Ticket lifecycle
+
+We measure ticket cycle time: from the `in-progress` label being added to the ticket being done. A ticket is done when it closes, or under `/implement-spec` when it is commented `merged`.
+
+- Before writing any code for a ticket, run `gh issue edit <n> --add-label in-progress`. Under `/implement-spec`, the orchestrator labels each ticket `in-progress` when it dispatches it, and comments `merged` on the ticket when its branch merges into the integration branch (tickets close together at the end of the run, so closing doesn't time them).
+- If work on a ticket stops without finishing, remove the label: the ticket goes back to the backlog. Restarting it is a new start, so cycle time counts from the last time the label was added.
+- An `epic` only groups child tickets: work happens on its children, and it never gets `in-progress`. Close it when its last child closes.
+- Non-epic tickets should be roughly the same size. When splitting work, aim for similar cycle times.
+
 ## Pull requests as a triage surface
 
 **PRs as a request surface: no.** _(Set to `yes` if this repo treats external PRs as feature requests; `/triage` reads this flag.)_
