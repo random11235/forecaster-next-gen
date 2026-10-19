@@ -17,7 +17,7 @@ export function simulateCase(simulationCase: SimulationCase): ForecastResult {
   const epic = scope[0]!
 
   for (let trial = 0; trial < trials; trial++) {
-    const total = epic.baseCount * drawFrom(random, epic.growth)
+    const total = withoutFloatError(epic.baseCount * drawFrom(random, epic.growth))
     let remaining = Math.max(total - epic.doneCount, 0)
     let period = 0
     while (remaining > 0 && period < maxPeriods) {
@@ -50,6 +50,11 @@ export function simulateCase(simulationCase: SimulationCase): ForecastResult {
     finishedFraction: finishedTrials / trials,
     percentileDates,
   }
+}
+
+/** Rounds to 9 decimal places: clears float noise (100 × 1.1) but keeps real fractions (12.5). */
+function withoutFloatError(value: number): number {
+  return Math.round(value * 1e9) / 1e9
 }
 
 /** Nearest-rank percentile of sorted values, for p in 0..100. */
