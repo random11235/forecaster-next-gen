@@ -1,7 +1,7 @@
 import { periodEndDate, wholePeriodsUntil } from './dates.js'
 import { hashJson } from './hash.js'
 import { createRandom, drawFrom, drawWholeNumberIn, type Random } from './random.js'
-import { PERCENTILES, type ForecastResult, type Percentile, type SimulationCase, type ThroughputRange } from './types.js'
+import { PERCENTILES, type ForecastResult, type Percentile, type GrowthRange, type SimulationCase, type ThroughputRange } from './types.js'
 import { assertValidCase } from './validate.js'
 
 /** Marks a trial that hit `maxPeriods` without finishing; sorts after every real period. */
@@ -27,20 +27,45 @@ export function simulateCase(simulationCase: SimulationCase): ForecastResult {
 
 function simulateWhen(simulationCase: SimulationCase, random: Random): QuestionResult {
   const { trials, maxPeriods, scope, throughputSamples } = simulationCase
+  const ranked = [...scope].sort((a, b) => a.rank - b.rank)
+  const growthAt = ranked.map((epic) => growthQuantiles(epic.growth))
+  const remaining = new Float64Array(ranked.length)
+  const epicFinishPeriods = ranked.map(() => new Float64Array(trials))
   const finishPeriods = new Float64Array(trials)
   let finishedTrials = 0
 
-  const epic = scope[0]!
-
   for (let trial = 0; trial < trials; trial++) {
-    const total = withoutFloatError(epic.baseCount * drawFrom(random, epic.growth))
-    let remaining = Math.max(total - epic.doneCount, 0)
-    let period = 0
-    while (remaining > 0 && period < maxPeriods) {
-      period++
-      remaining -= drawThroughput(random, throughputSamples)
+    // One draw for the whole trial: a milestone's epics tend to over-run together
+    const u = random()
+    for (let i = 0; i < ranked.length; i++) {
+      const epic = ranked[i]!
+      const ratio = growthAt[i]!(u)
+      const total = Math.max(withoutFloatError(epic.baseCount * ratio), epic.currentCount)
+      remaining[i] = Math.max(total - epic.doneCount, 0)
+      if (remaining[i] === 0) epicFinishPeriods[i]![trial] = 0
     }
-    if (remaining > 0) {
+
+    // `next` is the first ranked epic with work left; epics before it have finished
+    let next = skipFinished(remaining, 0)
+    let period = 0
+    while (next < ranked.length && period < maxPeriods) {
+      period++
+      let throughput = drawThroughput(random, throughputSamples)
+      while (throughput > 0 && next < ranked.length) {
+        const burned = Math.min(throughput, remaining[next]!)
+        remaining[next]! -= burned
+        throughput -= burned
+        if (remaining[next] === 0) {
+          epicFinishPeriods[next]![trial] = period
+          next = skipFinished(remaining, next + 1)
+        }
+      }
+    }
+    for (let i = next; i < ranked.length; i++) {
+      if (remaining[i]! > 0) epicFinishPeriods[i]![trial] = BEYOND_HORIZON
+    }
+
+    if (next < ranked.length) {
       finishPeriods[trial] = BEYOND_HORIZON
     } else {
       finishPeriods[trial] = period
@@ -48,11 +73,7 @@ function simulateWhen(simulationCase: SimulationCase, random: Random): QuestionR
     }
   }
 
-  finishPeriods.sort()
-  const quantiles = Array.from({ length: 101 }, (_, p) => {
-    const q = nearestRankPercentile(finishPeriods, p)
-    return q === BEYOND_HORIZON ? null : q
-  })
+  const quantiles = finishQuantiles(finishPeriods)
   const percentileDates = Object.fromEntries(
     PERCENTILES.map((p) => {
       const q = quantiles[p]!
@@ -65,8 +86,37 @@ function simulateWhen(simulationCase: SimulationCase, random: Random): QuestionR
     finishedFraction: finishedTrials / trials,
     percentileDates,
     percentileCounts: {},
-    perEpic: [{ epicId: epic.epicId, quantiles }],
+    perEpic: ranked.map((epic, i) => ({ epicId: epic.epicId, quantiles: finishQuantiles(epicFinishPeriods[i]!) })),
   }
+}
+
+/**
+ * An epic's growth ratio at quantile `u` in [0, 1): the empirical quantile of its samples,
+ * each covering an equal share of [0, 1), or `low + u × (high − low)` for a range.
+ */
+function growthQuantiles(growth: readonly number[] | GrowthRange): (u: number) => number {
+  if (!Array.isArray(growth)) {
+    const { low, high } = growth as GrowthRange
+    return (u) => low + u * (high - low)
+  }
+  const sorted = Float64Array.from(growth).sort()
+  return (u) => sorted[Math.floor(u * sorted.length)]!
+}
+
+/** The index of the first epic from `from` on with work remaining, or the epic count if none has. */
+function skipFinished(remaining: Float64Array, from: number): number {
+  let i = from
+  while (i < remaining.length && remaining[i] === 0) i++
+  return i
+}
+
+/** 101 quantiles of finish periods, null where a quantile lands beyond the horizon. Sorts in place. */
+function finishQuantiles(finishPeriods: Float64Array): (number | null)[] {
+  finishPeriods.sort()
+  return Array.from({ length: 101 }, (_, p) => {
+    const q = nearestRankPercentile(finishPeriods, p)
+    return q === BEYOND_HORIZON ? null : q
+  })
 }
 
 function simulateHowMany(simulationCase: SimulationCase, byDate: string, random: Random): QuestionResult {
