@@ -47,3 +47,8 @@ function rotateLeft(value: number, bits: number): number {
 export function drawFrom(random: Random, samples: readonly number[]): number {
   return samples[Math.floor(random() * samples.length)]!
 }
+
+/** One whole number drawn uniformly from [low, high], both ends included. */
+export function drawWholeNumberIn(random: Random, low: number, high: number): number {
+  return low + Math.floor(random() * (high - low + 1))
+}
