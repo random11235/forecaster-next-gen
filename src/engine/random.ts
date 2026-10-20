@@ -8,10 +8,12 @@ export function createRandom(seed: number): Random {
   // splitmix32 spreads both 32-bit halves of the seed over the 128-bit state
   const fromLow = splitmix32(seed >>> 0)
   const fromHigh = splitmix32(Math.floor(seed / 4_294_967_296) >>> 0)
-  let s0 = fromLow()
-  let s1 = fromHigh()
-  let s2 = fromLow()
-  let s3 = fromHigh()
+  const next = xoshiro128StarStar(fromLow(), fromHigh(), fromLow(), fromHigh())
+  return () => next() / 4_294_967_296
+}
+
+/** The xoshiro128** 1.1 generator from a 128-bit state; each call returns an unsigned 32-bit integer. */
+export function xoshiro128StarStar(s0: number, s1: number, s2: number, s3: number): () => number {
   return () => {
     const result = Math.imul(rotateLeft(Math.imul(s1, 5), 7), 9)
     const t = s1 << 9
@@ -21,7 +23,7 @@ export function createRandom(seed: number): Random {
     s0 ^= s3
     s2 ^= t
     s3 = rotateLeft(s3, 11)
-    return (result >>> 0) / 4_294_967_296
+    return result >>> 0
   }
 }
 
