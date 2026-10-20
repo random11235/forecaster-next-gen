@@ -4,6 +4,8 @@ import type { GrowthRange, SimulationCase, ThroughputRange } from './types.js'
 const MAX_TRIALS = 1_000_000
 const MAX_PERIODS = 10_000
 const MAX_SAMPLES = 100_000
+/** Each epic keeps a finish period per trial, so epics × trials sizes memory; real milestones hold a few dozen. */
+const MAX_EPICS = 100
 /** Tickets per period; far above any real team, and far below the 2^32 steps the PRNG can draw uniformly. */
 const MAX_THROUGHPUT = 100_000
 
@@ -23,7 +25,9 @@ export function assertValidCase(simulationCase: SimulationCase): void {
   } else if (question.kind !== 'when') {
     throw new RangeError(`question must be 'when' or 'howMany', got ${(question as { kind: unknown }).kind}`)
   }
-  if (scope.length === 0) throw new RangeError('scope must hold at least one epic, got none')
+  if (scope.length === 0 || scope.length > MAX_EPICS) {
+    throw new RangeError(`scope must hold 1 to ${MAX_EPICS} epics, got ${scope.length}`)
+  }
   for (const epic of scope) {
     assertNonNegative('baseCount', epic.baseCount)
     assertNonNegative('currentCount', epic.currentCount)
