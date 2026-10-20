@@ -122,6 +122,76 @@ describe("simulateCase: 'when' for one committed epic", () => {
   })
 })
 
+describe('simulateCase: manual pace range', () => {
+  test('measured samples are reported as the throughput source', () => {
+    expect(simulateCase(whenCase()).diagnostics.throughputSource).toBe('measured')
+  })
+
+  test('a manual range paces the forecast and is reported as the throughput source', () => {
+    // 10 tickets at exactly 2 per period → 5 periods
+    const result = simulateCase(whenCase({ throughputSamples: { low: 2, high: 2 } }))
+
+    expect(result.quantiles.every((q) => q === 5)).toBe(true)
+    expect(result.diagnostics.throughputSource).toBe('manual')
+  })
+})
+
+describe("simulateCase: 'how many by date'", () => {
+  function howManyCase(byDate: string, overrides: Partial<SimulationCase> = {}): SimulationCase {
+    return whenCase({ question: { kind: 'howMany', byDate }, ...overrides })
+  }
+
+  test('runs only the whole periods before byDate and counts the items done', () => {
+    // 2026-01-05 to 2026-01-31 is 26 days: 3 whole weekly periods at 3 per period → 9
+    const result = simulateCase(howManyCase('2026-01-31', { throughputSamples: [3] }))
+
+    expect(result.quantiles).toHaveLength(101)
+    expect(result.quantiles.every((q) => q === 9)).toBe(true)
+    expect(result.percentileCounts).toEqual({ 50: 9, 85: 9, 95: 9 })
+    expect(result.percentileDates).toEqual({})
+    expect(result.perEpic).toEqual([])
+  })
+
+  test('draws no scope: the epic does not cap the items done', () => {
+    // The epic holds 10 tickets, but 4 periods at 5 per period count 20
+    const result = simulateCase(howManyCase('2026-02-02', { throughputSamples: [5] }))
+
+    expect(result.quantiles[50]).toBe(20)
+  })
+
+  test('each period of a manual range draws a whole number uniformly from [low, high], both ends included', () => {
+    // One period per trial, so each total is a single draw: 3, 4, 5 or 6, a quarter each
+    const result = simulateCase(howManyCase('2026-01-12', { trials: 100_000, throughputSamples: { low: 3, high: 6 } }))
+
+    expect(result.quantiles[0]).toBe(3)
+    expect(result.quantiles[100]).toBe(6)
+    expect(result.quantiles.every((q) => Number.isInteger(q))).toBe(true)
+    expect(result.quantiles[24]).toBe(3)
+    expect(result.quantiles[26]).toBe(4)
+    expect(result.quantiles[49]).toBe(4)
+    expect(result.quantiles[51]).toBe(5)
+    expect(result.quantiles[74]).toBe(5)
+    expect(result.quantiles[76]).toBe(6)
+  })
+
+  test('over many periods, every manual-range draw stays within its bounds', () => {
+    // 52 periods: totals can only fall between 52 × 3 and 52 × 6
+    const result = simulateCase(howManyCase('2027-01-04', { trials: 10_000, throughputSamples: { low: 3, high: 6 } }))
+
+    expect(result.quantiles[0]).toBeGreaterThanOrEqual(52 * 3)
+    expect(result.quantiles[100]).toBeLessThanOrEqual(52 * 6)
+  })
+
+  test("confidence runs the other way: 'p% sure' is the (100 − p)th percentile of totals", () => {
+    // One period from [0, 1, 1, 1]: 0 done in a quarter of trials, 1 in the rest
+    const result = simulateCase(howManyCase('2026-01-12', { trials: 10_000, throughputSamples: [0, 1, 1, 1] }))
+
+    expect(result.quantiles[15]).toBe(0)
+    expect(result.quantiles[85]).toBe(1)
+    expect(result.percentileCounts).toEqual({ 50: 1, 85: 0, 95: 0 })
+  })
+})
+
 describe('simulateCase: reproducibility', () => {
   const stochasticCase = whenCase({
     scope: [epic({ growth: [1, 1.4, 2, 2.6] })],
@@ -175,12 +245,21 @@ describe('simulateCase: input limits', () => {
     ['throughputSamples', { throughputSamples: [2, -1] }],
     ['throughputSamples', { throughputSamples: [2, 1.5] }],
     ['throughputSamples', { throughputSamples: Array(100_001).fill(1) }],
+    ['throughputSamples', { throughputSamples: { low: -1, high: 2 } }],
+    ['throughputSamples', { throughputSamples: { low: 1.5, high: 2 } }],
+    ['throughputSamples', { throughputSamples: { low: 1, high: Number.NaN } }],
+    ['throughputSamples', { throughputSamples: { low: 3, high: 2 } }],
+    ['throughputSamples', { throughputSamples: { low: 0, high: 100_001 } }],
+    ['byDate', { question: { kind: 'howMany', byDate: 'next week' } }],
+    ['byDate', { question: { kind: 'howMany', byDate: '2026-01-04' } }],
+    // 157 weekly periods, one past the 156-period horizon
+    ['byDate', { question: { kind: 'howMany', byDate: '2029-01-08' } }],
     ['growth', { scope: [epic({ growth: [] })] }],
     ['growth', { scope: [epic({ growth: [Number.NaN] })] }],
     ['baseCount', { scope: [epic({ baseCount: -1 })] }],
     ['scope', { scope: [] }],
     ['scope', { scope: [epic(), epic({ epicId: 'EPIC-2', rank: 2 })] }],
-    ['question', { question: { kind: 'howMany' } as unknown as SimulationCase['question'] }],
+    ['question', { question: { kind: 'whatIf' } as unknown as SimulationCase['question'] }],
   ])('rejects a case with invalid %s', (field, overrides) => {
     expect(() => simulateCase(whenCase(overrides))).toThrow(new RegExp(field))
   })
