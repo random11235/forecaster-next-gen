@@ -4,6 +4,8 @@ import type { SimulationCase, ThroughputRange } from './types.js'
 const MAX_TRIALS = 1_000_000
 const MAX_PERIODS = 10_000
 const MAX_SAMPLES = 100_000
+/** Tickets per period; far above any real team, and far below the 2^32 steps the PRNG can draw uniformly. */
+const MAX_THROUGHPUT = 100_000
 
 /** Rejects cases outside the engine's limits, so a bad input fails loudly instead of forecasting. */
 export function assertValidCase(simulationCase: SimulationCase): void {
@@ -39,6 +41,7 @@ function assertWholeNumberIn(field: string, value: number, min: number, max: num
 function assertRange(field: string, { low, high }: ThroughputRange): void {
   assertWholeNumbers(field, [low, high])
   assertNonNegative(field, low)
+  if (high > MAX_THROUGHPUT) throw new RangeError(`${field} range must not exceed ${MAX_THROUGHPUT}, got ${high}`)
   if (high < low) throw new RangeError(`${field} range must have low ≤ high, got ${low} to ${high}`)
 }
 

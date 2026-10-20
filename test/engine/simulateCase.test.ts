@@ -249,6 +249,7 @@ describe('simulateCase: input limits', () => {
     ['throughputSamples', { throughputSamples: { low: 1.5, high: 2 } }],
     ['throughputSamples', { throughputSamples: { low: 1, high: Number.NaN } }],
     ['throughputSamples', { throughputSamples: { low: 3, high: 2 } }],
+    ['throughputSamples', { throughputSamples: { low: 0, high: 100_001 } }],
     ['byDate', { question: { kind: 'howMany', byDate: 'next week' } }],
     ['byDate', { question: { kind: 'howMany', byDate: '2026-01-04' } }],
     // 157 weekly periods, one past the 156-period horizon
