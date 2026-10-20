@@ -142,6 +142,22 @@ describe('simulateCase: reproducibility', () => {
     expect(simulateCase(reordered).caseHash).toBe(simulateCase(stochasticCase).caseHash)
   })
 
+  test('seeds that differ only above 32 bits give different results', () => {
+    // One ticket at a 1-in-100 chance per period: 101 trials spread widely, so two
+    // different random streams cannot give the same quantiles
+    const spreadCase = whenCase({
+      trials: 101,
+      maxPeriods: 10_000,
+      scope: [epic({ baseCount: 1, currentCount: 1 })],
+      throughputSamples: [...Array(99).fill(0), 1],
+    })
+
+    const low = simulateCase({ ...spreadCase, seed: 1 })
+    const high = simulateCase({ ...spreadCase, seed: 2 ** 32 + 1 })
+
+    expect(high.quantiles).not.toEqual(low.quantiles)
+  })
+
   test('a different seed gives a different caseHash', () => {
     const reseeded = { ...stochasticCase, seed: stochasticCase.seed + 1 }
 
