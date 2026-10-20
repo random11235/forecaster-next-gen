@@ -1,9 +1,11 @@
 import { isIsoDate, wholePeriodsUntil } from './dates.js'
-import type { SimulationCase, ThroughputRange } from './types.js'
+import type { GrowthRange, SimulationCase, ThroughputRange } from './types.js'
 
 const MAX_TRIALS = 1_000_000
 const MAX_PERIODS = 10_000
 const MAX_SAMPLES = 100_000
+/** Each epic keeps a finish period per trial, so epics × trials sizes memory; real milestones hold a few dozen. */
+const MAX_EPICS = 100
 /** Tickets per period; far above any real team, and far below the 2^32 steps the PRNG can draw uniformly. */
 const MAX_THROUGHPUT = 100_000
 
@@ -23,11 +25,18 @@ export function assertValidCase(simulationCase: SimulationCase): void {
   } else if (question.kind !== 'when') {
     throw new RangeError(`question must be 'when' or 'howMany', got ${(question as { kind: unknown }).kind}`)
   }
-  if (scope.length !== 1) throw new RangeError(`scope must hold exactly one epic, got ${scope.length}`)
+  if (scope.length === 0 || scope.length > MAX_EPICS) {
+    throw new RangeError(`scope must hold 1 to ${MAX_EPICS} epics, got ${scope.length}`)
+  }
   for (const epic of scope) {
     assertNonNegative('baseCount', epic.baseCount)
+    assertNonNegative('currentCount', epic.currentCount)
     assertNonNegative('doneCount', epic.doneCount)
-    assertSamples('growth', epic.growth)
+    if (Array.isArray(epic.growth)) {
+      assertSamples('growth', epic.growth)
+    } else {
+      assertGrowthRange(epic.growth)
+    }
   }
 }
 
@@ -43,6 +52,12 @@ function assertRange(field: string, { low, high }: ThroughputRange): void {
   assertNonNegative(field, low)
   if (high > MAX_THROUGHPUT) throw new RangeError(`${field} range must not exceed ${MAX_THROUGHPUT}, got ${high}`)
   if (high < low) throw new RangeError(`${field} range must have low ≤ high, got ${low} to ${high}`)
+}
+
+function assertGrowthRange({ low, high }: GrowthRange): void {
+  assertNonNegative('growth', low)
+  assertNonNegative('growth', high)
+  if (high < low) throw new RangeError(`growth range must have low ≤ high, got ${low} to ${high}`)
 }
 
 /** `byDate` must fall within the horizon, so a 'howMany' trial runs from 0 to `maxPeriods` periods. */
