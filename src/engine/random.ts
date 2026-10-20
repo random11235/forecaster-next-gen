@@ -1,15 +1,44 @@
-/** A seeded, non-cryptographic PRNG (mulberry32) returning uniforms in [0, 1). */
+/**
+ * A seeded, non-cryptographic PRNG (xoshiro128**) returning uniforms in [0, 1).
+ * Its 2^128 period stays far beyond the most draws the input limits allow (about 10^10).
+ */
 export type Random = () => number
 
 export function createRandom(seed: number): Random {
-  let state = seed >>> 0
+  // splitmix32 spreads both 32-bit halves of the seed over the 128-bit state
+  const fromLow = splitmix32(seed >>> 0)
+  const fromHigh = splitmix32(Math.floor(seed / 4_294_967_296) >>> 0)
+  let s0 = fromLow()
+  let s1 = fromHigh()
+  let s2 = fromLow()
+  let s3 = fromHigh()
   return () => {
-    state = (state + 0x6d2b79f5) >>> 0
-    let t = state
-    t = Math.imul(t ^ (t >>> 15), t | 1)
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296
+    const result = Math.imul(rotateLeft(Math.imul(s1, 5), 7), 9)
+    const t = s1 << 9
+    s2 ^= s0
+    s3 ^= s1
+    s1 ^= s2
+    s0 ^= s3
+    s2 ^= t
+    s3 = rotateLeft(s3, 11)
+    return (result >>> 0) / 4_294_967_296
   }
+}
+
+function splitmix32(seed: number): () => number {
+  let state = seed
+  return () => {
+    state = (state + 0x9e3779b9) | 0
+    let t = state ^ (state >>> 16)
+    t = Math.imul(t, 0x21f0aaad)
+    t ^= t >>> 15
+    t = Math.imul(t, 0x735a2d97)
+    return t ^ (t >>> 15)
+  }
+}
+
+function rotateLeft(value: number, bits: number): number {
+  return (value << bits) | (value >>> (32 - bits))
 }
 
 /** One draw, with replacement, from the samples. */
