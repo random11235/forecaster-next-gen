@@ -11,8 +11,14 @@ export interface ScopeEntry {
   /** Children now, done or not. */
   currentCount: number
   doneCount: number
-  /** Measured growth ratios (finalCount / committedCount) from finished epics. */
-  growth: number[]
+  /** Measured growth ratios (finalCount / committedCount) from finished epics, or the epic's ambiguity range. */
+  growth: number[] | GrowthRange
+}
+
+/** An ambiguity level's growth range: any ratio from `low` to `high`. */
+export interface GrowthRange {
+  low: number
+  high: number
 }
 
 /** The EM's manual pace: whole tickets per period, both ends included. */

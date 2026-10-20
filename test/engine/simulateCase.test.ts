@@ -59,9 +59,16 @@ describe("simulateCase: 'when' for one committed epic", () => {
     expect(result.quantiles.every((q) => q === 1)).toBe(true)
   })
 
+  test("a drawn total is never below the epic's current count", () => {
+    // 10 × 1 = 10 drawn, but 16 tickets already exist: 16 at 2 per period → 8 periods
+    const result = simulateCase(whenCase({ scope: [epic({ currentCount: 16 })] }))
+
+    expect(result.quantiles.every((q) => q === 8)).toBe(true)
+  })
+
   test('an epic with more done than its drawn total has no remaining work', () => {
-    // 10 × 0.5 = 5 total, 8 done
-    const result = simulateCase(whenCase({ scope: [epic({ growth: [0.5], doneCount: 8 })] }))
+    // 10 × 0.5 = 5 total, but 8 tickets exist and all are done
+    const result = simulateCase(whenCase({ scope: [epic({ growth: [0.5], currentCount: 8, doneCount: 8 })] }))
 
     expect(result.quantiles.every((q) => q === 0)).toBe(true)
     expect(result.percentileDates[95]).toBe('2026-01-05')
@@ -99,6 +106,23 @@ describe("simulateCase: 'when' for one committed epic", () => {
     expect(result.quantiles[100]).toBe(3)
   })
 
+  test("a growth range draws the ratio uniformly from low to high", () => {
+    // 10 × [1, 3] is a total spread evenly over 10 to 30; at 1 per period, so are the finish periods
+    const result = simulateCase(
+      whenCase({
+        trials: 10_000,
+        scope: [epic({ growth: { low: 1, high: 3 } })],
+        throughputSamples: [1],
+      }),
+    )
+
+    expect(result.quantiles[0]).toBeGreaterThanOrEqual(10)
+    expect(result.quantiles[25]).toBeCloseTo(15, -0.5)
+    expect(result.quantiles[50]).toBeCloseTo(20, -0.5)
+    expect(result.quantiles[75]).toBeCloseTo(25, -0.5)
+    expect(result.quantiles[100]).toBeLessThanOrEqual(30)
+  })
+
   test('trials that miss the horizon sort after every finishing trial and give null quantiles', () => {
     // Each period finishes all 10 tickets with probability 2/3; with a 2-period horizon,
     // P(finish in 1) = 2/3, P(finish by 2) = 8/9, P(beyond the horizon) = 1/9.
@@ -119,6 +143,66 @@ describe("simulateCase: 'when' for one committed epic", () => {
     expect(result.finishedFraction).toBe(0)
     expect(result.quantiles.every((q) => q === null)).toBe(true)
     expect(result.percentileDates).toEqual({ 50: null, 85: null, 95: null })
+  })
+})
+
+describe("simulateCase: 'when' for several ranked epics", () => {
+  test('throughput burns down epics in rank order, carrying what is left over to the next epic', () => {
+    // Rank 1 holds 1 ticket, rank 2 holds 6, at 4 per period: period 1 finishes rank 1
+    // and leaves 3 for rank 2's 6; period 2 finishes rank 2.
+    const result = simulateCase(
+      whenCase({
+        scope: [
+          epic({ epicId: 'SECOND', rank: 2, baseCount: 6, currentCount: 6 }),
+          epic({ epicId: 'FIRST', rank: 1, baseCount: 1, currentCount: 1 }),
+        ],
+        throughputSamples: [4],
+      }),
+    )
+
+    expect(result.quantiles.every((q) => q === 2)).toBe(true)
+    expect(result.perEpic).toHaveLength(2)
+    for (const { quantiles } of result.perEpic) expect(quantiles).toHaveLength(101)
+    const finish = Object.fromEntries(result.perEpic.map(({ epicId, quantiles }) => [epicId, quantiles[50]]))
+    expect(finish).toEqual({ FIRST: 1, SECOND: 2 })
+  })
+
+  test('each trial draws every epic at one shared quantile, so epics over-run together', () => {
+    // Two 10-ticket epics with growth [1, 3] at 10 per period. Shared: both low (20 → period 2)
+    // or both high (60 → period 6), about half each. Independent draws would give 40 → period 4
+    // in about half the trials, and averaging draws would pull totals to the middle too.
+    const result = simulateCase(
+      whenCase({
+        trials: 10_000,
+        scope: [epic({ epicId: 'A', growth: [1, 3] }), epic({ epicId: 'B', rank: 2, growth: [3, 1] })],
+        throughputSamples: [10],
+      }),
+    )
+
+    expect(new Set(result.quantiles)).toEqual(new Set([2, 6]))
+    expect(result.quantiles[40]).toBe(2)
+    expect(result.quantiles[60]).toBe(6)
+  })
+
+  test('the shared draw gives a wider overall range than independent per-epic draws would', () => {
+    // Ten 10-ticket epics with growth [1, 3] at 10 per period.
+    // Shared: the total is 100 × (1 + 2u), so finish periods spread evenly over 10 to 30:
+    // p5 to p95 is about 18 periods.
+    // Independent: the total is 100 + 20 × (sum of ten uniforms), standard deviation about
+    // 18 tickets or 1.8 periods: p5 to p95 would be only about 6 periods.
+    const result = simulateCase(
+      whenCase({
+        trials: 10_000,
+        scope: Array.from({ length: 10 }, (_, i) =>
+          epic({ epicId: `EPIC-${i + 1}`, rank: i + 1, growth: { low: 1, high: 3 } }),
+        ),
+        throughputSamples: [10],
+      }),
+    )
+
+    const spread = result.quantiles[95]! - result.quantiles[5]!
+    expect(spread).toBeGreaterThanOrEqual(16)
+    expect(spread).toBeLessThanOrEqual(20)
   })
 })
 
@@ -256,9 +340,12 @@ describe('simulateCase: input limits', () => {
     ['byDate', { question: { kind: 'howMany', byDate: '2029-01-08' } }],
     ['growth', { scope: [epic({ growth: [] })] }],
     ['growth', { scope: [epic({ growth: [Number.NaN] })] }],
+    ['growth', { scope: [epic({ growth: { low: -1, high: 2 } })] }],
+    ['growth', { scope: [epic({ growth: { low: 1, high: Number.POSITIVE_INFINITY } })] }],
+    ['growth', { scope: [epic({ growth: { low: 3, high: 2 } })] }],
     ['baseCount', { scope: [epic({ baseCount: -1 })] }],
+    ['currentCount', { scope: [epic({ currentCount: -1 })] }],
     ['scope', { scope: [] }],
-    ['scope', { scope: [epic(), epic({ epicId: 'EPIC-2', rank: 2 })] }],
     ['question', { question: { kind: 'whatIf' } as unknown as SimulationCase['question'] }],
   ])('rejects a case with invalid %s', (field, overrides) => {
     expect(() => simulateCase(whenCase(overrides))).toThrow(new RegExp(field))
