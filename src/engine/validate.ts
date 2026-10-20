@@ -1,16 +1,26 @@
-import type { SimulationCase } from './types.js'
+import { isIsoDate, wholePeriodsUntil } from './dates.js'
+import type { SimulationCase, ThroughputRange } from './types.js'
 
 const MAX_TRIALS = 1_000_000
 const MAX_PERIODS = 10_000
 const MAX_SAMPLES = 100_000
 
 /** Rejects cases outside the engine's limits, so a bad input fails loudly instead of forecasting. */
-export function assertValidCase({ trials, maxPeriods, question, scope, throughputSamples }: SimulationCase): void {
+export function assertValidCase(simulationCase: SimulationCase): void {
+  const { trials, maxPeriods, question, scope, throughputSamples } = simulationCase
   assertWholeNumberIn('trials', trials, 1, MAX_TRIALS)
   assertWholeNumberIn('maxPeriods', maxPeriods, 1, MAX_PERIODS)
-  assertSamples('throughputSamples', throughputSamples)
-  assertWholeNumbers('throughputSamples', throughputSamples)
-  if (question.kind !== 'when') throw new RangeError(`question must be 'when', got ${question.kind}`)
+  if (Array.isArray(throughputSamples)) {
+    assertSamples('throughputSamples', throughputSamples)
+    assertWholeNumbers('throughputSamples', throughputSamples)
+  } else {
+    assertRange('throughputSamples', throughputSamples)
+  }
+  if (question.kind === 'howMany') {
+    assertByDate(simulationCase, question.byDate)
+  } else if (question.kind !== 'when') {
+    throw new RangeError(`question must be 'when' or 'howMany', got ${(question as { kind: unknown }).kind}`)
+  }
   if (scope.length !== 1) throw new RangeError(`scope must hold exactly one epic, got ${scope.length}`)
   for (const epic of scope) {
     assertNonNegative('baseCount', epic.baseCount)
@@ -22,6 +32,22 @@ export function assertValidCase({ trials, maxPeriods, question, scope, throughpu
 function assertWholeNumberIn(field: string, value: number, min: number, max: number): void {
   if (!Number.isInteger(value) || value < min || value > max) {
     throw new RangeError(`${field} must be a whole number from ${min} to ${max}, got ${value}`)
+  }
+}
+
+/** A manual range counts whole tickets per period, from `low` up to `high`. */
+function assertRange(field: string, { low, high }: ThroughputRange): void {
+  assertWholeNumbers(field, [low, high])
+  assertNonNegative(field, low)
+  if (high < low) throw new RangeError(`${field} range must have low ≤ high, got ${low} to ${high}`)
+}
+
+/** `byDate` must fall within the horizon, so a 'howMany' trial runs from 0 to `maxPeriods` periods. */
+function assertByDate({ startDate, periodDays, maxPeriods }: SimulationCase, byDate: string): void {
+  if (!isIsoDate(byDate)) throw new RangeError(`byDate must be an ISO date (YYYY-MM-DD), got ${byDate}`)
+  const periods = wholePeriodsUntil(startDate, periodDays, byDate)
+  if (periods < 0 || periods > maxPeriods) {
+    throw new RangeError(`byDate must be from ${startDate} to ${maxPeriods} periods after it, got ${byDate}`)
   }
 }
 

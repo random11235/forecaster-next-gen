@@ -1,16 +1,32 @@
+import { periodEndDate, wholePeriodsUntil } from './dates.js'
 import { hashJson } from './hash.js'
-import { createRandom, drawFrom } from './random.js'
-import { PERCENTILES, type ForecastResult, type Percentile, type SimulationCase } from './types.js'
+import { createRandom, drawFrom, drawWholeNumberIn, type Random } from './random.js'
+import { PERCENTILES, type ForecastResult, type Percentile, type SimulationCase, type ThroughputRange } from './types.js'
 import { assertValidCase } from './validate.js'
 
-const MS_PER_DAY = 86_400_000
 /** Marks a trial that hit `maxPeriods` without finishing; sorts after every real period. */
 const BEYOND_HORIZON = Number.POSITIVE_INFINITY
 
+type QuestionResult = Pick<ForecastResult, 'quantiles' | 'finishedFraction' | 'percentileDates' | 'percentileCounts' | 'perEpic'>
+
 export function simulateCase(simulationCase: SimulationCase): ForecastResult {
   assertValidCase(simulationCase)
-  const { trials, maxPeriods, scope, throughputSamples } = simulationCase
+  const { question, throughputSamples } = simulationCase
   const random = createRandom(simulationCase.seed)
+  const result =
+    question.kind === 'when'
+      ? simulateWhen(simulationCase, random)
+      : simulateHowMany(simulationCase, question.byDate, random)
+
+  return {
+    caseHash: hashJson(simulationCase),
+    ...result,
+    diagnostics: { throughputSource: isRange(throughputSamples) ? 'manual' : 'measured' },
+  }
+}
+
+function simulateWhen(simulationCase: SimulationCase, random: Random): QuestionResult {
+  const { trials, maxPeriods, scope, throughputSamples } = simulationCase
   const finishPeriods = new Float64Array(trials)
   let finishedTrials = 0
 
@@ -22,7 +38,7 @@ export function simulateCase(simulationCase: SimulationCase): ForecastResult {
     let period = 0
     while (remaining > 0 && period < maxPeriods) {
       period++
-      remaining -= drawFrom(random, throughputSamples)
+      remaining -= drawThroughput(random, throughputSamples)
     }
     if (remaining > 0) {
       finishPeriods[trial] = BEYOND_HORIZON
@@ -40,16 +56,48 @@ export function simulateCase(simulationCase: SimulationCase): ForecastResult {
   const percentileDates = Object.fromEntries(
     PERCENTILES.map((p) => {
       const q = quantiles[p]!
-      return [p, q === null ? null : periodEndDate(simulationCase, q)]
+      return [p, q === null ? null : periodEndDate(simulationCase.startDate, simulationCase.periodDays, q)]
     }),
   ) as Record<Percentile, string | null>
 
   return {
-    caseHash: hashJson(simulationCase),
     quantiles,
     finishedFraction: finishedTrials / trials,
     percentileDates,
+    percentileCounts: {},
+    perEpic: [{ epicId: epic.epicId, quantiles }],
   }
+}
+
+function simulateHowMany(simulationCase: SimulationCase, byDate: string, random: Random): QuestionResult {
+  const { trials, startDate, periodDays, throughputSamples } = simulationCase
+  const periods = wholePeriodsUntil(startDate, periodDays, byDate)
+  const doneCounts = new Float64Array(trials)
+
+  for (let trial = 0; trial < trials; trial++) {
+    let done = 0
+    for (let period = 0; period < periods; period++) done += drawThroughput(random, throughputSamples)
+    doneCounts[trial] = done
+  }
+
+  doneCounts.sort()
+  const quantiles = Array.from({ length: 101 }, (_, p) => nearestRankPercentile(doneCounts, p))
+  // "p% sure" means at least this many get done in p% of trials: the (100 − p)th percentile
+  const percentileCounts = Object.fromEntries(PERCENTILES.map((p) => [p, quantiles[100 - p]!])) as Record<
+    Percentile,
+    number
+  >
+
+  return { quantiles, finishedFraction: 1, percentileDates: {}, percentileCounts, perEpic: [] }
+}
+
+/** One period's done count: a bootstrap draw from measured samples, or a whole number from the manual range. */
+function drawThroughput(random: Random, throughput: readonly number[] | ThroughputRange): number {
+  return isRange(throughput) ? drawWholeNumberIn(random, throughput.low, throughput.high) : drawFrom(random, throughput)
+}
+
+function isRange(throughput: readonly number[] | ThroughputRange): throughput is ThroughputRange {
+  return !Array.isArray(throughput)
 }
 
 /** Rounds to 9 decimal places: clears float noise (100 × 1.1) but keeps real fractions (12.5). */
@@ -61,9 +109,4 @@ function withoutFloatError(value: number): number {
 function nearestRankPercentile(sorted: Float64Array, p: number): number {
   const index = Math.max(0, Math.ceil((p / 100) * sorted.length) - 1)
   return sorted[index]!
-}
-
-function periodEndDate({ startDate, periodDays }: SimulationCase, period: number): string {
-  const start = Date.parse(`${startDate}T00:00:00Z`)
-  return new Date(start + period * periodDays * MS_PER_DAY).toISOString().slice(0, 10)
 }
