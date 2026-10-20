@@ -4,7 +4,9 @@ Design date: 2026-10-14. Updated 2026-10-18 with the design grill decisions (Q1�
 
 This is the minimal front-end for the Forecaster, reduced from a first prototype after review. It follows the architecture in [`../research/EM_usecase-arch.excalidraw`](../research/EM_usecase-arch.excalidraw) and the method recommended in [`../research/forecasting-approaches.md`](../research/forecasting-approaches.md). The engine is described in [`monte-carlo-engine.md`](monte-carlo-engine.md).
 
-v1 is a single-team local web app, started with one command and opened in the browser. The first usable version runs on canned data, before any connector exists.
+v1's scope (single team, local, SQLite) is in the engine design's [v1 assumptions](monte-carlo-engine.md#v1-assumptions). The app is started with one command and opened in the browser. The first usable version runs on canned data, before any connector exists.
+
+Thresholds and default ranges below (growth samples, pace weeks, stale weeks, finished milestones, ambiguity ranges) are set in the engine design's [settings](monte-carlo-engine.md#layer-3-settings); this doc names them rather than repeating the numbers.
 
 ---
 
@@ -25,11 +27,11 @@ v1 is a single-team local web app, started with one command and opened in the br
 | 2 | Forecast gap | The headline. The chance of finishing by the committed date, and how many days the 85% date falls after it, plus how both have moved across previous forecasts. Only the milestone date is shown; per-epic dates are not. |
 | 3 | Forecast history | Every forecast is logged from the first run. The Forecaster reads its own log (`forecastLogGet`). |
 | 4 | Committing an epic | Manual. The EM commits an epic after kickoff (after spikes, the backlog and team alignment), which records its child count as the baseline. Optionally, a configured label in the ticketing tool commits it. Spikes never commit an epic. A pull-back to not started resets the commit; the EM commits again on restart. A blocked epic keeps its commit, stays in scope and is flagged. The tool warns when an epic has non-spike tickets in progress but isn't committed. |
-| 5 | Growth (split rate) | The EM sets each epic's ambiguity: low, medium (default) or high, each mapped to an editable growth range (1–1.5×, 1–2×, 1.5–3×). Growth samples from finished epics committed in the tool are pooled per team. Once 7 exist, the measured range is suggested for medium and the EM decides whether to adopt it. Uncommitted epics are still forecast, labelled "not committed: wide range". |
-| 6 | Pace | Counts only tickets under this milestone's epics, so KTLO and unrelated work show up as slower pace rather than inflating it. Starts as a manual low–high range per week. Older data may pre-fill it, labelled as a suggestion. Nothing from before installation is used automatically. Once the milestone has 8 weeks of its own throughput, measured pace is shown beside the manual range with an offer to switch. |
-| 7 | Team change | The EM records the date. The measured window restarts, the EM is prompted to review the manual range, and pace is flagged stale until 4 weeks of new data exist. |
+| 5 | Growth (split rate) | The EM sets each epic's ambiguity: low, medium (default) or high, each mapped to an editable growth range (`AmbiguityRanges`). Growth samples from finished epics committed in the tool are pooled per team. Once `minGrowthSamples` exist, the measured range is suggested for medium and the EM decides whether to adopt it. Uncommitted epics are still forecast, labelled "not committed: wide range". |
+| 6 | Pace | Counts only tickets under this milestone's epics, so KTLO and unrelated work show up as slower pace rather than inflating it. Starts as a manual low–high range per week. Older data may pre-fill it, labelled as a suggestion. Nothing from before installation is used automatically. Once the milestone has `minMeasuredPaceWeeks` of its own throughput, measured pace is shown beside the manual range with an offer to switch. |
+| 7 | Team change | The EM records the date. The measured window restarts, the EM is prompted to review the manual range, and pace is flagged stale until `staleWeeksAfterTeamChange` of new data exist. |
 | 8 | Capacity | Fixed in v1 until the last step of the build order, when absences are entered as a share of capacity per week. Until then the absence input is hidden. |
-| 9 | Track record | One line on the forecast screen: how often past "85% sure" dates were met. Shown only once 5 or more milestones have finished. |
+| 9 | Track record | One line on the forecast screen, under the pace lines: how often past "85% sure" dates were met. Shown only once `minResolvedMilestones` milestones have finished; before that, nothing is shown in its place. |
 | 10 | Cycle time | From the status mapped as "started" to done. A wide spread or ageing tickets raise a warning that ticket-size discipline has slipped. |
 
 ---
@@ -61,8 +63,6 @@ Checkout v2 · committed 18 Dec                 Jira data as of 13 Oct 07:10 [Re
  Receipts redesign          3          High        —             Blocked
 ```
 
-The track-record line appears under the pace lines once 5 milestones have finished. Before that, nothing is shown in its place.
-
 Per-epic pace is information only and never feeds the forecast.
 
 ### 2. Inputs
@@ -73,10 +73,10 @@ Architecture: split rate estimator, `splitRatesSet/Get`, `settingsSet/Get`, `mil
 |---|---|---|
 | Milestones | Name, committed date, epics in rank order; commit / uncommit each epic; ambiguity per epic | EM |
 | Pace | Manual low–high range per week; suggested range and its basis; measured pace and weeks of data once available, with the offer to switch | EM; measured as a suggestion |
-| Growth | Ambiguity ranges (editable); the number of finished committed epics; the suggested medium range once 7 exist | EM; measured as a suggestion |
+| Growth | Ambiguity ranges (editable); the number of finished committed epics; the suggested medium range once enough exist (decision 5) | EM; measured as a suggestion |
 | Team | Date of the last team change | EM |
 | Settings | Ticketing board; which statuses mean not started / started / done / cancelled; spike issue types or labels; optional commit label | EM |
-| Capacity | Absences as a share of capacity per week (hidden until that step of the build order ships) | EM |
+| Capacity | Absences as a share of capacity per week (hidden until decision 8's step ships) | EM |
 
 All figures above are sample data.
 
