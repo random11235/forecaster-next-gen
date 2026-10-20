@@ -11,13 +11,13 @@ The engine is built and tested in isolation first (build order: engine → app o
 ## v1 assumptions
 
 - **Single team, run locally.** The tool is a local web app started with one command, holding its data in a local SQLite file. There is no aggregator and no access control in v1.
-- **Capacity is fixed** for the whole forecast. Planned absences come last in the build order (as a capacity fraction per period, linear by default). Until then the absence input is hidden.
+- **Capacity is fixed** for the whole forecast, until the capacity calendar (see [Deferred](#deferred-beyond-v1)).
 - **No risks or added-scope events** are modelled.
 - **One reference class per team.** Growth and epic-size samples are pooled per team. The EM expresses how well each epic is understood through its ambiguity level (see [Settings](#layer-3-settings)), not through separate reference classes.
 - **Counts, not story points.** Throughput and scope are measured in tickets.
 - **Pace counts only children of the milestone's epics.** KTLO, bugs and tickets outside the milestone's epics are excluded. Time spent on them shows up as slower milestone pace, which is what the forecast needs.
-- **Pace is earned, not assumed.** Nothing from before installation is used automatically. Pace starts as a range the EM enters by hand. Older data can only pre-fill that range as a labelled suggestion. Measured pace is offered once the milestone has 8 weeks of its own throughput, and is used only when the EM accepts it.
-- **Committing an epic is manual.** The EM commits an epic in the tool after kickoff, or a configured label in the ticketing tool commits it. Only epics committed in the tool produce growth samples.
+- **Pace is earned, not assumed.** Nothing from before installation is used automatically. Pace starts as a manual range; see [Pace](#layer-3-settings) for when measured pace is offered.
+- **Committing an epic is manual.** See [Committing](#layer-2-derived-samples-recomputable-cacheable).
 
 The data model is designed so that each of these can be relaxed later without re-ingesting data (see [Deferred](#deferred-beyond-v1)).
 
@@ -58,7 +58,7 @@ WorkItemEvent { itemId, at, kind: 'status'|'parent'|'type'|'label', from?, to? }
 
 `startedAt` comes from the status mapped as "started" in `workflowMap` (or `startedSignal` on GitHub). Cycle time is `startedAt → doneAt`. Created-to-done (lead time) is not used in v1.
 
-Titles, descriptions, comments and assignees are deliberately **not** ingested (see [Security](#security)). On GitHub, an assignee used as `startedSignal` is read only as "has an assignee".
+Ingestion follows data minimisation (see [Security](#security)). On GitHub, an assignee used as `startedSignal` is read only as "has an assignee".
 
 ### Layer 2: derived samples (recomputable, cacheable)
 
@@ -76,7 +76,7 @@ ThroughputSample { teamId, milestoneId, periodStart, periodDays /* 1 | 7 */,
                    scope: 'milestone_epics', count }
 ```
 
-**Committing.** The EM's commit (or the label) records the epic's child count at that moment. Spikes never commit an epic. A pull-back (from started to not started) resets the commit: `resetAt` is set and the EM commits again on restart. Only the latest commit counts towards the growth ratio. A blocked epic keeps its commit.
+**Committing.** The EM commits an epic in the tool after kickoff, or a configured label in the ticketing tool commits it. The commit records the epic's child count at that moment. Spikes never commit an epic. A pull-back (from started to not started) resets the commit: `resetAt` is set and the EM commits again on restart. Only the latest commit counts towards the growth ratio. A blocked epic keeps its commit.
 
 **The uncommitted-but-active warning.** "The epic moved to in progress, or a non-spike child started" is no longer a commit rule. It only triggers a warning when the epic isn't committed.
 
@@ -107,6 +107,8 @@ AmbiguityRanges  { teamId, low: { low: 1, high: 1.5 }, medium: { low: 1, high: 2
 EpicSetting      { epicId, milestoneId, rank, ambiguity: 'low'|'medium'|'high' /* default medium */ }
 ```
 
+These defaults are the single source for the thresholds the app design refers to.
+
 **Pace.** `PaceSetting.mode` stays `'manual'` until the EM accepts measured pace. The tool offers the switch once the milestone has `minMeasuredPaceWeeks` of its own throughput since the last `TeamChange`. After a team change, the measured window restarts and the EM is prompted to review the manual range. Pace that predates the change is flagged stale until `staleWeeksAfterTeamChange` of new data exist.
 
 **Growth.** Each epic's growth range comes from its ambiguity level. Once at least `minGrowthSamples` growth samples exist, the tool suggests the measured distribution for `medium`. If the EM adopts it, epics marked medium draw from the pooled samples; low and high keep their ranges.
@@ -133,11 +135,11 @@ Storing 101 quantiles, not just p50/p85/p95, gives every forecast a PIT value: t
 
 Every forecast is logged from the first run. The track record is shown only once `minResolvedMilestones` milestones have an `Outcome`.
 
-The ledger is append-only.
-
 ---
 
 ## Engine contract
+
+This is the v1 target. What is built so far is typed in `src/engine/types.ts`, which is the source of truth for the current contract; change the code first, and this section only when the design changes.
 
 ```ts
 SimulationCase {
@@ -240,11 +242,7 @@ src/
     epicSize.ts           # finished epics → EpicSizeSample[]
     cycleTime.ts          # started → done; spread and ageing
 
-  engine/                 # pure: no I/O, no DB, no clock
-    types.ts              # SimulationCase, ForecastResult
-    simulate.ts           # simulateCase(case) → result
-    random.ts             # seeded PRNG; drawFrom(samples | {low, high}); quantileAt(u)
-    quantiles.ts
+  engine/                 # pure: no I/O, no DB, no clock; see src/engine/ for its files
     index.ts              # exports simulateCase and the types only
 
   forecast/               # the only module that knows both stored data and the engine
@@ -286,6 +284,8 @@ test/
 
 Connectors are tested through Seam B by replaying recorded API responses, with no seam of their own.
 
+The one exception is the PRNG: `engine/random.ts` is checked against output vectors from the authors' reference C code for xoshiro128**, because a port must reproduce its exact stream and Seam A can't show that.
+
 ---
 
 ## Language choice
@@ -312,7 +312,6 @@ v1 is a local, single-user tool, so items 1 and 2 are what matter. Items 3 and 4
 2. **Data minimisation.** The model needs only IDs, types, parent links, labels, status timestamps and counts. Don't ingest titles, descriptions, comments or assignee identities. With fixed capacity there is no `Person` table.
 3. **Engine input limits.**
    - Cap `trials`, sample-array sizes and `maxPeriods` in `forecast/buildCase.ts`, and check them again at the engine boundary.
-   - The horizon cap also prevents non-termination when throughput is all zeros.
    - The PRNG does **not** need to be cryptographic. A fast seeded PRNG is correct.
 4. **Dependencies.**
    - Keep `engine/` free of dependencies.
