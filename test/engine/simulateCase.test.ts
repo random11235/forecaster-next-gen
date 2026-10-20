@@ -117,9 +117,10 @@ describe("simulateCase: 'when' for one committed epic", () => {
     )
 
     expect(result.quantiles[0]).toBeGreaterThanOrEqual(10)
-    expect(result.quantiles[25]).toBeCloseTo(15, -0.5)
-    expect(result.quantiles[50]).toBeCloseTo(20, -0.5)
-    expect(result.quantiles[75]).toBeCloseTo(25, -0.5)
+    for (const [p, expected] of [[25, 15], [50, 20], [75, 25]] as const) {
+      expect(result.quantiles[p]).toBeGreaterThanOrEqual(expected - 1)
+      expect(result.quantiles[p]).toBeLessThanOrEqual(expected + 1)
+    }
     expect(result.quantiles[100]).toBeLessThanOrEqual(30)
   })
 
@@ -346,6 +347,7 @@ describe('simulateCase: input limits', () => {
     ['baseCount', { scope: [epic({ baseCount: -1 })] }],
     ['currentCount', { scope: [epic({ currentCount: -1 })] }],
     ['scope', { scope: [] }],
+    ['scope', { scope: Array.from({ length: 101 }, (_, i) => epic({ epicId: `EPIC-${i + 1}`, rank: i + 1 })) }],
     ['question', { question: { kind: 'whatIf' } as unknown as SimulationCase['question'] }],
   ])('rejects a case with invalid %s', (field, overrides) => {
     expect(() => simulateCase(whenCase(overrides))).toThrow(new RegExp(field))

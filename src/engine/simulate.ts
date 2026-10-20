@@ -1,7 +1,7 @@
 import { periodEndDate, wholePeriodsUntil } from './dates.js'
 import { hashJson } from './hash.js'
 import { createRandom, drawFrom, drawWholeNumberIn, type Random } from './random.js'
-import { PERCENTILES, type ForecastResult, type Percentile, type GrowthRange, type SimulationCase, type ThroughputRange } from './types.js'
+import { PERCENTILES, type ForecastResult, type GrowthRange, type Percentile, type SimulationCase, type ThroughputRange } from './types.js'
 import { assertValidCase } from './validate.js'
 
 /** Marks a trial that hit `maxPeriods` without finishing; sorts after every real period. */
@@ -28,7 +28,7 @@ export function simulateCase(simulationCase: SimulationCase): ForecastResult {
 function simulateWhen(simulationCase: SimulationCase, random: Random): QuestionResult {
   const { trials, maxPeriods, scope, throughputSamples } = simulationCase
   const ranked = [...scope].sort((a, b) => a.rank - b.rank)
-  const growthAt = ranked.map((epic) => growthQuantiles(epic.growth))
+  const growthAt = ranked.map((epic) => growthRatioAt(epic.growth))
   const remaining = new Float64Array(ranked.length)
   const epicFinishPeriods = ranked.map(() => new Float64Array(trials))
   const finishPeriods = new Float64Array(trials)
@@ -94,9 +94,9 @@ function simulateWhen(simulationCase: SimulationCase, random: Random): QuestionR
  * An epic's growth ratio at quantile `u` in [0, 1): the empirical quantile of its samples,
  * each covering an equal share of [0, 1), or `low + u × (high − low)` for a range.
  */
-function growthQuantiles(growth: readonly number[] | GrowthRange): (u: number) => number {
-  if (!Array.isArray(growth)) {
-    const { low, high } = growth as GrowthRange
+function growthRatioAt(growth: readonly number[] | GrowthRange): (u: number) => number {
+  if (isRange(growth)) {
+    const { low, high } = growth
     return (u) => low + u * (high - low)
   }
   const sorted = Float64Array.from(growth).sort()
@@ -146,8 +146,8 @@ function drawThroughput(random: Random, throughput: readonly number[] | Throughp
   return isRange(throughput) ? drawWholeNumberIn(random, throughput.low, throughput.high) : drawFrom(random, throughput)
 }
 
-function isRange(throughput: readonly number[] | ThroughputRange): throughput is ThroughputRange {
-  return !Array.isArray(throughput)
+function isRange<Range extends ThroughputRange | GrowthRange>(value: readonly number[] | Range): value is Range {
+  return !Array.isArray(value)
 }
 
 /** Rounds to 9 decimal places: clears float noise (100 × 1.1) but keeps real fractions (12.5). */
