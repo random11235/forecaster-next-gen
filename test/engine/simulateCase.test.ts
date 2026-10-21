@@ -491,6 +491,9 @@ describe('simulateCase: input limits', () => {
     ['currentCount', { scope: [epic({ currentCount: -1 })] }],
     ['scope', { scope: [] }],
     ['scope', { scope: Array.from({ length: 101 }, (_, i) => epic({ epicId: `EPIC-${i + 1}`, rank: i + 1 })) }],
+    ['epicId', { scope: [epic({ epicId: 'SAME' }), epic({ epicId: 'SAME', rank: 2 })] }],
+    ['rank', { scope: [epic({ rank: Number.NaN })] }],
+    ['rank', { scope: [epic({ rank: Number.POSITIVE_INFINITY })] }],
     ['question', { question: { kind: 'whatIf' } as unknown as SimulationCase['question'] }],
   ])('rejects a case with invalid %s', (field, overrides) => {
     expect(() => simulateCase(whenCase(overrides))).toThrow(new RegExp(field))

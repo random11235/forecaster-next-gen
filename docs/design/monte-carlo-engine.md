@@ -328,7 +328,7 @@ v1 is a local, single-user tool, so items 1 and 2 are what matter. Items 3 and 4
    - No webhooks in v1. Connectors poll on refresh.
 2. **Data minimisation.** The model needs only IDs, types, parent links, labels, status timestamps and counts. Don't ingest titles, descriptions, comments or assignee identities. With fixed capacity there is no `Person` table.
 3. **Engine input limits.**
-   - Cap `trials`, sample-array sizes and `maxPeriods` in `forecast/buildCase.ts`, and check them again at the engine boundary.
+   - Cap `trials`, sample-array sizes, `maxPeriods` and the number of epics in `scope` (100, `MAX_EPICS`) in `forecast/buildCase.ts`, and check them again at the engine boundary. The epic cap is a memory guard: the engine keeps a finish period per epic per trial.
    - The PRNG does **not** need to be cryptographic. A fast seeded PRNG is correct.
 4. **Dependencies.**
    - Keep `engine/` free of dependencies.
