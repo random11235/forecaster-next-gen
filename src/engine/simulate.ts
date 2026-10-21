@@ -1,7 +1,7 @@
 import { periodEndDate, wholePeriodsUntil } from './dates.js'
 import { hashJson } from './hash.js'
 import { createRandom, drawFrom, drawWholeNumberIn, type Random } from './random.js'
-import { PERCENTILES, type ForecastResult, type GrowthRange, type Percentile, type SimulationCase, type ThroughputRange } from './types.js'
+import { PERCENTILES, type EpicSizeRange, type ForecastResult, type GrowthRange, type Percentile, type SimulationCase, type ThroughputRange } from './types.js'
 import { assertValidCase } from './validate.js'
 
 /** Marks a trial that hit `maxPeriods` without finishing; sorts after every real period. */
@@ -30,7 +30,7 @@ export function simulateCase(simulationCase: SimulationCase): ForecastResult {
 }
 
 function simulateWhen(simulationCase: SimulationCase, random: Random): QuestionResult {
-  const { trials, maxPeriods, scope, throughputSamples } = simulationCase
+  const { trials, maxPeriods, scope, throughputSamples, epicSizeSamples } = simulationCase
   const ranked = [...scope].sort((a, b) => a.rank - b.rank)
   const growthAt = ranked.map((epic) => growthRatioAt(epic.growth))
   const remaining = new Float64Array(ranked.length)
@@ -43,8 +43,10 @@ function simulateWhen(simulationCase: SimulationCase, random: Random): QuestionR
     const u = random()
     for (let i = 0; i < ranked.length; i++) {
       const epic = ranked[i]!
-      const ratio = growthAt[i]!(u)
-      const total = Math.max(withoutFloatError(epic.baseCount * ratio), epic.currentCount)
+      const drawn = hasChildren(epic.baseCount)
+        ? withoutFloatError(epic.baseCount * growthAt[i]!(u))
+        : drawEpicSize(random, epicSizeSamples)
+      const total = Math.max(drawn, epic.currentCount)
       remaining[i] = Math.max(total - epic.doneCount, 0)
       if (remaining[i] === 0) epicFinishPeriods[i]![trial] = 0
     }
@@ -107,6 +109,16 @@ function growthRatioAt(growth: readonly number[] | GrowthRange): (u: number) => 
   return (u) => sorted[Math.floor(u * sorted.length)]!
 }
 
+/** A null or 0 baseCount means the epic has no children, so a growth ratio has nothing to scale. */
+function hasChildren(baseCount: number | null): baseCount is number {
+  return baseCount !== null && baseCount > 0
+}
+
+/** An empty epic's total size, drawn independently of the trial's shared growth quantile. */
+function drawEpicSize(random: Random, epicSize: readonly number[] | EpicSizeRange): number {
+  return isRange(epicSize) ? drawWholeNumberIn(random, epicSize.low, epicSize.high) : drawFrom(random, epicSize)
+}
+
 /** The index of the first epic from `from` on with work remaining, or the epic count if none has. */
 function skipFinished(remaining: Float64Array, from: number): number {
   let i = from
@@ -150,7 +162,7 @@ function drawThroughput(random: Random, throughput: readonly number[] | Throughp
   return isRange(throughput) ? drawWholeNumberIn(random, throughput.low, throughput.high) : drawFrom(random, throughput)
 }
 
-function isRange<Range extends ThroughputRange | GrowthRange>(value: readonly number[] | Range): value is Range {
+function isRange<Range extends ThroughputRange | GrowthRange | EpicSizeRange>(value: readonly number[] | Range): value is Range {
   return !Array.isArray(value)
 }
 

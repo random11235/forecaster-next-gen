@@ -6,8 +6,8 @@ export interface ScopeEntry {
   epicId: string
   rank: number
   committed: boolean
-  /** Child count at commit. */
-  baseCount: number
+  /** Child count at commit; for an uncommitted epic, its current count (provisional). Null or 0: no children. */
+  baseCount: number | null
   /** Children now, done or not. */
   currentCount: number
   doneCount: number
@@ -17,6 +17,12 @@ export interface ScopeEntry {
 
 /** An ambiguity level's growth range: any ratio from `low` to `high`. */
 export interface GrowthRange {
+  low: number
+  high: number
+}
+
+/** The default epic-size range: any whole number of tickets from `low` to `high`, both ends included. */
+export interface EpicSizeRange {
   low: number
   high: number
 }
@@ -40,6 +46,8 @@ export interface SimulationCase {
   scope: ScopeEntry[]
   /** Measured done counts per period, or the EM's manual range. */
   throughputSamples: number[] | ThroughputRange
+  /** Final child counts of finished epics, or the default range; only used for epics with no children. */
+  epicSizeSamples: number[] | EpicSizeRange
 }
 
 export interface ForecastResult {
