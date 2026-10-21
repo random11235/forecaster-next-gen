@@ -56,5 +56,7 @@ export interface ForecastResult {
   perEpic: { epicId: string; quantiles: (number | null)[] }[]
   diagnostics: {
     throughputSource: 'manual' | 'measured'
+    /** Epics forecast from a provisional baseCount, in rank order; shown as "not committed: wide range". */
+    uncommittedEpicIds: string[]
   }
 }

@@ -207,6 +207,41 @@ describe("simulateCase: 'when' for several ranked epics", () => {
   })
 })
 
+describe('simulateCase: uncommitted epics', () => {
+  test('an uncommitted epic is forecast from its provisional baseCount, like a committed one', () => {
+    const scope = [
+      epic({ epicId: 'A', growth: { low: 1, high: 2 } }),
+      epic({ epicId: 'B', rank: 2, baseCount: 6, currentCount: 6, growth: [1, 1.5, 3] }),
+    ]
+    const uncommitted = scope.map((entry) => ({ ...entry, committed: false }))
+    const stochastic = { trials: 2_000, throughputSamples: [0, 1, 2, 4] }
+
+    const committedResult = simulateCase(whenCase({ ...stochastic, scope }))
+    const uncommittedResult = simulateCase(whenCase({ ...stochastic, scope: uncommitted }))
+
+    expect(uncommittedResult.quantiles).toEqual(committedResult.quantiles)
+    expect(uncommittedResult.perEpic).toEqual(committedResult.perEpic)
+  })
+
+  test('the uncommitted epics are listed in the diagnostics, in rank order', () => {
+    const result = simulateCase(
+      whenCase({
+        scope: [
+          epic({ epicId: 'LATER', rank: 3, committed: false }),
+          epic({ epicId: 'DONE-DEAL', rank: 1 }),
+          epic({ epicId: 'SOONER', rank: 2, committed: false }),
+        ],
+      }),
+    )
+
+    expect(result.diagnostics.uncommittedEpicIds).toEqual(['SOONER', 'LATER'])
+  })
+
+  test('a scope of committed epics lists none', () => {
+    expect(simulateCase(whenCase()).diagnostics.uncommittedEpicIds).toEqual([])
+  })
+})
+
 describe('simulateCase: manual pace range', () => {
   test('measured samples are reported as the throughput source', () => {
     expect(simulateCase(whenCase()).diagnostics.throughputSource).toBe('measured')
