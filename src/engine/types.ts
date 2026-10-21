@@ -18,23 +18,20 @@ export interface ScopeEntry {
 /** Where an epic's total comes from: measured growth samples, its ambiguity range, or a drawn epic size (no children). */
 export type GrowthSource = 'samples' | 'ambiguity' | 'epic_size'
 
-/** An ambiguity level's growth range: any ratio from `low` to `high`. */
-export interface GrowthRange {
+/** A `low` to `high` span; the aliases below say what it counts and whether the ends are whole numbers. */
+export interface NumberRange {
   low: number
   high: number
 }
+
+/** An ambiguity level's growth range: any ratio from `low` to `high`. */
+export type GrowthRange = NumberRange
 
 /** The default epic-size range: any whole number of tickets from `low` to `high`, both ends included. */
-export interface EpicSizeRange {
-  low: number
-  high: number
-}
+export type EpicSizeRange = NumberRange
 
 /** The EM's manual pace: whole tickets per period, both ends included. */
-export interface ThroughputRange {
-  low: number
-  high: number
-}
+export type ThroughputRange = NumberRange
 
 export interface SimulationCase {
   engineVersion: string
