@@ -339,8 +339,8 @@ describe('simulateCase: growth source', () => {
     expect(result.diagnostics.growthSource).toEqual([
       { epicId: 'MEASURED', source: 'samples' },
       { epicId: 'AMBIGUOUS', source: 'ambiguity' },
-      { epicId: 'EMPTY', source: 'epic_size' },
-      { epicId: 'ZERO', source: 'epic_size' },
+      { epicId: 'EMPTY', source: 'epicSize' },
+      { epicId: 'ZERO', source: 'epicSize' },
     ])
   })
 })
@@ -507,7 +507,7 @@ describe('simulateCase: long-forecast warning', () => {
 
 describe('simulateCase: throughput scope', () => {
   test("pace is reported as counting only the milestone's epics", () => {
-    expect(simulateCase(whenCase()).diagnostics.throughputScope).toBe('milestone_epics')
+    expect(simulateCase(whenCase()).diagnostics.throughputScope).toBe('milestoneEpics')
   })
 })
 
