@@ -54,7 +54,7 @@
     <h2>Which forecasts go wrong</h2>
     <div class="ps-card">
       <h3>Actual finish outside the forecast's 10th–90th percentile range</h3>
-      <p class="ps-note">A well-calibrated forecast misses this range 20% of the time (dashed line). Trends, team changes and spells of good or bad weeks miss far more often. Lumpy history misses a little more; one odd week barely matters.</p>
+      <p class="ps-note">A perfect forecast misses this range about 12% of the time here (dashed line), not 20%, because finish dates are whole weeks and many actual finishes land exactly on the P10 or P90 week. Even Steady misses more than that: ten weeks of history make the range too narrow. Trends, team changes and spells of good or bad weeks miss far more often. Lumpy history misses a little more; one odd week barely matters.</p>
       <div class="ps-chart" id="miss-chart" data-source="teams"></div>
     </div>
   </section>
@@ -79,7 +79,7 @@
     <h2>What each signal flags</h2>
     <div class="ps-card">
       <h3>Share of histories flagged, by team type</h3>
-      <p class="ps-note">Each cell is a share of that team type's simulated histories. The red top row is the problem to catch: the share whose actual finish fell outside the forecast's 80% range. A well-calibrated forecast lands there about one time in five, so near 20% is healthy and higher is worse. The grey rows below are neither good nor bad on their own; darker just means the signal fires more often. A useful signal is dark under the red cells and pale elsewhere. Split-halves and standard error are darkest under lumpy and one-odd-week teams, whose forecasts are fine, and fire on every outlier history.</p>
+      <p class="ps-note">Each cell is a share of that team type's simulated histories. The red top row is the problem to catch: the share whose actual finish fell outside the forecast's 80% range. A perfect forecast lands there about 12% of the time (whole-week finish dates), so near 12% is healthy and higher is worse. The grey rows below are neither good nor bad on their own; darker just means the signal fires more often. A useful signal is dark under the red cells and pale elsewhere. Split-halves and standard error are darkest under lumpy and one-odd-week teams, whose forecasts are fine, and fire on every outlier history.</p>
       <div class="ps-heat" id="heat" data-source="flag_rates signals teams"></div>
     </div>
   </section>
@@ -119,6 +119,8 @@
   const pct = d3.format('.0%');
   const num2 = d3.format('.2f');
   const TEAM_ORDER = ['steady', 'lumpy', 'trending', 'step', 'regimes', 'outlier'];
+  // Miss rate of bands from the true Steady process, measured in steady-check.mjs.
+  const PERFECT_MISS = 0.12;
   const color = (team) => dash.colors[TEAM_ORDER.indexOf(team) % dash.colors.length];
   const root = document.querySelector('.ps');
 
@@ -317,7 +319,7 @@
       .attr('x', m.l - 8).attr('y', (r) => y(r.team) + y.bandwidth() / 2).attr('dy', '0.35em').attr('text-anchor', 'end').text((r) => r.label);
     svg.append('g').selectAll('text').data(rows).join('text')
       .attr('x', (r) => x(r.missedRange) + 6).attr('y', (r) => y(r.team) + y.bandwidth() / 2).attr('dy', '0.35em').text((r) => pct(r.missedRange));
-    svg.append('line').attr('x1', x(0.2)).attr('x2', x(0.2)).attr('y1', m.t).attr('y2', H - m.b)
+    svg.append('line').attr('x1', x(PERFECT_MISS)).attr('x2', x(PERFECT_MISS)).attr('y1', m.t).attr('y2', H - m.b)
       .attr('stroke', 'var(--cds-chart-reference)').attr('stroke-dasharray', '4 3').attr('stroke-width', 1.5);
   }
 
@@ -426,7 +428,7 @@
     const body = table.createTBody();
     const truth = body.insertRow(); truth.className = 'ps-truth';
     const tth = document.createElement('th'); tth.className = 'ps-rowhead'; tth.textContent = 'Forecast missed the 80% range';
-    const target = 0.2;
+    const target = PERFECT_MISS;
     const tspan = document.createElement('span'); tspan.textContent = `Perfect is ${pct(target)}; red shows how far above`; tth.appendChild(tspan);
     truth.appendChild(tth);
     for (const k of TEAM_ORDER) {
