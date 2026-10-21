@@ -25,6 +25,7 @@ function whenCase(overrides: Partial<SimulationCase> = {}): SimulationCase {
     periodDays: 7,
     scope: [epic()],
     throughputSamples: [2],
+    epicSizeSamples: [8],
     ...overrides,
   }
 }
@@ -207,6 +208,142 @@ describe("simulateCase: 'when' for several ranked epics", () => {
   })
 })
 
+describe('simulateCase: uncommitted epics', () => {
+  test('an uncommitted epic is forecast from its provisional baseCount, like a committed one', () => {
+    const scope = [
+      epic({ epicId: 'A', growth: { low: 1, high: 2 } }),
+      epic({ epicId: 'B', rank: 2, baseCount: 6, currentCount: 6, growth: [1, 1.5, 3] }),
+    ]
+    const uncommitted = scope.map((entry) => ({ ...entry, committed: false }))
+    const stochastic = { trials: 2_000, throughputSamples: [0, 1, 2, 4] }
+
+    const committedResult = simulateCase(whenCase({ ...stochastic, scope }))
+    const uncommittedResult = simulateCase(whenCase({ ...stochastic, scope: uncommitted }))
+
+    expect(uncommittedResult.quantiles).toEqual(committedResult.quantiles)
+    expect(uncommittedResult.perEpic).toEqual(committedResult.perEpic)
+  })
+
+  test('the uncommitted epics are listed in the diagnostics, in rank order', () => {
+    const result = simulateCase(
+      whenCase({
+        scope: [
+          epic({ epicId: 'LATER', rank: 3, committed: false }),
+          epic({ epicId: 'DONE-DEAL', rank: 1 }),
+          epic({ epicId: 'SOONER', rank: 2, committed: false }),
+        ],
+      }),
+    )
+
+    expect(result.diagnostics.uncommittedEpicIds).toEqual(['SOONER', 'LATER'])
+  })
+
+  test('a scope of committed epics lists none', () => {
+    expect(simulateCase(whenCase()).diagnostics.uncommittedEpicIds).toEqual([])
+  })
+})
+
+describe('simulateCase: epics with no children', () => {
+  test.each([null, 0])('an epic with baseCount %s draws its total size from the epic-size samples', (baseCount) => {
+    // No children to grow from, so its total is a drawn size: 12 at 2 per period → 6 periods
+    const result = simulateCase(
+      whenCase({ scope: [epic({ baseCount, currentCount: 0, growth: [3] })], epicSizeSamples: [12] }),
+    )
+
+    expect(result.quantiles.every((q) => q === 6)).toBe(true)
+  })
+
+  test('each trial draws one size, with replacement, from the epic-size samples', () => {
+    // Sizes 10 or 30 at 10 per period: period 1 or 3, about half each
+    const result = simulateCase(
+      whenCase({
+        trials: 10_000,
+        scope: [epic({ baseCount: null, currentCount: 0 })],
+        epicSizeSamples: [10, 30],
+        throughputSamples: [10],
+      }),
+    )
+
+    expect(new Set(result.quantiles)).toEqual(new Set([1, 3]))
+    expect(result.quantiles[40]).toBe(1)
+    expect(result.quantiles[60]).toBe(3)
+  })
+
+  test('an epic-size range draws a whole number of tickets uniformly from low to high, both ends included', () => {
+    // At 1 per period the finish period is the size: 4, 5, 6 or 7, a quarter each
+    const result = simulateCase(
+      whenCase({
+        trials: 100_000,
+        scope: [epic({ baseCount: null, currentCount: 0 })],
+        epicSizeSamples: { low: 4, high: 7 },
+        throughputSamples: [1],
+      }),
+    )
+
+    expect(result.quantiles[0]).toBe(4)
+    expect(result.quantiles[24]).toBe(4)
+    expect(result.quantiles[26]).toBe(5)
+    expect(result.quantiles[49]).toBe(5)
+    expect(result.quantiles[51]).toBe(6)
+    expect(result.quantiles[74]).toBe(6)
+    expect(result.quantiles[76]).toBe(7)
+    expect(result.quantiles[100]).toBe(7)
+  })
+
+  test("a drawn size is never below the epic's current count", () => {
+    // baseCount 0 but 14 children have since been added: 14 at 2 per period → 7 periods
+    const result = simulateCase(
+      whenCase({ scope: [epic({ baseCount: 0, currentCount: 14 })], epicSizeSamples: [4] }),
+    )
+
+    expect(result.quantiles.every((q) => q === 7)).toBe(true)
+  })
+
+  test("a drawn size is independent of the trial's shared growth quantile", () => {
+    // A grows to 10 or 30 on the shared draw; B's size is 10 or 30 on its own draw. At 10 per
+    // period the total of 20, 40 or 60 finishes in period 2, 4 or 6, about 1/4, 1/2, 1/4.
+    // Had B followed the shared draw, period 4 would never happen.
+    const result = simulateCase(
+      whenCase({
+        trials: 10_000,
+        scope: [
+          epic({ epicId: 'A', growth: [1, 3] }),
+          epic({ epicId: 'B', rank: 2, baseCount: null, currentCount: 0 }),
+        ],
+        epicSizeSamples: [10, 30],
+        throughputSamples: [10],
+      }),
+    )
+
+    expect(result.quantiles[20]).toBe(2)
+    expect(result.quantiles[30]).toBe(4)
+    expect(result.quantiles[70]).toBe(4)
+    expect(result.quantiles[80]).toBe(6)
+  })
+})
+
+describe('simulateCase: growth source', () => {
+  test("each epic's growth source is reported in rank order: samples, ambiguity range or epic size", () => {
+    const result = simulateCase(
+      whenCase({
+        scope: [
+          epic({ epicId: 'EMPTY', rank: 3, baseCount: null, currentCount: 0 }),
+          epic({ epicId: 'MEASURED', rank: 1, growth: [1, 1.4] }),
+          epic({ epicId: 'AMBIGUOUS', rank: 2, growth: { low: 1, high: 2 } }),
+          epic({ epicId: 'ZERO', rank: 4, baseCount: 0, currentCount: 0, growth: { low: 1, high: 2 } }),
+        ],
+      }),
+    )
+
+    expect(result.diagnostics.growthSource).toEqual([
+      { epicId: 'MEASURED', source: 'samples' },
+      { epicId: 'AMBIGUOUS', source: 'ambiguity' },
+      { epicId: 'EMPTY', source: 'epic_size' },
+      { epicId: 'ZERO', source: 'epic_size' },
+    ])
+  })
+})
+
 describe('simulateCase: manual pace range', () => {
   test('measured samples are reported as the throughput source', () => {
     expect(simulateCase(whenCase()).diagnostics.throughputSource).toBe('measured')
@@ -345,6 +482,12 @@ describe('simulateCase: input limits', () => {
     ['growth', { scope: [epic({ growth: { low: 1, high: Number.POSITIVE_INFINITY } })] }],
     ['growth', { scope: [epic({ growth: { low: 3, high: 2 } })] }],
     ['baseCount', { scope: [epic({ baseCount: -1 })] }],
+    ['epicSizeSamples', { epicSizeSamples: [] }],
+    ['epicSizeSamples', { epicSizeSamples: [8, -1] }],
+    ['epicSizeSamples', { epicSizeSamples: [8, 2.5] }],
+    ['epicSizeSamples', { epicSizeSamples: { low: -1, high: 8 } }],
+    ['epicSizeSamples', { epicSizeSamples: { low: 1.5, high: 8 } }],
+    ['epicSizeSamples', { epicSizeSamples: { low: 9, high: 8 } }],
     ['currentCount', { scope: [epic({ currentCount: -1 })] }],
     ['scope', { scope: [] }],
     ['scope', { scope: Array.from({ length: 101 }, (_, i) => epic({ epicId: `EPIC-${i + 1}`, rank: i + 1 })) }],
