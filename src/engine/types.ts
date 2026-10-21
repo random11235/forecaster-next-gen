@@ -73,5 +73,7 @@ export interface ForecastResult {
     growthSource: { epicId: string; source: GrowthSource }[]
     /** Epics forecast from a provisional baseCount, in rank order; shown as "not committed: wide range". */
     uncommittedEpicIds: string[]
+    /** Trials that hit `maxPeriods` without finishing; 0 for 'howMany'. */
+    trialsHittingHorizon: number
   }
 }

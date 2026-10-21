@@ -7,14 +7,16 @@ import { assertValidCase } from './validate.js'
 /** Marks a trial that hit `maxPeriods` without finishing; sorts after every real period. */
 const BEYOND_HORIZON = Number.POSITIVE_INFINITY
 
-type QuestionResult = Pick<ForecastResult, 'quantiles' | 'finishedFraction' | 'percentileDates' | 'percentileCounts' | 'perEpic'>
+type QuestionResult = Pick<ForecastResult, 'quantiles' | 'finishedFraction' | 'percentileDates' | 'percentileCounts' | 'perEpic'> & {
+  trialsHittingHorizon: number
+}
 
 export function simulateCase(simulationCase: SimulationCase): ForecastResult {
   assertValidCase(simulationCase)
   const { question, scope, throughputSamples } = simulationCase
   const ranked = [...scope].sort((a, b) => a.rank - b.rank)
   const random = createRandom(simulationCase.seed)
-  const result =
+  const { trialsHittingHorizon, ...result } =
     question.kind === 'when'
       ? simulateWhen(simulationCase, ranked, random)
       : simulateHowMany(simulationCase, question.byDate, random)
@@ -27,6 +29,7 @@ export function simulateCase(simulationCase: SimulationCase): ForecastResult {
       throughputSource: isRange(throughputSamples) ? 'manual' : 'measured',
       growthSource: ranked.map((epic) => ({ epicId: epic.epicId, source: growthSourceOf(epic) })),
       uncommittedEpicIds: ranked.filter((epic) => !epic.committed).map((epic) => epic.epicId),
+      trialsHittingHorizon,
     },
   }
 }
@@ -95,6 +98,7 @@ function simulateWhen(simulationCase: SimulationCase, ranked: readonly ScopeEntr
     percentileDates,
     percentileCounts: {},
     perEpic: ranked.map((epic, i) => ({ epicId: epic.epicId, quantiles: finishQuantiles(epicFinishPeriods[i]!) })),
+    trialsHittingHorizon: trials - finishedTrials,
   }
 }
 
@@ -156,7 +160,7 @@ function simulateHowMany(simulationCase: SimulationCase, byDate: string, random:
     number
   >
 
-  return { quantiles, finishedFraction: 1, percentileDates: {}, percentileCounts, perEpic: [] }
+  return { quantiles, finishedFraction: 1, percentileDates: {}, percentileCounts, perEpic: [], trialsHittingHorizon: 0 }
 }
 
 /**

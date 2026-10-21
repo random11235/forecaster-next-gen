@@ -344,6 +344,28 @@ describe('simulateCase: growth source', () => {
   })
 })
 
+describe('simulateCase: trials hitting the horizon', () => {
+  test('counts the trials that hit maxPeriods without finishing', () => {
+    // Each period finishes all 10 tickets with probability 1/2; with a 3-period horizon,
+    // 1/8 of trials never finish: about 1,250 of 10,000
+    const result = simulateCase(whenCase({ trials: 10_000, maxPeriods: 3, throughputSamples: [0, 10] }))
+
+    expect(result.diagnostics.trialsHittingHorizon).toBeGreaterThan(1_100)
+    expect(result.diagnostics.trialsHittingHorizon).toBeLessThan(1_400)
+    expect(result.diagnostics.trialsHittingHorizon).toBe(Math.round((1 - result.finishedFraction) * 10_000))
+  })
+
+  test('is 0 when every trial finishes', () => {
+    expect(simulateCase(whenCase()).diagnostics.trialsHittingHorizon).toBe(0)
+  })
+
+  test("is 0 for 'how many', whose trials always run to byDate", () => {
+    const result = simulateCase(whenCase({ question: { kind: 'howMany', byDate: '2026-02-02' } }))
+
+    expect(result.diagnostics.trialsHittingHorizon).toBe(0)
+  })
+})
+
 describe('simulateCase: throughput scope', () => {
   test("pace is reported as counting only the milestone's epics", () => {
     expect(simulateCase(whenCase()).diagnostics.throughputScope).toBe('milestone_epics')
