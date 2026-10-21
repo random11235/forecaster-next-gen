@@ -42,7 +42,7 @@ For each type there are 400 histories of 10 weeks. Each history is forecast for 
 
 ### Which forecasts go wrong
 
-A well-calibrated P10–P90 range misses 20% of the time.
+A P10–P90 range would miss 20% of the time if finish dates were continuous. They are whole weeks, and about 30% of actual finishes land exactly on the P10 or P90 week, so a perfect forecast (bands from the true process) misses only about 12%. That is the baseline here.
 
 | Team type | Actual outside P10–P90 |
 |---|---|
@@ -53,7 +53,17 @@ A well-calibrated P10–P90 range misses 20% of the time.
 | Good and bad spells | 54% |
 | One odd week | 26% |
 
-Steady teams are 5 points above 20% because ten weeks underestimate variability. Changing teams miss far more, and adding older history makes trending teams worse.
+Changing teams miss far more, and adding older history makes trending teams worse.
+
+### Short history makes every range too narrow
+
+Even Steady misses well above the 12% baseline. The bootstrap treats the history as the team's true pace and ignores that it is only an estimate. `steady-check.mjs` measures the steady miss rate against history length (2,000 histories each):
+
+| Weeks of history | 5 | 10 | 20 | 40 | 80 |
+|---|---|---|---|---|---|
+| Actual outside P10–P90 | 43% | 28% | 19% | 15% | 12% |
+
+So a 10-week forecast is overconfident by about 16 points even for a perfectly steady team. The fix is to widen the range for short history (for example a Bayesian or smoothed bootstrap behind the sampler seam) or to say so in the forecast.
 
 ### Split-halves error is the relative standard error
 
@@ -107,10 +117,12 @@ From 10 weeks, about 40% of changing teams are called Steady.
 2. Warn on trend or runs, worded neutrally: "pace is changing, treat the range with care". This is tracked in #42.
 3. Use leave-one-out as a data-quality prompt that names the unusual week.
 4. Pattern naming is feasible for odd week and lumpy, and lumpy comes with advice for the EM. Merge trend and step into "pace changing". Say "no pattern detected yet" rather than "steady" for short histories.
+5. Widen ranges from short history, or say they are likely too narrow. Even a steady team's 10-week forecast misses 25–28% of the time against a 12% baseline.
 
 ## Files
 
 - `experiment.mjs`: the main experiment. Run `node experiment.mjs`. Seed 20261021; writes `results.json`, which is git-ignored.
+- `steady-check.mjs`: steady miss rate by history length, and the perfect-forecast baseline. Run `node steady-check.mjs`.
 - `classify.mjs`: the pattern classifier test. Run `node classify.mjs`; it prints a confusion matrix as JSON. It repeats the team types and signals from `experiment.mjs`.
 - `data/`: the datasets behind the dashboard. They were reshaped from `results.json` and `classify.mjs` output.
 - `dashboard/index.html`: the dashboard page source. It runs only inside the claude.ai Dashboard artifact runtime (`dash.onData`, design tokens), so it won't render opened directly.
