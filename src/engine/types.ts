@@ -15,6 +15,9 @@ export interface ScopeEntry {
   growth: number[] | GrowthRange
 }
 
+/** Where an epic's total comes from: measured growth samples, its ambiguity range, or a drawn epic size (no children). */
+export type GrowthSource = 'samples' | 'ambiguity' | 'epic_size'
+
 /** An ambiguity level's growth range: any ratio from `low` to `high`. */
 export interface GrowthRange {
   low: number
@@ -64,6 +67,8 @@ export interface ForecastResult {
   perEpic: { epicId: string; quantiles: (number | null)[] }[]
   diagnostics: {
     throughputSource: 'manual' | 'measured'
+    /** Each epic's growth source, in rank order. */
+    growthSource: { epicId: string; source: GrowthSource }[]
     /** Epics forecast from a provisional baseCount, in rank order; shown as "not committed: wide range". */
     uncommittedEpicIds: string[]
   }
