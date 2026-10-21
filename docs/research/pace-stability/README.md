@@ -63,7 +63,18 @@ Even Steady misses well above the 12% baseline. The bootstrap treats the history
 |---|---|---|---|---|---|
 | Actual outside P10–P90 | 43% | 28% | 19% | 15% | 12% |
 
-So a 10-week forecast is overconfident by about 16 points even for a perfectly steady team. The fix is to widen the range for short history (for example a Bayesian or smoothed bootstrap behind the sampler seam) or to say so in the forecast.
+So a 10-week forecast is overconfident by about 16 points even for a perfectly steady team. The Bayesian bootstrap (fresh random weights on the history for each simulated run) widens the range for short history. `widen-check.mjs` and `bayes-sideeffects.mjs` compare it with the plain bootstrap at 10 weeks:
+
+| Team type | Missed the range | P10–P90 width (weeks) | P50 − actual (weeks) |
+|---|---|---|---|
+| Steady | 27% → 18% | 3.1 → 4.3 | 0 → 0 |
+| Lumpy | 38% → 25% | 8.2 → 12.6 | 0 → +1 |
+| Speeding up | 77% → 67% | 4.1 → 5.6 | +3 → +3 |
+| Team change | 54% → 44% | 4.1 → 5.7 | +3 → +3 |
+| Spells | 55% → 45% | 5.0 → 7.4 | +1 → +1 |
+| One odd week | 24% → 17% | 5.9 → 7.1 | −3 → −2 |
+
+It closes about half the short-history gap and makes no team type's miss rate worse. Adopted in [ADR-0001](../../adr/0001-bayesian-bootstrap-pace-sampler.md).
 
 ### Split-halves error is the relative standard error
 
@@ -117,12 +128,13 @@ From 10 weeks, about 40% of changing teams are called Steady.
 2. Warn on trend or runs, worded neutrally: "pace is changing, treat the range with care". This is tracked in #42.
 3. Use leave-one-out as a data-quality prompt that names the unusual week.
 4. Pattern naming is feasible for odd week and lumpy, and lumpy comes with advice for the EM. Merge trend and step into "pace changing". Say "no pattern detected yet" rather than "steady" for short histories.
-5. Widen ranges from short history, or say they are likely too narrow. Even a steady team's 10-week forecast misses 25–28% of the time against a 12% baseline.
+5. Widen ranges from short history ([ADR-0001](../../adr/0001-bayesian-bootstrap-pace-sampler.md)), and say they are likely still too narrow. Even a steady team's 10-week forecast misses 25–28% of the time against a 12% baseline.
 
 ## Files
 
 - `experiment.mjs`: the main experiment. Run `node experiment.mjs`. Seed 20261021; writes `results.json`, which is git-ignored.
 - `steady-check.mjs`: steady miss rate by history length, and the perfect-forecast baseline. Run `node steady-check.mjs`.
+- `widen-check.mjs`, `bayes-sideeffects.mjs`: plain vs Bayesian bootstrap, by history length and across team types.
 - `classify.mjs`: the pattern classifier test. Run `node classify.mjs`; it prints a confusion matrix as JSON. It repeats the team types and signals from `experiment.mjs`.
 - `data/`: the datasets behind the dashboard. They were reshaped from `results.json` and `classify.mjs` output.
 - `dashboard/index.html`: the dashboard page source. It runs only inside the claude.ai Dashboard artifact runtime (`dash.onData`, design tokens), so it won't render opened directly.
