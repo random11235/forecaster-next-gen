@@ -366,6 +366,41 @@ describe('simulateCase: trials hitting the horizon', () => {
   })
 })
 
+describe('simulateCase: split-halves error', () => {
+  test('is 0 when every measured sample is the same', () => {
+    const result = simulateCase(whenCase({ throughputSamples: [5, 5, 5, 5, 5, 5] }))
+
+    expect(result.diagnostics.splitHalvesError).toBe(0)
+  })
+
+  test('is the gap between the means of two random halves, as a share of the overall mean', () => {
+    // Seven 0s and one 40: every split puts the 40 in one half of four, so the half means
+    // are 10 and 0 against an overall mean of 5, an error of 200%
+    const result = simulateCase(whenCase({ throughputSamples: [0, 0, 0, 0, 0, 0, 0, 40] }))
+
+    expect(result.diagnostics.splitHalvesError).toBeCloseTo(2, 9)
+  })
+
+  test('is below 25% ("good") for many samples from a steady team', () => {
+    // 100 samples, half 0 and half 10: two random halves of 50 have means that differ by about
+    // 0.8 on average (sd 2 × 5 / √99), so the error is about 0.8 / 5 = 16%
+    const result = simulateCase(whenCase({ throughputSamples: Array.from({ length: 100 }, (_, i) => (i % 2) * 10) }))
+
+    expect(result.diagnostics.splitHalvesError).toBeGreaterThan(0.12)
+    expect(result.diagnostics.splitHalvesError).toBeLessThan(0.2)
+  })
+
+  test('is absent for a manual range, which holds no measured samples', () => {
+    const result = simulateCase(whenCase({ throughputSamples: { low: 1, high: 3 } }))
+
+    expect(result.diagnostics).not.toHaveProperty('splitHalvesError')
+  })
+
+  test('is absent for a single measured sample, which cannot be split', () => {
+    expect(simulateCase(whenCase()).diagnostics).not.toHaveProperty('splitHalvesError')
+  })
+})
+
 describe('simulateCase: warnings', () => {
   test('warns when fewer trials finish within the horizon than the highest reported percentile', () => {
     // 8/9 of trials finish within the 2-period horizon (see above): below 95%

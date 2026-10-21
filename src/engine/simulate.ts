@@ -6,6 +6,8 @@ import { assertValidCase } from './validate.js'
 
 /** Marks a trial that hit `maxPeriods` without finishing; sorts after every real period. */
 const BEYOND_HORIZON = Number.POSITIVE_INFINITY
+/** Random splits averaged for the split-halves error, so one lucky split doesn't decide it. */
+const SPLIT_HALVES_SPLITS = 100
 
 type QuestionResult = Pick<ForecastResult, 'quantiles' | 'finishedFraction' | 'percentileDates' | 'percentileCounts' | 'perEpic'> & {
   trialsHittingHorizon: number
@@ -22,11 +24,17 @@ export function simulateCase(simulationCase: SimulationCase): ForecastResult {
       : simulateHowMany(simulationCase, question.byDate, random)
 
   const { trialsHittingHorizon, ...result } = questionResult
+  // Drawn after the trials, so the split doesn't change the trials' random stream
+  const splitHalves =
+    !isRange(throughputSamples) && throughputSamples.length >= 2
+      ? { splitHalvesError: splitHalvesError(throughputSamples, random) }
+      : {}
 
   return {
     caseHash: hashJson(simulationCase),
     ...result,
     diagnostics: {
+      ...splitHalves,
       throughputScope: 'milestone_epics',
       throughputSource: isRange(throughputSamples) ? 'manual' : 'measured',
       growthSource: ranked.map((epic) => ({ epicId: epic.epicId, source: growthSourceOf(epic) })),
@@ -50,6 +58,36 @@ function warningsFor(simulationCase: SimulationCase, result: QuestionResult): st
     )
   }
   return warnings
+}
+
+/**
+ * Magennis's stability check: split the samples into two random halves and compare their means.
+ * Averaged over `SPLIT_HALVES_SPLITS` splits; 0 when every sample is 0, as the halves then agree.
+ */
+function splitHalvesError(samples: readonly number[], random: Random): number {
+  const shuffled = Float64Array.from(samples)
+  const half = Math.floor(shuffled.length / 2)
+  let total = 0
+  for (const sample of shuffled) total += sample
+  const mean = total / shuffled.length
+  if (mean === 0) return 0
+
+  let errorSum = 0
+  for (let split = 0; split < SPLIT_HALVES_SPLITS; split++) {
+    // A partial Fisher–Yates shuffle draws the first half at random
+    let firstHalfTotal = 0
+    for (let i = 0; i < half; i++) {
+      const j = i + Math.floor(random() * (shuffled.length - i))
+      const picked = shuffled[j]!
+      shuffled[j] = shuffled[i]!
+      shuffled[i] = picked
+      firstHalfTotal += picked
+    }
+    const firstMean = firstHalfTotal / half
+    const secondMean = (total - firstHalfTotal) / (shuffled.length - half)
+    errorSum += Math.abs(firstMean - secondMean) / mean
+  }
+  return errorSum / SPLIT_HALVES_SPLITS
 }
 
 /** `ranked` is the case's scope in rank order: work burns down the first unfinished epic. */
