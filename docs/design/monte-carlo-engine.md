@@ -131,7 +131,7 @@ ForecastScore { forecastLogId, outcomeId,
                 hit: Record<percentile, boolean> }
 ```
 
-Storing 101 quantiles, not just p50/p85/p95, gives every forecast a PIT value: the share of simulated trials that finished before the actual date. A histogram of PIT values across many forecasts is a direct calibration check ("our 85% dates were met 78% of the time"). It also gives the empirical correction factor the research recommends (Jørgensen [27]).
+Storing 101 quantiles, not just p50/p85/p95, gives every forecast a PIT value: the share of simulated trials that finished before the actual date. A histogram of PIT values across many forecasts is a direct calibration check ("our 85% dates were met 78% of the time"). It also gives the empirical correction factor the [research](../research/forecasting-approaches.md#implications-for-a-new-tool-synthesis) recommends (Jørgensen [27]).
 
 Every forecast is logged from the first run. The track record is shown only once `minResolvedMilestones` milestones have an `Outcome`.
 
@@ -171,7 +171,7 @@ ForecastResult {
   percentileCounts: Record<percentile, number>,         // 'howMany' only; see below
   perEpic: Array<{ epicId, quantiles: (number | null)[101] }>,   // computed, not shown in the v1 UI
   diagnostics: {
-    throughputSampleCount, splitHalvesError,  // < 25% is "good" (Magennis); measured pace only
+    throughputSampleCount, splitHalvesError,  // < 25% is "good" (Magennis); measured pace only; questioned in ../research/pace-stability/
     throughputScope: 'milestone_epics',       // shown in the UI
     throughputSource: 'manual'|'measured',
     growthSource: Array<{ epicId, source: 'samples'|'ambiguity'|'epic_size' }>,
@@ -197,7 +197,7 @@ An **uncommitted epic** has no baseline yet. `forecast/buildCase.ts` passes its 
 
 1. **Correlated growth.** Draw one uniform `u` in [0, 1) for the trial. For each epic, its growth ratio is the `u`-quantile of its own `growth` distribution: the empirical quantile of the samples, or `low + u × (high − low)` for a range. Set its total to `baseCount × ratio`, rounded to 9 decimal places to clear float error (100 × 1.1 is 110.00000000000001) while keeping real fractions, or draw one epic size (independently) if `baseCount` is null or 0. Floor the total at `currentCount`. Remaining work is `max(total − doneCount, 0)`.
    - A milestone's epics tend to over-run together (same team, same planning habits), so one shared `u` per trial keeps the range from coming out falsely narrow. Each epic still keeps its own range.
-   - **Do not average several draws.** Averaging narrows the distribution and hides the tail (research §1.1).
+   - **Do not average several draws.** Averaging narrows the distribution and hides the tail ([research §1.1](../research/forecasting-approaches.md#11-the-users-prior-tool-random11235forecaster)).
 2. **Pace.** Each period, draw one throughput value: from measured samples, a draw by the case's `throughputSampler` (in v1, one sample with replacement: a bootstrap); from a manual range, a whole number drawn uniformly from `[low, high]`. Subtract it from the remaining work, taking epics in rank order.
 3. Record the period in which each epic finishes, and the period in which all of them finish.
 4. Stop at `maxPeriods`. A trial that hasn't finished by then is recorded as "beyond the horizon", which also guards against all-zero throughput looping forever.
@@ -219,7 +219,7 @@ Collect the totals and compute 101 quantiles. Confidence runs the other way from
 
 ### Swappable samplers
 
-v1 draws measured throughput by bootstrap: each draw returns one observed period's count, every period equally likely. It keeps the empirical shape and tail, unlike the triangular draw it replaces (research §1.1). Other ways of drawing (interpolated empirical, smoothed bootstrap, parametric fits, block or recency-weighted bootstrap) are worth testing later, so the draw sits behind one seam:
+v1 draws measured throughput by bootstrap: each draw returns one observed period's count, every period equally likely. It keeps the empirical shape and tail, unlike the triangular draw it replaces ([research §1.1](../research/forecasting-approaches.md#11-the-users-prior-tool-random11235forecaster)). Other ways of drawing (interpolated empirical, smoothed bootstrap, parametric fits, block or recency-weighted bootstrap) are worth testing later, so the draw sits behind one seam:
 
 ```ts
 type ThroughputSamplerConfig = { kind: 'bootstrap' }   // later kinds add their own parameters
