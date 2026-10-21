@@ -344,6 +344,12 @@ describe('simulateCase: growth source', () => {
   })
 })
 
+describe('simulateCase: throughput scope', () => {
+  test("pace is reported as counting only the milestone's epics", () => {
+    expect(simulateCase(whenCase()).diagnostics.throughputScope).toBe('milestone_epics')
+  })
+})
+
 describe('simulateCase: manual pace range', () => {
   test('measured samples are reported as the throughput source', () => {
     expect(simulateCase(whenCase()).diagnostics.throughputSource).toBe('measured')
