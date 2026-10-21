@@ -37,9 +37,8 @@ export function assertValidCase(simulationCase: SimulationCase): void {
   }
   const epicIds = new Set<string>()
   for (const epic of scope) {
-    if (epicIds.has(epic.epicId)) throw new RangeError(`scope must not repeat an epicId, got ${epic.epicId} twice`)
-    epicIds.add(epic.epicId)
-    if (!Number.isFinite(epic.rank)) throw new RangeError(`rank must be a finite number, got ${epic.rank}`)
+    assertUnseen('epicId', epicIds, epic.epicId)
+    assertFinite('rank', epic.rank)
     if (epic.baseCount !== null) assertNonNegative('baseCount', epic.baseCount)
     assertNonNegative('currentCount', epic.currentCount)
     assertNonNegative('doneCount', epic.doneCount)
@@ -78,6 +77,16 @@ function assertByDate({ startDate, periodDays, maxPeriods }: SimulationCase, byD
   if (periods < 0 || periods > maxPeriods) {
     throw new RangeError(`byDate must be from ${startDate} to ${maxPeriods} periods after it, got ${byDate}`)
   }
+}
+
+/** Records `value` in `seen`, rejecting one already there. */
+function assertUnseen(field: string, seen: Set<string>, value: string): void {
+  if (seen.has(value)) throw new RangeError(`scope must not repeat an ${field}, got ${value} twice`)
+  seen.add(value)
+}
+
+function assertFinite(field: string, value: number): void {
+  if (!Number.isFinite(value)) throw new RangeError(`${field} must be a finite number, got ${value}`)
 }
 
 function assertNonNegative(field: string, value: number): void {

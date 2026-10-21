@@ -12,10 +12,15 @@ const DAYS_PER_WEEK = 7
 
 type QuestionResult = Pick<ForecastResult, 'quantiles' | 'finishedFraction' | 'percentileDates' | 'percentileCounts' | 'perEpic'> & {
   trialsHittingHorizon: number
+  /** How far the forecast reaches, for the long-forecast warning. */
+  span: ForecastSpan
+}
+
+type ForecastSpan = {
   /** Periods to the median finish ('when', null beyond the horizon) or to `byDate` ('howMany'). */
-  spanPeriods: number | null
+  periods: number | null
   /** Median tickets across trials: remaining work after growth ('when'), or done by `byDate` ('howMany'). */
-  medianTickets: number
+  tickets: number
 }
 
 export function simulateCase(simulationCase: SimulationCase): ForecastResult {
@@ -28,9 +33,9 @@ export function simulateCase(simulationCase: SimulationCase): ForecastResult {
       ? simulateWhen(simulationCase, ranked, random)
       : simulateHowMany(simulationCase, question.byDate, random)
 
-  const { trialsHittingHorizon, spanPeriods, medianTickets, ...result } = questionResult
+  const { trialsHittingHorizon, span, ...result } = questionResult
   // Drawn after the trials, so the split doesn't change the trials' random stream
-  const splitHalves =
+  const splitHalvesDiagnostic =
     !isRange(throughputSamples) && throughputSamples.length >= 2
       ? { splitHalvesError: splitHalvesError(throughputSamples, random) }
       : {}
@@ -39,7 +44,7 @@ export function simulateCase(simulationCase: SimulationCase): ForecastResult {
     caseHash: hashJson(simulationCase),
     ...result,
     diagnostics: {
-      ...splitHalves,
+      ...splitHalvesDiagnostic,
       throughputScope: 'milestone_epics',
       throughputSource: isRange(throughputSamples) ? 'manual' : 'measured',
       growthSource: ranked.map((epic) => ({ epicId: epic.epicId, source: growthSourceOf(epic) })),
@@ -52,14 +57,14 @@ export function simulateCase(simulationCase: SimulationCase): ForecastResult {
 
 function warningsFor(simulationCase: SimulationCase, result: QuestionResult): string[] {
   const warnings: string[] = []
-  const highest = PERCENTILES[PERCENTILES.length - 1]!
-  if (result.finishedFraction < highest / 100) {
+  const highestPercentile = PERCENTILES[PERCENTILES.length - 1]!
+  if (result.finishedFraction < highestPercentile / 100) {
     const { startDate, periodDays, maxPeriods } = simulationCase
     const horizonDate = periodEndDate(startDate, periodDays, maxPeriods)
     // Floored, so 94.9% never reads as the 95% it falls short of
     const finishedPercent = Math.floor(result.finishedFraction * 100)
     warnings.push(
-      `Only ${finishedPercent}% of trials finish by ${horizonDate}, the forecast horizon, so the ${highest}% date is later than that.`,
+      `Only ${finishedPercent}% of trials finish by ${horizonDate}, the forecast horizon, so the ${highestPercentile}% date is later than that.`,
     )
   }
   const longForecast = longForecastWarning(simulationCase, result)
@@ -74,16 +79,14 @@ function warningsFor(simulationCase: SimulationCase, result: QuestionResult): st
  */
 function longForecastWarning(
   { periodDays, maxPeriods, warnAboveWeeks }: SimulationCase,
-  { spanPeriods, medianTickets }: QuestionResult,
+  { span: { periods, tickets } }: QuestionResult,
 ): string | undefined {
-  const toWeeks = (periods: number) => (periods * periodDays) / DAYS_PER_WEEK
-  if (spanPeriods !== null && toWeeks(spanPeriods) <= warnAboveWeeks) return undefined
-  const span =
-    spanPeriods === null
-      ? `more than ${Math.round(toWeeks(maxPeriods))} weeks`
-      : `roughly ${Math.round(toWeeks(spanPeriods))} weeks`
+  const weeks = ((periods ?? maxPeriods) * periodDays) / DAYS_PER_WEEK
+  if (periods !== null && weeks <= warnAboveWeeks) return undefined
+  const roundedWeeks = Math.round(weeks)
+  const span = periods === null ? `more than ${roundedWeeks} weeks` : `roughly ${roundedWeeks} weeks`
   return (
-    `This forecast covers about ${Math.round(medianTickets)} tickets, ${span} at your current pace. ` +
+    `This forecast covers about ${Math.round(tickets)} tickets, ${span} at your current pace. ` +
     'Forecasts this far out tend to be too confident about the date.'
   )
 }
@@ -185,8 +188,7 @@ function simulateWhen(simulationCase: SimulationCase, ranked: readonly ScopeEntr
     percentileCounts: {},
     perEpic: ranked.map((epic, i) => ({ epicId: epic.epicId, quantiles: finishQuantiles(epicFinishPeriods[i]!) })),
     trialsHittingHorizon: trials - finishedTrials,
-    spanPeriods: quantiles[50]!,
-    medianTickets: nearestRankPercentile(remainingTotals.sort(), 50),
+    span: { periods: quantiles[50]!, tickets: nearestRankPercentile(remainingTotals.sort(), 50) },
   }
 }
 
@@ -255,8 +257,7 @@ function simulateHowMany(simulationCase: SimulationCase, byDate: string, random:
     percentileCounts,
     perEpic: [],
     trialsHittingHorizon: 0,
-    spanPeriods: periods,
-    medianTickets: quantiles[50]!,
+    span: { periods, tickets: quantiles[50]! },
   }
 }
 
