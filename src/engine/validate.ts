@@ -1,5 +1,5 @@
 import { isIsoDate, wholePeriodsUntil } from './dates.js'
-import type { GrowthRange, SimulationCase, ThroughputRange } from './types.js'
+import type { GrowthRange, NumberRange, SimulationCase } from './types.js'
 
 const MAX_TRIALS = 1_000_000
 const MAX_PERIODS = 10_000
@@ -53,7 +53,7 @@ function assertWholeNumberIn(field: string, value: number, min: number, max: num
 }
 
 /** A manual pace or epic-size range counts whole tickets, from `low` up to `high`. */
-function assertRange(field: string, { low, high }: ThroughputRange): void {
+function assertRange(field: string, { low, high }: NumberRange): void {
   assertWholeNumbers(field, [low, high])
   assertNonNegative(field, low)
   if (high > MAX_RANGE_HIGH) throw new RangeError(`${field} range must not exceed ${MAX_RANGE_HIGH}, got ${high}`)
