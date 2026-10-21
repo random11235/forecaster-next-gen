@@ -8,6 +8,7 @@ import { assertValidCase } from './validate.js'
 const BEYOND_HORIZON = Number.POSITIVE_INFINITY
 /** Random splits averaged for the split-halves error, so one lucky split doesn't decide it. */
 const SPLIT_HALVES_SPLITS = 100
+const DAYS_PER_WEEK = 7
 
 type QuestionResult = Pick<ForecastResult, 'quantiles' | 'finishedFraction' | 'percentileDates' | 'percentileCounts' | 'perEpic'> & {
   trialsHittingHorizon: number
@@ -16,8 +17,6 @@ type QuestionResult = Pick<ForecastResult, 'quantiles' | 'finishedFraction' | 'p
   /** Median tickets across trials: remaining work after growth ('when'), or done by `byDate` ('howMany'). */
   medianTickets: number
 }
-
-const DAYS_PER_WEEK = 7
 
 export function simulateCase(simulationCase: SimulationCase): ForecastResult {
   assertValidCase(simulationCase)
