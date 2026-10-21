@@ -34,7 +34,11 @@ export function assertValidCase(simulationCase: SimulationCase): void {
   if (scope.length === 0 || scope.length > MAX_EPICS) {
     throw new RangeError(`scope must hold 1 to ${MAX_EPICS} epics, got ${scope.length}`)
   }
+  const epicIds = new Set<string>()
   for (const epic of scope) {
+    if (epicIds.has(epic.epicId)) throw new RangeError(`scope must not repeat an epicId, got ${epic.epicId} twice`)
+    epicIds.add(epic.epicId)
+    if (!Number.isFinite(epic.rank)) throw new RangeError(`rank must be a finite number, got ${epic.rank}`)
     if (epic.baseCount !== null) assertNonNegative('baseCount', epic.baseCount)
     assertNonNegative('currentCount', epic.currentCount)
     assertNonNegative('doneCount', epic.doneCount)
