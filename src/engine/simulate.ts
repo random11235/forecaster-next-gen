@@ -11,7 +11,13 @@ const SPLIT_HALVES_SPLITS = 100
 
 type QuestionResult = Pick<ForecastResult, 'quantiles' | 'finishedFraction' | 'percentileDates' | 'percentileCounts' | 'perEpic'> & {
   trialsHittingHorizon: number
+  /** Periods to the median finish ('when', null beyond the horizon) or to `byDate` ('howMany'). */
+  spanPeriods: number | null
+  /** Median tickets across trials: remaining work after growth ('when'), or done by `byDate` ('howMany'). */
+  medianTickets: number
 }
+
+const DAYS_PER_WEEK = 7
 
 export function simulateCase(simulationCase: SimulationCase): ForecastResult {
   assertValidCase(simulationCase)
@@ -23,7 +29,7 @@ export function simulateCase(simulationCase: SimulationCase): ForecastResult {
       ? simulateWhen(simulationCase, ranked, random)
       : simulateHowMany(simulationCase, question.byDate, random)
 
-  const { trialsHittingHorizon, ...result } = questionResult
+  const { trialsHittingHorizon, spanPeriods, medianTickets, ...result } = questionResult
   // Drawn after the trials, so the split doesn't change the trials' random stream
   const splitHalves =
     !isRange(throughputSamples) && throughputSamples.length >= 2
@@ -57,7 +63,30 @@ function warningsFor(simulationCase: SimulationCase, result: QuestionResult): st
       `Only ${finishedPercent}% of trials finish by ${horizonDate}, the forecast horizon, so the ${highest}% date is later than that.`,
     )
   }
+  const longForecast = longForecastWarning(simulationCase, result)
+  if (longForecast) warnings.push(longForecast)
   return warnings
+}
+
+/**
+ * Each period's pace is drawn independently, so over many periods good and bad weeks average out
+ * and a long forecast comes out too narrow. The span is counted in weeks, not periods, so the
+ * threshold keeps its meaning if `periodDays` changes.
+ */
+function longForecastWarning(
+  { periodDays, maxPeriods, warnAboveWeeks }: SimulationCase,
+  { spanPeriods, medianTickets }: QuestionResult,
+): string | undefined {
+  const toWeeks = (periods: number) => (periods * periodDays) / DAYS_PER_WEEK
+  if (spanPeriods !== null && toWeeks(spanPeriods) <= warnAboveWeeks) return undefined
+  const span =
+    spanPeriods === null
+      ? `more than ${Math.round(toWeeks(maxPeriods))} weeks`
+      : `roughly ${Math.round(toWeeks(spanPeriods))} weeks`
+  return (
+    `This forecast covers about ${Math.round(medianTickets)} tickets, ${span} at your current pace. ` +
+    'Forecasts this far out tend to be too confident about the date.'
+  )
 }
 
 /**
@@ -97,6 +126,7 @@ function simulateWhen(simulationCase: SimulationCase, ranked: readonly ScopeEntr
   const remaining = new Float64Array(ranked.length)
   const epicFinishPeriods = ranked.map(() => new Float64Array(trials))
   const finishPeriods = new Float64Array(trials)
+  const remainingTotals = new Float64Array(trials)
   let finishedTrials = 0
 
   for (let trial = 0; trial < trials; trial++) {
@@ -109,6 +139,7 @@ function simulateWhen(simulationCase: SimulationCase, ranked: readonly ScopeEntr
         : drawCount(random, epicSizeSamples)
       const total = Math.max(drawn, epic.currentCount)
       remaining[i] = Math.max(total - epic.doneCount, 0)
+      remainingTotals[trial]! += remaining[i]!
       if (remaining[i] === 0) epicFinishPeriods[i]![trial] = 0
     }
 
@@ -155,6 +186,8 @@ function simulateWhen(simulationCase: SimulationCase, ranked: readonly ScopeEntr
     percentileCounts: {},
     perEpic: ranked.map((epic, i) => ({ epicId: epic.epicId, quantiles: finishQuantiles(epicFinishPeriods[i]!) })),
     trialsHittingHorizon: trials - finishedTrials,
+    spanPeriods: quantiles[50]!,
+    medianTickets: nearestRankPercentile(remainingTotals.sort(), 50),
   }
 }
 
@@ -216,7 +249,16 @@ function simulateHowMany(simulationCase: SimulationCase, byDate: string, random:
     number
   >
 
-  return { quantiles, finishedFraction: 1, percentileDates: {}, percentileCounts, perEpic: [], trialsHittingHorizon: 0 }
+  return {
+    quantiles,
+    finishedFraction: 1,
+    percentileDates: {},
+    percentileCounts,
+    perEpic: [],
+    trialsHittingHorizon: 0,
+    spanPeriods: periods,
+    medianTickets: quantiles[50]!,
+  }
 }
 
 /**

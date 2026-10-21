@@ -51,6 +51,8 @@ export interface SimulationCase {
   throughputSamples: number[] | ThroughputRange
   /** Final child counts of finished epics, or the default range; only used for epics with no children. */
   epicSizeSamples: number[] | EpicSizeRange
+  /** Warn when the forecast spans more than this many weeks (the `ForecastSettings` value, default 26). */
+  warnAboveWeeks: number
 }
 
 export interface ForecastResult {
