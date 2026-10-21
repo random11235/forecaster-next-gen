@@ -106,7 +106,7 @@
   <section class="ps-section" id="takeaways">
     <h2>What this suggests</h2>
     <ul class="ps-take">
-      <li><b>Replace split-halves with the relative standard error.</b> Same signal, no randomness, and the 25% / 75% bands become about 16% / 47%. Keep it as a "thin data" note, not a warning that the forecast is wrong.</li>
+      <li><b>Replace split-halves with the relative standard error.</b> Same signal, no randomness, and the 25% / 75% bands become about 15% / 44%. Keep it as a "thin data" note, not a warning that the forecast is wrong.</li>
       <li><b>Add a trend test.</b> Mann–Kendall fires on <span data-source="flag_rates" data-field="rate" data-where="signal=mkP&amp;team=steady">—</span> of steady histories and <span data-source="flag_rates" data-field="rate" data-where="signal=mkP&amp;team=trending">—</span> of speeding-up ones. Combined with lag-1 autocorrelation, flagged forecasts miss <span data-source="signals" data-field="missWhenFlagged" data-where="signal=trendOrRuns">—</span> of the time against <span data-source="signals" data-field="missWhenClear" data-where="signal=trendOrRuns">—</span> when clear.</li>
       <li><b>Show leave-one-out influence as an outlier note.</b> It singles out the one odd week every time and almost never fires otherwise, so it can name the week to check.</li>
       <li><b>Ten weeks can't prove a trend.</b> Even the best test misses about half of the speeding-up histories. A trend flag should prompt a look at recent weeks or a shorter window, not block the forecast.</li>
