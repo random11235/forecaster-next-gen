@@ -11,7 +11,8 @@ type QuestionResult = Pick<ForecastResult, 'quantiles' | 'finishedFraction' | 'p
 
 export function simulateCase(simulationCase: SimulationCase): ForecastResult {
   assertValidCase(simulationCase)
-  const { question, throughputSamples } = simulationCase
+  const { question, scope, throughputSamples } = simulationCase
+  const ranked = [...scope].sort((a, b) => a.rank - b.rank)
   const random = createRandom(simulationCase.seed)
   const result =
     question.kind === 'when'
@@ -21,7 +22,10 @@ export function simulateCase(simulationCase: SimulationCase): ForecastResult {
   return {
     caseHash: hashJson(simulationCase),
     ...result,
-    diagnostics: { throughputSource: isRange(throughputSamples) ? 'manual' : 'measured' },
+    diagnostics: {
+      throughputSource: isRange(throughputSamples) ? 'manual' : 'measured',
+      uncommittedEpicIds: ranked.filter((epic) => !epic.committed).map((epic) => epic.epicId),
+    },
   }
 }
 
