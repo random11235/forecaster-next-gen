@@ -75,5 +75,7 @@ export interface ForecastResult {
     uncommittedEpicIds: string[]
     /** Trials that hit `maxPeriods` without finishing; 0 for 'howMany'. */
     trialsHittingHorizon: number
+    /** Plain-language cautions about how far the forecast can be trusted. */
+    warnings: string[]
   }
 }

@@ -16,10 +16,12 @@ export function simulateCase(simulationCase: SimulationCase): ForecastResult {
   const { question, scope, throughputSamples } = simulationCase
   const ranked = [...scope].sort((a, b) => a.rank - b.rank)
   const random = createRandom(simulationCase.seed)
-  const { trialsHittingHorizon, ...result } =
+  const questionResult =
     question.kind === 'when'
       ? simulateWhen(simulationCase, ranked, random)
       : simulateHowMany(simulationCase, question.byDate, random)
+
+  const { trialsHittingHorizon, ...result } = questionResult
 
   return {
     caseHash: hashJson(simulationCase),
@@ -30,8 +32,24 @@ export function simulateCase(simulationCase: SimulationCase): ForecastResult {
       growthSource: ranked.map((epic) => ({ epicId: epic.epicId, source: growthSourceOf(epic) })),
       uncommittedEpicIds: ranked.filter((epic) => !epic.committed).map((epic) => epic.epicId),
       trialsHittingHorizon,
+      warnings: warningsFor(simulationCase, questionResult),
     },
   }
+}
+
+function warningsFor(simulationCase: SimulationCase, result: QuestionResult): string[] {
+  const warnings: string[] = []
+  const highest = PERCENTILES[PERCENTILES.length - 1]!
+  if (result.finishedFraction < highest / 100) {
+    const { startDate, periodDays, maxPeriods } = simulationCase
+    const horizonDate = periodEndDate(startDate, periodDays, maxPeriods)
+    // Floored, so 94.9% never reads as the 95% it falls short of
+    const finishedPercent = Math.floor(result.finishedFraction * 100)
+    warnings.push(
+      `Only ${finishedPercent}% of trials finish by ${horizonDate}, the forecast horizon, so the ${highest}% date is later than that.`,
+    )
+  }
+  return warnings
 }
 
 /** `ranked` is the case's scope in rank order: work burns down the first unfinished epic. */
