@@ -5,3 +5,4 @@
 - **Domain terms, glossary and ADRs**: before exploring, or when naming a domain concept, read `docs/agents/domain.md`.
 - **Production code**: test-first via `/tdd`, at the seams in `docs/design/monte-carlo-engine.md` (Test seams).
 - **Design and v1 scope**: `docs/design/`.
+- **Research** (`docs/research/`): background behind design decisions. Cite it by link at the line it informs; read it only when such a link bears on your task.

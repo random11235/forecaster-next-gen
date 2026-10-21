@@ -132,7 +132,7 @@ ForecastScore { forecastLogId, outcomeId,
                 hit: Record<percentile, boolean> }
 ```
 
-Storing 101 quantiles, not just p50/p85/p95, gives every forecast a PIT value: the share of simulated trials that finished before the actual date. A histogram of PIT values across many forecasts is a direct calibration check ("our 85% dates were met 78% of the time"). It also gives the empirical correction factor the research recommends (Jørgensen [27]).
+Storing 101 quantiles, not just p50/p85/p95, gives every forecast a PIT value: the share of simulated trials that finished before the actual date. A histogram of PIT values across many forecasts is a direct calibration check ("our 85% dates were met 78% of the time"). It also gives the empirical correction factor the [research](../research/forecasting-approaches.md#implications-for-a-new-tool-synthesis) recommends (Jørgensen [27]).
 
 Every forecast is logged from the first run. The track record is shown only once `minResolvedMilestones` milestones have an `Outcome`.
 
@@ -159,7 +159,7 @@ SimulationCase {
   }>,
 
   throughputSamples: number[] | { low, high },  // measured done counts per period (whole numbers), or the EM's manual range
-  throughputSampler: { kind: 'bootstrap' },     // how measured samples are drawn; see "Swappable samplers"
+  throughputSampler: { kind: 'bayesianBootstrap' },  // how measured samples are drawn; see "Swappable samplers"
   epicSizeSamples:   number[] | { low, high },  // only used for epics with no children
   warnAboveWeeks,                               // from ForecastSettings, so caseHash covers it; see "Long forecasts"
 }
@@ -173,7 +173,7 @@ ForecastResult {
   percentileCounts: Record<percentile, number>,         // 'howMany' only; see below
   perEpic: Array<{ epicId, quantiles: (number | null)[101] }>,   // computed, not shown in the v1 UI
   diagnostics: {
-    throughputSampleCount, splitHalvesError,  // < 25% is "good" (Magennis); measured pace only, 2+ samples
+    throughputSampleCount, splitHalvesError,  // < 25% is "good" (Magennis); measured pace only, 2+ samples; to be replaced by relative standard error (#47)
     throughputScope: 'milestone_epics',       // shown in the UI
     throughputSource: 'manual'|'measured',
     growthSource: Array<{ epicId, source: 'samples'|'ambiguity'|'epic_size' }>,
@@ -199,8 +199,8 @@ An **uncommitted epic** has no baseline yet. `forecast/buildCase.ts` passes its 
 
 1. **Correlated growth.** Draw one uniform `u` in [0, 1) for the trial. For each epic, its growth ratio is the `u`-quantile of its own `growth` distribution: the empirical quantile of the samples, or `low + u × (high − low)` for a range. Set its total to `baseCount × ratio`, rounded to 9 decimal places to clear float error (100 × 1.1 is 110.00000000000001) while keeping real fractions, or draw one epic size (independently) if `baseCount` is null or 0. Floor the total at `currentCount`. Remaining work is `max(total − doneCount, 0)`.
    - A milestone's epics tend to over-run together (same team, same planning habits), so one shared `u` per trial keeps the range from coming out falsely narrow. Each epic still keeps its own range.
-   - **Do not average several draws.** Averaging narrows the distribution and hides the tail (research §1.1).
-2. **Pace.** Each period, draw one throughput value: from measured samples, a draw by the case's `throughputSampler` (in v1, one sample with replacement: a bootstrap); from a manual range, a whole number drawn uniformly from `[low, high]`. Subtract it from the remaining work, taking epics in rank order.
+   - **Do not average several draws.** Averaging narrows the distribution and hides the tail ([research §1.1](../research/forecasting-approaches.md#11-the-users-prior-tool-random11235forecaster)).
+2. **Pace.** Each period, draw one throughput value: from measured samples, a draw by the case's `throughputSampler` (in v1, the Bayesian bootstrap; see "Swappable samplers"); from a manual range, a whole number drawn uniformly from `[low, high]`. Subtract it from the remaining work, taking epics in rank order.
 3. Record the period in which each epic finishes, and the period in which all of them finish.
 4. Stop at `maxPeriods`. A trial that hasn't finished by then is recorded as "beyond the horizon", which also guards against all-zero throughput looping forever.
 
@@ -221,18 +221,18 @@ Collect the totals and compute 101 quantiles. Confidence runs the other way from
 
 ### Swappable samplers
 
-v1 draws measured throughput by bootstrap: each draw returns one observed period's count, every period equally likely. It keeps the empirical shape and tail, unlike the triangular draw it replaces (research §1.1). Other ways of drawing (interpolated empirical, smoothed bootstrap, parametric fits, block or recency-weighted bootstrap) are worth testing later, so the draw sits behind one seam:
+v1 draws measured throughput by Bayesian bootstrap ([ADR-0001](../adr/0001-bayesian-bootstrap-pace-sampler.md)): each trial weights the observed periods at random, and each draw returns one observed period's count by those weights. The plain `bootstrap` (every period equally likely) stays available as a sampler kind. Both return only observed counts, so they keep the empirical shape and tail, unlike the triangular draw they replace ([research §1.1](../research/forecasting-approaches.md#11-the-users-prior-tool-random11235forecaster)). Other ways of drawing (interpolated empirical, smoothed bootstrap, parametric fits, block or recency-weighted bootstrap) are worth testing later, so the draw sits behind one seam:
 
 ```ts
-type ThroughputSamplerConfig = { kind: 'bootstrap' }   // later kinds add their own parameters
+type ThroughputSamplerConfig = { kind: 'bayesianBootstrap' } | { kind: 'bootstrap' }   // later kinds add their own parameters
 interface Sampler { draw(rng: Rng): number }
 makeThroughputSampler(config, samples: Float64Array): Sampler
 ```
 
 - **The trial loop knows only `Sampler`.** Adding a sampler means adding one file in `engine/samplers/` and one entry in the registry. `simulate.ts` doesn't change.
 - **The sampler is part of the case.** `throughputSampler` is in `SimulationCase`, so it is covered by `caseHash` and recorded in the ledger with every forecast. Back-testing can then compare samplers on the same history by PIT and hit rate.
-- **`makeThroughputSampler` runs once per case.** It may precompute (sort, fit, build a CDF) but `draw` must not allocate, to keep the trial loop fast.
-- **Every sampler is deterministic for a given seed,** and has a fixture test with known output. Adding a sampler doesn't change existing results: the default stays `bootstrap` until back-testing shows something better, and changing the default bumps `engineVersion`.
+- **`makeThroughputSampler` runs once per case.** It may precompute (sort, fit, build a CDF) but `draw` must not allocate, to keep the trial loop fast. Per-trial state, such as the Bayesian bootstrap's weights, is reset in place at the start of each trial.
+- **Every sampler is deterministic for a given seed,** and has a fixture test with known output. Adding a sampler doesn't change existing results: the default changes only by ADR, and changing it bumps `engineVersion`.
 - **A manual range isn't sampled this way.** The EM's `{ low, high }` is a stated range, not observations, so it is always drawn uniformly.
 
 ### Not enough data
@@ -249,6 +249,7 @@ The forecast states plainly when an input is thin rather than hiding it, e.g. "O
 - an epic in progress but not committed;
 - a blocked epic;
 - pace marked stale after a team change;
+- pace measured over a short history, whose range is likely still too narrow ([ADR-0001](../adr/0001-bayesian-bootstrap-pace-sampler.md));
 - wide cycle-time spread, or tickets ageing beyond the team's usual cycle time.
 
 ---
@@ -361,7 +362,7 @@ v1 is a local, single-user tool, so items 1 and 2 are what matter. Items 3 and 4
 | Multi-team | An aggregator, the stakeholder roadmap, publishing, cross-team reference split rates, and access control. The data is already keyed by team. |
 | Risks / added-scope events | Add `AddedScopeEvent { probability, impactLow, impactHigh }`, applied once per trial. |
 | Reference classes | Add `ReferenceClass { workType }` if the ledger shows growth differs by work type beyond what the ambiguity levels capture. |
-| Sampling experiments | Add throughput sampler kinds beside `bootstrap` (interpolated empirical, smoothed bootstrap/KDE, Poisson or negative binomial fit, block bootstrap, recency-weighted bootstrap), each with its parameters in `ThroughputSamplerConfig`. Back-test each against the ledger and switch the default only on better calibration. Can extend to the growth and epic-size draws. |
+| Sampling experiments | Add throughput sampler kinds beside `bayesianBootstrap` and `bootstrap` (interpolated empirical, smoothed bootstrap/KDE, Poisson or negative binomial fit, block bootstrap, recency-weighted bootstrap), each with its parameters in `ThroughputSamplerConfig`. Back-test each against the ledger. Changing the default needs an ADR; [ADR-0001](../adr/0001-bayesian-bootstrap-pace-sampler.md) chose the current one on synthetic evidence, before the ledger had data. Can extend to the growth and epic-size draws. |
 | Flow signals | Feed Work Item Age against cycle-time percentiles back in as "likely to split". |
 | Other trackers | Linear, Azure DevOps. Webhooks. |
 
