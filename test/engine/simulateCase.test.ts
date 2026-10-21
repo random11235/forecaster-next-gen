@@ -366,6 +366,29 @@ describe('simulateCase: trials hitting the horizon', () => {
   })
 })
 
+describe('simulateCase: warnings', () => {
+  test('warns when fewer trials finish within the horizon than the highest reported percentile', () => {
+    // 8/9 of trials finish within the 2-period horizon (see above): below 95%
+    const result = simulateCase(whenCase({ trials: 10_000, maxPeriods: 2, throughputSamples: [0, 10, 10] }))
+
+    expect(result.diagnostics.warnings).toHaveLength(1)
+    expect(result.diagnostics.warnings[0]).toMatch(
+      /^Only (88|89)% of trials finish by 2026-01-19, the forecast horizon, so the 95% date is later than that\.$/,
+    )
+  })
+
+  test('gives no horizon warning when enough trials finish', () => {
+    // Each period finishes with probability 9/10; 2 periods leave 1 in 100 unfinished
+    const result = simulateCase(
+      whenCase({ trials: 10_000, maxPeriods: 2, throughputSamples: [0, ...Array(9).fill(10)] }),
+    )
+
+    expect(result.finishedFraction).toBeGreaterThanOrEqual(0.95)
+    expect(result.finishedFraction).toBeLessThan(1)
+    expect(result.diagnostics.warnings).toEqual([])
+  })
+})
+
 describe('simulateCase: throughput scope', () => {
   test("pace is reported as counting only the milestone's epics", () => {
     expect(simulateCase(whenCase()).diagnostics.throughputScope).toBe('milestone_epics')
