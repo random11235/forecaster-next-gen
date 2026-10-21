@@ -23,6 +23,7 @@ export function simulateCase(simulationCase: SimulationCase): ForecastResult {
     caseHash: hashJson(simulationCase),
     ...result,
     diagnostics: {
+      throughputScope: 'milestone_epics',
       throughputSource: isRange(throughputSamples) ? 'manual' : 'measured',
       growthSource: ranked.map((epic) => ({ epicId: epic.epicId, source: growthSourceOf(epic) })),
       uncommittedEpicIds: ranked.filter((epic) => !epic.committed).map((epic) => epic.epicId),

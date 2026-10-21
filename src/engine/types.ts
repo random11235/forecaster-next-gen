@@ -18,6 +18,9 @@ export interface ScopeEntry {
 /** Where an epic's total comes from: measured growth samples, its ambiguity range, or a drawn epic size (no children). */
 export type GrowthSource = 'samples' | 'ambiguity' | 'epic_size'
 
+/** Which tickets a pace sample counts; later scopes (any epic's children, all work) join this union. */
+export type ThroughputScope = 'milestone_epics'
+
 /** A `low` to `high` span; the aliases below say what it counts and whether the ends are whole numbers. */
 export interface NumberRange {
   low: number
@@ -63,6 +66,8 @@ export interface ForecastResult {
   /** 'when' only: each epic's finish period at p0..p100. */
   perEpic: { epicId: string; quantiles: (number | null)[] }[]
   diagnostics: {
+    /** Which tickets the pace counts: in v1, only children of the milestone's epics. */
+    throughputScope: ThroughputScope
     throughputSource: 'manual' | 'measured'
     /** Each epic's growth source, in rank order. */
     growthSource: { epicId: string; source: GrowthSource }[]
