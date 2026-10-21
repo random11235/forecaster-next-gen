@@ -322,6 +322,28 @@ describe('simulateCase: epics with no children', () => {
   })
 })
 
+describe('simulateCase: growth source', () => {
+  test("each epic's growth source is reported in rank order: samples, ambiguity range or epic size", () => {
+    const result = simulateCase(
+      whenCase({
+        scope: [
+          epic({ epicId: 'EMPTY', rank: 3, baseCount: null, currentCount: 0 }),
+          epic({ epicId: 'MEASURED', rank: 1, growth: [1, 1.4] }),
+          epic({ epicId: 'AMBIGUOUS', rank: 2, growth: { low: 1, high: 2 } }),
+          epic({ epicId: 'ZERO', rank: 4, baseCount: 0, currentCount: 0, growth: { low: 1, high: 2 } }),
+        ],
+      }),
+    )
+
+    expect(result.diagnostics.growthSource).toEqual([
+      { epicId: 'MEASURED', source: 'samples' },
+      { epicId: 'AMBIGUOUS', source: 'ambiguity' },
+      { epicId: 'EMPTY', source: 'epic_size' },
+      { epicId: 'ZERO', source: 'epic_size' },
+    ])
+  })
+})
+
 describe('simulateCase: manual pace range', () => {
   test('measured samples are reported as the throughput source', () => {
     expect(simulateCase(whenCase()).diagnostics.throughputSource).toBe('measured')
