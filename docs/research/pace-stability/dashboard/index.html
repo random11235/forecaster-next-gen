@@ -1,0 +1,484 @@
+<style>
+.ps { font-family: var(--font-anthropic-sans); display: flex; flex-direction: column; gap: var(--cds-gap-xl); max-width: 72rem; margin-inline: auto; position: relative; }
+.ps-head h1 { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0; text-wrap: balance; }
+.ps-head p { margin: var(--cds-gap-sm) 0 0; max-width: 46rem; color: var(--color-fg); line-height: 1.5; }
+.ps-head .ps-meta { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+.ps-section { display: flex; flex-direction: column; gap: var(--cds-gap-md); }
+.ps-section > h2 { font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); margin: 0; text-wrap: balance; }
+.ps-section > p { margin: 0; max-width: 46rem; color: var(--color-fg-muted); line-height: 1.5; }
+.ps-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: var(--cds-gap-md); }
+.ps-grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: var(--cds-gap-md); }
+.ps-card { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); display: flex; flex-direction: column; gap: var(--cds-gap-sm); min-width: 0; }
+.ps-card h3 { margin: 0; font-size: var(--cds-font-size-body); font-weight: var(--cds-font-weight-medium); }
+.ps-card .ps-note { margin: 0; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); line-height: 1.45; }
+.ps-chart { position: relative; min-height: 12rem; }
+.ps-chart.tall { min-height: 20rem; }
+.ps-chart.short { min-height: 6rem; }
+.ps-chart svg { display: block; overflow: visible; }
+.ps-chart svg text { font-family: var(--font-anthropic-sans); font-size: var(--cds-font-size-caption); fill: var(--color-fg-muted); }
+.ps-chart svg text.ps-strong { fill: var(--color-fg); }
+.ps-swatch { display: inline-block; width: 0.625rem; height: 0.625rem; border-radius: 2px; margin-right: 0.375rem; vertical-align: baseline; }
+.ps-legend { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm) var(--cds-gap-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.ps-stat { font-variant-numeric: tabular-nums; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.ps-stat b { color: var(--color-fg); font-weight: var(--cds-font-weight-medium); }
+.ps-tip { position: absolute; pointer-events: none; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); border-radius: var(--cds-radius); box-shadow: var(--cds-shadow-popover); padding: var(--cds-pad-xs) var(--cds-pad-sm); font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; z-index: 5; max-width: 16rem; }
+.ps-tip .ps-tip-head { color: var(--cds-text-secondary); }
+.ps-heat { width: 100%; overflow-x: auto; }
+.ps-heat table { border-collapse: separate; border-spacing: 2px; width: 100%; min-width: 40rem; font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; }
+.ps-heat th { font-weight: var(--cds-font-weight-medium); text-align: center; color: var(--color-fg-muted); padding: var(--cds-pad-xs); }
+.ps-heat th.ps-rowhead { text-align: left; color: var(--color-fg); }
+.ps-heat th.ps-rowhead span { display: block; color: var(--color-fg-muted); font-weight: 400; }
+.ps-heat td { text-align: center; padding: var(--cds-pad-xs) var(--cds-pad-sm); border-radius: 4px; color: var(--color-fg); }
+.ps-heat tr.ps-truth td, .ps-heat tr.ps-truth th { border-bottom: 1px solid var(--color-border-line); }
+.ps-take { margin: 0; padding-left: 1.25rem; display: flex; flex-direction: column; gap: var(--cds-gap-sm); max-width: 50rem; line-height: 1.5; }
+[data-dash-source-state=empty] { color: transparent; }
+[data-dash-source-state=refreshing] { opacity: .5; transition: opacity var(--cds-dur-slow); }
+.ps-failed { display: flex; align-items: center; justify-content: center; gap: var(--cds-gap-sm); min-height: inherit; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+.ps-failed::before { content: ""; width: .375rem; height: .375rem; border-radius: 50%; background: var(--color-bad); }
+</style>
+
+<div class="ps">
+  <header class="ps-head" id="top">
+    <h1>Pace stability signals</h1>
+    <p>Split-halves error moves in step with the relative standard error: about <b data-source="summary" data-field="value" data-where="metric=splitHalvesPerRSE" class="dash-skeleton">—</b>× it, rank correlation <b data-source="summary" data-field="value" data-where="metric=splitHalvesRSERankCorrelation" class="dash-skeleton">—</b>. Both mostly flag lumpy or outlier-heavy history, whose forecasts are wide but rarely wrong. The forecasts that go wrong come from trends and good or bad spells, and a trend test catches those far better.</p>
+    <p class="ps-meta">Synthetic data, seeded. <span data-source="summary" data-field="value" data-where="metric=seriesPerTeam">—</span> histories per team type, <span data-source="summary" data-field="value" data-where="metric=weeksOfHistory">—</span> weeks of history each, forecasting <span data-source="summary" data-field="value" data-where="metric=remainingTickets">—</span> remaining tickets with the same bootstrap the engine uses, then checked against the team's true future.</p>
+  </header>
+
+  <section class="ps-section" id="teams">
+    <h2>Six kinds of team</h2>
+    <p>Each card shows twelve example weeks. All average about six tickets a week; they differ in how the weeks hang together.</p>
+    <div class="ps-grid-3" id="team-cards" data-source="teams example_weeks"></div>
+  </section>
+
+  <section class="ps-section" id="outcomes">
+    <h2>Which forecasts go wrong</h2>
+    <div class="ps-card">
+      <h3>Actual finish outside the forecast's 10th–90th percentile range</h3>
+      <p class="ps-note">A well-calibrated forecast misses this range 20% of the time (dashed line). Trends, team changes and spells of good or bad weeks miss far more often. Lumpy history misses a little more; one odd week barely matters.</p>
+      <div class="ps-chart" id="miss-chart" data-source="teams"></div>
+    </div>
+  </section>
+
+  <section class="ps-section" id="split-halves">
+    <h2>Split-halves error is the standard error, plus noise</h2>
+    <div class="ps-card">
+      <h3>Split-halves error against relative standard error</h3>
+      <p class="ps-note">Each dot is one history of 4 to 20 weeks. The line is the best fit through zero. The two measure the same thing; the relative standard error is exact, needs no random splits and changes with the data alone.</p>
+      <div class="ps-legend" id="scatter-legend" data-source="teams"></div>
+      <div class="ps-chart tall" id="scatter-chart" data-source="split_vs_rse summary"></div>
+    </div>
+  </section>
+
+  <section class="ps-section" id="decimation">
+    <h2>Dropping weeks one at a time adds nothing</h2>
+    <p>Your proposal: start from <span data-source="summary" data-field="value" data-where="metric=decimationWeeks">—</span> weeks, remove weeks at random and watch how much the mean of what is left jumps about. The solid line is what happened; the dashed line is the textbook formula from the weekly spread and count alone. They match for every kind of team, because random removal ignores the order of the weeks.</p>
+    <div class="ps-grid-3" id="decimation-cards" data-source="decimation teams"></div>
+  </section>
+
+  <section class="ps-section" id="flags">
+    <h2>What each signal flags</h2>
+    <div class="ps-card">
+      <h3>Share of histories flagged, by team type</h3>
+      <p class="ps-note">Each cell is a share of that team type's simulated histories. The red top row is the problem to catch: the share whose actual finish fell outside the forecast's 80% range. A well-calibrated forecast lands there about one time in five, so near 20% is healthy and higher is worse. The grey rows below are neither good nor bad on their own; darker just means the signal fires more often. A useful signal is dark under the red cells and pale elsewhere. Split-halves and standard error are darkest under lumpy and one-odd-week teams, whose forecasts are fine, and fire on every outlier history.</p>
+      <div class="ps-heat" id="heat" data-source="flag_rates signals teams"></div>
+    </div>
+  </section>
+
+  <section class="ps-section" id="predictive">
+    <h2>Does a flag mean a worse forecast?</h2>
+    <div class="ps-card">
+      <h3>Forecast miss rate when the signal fires, and when it doesn't</h3>
+      <p class="ps-note">All six team types pooled. Right of the hollow dot means a flagged forecast is more likely to miss. Split-halves and the standard error point the wrong way: the histories they flag get wide forecasts, which miss less.</p>
+      <div class="ps-legend">
+        <span><span class="ps-swatch" style="background: var(--cds-chart-muted)"></span>Not flagged</span>
+        <span><span class="ps-swatch" id="flag-swatch"></span>Flagged</span>
+      </div>
+      <div class="ps-chart tall" id="dumbbell" data-source="signals"></div>
+    </div>
+  </section>
+
+  <section class="ps-section" id="patterns">
+    <h2>Can the tool tell an EM which pattern their team has?</h2>
+    <p>Instead of an alarm, name the pattern and suggest what to look at. A simple rule set, built from the signals above, was tried on fresh histories of each team type. Read across a row: the shaded diagonal is how often that team type is named correctly. One odd week, Lumpy and Steady are recognised reliably even from short history. Speeding up and Team change are often confused with each other, so they are better named together as "pace changing", and that needs about twice the history. Spells are rarely recognised, and short histories of every changing team are often called Steady.</p>
+    <div class="ps-grid" id="confusion" data-source="classification teams"></div>
+  </section>
+
+  <section class="ps-section" id="takeaways">
+    <h2>What this suggests</h2>
+    <ul class="ps-take">
+      <li><b>Replace split-halves with the relative standard error.</b> Same signal, no randomness, and the 25% / 75% bands become about 16% / 47%. Keep it as a "thin data" note, not a warning that the forecast is wrong.</li>
+      <li><b>Add a trend test.</b> Mann–Kendall fires on <span data-source="flag_rates" data-field="rate" data-where="signal=mkP&amp;team=steady">—</span> of steady histories and <span data-source="flag_rates" data-field="rate" data-where="signal=mkP&amp;team=trending">—</span> of speeding-up ones. Combined with lag-1 autocorrelation, flagged forecasts miss <span data-source="signals" data-field="missWhenFlagged" data-where="signal=trendOrRuns">—</span> of the time against <span data-source="signals" data-field="missWhenClear" data-where="signal=trendOrRuns">—</span> when clear.</li>
+      <li><b>Show leave-one-out influence as an outlier note.</b> It singles out the one odd week every time and almost never fires otherwise, so it can name the week to check.</li>
+      <li><b>Ten weeks can't prove a trend.</b> Even the best test misses about half of the speeding-up histories. A trend flag should prompt a look at recent weeks or a shorter window, not block the forecast.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+(() => {
+  const pct = d3.format('.0%');
+  const num2 = d3.format('.2f');
+  const TEAM_ORDER = ['steady', 'lumpy', 'trending', 'step', 'regimes', 'outlier'];
+  const color = (team) => dash.colors[TEAM_ORDER.indexOf(team) % dash.colors.length];
+  const root = document.querySelector('.ps');
+
+  const tip = document.createElement('div');
+  tip.className = 'ps-tip';
+  tip.hidden = true;
+  root.appendChild(tip);
+  function showTip(event, head, lines) {
+    tip.replaceChildren();
+    const h = document.createElement('div');
+    h.className = 'ps-tip-head';
+    h.textContent = head;
+    tip.appendChild(h);
+    for (const [c, label, value] of lines) {
+      const line = document.createElement('div');
+      if (c) { const s = document.createElement('span'); s.className = 'ps-swatch'; s.style.background = c; line.appendChild(s); }
+      line.appendChild(document.createTextNode(`${label}: ${value}`));
+      tip.appendChild(line);
+    }
+    tip.hidden = false;
+    const box = root.getBoundingClientRect();
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    let x = event.clientX - box.left + 12, y = event.clientY - box.top + 12;
+    if (x + tw > box.width) x = event.clientX - box.left - tw - 12;
+    if (x < 0) x = 0;
+    if (y + th > box.height) y = event.clientY - box.top - th - 12;
+    tip.style.left = `${x}px`;
+    tip.style.top = `${y}px`;
+  }
+  const hideTip = () => { tip.hidden = true; };
+
+  function stateOf(...ids) {
+    const all = ids.map((id) => dash.data(id));
+    if (all.some((d) => d.status === 'error' || d.status === 'connect' || d.status === 'declined')) return 'error';
+    if (all.every((d) => d.status === 'ok')) return 'ok';
+    return 'loading';
+  }
+  function placeholder(el, state) {
+    el.replaceChildren();
+    el.classList.toggle('dash-skeleton', state === 'loading');
+    if (state === 'error') {
+      const f = document.createElement('div');
+      f.className = 'ps-failed';
+      f.textContent = 'Failed to load';
+      el.appendChild(f);
+    }
+  }
+  const svgFor = (el, w, h) => d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${w} ${h}`).attr('role', 'img');
+  const styleAxis = (g) => {
+    g.attr('font-size', null).attr('font-family', null);
+    g.selectAll('.domain').attr('stroke', 'var(--cds-chart-axis)');
+    g.selectAll('.tick line').attr('stroke', 'var(--cds-chart-grid)');
+  };
+  const teamLabel = (teams, key) => (teams.find((t) => t.team === key) || {}).label || key;
+
+  for (const el of document.querySelectorAll('.ps-head b[data-source]')) el.classList.add('dash-skeleton');
+
+  dash.onData(() => {
+    // Header figures
+    const summary = dash.data('summary');
+    for (const el of document.querySelectorAll('[data-source="summary"]')) {
+      if (summary.status !== 'ok') { el.textContent = '—'; continue; }
+      el.classList.remove('dash-skeleton');
+      const metric = el.dataset.where.split('=')[1];
+      const row = summary.data.find((r) => r.metric === metric);
+      const v = Number(row && row.value);
+      el.textContent = metric === 'splitHalvesPerRSE' ? num2(v) : metric === 'splitHalvesRSERankCorrelation' ? num2(v) : d3.format(',')(v);
+    }
+    // Inline figures from flags and signals
+    const flagRates = dash.data('flag_rates');
+    const signals = dash.data('signals');
+    for (const el of document.querySelectorAll('.ps-take [data-source]')) {
+      const d = el.dataset.source === 'flag_rates' ? flagRates : signals;
+      if (d.status !== 'ok') { el.textContent = '—'; continue; }
+      const where = Object.fromEntries(el.dataset.where.split('&').map((p) => p.split('=')));
+      const row = d.data.find((r) => Object.entries(where).every(([k, v]) => String(r[k]) === v));
+      el.textContent = row ? pct(Number(row[el.dataset.field])) : '—';
+    }
+
+    drawTeamCards();
+    drawMiss();
+    drawScatter();
+    drawDecimation();
+    drawHeat();
+    drawDumbbell();
+    drawConfusion();
+  });
+
+  function drawConfusion() {
+    const el = document.getElementById('confusion');
+    const state = stateOf('classification', 'teams');
+    if (state !== 'ok') { el.style.minHeight = '16rem'; return placeholder(el, state); }
+    el.classList.remove('dash-skeleton');
+    el.style.minHeight = '';
+    el.replaceChildren();
+    const teams = dash.data('teams').data;
+    const rows = dash.data('classification').data.map((r) => ({ ...r, weeks: Number(r.weeks), share: Number(r.share) }));
+    const short = (k) => teamLabel(teams, k).replace('Good and bad spells', 'Spells').replace('One odd week', 'Odd week');
+    for (const n of [...new Set(rows.map((r) => r.weeks))].sort((a, b) => a - b)) {
+      const card = document.createElement('div');
+      card.className = 'ps-card';
+      const h = document.createElement('h3');
+      h.textContent = `From ${n} weeks of history`;
+      const wrap = document.createElement('div');
+      wrap.className = 'ps-heat';
+      const table = document.createElement('table');
+      table.style.minWidth = '28rem';
+      const head = table.createTHead().insertRow();
+      const corner = document.createElement('th'); corner.className = 'ps-rowhead'; corner.textContent = 'Actual ↓ / named as →'; head.appendChild(corner);
+      for (const k of TEAM_ORDER) { const th = document.createElement('th'); th.textContent = short(k); head.appendChild(th); }
+      const body = table.createTBody();
+      for (const actual of TEAM_ORDER) {
+        const tr = body.insertRow();
+        const th = document.createElement('th'); th.className = 'ps-rowhead'; th.textContent = teamLabel(teams, actual); tr.appendChild(th);
+        for (const named of TEAM_ORDER) {
+          const r = rows.find((x) => x.weeks === n && x.team === actual && x.label === named);
+          const v = r ? r.share : 0;
+          const td = tr.insertCell();
+          td.textContent = pct(v);
+          const tone = actual === named ? dash.colors[0] : 'var(--color-fg)';
+          td.style.background = `color-mix(in oklab, ${tone} ${Math.round(v * (actual === named ? 80 : 45))}%, transparent)`;
+          if (actual === named) td.style.fontWeight = 'var(--cds-font-weight-medium)';
+          td.addEventListener('pointermove', (e) => showTip(e, `${teamLabel(teams, actual)}, ${n} weeks`, [[null, `Named "${teamLabel(teams, named)}"`, pct(v)]]));
+          td.addEventListener('pointerleave', hideTip);
+        }
+      }
+      wrap.appendChild(table);
+      card.append(h, wrap);
+      el.appendChild(card);
+    }
+  }
+
+  function drawTeamCards() {
+    const el = document.getElementById('team-cards');
+    const state = stateOf('teams', 'example_weeks');
+    if (state !== 'ok') { placeholder(el, state); el.style.minHeight = '12rem'; return; }
+    el.classList.remove('dash-skeleton');
+    el.style.minHeight = '';
+    el.replaceChildren();
+    const teams = dash.data('teams').data;
+    const weeks = dash.data('example_weeks').data.map((r) => ({ team: r.team, week: Number(r.week), tickets: Number(r.tickets) }));
+    const yMax = d3.max(weeks, (d) => d.tickets);
+    for (const key of TEAM_ORDER) {
+      const t = teams.find((r) => r.team === key);
+      if (!t) continue;
+      const card = document.createElement('div');
+      card.className = 'ps-card';
+      const h = document.createElement('h3');
+      h.textContent = t.label;
+      const note = document.createElement('p');
+      note.className = 'ps-note';
+      note.textContent = t.description;
+      const chart = document.createElement('div');
+      chart.className = 'ps-chart short';
+      card.append(h, note, chart);
+      el.appendChild(card);
+      const rows = weeks.filter((r) => r.team === key);
+      const W = Math.max(200, chart.clientWidth || 260), H = 96, m = { t: 6, r: 4, b: 18, l: 22 };
+      const x = d3.scaleBand(rows.map((r) => r.week), [m.l, W - m.r]).padding(0.25);
+      const y = d3.scaleLinear([0, yMax], [H - m.b, m.t]).nice();
+      const svg = svgFor(chart, W, H);
+      svg.append('g').attr('transform', `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(2).tickSize(-(W - m.l - m.r))).call(styleAxis).call((g) => g.select('.domain').remove());
+      svg.append('g').selectAll('rect').data(rows).join('rect')
+        .attr('x', (d) => x(d.week)).attr('width', x.bandwidth())
+        .attr('y', (d) => y(d.tickets)).attr('height', (d) => Math.max(0, y(0) - y(d.tickets)))
+        .attr('rx', 2).attr('fill', color(key))
+        .on('pointermove', (e, d) => showTip(e, `${t.label}, week ${d.week}`, [[null, 'Tickets finished', d.tickets]]))
+        .on('pointerleave', hideTip);
+      svg.append('text').attr('x', m.l).attr('y', H - 3).text('12 weeks');
+    }
+  }
+
+  function drawMiss() {
+    const el = document.getElementById('miss-chart');
+    const state = stateOf('teams');
+    if (state !== 'ok') return placeholder(el, state);
+    el.classList.remove('dash-skeleton');
+    el.replaceChildren();
+    const rows = TEAM_ORDER.map((k) => dash.data('teams').data.find((r) => r.team === k)).filter(Boolean)
+      .map((r) => ({ ...r, missedRange: Number(r.missedRange) }));
+    const W = Math.max(280, el.clientWidth), rowH = 30, H = rows.length * rowH + 28;
+    const svg = svgFor(el, W, H);
+    const probe = svg.append('text').attr('class', 'ps-strong');
+    const labelW = d3.max(rows, (r) => { probe.text(r.label); return probe.node().getComputedTextLength(); }) + 12;
+    probe.remove();
+    const m = { t: 4, r: 44, b: 22, l: labelW };
+    const x = d3.scaleLinear([0, 1], [m.l, W - m.r]);
+    const y = d3.scaleBand(rows.map((r) => r.team), [m.t, H - m.b]).padding(0.3);
+    svg.append('g').attr('transform', `translate(0,${H - m.b})`).call(d3.axisBottom(x).ticks(W < 480 ? 3 : 5, '%').tickSize(-(H - m.b - m.t))).call(styleAxis).call((g) => g.select('.domain').remove());
+    svg.append('g').selectAll('rect').data(rows).join('rect')
+      .attr('x', x(0)).attr('y', (r) => y(r.team)).attr('height', y.bandwidth())
+      .attr('width', (r) => x(r.missedRange) - x(0)).attr('rx', 4).attr('fill', (r) => color(r.team))
+      .on('pointermove', (e, r) => showTip(e, r.label, [[color(r.team), 'Missed the 80% range', pct(r.missedRange)], [null, 'Median error vs P50', pct(Math.exp(Number(r.medianError)) - 1)]]))
+      .on('pointerleave', hideTip);
+    svg.append('g').selectAll('text').data(rows).join('text').attr('class', 'ps-strong')
+      .attr('x', m.l - 8).attr('y', (r) => y(r.team) + y.bandwidth() / 2).attr('dy', '0.35em').attr('text-anchor', 'end').text((r) => r.label);
+    svg.append('g').selectAll('text').data(rows).join('text')
+      .attr('x', (r) => x(r.missedRange) + 6).attr('y', (r) => y(r.team) + y.bandwidth() / 2).attr('dy', '0.35em').text((r) => pct(r.missedRange));
+    svg.append('line').attr('x1', x(0.2)).attr('x2', x(0.2)).attr('y1', m.t).attr('y2', H - m.b)
+      .attr('stroke', 'var(--cds-chart-reference)').attr('stroke-dasharray', '4 3').attr('stroke-width', 1.5);
+  }
+
+  function drawScatter() {
+    const el = document.getElementById('scatter-chart');
+    const legend = document.getElementById('scatter-legend');
+    const state = stateOf('split_vs_rse', 'summary', 'teams');
+    if (state !== 'ok') { legend.replaceChildren(); return placeholder(el, state); }
+    el.classList.remove('dash-skeleton');
+    el.replaceChildren();
+    const teams = dash.data('teams').data;
+    const pts = dash.data('split_vs_rse').data.map((r) => ({ team: r.team, weeks: Number(r.weeks), sh: Number(r.splitHalves), rse: Number(r.relativeSE) }));
+    const fit = Number(dash.data('summary').data.find((r) => r.metric === 'splitHalvesPerRSE').value);
+    const shown = TEAM_ORDER.filter((k) => pts.some((p) => p.team === k));
+    legend.replaceChildren(...shown.map((k) => {
+      const s = document.createElement('span');
+      const sw = document.createElement('span'); sw.className = 'ps-swatch'; sw.style.background = color(k);
+      s.append(sw, document.createTextNode(teamLabel(teams, k)));
+      return s;
+    }));
+    const W = Math.max(280, el.clientWidth), H = 320, m = { t: 10, r: 16, b: 40, l: 48 };
+    const xMax = d3.max(pts, (p) => p.rse), yMax = d3.max(pts, (p) => p.sh);
+    const x = d3.scaleLinear([0, xMax], [m.l, W - m.r]).nice();
+    const y = d3.scaleLinear([0, yMax], [H - m.b, m.t]).nice();
+    const svg = svgFor(el, W, H);
+    svg.append('g').attr('transform', `translate(0,${H - m.b})`).call(d3.axisBottom(x).ticks(W < 480 ? 4 : 6, '%').tickSize(-(H - m.b - m.t))).call(styleAxis);
+    svg.append('g').attr('transform', `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(5, '%').tickSize(-(W - m.l - m.r))).call(styleAxis);
+    svg.append('text').attr('x', W - m.r).attr('y', H - 6).attr('text-anchor', 'end').text('Relative standard error');
+    svg.append('text').attr('x', m.l).attr('y', m.t - 0).attr('dy', '-0.2em').text('Split-halves error');
+    const x1 = Math.min(x.domain()[1], y.domain()[1] / fit);
+    svg.append('line').attr('x1', x(0)).attr('y1', y(0)).attr('x2', x(x1)).attr('y2', y(fit * x1))
+      .attr('stroke', 'var(--cds-chart-reference)').attr('stroke-width', 1.5).attr('stroke-dasharray', '4 3');
+    svg.append('text').attr('class', 'ps-strong').attr('x', x(x1) - 6).attr('y', y(fit * x1) + 14).attr('text-anchor', 'end').text(`split-halves ≈ ${num2(fit)} × RSE`);
+    svg.append('g').selectAll('circle').data(pts).join('circle')
+      .attr('cx', (p) => x(p.rse)).attr('cy', (p) => y(p.sh)).attr('r', 3.5)
+      .attr('fill', (p) => color(p.team)).attr('fill-opacity', 0.75).attr('stroke', 'var(--color-panel)').attr('stroke-width', 1)
+      .on('pointermove', (e, p) => showTip(e, `${teamLabel(teams, p.team)}, ${p.weeks} weeks`, [[color(p.team), 'Split-halves', pct(p.sh)], [null, 'Relative standard error', pct(p.rse)]]))
+      .on('pointerleave', hideTip);
+  }
+
+  function drawDecimation() {
+    const el = document.getElementById('decimation-cards');
+    const state = stateOf('decimation', 'teams');
+    if (state !== 'ok') { placeholder(el, state); el.style.minHeight = '12rem'; return; }
+    el.classList.remove('dash-skeleton');
+    el.style.minHeight = '';
+    el.replaceChildren();
+    const teams = dash.data('teams').data;
+    const rows = dash.data('decimation').data.map((r) => ({ team: r.team, k: Number(r.weeksKept), obs: Number(r.observed), exp: Number(r.expected) }));
+    const yMax = d3.max(rows, (r) => Math.max(r.obs, r.exp));
+    const kMax = d3.max(rows, (r) => r.k);
+    for (const key of TEAM_ORDER) {
+      const pts = rows.filter((r) => r.team === key).sort((a, b) => b.k - a.k);
+      if (!pts.length) continue;
+      const card = document.createElement('div');
+      card.className = 'ps-card';
+      const h = document.createElement('h3');
+      h.textContent = teamLabel(teams, key);
+      const chart = document.createElement('div');
+      chart.className = 'ps-chart';
+      card.append(h, chart);
+      el.appendChild(card);
+      const W = Math.max(220, chart.clientWidth || 260), H = 170, m = { t: 8, r: 10, b: 30, l: 40 };
+      const x = d3.scaleLinear([kMax, 2], [m.l, W - m.r]);
+      const y = d3.scaleLinear([0, yMax], [H - m.b, m.t]).nice();
+      const svg = svgFor(chart, W, H);
+      svg.append('g').attr('transform', `translate(0,${H - m.b})`).call(d3.axisBottom(x).tickValues([kMax, 15, 10, 5, 2].filter((v) => v <= kMax)).tickSize(-(H - m.b - m.t))).call(styleAxis);
+      svg.append('g').attr('transform', `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(3, '%').tickSize(-(W - m.l - m.r))).call(styleAxis);
+      svg.append('text').attr('x', W - m.r).attr('y', H - 2).attr('text-anchor', 'end').text('weeks kept');
+      const line = (acc) => d3.line().x((p) => x(p.k)).y((p) => y(acc(p)));
+      svg.append('path').datum(pts).attr('d', line((p) => p.exp)).attr('fill', 'none')
+        .attr('stroke', 'var(--cds-chart-reference)').attr('stroke-width', 2).attr('stroke-dasharray', '5 4');
+      svg.append('path').datum(pts).attr('d', line((p) => p.obs)).attr('fill', 'none')
+        .attr('stroke', color(key)).attr('stroke-width', 2).attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round');
+      const hover = svg.append('circle').attr('r', 4).attr('fill', color(key)).attr('stroke', 'var(--color-panel)').attr('stroke-width', 2).attr('visibility', 'hidden');
+      svg.append('rect').attr('x', m.l).attr('y', m.t).attr('width', W - m.l - m.r).attr('height', H - m.t - m.b).attr('fill', 'transparent')
+        .on('pointermove', (e) => {
+          const [mx] = d3.pointer(e);
+          const k = Math.round(x.invert(mx));
+          const p = pts.find((q) => q.k === k);
+          if (!p) return;
+          hover.attr('cx', x(p.k)).attr('cy', y(p.obs)).attr('visibility', 'visible');
+          showTip(e, `${teamLabel(teams, key)}, ${p.k} of ${kMax} weeks kept`, [[color(key), 'Spread of the mean', pct(p.obs)], [null, 'Formula', pct(p.exp)]]);
+        })
+        .on('pointerleave', () => { hover.attr('visibility', 'hidden'); hideTip(); });
+    }
+  }
+
+  function drawHeat() {
+    const el = document.getElementById('heat');
+    const state = stateOf('flag_rates', 'signals', 'teams');
+    if (state !== 'ok') { el.style.minHeight = '16rem'; return placeholder(el, state); }
+    el.classList.remove('dash-skeleton');
+    el.style.minHeight = '';
+    el.replaceChildren();
+    const teams = dash.data('teams').data;
+    const sigs = dash.data('signals').data;
+    const rates = dash.data('flag_rates').data;
+    const lo = getComputedStyle(el).getPropertyValue('--color-panel').trim() || '#fff';
+    const hi = dash.colors[0];
+    const ramp = (v) => `color-mix(in oklab, var(--color-fg) ${Math.round(v * 45)}%, transparent)`;
+    const table = document.createElement('table');
+    const head = table.createTHead().insertRow();
+    const corner = document.createElement('th'); head.appendChild(corner);
+    for (const k of TEAM_ORDER) { const th = document.createElement('th'); th.textContent = teamLabel(teams, k); head.appendChild(th); }
+    const body = table.createTBody();
+    const truth = body.insertRow(); truth.className = 'ps-truth';
+    const tth = document.createElement('th'); tth.className = 'ps-rowhead'; tth.textContent = 'Forecast missed the 80% range';
+    const target = 0.2;
+    const tspan = document.createElement('span'); tspan.textContent = `Perfect is ${pct(target)}; red shows how far above`; tth.appendChild(tspan);
+    truth.appendChild(tth);
+    for (const k of TEAM_ORDER) {
+      const t = teams.find((r) => r.team === k);
+      const v = Number(t.missedRange);
+      const excess = Math.max(0, v - target) / (1 - target);
+      const td = truth.insertCell(); td.textContent = pct(v); td.style.background = `color-mix(in oklab, var(--color-bad) ${Math.round(excess * 90)}%, transparent)`;
+    }
+    for (const s of sigs) {
+      const tr = body.insertRow();
+      const th = document.createElement('th'); th.className = 'ps-rowhead';
+      th.textContent = s.label;
+      const rule = document.createElement('span'); rule.textContent = s.rule; th.appendChild(rule);
+      tr.appendChild(th);
+      for (const k of TEAM_ORDER) {
+        const r = rates.find((x) => x.signal === s.signal && x.team === k);
+        const v = Number(r ? r.rate : 0);
+        const td = tr.insertCell(); td.textContent = pct(v); td.style.background = ramp(v);
+        td.addEventListener('pointermove', (e) => showTip(e, `${s.label} on ${teamLabel(teams, k)}`, [[null, 'Histories flagged', pct(v)]]));
+        td.addEventListener('pointerleave', hideTip);
+      }
+    }
+    el.appendChild(table);
+  }
+
+  function drawDumbbell() {
+    const el = document.getElementById('dumbbell');
+    const state = stateOf('signals');
+    document.getElementById('flag-swatch').style.background = dash.colors[0];
+    if (state !== 'ok') return placeholder(el, state);
+    el.classList.remove('dash-skeleton');
+    el.replaceChildren();
+    const rows = dash.data('signals').data.map((r) => ({ ...r, f: Number(r.missWhenFlagged), c: Number(r.missWhenClear), share: Number(r.flaggedShare) }));
+    const W = Math.max(280, el.clientWidth), rowH = 34, H = rows.length * rowH + 30;
+    const svg = svgFor(el, W, H);
+    const probe = svg.append('text').attr('class', 'ps-strong');
+    const labelW = Math.min(W * 0.45, d3.max(rows, (r) => { probe.text(r.label); return probe.node().getComputedTextLength(); }) + 12);
+    probe.remove();
+    const m = { t: 4, r: 16, b: 24, l: labelW };
+    const lo = Math.min(0.2, d3.min(rows, (r) => Math.min(r.f, r.c)) - 0.05);
+    const hiV = Math.max(0.7, d3.max(rows, (r) => Math.max(r.f, r.c)) + 0.05);
+    const x = d3.scaleLinear([lo, hiV], [m.l, W - m.r]).nice();
+    const y = d3.scaleBand(rows.map((r) => r.signal), [m.t, H - m.b]).padding(0.4);
+    svg.append('g').attr('transform', `translate(0,${H - m.b})`).call(d3.axisBottom(x).ticks(W < 480 ? 3 : 6, '%').tickSize(-(H - m.b - m.t))).call(styleAxis).call((g) => g.select('.domain').remove());
+    const g = svg.append('g').selectAll('g').data(rows).join('g').attr('transform', (r) => `translate(0,${y(r.signal) + y.bandwidth() / 2})`);
+    g.append('text').attr('class', 'ps-strong').attr('x', m.l - 10).attr('dy', '0.35em').attr('text-anchor', 'end').text((r) => r.label);
+    g.append('line').attr('x1', (r) => x(r.c)).attr('x2', (r) => x(r.f)).attr('stroke', 'var(--cds-chart-muted)').attr('stroke-width', 2);
+    g.append('circle').attr('cx', (r) => x(r.c)).attr('r', 5).attr('fill', 'var(--color-panel)').attr('stroke', 'var(--cds-chart-muted)').attr('stroke-width', 2);
+    g.append('circle').attr('cx', (r) => x(r.f)).attr('r', 5.5).attr('fill', dash.colors[0]).attr('stroke', 'var(--color-panel)').attr('stroke-width', 2);
+    g.append('rect').attr('x', m.l).attr('y', -y.bandwidth()).attr('width', W - m.l - m.r).attr('height', y.bandwidth() * 2).attr('fill', 'transparent')
+      .on('pointermove', (e, r) => showTip(e, `${r.label} (${r.rule})`, [[dash.colors[0], 'Miss rate when flagged', pct(r.f)], ['var(--cds-chart-muted)', 'Miss rate when not flagged', pct(r.c)], [null, 'Histories flagged', pct(r.share)]]))
+      .on('pointerleave', hideTip);
+  }
+})();
+</script>
