@@ -1,3 +1,3 @@
 # Coding standards
 
-- **String values** in union types are lowercase with underscores between words: `'milestone_epics'`, `'epic_size'`, `'not_started'`. They are stored and shown, so renaming one later breaks saved data.
+- **String values** in union types are camelCase, like the TypeScript identifiers around them: `'howMany'`, `'bayesianBootstrap'`. They are stored and shown, so renaming one later breaks saved data. Known exceptions, still to be renamed: `'milestone_epics'`, `'epic_size'`, `'not_started'`, `'user_marked'` (#49).
