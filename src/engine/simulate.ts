@@ -1,7 +1,7 @@
 import { periodEndDate, wholePeriodsUntil } from './dates.js'
 import { hashJson } from './hash.js'
 import { createRandom, drawFrom, drawWholeNumberIn, type Random } from './random.js'
-import { PERCENTILES, type ForecastResult, type GrowthRange, type Percentile, type SimulationCase, type ThroughputRange } from './types.js'
+import { PERCENTILES, type ForecastResult, type GrowthRange, type GrowthSource, type NumberRange, type Percentile, type ScopeEntry, type SimulationCase } from './types.js'
 import { assertValidCase } from './validate.js'
 
 /** Marks a trial that hit `maxPeriods` without finishing; sorts after every real period. */
@@ -11,23 +11,28 @@ type QuestionResult = Pick<ForecastResult, 'quantiles' | 'finishedFraction' | 'p
 
 export function simulateCase(simulationCase: SimulationCase): ForecastResult {
   assertValidCase(simulationCase)
-  const { question, throughputSamples } = simulationCase
+  const { question, scope, throughputSamples } = simulationCase
+  const ranked = [...scope].sort((a, b) => a.rank - b.rank)
   const random = createRandom(simulationCase.seed)
   const result =
     question.kind === 'when'
-      ? simulateWhen(simulationCase, random)
+      ? simulateWhen(simulationCase, ranked, random)
       : simulateHowMany(simulationCase, question.byDate, random)
 
   return {
     caseHash: hashJson(simulationCase),
     ...result,
-    diagnostics: { throughputSource: isRange(throughputSamples) ? 'manual' : 'measured' },
+    diagnostics: {
+      throughputSource: isRange(throughputSamples) ? 'manual' : 'measured',
+      growthSource: ranked.map((epic) => ({ epicId: epic.epicId, source: growthSourceOf(epic) })),
+      uncommittedEpicIds: ranked.filter((epic) => !epic.committed).map((epic) => epic.epicId),
+    },
   }
 }
 
-function simulateWhen(simulationCase: SimulationCase, random: Random): QuestionResult {
-  const { trials, maxPeriods, scope, throughputSamples } = simulationCase
-  const ranked = [...scope].sort((a, b) => a.rank - b.rank)
+/** `ranked` is the case's scope in rank order: work burns down the first unfinished epic. */
+function simulateWhen(simulationCase: SimulationCase, ranked: readonly ScopeEntry[], random: Random): QuestionResult {
+  const { trials, maxPeriods, throughputSamples, epicSizeSamples } = simulationCase
   const growthAt = ranked.map((epic) => growthRatioAt(epic.growth))
   const remaining = new Float64Array(ranked.length)
   const epicFinishPeriods = ranked.map(() => new Float64Array(trials))
@@ -39,8 +44,10 @@ function simulateWhen(simulationCase: SimulationCase, random: Random): QuestionR
     const u = random()
     for (let i = 0; i < ranked.length; i++) {
       const epic = ranked[i]!
-      const ratio = growthAt[i]!(u)
-      const total = Math.max(withoutFloatError(epic.baseCount * ratio), epic.currentCount)
+      const drawn = hasChildren(epic.baseCount)
+        ? withoutFloatError(epic.baseCount * growthAt[i]!(u))
+        : drawCount(random, epicSizeSamples)
+      const total = Math.max(drawn, epic.currentCount)
       remaining[i] = Math.max(total - epic.doneCount, 0)
       if (remaining[i] === 0) epicFinishPeriods[i]![trial] = 0
     }
@@ -50,7 +57,7 @@ function simulateWhen(simulationCase: SimulationCase, random: Random): QuestionR
     let period = 0
     while (next < ranked.length && period < maxPeriods) {
       period++
-      let throughput = drawThroughput(random, throughputSamples)
+      let throughput = drawCount(random, throughputSamples)
       while (throughput > 0 && next < ranked.length) {
         const burned = Math.min(throughput, remaining[next]!)
         remaining[next]! -= burned
@@ -103,6 +110,16 @@ function growthRatioAt(growth: readonly number[] | GrowthRange): (u: number) => 
   return (u) => sorted[Math.floor(u * sorted.length)]!
 }
 
+function growthSourceOf(epic: ScopeEntry): GrowthSource {
+  if (!hasChildren(epic.baseCount)) return 'epic_size'
+  return isRange(epic.growth) ? 'ambiguity' : 'samples'
+}
+
+/** A null or 0 baseCount means the epic has no children, so a growth ratio has nothing to scale. */
+function hasChildren(baseCount: number | null): baseCount is number {
+  return baseCount !== null && baseCount > 0
+}
+
 /** The index of the first epic from `from` on with work remaining, or the epic count if none has. */
 function skipFinished(remaining: Float64Array, from: number): number {
   let i = from
@@ -126,7 +143,7 @@ function simulateHowMany(simulationCase: SimulationCase, byDate: string, random:
 
   for (let trial = 0; trial < trials; trial++) {
     let done = 0
-    for (let period = 0; period < periods; period++) done += drawThroughput(random, throughputSamples)
+    for (let period = 0; period < periods; period++) done += drawCount(random, throughputSamples)
     doneCounts[trial] = done
   }
 
@@ -141,12 +158,15 @@ function simulateHowMany(simulationCase: SimulationCase, byDate: string, random:
   return { quantiles, finishedFraction: 1, percentileDates: {}, percentileCounts, perEpic: [] }
 }
 
-/** One period's done count: a bootstrap draw from measured samples, or a whole number from the manual range. */
-function drawThroughput(random: Random, throughput: readonly number[] | ThroughputRange): number {
-  return isRange(throughput) ? drawWholeNumberIn(random, throughput.low, throughput.high) : drawFrom(random, throughput)
+/**
+ * A ticket count: a bootstrap draw from samples, or a whole number from the range.
+ * Draws one period's throughput, and an empty epic's size (independent of the trial's shared growth quantile).
+ */
+function drawCount(random: Random, source: readonly number[] | NumberRange): number {
+  return isRange(source) ? drawWholeNumberIn(random, source.low, source.high) : drawFrom(random, source)
 }
 
-function isRange<Range extends ThroughputRange | GrowthRange>(value: readonly number[] | Range): value is Range {
+function isRange(value: readonly number[] | NumberRange): value is NumberRange {
   return !Array.isArray(value)
 }
 
