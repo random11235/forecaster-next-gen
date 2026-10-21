@@ -12,22 +12,22 @@ Interactive dashboard: [Pace Stability Signals](https://claude.ai/artifact/DhDqM
 
 ## Method
 
-`experiment.mjs` simulates six team types, each averaging about 6 tickets a week:
+`experiment.mjs` simulates six team types, each averaging about 6 tickets a week. They are defined in `lib.mjs`, whose keys appear as `archetype` in `results.json` and `data/`:
 
-| Team type | Process |
-|---|---|
-| Steady | Poisson, mean 6 |
-| Lumpy | Gamma-Poisson, CV ≈ 1 (batch releases, zero weeks) |
-| Speeding up | Mean rises from 3 to 9 over the history, then holds at 9 |
-| Team change | Mean 4, then 8 from halfway |
-| Good and bad spells | Markov chain between 9 and 3 a week, 85% chance of staying |
-| One odd week | Steady, plus one week of 30 |
+| Team type | Key | Process |
+|---|---|---|
+| Steady | `steady` | Poisson, mean 6 |
+| Lumpy | `lumpy` | Gamma-Poisson, CV ≈ 1 (batch releases, zero weeks) |
+| Speeding up | `trending` | Mean rises from 3 to 9 over the history, then holds at 9 |
+| Team change | `step` | Mean 4, then 8 from halfway |
+| Good and bad spells | `regimes` | Markov chain between 9 and 3 a week, 85% chance of staying |
+| One odd week | `outlier` | Steady, plus one week of 30 |
 
 For each type there are 400 histories of 10 weeks. Each history is forecast for 60 remaining tickets with a 2,000-trial bootstrap, the same method as the engine. The forecast is then checked against the team's true future. Each signal is computed on the history:
 
 | Signal | Rule |
 |---|---|
-| Split-halves error (as in `src/engine/simulate.ts`) | > 25% |
+| Split-halves error (as in `src/engine/simulate.ts` from PR #41) | > 25% |
 | Relative standard error, CV/√n | > 16% |
 | Older vs newer half | > 40% |
 | Mann–Kendall trend test | p < 0.05 |
@@ -53,7 +53,7 @@ A P10–P90 range would miss 20% of the time if finish dates were continuous. Th
 | Good and bad spells | 54% |
 | One odd week | 26% |
 
-Changing teams miss far more, and adding older history makes trending teams worse.
+Changing teams miss far more.
 
 ### Short history makes every range too narrow
 
@@ -74,7 +74,7 @@ So a 10-week forecast is overconfident by about 16 points even for a perfectly s
 | Spells | 55% → 45% | 5.0 → 7.4 | +1 → +1 |
 | One odd week | 24% → 17% | 5.9 → 7.1 | −3 → −2 |
 
-It closes about half the short-history gap and makes no team type's miss rate worse. Adopted in [ADR-0001](../../adr/0001-bayesian-bootstrap-pace-sampler.md).
+It closes more than half the short-history gap and makes no team type's miss rate worse. Adopted in [ADR-0001](../../adr/0001-bayesian-bootstrap-pace-sampler.md).
 
 ### Split-halves error is the relative standard error
 
@@ -124,7 +124,7 @@ From 10 weeks, about 40% of changing teams are called Steady.
 
 ## Implications
 
-1. Replace split-halves with the RSE, shown as information ("your weekly pace varies a lot, so the range is wide"), not as a warning. Its 25% / 75% bands correspond to about 16% / 47% RSE.
+1. Replace split-halves with the RSE, shown as information ("your weekly pace varies a lot, so the range is wide"), not as a warning. Since split-halves ≈ 1.70 × RSE, its 25% / 75% bands correspond to about 15% / 44% RSE.
 2. Warn on trend or runs, worded neutrally: "pace is changing, treat the range with care". This is tracked in #42.
 3. Use leave-one-out as a data-quality prompt that names the unusual week.
 4. Pattern naming is feasible for odd week and lumpy, and lumpy comes with advice for the EM. Merge trend and step into "pace changing". Say "no pattern detected yet" rather than "steady" for short histories.
@@ -132,9 +132,10 @@ From 10 weeks, about 40% of changing teams are called Steady.
 
 ## Files
 
+- `lib.mjs`: shared by every script: the seeded random stream, the team types, the signals and the bootstrap forecasts (plain and Bayesian).
 - `experiment.mjs`: the main experiment. Run `node experiment.mjs`. Seed 20261021; writes `results.json`, which is git-ignored.
 - `steady-check.mjs`: steady miss rate by history length, and the perfect-forecast baseline. Run `node steady-check.mjs`.
 - `widen-check.mjs`, `bayes-sideeffects.mjs`: plain vs Bayesian bootstrap, by history length and across team types.
-- `classify.mjs`: the pattern classifier test. Run `node classify.mjs`; it prints a confusion matrix as JSON. It repeats the team types and signals from `experiment.mjs`.
+- `classify.mjs`: the pattern classifier test. Run `node classify.mjs`; it prints a confusion matrix as JSON.
 - `data/`: the datasets behind the dashboard. They were reshaped from `results.json` and `classify.mjs` output.
 - `dashboard/index.html`: the dashboard page source. It runs only inside the claude.ai Dashboard artifact runtime (`dash.onData`, design tokens), so it won't render opened directly.
