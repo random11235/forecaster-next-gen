@@ -45,7 +45,7 @@ export function simulateCase(simulationCase: SimulationCase): ForecastResult {
     ...result,
     diagnostics: {
       ...splitHalvesDiagnostic,
-      throughputScope: 'milestone_epics',
+      throughputScope: 'milestoneEpics',
       throughputSource: isRange(throughputSamples) ? 'manual' : 'measured',
       growthSource: ranked.map((epic) => ({ epicId: epic.epicId, source: growthSourceOf(epic) })),
       uncommittedEpicIds: ranked.filter((epic) => !epic.committed).map((epic) => epic.epicId),
@@ -206,7 +206,7 @@ function growthRatioAt(growth: readonly number[] | GrowthRange): (u: number) => 
 }
 
 function growthSourceOf(epic: ScopeEntry): GrowthSource {
-  if (!hasChildren(epic.baseCount)) return 'epic_size'
+  if (!hasChildren(epic.baseCount)) return 'epicSize'
   return isRange(epic.growth) ? 'ambiguity' : 'samples'
 }
 

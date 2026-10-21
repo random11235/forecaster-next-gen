@@ -73,7 +73,7 @@ GrowthSample     { epicId, teamId, committedCount, finalCount,
 EpicSizeSample   { epicId, teamId, finalCount, completedAt }
 
 ThroughputSample { teamId, milestoneId, periodStart, periodDays /* 1 | 7 */,
-                   scope: 'milestone_epics', count }
+                   scope: 'milestoneEpics', count }
 ```
 
 **Committing.** The EM commits an epic in the tool after kickoff, or a configured label in the ticketing tool commits it. The commit records the epic's child count at that moment. Spikes never commit an epic. A pull-back (from started to not started) resets the commit: `resetAt` is set and the EM commits again on restart. Only the latest commit counts towards the growth ratio. A blocked epic keeps its commit.
@@ -174,9 +174,9 @@ ForecastResult {
   perEpic: Array<{ epicId, quantiles: (number | null)[101] }>,   // computed, not shown in the v1 UI
   diagnostics: {
     throughputSampleCount, splitHalvesError,  // < 25% is "good" (Magennis); measured pace only, 2+ samples; to be replaced by relative standard error (#47)
-    throughputScope: 'milestone_epics',       // shown in the UI
+    throughputScope: 'milestoneEpics',       // shown in the UI
     throughputSource: 'manual'|'measured',
-    growthSource: Array<{ epicId, source: 'samples'|'ambiguity'|'epic_size' }>,
+    growthSource: Array<{ epicId, source: 'samples'|'ambiguity'|'epicSize' }>,
     uncommittedEpicIds: string[],             // labelled "not committed: wide range"
     trialsHittingHorizon,                     // trials that hit maxPeriods without finishing
     warnings: string[],

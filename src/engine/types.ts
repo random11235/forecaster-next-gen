@@ -16,10 +16,10 @@ export interface ScopeEntry {
 }
 
 /** Where an epic's total comes from: measured growth samples, its ambiguity range, or a drawn epic size (no children). */
-export type GrowthSource = 'samples' | 'ambiguity' | 'epic_size'
+export type GrowthSource = 'samples' | 'ambiguity' | 'epicSize'
 
 /** Which tickets a pace sample counts; later scopes (any epic's children, all work) join this union. */
-export type ThroughputScope = 'milestone_epics'
+export type ThroughputScope = 'milestoneEpics'
 
 /** A `low` to `high` span; the aliases below say what it counts and whether the ends are whole numbers. */
 export interface NumberRange {
