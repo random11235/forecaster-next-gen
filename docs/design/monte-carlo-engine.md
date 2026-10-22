@@ -173,7 +173,7 @@ ForecastResult {
   percentileCounts: Record<percentile, number>,         // 'howMany' only; see below
   perEpic: Array<{ epicId, quantiles: (number | null)[101] }>,   // computed, not shown in the v1 UI
   diagnostics: {
-    throughputSampleCount, splitHalvesError,  // < 25% is "good" (Magennis); measured pace only, 2+ samples; to be replaced by relative standard error (#47)
+    throughputSampleCount, paceVariation,     // relative standard error; measured pace only, 2+ samples
     throughputScope: 'milestoneEpics',       // shown in the UI
     throughputSource: 'manual'|'measured',
     growthSource: Array<{ epicId, source: 'samples'|'ambiguity'|'epicSize' }>,
@@ -237,7 +237,7 @@ makeThroughputSampler(config, samples: Float64Array): Sampler
 
 ### Not enough data
 
-**Split-halves error.** For measured pace, the engine splits the samples into two random halves and takes the gap between their means as a share of the overall mean, averaged over 100 splits drawn after the trials (so the trials' random stream is unchanged). Below 25% is "good" (Magennis). It is absent for a manual range, and for a single sample, which can't be split.
+**Pace variation.** For measured pace with 2 or more samples, `diagnostics.paceVariation` is the relative standard error: sample sd / mean / √n, or 0 when every sample is 0. It uses no random draws. It is information for the EM ("your weekly pace varies a lot, so the range is wide"), not a warning: lumpy weeks give a wide range that still holds up. It replaces Magennis's split-halves error, which is the same measure plus random noise ([research](../research/pace-stability/README.md#split-halves-error-is-the-relative-standard-error)). The bands that choose the text belong to the forecast layer.
 
 **Long forecasts.** Each period's pace is drawn independently, so over many periods good and bad weeks average out, and the spread grows only with the square root of the number of periods: a long forecast comes out too confident about the date. When the forecast spans more than `warnAboveWeeks` weeks, `diagnostics.warnings` says so in tickets and weeks, never periods, e.g. "This forecast covers about 180 tickets, roughly 30 weeks at your current pace. Forecasts this far out tend to be too confident about the date." The forecast still runs.
 - The span is counted in time (periods × `periodDays`), so the threshold keeps its meaning if `periodDays` changes. For 'when' it is the median finish, and a median beyond the horizon counts as over; for 'howMany' it is the time to `byDate`.
@@ -276,7 +276,7 @@ src/
     buildCase.ts          # pace mode, ambiguity ranges, provisional baselines, limits
     settings.ts           # ForecastSettings and AmbiguityRanges defaults
     suggestions.ts        # suggested pace range, measured medium range, switch offers
-    diagnostics.ts        # sample counts, split-halves stability, warnings
+    diagnostics.ts        # sample counts, pace variation text, warnings
 
   ledger/                 # Layer 5
     forecastLog.ts
