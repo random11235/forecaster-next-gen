@@ -16,7 +16,10 @@ export interface ScopeEntry {
 }
 
 /** Where an epic's total comes from: measured growth samples, its ambiguity range, or a drawn epic size (no children). */
-export type GrowthSource = 'samples' | 'ambiguity' | 'epic_size'
+export type GrowthSource = 'samples' | 'ambiguity' | 'epicSize'
+
+/** Which tickets a pace sample counts; later scopes (any epic's children, all work) join this union. */
+export type ThroughputScope = 'milestoneEpics'
 
 /** A `low` to `high` span; the aliases below say what it counts and whether the ends are whole numbers. */
 export interface NumberRange {
@@ -48,6 +51,8 @@ export interface SimulationCase {
   throughputSamples: number[] | ThroughputRange
   /** Final child counts of finished epics, or the default range; only used for epics with no children. */
   epicSizeSamples: number[] | EpicSizeRange
+  /** Warn when the forecast spans more than this many weeks (the `ForecastSettings` value, default 26). */
+  warnAboveWeeks: number
 }
 
 export interface ForecastResult {
@@ -63,10 +68,21 @@ export interface ForecastResult {
   /** 'when' only: each epic's finish period at p0..p100. */
   perEpic: { epicId: string; quantiles: (number | null)[] }[]
   diagnostics: {
+    /**
+     * Measured pace only, from 2 samples up: how far the means of two random halves of the samples
+     * differ, as a share of their overall mean, averaged over many splits. Below 0.25 is "good" (Magennis).
+     */
+    splitHalvesError?: number
+    /** Which tickets the pace counts: in v1, only children of the milestone's epics. */
+    throughputScope: ThroughputScope
     throughputSource: 'manual' | 'measured'
     /** Each epic's growth source, in rank order. */
     growthSource: { epicId: string; source: GrowthSource }[]
     /** Epics forecast from a provisional baseCount, in rank order; shown as "not committed: wide range". */
     uncommittedEpicIds: string[]
+    /** Trials that hit `maxPeriods` without finishing; 0 for 'howMany'. */
+    trialsHittingHorizon: number
+    /** Plain-language cautions about how far the forecast can be trusted. */
+    warnings: string[]
   }
 }

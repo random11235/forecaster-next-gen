@@ -11,9 +11,10 @@ const MAX_RANGE_HIGH = 100_000
 
 /** Rejects cases outside the engine's limits, so a bad input fails loudly instead of forecasting. */
 export function assertValidCase(simulationCase: SimulationCase): void {
-  const { trials, maxPeriods, question, scope, throughputSamples, epicSizeSamples } = simulationCase
+  const { trials, maxPeriods, question, scope, throughputSamples, epicSizeSamples, warnAboveWeeks } = simulationCase
   assertWholeNumberIn('trials', trials, 1, MAX_TRIALS)
   assertWholeNumberIn('maxPeriods', maxPeriods, 1, MAX_PERIODS)
+  assertNonNegative('warnAboveWeeks', warnAboveWeeks)
   if (Array.isArray(throughputSamples)) {
     assertSamples('throughputSamples', throughputSamples)
     assertWholeNumbers('throughputSamples', throughputSamples)
@@ -34,7 +35,10 @@ export function assertValidCase(simulationCase: SimulationCase): void {
   if (scope.length === 0 || scope.length > MAX_EPICS) {
     throw new RangeError(`scope must hold 1 to ${MAX_EPICS} epics, got ${scope.length}`)
   }
+  const epicIds = new Set<string>()
   for (const epic of scope) {
+    assertUnseen('epicId', epicIds, epic.epicId)
+    assertFinite('rank', epic.rank)
     if (epic.baseCount !== null) assertNonNegative('baseCount', epic.baseCount)
     assertNonNegative('currentCount', epic.currentCount)
     assertNonNegative('doneCount', epic.doneCount)
@@ -73,6 +77,16 @@ function assertByDate({ startDate, periodDays, maxPeriods }: SimulationCase, byD
   if (periods < 0 || periods > maxPeriods) {
     throw new RangeError(`byDate must be from ${startDate} to ${maxPeriods} periods after it, got ${byDate}`)
   }
+}
+
+/** Records `value` in `seen`, rejecting one already there. */
+function assertUnseen(field: string, seen: Set<string>, value: string): void {
+  if (seen.has(value)) throw new RangeError(`scope must not repeat an ${field}, got ${value} twice`)
+  seen.add(value)
+}
+
+function assertFinite(field: string, value: number): void {
+  if (!Number.isFinite(value)) throw new RangeError(`${field} must be a finite number, got ${value}`)
 }
 
 function assertNonNegative(field: string, value: number): void {

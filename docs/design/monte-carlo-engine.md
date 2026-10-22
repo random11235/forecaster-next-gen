@@ -73,7 +73,7 @@ GrowthSample     { epicId, teamId, committedCount, finalCount,
 EpicSizeSample   { epicId, teamId, finalCount, completedAt }
 
 ThroughputSample { teamId, milestoneId, periodStart, periodDays /* 1 | 7 */,
-                   scope: 'milestone_epics', count }
+                   scope: 'milestoneEpics', count }
 ```
 
 **Committing.** The EM commits an epic in the tool after kickoff, or a configured label in the ticketing tool commits it. The commit records the epic's child count at that moment. Spikes never commit an epic. A pull-back (from started to not started) resets the commit: `resetAt` is set and the EM commits again on restart. Only the latest commit counts towards the growth ratio. A blocked epic keeps its commit.
@@ -92,7 +92,8 @@ ForecastSettings { teamId, trials /* 10_000 */,
                    minMeasuredPaceWeeks /* 8 */, staleWeeksAfterTeamChange /* 4 */,
                    minResolvedMilestones /* 5, for the track record */,
                    periodDays /* 7 */,
-                   maxPeriods /* horizon cap in periods, e.g. 156 when periodDays is 7 */ }
+                   maxPeriods /* horizon cap in periods, e.g. 156 when periodDays is 7 */,
+                   warnAboveWeeks /* 26, provisional: tune from the calibration ledger */ }
 
 PaceSetting      { teamId, milestoneId, mode: 'manual'|'measured',
                    manualLow, manualHigh,           // tickets per period
@@ -160,6 +161,7 @@ SimulationCase {
   throughputSamples: number[] | { low, high },  // measured done counts per period (whole numbers), or the EM's manual range
   throughputSampler: { kind: 'bayesianBootstrap' },  // how measured samples are drawn; see "Swappable samplers"
   epicSizeSamples:   number[] | { low, high },  // only used for epics with no children
+  warnAboveWeeks,                               // from ForecastSettings, so caseHash covers it; see "Long forecasts"
 }
 
 ForecastResult {
@@ -171,10 +173,10 @@ ForecastResult {
   percentileCounts: Record<percentile, number>,         // 'howMany' only; see below
   perEpic: Array<{ epicId, quantiles: (number | null)[101] }>,   // computed, not shown in the v1 UI
   diagnostics: {
-    throughputSampleCount, splitHalvesError,  // < 25% is "good" (Magennis); measured pace only; to be replaced by relative standard error (#47)
-    throughputScope: 'milestone_epics',       // shown in the UI
+    throughputSampleCount, splitHalvesError,  // < 25% is "good" (Magennis); measured pace only, 2+ samples; to be replaced by relative standard error (#47)
+    throughputScope: 'milestoneEpics',       // shown in the UI
     throughputSource: 'manual'|'measured',
-    growthSource: Array<{ epicId, source: 'samples'|'ambiguity'|'epic_size' }>,
+    growthSource: Array<{ epicId, source: 'samples'|'ambiguity'|'epicSize' }>,
     uncommittedEpicIds: string[],             // labelled "not committed: wide range"
     trialsHittingHorizon,                     // trials that hit maxPeriods without finishing
     warnings: string[],
@@ -234,6 +236,13 @@ makeThroughputSampler(config, samples: Float64Array): Sampler
 - **A manual range isn't sampled this way.** The EM's `{ low, high }` is a stated range, not observations, so it is always drawn uniformly.
 
 ### Not enough data
+
+**Split-halves error.** For measured pace, the engine splits the samples into two random halves and takes the gap between their means as a share of the overall mean, averaged over 100 splits drawn after the trials (so the trials' random stream is unchanged). Below 25% is "good" (Magennis). It is absent for a manual range, and for a single sample, which can't be split.
+
+**Long forecasts.** Each period's pace is drawn independently, so over many periods good and bad weeks average out, and the spread grows only with the square root of the number of periods: a long forecast comes out too confident about the date. When the forecast spans more than `warnAboveWeeks` weeks, `diagnostics.warnings` says so in tickets and weeks, never periods, e.g. "This forecast covers about 180 tickets, roughly 30 weeks at your current pace. Forecasts this far out tend to be too confident about the date." The forecast still runs.
+- The span is counted in time (periods × `periodDays`), so the threshold keeps its meaning if `periodDays` changes. For 'when' it is the median finish, and a median beyond the horizon counts as over; for 'howMany' it is the time to `byDate`.
+- The ticket figure for 'when' is the median remaining work across trials, after growth; for 'howMany', the median count done.
+- The lasting fix is a sampler that keeps runs of weeks together (see "Sampling experiments" under [Deferred](#deferred-beyond-v1)).
 
 The forecast states plainly when an input is thin rather than hiding it, e.g. "Only 4 weeks of finished tickets. Forecast needs 8." These go in `diagnostics.warnings`, alongside:
 
@@ -329,7 +338,7 @@ v1 is a local, single-user tool, so items 1 and 2 are what matter. Items 3 and 4
    - No webhooks in v1. Connectors poll on refresh.
 2. **Data minimisation.** The model needs only IDs, types, parent links, labels, status timestamps and counts. Don't ingest titles, descriptions, comments or assignee identities. With fixed capacity there is no `Person` table.
 3. **Engine input limits.**
-   - Cap `trials`, sample-array sizes and `maxPeriods` in `forecast/buildCase.ts`, and check them again at the engine boundary.
+   - Cap `trials`, sample-array sizes, `maxPeriods` and the number of epics in `scope` (100, `MAX_EPICS`) in `forecast/buildCase.ts`, and check them again at the engine boundary. The epic cap is a memory guard: the engine keeps a finish period per epic per trial.
    - The PRNG does **not** need to be cryptographic. A fast seeded PRNG is correct.
 4. **Dependencies.**
    - Keep `engine/` free of dependencies.

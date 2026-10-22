@@ -26,6 +26,7 @@ function whenCase(overrides: Partial<SimulationCase> = {}): SimulationCase {
     scope: [epic()],
     throughputSamples: [2],
     epicSizeSamples: [8],
+    warnAboveWeeks: 26,
     ...overrides,
   }
 }
@@ -338,9 +339,175 @@ describe('simulateCase: growth source', () => {
     expect(result.diagnostics.growthSource).toEqual([
       { epicId: 'MEASURED', source: 'samples' },
       { epicId: 'AMBIGUOUS', source: 'ambiguity' },
-      { epicId: 'EMPTY', source: 'epic_size' },
-      { epicId: 'ZERO', source: 'epic_size' },
+      { epicId: 'EMPTY', source: 'epicSize' },
+      { epicId: 'ZERO', source: 'epicSize' },
     ])
+  })
+})
+
+describe('simulateCase: trials hitting the horizon', () => {
+  test('counts the trials that hit maxPeriods without finishing', () => {
+    // Each period finishes all 10 tickets with probability 1/2; with a 3-period horizon,
+    // 1/8 of trials never finish: about 1,250 of 10,000
+    const result = simulateCase(whenCase({ trials: 10_000, maxPeriods: 3, throughputSamples: [0, 10] }))
+
+    expect(result.diagnostics.trialsHittingHorizon).toBeGreaterThan(1_100)
+    expect(result.diagnostics.trialsHittingHorizon).toBeLessThan(1_400)
+    expect(result.diagnostics.trialsHittingHorizon).toBe(Math.round((1 - result.finishedFraction) * 10_000))
+  })
+
+  test('is 0 when every trial finishes', () => {
+    expect(simulateCase(whenCase()).diagnostics.trialsHittingHorizon).toBe(0)
+  })
+
+  test("is 0 for 'how many', whose trials always run to byDate", () => {
+    const result = simulateCase(whenCase({ question: { kind: 'howMany', byDate: '2026-02-02' } }))
+
+    expect(result.diagnostics.trialsHittingHorizon).toBe(0)
+  })
+})
+
+describe('simulateCase: split-halves error', () => {
+  test('is 0 when every measured sample is the same', () => {
+    const result = simulateCase(whenCase({ throughputSamples: [5, 5, 5, 5, 5, 5] }))
+
+    expect(result.diagnostics.splitHalvesError).toBe(0)
+  })
+
+  test('is the gap between the means of two random halves, as a share of the overall mean', () => {
+    // Seven 0s and one 40: every split puts the 40 in one half of four, so the half means
+    // are 10 and 0 against an overall mean of 5, an error of 200%
+    const result = simulateCase(whenCase({ throughputSamples: [0, 0, 0, 0, 0, 0, 0, 40] }))
+
+    expect(result.diagnostics.splitHalvesError).toBeCloseTo(2, 9)
+  })
+
+  test('is below 25% ("good") for many samples from a steady team', () => {
+    // 100 samples, half 0 and half 10: two random halves of 50 have means that differ by about
+    // 0.8 on average (sd 2 × 5 / √99), so the error is about 0.8 / 5 = 16%
+    const result = simulateCase(whenCase({ throughputSamples: Array.from({ length: 100 }, (_, i) => (i % 2) * 10) }))
+
+    expect(result.diagnostics.splitHalvesError).toBeGreaterThan(0.12)
+    expect(result.diagnostics.splitHalvesError).toBeLessThan(0.2)
+  })
+
+  test('is absent for a manual range, which holds no measured samples', () => {
+    const result = simulateCase(whenCase({ throughputSamples: { low: 1, high: 3 } }))
+
+    expect(result.diagnostics).not.toHaveProperty('splitHalvesError')
+  })
+
+  test('is absent for a single measured sample, which cannot be split', () => {
+    expect(simulateCase(whenCase()).diagnostics).not.toHaveProperty('splitHalvesError')
+  })
+})
+
+describe('simulateCase: warnings', () => {
+  test('warns when fewer trials finish within the horizon than the highest reported percentile', () => {
+    // 8/9 of trials finish within the 2-period horizon (see above): below 95%
+    const result = simulateCase(whenCase({ trials: 10_000, maxPeriods: 2, throughputSamples: [0, 10, 10] }))
+
+    expect(result.diagnostics.warnings).toHaveLength(1)
+    expect(result.diagnostics.warnings[0]).toMatch(
+      /^Only (88|89)% of trials finish by 2026-01-19, the forecast horizon, so the 95% date is later than that\.$/,
+    )
+  })
+
+  test('gives no horizon warning when enough trials finish', () => {
+    // Each period finishes with probability 9/10; 2 periods leave 1 in 100 unfinished
+    const result = simulateCase(
+      whenCase({ trials: 10_000, maxPeriods: 2, throughputSamples: [0, ...Array(9).fill(10)] }),
+    )
+
+    expect(result.finishedFraction).toBeGreaterThanOrEqual(0.95)
+    expect(result.finishedFraction).toBeLessThan(1)
+    expect(result.diagnostics.warnings).toEqual([])
+  })
+})
+
+describe('simulateCase: long-forecast warning', () => {
+  const LONG = 'Forecasts this far out tend to be too confident about the date.'
+
+  test("warns when the median finish is more than warnAboveWeeks away, in tickets and weeks", () => {
+    // 180 tickets at 6 per weekly period: 30 weeks, past the 26-week threshold
+    const result = simulateCase(whenCase({ scope: [epic({ baseCount: 180, currentCount: 180 })], throughputSamples: [6] }))
+
+    expect(result.diagnostics.warnings).toEqual([
+      `This forecast covers about 180 tickets, roughly 30 weeks at your current pace. ${LONG}`,
+    ])
+  })
+
+  test('gives no long-forecast warning at warnAboveWeeks or below', () => {
+    // 156 tickets at 6 per weekly period: exactly 26 weeks
+    const result = simulateCase(whenCase({ scope: [epic({ baseCount: 156, currentCount: 156 })], throughputSamples: [6] }))
+
+    expect(result.diagnostics.warnings).toEqual([])
+  })
+
+  test("for 'when', the ticket figure is the median remaining work across trials, after growth and less what is done", () => {
+    // 100 committed × growth 1.3, 1.9 or 2.5, a third each, less 10 done: 120, 180 or 240 remaining,
+    // a median of 180. At 6 per period the median finish is period 30.
+    const result = simulateCase(
+      whenCase({
+        trials: 10_000,
+        scope: [epic({ baseCount: 100, currentCount: 100, doneCount: 10, growth: [1.3, 1.9, 2.5] })],
+        throughputSamples: [6],
+      }),
+    )
+
+    expect(result.diagnostics.warnings).toEqual([
+      `This forecast covers about 180 tickets, roughly 30 weeks at your current pace. ${LONG}`,
+    ])
+  })
+
+  test('a median finish beyond the horizon counts as over warnAboveWeeks', () => {
+    // A 10-week horizon is under the threshold, but the median finish lies past it
+    const result = simulateCase(whenCase({ maxPeriods: 10, throughputSamples: [0] }))
+
+    expect(result.diagnostics.warnings).toContain(
+      `This forecast covers about 10 tickets, more than 10 weeks at your current pace. ${LONG}`,
+    )
+  })
+
+  test("for 'how many', the span is the time to byDate and the ticket figure is the median count done", () => {
+    // 2026-01-05 to 2026-08-03 is 30 weeks; at 6 per period the median count done is 180
+    const result = simulateCase(
+      whenCase({ question: { kind: 'howMany', byDate: '2026-08-03' }, throughputSamples: [6] }),
+    )
+
+    expect(result.diagnostics.warnings).toEqual([
+      `This forecast covers about 180 tickets, roughly 30 weeks at your current pace. ${LONG}`,
+    ])
+  })
+
+  test('warnAboveWeeks comes from the case, so it sets the threshold and is covered by caseHash', () => {
+    // 180 tickets at 6 per period: 30 weeks, under a 40-week threshold
+    const thirtyWeeks = whenCase({ scope: [epic({ baseCount: 180, currentCount: 180 })], throughputSamples: [6] })
+    const relaxed = simulateCase({ ...thirtyWeeks, warnAboveWeeks: 40 })
+
+    expect(relaxed.diagnostics.warnings).toEqual([])
+    expect(relaxed.caseHash).not.toBe(simulateCase(thirtyWeeks).caseHash)
+  })
+
+  test('measures the span in weeks, not periods, so it keeps its meaning when periodDays changes', () => {
+    // 180 daily periods are under 26 weeks; 15 fortnightly periods are 30 weeks
+    const daily = simulateCase(
+      whenCase({ periodDays: 1, maxPeriods: 365, scope: [epic({ baseCount: 180, currentCount: 180 })], throughputSamples: [1] }),
+    )
+    const fortnightly = simulateCase(
+      whenCase({ periodDays: 14, scope: [epic({ baseCount: 180, currentCount: 180 })], throughputSamples: [12] }),
+    )
+
+    expect(daily.diagnostics.warnings).toEqual([])
+    expect(fortnightly.diagnostics.warnings).toEqual([
+      `This forecast covers about 180 tickets, roughly 30 weeks at your current pace. ${LONG}`,
+    ])
+  })
+})
+
+describe('simulateCase: throughput scope', () => {
+  test("pace is reported as counting only the milestone's epics", () => {
+    expect(simulateCase(whenCase()).diagnostics.throughputScope).toBe('milestoneEpics')
   })
 })
 
@@ -491,6 +658,11 @@ describe('simulateCase: input limits', () => {
     ['currentCount', { scope: [epic({ currentCount: -1 })] }],
     ['scope', { scope: [] }],
     ['scope', { scope: Array.from({ length: 101 }, (_, i) => epic({ epicId: `EPIC-${i + 1}`, rank: i + 1 })) }],
+    ['epicId', { scope: [epic({ epicId: 'SAME' }), epic({ epicId: 'SAME', rank: 2 })] }],
+    ['rank', { scope: [epic({ rank: Number.NaN })] }],
+    ['rank', { scope: [epic({ rank: Number.POSITIVE_INFINITY })] }],
+    ['warnAboveWeeks', { warnAboveWeeks: -1 }],
+    ['warnAboveWeeks', { warnAboveWeeks: Number.NaN }],
     ['question', { question: { kind: 'whatIf' } as unknown as SimulationCase['question'] }],
   ])('rejects a case with invalid %s', (field, overrides) => {
     expect(() => simulateCase(whenCase(overrides))).toThrow(new RegExp(field))
