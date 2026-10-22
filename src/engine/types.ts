@@ -69,10 +69,10 @@ export interface ForecastResult {
   perEpic: { epicId: string; quantiles: (number | null)[] }[]
   diagnostics: {
     /**
-     * Measured pace only, from 2 samples up: how far the means of two random halves of the samples
-     * differ, as a share of their overall mean, averaged over many splits. Below 0.25 is "good" (Magennis).
+     * Measured pace only, from 2 samples up: the relative standard error, sample sd / mean / √n.
+     * Information for the EM (a wide but honest range), not a warning. 0 when every sample is 0.
      */
-    splitHalvesError?: number
+    paceVariation?: number
     /** Which tickets the pace counts: in v1, only children of the milestone's epics. */
     throughputScope: ThroughputScope
     throughputSource: 'manual' | 'measured'
