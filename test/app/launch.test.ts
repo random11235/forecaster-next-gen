@@ -1,12 +1,14 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import { networkInterfaces } from 'node:os'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
+import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
+import type { Storage } from '../../src/storage/storage.js'
 
 let app: RunningApp | undefined
 
-/** Starts the app on a free port without opening a browser. */
-async function startOnFreePort(): Promise<RunningApp> {
-  app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {} })
+/** Starts the app on a free port without opening a browser, on empty storage unless given some. */
+async function startOnFreePort(storage: Storage = openSqliteStorage(':memory:')): Promise<RunningApp> {
+  app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage })
   return app
 }
 
@@ -21,8 +23,18 @@ afterEach(async () => {
 })
 
 describe('one-command launch', () => {
-  test('serves the Milestone forecast screen in its empty state when no milestone is defined', async () => {
+  test('on first launch, serves the Milestone forecast screen on the sample data', async () => {
     app = await startOnFreePort()
+
+    const html = await (await fetch(app.url)).text()
+
+    expect(html).toContain('Checkout v2')
+  })
+
+  test('serves the Milestone forecast screen in its empty state when no milestone is defined', async () => {
+    const storage = openSqliteStorage(':memory:')
+    storage.saveTeam({ id: 'ACME', name: 'ACME', source: 'jira', sourceRef: 'ACME' })
+    app = await startOnFreePort(storage)
 
     const response = await fetch(app.url)
 
@@ -35,7 +47,11 @@ describe('one-command launch', () => {
 
   test('opens the browser on the Milestone forecast screen', async () => {
     const opened: string[] = []
-    app = await startAppAndOpenBrowser({ port: 0, openBrowser: (url) => opened.push(url) })
+    app = await startAppAndOpenBrowser({
+      port: 0,
+      openBrowser: (url) => opened.push(url),
+      storage: openSqliteStorage(':memory:'),
+    })
 
     expect(opened).toEqual([app.url])
   })

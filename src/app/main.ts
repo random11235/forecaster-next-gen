@@ -1,7 +1,13 @@
 import { spawn } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
+import { openSqliteStorage } from '../storage/sqliteStorage.js'
+import type { Storage } from '../storage/storage.js'
 import { startAppAndOpenBrowser } from './launch.js'
 
 const DEFAULT_PORT = 5180
+
+/** The one local SQLite file, in `data/` at the repo root (beside `dist/`). */
+const DEFAULT_DATA_FILE = fileURLToPath(new URL('../../data/forecaster.db', import.meta.url))
 
 /** Reads PORT from the environment. Unset or empty gives the default; 0 picks a free port. */
 function portFromEnv(value: string | undefined): number {
@@ -38,10 +44,23 @@ try {
   process.exit(1)
 }
 
+const dataFile = process.env.FORECASTER_DATA_FILE || DEFAULT_DATA_FILE
+let storage: Storage
 try {
-  const app = await startAppAndOpenBrowser({ port, openBrowser: browserOpener })
+  storage = openSqliteStorage(dataFile)
+} catch (error) {
+  console.error(`Forecaster could not open its data file ${dataFile}: ${String(error)}`)
+  process.exit(1)
+}
+
+try {
+  const app = await startAppAndOpenBrowser({ port, openBrowser: browserOpener, storage })
   console.log(`Forecaster running at ${app.url} (Ctrl+C to stop)`)
-  const stop = (): void => void app.close().then(() => process.exit(0))
+  const stop = (): void =>
+    void app.close().then(() => {
+      storage.close()
+      process.exit(0)
+    })
   process.on('SIGINT', stop)
   process.on('SIGTERM', stop)
 } catch (error) {
