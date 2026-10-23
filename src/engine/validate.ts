@@ -11,10 +11,9 @@ const MAX_RANGE_HIGH = 100_000
 
 /** Rejects cases outside the engine's limits, so a bad input fails loudly instead of forecasting. */
 export function assertValidCase(simulationCase: SimulationCase): void {
-  const { trials, maxPeriods, question, scope, throughputSamples, epicSizeSamples, warnAboveWeeks } = simulationCase
+  const { trials, maxPeriods, question, scope, throughputSamples, epicSizeSamples } = simulationCase
   assertWholeNumberIn('trials', trials, 1, MAX_TRIALS)
   assertWholeNumberIn('maxPeriods', maxPeriods, 1, MAX_PERIODS)
-  assertNonNegative('warnAboveWeeks', warnAboveWeeks)
   if (Array.isArray(throughputSamples)) {
     assertSamples('throughputSamples', throughputSamples)
     assertWholeNumbers('throughputSamples', throughputSamples)

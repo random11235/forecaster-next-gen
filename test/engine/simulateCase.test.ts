@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { simulateCase, type ScopeEntry, type SimulationCase } from '../../src/engine/index.js'
+import { periodEndDate, simulateCase, type ScopeEntry, type SimulationCase } from '../../src/engine/index.js'
 
 function epic(overrides: Partial<ScopeEntry> = {}): ScopeEntry {
   return {
@@ -26,7 +26,6 @@ function whenCase(overrides: Partial<SimulationCase> = {}): SimulationCase {
     scope: [epic()],
     throughputSamples: [2],
     epicSizeSamples: [8],
-    warnAboveWeeks: 26,
     ...overrides,
   }
 }
@@ -400,49 +399,8 @@ describe('simulateCase: pace variation', () => {
   })
 })
 
-describe('simulateCase: warnings', () => {
-  test('warns when fewer trials finish within the horizon than the highest reported percentile', () => {
-    // 8/9 of trials finish within the 2-period horizon (see above): below 95%
-    const result = simulateCase(whenCase({ trials: 10_000, maxPeriods: 2, throughputSamples: [0, 10, 10] }))
-
-    expect(result.diagnostics.warnings).toHaveLength(1)
-    expect(result.diagnostics.warnings[0]).toMatch(
-      /^Only (88|89)% of trials finish by 2026-01-19, the forecast horizon, so the 95% date is later than that\.$/,
-    )
-  })
-
-  test('gives no horizon warning when enough trials finish', () => {
-    // Each period finishes with probability 9/10; 2 periods leave 1 in 100 unfinished
-    const result = simulateCase(
-      whenCase({ trials: 10_000, maxPeriods: 2, throughputSamples: [0, ...Array(9).fill(10)] }),
-    )
-
-    expect(result.finishedFraction).toBeGreaterThanOrEqual(0.95)
-    expect(result.finishedFraction).toBeLessThan(1)
-    expect(result.diagnostics.warnings).toEqual([])
-  })
-})
-
-describe('simulateCase: long-forecast warning', () => {
-  const LONG = 'Forecasts this far out tend to be too confident about the date.'
-
-  test("warns when the median finish is more than warnAboveWeeks away, in tickets and weeks", () => {
-    // 180 tickets at 6 per weekly period: 30 weeks, past the 26-week threshold
-    const result = simulateCase(whenCase({ scope: [epic({ baseCount: 180, currentCount: 180 })], throughputSamples: [6] }))
-
-    expect(result.diagnostics.warnings).toEqual([
-      `This forecast covers about 180 tickets, roughly 30 weeks at your current pace. ${LONG}`,
-    ])
-  })
-
-  test('gives no long-forecast warning at warnAboveWeeks or below', () => {
-    // 156 tickets at 6 per weekly period: exactly 26 weeks
-    const result = simulateCase(whenCase({ scope: [epic({ baseCount: 156, currentCount: 156 })], throughputSamples: [6] }))
-
-    expect(result.diagnostics.warnings).toEqual([])
-  })
-
-  test("for 'when', the ticket figure is the median remaining work across trials, after growth and less what is done", () => {
+describe('simulateCase: span', () => {
+  test("for 'when', the span is the periods to the median finish and the median remaining work", () => {
     // 100 committed × growth 1.3, 1.9 or 2.5, a third each, less 10 done: 120, 180 or 240 remaining,
     // a median of 180. At 6 per period the median finish is period 30.
     const result = simulateCase(
@@ -453,53 +411,30 @@ describe('simulateCase: long-forecast warning', () => {
       }),
     )
 
-    expect(result.diagnostics.warnings).toEqual([
-      `This forecast covers about 180 tickets, roughly 30 weeks at your current pace. ${LONG}`,
-    ])
+    expect(result.diagnostics.span).toEqual({ periods: 30, tickets: 180 })
   })
 
-  test('a median finish beyond the horizon counts as over warnAboveWeeks', () => {
-    // A 10-week horizon is under the threshold, but the median finish lies past it
+  test("for 'when', a median finish beyond the horizon has null periods", () => {
+    // No pace: no trial finishes within the 10-period horizon
     const result = simulateCase(whenCase({ maxPeriods: 10, throughputSamples: [0] }))
 
-    expect(result.diagnostics.warnings).toContain(
-      `This forecast covers about 10 tickets, more than 10 weeks at your current pace. ${LONG}`,
-    )
+    expect(result.diagnostics.span).toEqual({ periods: null, tickets: 10 })
   })
 
-  test("for 'how many', the span is the time to byDate and the ticket figure is the median count done", () => {
-    // 2026-01-05 to 2026-08-03 is 30 weeks; at 6 per period the median count done is 180
+  test("for 'how many', the span is the periods to byDate and the median count done", () => {
+    // 2026-01-05 to 2026-08-03 is 30 weekly periods; at 6 per period the median count done is 180
     const result = simulateCase(
       whenCase({ question: { kind: 'howMany', byDate: '2026-08-03' }, throughputSamples: [6] }),
     )
 
-    expect(result.diagnostics.warnings).toEqual([
-      `This forecast covers about 180 tickets, roughly 30 weeks at your current pace. ${LONG}`,
-    ])
+    expect(result.diagnostics.span).toEqual({ periods: 30, tickets: 180 })
   })
+})
 
-  test('warnAboveWeeks comes from the case, so it sets the threshold and is covered by caseHash', () => {
-    // 180 tickets at 6 per period: 30 weeks, under a 40-week threshold
-    const thirtyWeeks = whenCase({ scope: [epic({ baseCount: 180, currentCount: 180 })], throughputSamples: [6] })
-    const relaxed = simulateCase({ ...thirtyWeeks, warnAboveWeeks: 40 })
-
-    expect(relaxed.diagnostics.warnings).toEqual([])
-    expect(relaxed.caseHash).not.toBe(simulateCase(thirtyWeeks).caseHash)
-  })
-
-  test('measures the span in weeks, not periods, so it keeps its meaning when periodDays changes', () => {
-    // 180 daily periods are under 26 weeks; 15 fortnightly periods are 30 weeks
-    const daily = simulateCase(
-      whenCase({ periodDays: 1, maxPeriods: 365, scope: [epic({ baseCount: 180, currentCount: 180 })], throughputSamples: [1] }),
-    )
-    const fortnightly = simulateCase(
-      whenCase({ periodDays: 14, scope: [epic({ baseCount: 180, currentCount: 180 })], throughputSamples: [12] }),
-    )
-
-    expect(daily.diagnostics.warnings).toEqual([])
-    expect(fortnightly.diagnostics.warnings).toEqual([
-      `This forecast covers about 180 tickets, roughly 30 weeks at your current pace. ${LONG}`,
-    ])
+describe('periodEndDate', () => {
+  test('is exported, so the horizon date can be formatted the way the engine does', () => {
+    // Period 2 of weekly periods from 2026-01-05 ends on 2026-01-19
+    expect(periodEndDate('2026-01-05', 7, 2)).toBe('2026-01-19')
   })
 })
 
@@ -659,8 +594,6 @@ describe('simulateCase: input limits', () => {
     ['epicId', { scope: [epic({ epicId: 'SAME' }), epic({ epicId: 'SAME', rank: 2 })] }],
     ['rank', { scope: [epic({ rank: Number.NaN })] }],
     ['rank', { scope: [epic({ rank: Number.POSITIVE_INFINITY })] }],
-    ['warnAboveWeeks', { warnAboveWeeks: -1 }],
-    ['warnAboveWeeks', { warnAboveWeeks: Number.NaN }],
     ['question', { question: { kind: 'whatIf' } as unknown as SimulationCase['question'] }],
   ])('rejects a case with invalid %s', (field, overrides) => {
     expect(() => simulateCase(whenCase(overrides))).toThrow(new RegExp(field))

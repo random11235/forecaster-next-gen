@@ -27,7 +27,6 @@ const realisticCase: SimulationCase = {
   })),
   throughputSamples: [3, 5, 6, 4, 8, 7, 2, 6, 9, 5, 6, 4],
   epicSizeSamples: [6, 9, 12, 15, 20],
-  warnAboveWeeks: 26,
 }
 
 test(`10,000 trials over a realistic case finish within about ${BUDGET_MS} ms`, () => {
