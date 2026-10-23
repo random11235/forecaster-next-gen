@@ -1,7 +1,6 @@
 export interface ScopeEntry {
   epicId: string
   rank: number
-  committed: boolean
   /** Child count at commit; for an uncommitted epic, its current count (provisional). Null or 0: no children. */
   baseCount: number | null
   /** Children now, done or not. */
@@ -10,12 +9,6 @@ export interface ScopeEntry {
   /** Measured growth ratios (finalCount / committedCount) from finished epics, or the epic's ambiguity range. */
   growth: number[] | GrowthRange
 }
-
-/** Where an epic's total comes from: measured growth samples, its ambiguity range, or a drawn epic size (no children). */
-export type GrowthSource = 'samples' | 'ambiguity' | 'epicSize'
-
-/** Which tickets a pace sample counts; later scopes (any epic's children, all work) join this union. */
-export type ThroughputScope = 'milestoneEpics'
 
 /** A `low` to `high` span; the aliases below say what it counts and whether the ends are whole numbers. */
 export interface NumberRange {
@@ -76,13 +69,6 @@ export interface ForecastResult {
      * Information for the EM (a wide but honest range), not a warning. 0 when every sample is 0.
      */
     paceVariation?: number
-    /** Which tickets the pace counts: in v1, only children of the milestone's epics. */
-    throughputScope: ThroughputScope
-    throughputSource: 'manual' | 'measured'
-    /** Each epic's growth source, in rank order. */
-    growthSource: { epicId: string; source: GrowthSource }[]
-    /** Epics forecast from a provisional baseCount, in rank order; shown as "not committed: wide range". */
-    uncommittedEpicIds: string[]
     /** Trials that hit `maxPeriods` without finishing; 0 for 'howMany'. */
     trialsHittingHorizon: number
     /** How far the forecast reaches: Seam B turns this into the long-forecast warning. */

@@ -5,7 +5,6 @@ function epic(overrides: Partial<ScopeEntry> = {}): ScopeEntry {
   return {
     epicId: 'EPIC-1',
     rank: 1,
-    committed: true,
     baseCount: 10,
     currentCount: 10,
     doneCount: 0,
@@ -210,37 +209,13 @@ describe("simulateCase: 'when' for several ranked epics", () => {
 })
 
 describe('simulateCase: uncommitted epics', () => {
-  test('an uncommitted epic is forecast from its provisional baseCount, like a committed one', () => {
-    const scope = [
-      epic({ epicId: 'A', growth: { low: 1, high: 2 } }),
-      epic({ epicId: 'B', rank: 2, baseCount: 6, currentCount: 6, growth: [1, 1.5, 3] }),
-    ]
-    const uncommitted = scope.map((entry) => ({ ...entry, committed: false }))
-    const stochastic = { trials: 2_000, throughputSamples: [0, 1, 2, 4] }
-
-    const committedResult = simulateCase(whenCase({ ...stochastic, scope }))
-    const uncommittedResult = simulateCase(whenCase({ ...stochastic, scope: uncommitted }))
-
-    expect(uncommittedResult.quantiles).toEqual(committedResult.quantiles)
-    expect(uncommittedResult.perEpic).toEqual(committedResult.perEpic)
-  })
-
-  test('the uncommitted epics are listed in the diagnostics, in rank order', () => {
+  test('an uncommitted epic is forecast from its provisional baseCount, its current count', () => {
+    // Provisional baseCount 12 × growth 1.5 = 18 tickets at 3 per period → 6 periods
     const result = simulateCase(
-      whenCase({
-        scope: [
-          epic({ epicId: 'LATER', rank: 3, committed: false }),
-          epic({ epicId: 'DONE-DEAL', rank: 1 }),
-          epic({ epicId: 'SOONER', rank: 2, committed: false }),
-        ],
-      }),
+      whenCase({ scope: [epic({ baseCount: 12, currentCount: 12, growth: [1.5] })], throughputSamples: [3] }),
     )
 
-    expect(result.diagnostics.uncommittedEpicIds).toEqual(['SOONER', 'LATER'])
-  })
-
-  test('a scope of committed epics lists none', () => {
-    expect(simulateCase(whenCase()).diagnostics.uncommittedEpicIds).toEqual([])
+    expect(result.quantiles.every((q) => q === 6)).toBe(true)
   })
 })
 
@@ -320,28 +295,6 @@ describe('simulateCase: epics with no children', () => {
     expect(result.quantiles[30]).toBe(4)
     expect(result.quantiles[70]).toBe(4)
     expect(result.quantiles[80]).toBe(6)
-  })
-})
-
-describe('simulateCase: growth source', () => {
-  test("each epic's growth source is reported in rank order: samples, ambiguity range or epic size", () => {
-    const result = simulateCase(
-      whenCase({
-        scope: [
-          epic({ epicId: 'EMPTY', rank: 3, baseCount: null, currentCount: 0 }),
-          epic({ epicId: 'MEASURED', rank: 1, growth: [1, 1.4] }),
-          epic({ epicId: 'AMBIGUOUS', rank: 2, growth: { low: 1, high: 2 } }),
-          epic({ epicId: 'ZERO', rank: 4, baseCount: 0, currentCount: 0, growth: { low: 1, high: 2 } }),
-        ],
-      }),
-    )
-
-    expect(result.diagnostics.growthSource).toEqual([
-      { epicId: 'MEASURED', source: 'samples' },
-      { epicId: 'AMBIGUOUS', source: 'ambiguity' },
-      { epicId: 'EMPTY', source: 'epicSize' },
-      { epicId: 'ZERO', source: 'epicSize' },
-    ])
   })
 })
 
@@ -439,23 +392,12 @@ describe('periodEndDate', () => {
   })
 })
 
-describe('simulateCase: throughput scope', () => {
-  test("pace is reported as counting only the milestone's epics", () => {
-    expect(simulateCase(whenCase()).diagnostics.throughputScope).toBe('milestoneEpics')
-  })
-})
-
 describe('simulateCase: manual pace range', () => {
-  test('measured samples are reported as the throughput source', () => {
-    expect(simulateCase(whenCase()).diagnostics.throughputSource).toBe('measured')
-  })
-
-  test('a manual range paces the forecast and is reported as the throughput source', () => {
+  test('a manual range paces the forecast', () => {
     // 10 tickets at exactly 2 per period → 5 periods
     const result = simulateCase(whenCase({ throughputSamples: { low: 2, high: 2 } }))
 
     expect(result.quantiles.every((q) => q === 5)).toBe(true)
-    expect(result.diagnostics.throughputSource).toBe('manual')
   })
 })
 

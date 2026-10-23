@@ -19,7 +19,6 @@ const realisticCase: SimulationCase = {
   scope: Array.from({ length: 10 }, (_, i) => ({
     epicId: `EPIC-${i + 1}`,
     rank: i + 1,
-    committed: i < 8,
     baseCount: i === 9 ? null : 8 + (i % 4) * 2,
     currentCount: i === 9 ? 0 : 10 + (i % 4) * 2,
     doneCount: i < 2 ? 6 : 0,
