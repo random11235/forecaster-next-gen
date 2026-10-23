@@ -20,7 +20,11 @@ This starts a local server on `http://127.0.0.1:5180/` (localhost only) and open
 
 To use another port: `PORT=5181 npm start`. `PORT=0` picks a free port.
 
+## Data
+
+Everything is kept in one local SQLite file, `data/forecaster.db` (git-ignored). On first launch, with no data yet, it is filled with canned sample data, so you can see how the Forecaster works before connecting Jira. To keep the file elsewhere: `FORECASTER_DATA_FILE=/path/to/forecaster.db npm start`. Delete the file to start again from the sample data.
+
 ## Development
 
-- `npm test` runs the tests. The launch smoke test builds the app and runs it with `FORECASTER_NO_BROWSER=1`, which stops it opening a browser.
+- `npm test` runs the tests. The launch smoke test builds the app and runs it with `FORECASTER_NO_BROWSER=1`, which stops it opening a browser, and its data in a temporary `FORECASTER_DATA_FILE`.
 - `npm run typecheck` checks types.
