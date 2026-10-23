@@ -76,6 +76,9 @@ export function openSqliteStorage(file: string): Storage {
     }
   }
 
+  const upsertTeam = db.prepare(`
+    INSERT INTO teams (id, name, source, source_ref) VALUES (?, ?, ?, ?)
+    ON CONFLICT (id) DO UPDATE SET name = excluded.name, source = excluded.source, source_ref = excluded.source_ref`)
   const upsertItem = db.prepare(`
     INSERT INTO work_items (id, team_id, source_key, type, title, parent_id, labels, created_at, started_at, done_at, cancelled_at, last_synced_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -101,10 +104,7 @@ export function openSqliteStorage(file: string): Storage {
     },
 
     saveTeam(team) {
-      db.prepare(
-        `INSERT INTO teams (id, name, source, source_ref) VALUES (?, ?, ?, ?)
-         ON CONFLICT (id) DO UPDATE SET name = excluded.name, source = excluded.source, source_ref = excluded.source_ref`,
-      ).run(team.id, team.name, team.source, team.sourceRef)
+      upsertTeam.run(team.id, team.name, team.source, team.sourceRef)
     },
 
     teams() {
