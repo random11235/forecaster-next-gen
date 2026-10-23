@@ -1,24 +1,15 @@
 import { periodEndDate, wholePeriodsUntil } from './dates.js'
 import { hashJson } from './hash.js'
 import { createRandom, drawFrom, drawWholeNumberIn, type Random } from './random.js'
-import { PERCENTILES, type ForecastResult, type GrowthRange, type GrowthSource, type NumberRange, type Percentile, type ScopeEntry, type SimulationCase } from './types.js'
+import { PERCENTILES, type ForecastResult, type ForecastSpan, type GrowthRange, type GrowthSource, type NumberRange, type Percentile, type ScopeEntry, type SimulationCase } from './types.js'
 import { assertValidCase } from './validate.js'
 
 /** Marks a trial that hit `maxPeriods` without finishing; sorts after every real period. */
 const BEYOND_HORIZON = Number.POSITIVE_INFINITY
-const DAYS_PER_WEEK = 7
 
 type QuestionResult = Pick<ForecastResult, 'quantiles' | 'finishedFraction' | 'percentileDates' | 'percentileCounts' | 'perEpic'> & {
   trialsHittingHorizon: number
-  /** How far the forecast reaches, for the long-forecast warning. */
   span: ForecastSpan
-}
-
-type ForecastSpan = {
-  /** Periods to the median finish ('when', null beyond the horizon) or to `byDate` ('howMany'). */
-  periods: number | null
-  /** Median tickets across trials: remaining work after growth ('when'), or done by `byDate` ('howMany'). */
-  tickets: number
 }
 
 export function simulateCase(simulationCase: SimulationCase): ForecastResult {
@@ -47,45 +38,9 @@ export function simulateCase(simulationCase: SimulationCase): ForecastResult {
       growthSource: ranked.map((epic) => ({ epicId: epic.epicId, source: growthSourceOf(epic) })),
       uncommittedEpicIds: ranked.filter((epic) => !epic.committed).map((epic) => epic.epicId),
       trialsHittingHorizon,
-      warnings: warningsFor(simulationCase, questionResult),
+      span,
     },
   }
-}
-
-function warningsFor(simulationCase: SimulationCase, result: QuestionResult): string[] {
-  const warnings: string[] = []
-  const highestPercentile = PERCENTILES[PERCENTILES.length - 1]!
-  if (result.finishedFraction < highestPercentile / 100) {
-    const { startDate, periodDays, maxPeriods } = simulationCase
-    const horizonDate = periodEndDate(startDate, periodDays, maxPeriods)
-    // Floored, so 94.9% never reads as the 95% it falls short of
-    const finishedPercent = Math.floor(result.finishedFraction * 100)
-    warnings.push(
-      `Only ${finishedPercent}% of trials finish by ${horizonDate}, the forecast horizon, so the ${highestPercentile}% date is later than that.`,
-    )
-  }
-  const longForecast = longForecastWarning(simulationCase, result)
-  if (longForecast) warnings.push(longForecast)
-  return warnings
-}
-
-/**
- * Each period's pace is drawn independently, so over many periods good and bad weeks average out
- * and a long forecast comes out too narrow. The span is counted in weeks, not periods, so the
- * threshold keeps its meaning if `periodDays` changes.
- */
-function longForecastWarning(
-  { periodDays, maxPeriods, warnAboveWeeks }: SimulationCase,
-  { span: { periods, tickets } }: QuestionResult,
-): string | undefined {
-  const weeks = ((periods ?? maxPeriods) * periodDays) / DAYS_PER_WEEK
-  if (periods !== null && weeks <= warnAboveWeeks) return undefined
-  const roundedWeeks = Math.round(weeks)
-  const span = periods === null ? `more than ${roundedWeeks} weeks` : `roughly ${roundedWeeks} weeks`
-  return (
-    `This forecast covers about ${Math.round(tickets)} tickets, ${span} at your current pace. ` +
-    'Forecasts this far out tend to be too confident about the date.'
-  )
 }
 
 /** How much the mean of the samples could move with different weeks: sample sd / mean / √n. */

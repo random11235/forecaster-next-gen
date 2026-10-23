@@ -51,8 +51,13 @@ export interface SimulationCase {
   throughputSamples: number[] | ThroughputRange
   /** Final child counts of finished epics, or the default range; only used for epics with no children. */
   epicSizeSamples: number[] | EpicSizeRange
-  /** Warn when the forecast spans more than this many weeks (the `ForecastSettings` value, default 26). */
-  warnAboveWeeks: number
+}
+
+export interface ForecastSpan {
+  /** Periods to the median finish ('when', null beyond the horizon) or to `byDate` ('howMany'). */
+  periods: number | null
+  /** Median tickets across trials: remaining work after growth ('when'), or done by `byDate` ('howMany'). */
+  tickets: number
 }
 
 export interface ForecastResult {
@@ -82,7 +87,7 @@ export interface ForecastResult {
     uncommittedEpicIds: string[]
     /** Trials that hit `maxPeriods` without finishing; 0 for 'howMany'. */
     trialsHittingHorizon: number
-    /** Plain-language cautions about how far the forecast can be trusted. */
-    warnings: string[]
+    /** How far the forecast reaches: Seam B turns this into the long-forecast warning. */
+    span: ForecastSpan
   }
 }
