@@ -290,8 +290,10 @@ src/
   secrets/                # credential storage interface; v1: OS keychain
   connectors/             # jira/ (first), github/ (second) → model/ types; read-only
   storage/                # interfaces; v1: SQLite file
+  app/                    # local server (localhost only), screens, `npm start` entry point
 
 test/
+  app/                    # launch smoke test: start the app, check the screen is served
   engine/                 # Seam A: fixed seeds, plus a performance benchmark
   forecast/               # Seam B: facts + settings + ledger → milestone forecast view
   fixtures/               # canned histories and recorded Jira/GitHub responses (.json)
