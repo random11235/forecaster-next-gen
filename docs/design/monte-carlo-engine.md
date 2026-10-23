@@ -265,7 +265,8 @@ The forecast states plainly when an input is thin rather than hiding it, e.g. "O
 src/
   model/                  # Layer 1: ingested entity types, no logic
     team.ts
-    workItem.ts           # WorkItem, WorkItemEvent
+    workItem.ts           # WorkItem, WorkItemEvent, Facts
+    milestone.ts          # Milestone: defined by the EM, not ingested
 
   samples/                # Layer 2: pure derivations from model/
     commits.ts            # commits, pull-back resets, uncommitted-but-active detection
@@ -282,6 +283,7 @@ src/
     settings.ts           # ForecastSettings and AmbiguityRanges defaults
     suggestions.ts        # suggested pace range, measured medium range, switch offers
     diagnostics.ts        # sample counts, pace variation text, warnings, provenance (ThroughputScope, GrowthSource)
+    milestoneForecastView.ts  # Seam B: stored data → the Milestone forecast screen's view
 
   ledger/                 # Layer 5
     forecastLog.ts
@@ -290,6 +292,7 @@ src/
   secrets/                # credential storage interface; v1: OS keychain
   connectors/             # jira/ (first), github/ (second) → model/ types; read-only
   storage/                # interfaces; v1: SQLite file
+  sample/                 # canned sample data, loaded on first launch when storage is empty
   app/                    # local server (localhost only), screens, `npm start` entry point
 
 test/
@@ -327,7 +330,7 @@ Warning text and provenance are tested at Seam B, not Seam A. These cases moved 
 
 Connectors are tested through Seam B by replaying recorded API responses, with no seam of their own.
 
-`test/app/` holds the launch smoke test. It is not a forecasting seam: it builds the app, runs the built `npm start` entry point (`dist/app/main.js`) with `FORECASTER_NO_BROWSER=1` so no browser opens, and checks that the Milestone forecast screen is served. It also checks that a bad `PORT` is refused.
+`test/app/` holds the launch smoke test. It is not a forecasting seam: it builds the app, runs the built `npm start` entry point (`dist/app/main.js`) with `FORECASTER_NO_BROWSER=1` so no browser opens and a temporary `FORECASTER_DATA_FILE`, and checks that the Milestone forecast screen is served. It also checks that a bad `PORT` is refused.
 
 The one exception is the PRNG: `engine/random.ts` is checked against output vectors from the authors' reference C code for xoshiro128**, because a port must reproduce its exact stream and Seam A can't show that.
 
@@ -354,7 +357,7 @@ v1 is a local, single-user tool, so items 1 and 2 are what matter. Items 3 and 4
    - Use read-only access: Jira OAuth 2.0 (3LO) with read scopes, and a GitHub App or fine-grained token with read-only issue access. A classic API token or PAT carries all of that user's permissions, including write access.
    - Store tokens in the OS keychain. Never put them in the browser, `localStorage`, the SQLite file, logs or error messages.
    - No webhooks in v1. Connectors poll on refresh.
-2. **Data minimisation.** The model needs only IDs, types, parent links, labels, status timestamps and counts. Don't ingest titles, descriptions, comments or assignee identities. With fixed capacity there is no `Person` table.
+2. **Data minimisation.** The model needs only IDs, types, parent links, labels, status timestamps and counts. Don't ingest titles (except epics', which name them on screen), descriptions, comments or assignee identities. With fixed capacity there is no `Person` table.
 3. **Engine input limits.**
    - Cap `trials`, sample-array sizes, `maxPeriods` and the number of epics in `scope` (100, `MAX_EPICS`) in `forecast/buildCase.ts`, and check them again at the engine boundary. The epic cap is a memory guard: the engine keeps a finish period per epic per trial.
    - The PRNG does **not** need to be cryptographic. A fast seeded PRNG is correct.
