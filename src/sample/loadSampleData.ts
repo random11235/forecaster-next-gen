@@ -5,6 +5,6 @@ import { SAMPLE_DATA } from './sampleData.js'
 export function loadSampleDataIfEmpty(storage: Storage): void {
   if (!storage.isEmpty()) return
   storage.saveTeam(SAMPLE_DATA.team)
-  storage.addFacts(SAMPLE_DATA.facts)
+  storage.addFacts(SAMPLE_DATA.team.id, SAMPLE_DATA.facts)
   storage.saveMilestone(SAMPLE_DATA.milestone)
 }

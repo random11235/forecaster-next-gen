@@ -8,8 +8,8 @@ export interface Storage {
   isEmpty(): boolean
   saveTeam(team: Team): void
   teams(): Team[]
-  /** Adds work items (replacing any with the same ID) and appends their events. */
-  addFacts(facts: Facts): void
+  /** Adds the team's work items (replacing any with the same ID) and appends their events. */
+  addFacts(teamId: string, facts: Facts): void
   facts(teamId: string): Facts
   /** Adds the milestone, or replaces the one with the same ID. */
   saveMilestone(milestone: Milestone): void
