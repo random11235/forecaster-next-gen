@@ -161,6 +161,8 @@ SimulationCase {
   throughputSamples: number[] | { low, high },  // measured done counts per period (whole numbers), or the EM's manual range
   throughputSampler: { kind: 'bayesianBootstrap' },  // how measured samples are drawn; see "Swappable samplers"
   epicSizeSamples:   number[] | { low, high },  // only used for epics with no children
+  percentiles: number[],               // from ForecastSettings.percentiles, default [50, 70, 85, 95];
+                                       // whole numbers 0 to 100, at least one, no repeats, any order
 }
 
 ForecastResult {
@@ -168,8 +170,8 @@ ForecastResult {
   quantiles: (number | null)[101],     // 'when': finish period at p0..p100; null = beyond the horizon
                                        // 'howMany': items done by byDate at p0..p100
   finishedFraction,                    // 'when': share of trials that finished within maxPeriods
-  percentileDates: Record<percentile, string | null>,   // 'when' only, ISO YYYY-MM-DD; null = beyond the horizon
-  percentileCounts: Record<percentile, number>,         // 'howMany' only; see below
+  percentileDates: Record<number, string | null>,   // keyed by the case's percentiles; 'when' only, ISO YYYY-MM-DD; null = beyond the horizon
+  percentileCounts: Record<number, number>,         // keyed by the case's percentiles; 'howMany' only; see below
   perEpic: Array<{ epicId, quantiles: (number | null)[101] }>,   // computed, not shown in the v1 UI
   diagnostics: {
     throughputSampleCount, paceVariation,     // relative standard error; measured pace only, 2+ samples

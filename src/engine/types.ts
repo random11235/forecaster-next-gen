@@ -1,7 +1,3 @@
-/** The confidence levels reported as dates ('when') or counts ('howMany'). */
-export const PERCENTILES = [50, 85, 95] as const
-export type Percentile = (typeof PERCENTILES)[number]
-
 export interface ScopeEntry {
   epicId: string
   rank: number
@@ -51,6 +47,8 @@ export interface SimulationCase {
   throughputSamples: number[] | ThroughputRange
   /** Final child counts of finished epics, or the default range; only used for epics with no children. */
   epicSizeSamples: number[] | EpicSizeRange
+  /** The confidence levels to report as dates ('when') or counts ('howMany'): whole numbers from 0 to 100, no repeats, any order. */
+  percentiles: number[]
 }
 
 export interface ForecastSpan {
@@ -67,9 +65,9 @@ export interface ForecastResult {
   /** Share of trials that finished within `maxPeriods`; 1 for 'howMany', whose trials always run to `byDate`. */
   finishedFraction: number
   /** 'when' only: ISO calendar dates, null meaning beyond the horizon. */
-  percentileDates: Partial<Record<Percentile, string | null>>
+  percentileDates: Record<number, string | null>
   /** 'howMany' only: at least this many items get done in p% of trials. */
-  percentileCounts: Partial<Record<Percentile, number>>
+  percentileCounts: Record<number, number>
   /** 'when' only: each epic's finish period at p0..p100. */
   perEpic: { epicId: string; quantiles: (number | null)[] }[]
   diagnostics: {

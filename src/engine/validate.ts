@@ -11,9 +11,10 @@ const MAX_RANGE_HIGH = 100_000
 
 /** Rejects cases outside the engine's limits, so a bad input fails loudly instead of forecasting. */
 export function assertValidCase(simulationCase: SimulationCase): void {
-  const { trials, maxPeriods, question, scope, throughputSamples, epicSizeSamples } = simulationCase
+  const { trials, maxPeriods, question, scope, throughputSamples, epicSizeSamples, percentiles } = simulationCase
   assertWholeNumberIn('trials', trials, 1, MAX_TRIALS)
   assertWholeNumberIn('maxPeriods', maxPeriods, 1, MAX_PERIODS)
+  assertPercentiles(percentiles)
   if (Array.isArray(throughputSamples)) {
     assertSamples('throughputSamples', throughputSamples)
     assertWholeNumbers('throughputSamples', throughputSamples)
@@ -52,6 +53,15 @@ export function assertValidCase(simulationCase: SimulationCase): void {
 function assertWholeNumberIn(field: string, value: number, min: number, max: number): void {
   if (!Number.isInteger(value) || value < min || value > max) {
     throw new RangeError(`${field} must be a whole number from ${min} to ${max}, got ${value}`)
+  }
+}
+
+/** At least one confidence level to report, each a whole percent, none asked for twice. */
+function assertPercentiles(percentiles: readonly number[]): void {
+  if (percentiles.length === 0) throw new RangeError('percentiles must hold at least one percentile, got none')
+  for (const p of percentiles) assertWholeNumberIn('percentiles', p, 0, 100)
+  if (new Set(percentiles).size < percentiles.length) {
+    throw new RangeError(`percentiles must not repeat a percentile, got ${percentiles.join(', ')}`)
   }
 }
 
