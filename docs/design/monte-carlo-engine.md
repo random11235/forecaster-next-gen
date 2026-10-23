@@ -173,7 +173,7 @@ ForecastResult {
   percentileCounts: Record<number, number>,         // keyed by the case's percentiles; 'howMany' only; see below
   perEpic: Array<{ epicId, quantiles: (number | null)[101] }>,   // computed, not shown in the v1 UI
   diagnostics: {
-    throughputSampleCount, paceVariation,     // relative standard error; measured pace only, 2+ samples
+    paceVariation?,                           // relative standard error; measured pace only, 2+ samples
     trialsHittingHorizon,                     // trials that hit maxPeriods without finishing
     span: { periods: number | null, tickets },  // how far the forecast reaches; see "Long forecasts"
   },
