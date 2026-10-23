@@ -27,6 +27,11 @@ function restart(): Storage {
   return openStorage()
 }
 
+/** A team connected to Jira, as the EM's own teams are. */
+function saveJiraTeam(storage: Storage, teamId: string): void {
+  storage.saveTeam({ id: teamId, name: teamId, source: 'jira', sourceRef: teamId })
+}
+
 /** A team of the EM's own, with one epic of `children` tickets and a milestone holding it. */
 function saveOwnTeam(storage: Storage, teamId: string, children: number): void {
   const at = '2026-10-01T09:00:00Z'
@@ -47,7 +52,7 @@ function saveOwnTeam(storage: Storage, teamId: string, children: number): void {
     ],
     events: [{ itemId: `${teamId}-0`, at, kind: 'parent', to: `${teamId}-E` }],
   }
-  storage.saveTeam({ id: teamId, name: teamId, source: 'jira', sourceRef: teamId })
+  saveJiraTeam(storage, teamId)
   storage.addFacts(teamId, facts)
   storage.saveMilestone({
     id: `${teamId}-M`,
@@ -113,7 +118,7 @@ describe('milestone forecast view on sample data', () => {
   test('teams may use the same IDs without overwriting each other', () => {
     const storage = openStorage()
     saveOwnTeam(storage, 'ACME', 2)
-    storage.saveTeam({ id: 'BETA', name: 'BETA', source: 'jira', sourceRef: 'BETA' })
+    saveJiraTeam(storage, 'BETA')
     storage.addFacts('BETA', {
       workItems: [{ id: 'ACME-E', teamId: 'BETA', sourceKey: 'ACME-E', type: 'epic', labels: [], createdAt: '2026-10-01T09:00:00Z', lastSyncedAt: '2026-10-01T09:00:00Z' }],
       events: [],
@@ -128,7 +133,7 @@ describe('milestone forecast view on sample data', () => {
 
   test('a team with no milestone shows the empty state', () => {
     const storage = openStorage()
-    storage.saveTeam({ id: 'ACME', name: 'ACME', source: 'jira', sourceRef: 'ACME' })
+    saveJiraTeam(storage, 'ACME')
 
     expect(milestoneForecastView(storage, 'ACME')).toEqual({ kind: 'noMilestone' })
   })
