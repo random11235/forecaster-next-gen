@@ -1,6 +1,9 @@
 import { afterEach, beforeAll, describe, expect, test } from 'vitest'
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
 import { once } from 'node:events'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 // Starts the app the way `npm start` does: build, then run the built entry point.
@@ -8,6 +11,7 @@ const root = fileURLToPath(new URL('../..', import.meta.url))
 const entry = 'dist/app/main.js'
 
 let child: ChildProcess | undefined
+let dataDir: string | undefined
 
 beforeAll(() => {
   execFileSync('npm', ['run', 'build'], { cwd: root, stdio: 'ignore' })
@@ -20,13 +24,21 @@ afterEach(async () => {
     await exited
   }
   child = undefined
+  if (dataDir) rmSync(dataDir, { recursive: true, force: true })
+  dataDir = undefined
 })
 
-/** Runs the built entry point with the browser opener suppressed. */
+/** Runs the built entry point with the browser opener suppressed and its data in a fresh directory. */
 function runEntry(env: Record<string, string>): ChildProcess {
+  dataDir = mkdtempSync(join(tmpdir(), 'forecaster-'))
   child = spawn(process.execPath, [entry], {
     cwd: root,
-    env: { ...process.env, FORECASTER_NO_BROWSER: '1', ...env },
+    env: {
+      ...process.env,
+      FORECASTER_NO_BROWSER: '1',
+      FORECASTER_DATA_FILE: join(dataDir, 'forecaster.db'),
+      ...env,
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   return child
@@ -54,7 +66,7 @@ async function failure(app: ChildProcess): Promise<{ code: number | null; stderr
 }
 
 describe('launch smoke test', () => {
-  test('the built entry point serves the Milestone forecast screen in its empty state', async () => {
+  test('the built entry point serves the Milestone forecast screen on the sample data', async () => {
     const url = await printedUrl(runEntry({ PORT: '0' }))
 
     const response = await fetch(url)
@@ -62,7 +74,7 @@ describe('launch smoke test', () => {
     expect(response.status).toBe(200)
     const html = await response.text()
     expect(html).toContain('Milestone forecast')
-    expect(html).toContain('No milestone defined yet')
+    expect(html).toContain('Checkout v2')
   }, 15_000)
 
   test.each(['abc', '5180.5', '-1', '65536'])('refuses PORT=%j, naming the bad value', async (port) => {
