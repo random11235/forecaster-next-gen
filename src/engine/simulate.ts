@@ -1,7 +1,7 @@
 import { periodEndDate, wholePeriodsUntil } from './dates.js'
 import { hashJson } from './hash.js'
 import { createRandom, drawFrom, drawWholeNumberIn, type Random } from './random.js'
-import type { ForecastResult, ForecastSpan, GrowthRange, GrowthSource, NumberRange, ScopeEntry, SimulationCase } from './types.js'
+import type { ForecastResult, ForecastSpan, GrowthRange, NumberRange, ScopeEntry, SimulationCase } from './types.js'
 import { assertValidCase } from './validate.js'
 
 /** Marks a trial that hit `maxPeriods` without finishing; sorts after every real period. */
@@ -33,10 +33,6 @@ export function simulateCase(simulationCase: SimulationCase): ForecastResult {
     ...result,
     diagnostics: {
       ...paceVariationDiagnostic,
-      throughputScope: 'milestoneEpics',
-      throughputSource: isRange(throughputSamples) ? 'manual' : 'measured',
-      growthSource: ranked.map((epic) => ({ epicId: epic.epicId, source: growthSourceOf(epic) })),
-      uncommittedEpicIds: ranked.filter((epic) => !epic.committed).map((epic) => epic.epicId),
       trialsHittingHorizon,
       span,
     },
@@ -137,11 +133,6 @@ function growthRatioAt(growth: readonly number[] | GrowthRange): (u: number) => 
   }
   const sorted = Float64Array.from(growth).sort()
   return (u) => sorted[Math.floor(u * sorted.length)]!
-}
-
-function growthSourceOf(epic: ScopeEntry): GrowthSource {
-  if (!hasChildren(epic.baseCount)) return 'epicSize'
-  return isRange(epic.growth) ? 'ambiguity' : 'samples'
 }
 
 /** A null or 0 baseCount means the epic has no children, so a growth ratio has nothing to scale. */
