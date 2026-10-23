@@ -290,8 +290,10 @@ src/
   secrets/                # credential storage interface; v1: OS keychain
   connectors/             # jira/ (first), github/ (second) → model/ types; read-only
   storage/                # interfaces; v1: SQLite file
+  app/                    # local server (localhost only), screens, `npm start` entry point
 
 test/
+  app/                    # launch smoke test: start the app, check the screen is served
   engine/                 # Seam A: fixed seeds, plus a performance benchmark
   forecast/               # Seam B: facts + settings + ledger → milestone forecast view
   fixtures/               # canned histories and recorded Jira/GitHub responses (.json)
@@ -302,6 +304,7 @@ test/
 - `samples/` imports only `model/`.
 - `forecast/` is the only module that depends on both stored data and `engine/`.
 - `ledger/` depends only on `engine/types.ts`.
+- `app/` reaches forecasts through `forecast/`, never `engine/` directly.
 - `connectors/`, `storage/` and `secrets/` sit at the edges behind interfaces, so v1 can run from canned data and the same code can be hosted later.
 
 **File types:**
@@ -323,6 +326,8 @@ Warning text and provenance are tested at Seam B, not Seam A. These cases moved 
 - the uncommitted epics listed in rank order, and none for a scope of committed epics.
 
 Connectors are tested through Seam B by replaying recorded API responses, with no seam of their own.
+
+`test/app/` holds the launch smoke test. It is not a forecasting seam: it builds the app, runs the built `npm start` entry point (`dist/app/main.js`) with `FORECASTER_NO_BROWSER=1` so no browser opens, and checks that the Milestone forecast screen is served. It also checks that a bad `PORT` is refused.
 
 The one exception is the PRNG: `engine/random.ts` is checked against output vectors from the authors' reference C code for xoshiro128**, because a port must reproduce its exact stream and Seam A can't show that.
 
