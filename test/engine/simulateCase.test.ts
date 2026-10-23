@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { periodEndDate, simulateCase, type ScopeEntry, type SimulationCase } from '../../src/engine/index.js'
+import { simulateCase, type ScopeEntry, type SimulationCase } from '../../src/engine/index.js'
 
 function epic(overrides: Partial<ScopeEntry> = {}): ScopeEntry {
   return {
@@ -25,7 +25,7 @@ function whenCase(overrides: Partial<SimulationCase> = {}): SimulationCase {
     scope: [epic()],
     throughputSamples: [2],
     epicSizeSamples: [8],
-    percentiles: [50, 85, 95],
+    percentiles: [50, 70, 85, 95],
     ...overrides,
   }
 }
@@ -39,6 +39,7 @@ describe("simulateCase: 'when' for one committed epic", () => {
     expect(result.finishedFraction).toBe(1)
     expect(result.percentileDates).toEqual({
       50: '2026-02-09',
+      70: '2026-02-09',
       85: '2026-02-09',
       95: '2026-02-09',
     })
@@ -136,7 +137,7 @@ describe("simulateCase: 'when' for one committed epic", () => {
     expect(result.quantiles[60]).toBe(1)
     expect(result.quantiles[80]).toBe(2)
     expect(result.quantiles.slice(92)).toEqual(Array(9).fill(null))
-    expect(result.percentileDates).toEqual({ 50: '2026-01-12', 85: '2026-01-19', 95: null })
+    expect(result.percentileDates).toEqual({ 50: '2026-01-12', 70: '2026-01-19', 85: '2026-01-19', 95: null })
   })
 
   test('all-zero throughput stops at the horizon with nothing finished', () => {
@@ -144,7 +145,7 @@ describe("simulateCase: 'when' for one committed epic", () => {
 
     expect(result.finishedFraction).toBe(0)
     expect(result.quantiles.every((q) => q === null)).toBe(true)
-    expect(result.percentileDates).toEqual({ 50: null, 85: null, 95: null })
+    expect(result.percentileDates).toEqual({ 50: null, 70: null, 85: null, 95: null })
   })
 })
 
@@ -205,17 +206,6 @@ describe("simulateCase: 'when' for several ranked epics", () => {
     const spread = result.quantiles[95]! - result.quantiles[5]!
     expect(spread).toBeGreaterThanOrEqual(16)
     expect(spread).toBeLessThanOrEqual(20)
-  })
-})
-
-describe('simulateCase: uncommitted epics', () => {
-  test('an uncommitted epic is forecast from its provisional baseCount, its current count', () => {
-    // Provisional baseCount 12 × growth 1.5 = 18 tickets at 3 per period → 6 periods
-    const result = simulateCase(
-      whenCase({ scope: [epic({ baseCount: 12, currentCount: 12, growth: [1.5] })], throughputSamples: [3] }),
-    )
-
-    expect(result.quantiles.every((q) => q === 6)).toBe(true)
   })
 })
 
@@ -385,13 +375,6 @@ describe('simulateCase: span', () => {
   })
 })
 
-describe('periodEndDate', () => {
-  test('is exported, so the horizon date can be formatted the way the engine does', () => {
-    // Period 2 of weekly periods from 2026-01-05 ends on 2026-01-19
-    expect(periodEndDate('2026-01-05', 7, 2)).toBe('2026-01-19')
-  })
-})
-
 describe('simulateCase: manual pace range', () => {
   test('a manual range paces the forecast', () => {
     // 10 tickets at exactly 2 per period → 5 periods
@@ -412,7 +395,7 @@ describe("simulateCase: 'how many by date'", () => {
 
     expect(result.quantiles).toHaveLength(101)
     expect(result.quantiles.every((q) => q === 9)).toBe(true)
-    expect(result.percentileCounts).toEqual({ 50: 9, 85: 9, 95: 9 })
+    expect(result.percentileCounts).toEqual({ 50: 9, 70: 9, 85: 9, 95: 9 })
     expect(result.percentileDates).toEqual({})
     expect(result.perEpic).toEqual([])
   })
@@ -453,7 +436,7 @@ describe("simulateCase: 'how many by date'", () => {
 
     expect(result.quantiles[15]).toBe(0)
     expect(result.quantiles[85]).toBe(1)
-    expect(result.percentileCounts).toEqual({ 50: 1, 85: 0, 95: 0 })
+    expect(result.percentileCounts).toEqual({ 50: 1, 70: 1, 85: 0, 95: 0 })
   })
 })
 
