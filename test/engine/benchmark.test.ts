@@ -19,7 +19,6 @@ const realisticCase: SimulationCase = {
   scope: Array.from({ length: 10 }, (_, i) => ({
     epicId: `EPIC-${i + 1}`,
     rank: i + 1,
-    committed: i < 8,
     baseCount: i === 9 ? null : 8 + (i % 4) * 2,
     currentCount: i === 9 ? 0 : 10 + (i % 4) * 2,
     doneCount: i < 2 ? 6 : 0,
@@ -27,7 +26,7 @@ const realisticCase: SimulationCase = {
   })),
   throughputSamples: [3, 5, 6, 4, 8, 7, 2, 6, 9, 5, 6, 4],
   epicSizeSamples: [6, 9, 12, 15, 20],
-  warnAboveWeeks: 26,
+  percentiles: [50, 70, 85, 95],
 }
 
 test(`10,000 trials over a realistic case finish within about ${BUDGET_MS} ms`, () => {

@@ -150,7 +150,6 @@ SimulationCase {
 
   scope: Array<{
     epicId, rank,
-    committed: boolean,
     baseCount: number | null,          // count at commit; for an uncommitted epic, its current count
                                        // (provisional); null or 0 = no children
     currentCount,                      // children now, done or not
@@ -161,7 +160,8 @@ SimulationCase {
   throughputSamples: number[] | { low, high },  // measured done counts per period (whole numbers), or the EM's manual range
   throughputSampler: { kind: 'bayesianBootstrap' },  // how measured samples are drawn; see "Swappable samplers"
   epicSizeSamples:   number[] | { low, high },  // only used for epics with no children
-  warnAboveWeeks,                               // from ForecastSettings, so caseHash covers it; see "Long forecasts"
+  percentiles: number[],               // from ForecastSettings.percentiles, default [50, 70, 85, 95];
+                                       // whole numbers 0 to 100, at least one, no repeats, any order
 }
 
 ForecastResult {
@@ -169,20 +169,24 @@ ForecastResult {
   quantiles: (number | null)[101],     // 'when': finish period at p0..p100; null = beyond the horizon
                                        // 'howMany': items done by byDate at p0..p100
   finishedFraction,                    // 'when': share of trials that finished within maxPeriods
-  percentileDates: Record<percentile, string | null>,   // 'when' only, ISO YYYY-MM-DD; null = beyond the horizon
-  percentileCounts: Record<percentile, number>,         // 'howMany' only; see below
+  percentileDates: Record<number, string | null>,   // keyed by the case's percentiles; 'when' only, ISO YYYY-MM-DD; null = beyond the horizon
+  percentileCounts: Record<number, number>,         // keyed by the case's percentiles; 'howMany' only; see below
   perEpic: Array<{ epicId, quantiles: (number | null)[101] }>,   // computed, not shown in the v1 UI
   diagnostics: {
-    throughputSampleCount, paceVariation,     // relative standard error; measured pace only, 2+ samples
-    throughputScope: 'milestoneEpics',       // shown in the UI
-    throughputSource: 'manual'|'measured',
-    growthSource: Array<{ epicId, source: 'samples'|'ambiguity'|'epicSize' }>,
-    uncommittedEpicIds: string[],             // labelled "not committed: wide range"
+    paceVariation?,                           // relative standard error; measured pace only, 2+ samples
     trialsHittingHorizon,                     // trials that hit maxPeriods without finishing
-    warnings: string[],
+    span: { periods: number | null, tickets },  // how far the forecast reaches; see "Long forecasts"
   },
 }
 ```
+
+The engine returns facts, not sentences. Every warning is written by `forecast/diagnostics.ts` from these facts and `ForecastSettings`.
+
+The engine also leaves out provenance: facts that `forecast/buildCase.ts` already knows because it made the choice. `forecast/diagnostics.ts` derives them where `buildCase.ts` makes that choice, and owns their types (`ThroughputScope`, `GrowthSource`):
+- `throughputScope`: which tickets the pace counts; in v1 only `'milestoneEpics'`, shown in the UI;
+- `throughputSource`: `'manual'` or `'measured'`;
+- `growthSource`: each epic's source in rank order, `'samples'`, `'ambiguity'` or `'epicSize'` (no children);
+- the uncommitted epics in rank order, labelled "not committed: wide range".
 
 ### What the scope distributions are for
 
@@ -191,7 +195,7 @@ ForecastResult {
 
 Growth ratios are measured from the count at commit, so they are applied to `baseCount` (the count at commit), not to the epic's current count. Applying them to an epic that has already grown would double-count the growth. A drawn total is never allowed below `currentCount`, though: tickets that already exist are known work, so a low ratio can't make them disappear.
 
-An **uncommitted epic** has no baseline yet. `forecast/buildCase.ts` passes its current count as a provisional `baseCount` and sets `committed: false`. The engine treats it the same way, and the forecast labels it "not committed: wide range".
+An **uncommitted epic** has no baseline yet. `forecast/buildCase.ts` passes its current count as a provisional `baseCount`. The engine treats it like any other epic, and the forecast labels it "not committed: wide range".
 
 `throughputSamples` must be in the same period length as the case. `forecast/buildCase.ts` sums daily `ThroughputSample`s into `periodDays`-long periods and rejects samples with a different `periodDays`. Feeding daily counts into a weekly case would make the forecast about 7 times too slow. A manual range is already per period.
 
@@ -206,7 +210,7 @@ An **uncommitted epic** has no baseline yet. `forecast/buildCase.ts` passes its 
 
 Collect the trial results and compute 101 quantiles overall and per epic.
 
-**Trials beyond the horizon** sort after every finishing trial and are kept, not dropped or clamped to `maxPeriods`. Dropping them would make every percentile too early, and clamping them would show the horizon as if it were a real finish date. Any quantile that lands on such a trial is `null`, and the UI shows it as "later than <horizon date>". `finishedFraction` says how many trials finished, and the forecast warns when it is below the highest reported percentile.
+**Trials beyond the horizon** sort after every finishing trial and are kept, not dropped or clamped to `maxPeriods`. Dropping them would make every percentile too early, and clamping them would show the horizon as if it were a real finish date. Any quantile that lands on such a trial is `null`, and the UI shows it as "later than <horizon date>". `finishedFraction` says how many trials finished, and `forecast/diagnostics.ts` warns when it is below the highest reported percentile, naming the horizon date (`periodEndDate`, exported by the engine so both format it the same way).
 
 **Per-epic results** assume epics are worked one at a time (step 2), so they are computed and logged but not shown in v1.
 
@@ -239,12 +243,13 @@ makeThroughputSampler(config, samples: Float64Array): Sampler
 
 **Pace variation.** For measured pace with 2 or more samples, `diagnostics.paceVariation` is the relative standard error: sample sd / mean / √n, or 0 when every sample is 0. It uses no random draws. It is information for the EM ("your weekly pace varies a lot, so the range is wide"), not a warning: lumpy weeks give a wide range that still holds up. It replaces Magennis's split-halves error, which is the same measure plus random noise ([research](../research/pace-stability/README.md#split-halves-error-is-the-relative-standard-error)). The bands that choose the text belong to the forecast layer.
 
-**Long forecasts.** Each period's pace is drawn independently, so over many periods good and bad weeks average out, and the spread grows only with the square root of the number of periods: a long forecast comes out too confident about the date. When the forecast spans more than `warnAboveWeeks` weeks, `diagnostics.warnings` says so in tickets and weeks, never periods, e.g. "This forecast covers about 180 tickets, roughly 30 weeks at your current pace. Forecasts this far out tend to be too confident about the date." The forecast still runs.
-- The span is counted in time (periods × `periodDays`), so the threshold keeps its meaning if `periodDays` changes. For 'when' it is the median finish, and a median beyond the horizon counts as over; for 'howMany' it is the time to `byDate`.
+**Long forecasts.** Each period's pace is drawn independently, so over many periods good and bad weeks average out, and the spread grows only with the square root of the number of periods: a long forecast comes out too confident about the date. The engine reports how far the forecast reaches as `diagnostics.span`. When that is more than `ForecastSettings.warnAboveWeeks` weeks, `forecast/diagnostics.ts` says so in tickets and weeks, never periods, e.g. "This forecast covers about 180 tickets, roughly 30 weeks at your current pace. Forecasts this far out tend to be too confident about the date." The forecast still runs.
+- `warnAboveWeeks` is not in the case: the threshold changes no draw, so it has no reason to be covered by `caseHash`.
+- `span.periods` is periods to the median finish ('when', null beyond the horizon) or to `byDate` ('howMany'). The warning counts it in time (periods × `periodDays`), so the threshold keeps its meaning if `periodDays` changes. For 'when' it is the median finish, and a median beyond the horizon counts as over; for 'howMany' it is the time to `byDate`.
 - The ticket figure for 'when' is the median remaining work across trials, after growth; for 'howMany', the median count done.
 - The lasting fix is a sampler that keeps runs of weeks together (see "Sampling experiments" under [Deferred](#deferred-beyond-v1)).
 
-The forecast states plainly when an input is thin rather than hiding it, e.g. "Only 4 weeks of finished tickets. Forecast needs 8." These go in `diagnostics.warnings`, alongside:
+The forecast states plainly when an input is thin rather than hiding it, e.g. "Only 4 weeks of finished tickets. Forecast needs 8." `forecast/diagnostics.ts` writes these, alongside:
 
 - an epic in progress but not committed;
 - a blocked epic;
@@ -270,13 +275,13 @@ src/
     cycleTime.ts          # started → done; spread and ageing
 
   engine/                 # pure: no I/O, no DB, no clock; see src/engine/ for its files
-    index.ts              # exports simulateCase and the types only
+    index.ts              # exports simulateCase, periodEndDate and the types only
 
   forecast/               # the only module that knows both stored data and the engine
     buildCase.ts          # pace mode, ambiguity ranges, provisional baselines, limits
     settings.ts           # ForecastSettings and AmbiguityRanges defaults
     suggestions.ts        # suggested pace range, measured medium range, switch offers
-    diagnostics.ts        # sample counts, pace variation text, warnings
+    diagnostics.ts        # sample counts, pace variation text, warnings, provenance (ThroughputScope, GrowthSource)
 
   ledger/                 # Layer 5
     forecastLog.ts
@@ -308,6 +313,14 @@ test/
 **Test seams.** There are two, as set in the spec:
 - **Seam A** is `simulateCase`, tested with fixed seeds.
 - **Seam B** is `forecast/`: stored facts, settings and the ledger go in, and the milestone forecast view comes out.
+
+Warning text and provenance are tested at Seam B, not Seam A. These cases moved from the engine tests and are owed by `test/forecast/` once `forecast/diagnostics.ts` exists:
+- the horizon warning when fewer trials finish than the highest reported percentile, with the floored percentage and the horizon date, and none when enough finish;
+- the long-forecast warning above `warnAboveWeeks` weeks, none at or below it, its ticket figure for 'when' and 'howMany', a median beyond the horizon counting as over, the threshold coming from `ForecastSettings`, and weeks (not periods) keeping their meaning when `periodDays` changes;
+- the growth source of each epic in rank order: samples, ambiguity range, or epic size for a null or 0 `baseCount`;
+- the throughput scope reported as `'milestoneEpics'`;
+- the throughput source: `'measured'` for samples, `'manual'` for a range;
+- the uncommitted epics listed in rank order, and none for a scope of committed epics.
 
 Connectors are tested through Seam B by replaying recorded API responses, with no seam of their own.
 
@@ -356,7 +369,7 @@ v1 is a local, single-user tool, so items 1 and 2 are what matter. Items 3 and 4
 | Feature | What changes |
 |---|---|
 | Pre-installation history (v1.1 or v2) | Read ticket history from before installation to measure pace and growth. The risks to handle: a different team, a different KTLO load, different products, company-wide efforts, or a change of method (e.g. story points to Kanban). In v1, old data may only pre-fill a suggestion. |
-| Other pace scopes (v2) | Pace from children of any epic, or from all of the team's work. Derive `ThroughputSample`s with that `scope` from `WorkItem.parentId`; `diagnostics.throughputScope` reports the choice. |
+| Other pace scopes (v2) | Pace from children of any epic, or from all of the team's work. Derive `ThroughputSample`s with that `scope` from `WorkItem.parentId`; the forecast's `throughputScope` reports the choice. |
 | Capacity calendar | The last step of v1's build order: absences as a capacity fraction per period, with `capacityByPeriod` and a `capacityModel` (linear by default) on `SimulationCase`. A per-person allocation table comes later, if ever. |
 | Per-epic dates in the UI | Shown only after evidence (back-testing or the ledger) that they're reliable despite parallel work. |
 | Multi-team | An aggregator, the stakeholder roadmap, publishing, cross-team reference split rates, and access control. The data is already keyed by team. |
