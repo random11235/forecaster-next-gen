@@ -17,8 +17,8 @@ export interface RunningApp {
 }
 
 /** Starts the local server and opens the browser on the Milestone forecast screen. */
-export async function startApp(options: LaunchOptions): Promise<RunningApp> {
-  const server = createServer(handle)
+export async function startAppAndOpenBrowser(options: LaunchOptions): Promise<RunningApp> {
+  const server = createServer(serveMilestoneForecastScreen)
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
@@ -42,8 +42,9 @@ export async function startApp(options: LaunchOptions): Promise<RunningApp> {
   }
 }
 
-function handle(request: IncomingMessage, response: ServerResponse): void {
-  if (request.method !== 'GET' || new URL(request.url ?? '/', 'http://localhost').pathname !== '/') {
+/** Serves the Milestone forecast screen at `/` and 404 for everything else. */
+function serveMilestoneForecastScreen(request: IncomingMessage, response: ServerResponse): void {
+  if (request.method !== 'GET' || new URL(request.url ?? '/', `http://${HOST}`).pathname !== '/') {
     response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' })
     response.end('Not found')
     return
