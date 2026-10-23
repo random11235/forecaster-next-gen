@@ -26,6 +26,7 @@ function whenCase(overrides: Partial<SimulationCase> = {}): SimulationCase {
     scope: [epic()],
     throughputSamples: [2],
     epicSizeSamples: [8],
+    percentiles: [50, 85, 95],
     ...overrides,
   }
 }
@@ -514,6 +515,43 @@ describe("simulateCase: 'how many by date'", () => {
   })
 })
 
+describe('simulateCase: requested percentiles', () => {
+  test("'when' reports a date for each percentile the case asks for", () => {
+    // One ticket left, finished each period with probability 1/2: the finish period is geometric,
+    // P(≤1) = 0.5, P(≤2) = 0.75, P(≤3) = 0.875, P(≤4) = 0.9375, P(≤5) = 0.96875
+    const result = simulateCase(
+      whenCase({
+        trials: 10_000,
+        scope: [epic({ baseCount: 1, currentCount: 1 })],
+        throughputSamples: [0, 1],
+        percentiles: [95, 40, 70, 85],
+      }),
+    )
+
+    expect(result.percentileDates).toEqual({
+      40: '2026-01-12',
+      70: '2026-01-19',
+      85: '2026-01-26',
+      95: '2026-02-09',
+    })
+  })
+
+  test("'howMany' reports a count for each percentile the case asks for", () => {
+    // One period from [0, 1, 1, 1]: 0 done in a quarter of trials, 1 in the rest,
+    // so at least 1 gets done with up to 75% confidence, and at least 0 above that
+    const result = simulateCase(
+      whenCase({
+        trials: 10_000,
+        question: { kind: 'howMany', byDate: '2026-01-12' },
+        throughputSamples: [0, 1, 1, 1],
+        percentiles: [90, 30, 60, 80],
+      }),
+    )
+
+    expect(result.percentileCounts).toEqual({ 30: 1, 60: 1, 80: 0, 90: 0 })
+  })
+})
+
 describe('simulateCase: reproducibility', () => {
   const stochasticCase = whenCase({
     scope: [epic({ growth: [1, 1.4, 2, 2.6] })],
@@ -595,6 +633,12 @@ describe('simulateCase: input limits', () => {
     ['rank', { scope: [epic({ rank: Number.NaN })] }],
     ['rank', { scope: [epic({ rank: Number.POSITIVE_INFINITY })] }],
     ['question', { question: { kind: 'whatIf' } as unknown as SimulationCase['question'] }],
+    ['percentiles', { percentiles: [] }],
+    ['percentiles', { percentiles: [50, 85.5] }],
+    ['percentiles', { percentiles: [-1, 50] }],
+    ['percentiles', { percentiles: [50, 101] }],
+    ['percentiles', { percentiles: [50, Number.NaN] }],
+    ['percentiles', { percentiles: [85, 50, 85] }],
   ])('rejects a case with invalid %s', (field, overrides) => {
     expect(() => simulateCase(whenCase(overrides))).toThrow(new RegExp(field))
   })

@@ -1,7 +1,7 @@
 import { periodEndDate, wholePeriodsUntil } from './dates.js'
 import { hashJson } from './hash.js'
 import { createRandom, drawFrom, drawWholeNumberIn, type Random } from './random.js'
-import { PERCENTILES, type ForecastResult, type ForecastSpan, type GrowthRange, type GrowthSource, type NumberRange, type Percentile, type ScopeEntry, type SimulationCase } from './types.js'
+import type { ForecastResult, ForecastSpan, GrowthRange, GrowthSource, NumberRange, ScopeEntry, SimulationCase } from './types.js'
 import { assertValidCase } from './validate.js'
 
 /** Marks a trial that hit `maxPeriods` without finishing; sorts after every real period. */
@@ -109,11 +109,11 @@ function simulateWhen(simulationCase: SimulationCase, ranked: readonly ScopeEntr
 
   const quantiles = finishQuantiles(finishPeriods)
   const percentileDates = Object.fromEntries(
-    PERCENTILES.map((p) => {
+    simulationCase.percentiles.map((p) => {
       const q = quantiles[p]!
       return [p, q === null ? null : periodEndDate(simulationCase.startDate, simulationCase.periodDays, q)]
     }),
-  ) as Record<Percentile, string | null>
+  )
 
   return {
     quantiles,
@@ -179,10 +179,7 @@ function simulateHowMany(simulationCase: SimulationCase, byDate: string, random:
   doneCounts.sort()
   const quantiles = Array.from({ length: 101 }, (_, p) => nearestRankPercentile(doneCounts, p))
   // "p% sure" means at least this many get done in p% of trials: the (100 − p)th percentile
-  const percentileCounts = Object.fromEntries(PERCENTILES.map((p) => [p, quantiles[100 - p]!])) as Record<
-    Percentile,
-    number
-  >
+  const percentileCounts = Object.fromEntries(simulationCase.percentiles.map((p) => [p, quantiles[100 - p]!]))
 
   return {
     quantiles,
