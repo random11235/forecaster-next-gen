@@ -14,7 +14,7 @@ const SYNCED_AT = '2026-10-19T07:10:00Z'
 
 type State = 'toDo' | 'inProgress' | 'done' | 'cancelled'
 
-interface Row {
+interface SampleTicket {
   key: string
   type: string
   title?: string
@@ -29,7 +29,7 @@ interface Row {
   endedAt?: string
 }
 
-const rows: Row[] = [
+const tickets: SampleTicket[] = [
   { key: 'PAY-1', type: 'epic', title: 'Card vaulting', createdAt: '2026-08-31T09:00:00Z', state: 'inProgress', startedAt: '2026-09-07T09:00:00Z' },
   { key: 'PAY-2', type: 'epic', title: 'Refunds', createdAt: '2026-08-31T09:00:00Z', state: 'inProgress', startedAt: '2026-09-21T09:00:00Z' },
   { key: 'PAY-3', type: 'epic', title: 'Receipts redesign', createdAt: '2026-09-01T09:00:00Z', state: 'toDo' },
@@ -80,7 +80,7 @@ const rows: Row[] = [
 
 const STATUS_NAME: Record<State, string> = { toDo: 'To Do', inProgress: 'In Progress', done: 'Done', cancelled: 'Cancelled' }
 
-function workItem(row: Row): WorkItem {
+function workItem(row: SampleTicket): WorkItem {
   return {
     id: row.key,
     teamId: TEAM_ID,
@@ -98,7 +98,7 @@ function workItem(row: Row): WorkItem {
 }
 
 /** The history a connector would read from the changelog: status transitions, parent links and labels. */
-function events(row: Row): WorkItemEvent[] {
+function events(row: SampleTicket): WorkItemEvent[] {
   const itemId = row.key
   const history: WorkItemEvent[] = [{ itemId, at: row.createdAt, kind: 'status', to: STATUS_NAME.toDo }]
   const firstParent = row.movedFrom?.parent ?? row.parent
@@ -119,7 +119,7 @@ function events(row: Row): WorkItemEvent[] {
 
 export const SAMPLE_DATA: SampleData = {
   team: { id: TEAM_ID, name: 'Payments (sample)', source: 'sample', sourceRef: 'PAY' },
-  facts: { workItems: rows.map(workItem), events: rows.flatMap(events) },
+  facts: { workItems: tickets.map(workItem), events: tickets.flatMap(events) },
   milestone: {
     id: 'sample-milestone',
     teamId: TEAM_ID,

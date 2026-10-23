@@ -15,8 +15,8 @@ CREATE TABLE IF NOT EXISTS teams (
   source_ref TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS work_items (
-  id TEXT PRIMARY KEY,
   team_id TEXT NOT NULL REFERENCES teams(id),
+  id TEXT NOT NULL,
   source_key TEXT NOT NULL,
   type TEXT NOT NULL,
   title TEXT,
@@ -26,30 +26,33 @@ CREATE TABLE IF NOT EXISTS work_items (
   started_at TEXT,
   done_at TEXT,
   cancelled_at TEXT,
-  last_synced_at TEXT NOT NULL
+  last_synced_at TEXT NOT NULL,
+  PRIMARY KEY (team_id, id)
 );
-CREATE INDEX IF NOT EXISTS work_items_team ON work_items(team_id);
 CREATE TABLE IF NOT EXISTS work_item_events (
-  team_id TEXT NOT NULL REFERENCES teams(id),
-  item_id TEXT NOT NULL REFERENCES work_items(id),
+  team_id TEXT NOT NULL,
+  item_id TEXT NOT NULL,
   at TEXT NOT NULL,
   kind TEXT NOT NULL,
   from_value TEXT,
-  to_value TEXT
+  to_value TEXT,
+  FOREIGN KEY (team_id, item_id) REFERENCES work_items(team_id, id)
 );
 CREATE INDEX IF NOT EXISTS work_item_events_team ON work_item_events(team_id);
 CREATE TABLE IF NOT EXISTS milestones (
-  id TEXT PRIMARY KEY,
   team_id TEXT NOT NULL REFERENCES teams(id),
+  id TEXT NOT NULL,
   name TEXT NOT NULL,
-  committed_date TEXT NOT NULL
+  committed_date TEXT NOT NULL,
+  PRIMARY KEY (team_id, id)
 );
 CREATE TABLE IF NOT EXISTS milestone_epics (
-  team_id TEXT NOT NULL REFERENCES teams(id),
-  milestone_id TEXT NOT NULL REFERENCES milestones(id),
+  team_id TEXT NOT NULL,
+  milestone_id TEXT NOT NULL,
   rank INTEGER NOT NULL,
   epic_id TEXT NOT NULL,
-  PRIMARY KEY (milestone_id, rank)
+  PRIMARY KEY (team_id, milestone_id, rank),
+  FOREIGN KEY (team_id, milestone_id) REFERENCES milestones(team_id, id)
 );
 `
 
@@ -76,18 +79,18 @@ export function openSqliteStorage(file: string): Storage {
   const upsertItem = db.prepare(`
     INSERT INTO work_items (id, team_id, source_key, type, title, parent_id, labels, created_at, started_at, done_at, cancelled_at, last_synced_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT (id) DO UPDATE SET
-      team_id = excluded.team_id, source_key = excluded.source_key, type = excluded.type, title = excluded.title,
+    ON CONFLICT (team_id, id) DO UPDATE SET
+      source_key = excluded.source_key, type = excluded.type, title = excluded.title,
       parent_id = excluded.parent_id, labels = excluded.labels, created_at = excluded.created_at,
       started_at = excluded.started_at, done_at = excluded.done_at, cancelled_at = excluded.cancelled_at,
       last_synced_at = excluded.last_synced_at`)
   const insertEvent = db.prepare(`
     INSERT INTO work_item_events (team_id, item_id, at, kind, from_value, to_value)
-    VALUES ((SELECT team_id FROM work_items WHERE id = ?), ?, ?, ?, ?, ?)`)
+    VALUES (?, ?, ?, ?, ?, ?)`)
   const upsertMilestone = db.prepare(`
     INSERT INTO milestones (id, team_id, name, committed_date) VALUES (?, ?, ?, ?)
-    ON CONFLICT (id) DO UPDATE SET team_id = excluded.team_id, name = excluded.name, committed_date = excluded.committed_date`)
-  const deleteMilestoneEpics = db.prepare('DELETE FROM milestone_epics WHERE milestone_id = ?')
+    ON CONFLICT (team_id, id) DO UPDATE SET name = excluded.name, committed_date = excluded.committed_date`)
+  const deleteMilestoneEpics = db.prepare('DELETE FROM milestone_epics WHERE team_id = ? AND milestone_id = ?')
   const insertMilestoneEpic = db.prepare(
     'INSERT INTO milestone_epics (team_id, milestone_id, rank, epic_id) VALUES (?, ?, ?, ?)',
   )
@@ -116,12 +119,13 @@ export function openSqliteStorage(file: string): Storage {
         }))
     },
 
-    addFacts(facts) {
+    addFacts(teamId, facts) {
       transaction(() => {
         for (const item of facts.workItems) {
+          if (item.teamId !== teamId) throw new Error(`Work item ${item.id} belongs to team ${item.teamId}, not ${teamId}.`)
           upsertItem.run(
             item.id,
-            item.teamId,
+            teamId,
             item.sourceKey,
             item.type,
             item.title ?? null,
@@ -135,7 +139,7 @@ export function openSqliteStorage(file: string): Storage {
           )
         }
         for (const event of facts.events) {
-          insertEvent.run(event.itemId, event.itemId, event.at, event.kind, event.from ?? null, event.to ?? null)
+          insertEvent.run(teamId, event.itemId, event.at, event.kind, event.from ?? null, event.to ?? null)
         }
       })
     },
@@ -155,7 +159,7 @@ export function openSqliteStorage(file: string): Storage {
     saveMilestone(milestone) {
       transaction(() => {
         upsertMilestone.run(milestone.id, milestone.teamId, milestone.name, milestone.committedDate)
-        deleteMilestoneEpics.run(milestone.id)
+        deleteMilestoneEpics.run(milestone.teamId, milestone.id)
         milestone.epicIds.forEach((epicId, rank) =>
           insertMilestoneEpic.run(milestone.teamId, milestone.id, rank, epicId),
         )
@@ -163,7 +167,7 @@ export function openSqliteStorage(file: string): Storage {
     },
 
     milestones(teamId) {
-      const epics = db.prepare('SELECT epic_id FROM milestone_epics WHERE milestone_id = ? ORDER BY rank')
+      const epics = db.prepare('SELECT epic_id FROM milestone_epics WHERE team_id = ? AND milestone_id = ? ORDER BY rank')
       return db
         .prepare('SELECT id, team_id, name, committed_date FROM milestones WHERE team_id = ? ORDER BY rowid')
         .all(teamId)
@@ -173,7 +177,7 @@ export function openSqliteStorage(file: string): Storage {
             teamId: String(row.team_id),
             name: String(row.name),
             committedDate: String(row.committed_date),
-            epicIds: epics.all(String(row.id)).map((epic: Row) => String(epic.epic_id)),
+            epicIds: epics.all(teamId, String(row.id)).map((epic: Row) => String(epic.epic_id)),
           }),
         )
     },

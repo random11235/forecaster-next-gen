@@ -22,7 +22,7 @@ export function renderMilestoneForecastScreen(view: MilestoneForecastView): stri
 <body>
   <main>
     <h1>Milestone forecast</h1>
-${view.kind === 'milestone' ? milestone(view) : EMPTY_STATE}
+${view.kind === 'milestone' ? milestoneSection(view) : EMPTY_STATE}
   </main>
 </body>
 </html>
@@ -34,7 +34,7 @@ const EMPTY_STATE = `    <section aria-label="Empty state">
       <p>Define a milestone, with its committed date and epics, to see its forecast here.</p>
     </section>`
 
-function milestone(view: Extract<MilestoneForecastView, { kind: 'milestone' }>): string {
+function milestoneSection(view: Extract<MilestoneForecastView, { kind: 'milestone' }>): string {
   const rows = view.epics
     .map(
       (epic) => `          <tr>

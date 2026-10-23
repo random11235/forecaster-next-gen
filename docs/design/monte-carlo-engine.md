@@ -42,7 +42,7 @@ The data model is designed so that each of these can be relaxed later without re
 ### Layer 1: observed facts (ingested)
 
 ```ts
-Team          { id, name, source: 'jira'|'github', sourceRef,
+Team          { id, name, source: 'sample'|'jira'|'github', sourceRef,
                 workflowMap: Record<sourceStatus, 'not_started'|'started'|'done'|'cancelled'>,
                 startedSignal?,      // GitHub: the label, project column or assignee that means "started"
                 spikeRule,           // issue types and/or labels that mark a spike

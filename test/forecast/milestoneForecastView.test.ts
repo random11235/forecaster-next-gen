@@ -48,7 +48,7 @@ function saveOwnTeam(storage: Storage, teamId: string, children: number): void {
     events: [{ itemId: `${teamId}-0`, at, kind: 'parent', to: `${teamId}-E` }],
   }
   storage.saveTeam({ id: teamId, name: teamId, source: 'jira', sourceRef: teamId })
-  storage.addFacts(facts)
+  storage.addFacts(teamId, facts)
   storage.saveMilestone({
     id: `${teamId}-M`,
     teamId,
@@ -102,12 +102,28 @@ describe('milestone forecast view on sample data', () => {
     saveOwnTeam(storage, 'ACME', 2)
     saveOwnTeam(storage, 'BETA', 5)
 
-    const view = milestoneForecastView(storage, 'BETA')
+    expect(milestoneForecastView(storage, 'BETA')).toEqual({
+      kind: 'milestone',
+      name: 'BETA milestone',
+      committedDate: '2027-01-29',
+      epics: [{ epicId: 'BETA-E', key: 'BETA-E', name: 'BETA epic', itemsNow: 5, status: 'notCommitted' }],
+    })
+  })
 
-    expect(view).toMatchObject({ kind: 'milestone', name: 'BETA milestone' })
-    expect(view.kind === 'milestone' && view.epics.map((epic) => epic.itemsNow)).toEqual([5])
-    expect(storage.facts('BETA').workItems.every((item) => item.teamId === 'BETA')).toBe(true)
-    expect(storage.facts('BETA').events.map((event) => event.itemId)).toEqual(['BETA-0'])
+  test('teams may use the same IDs without overwriting each other', () => {
+    const storage = openStorage()
+    saveOwnTeam(storage, 'ACME', 2)
+    storage.saveTeam({ id: 'BETA', name: 'BETA', source: 'jira', sourceRef: 'BETA' })
+    storage.addFacts('BETA', {
+      workItems: [{ id: 'ACME-E', teamId: 'BETA', sourceKey: 'ACME-E', type: 'epic', labels: [], createdAt: '2026-10-01T09:00:00Z', lastSyncedAt: '2026-10-01T09:00:00Z' }],
+      events: [],
+    })
+    storage.saveMilestone({ id: 'ACME-M', teamId: 'BETA', name: 'Other', committedDate: '2027-03-01', epicIds: ['ACME-E'] })
+
+    expect(milestoneForecastView(storage, 'ACME')).toMatchObject({
+      name: 'ACME milestone',
+      epics: [{ name: 'ACME epic', itemsNow: 2 }],
+    })
   })
 
   test('a team with no milestone shows the empty state', () => {
