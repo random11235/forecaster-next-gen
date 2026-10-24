@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
+import { DEFAULT_SETTINGS, type ForecastSettings } from '../../src/forecast/settings.js'
 import type { Facts, WorkItem } from '../../src/model/workItem.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
@@ -70,8 +71,8 @@ function doneInWeeks(counts: number[]): string[] {
   })
 }
 
-function forecastOf(storage: Storage) {
-  const view = milestoneForecastView(storage, TEAM, { today: TODAY })
+function forecastOf(storage: Storage, settings: ForecastSettings = DEFAULT_SETTINGS) {
+  const view = milestoneForecastView(storage, TEAM, { today: TODAY, settings })
   if (view.kind !== 'milestone') throw new Error('expected a milestone')
   return view.forecast
 }
@@ -151,6 +152,26 @@ describe('first forecast from a manual pace range', () => {
     expect(forecastOf(storage)).toEqual({ kind: 'needsPace' })
   })
 
+  test('the confidence levels shown come from the settings', () => {
+    const storage = teamWithMilestone([{ id: 'E1', open: 4 }])
+    enterManualPace(storage, 10, 10)
+
+    expect(forecastOf(storage, { ...DEFAULT_SETTINGS, percentiles: [70, 90] })).toMatchObject({
+      dates: [
+        { percent: 70, date: '2026-10-31' },
+        { percent: 90, date: '2026-10-31' },
+      ],
+    })
+  })
+
+  test('the horizon comes from the settings', () => {
+    const storage = teamWithMilestone([{ id: 'E1', open: 4 }])
+    enterManualPace(storage, 0, 0)
+
+    // 52 weeks from 24 Oct 2026
+    expect(forecastOf(storage, { ...DEFAULT_SETTINGS, maxPeriods: 52 })).toMatchObject({ horizonDate: '2027-10-23' })
+  })
+
   test('a newly entered pace range replaces the old one', () => {
     const storage = teamWithMilestone([{ id: 'E1', open: 4 }])
     enterManualPace(storage, 0, 0)
@@ -175,6 +196,16 @@ describe('pace variation note', () => {
     useMeasuredPace(storage)
 
     expect(forecastOf(storage)).toMatchObject({ kind: 'forecast', pace: { mode: 'measured' }, notes: [note] })
+  })
+
+  test('measured pace with no ticket done yet says the data is too thin, rather than asking for a pace', () => {
+    const storage = teamWithMilestone([{ id: 'E1', open: 30 }])
+    useMeasuredPace(storage)
+
+    expect(forecastOf(storage)).toEqual({
+      kind: 'thinData',
+      message: "No tickets in this milestone's epics are done yet, so there is no measured pace to forecast from.",
+    })
   })
 
   test('a manual pace range has no pace variation note', () => {

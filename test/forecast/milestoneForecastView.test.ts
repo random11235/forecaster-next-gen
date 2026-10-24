@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
+import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import { loadSampleDataIfEmpty } from '../../src/sample/loadSampleData.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
@@ -77,7 +78,7 @@ describe('milestone forecast view on sample data', () => {
 
     loadSampleDataIfEmpty(storage)
 
-    expect(milestoneForecastView(storage, storage.teams()[0]!.id, { today: TODAY })).toEqual({
+    expect(milestoneForecastView(storage, storage.teams()[0]!.id, { today: TODAY, settings: DEFAULT_SETTINGS })).toEqual({
       kind: 'milestone',
       name: 'Checkout v2',
       committedDate: '2026-12-18',
@@ -97,7 +98,7 @@ describe('milestone forecast view on sample data', () => {
     loadSampleDataIfEmpty(reopened)
 
     expect(reopened.teams().map((team) => team.id)).toEqual(['ACME'])
-    expect(milestoneForecastView(reopened, 'ACME', { today: TODAY })).toEqual({
+    expect(milestoneForecastView(reopened, 'ACME', { today: TODAY, settings: DEFAULT_SETTINGS })).toEqual({
       kind: 'milestone',
       name: 'ACME milestone',
       committedDate: '2027-01-29',
@@ -112,7 +113,7 @@ describe('milestone forecast view on sample data', () => {
 
     const reopened = restart()
 
-    expect(milestoneForecastView(reopened, 'ACME', { today: TODAY })).toMatchObject({
+    expect(milestoneForecastView(reopened, 'ACME', { today: TODAY, settings: DEFAULT_SETTINGS })).toMatchObject({
       forecast: { kind: 'forecast', pace: { mode: 'manual', low: 3, high: 5 } },
     })
   })
@@ -122,7 +123,7 @@ describe('milestone forecast view on sample data', () => {
     saveOwnTeam(storage, 'ACME', 2)
     saveOwnTeam(storage, 'BETA', 5)
 
-    expect(milestoneForecastView(storage, 'BETA', { today: TODAY })).toEqual({
+    expect(milestoneForecastView(storage, 'BETA', { today: TODAY, settings: DEFAULT_SETTINGS })).toEqual({
       kind: 'milestone',
       name: 'BETA milestone',
       committedDate: '2027-01-29',
@@ -141,7 +142,7 @@ describe('milestone forecast view on sample data', () => {
     })
     storage.saveMilestone({ id: 'ACME-M', teamId: 'BETA', name: 'Other', committedDate: '2027-03-01', epicIds: ['ACME-E'] })
 
-    expect(milestoneForecastView(storage, 'ACME', { today: TODAY })).toMatchObject({
+    expect(milestoneForecastView(storage, 'ACME', { today: TODAY, settings: DEFAULT_SETTINGS })).toMatchObject({
       name: 'ACME milestone',
       epics: [{ name: 'ACME epic', itemsNow: 2 }],
     })
@@ -151,6 +152,6 @@ describe('milestone forecast view on sample data', () => {
     const storage = openStorage()
     saveJiraTeam(storage, 'ACME')
 
-    expect(milestoneForecastView(storage, 'ACME', { today: TODAY })).toEqual({ kind: 'noMilestone' })
+    expect(milestoneForecastView(storage, 'ACME', { today: TODAY, settings: DEFAULT_SETTINGS })).toEqual({ kind: 'noMilestone' })
   })
 })

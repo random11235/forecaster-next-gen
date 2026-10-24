@@ -1,3 +1,4 @@
+import type { ThroughputRange } from '../model/paceSetting.js'
 import { escapeHtml, htmlPage } from './html.js'
 
 /** Far above any real team's weekly pace; keeps typos like 1000000 out of the forecast. */
@@ -10,7 +11,7 @@ export interface PaceForm {
   error?: string
 }
 
-export type ParsedPace = { ok: true; low: number; high: number } | { ok: false; form: PaceForm }
+export type ParsedPace = { ok: true; range: ThroughputRange } | { ok: false; form: PaceForm }
 
 /** Reads the submitted pace form: whole tickets per week, low ≤ high. */
 export function parsePaceForm(body: URLSearchParams): ParsedPace {
@@ -21,7 +22,7 @@ export function parsePaceForm(body: URLSearchParams): ParsedPace {
   const [lowCount, highCount] = [Number(low), Number(high)]
   if (highCount > MAX_TICKETS_PER_WEEK) return refuse(`Enter at most ${MAX_TICKETS_PER_WEEK} tickets per week.`)
   if (lowCount > highCount) return refuse('The low end must not be above the high end.')
-  return { ok: true, low: lowCount, high: highCount }
+  return { ok: true, range: { low: lowCount, high: highCount } }
 }
 
 /** The Inputs screen: the milestone's manual pace range. `form` is undefined when there is no milestone yet. */
