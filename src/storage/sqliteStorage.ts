@@ -54,6 +54,15 @@ CREATE TABLE IF NOT EXISTS milestone_epics (
   PRIMARY KEY (team_id, milestone_id, rank),
   FOREIGN KEY (team_id, milestone_id) REFERENCES milestones(team_id, id)
 );
+CREATE TABLE IF NOT EXISTS pace_settings (
+  team_id TEXT NOT NULL,
+  milestone_id TEXT NOT NULL,
+  mode TEXT NOT NULL,
+  low INTEGER,
+  high INTEGER,
+  PRIMARY KEY (team_id, milestone_id),
+  FOREIGN KEY (team_id, milestone_id) REFERENCES milestones(team_id, id)
+);
 `
 
 type Row = Record<string, SQLInputValue>
@@ -96,6 +105,12 @@ export function openSqliteStorage(file: string): Storage {
   const deleteMilestoneEpics = db.prepare('DELETE FROM milestone_epics WHERE team_id = ? AND milestone_id = ?')
   const insertMilestoneEpic = db.prepare(
     'INSERT INTO milestone_epics (team_id, milestone_id, rank, epic_id) VALUES (?, ?, ?, ?)',
+  )
+  const upsertPaceSetting = db.prepare(`
+    INSERT INTO pace_settings (team_id, milestone_id, mode, low, high) VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT (team_id, milestone_id) DO UPDATE SET mode = excluded.mode, low = excluded.low, high = excluded.high`)
+  const selectPaceSetting = db.prepare(
+    'SELECT team_id, milestone_id, mode, low, high FROM pace_settings WHERE team_id = ? AND milestone_id = ?',
   )
 
   return {
@@ -180,6 +195,20 @@ export function openSqliteStorage(file: string): Storage {
             epicIds: epics.all(teamId, String(row.id)).map((epic: Row) => String(epic.epic_id)),
           }),
         )
+    },
+
+    savePaceSetting(setting) {
+      const [low, high] = setting.mode === 'manual' ? [setting.low, setting.high] : [null, null]
+      upsertPaceSetting.run(setting.teamId, setting.milestoneId, setting.mode, low, high)
+    },
+
+    paceSetting(teamId, milestoneId) {
+      const row = selectPaceSetting.get(teamId, milestoneId)
+      if (row === undefined) return undefined
+      const ids = { teamId: String(row.team_id), milestoneId: String(row.milestone_id) }
+      return row.mode === 'measured'
+        ? { ...ids, mode: 'measured' }
+        : { ...ids, mode: 'manual', low: Number(row.low), high: Number(row.high) }
     },
 
     close() {

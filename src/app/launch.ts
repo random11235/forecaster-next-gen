@@ -1,9 +1,8 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { milestoneForecastView, type MilestoneForecastView } from '../forecast/milestoneForecastView.js'
 import { loadSampleDataIfEmpty } from '../sample/loadSampleData.js'
 import type { Storage } from '../storage/storage.js'
-import { renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
+import { route, type AppContext, type Reply } from './routes.js'
 
 /** Localhost only: the Forecaster is a local, single-user tool and is never reachable from the network. */
 const HOST = '127.0.0.1'
@@ -14,6 +13,8 @@ export interface LaunchOptions {
   openBrowser: (url: string) => void
   /** Where the app keeps its data. On first launch, when it is empty, the sample data is loaded into it. */
   storage: Storage
+  /** Today's ISO calendar date, the day forecasts start from; the system clock unless given. */
+  today?: () => string
 }
 
 export interface RunningApp {
@@ -23,9 +24,17 @@ export interface RunningApp {
 
 /** Starts the local server and opens the browser on the Milestone forecast screen. */
 export async function startAppAndOpenBrowser(options: LaunchOptions): Promise<RunningApp> {
-  const { storage } = options
-  loadSampleDataIfEmpty(storage)
-  const server = createServer((request, response) => serveMilestoneForecastScreen(request, response, storage))
+  const context: AppContext = {
+    storage: options.storage,
+    today: options.today ?? (() => new Date().toISOString().slice(0, 10)),
+  }
+  loadSampleDataIfEmpty(context.storage)
+  const server = createServer((request, response) => {
+    serve(request, response, context).catch((error: unknown) => {
+      response.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' })
+      response.end(`Forecaster error: ${String(error)}`)
+    })
+  })
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
@@ -49,19 +58,38 @@ export async function startAppAndOpenBrowser(options: LaunchOptions): Promise<Ru
   }
 }
 
-/** Serves the Milestone forecast screen at `/` and 404 for everything else. */
-function serveMilestoneForecastScreen(request: IncomingMessage, response: ServerResponse, storage: Storage): void {
-  if (request.method !== 'GET' || new URL(request.url ?? '/', `http://${HOST}`).pathname !== '/') {
-    response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' })
-    response.end('Not found')
-    return
-  }
-  response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
-  response.end(renderMilestoneForecastScreen(currentView(storage)))
+/** Hands the request to the routes and writes their reply. */
+async function serve(request: IncomingMessage, response: ServerResponse, context: AppContext): Promise<void> {
+  const method = request.method ?? 'GET'
+  const path = new URL(request.url ?? '/', `http://${HOST}`).pathname
+  const form = method === 'POST' ? new URLSearchParams(await readBody(request)) : undefined
+  send(response, route({ method, path, ...(form && { form }) }, context))
 }
 
-/** v1 is single-team: the view is for the one stored team. */
-function currentView(storage: Storage): MilestoneForecastView {
-  const team = storage.teams()[0]
-  return team ? milestoneForecastView(storage, team.id) : { kind: 'noMilestone' }
+/** Form posts are a few bytes; anything over this is refused rather than buffered. */
+const MAX_BODY_BYTES = 10_000
+
+async function readBody(request: IncomingMessage): Promise<string> {
+  let body = ''
+  for await (const chunk of request) {
+    body += String(chunk)
+    if (body.length > MAX_BODY_BYTES) throw new Error('Request body too large.')
+  }
+  return body
+}
+
+function send(response: ServerResponse, reply: Reply): void {
+  switch (reply.kind) {
+    case 'html':
+      response.writeHead(reply.status, { 'content-type': 'text/html; charset=utf-8' })
+      response.end(reply.html)
+      return
+    case 'redirect':
+      response.writeHead(303, { location: reply.location })
+      response.end()
+      return
+    case 'notFound':
+      response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' })
+      response.end('Not found')
+  }
 }

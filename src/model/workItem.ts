@@ -37,3 +37,8 @@ export interface Facts {
   workItems: WorkItem[]
   events: WorkItemEvent[]
 }
+
+/** The epic's children now, done or not; cancelled children don't count. */
+export function childrenOf(workItems: readonly WorkItem[], epicId: string): WorkItem[] {
+  return workItems.filter((item) => item.parentId === epicId && item.cancelledAt === undefined)
+}

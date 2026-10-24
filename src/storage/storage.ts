@@ -1,4 +1,5 @@
 import type { Milestone } from '../model/milestone.js'
+import type { PaceSetting } from '../model/paceSetting.js'
 import type { Team } from '../model/team.js'
 import type { Facts } from '../model/workItem.js'
 
@@ -15,5 +16,9 @@ export interface Storage {
   saveMilestone(milestone: Milestone): void
   /** The team's milestones, in the order they were first saved. */
   milestones(teamId: string): Milestone[]
+  /** Adds the milestone's pace setting, or replaces the one it has. */
+  savePaceSetting(setting: PaceSetting): void
+  /** The milestone's pace setting, if the EM has entered one. */
+  paceSetting(teamId: string, milestoneId: string): PaceSetting | undefined
   close(): void
 }
