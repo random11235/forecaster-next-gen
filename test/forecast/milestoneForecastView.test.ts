@@ -8,6 +8,8 @@ import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
 import type { Facts } from '../../src/model/workItem.js'
 
+const TODAY = '2026-10-24'
+
 let dir: string
 let storage: Storage | undefined
 
@@ -75,10 +77,11 @@ describe('milestone forecast view on sample data', () => {
 
     loadSampleDataIfEmpty(storage)
 
-    expect(milestoneForecastView(storage, storage.teams()[0]!.id)).toEqual({
+    expect(milestoneForecastView(storage, storage.teams()[0]!.id, { today: TODAY })).toEqual({
       kind: 'milestone',
       name: 'Checkout v2',
       committedDate: '2026-12-18',
+      forecast: { kind: 'needsPace' },
       epics: [
         { epicId: 'PAY-1', key: 'PAY-1', name: 'Card vaulting', itemsNow: 6, status: 'notCommitted' },
         { epicId: 'PAY-2', key: 'PAY-2', name: 'Refunds', itemsNow: 14, status: 'notCommitted' },
@@ -94,11 +97,23 @@ describe('milestone forecast view on sample data', () => {
     loadSampleDataIfEmpty(reopened)
 
     expect(reopened.teams().map((team) => team.id)).toEqual(['ACME'])
-    expect(milestoneForecastView(reopened, 'ACME')).toEqual({
+    expect(milestoneForecastView(reopened, 'ACME', { today: TODAY })).toEqual({
       kind: 'milestone',
       name: 'ACME milestone',
       committedDate: '2027-01-29',
+      forecast: { kind: 'needsPace' },
       epics: [{ epicId: 'ACME-E', key: 'ACME-E', name: 'ACME epic', itemsNow: 2, status: 'notCommitted' }],
+    })
+  })
+
+  test('an entered pace range survives a restart', () => {
+    saveOwnTeam(openStorage(), 'ACME', 2)
+    storage!.savePaceSetting({ teamId: 'ACME', milestoneId: 'ACME-M', mode: 'manual', low: 3, high: 5 })
+
+    const reopened = restart()
+
+    expect(milestoneForecastView(reopened, 'ACME', { today: TODAY })).toMatchObject({
+      forecast: { kind: 'forecast', pace: { mode: 'manual', low: 3, high: 5 } },
     })
   })
 
@@ -107,10 +122,11 @@ describe('milestone forecast view on sample data', () => {
     saveOwnTeam(storage, 'ACME', 2)
     saveOwnTeam(storage, 'BETA', 5)
 
-    expect(milestoneForecastView(storage, 'BETA')).toEqual({
+    expect(milestoneForecastView(storage, 'BETA', { today: TODAY })).toEqual({
       kind: 'milestone',
       name: 'BETA milestone',
       committedDate: '2027-01-29',
+      forecast: { kind: 'needsPace' },
       epics: [{ epicId: 'BETA-E', key: 'BETA-E', name: 'BETA epic', itemsNow: 5, status: 'notCommitted' }],
     })
   })
@@ -125,7 +141,7 @@ describe('milestone forecast view on sample data', () => {
     })
     storage.saveMilestone({ id: 'ACME-M', teamId: 'BETA', name: 'Other', committedDate: '2027-03-01', epicIds: ['ACME-E'] })
 
-    expect(milestoneForecastView(storage, 'ACME')).toMatchObject({
+    expect(milestoneForecastView(storage, 'ACME', { today: TODAY })).toMatchObject({
       name: 'ACME milestone',
       epics: [{ name: 'ACME epic', itemsNow: 2 }],
     })
@@ -135,6 +151,6 @@ describe('milestone forecast view on sample data', () => {
     const storage = openStorage()
     saveJiraTeam(storage, 'ACME')
 
-    expect(milestoneForecastView(storage, 'ACME')).toEqual({ kind: 'noMilestone' })
+    expect(milestoneForecastView(storage, 'ACME', { today: TODAY })).toEqual({ kind: 'noMilestone' })
   })
 })
