@@ -1,7 +1,15 @@
 import { milestoneForecastView, type MilestoneForecastView } from '../forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS } from '../forecast/settings.js'
 import type { Storage } from '../storage/storage.js'
-import { parsePaceForm, renderInputsScreen, type PaceForm } from './inputsScreen.js'
+import { editMilestone, milestoneDefinitionView } from '../forecast/milestoneDefinition.js'
+import {
+  parseEpicForm,
+  parseMilestoneForm,
+  parsePaceForm,
+  renderInputsScreen,
+  type InputsScreen,
+  type PaceForm,
+} from './inputsScreen.js'
 import { renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
 
 /** A request as the routes see it: the server has already read the form body. */
@@ -33,16 +41,38 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
       : { kind: 'noMilestone' }
     return { kind: 'html', status: 200, html: renderMilestoneForecastScreen(view) }
   }
+  if (!team) return { kind: 'notFound' }
   // v1 is single-team, with one milestone: the inputs are for those
-  const milestone = team && storage.milestones(team.id)[0]
-  if (request.method === 'GET' && request.path === '/inputs') {
-    return { kind: 'html', status: 200, html: renderInputsScreen(milestone && savedPaceForm(storage, milestone.teamId, milestone.id)) }
-  }
+  const milestone = storage.milestones(team.id)[0]
+  const form = request.form ?? new URLSearchParams()
+  const inputsScreen = (status: number, screen: Partial<InputsScreen> = {}): Reply => ({
+    kind: 'html',
+    status,
+    html: renderInputsScreen({
+      milestone: milestoneDefinitionView(storage, team.id),
+      pace: milestone && savedPaceForm(storage, milestone.teamId, milestone.id),
+      ...screen,
+    }),
+  })
+
+  if (request.method === 'GET' && request.path === '/inputs') return inputsScreen(200)
   if (request.method === 'POST' && request.path === '/inputs' && milestone) {
-    const pace = parsePaceForm(request.form ?? new URLSearchParams())
-    if (!pace.ok) return { kind: 'html', status: 400, html: renderInputsScreen(pace.form) }
+    const pace = parsePaceForm(form)
+    if (!pace.ok) return inputsScreen(400, { pace: pace.form })
     storage.savePaceSetting({ teamId: milestone.teamId, milestoneId: milestone.id, mode: 'manual', ...pace.range })
     return { kind: 'redirect', location: '/' }
+  }
+  if (request.method === 'POST' && request.path === '/inputs/milestone') {
+    const typed = parseMilestoneForm(form)
+    const saved = editMilestone(storage, team.id, { kind: 'create', ...typed })
+    if (!saved.ok) return inputsScreen(400, { milestoneForm: { ...typed, error: saved.error } })
+    return { kind: 'redirect', location: '/inputs' }
+  }
+  if (request.method === 'POST' && request.path === '/inputs/epics') {
+    const change = parseEpicForm(form)
+    const saved = change ? editMilestone(storage, team.id, change) : { ok: false as const, error: 'Choose Add, Remove, Up or Down.' }
+    if (!saved.ok) return inputsScreen(400, { epicsError: saved.error })
+    return { kind: 'redirect', location: '/inputs' }
   }
   return { kind: 'notFound' }
 }
