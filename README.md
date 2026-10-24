@@ -18,7 +18,7 @@ npm start
 
 This starts a local server on `http://127.0.0.1:5180/` (localhost only) and opens it in your browser on the Milestone forecast screen. If the browser doesn't open, open that address by hand. Stop it with Ctrl+C.
 
-To see a forecast, enter your team's pace (a low–high range of tickets per week) on the Inputs screen, `http://127.0.0.1:5180/inputs`.
+To see a forecast, enter your team's pace (a low–high range of tickets per week) on the Inputs screen, `http://127.0.0.1:5180/inputs`. The Inputs screen is also where you define the milestone (its name, committed date and epics) and add, remove or reorder its epics after a scope change.
 
 To use another port: `PORT=5181 npm start`. `PORT=0` picks a free port.
 

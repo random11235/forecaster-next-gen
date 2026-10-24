@@ -20,6 +20,10 @@ export function htmlPage(title: string, main: string): string {
     p.error { color: #cf222e; }
     label { margin-right: 1rem; }
     input[type=number] { width: 5rem; }
+    fieldset { margin: 1rem 0; border: 1px solid #d0d7de; }
+    label.epic { display: block; margin: 0.25rem 0; }
+    ol.epics li { margin: 0.35rem 0; }
+    ol.epics span { display: inline-block; min-width: 16rem; }
   </style>
 </head>
 <body>
