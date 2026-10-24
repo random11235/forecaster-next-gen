@@ -1,32 +1,11 @@
-import type { EpicRow, MilestoneForecastView } from '../forecast/milestoneForecastView.js'
+import type { EpicRow, ForecastSection, MilestoneForecastView } from '../forecast/milestoneForecastView.js'
+import { escapeHtml, formatDate, htmlPage } from './html.js'
 
-const STATUS_TEXT: Record<EpicRow['status'], string> = { notCommitted: 'Not committed' }
+const STATUS_TEXT: Record<EpicRow['status'], string> = { notCommitted: 'Not committed: wide range' }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-/** The Milestone forecast screen (EM home): the milestone's epics, or its empty state when no milestone is defined. */
+/** The Milestone forecast screen (EM home): the milestone's forecast and epics, or its empty state when no milestone is defined. */
 export function renderMilestoneForecastScreen(view: MilestoneForecastView): string {
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Milestone forecast · Forecaster</title>
-  <style>
-    body { font-family: system-ui, sans-serif; margin: 2rem; color: #1f2328; }
-    table { border-collapse: collapse; margin-top: 1rem; }
-    th, td { padding: 0.4rem 1.5rem 0.4rem 0; text-align: left; border-bottom: 1px solid #d0d7de; }
-    td.number { text-align: right; }
-  </style>
-</head>
-<body>
-  <main>
-    <h1>Milestone forecast</h1>
-${view.kind === 'milestone' ? milestoneSection(view) : EMPTY_STATE}
-  </main>
-</body>
-</html>
-`
+  return htmlPage('Milestone forecast', view.kind === 'milestone' ? milestoneSection(view) : EMPTY_STATE)
 }
 
 const EMPTY_STATE = `    <section aria-label="Empty state">
@@ -46,6 +25,7 @@ function milestoneSection(view: Extract<MilestoneForecastView, { kind: 'mileston
     .join('\n')
   return `    <section aria-label="Milestone">
       <h2>${escapeHtml(view.name)} · committed ${formatDate(view.committedDate)}</h2>
+${forecastSection(view.forecast)}
       <table>
         <thead>
           <tr><th>Epics in this milestone</th><th>Items now</th><th>Status</th></tr>
@@ -57,12 +37,29 @@ ${rows}
     </section>`
 }
 
-/** `2026-12-18` → `18 Dec 2026`. */
-function formatDate(isoDate: string): string {
-  const [year, month, day] = isoDate.split('-').map(Number)
-  return `${day} ${MONTHS[month! - 1]} ${year}`
-}
-
-function escapeHtml(text: string): string {
-  return text.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`)
+function forecastSection(forecast: ForecastSection): string {
+  if (forecast.kind === 'needsPace') {
+    return `      <section aria-label="Forecast">
+        <p>Enter your pace on the <a href="/inputs">Inputs screen</a> to see a forecast.</p>
+      </section>`
+  }
+  const dates = forecast.dates
+    .map(({ percent, date }) =>
+      date === null
+        ? `          <li>${percent}% sure: later than ${formatDate(forecast.horizonDate)}</li>`
+        : `          <li>${percent}% sure by ${formatDate(date)}</li>`,
+    )
+    .join('\n')
+  const pace =
+    forecast.pace.mode === 'manual'
+      ? `Pace: ${forecast.pace.low}–${forecast.pace.high} tickets per week (manual)`
+      : 'Pace: measured'
+  const notes = forecast.notes.map((note) => `        <p class="note">${escapeHtml(note)}</p>`).join('\n')
+  return `      <section aria-label="Forecast">
+        <ul class="dates">
+${dates}
+        </ul>
+        <p>${pace}</p>
+${notes}
+      </section>`
 }
