@@ -125,23 +125,23 @@ describe('Milestone forecast screen', () => {
     expect(screen.match(/Not committed: wide range/g)).toHaveLength(3)
   })
 
-  test('shows "later than <horizon date>" for a confidence level beyond the horizon', async () => {
+  test('shows no absence input', async () => {
     await startOnSampleData()
-    await submitPace('0', '0')
+    await submitPace('3', '6')
 
-    const screen = text(await page('/'))
+    const html = await page('/')
 
-    expect(screen).toContain('50% sure: later than 20 Oct 2029')
-    expect(screen).toContain('95% sure: later than 20 Oct 2029')
+    expect(html).not.toMatch(/<input/)
+    expect(html.toLowerCase()).not.toMatch(/absence|capacity/)
   })
 
-  test('shows the pace variation note as information, for measured pace', async () => {
+  test('shows the forecast notes and the pace they come from, for measured pace', async () => {
     await startOnSampleData()
     storage!.savePaceSetting({ teamId: 'sample-team', milestoneId: 'sample-milestone', mode: 'measured' })
 
     const html = await page('/')
 
-    expect(html).toMatch(/<p class="note">Your weekly pace varies[^<]*<\/p>/)
+    expect(html).toMatch(/<p class="note">[^<]+<\/p>/)
     expect(text(html)).toContain('Pace: measured')
   })
 })

@@ -25,7 +25,7 @@ function milestoneSection(view: Extract<MilestoneForecastView, { kind: 'mileston
     .join('\n')
   return `    <section aria-label="Milestone">
       <h2>${escapeHtml(view.name)} · committed ${formatDate(view.committedDate)}</h2>
-${forecastSection(view.forecast)}
+${renderForecast(view.forecast)}
       <table>
         <thead>
           <tr><th>Epics in this milestone</th><th>Items now</th><th>Status</th></tr>
@@ -37,10 +37,15 @@ ${rows}
     </section>`
 }
 
-function forecastSection(forecast: ForecastSection): string {
+function renderForecast(forecast: ForecastSection): string {
   if (forecast.kind === 'needsPace') {
     return `      <section aria-label="Forecast">
         <p>Enter your pace on the <a href="/inputs">Inputs screen</a> to see a forecast.</p>
+      </section>`
+  }
+  if (forecast.kind === 'thinData') {
+    return `      <section aria-label="Forecast">
+        <p class="note">${escapeHtml(forecast.message)}</p>
       </section>`
   }
   const dates = forecast.dates

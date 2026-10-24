@@ -320,7 +320,7 @@ test/
 - **Seam A** is `simulateCase`, tested with fixed seeds.
 - **Seam B** is `forecast/`: stored facts, settings and the ledger go in, and the milestone forecast view comes out.
 
-Warning text and provenance are tested at Seam B, not Seam A. These cases moved from the engine tests and are owed by `test/forecast/` once `forecast/diagnostics.ts` exists:
+Warning text and provenance are tested at Seam B, not Seam A. These cases moved from the engine tests. Each is owed, in `test/forecast/`, by the ticket that adds its warning or diagnostic:
 - the horizon warning when fewer trials finish than the highest reported percentile, with the floored percentage and the horizon date, and none when enough finish;
 - the long-forecast warning above `warnAboveWeeks` weeks, none at or below it, its ticket figure for 'when' and 'howMany', a median beyond the horizon counting as over, the threshold coming from `ForecastSettings`, and weeks (not periods) keeping their meaning when `periodDays` changes;
 - the growth source of each epic in rank order: samples, ambiguity range, or epic size for a null or 0 `baseCount`;

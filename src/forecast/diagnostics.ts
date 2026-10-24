@@ -17,6 +17,14 @@ export function informationNotes(result: ForecastResult): string[] {
   return paceVariation === undefined ? [] : [paceVariationNote(paceVariation)]
 }
 
+/** Says plainly why measured pace gives no forecast yet. */
+export function thinDataMessage(reason: 'noDoneTickets'): string {
+  switch (reason) {
+    case 'noDoneTickets':
+      return "No tickets in this milestone's epics are done yet, so there is no measured pace to forecast from."
+  }
+}
+
 function paceVariationNote(relativeStandardError: number): string {
   if (relativeStandardError < STEADY_BELOW) return 'Your weekly pace is steady, so the range is narrow.'
   if (relativeStandardError < VARIES_A_LOT_FROM) return 'Your weekly pace varies, so the range is wider.'
