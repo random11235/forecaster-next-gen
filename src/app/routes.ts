@@ -1,9 +1,9 @@
 import { milestoneForecastView, type MilestoneForecastView } from '../forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS } from '../forecast/settings.js'
 import type { Storage } from '../storage/storage.js'
-import { editMilestone, milestoneDefinitionView } from '../forecast/milestoneDefinition.js'
+import { editMilestone, milestoneDefinitionView, parseEpicForm, teamMilestone } from '../forecast/milestoneDefinition.js'
 import {
-  parseEpicForm,
+  parseDetailsForm,
   parseMilestoneForm,
   parsePaceForm,
   renderInputsScreen,
@@ -42,8 +42,8 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
     return { kind: 'html', status: 200, html: renderMilestoneForecastScreen(view) }
   }
   if (!team) return { kind: 'notFound' }
-  // v1 is single-team, with one milestone: the inputs are for those
-  const milestone = storage.milestones(team.id)[0]
+  // v1 is single-team: the inputs are for its milestone
+  const milestone = teamMilestone(storage, team.id)
   const form = request.form ?? new URLSearchParams()
   const inputsScreen = (status: number, screen: Partial<InputsScreen> = {}): Reply => ({
     kind: 'html',
@@ -64,13 +64,19 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
   }
   if (request.method === 'POST' && request.path === '/inputs/milestone') {
     const typed = parseMilestoneForm(form)
-    const saved = editMilestone(storage, team.id, { kind: 'create', ...typed })
-    if (!saved.ok) return inputsScreen(400, { milestoneForm: { ...typed, error: saved.error } })
+    const saved = editMilestone(storage, team.id, { kind: 'create', name: typed.form.name, committedDate: typed.form.committedDate, epics: typed.epics })
+    if (!saved.ok) return inputsScreen(400, { milestoneForm: { ...typed.form, error: saved.error } })
+    return { kind: 'redirect', location: '/inputs' }
+  }
+  if (request.method === 'POST' && request.path === '/inputs/milestone/details') {
+    const typed = parseDetailsForm(form)
+    const saved = editMilestone(storage, team.id, { kind: 'editDetails', ...typed })
+    if (!saved.ok) return inputsScreen(400, { detailsForm: { ...typed, error: saved.error } })
     return { kind: 'redirect', location: '/inputs' }
   }
   if (request.method === 'POST' && request.path === '/inputs/epics') {
     const change = parseEpicForm(form)
-    const saved = change ? editMilestone(storage, team.id, change) : { ok: false as const, error: 'Choose Add, Remove, Up or Down.' }
+    const saved = change.ok ? editMilestone(storage, team.id, change.edit) : change
     if (!saved.ok) return inputsScreen(400, { epicsError: saved.error })
     return { kind: 'redirect', location: '/inputs' }
   }

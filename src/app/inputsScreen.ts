@@ -1,4 +1,4 @@
-import type { EpicChoice, MilestoneDefinitionView, MilestoneEdit } from '../forecast/milestoneDefinition.js'
+import type { EpicChoice, MilestoneDefinitionView, RankedEpic } from '../forecast/milestoneDefinition.js'
 import type { ThroughputRange } from '../model/paceSetting.js'
 import { escapeHtml, formatDate, htmlPage } from './html.js'
 
@@ -26,34 +26,33 @@ export function parsePaceForm(body: URLSearchParams): ParsedPace {
   return { ok: true, range: { low: lowCount, high: highCount } }
 }
 
-/** The new-milestone form as typed, and why it was refused, if it was. */
-export interface MilestoneForm {
+/** The milestone's name and committed date as typed, and why they were refused, if they were. */
+export interface DetailsForm {
   name: string
   committedDate: string
-  epicIds: string[]
   error?: string
 }
 
-/** Reads the submitted new-milestone form; the rules it must meet are checked when it is saved. */
-export function parseMilestoneForm(body: URLSearchParams): MilestoneForm {
-  return { name: body.get('name') ?? '', committedDate: body.get('committedDate')?.trim() ?? '', epicIds: body.getAll('epic') }
+/** The new-milestone form as typed: its details, and the rank typed for each epic, by epic ID. */
+export interface MilestoneForm extends DetailsForm {
+  ranks: Record<string, string>
 }
 
-/** Reads a submitted epic change: add, remove, or move up or down. Undefined when the form names no change. */
-export function parseEpicForm(body: URLSearchParams): MilestoneEdit | undefined {
-  const epicId = body.get('epic') ?? ''
-  const action = body.get('action')
-  switch (action) {
-    case 'add':
-      return { kind: 'addEpic', epicId }
-    case 'remove':
-      return { kind: 'removeEpic', epicId }
-    case 'up':
-    case 'down':
-      return { kind: 'moveEpic', epicId, direction: action }
-    default:
-      return undefined
-  }
+const RANK_FIELD = 'rank-'
+
+/** Reads the submitted name and committed date; the rules they must meet are checked when they are saved. */
+export function parseDetailsForm(body: URLSearchParams): DetailsForm {
+  return { name: body.get('name') ?? '', committedDate: body.get('committedDate')?.trim() ?? '' }
+}
+
+/** Reads the submitted new-milestone form. An epic with a rank typed is chosen; one left blank is not. */
+export function parseMilestoneForm(body: URLSearchParams): { form: MilestoneForm; epics: RankedEpic[] } {
+  const ranks: Record<string, string> = {}
+  for (const [field, value] of body) if (field.startsWith(RANK_FIELD)) ranks[field.slice(RANK_FIELD.length)] = value
+  const epics = Object.entries(ranks)
+    .filter(([, rank]) => rank.trim() !== '')
+    .map(([epicId, rank]) => ({ epicId, rank }))
+  return { form: { ...parseDetailsForm(body), ranks }, epics }
 }
 
 /** What the Inputs screen shows. */
@@ -61,6 +60,8 @@ export interface InputsScreen {
   milestone: MilestoneDefinitionView
   /** The new-milestone form as typed, when it was refused. */
   milestoneForm?: MilestoneForm
+  /** The name and committed date as typed, when they were refused. */
+  detailsForm?: DetailsForm
   /** Why an epic change was refused. */
   epicsError?: string
   /** The pace form; undefined when there is no milestone yet. */
@@ -71,30 +72,28 @@ export interface InputsScreen {
 export function renderInputsScreen(screen: InputsScreen): string {
   const milestone =
     screen.milestone.kind === 'milestone'
-      ? epicsSection(screen.milestone, screen.epicsError)
-      : newMilestoneSection(screen.milestone.teamEpics, screen.milestoneForm ?? { name: '', committedDate: '', epicIds: [] })
+      ? epicsSection(screen.milestone, screen.detailsForm ?? screen.milestone, screen.epicsError)
+      : newMilestoneSection(screen.milestone.teamEpics, screen.milestoneForm ?? { name: '', committedDate: '', ranks: {} })
   return htmlPage('Inputs', `${milestone}\n${screen.pace ? paceSection(screen.pace) : NO_MILESTONE}`)
 }
 
 function newMilestoneSection(teamEpics: EpicChoice[], form: MilestoneForm): string {
-  const chosen = new Set(form.epicIds)
   const epics =
     teamEpics.length === 0
       ? '          <p>The team has no epics yet.</p>'
       : teamEpics
           .map(
             (epic) =>
-              `          <label class="epic"><input type="checkbox" name="epic" value="${escapeHtml(epic.epicId)}"${chosen.has(epic.epicId) ? ' checked' : ''}> ${epicLabel(epic)}</label>`,
+              `          <label class="epic"><input type="number" name="${RANK_FIELD}${escapeHtml(epic.epicId)}" min="1" max="${teamEpics.length}" step="1" value="${escapeHtml(form.ranks[epic.epicId] ?? '')}" aria-label="Rank of ${epicLabel(epic)}"> ${epicLabel(epic)}</label>`,
           )
           .join('\n')
   return `    <section aria-label="Milestone">
       <h2>Milestone</h2>
-      <p>Name the milestone, give the date committed to stakeholders, and choose its epics.</p>
+      <p>Name the milestone, give the date committed to stakeholders, and rank the epics it holds.</p>
       <form method="post" action="/inputs/milestone">${errorLine(form.error)}
-        <label>Name <input type="text" name="name" value="${escapeHtml(form.name)}" required></label>
-        <label>Committed date <input type="date" name="committedDate" value="${escapeHtml(form.committedDate)}" required></label>
+${detailsFields(form)}
         <fieldset>
-          <legend>Epics, highest rank first</legend>
+          <legend>Rank each epic in the milestone, 1 for the highest; leave the others blank</legend>
 ${epics}
         </fieldset>
         <p><button type="submit">Create milestone</button></p>
@@ -102,7 +101,16 @@ ${epics}
     </section>`
 }
 
-function epicsSection(milestone: Extract<MilestoneDefinitionView, { kind: 'milestone' }>, error: string | undefined): string {
+function detailsFields(form: DetailsForm): string {
+  return `        <label>Name <input type="text" name="name" value="${escapeHtml(form.name)}" required></label>
+        <label>Committed date <input type="date" name="committedDate" value="${escapeHtml(form.committedDate)}" required></label>`
+}
+
+function epicsSection(
+  milestone: Extract<MilestoneDefinitionView, { kind: 'milestone' }>,
+  details: DetailsForm,
+  error: string | undefined,
+): string {
   const last = milestone.epics.length - 1
   const rows = milestone.epics
     .map(
@@ -127,7 +135,11 @@ ${milestone.otherEpics.map((epic) => `          <option value="${escapeHtml(epic
         <button type="submit" name="action" value="add">Add</button>
       </form>`
   return `    <section aria-label="Milestone">
-      <h2>${escapeHtml(milestone.name)} · committed ${formatDate(milestone.committedDate)}</h2>${errorLine(error)}
+      <h2>${escapeHtml(milestone.name)} · committed ${formatDate(milestone.committedDate)}</h2>
+      <form method="post" action="/inputs/milestone/details">${errorLine(details.error)}
+${detailsFields(details)}
+        <button type="submit">Save name and date</button>
+      </form>${errorLine(error)}
       <p>Epics, highest rank first:</p>
       <ol class="epics">
 ${rows}
