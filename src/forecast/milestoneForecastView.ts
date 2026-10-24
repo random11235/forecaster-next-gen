@@ -4,6 +4,7 @@ import type { Pace, PaceSetting } from '../model/paceSetting.js'
 import { childrenOf, type Facts } from '../model/workItem.js'
 import type { Storage } from '../storage/storage.js'
 import { buildCase } from './buildCase.js'
+import { teamMilestone } from './milestoneDefinition.js'
 import { informationNotes, thinDataMessage } from './diagnostics.js'
 import type { ForecastSettings } from './settings.js'
 
@@ -52,7 +53,7 @@ export interface ViewOptions {
 
 /** Seam B: the Milestone forecast screen for the team's milestone, from what is stored and the settings. */
 export function milestoneForecastView(storage: Storage, teamId: string, options: ViewOptions): MilestoneForecastView {
-  const milestone = storage.milestones(teamId)[0]
+  const milestone = teamMilestone(storage, teamId)
   if (!milestone) return { kind: 'noMilestone' }
 
   const facts = storage.facts(teamId)

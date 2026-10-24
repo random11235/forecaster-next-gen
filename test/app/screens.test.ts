@@ -122,7 +122,7 @@ async function forecastEpics(): Promise<string[]> {
 }
 
 describe('Inputs screen: milestone', () => {
-  test("with no milestone, offers a form for its name, committed date and the team's epics", async () => {
+  test("with no milestone, offers a form for its name, committed date and a rank for each of the team's epics", async () => {
     await startWithNoMilestone()
 
     const html = await page('/inputs')
@@ -130,25 +130,59 @@ describe('Inputs screen: milestone', () => {
     expect(html).toMatch(/<input[^>]*name="name"/)
     expect(html).toMatch(/<input[^>]*type="date"[^>]*name="committedDate"/)
     for (const epic of ['PAY-1', 'PAY-2', 'PAY-3', 'PAY-4']) {
-      expect(html).toMatch(new RegExp(`<input type="checkbox" name="epic" value="${epic}"`))
+      expect(html).toMatch(new RegExp(`<input type="number" name="rank-${epic}"`))
     }
     expect(text(html)).toContain('Fraud rules')
   })
 
-  test('creating a milestone goes back to the Inputs screen, and the Milestone forecast screen shows it', async () => {
+  test('creating a milestone holds the ranked epics in rank order, and leaves out epics with no rank', async () => {
     await startWithNoMilestone()
 
     const response = await post('/inputs/milestone', [
       ['name', 'Checkout v3'],
       ['committedDate', '2027-02-26'],
-      ['epic', 'PAY-2'],
-      ['epic', 'PAY-4'],
+      ['rank-PAY-1', ''],
+      ['rank-PAY-2', '2'],
+      ['rank-PAY-3', ''],
+      ['rank-PAY-4', '1'],
     ])
 
     expect(response.status).toBe(303)
     expect(response.headers.get('location')).toBe('/inputs')
     expect(text(await page('/'))).toContain('Checkout v3 · committed 26 Feb 2027')
-    expect(await forecastEpics()).toEqual(['Refunds', 'Fraud rules'])
+    expect(await forecastEpics()).toEqual(['Fraud rules', 'Refunds'])
+  })
+
+  test('a milestone with two epics of the same rank is refused, keeping the ranks typed', async () => {
+    await startWithNoMilestone()
+
+    const response = await post('/inputs/milestone', [
+      ['name', 'Checkout v3'],
+      ['committedDate', '2027-02-26'],
+      ['rank-PAY-2', '1'],
+      ['rank-PAY-4', '1'],
+    ])
+
+    expect(response.status).toBe(400)
+    const html = await response.text()
+    expect(text(html)).toContain('Give each chosen epic a different rank.')
+    expect(html).toMatch(/name="rank-PAY-2"[^>]*value="1"/)
+    expect(html).toMatch(/name="rank-PAY-4"[^>]*value="1"/)
+    expect(html).toMatch(/name="rank-PAY-1"[^>]*value=""/)
+  })
+
+  test('a milestone with a rank missing is refused', async () => {
+    await startWithNoMilestone()
+
+    const response = await post('/inputs/milestone', [
+      ['name', 'Checkout v3'],
+      ['committedDate', '2027-02-26'],
+      ['rank-PAY-2', '1'],
+      ['rank-PAY-4', '3'],
+    ])
+
+    expect(response.status).toBe(400)
+    expect(text(await response.text())).toContain('Rank the chosen epics 1 to 2, with none missing.')
   })
 
   test('a refused milestone says why and keeps what was typed', async () => {
@@ -190,6 +224,47 @@ describe('Inputs screen: milestone', () => {
     await post('/inputs/epics', [['epic', 'PAY-4'], ['action', 'up']])
     await post('/inputs/epics', [['epic', 'PAY-1'], ['action', 'down']])
     expect(await forecastEpics()).toEqual(['Fraud rules', 'Card vaulting', 'Refunds'])
+  })
+
+  test("editing the milestone's name and committed date shows them on both screens", async () => {
+    await startOnSampleData()
+    expect(await page('/inputs')).toMatch(/<form method="post" action="\/inputs\/milestone\/details">/)
+
+    const response = await post('/inputs/milestone/details', [
+      ['name', 'Checkout v4'],
+      ['committedDate', '2027-03-26'],
+    ])
+
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('/inputs')
+    const inputs = await page('/inputs')
+    expect(inputs).toMatch(/name="name"[^>]*value="Checkout v4"/)
+    expect(inputs).toMatch(/name="committedDate"[^>]*value="2027-03-26"/)
+    expect(text(await page('/'))).toContain('Checkout v4 · committed 26 Mar 2027')
+  })
+
+  test("a refused name and committed date say why and keep what was typed", async () => {
+    await startOnSampleData()
+
+    const response = await post('/inputs/milestone/details', [
+      ['name', 'Checkout v4'],
+      ['committedDate', '2027-02-30'],
+    ])
+
+    expect(response.status).toBe(400)
+    const html = await response.text()
+    expect(text(html)).toContain('Enter the committed date as a calendar date.')
+    expect(html).toMatch(/name="name"[^>]*value="Checkout v4"/)
+    expect(html).toMatch(/name="committedDate"[^>]*value="2027-02-30"/)
+  })
+
+  test('an epic change that names no action says why', async () => {
+    await startOnSampleData()
+
+    const response = await post('/inputs/epics', [['epic', 'PAY-1']])
+
+    expect(response.status).toBe(400)
+    expect(text(await response.text())).toContain('Choose Add, Remove, Up or Down.')
   })
 
   test('a refused epic change says why', async () => {
