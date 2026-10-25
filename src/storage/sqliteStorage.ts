@@ -3,6 +3,7 @@ import { dirname } from 'node:path'
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import type { Milestone } from '../model/milestone.js'
 import type { Team } from '../model/team.js'
+import type { StatusMapping } from '../model/workflow.js'
 import type { Facts, WorkItem, WorkItemEvent } from '../model/workItem.js'
 import type { Storage } from './storage.js'
 
@@ -70,6 +71,25 @@ CREATE TABLE IF NOT EXISTS pace_settings (
   FOREIGN KEY (team_id, milestone_id) REFERENCES milestones(team_id, id)
 );
 `,
+  // 2: each team's workflow settings (#18). Teams already stored get the sample board's workflow, as in
+  // `defaultWorkflowSettings`. Lists are JSON arrays, as work_items.labels is.
+  `
+CREATE TABLE workflow_settings (
+  team_id TEXT PRIMARY KEY REFERENCES teams(id),
+  statuses TEXT NOT NULL,
+  started_status TEXT NOT NULL,
+  spike_types TEXT NOT NULL,
+  spike_labels TEXT NOT NULL,
+  commit_label TEXT,
+  blocked_statuses TEXT NOT NULL,
+  blocked_labels TEXT NOT NULL
+);
+INSERT INTO workflow_settings (team_id, statuses, started_status, spike_types, spike_labels, commit_label, blocked_statuses, blocked_labels)
+SELECT id,
+  '[{"status":"To Do","category":"notStarted"},{"status":"In Progress","category":"started"},{"status":"Done","category":"done"},{"status":"Cancelled","category":"cancelled"}]',
+  'In Progress', '["spike"]', '["spike"]', NULL, '[]', '["blocked"]'
+FROM teams;
+`,
 ]
 
 type Row = Record<string, SQLInputValue>
@@ -120,6 +140,14 @@ export function openSqliteStorage(file: string): Storage {
   const selectPaceSetting = db.prepare(
     'SELECT team_id, milestone_id, mode, low, high FROM pace_settings WHERE team_id = ? AND milestone_id = ?',
   )
+  const upsertWorkflowSettings = db.prepare(`
+    INSERT INTO workflow_settings (team_id, statuses, started_status, spike_types, spike_labels, commit_label, blocked_statuses, blocked_labels)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (team_id) DO UPDATE SET
+      statuses = excluded.statuses, started_status = excluded.started_status, spike_types = excluded.spike_types,
+      spike_labels = excluded.spike_labels, commit_label = excluded.commit_label,
+      blocked_statuses = excluded.blocked_statuses, blocked_labels = excluded.blocked_labels`)
+  const selectWorkflowSettings = db.prepare('SELECT * FROM workflow_settings WHERE team_id = ?')
 
   return {
     isEmpty() {
@@ -217,6 +245,33 @@ export function openSqliteStorage(file: string): Storage {
       return row.mode === 'measured'
         ? { ...ids, mode: 'measured' }
         : { ...ids, mode: 'manual', low: Number(row.low), high: Number(row.high) }
+    },
+
+    saveWorkflowSettings(settings) {
+      upsertWorkflowSettings.run(
+        settings.teamId,
+        JSON.stringify(settings.statuses),
+        settings.startedStatus,
+        JSON.stringify(settings.spikeRule.types),
+        JSON.stringify(settings.spikeRule.labels),
+        settings.commitLabel ?? null,
+        JSON.stringify(settings.blockedRule.statuses),
+        JSON.stringify(settings.blockedRule.labels),
+      )
+    },
+
+    workflowSettings(teamId) {
+      const row = selectWorkflowSettings.get(teamId)
+      if (row === undefined) return undefined
+      const list = (value: SQLInputValue | undefined): string[] => JSON.parse(String(value)) as string[]
+      return {
+        teamId: String(row.team_id),
+        statuses: JSON.parse(String(row.statuses)) as StatusMapping[],
+        startedStatus: String(row.started_status),
+        spikeRule: { types: list(row.spike_types), labels: list(row.spike_labels) },
+        ...optional('commitLabel', row.commit_label),
+        blockedRule: { statuses: list(row.blocked_statuses), labels: list(row.blocked_labels) },
+      }
     },
 
     close() {

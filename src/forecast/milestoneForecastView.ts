@@ -7,6 +7,7 @@ import { buildCase } from './buildCase.js'
 import { teamMilestone } from './milestoneDefinition.js'
 import { informationNotes, thinDataMessage } from './diagnostics.js'
 import type { ForecastSettings } from './settings.js'
+import { teamFacts } from './workflowSettings.js'
 
 export interface EpicRow {
   epicId: string
@@ -56,7 +57,7 @@ export function milestoneForecastView(storage: Storage, teamId: string, options:
   const milestone = teamMilestone(storage, teamId)
   if (!milestone) return { kind: 'noMilestone' }
 
-  const facts = storage.facts(teamId)
+  const facts = teamFacts(storage, teamId)
   const byId = new Map(facts.workItems.map((item) => [item.id, item]))
 
   return {

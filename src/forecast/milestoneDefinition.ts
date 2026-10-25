@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { Milestone } from '../model/milestone.js'
 import type { WorkItem } from '../model/workItem.js'
 import type { Storage } from '../storage/storage.js'
+import { teamFacts } from './workflowSettings.js'
 
 /** A change the EM makes to the team's milestone on the Inputs screen. */
 export type MilestoneEdit =
@@ -42,7 +43,7 @@ export function teamMilestone(storage: Storage, teamId: string): Milestone | und
 
 /** The team's milestone as defined so far (v1 has one), and the epics the EM can choose from. */
 export function milestoneDefinitionView(storage: Storage, teamId: string): MilestoneDefinitionView {
-  const epics = teamEpics(storage.facts(teamId).workItems)
+  const epics = teamEpics(teamFacts(storage, teamId).workItems)
   const milestone = teamMilestone(storage, teamId)
   if (!milestone) return { kind: 'noMilestone', teamEpics: epics.map(toChoice) }
 
@@ -63,7 +64,7 @@ export function milestoneDefinitionView(storage: Storage, teamId: string): Miles
 /** Applies the EM's edit to the team's milestone and saves it. A refused edit changes nothing. */
 export function editMilestone(storage: Storage, teamId: string, edit: MilestoneEdit): EditResult {
   const milestone = teamMilestone(storage, teamId)
-  const teamEpicIds = new Set(teamEpics(storage.facts(teamId).workItems).map((epic) => epic.id))
+  const teamEpicIds = new Set(teamEpics(teamFacts(storage, teamId).workItems).map((epic) => epic.id))
   const isTeamEpic = (epicId: string): boolean => teamEpicIds.has(epicId)
 
   if (edit.kind === 'create') {
