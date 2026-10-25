@@ -1,0 +1,186 @@
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
+import { afterEach, beforeEach, describe, expect, test } from 'vitest'
+import type { WorkItem } from '../../src/model/workItem.js'
+import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
+import type { Storage } from '../../src/storage/storage.js'
+
+const TEAM = 'ACME'
+const CREATED = '2026-09-01T09:00:00Z'
+
+/** The schema as shipped by #16 and #17, before the file recorded a version. Kept verbatim: it is a past release. */
+const UNVERSIONED_SCHEMA = `
+CREATE TABLE teams (id TEXT PRIMARY KEY, name TEXT NOT NULL, source TEXT NOT NULL, source_ref TEXT NOT NULL);
+CREATE TABLE work_items (
+  team_id TEXT NOT NULL REFERENCES teams(id), id TEXT NOT NULL, source_key TEXT NOT NULL, type TEXT NOT NULL,
+  title TEXT, parent_id TEXT, labels TEXT NOT NULL, created_at TEXT NOT NULL, started_at TEXT, done_at TEXT,
+  cancelled_at TEXT, last_synced_at TEXT NOT NULL, PRIMARY KEY (team_id, id)
+);
+CREATE TABLE work_item_events (
+  team_id TEXT NOT NULL, item_id TEXT NOT NULL, at TEXT NOT NULL, kind TEXT NOT NULL, from_value TEXT, to_value TEXT,
+  FOREIGN KEY (team_id, item_id) REFERENCES work_items(team_id, id)
+);
+CREATE INDEX work_item_events_team ON work_item_events(team_id);
+CREATE TABLE milestones (
+  team_id TEXT NOT NULL REFERENCES teams(id), id TEXT NOT NULL, name TEXT NOT NULL, committed_date TEXT NOT NULL,
+  PRIMARY KEY (team_id, id)
+);
+CREATE TABLE milestone_epics (
+  team_id TEXT NOT NULL, milestone_id TEXT NOT NULL, rank INTEGER NOT NULL, epic_id TEXT NOT NULL,
+  PRIMARY KEY (team_id, milestone_id, rank), FOREIGN KEY (team_id, milestone_id) REFERENCES milestones(team_id, id)
+);
+CREATE TABLE pace_settings (
+  team_id TEXT NOT NULL, milestone_id TEXT NOT NULL, mode TEXT NOT NULL, low INTEGER, high INTEGER,
+  PRIMARY KEY (team_id, milestone_id), FOREIGN KEY (team_id, milestone_id) REFERENCES milestones(team_id, id)
+);
+INSERT INTO teams VALUES ('ACME', 'Acme', 'jira', 'ACME');
+INSERT INTO work_items VALUES
+  ('ACME', 'E1', 'ACME-1', 'epic', 'Checkout', NULL, '[]', '${CREATED}', NULL, NULL, NULL, '${CREATED}'),
+  ('ACME', 'S1', 'ACME-2', 'story', NULL, 'E1', '["web"]', '${CREATED}', '2026-09-02T09:00:00Z', NULL, NULL, '${CREATED}');
+INSERT INTO work_item_events VALUES ('ACME', 'S1', '2026-09-02T09:00:00Z', 'status', 'To Do', 'In Progress');
+INSERT INTO milestones VALUES ('ACME', 'M1', 'Launch', '2026-12-18');
+INSERT INTO milestone_epics VALUES ('ACME', 'M1', 0, 'E1');
+INSERT INTO pace_settings VALUES ('ACME', 'M1', 'manual', 3, 7);
+`
+
+let dir: string
+let storage: Storage | undefined
+
+beforeEach(() => {
+  dir = mkdtempSync(join(tmpdir(), 'forecaster-migrations-'))
+})
+
+afterEach(() => {
+  storage?.close()
+  storage = undefined
+  rmSync(dir, { recursive: true, force: true })
+})
+
+/** Writes a data file the way an earlier release left it: `sql` run against a new file, at `version`. */
+function writeFile(name: string, sql: string, version = 0): string {
+  const file = join(dir, name)
+  const db = new DatabaseSync(file)
+  db.exec(sql)
+  db.exec(`PRAGMA user_version = ${version}`)
+  db.close()
+  return file
+}
+
+function open(file: string): Storage {
+  storage?.close()
+  storage = openSqliteStorage(file)
+  return storage
+}
+
+/** The schema version the file records, read straight from the file once storage has closed it. */
+function versionOf(file: string): number {
+  storage?.close()
+  storage = undefined
+  const db = new DatabaseSync(file)
+  const { user_version } = db.prepare('PRAGMA user_version').get() as { user_version: number }
+  db.close()
+  return user_version
+}
+
+/** Each table's columns and indexes, as SQLite reports them, so files built by different routes can be compared. */
+function schemaOf(file: string): Record<string, unknown> {
+  const db = new DatabaseSync(file)
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all()
+  const schema = Object.fromEntries(
+    tables.map(({ name }) => [
+      String(name),
+      {
+        columns: db.prepare(`PRAGMA table_info(${String(name)})`).all(),
+        indexes: db.prepare(`PRAGMA index_list(${String(name)})`).all(),
+        foreignKeys: db.prepare(`PRAGMA foreign_key_list(${String(name)})`).all(),
+      },
+    ]),
+  )
+  db.close()
+  return schema
+}
+
+function ticket(id: string, fields: Partial<WorkItem> = {}): WorkItem {
+  return { id, teamId: TEAM, sourceKey: id, type: 'story', labels: [], createdAt: CREATED, lastSyncedAt: CREATED, ...fields }
+}
+
+describe('a data file written before schema versions', () => {
+  test('opens and keeps its team, facts, milestone and pace setting', () => {
+    const storage = open(writeFile('old.db', UNVERSIONED_SCHEMA))
+
+    expect(storage.teams()).toEqual([{ id: TEAM, name: 'Acme', source: 'jira', sourceRef: TEAM }])
+    expect(storage.facts(TEAM)).toEqual({
+      workItems: [
+        { id: 'E1', teamId: TEAM, sourceKey: 'ACME-1', type: 'epic', title: 'Checkout', labels: [], createdAt: CREATED, lastSyncedAt: CREATED },
+        {
+          id: 'S1',
+          teamId: TEAM,
+          sourceKey: 'ACME-2',
+          type: 'story',
+          parentId: 'E1',
+          labels: ['web'],
+          createdAt: CREATED,
+          startedAt: '2026-09-02T09:00:00Z',
+          lastSyncedAt: CREATED,
+        },
+      ],
+      events: [{ itemId: 'S1', at: '2026-09-02T09:00:00Z', kind: 'status', from: 'To Do', to: 'In Progress' }],
+    })
+    expect(storage.milestones(TEAM)).toEqual([
+      { id: 'M1', teamId: TEAM, name: 'Launch', committedDate: '2026-12-18', epicIds: ['E1'] },
+    ])
+    expect(storage.paceSetting(TEAM, 'M1')).toEqual({ teamId: TEAM, milestoneId: 'M1', mode: 'manual', low: 3, high: 7 })
+  })
+})
+
+describe('schema version', () => {
+  test('a fresh file and an upgraded file record the same version, above the unversioned one', () => {
+    const fresh = join(dir, 'fresh.db')
+    open(fresh)
+    const old = writeFile('old.db', UNVERSIONED_SCHEMA)
+    open(old)
+
+    expect(versionOf(fresh)).toBeGreaterThan(0)
+    expect(versionOf(old)).toBe(versionOf(fresh))
+  })
+
+  test('a fresh file and an upgraded file end up with the same tables, columns and indexes', () => {
+    const fresh = join(dir, 'fresh.db')
+    open(fresh)
+    const old = writeFile('old.db', UNVERSIONED_SCHEMA)
+    open(old)
+    storage?.close()
+    storage = undefined
+
+    expect(schemaOf(old)).toEqual(schemaOf(fresh))
+  })
+
+  test('an upgraded file opens again unchanged in version and content, and takes new data', () => {
+    const file = writeFile('old.db', UNVERSIONED_SCHEMA)
+    open(file)
+    const version = versionOf(file)
+
+    const storage = open(file)
+    storage.addFacts(TEAM, { workItems: [ticket('S2')], events: [] })
+    storage.savePaceSetting({ teamId: TEAM, milestoneId: 'M1', mode: 'measured' })
+
+    expect(versionOf(file)).toBe(version)
+    const reopened = open(file)
+    expect(reopened.facts(TEAM).workItems.map((item) => item.id)).toEqual(['E1', 'S1', 'S2'])
+    expect(reopened.paceSetting(TEAM, 'M1')).toEqual({ teamId: TEAM, milestoneId: 'M1', mode: 'measured' })
+  })
+})
+
+describe('a data file from a newer release', () => {
+  test('refuses to open, says why, and leaves the file as it was', () => {
+    const file = writeFile('newer.db', 'CREATE TABLE from_the_future (id TEXT);', 999)
+    const before = readFileSync(file)
+
+    expect(() => open(file)).toThrow(/newer version of the Forecaster.*schema 999/)
+    expect(() => open(file)).toThrow(file)
+    expect(readFileSync(file)).toEqual(before)
+    expect(versionOf(file)).toBe(999)
+  })
+})
