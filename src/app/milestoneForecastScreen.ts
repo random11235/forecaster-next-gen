@@ -10,7 +10,7 @@ export function renderMilestoneForecastScreen(view: MilestoneForecastView): stri
 
 const EMPTY_STATE = `    <section aria-label="Empty state">
       <p>No milestone defined yet.</p>
-      <p>Define a milestone, with its committed date and epics, to see its forecast here.</p>
+      <p>Define a milestone, with its committed date and epics, on the <a href="/inputs">Inputs screen</a> to see its forecast here.</p>
     </section>`
 
 function milestoneSection(view: Extract<MilestoneForecastView, { kind: 'milestone' }>): string {
