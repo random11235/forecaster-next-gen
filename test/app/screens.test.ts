@@ -277,6 +277,81 @@ describe('Inputs screen: milestone', () => {
   })
 })
 
+/** The sample board's workflow form, as the Inputs screen first fills it, with `changes` made. */
+function workflowForm(changes: Record<string, string> = {}): [string, string][] {
+  const fields: Record<string, string> = {
+    'status:To Do': 'notStarted',
+    'status:In Progress': 'started',
+    'status:Done': 'done',
+    'status:Cancelled': 'cancelled',
+    startedStatus: 'In Progress',
+    spikeTypes: 'spike',
+    spikeLabels: 'spike',
+    commitLabel: '',
+    blockedStatuses: '',
+    blockedLabels: 'blocked',
+    ...changes,
+  }
+  return Object.entries(fields)
+}
+
+describe('Inputs screen: workflow', () => {
+  test("shows the sample board's status mapping, started status, spike rules, commit label and blocked marker", async () => {
+    await startOnSampleData()
+
+    const html = await page('/inputs')
+
+    for (const [status, category] of [
+      ['To Do', 'notStarted'],
+      ['In Progress', 'started'],
+      ['Done', 'done'],
+      ['Cancelled', 'cancelled'],
+    ]) {
+      expect(html).toMatch(new RegExp(`<select name="status:${status}"[^>]*>[\\s\\S]*?<option value="${category}" selected>`))
+    }
+    expect(html).toMatch(/<select name="startedStatus"[^>]*>[\s\S]*?<option value="In Progress" selected>/)
+    expect(html).toMatch(/name="spikeTypes"[^>]*value="spike"/)
+    expect(html).toMatch(/name="spikeLabels"[^>]*value="spike"/)
+    expect(html).toMatch(/name="commitLabel"[^>]*value=""/)
+    expect(html).toMatch(/name="blockedStatuses"[^>]*value=""/)
+    expect(html).toMatch(/name="blockedLabels"[^>]*value="blocked"/)
+  })
+
+  test('saving the settings shows them on the Inputs screen', async () => {
+    await startOnSampleData()
+
+    const response = await post('/inputs/workflow', workflowForm({ commitLabel: 'committed', spikeLabels: 'spike, discovery' }))
+
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('/inputs')
+    const html = await page('/inputs')
+    expect(html).toMatch(/name="commitLabel"[^>]*value="committed"/)
+    expect(html).toMatch(/name="spikeLabels"[^>]*value="spike, discovery"/)
+  })
+
+  test('changing the mapping changes the forecast', async () => {
+    await startOnSampleData()
+    storage!.savePaceSetting({ teamId: 'sample-team', milestoneId: 'sample-milestone', mode: 'measured' })
+    expect(text(await page('/'))).toContain('Pace: measured')
+
+    await post('/inputs/workflow', workflowForm({ 'status:Done': 'started' }))
+
+    expect(text(await page('/'))).toContain('are done yet, so there is no measured pace to forecast from')
+  })
+
+  test('refused settings say why and keep what was typed', async () => {
+    await startOnSampleData()
+
+    const response = await post('/inputs/workflow', workflowForm({ startedStatus: 'Done', commitLabel: 'committed' }))
+
+    expect(response.status).toBe(400)
+    const html = await response.text()
+    expect(text(html)).toContain('Choose a started status from the statuses mapped to started.')
+    expect(html).toMatch(/name="commitLabel"[^>]*value="committed"/)
+    expect(html).toMatch(/<select name="startedStatus"[^>]*>[\s\S]*?<option value="Done" selected>/)
+  })
+})
+
 describe('Milestone forecast screen', () => {
   test('with no milestone, points the EM to the Inputs screen to define one', async () => {
     await startWithNoMilestone()
