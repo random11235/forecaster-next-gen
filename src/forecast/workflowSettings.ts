@@ -1,17 +1,14 @@
 import {
-  defaultWorkflowSettings,
   STATUS_CATEGORIES,
   STATUS_CATEGORY_NAMES,
   type StatusCategory,
   type StatusMapping,
   type StatusOrLabelRule,
   type TypeOrLabelRule,
-  type WorkflowSettings,
 } from '../model/workflow.js'
-import type { Facts } from '../model/workItem.js'
-import { factsUnderWorkflow } from '../samples/workflowState.js'
 import type { Storage } from '../storage/storage.js'
 import { refuse, type EditResult } from './editResult.js'
+import { teamFacts, type TeamFacts } from './teamFacts.js'
 
 /**
  * The workflow settings as the EM submitted them: a category for each status by name, and the rest as typed. Text is
@@ -40,20 +37,15 @@ export interface WorkflowSettingsView {
   blockedRule: StatusOrLabelRule
 }
 
-/** The team's workflow settings: as the EM set them, or the sample board's until then. */
-export function teamWorkflow(storage: Storage, teamId: string): WorkflowSettings {
-  return storage.workflowSettings(teamId) ?? defaultWorkflowSettings(teamId)
-}
-
-/** The team's facts as its workflow reads them: started, done and cancelled come from the status mapping. */
-export function teamFacts(storage: Storage, teamId: string): Facts {
-  return factsUnderWorkflow(storage.facts(teamId), teamWorkflow(storage, teamId))
-}
-
-export function workflowSettingsView(storage: Storage, teamId: string): WorkflowSettingsView {
-  const { statuses, startedStatus, spikeRule, commitLabel, blockedRule } = teamWorkflow(storage, teamId)
+/** The team's workflow settings as the Inputs screen shows them. Pass `team` when its team facts are already read. */
+export function workflowSettingsView(
+  storage: Storage,
+  teamId: string,
+  team: TeamFacts = teamFacts(storage, teamId),
+): WorkflowSettingsView {
+  const { statuses, startedStatus, spikeRule, commitLabel, blockedRule } = team.workflow
   const mapped = new Set(statuses.map((mapping) => mapping.status))
-  const unmapped = statusesSeen(storage.facts(teamId)).filter((status) => !mapped.has(status))
+  const unmapped = team.statusesSeen.filter((status) => !mapped.has(status))
   return {
     statuses: [
       ...statuses.map(({ status, category }) => ({ status, category })),
@@ -68,7 +60,7 @@ export function workflowSettingsView(storage: Storage, teamId: string): Workflow
 
 /** Saves the team's workflow settings as the EM submitted them. Refused settings change nothing. */
 export function editWorkflowSettings(storage: Storage, teamId: string, edit: WorkflowEdit): EditResult {
-  const seen = statusesSeen(storage.facts(teamId))
+  const seen = teamFacts(storage, teamId).statusesSeen
   const statuses: StatusMapping[] = []
   for (const [status, category] of Object.entries(edit.categories)) {
     // a status no ticket has been in, left blank, is removed
@@ -101,17 +93,6 @@ export function editWorkflowSettings(storage: Storage, teamId: string, edit: Wor
     blockedRule,
   })
   return { ok: true }
-}
-
-/** Every status the team's tickets have been in, in the order first seen. */
-function statusesSeen(facts: Facts): string[] {
-  const statuses = new Set<string>()
-  for (const event of facts.events) {
-    if (event.kind !== 'status') continue
-    if (event.from !== undefined) statuses.add(event.from)
-    if (event.to !== undefined) statuses.add(event.to)
-  }
-  return [...statuses]
 }
 
 /** The entries trimmed, without blanks or repeats. */

@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
-import { editWorkflowSettings, teamFacts, workflowSettingsView, type WorkflowEdit } from '../../src/forecast/workflowSettings.js'
+import { teamFacts } from '../../src/forecast/teamFacts.js'
+import { editWorkflowSettings, workflowSettingsView, type WorkflowEdit } from '../../src/forecast/workflowSettings.js'
 import type { WorkItem, WorkItemEvent } from '../../src/model/workItem.js'
 import { loadSampleDataIfEmpty } from '../../src/sample/loadSampleData.js'
 import { SAMPLE_DATA } from '../../src/sample/sampleData.js'
@@ -142,7 +143,7 @@ describe('status mapping', () => {
 
 describe('cycle time start', () => {
   function startedAt(storage: Storage, id: string): string | undefined {
-    return teamFacts(storage, TEAM).workItems.find((item) => item.id === id)?.startedAt
+    return teamFacts(storage, TEAM).facts.workItems.find((item) => item.id === id)?.startedAt
   }
 
   test('a ticket starts when it first enters the started status', () => {
@@ -175,6 +176,34 @@ describe('cycle time start', () => {
     save(storage, form(BOARD))
 
     expect(startedAt(storage, 'T1')).toBeUndefined()
+  })
+})
+
+describe('team facts', () => {
+  test("a ticket with no status history keeps the connector's started, done and cancelled times whatever the mapping", () => {
+    const storage = teamWithBoard([shipped('T1', '2026-10-20T16:00:00Z')])
+    const fromConnector = {
+      T2: { startedAt: '2026-10-02T09:00:00Z', doneAt: '2026-10-09T09:00:00Z' },
+      T3: { startedAt: '2026-10-03T09:00:00Z', cancelledAt: '2026-10-10T09:00:00Z' },
+    }
+    storage.addFacts(TEAM, {
+      workItems: [item('T2', 'story', { parentId: 'E1', ...fromConnector.T2 }), item('T3', 'story', { parentId: 'E1', ...fromConnector.T3 })],
+      events: [],
+    })
+    const times = () =>
+      teamFacts(storage, TEAM)
+        .facts.workItems.filter((ticket) => ticket.id !== 'T1' && ticket.id !== 'E1')
+        .map(({ id, startedAt, doneAt, cancelledAt }) => ({ id, startedAt, doneAt, cancelledAt }))
+    const expected = [
+      { id: 'T2', startedAt: '2026-10-02T09:00:00Z', doneAt: '2026-10-09T09:00:00Z', cancelledAt: undefined },
+      { id: 'T3', startedAt: '2026-10-03T09:00:00Z', doneAt: undefined, cancelledAt: '2026-10-10T09:00:00Z' },
+    ]
+
+    expect(times()).toEqual(expected)
+    save(storage, form(BOARD))
+    expect(times()).toEqual(expected)
+    save(storage, form({ ...BOARD, Shipped: 'cancelled', Dropped: 'done' }))
+    expect(times()).toEqual(expected)
   })
 })
 

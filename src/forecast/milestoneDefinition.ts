@@ -3,7 +3,7 @@ import type { Milestone } from '../model/milestone.js'
 import type { WorkItem } from '../model/workItem.js'
 import type { Storage } from '../storage/storage.js'
 import { refuse, type EditResult } from './editResult.js'
-import { teamFacts } from './workflowSettings.js'
+import { teamFacts, type TeamFacts } from './teamFacts.js'
 
 /** A change the EM makes to the team's milestone on the Inputs screen. */
 export type MilestoneEdit =
@@ -39,9 +39,16 @@ export function teamMilestone(storage: Storage, teamId: string): Milestone | und
   return storage.milestones(teamId)[0]
 }
 
-/** The team's milestone as defined so far (v1 has one), and the epics the EM can choose from. */
-export function milestoneDefinitionView(storage: Storage, teamId: string): MilestoneDefinitionView {
-  const epics = teamEpics(teamFacts(storage, teamId).workItems)
+/**
+ * The team's milestone as defined so far (v1 has one), and the epics the EM can choose from. Pass `team` when its
+ * team facts are already read.
+ */
+export function milestoneDefinitionView(
+  storage: Storage,
+  teamId: string,
+  team: TeamFacts = teamFacts(storage, teamId),
+): MilestoneDefinitionView {
+  const epics = teamEpics(team.facts.workItems)
   const milestone = teamMilestone(storage, teamId)
   if (!milestone) return { kind: 'noMilestone', teamEpics: epics.map(toChoice) }
 
@@ -62,7 +69,7 @@ export function milestoneDefinitionView(storage: Storage, teamId: string): Miles
 /** Applies the EM's edit to the team's milestone and saves it. A refused edit changes nothing. */
 export function editMilestone(storage: Storage, teamId: string, edit: MilestoneEdit): EditResult {
   const milestone = teamMilestone(storage, teamId)
-  const teamEpicIds = new Set(teamEpics(teamFacts(storage, teamId).workItems).map((epic) => epic.id))
+  const teamEpicIds = new Set(teamEpics(teamFacts(storage, teamId).facts.workItems).map((epic) => epic.id))
   const isTeamEpic = (epicId: string): boolean => teamEpicIds.has(epicId)
 
   if (edit.kind === 'create') {

@@ -2,6 +2,7 @@ import { milestoneForecastView, type MilestoneForecastView } from '../forecast/m
 import { DEFAULT_SETTINGS } from '../forecast/settings.js'
 import type { Storage } from '../storage/storage.js'
 import { editMilestone, milestoneDefinitionView, parseEpicForm, teamMilestone } from '../forecast/milestoneDefinition.js'
+import { teamFacts } from '../forecast/teamFacts.js'
 import { editWorkflowSettings, workflowSettingsView } from '../forecast/workflowSettings.js'
 import {
   parseDetailsForm,
@@ -48,13 +49,14 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
   // v1 is single-team: the inputs are for its milestone
   const milestone = teamMilestone(storage, team.id)
   const form = request.form ?? new URLSearchParams()
-  const workflow = workflowSettingsView(storage, team.id)
+  const facts = teamFacts(storage, team.id)
+  const workflow = workflowSettingsView(storage, team.id, facts)
   const statusesToMap = workflow.statuses.map((entry) => entry.status)
   const inputsScreen = (status: number, screen: Partial<InputsScreen> = {}): Reply => ({
     kind: 'html',
     status,
     html: renderInputsScreen({
-      milestone: milestoneDefinitionView(storage, team.id),
+      milestone: milestoneDefinitionView(storage, team.id, facts),
       pace: milestone && savedPaceForm(storage, milestone.teamId, milestone.id),
       workflow: { statuses: statusesToMap, form: savedWorkflowForm(workflow) },
       ...screen,
