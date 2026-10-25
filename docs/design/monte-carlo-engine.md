@@ -47,7 +47,8 @@ Team          { id, name, source: 'sample'|'jira'|'github', sourceRef }
 WorkflowSettings { teamId,            // set by the EM; one per team
                 statuses: { status, category: 'notStarted'|'started'|'done'|'cancelled' }[],
                 startedStatus,       // the status where cycle time starts; one mapped to started
-                startedSignal?,      // GitHub: the label, project column or assignee that means "started"
+                startedSignal?,      // later, with the GitHub connector: the label, project column or assignee
+                                     // that means "started"; not in the model yet
                 spikeRule: { types, labels },        // issue types and/or labels that mark a spike
                 commitLabel?,        // optional label that commits an epic when applied
                 blockedRule: { statuses, labels } }  // statuses and/or labels (flags) that mark an epic blocked
@@ -60,7 +61,7 @@ WorkItemEvent { itemId, at, kind: 'status'|'parent'|'type'|'label', from?, to? }
 
 `WorkItemEvent` holds parent-change history (Jira changelog, GitHub sub-issue events). That history tells you how many children an epic had at any point in time, which is what makes growth measurable.
 
-The forecast reads `startedAt`, `doneAt` and `cancelledAt` from each ticket's status history under the team's `WorkflowSettings` (`samples/workflowState.ts`), so changing the mapping changes which tickets count as done. `startedAt` is when the ticket first entered `startedStatus` (or `startedSignal` on GitHub); a status the EM hasn't mapped counts as not started. Cycle time is `startedAt → doneAt`. Created-to-done (lead time) is not used in v1.
+The forecast reads `startedAt`, `doneAt` and `cancelledAt` from each ticket's status history under the team's `WorkflowSettings` (`samples/workflowState.ts`), so changing the mapping changes which tickets count as done. `startedAt` is when the ticket first entered `startedStatus`. A ticket that skipped it starts when it first entered any status mapped to started, or, if it skipped those too, when it first entered one mapped to done, so work that jumps columns still has a cycle time. On GitHub, `startedSignal` will set it instead, once that connector adds it. A status the EM hasn't mapped counts as not started. Cycle time is `startedAt → doneAt`. Created-to-done (lead time) is not used in v1.
 
 Ingestion follows data minimisation (see [Security](#security)). On GitHub, an assignee used as `startedSignal` is read only as "has an assignee".
 
