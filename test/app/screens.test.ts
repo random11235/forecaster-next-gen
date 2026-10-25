@@ -46,6 +46,24 @@ function text(html: string): string {
 }
 
 describe('Inputs screen', () => {
+  test("reads the team's facts from storage once", async () => {
+    storage = openSqliteStorage(':memory:')
+    const stored = storage
+    let factReads = 0
+    const counting: Storage = Object.assign(Object.create(stored) as Storage, {
+      facts: (teamId: string) => {
+        factReads++
+        return stored.facts(teamId)
+      },
+    })
+    app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage: counting, today: () => '2026-10-24' })
+    factReads = 0
+
+    await page('/inputs')
+
+    expect(factReads).toBe(1)
+  })
+
   test('asks for pace as a low–high range of tickets per week', async () => {
     await startOnSampleData()
 
