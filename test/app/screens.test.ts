@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from 'vitest'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
+import { SAMPLE_DATA } from '../../src/sample/sampleData.js'
 
 // The screens on the canned sample data, through the local server, as the EM's browser sees them.
 
@@ -94,7 +95,198 @@ describe('Inputs screen', () => {
   })
 })
 
+/** Starts the app on the sample team and its tickets, with no milestone defined yet. */
+async function startWithNoMilestone(): Promise<RunningApp> {
+  storage = openSqliteStorage(':memory:')
+  storage.saveTeam(SAMPLE_DATA.team)
+  storage.addFacts(SAMPLE_DATA.team.id, SAMPLE_DATA.facts)
+  app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage, today: () => '2026-10-24' })
+  return app
+}
+
+/** Posts a form as the browser does, without following the redirect. */
+function post(path: string, fields: [string, string][]): Promise<Response> {
+  return fetch(new URL(path, app!.url), {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(fields).toString(),
+    redirect: 'manual',
+  })
+}
+
+/** The epic names in the Milestone forecast screen's epic table, in rank order. */
+async function forecastEpics(): Promise<string[]> {
+  const html = await page('/')
+  const body = html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] ?? ''
+  return [...body.matchAll(/<tr>\s*<td>([^<]*)<\/td>/g)].map((row) => row[1]!)
+}
+
+describe('Inputs screen: milestone', () => {
+  test("with no milestone, offers a form for its name, committed date and a rank for each of the team's epics", async () => {
+    await startWithNoMilestone()
+
+    const html = await page('/inputs')
+
+    expect(html).toMatch(/<input[^>]*name="name"/)
+    expect(html).toMatch(/<input[^>]*type="date"[^>]*name="committedDate"/)
+    for (const epic of ['PAY-1', 'PAY-2', 'PAY-3', 'PAY-4']) {
+      expect(html).toMatch(new RegExp(`<input type="number" name="rank-${epic}"`))
+    }
+    expect(text(html)).toContain('Fraud rules')
+  })
+
+  test('creating a milestone holds the ranked epics in rank order, and leaves out epics with no rank', async () => {
+    await startWithNoMilestone()
+
+    const response = await post('/inputs/milestone', [
+      ['name', 'Checkout v3'],
+      ['committedDate', '2027-02-26'],
+      ['rank-PAY-1', ''],
+      ['rank-PAY-2', '2'],
+      ['rank-PAY-3', ''],
+      ['rank-PAY-4', '1'],
+    ])
+
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('/inputs')
+    expect(text(await page('/'))).toContain('Checkout v3 · committed 26 Feb 2027')
+    expect(await forecastEpics()).toEqual(['Fraud rules', 'Refunds'])
+  })
+
+  test('a milestone with two epics of the same rank is refused, keeping the ranks typed', async () => {
+    await startWithNoMilestone()
+
+    const response = await post('/inputs/milestone', [
+      ['name', 'Checkout v3'],
+      ['committedDate', '2027-02-26'],
+      ['rank-PAY-2', '1'],
+      ['rank-PAY-4', '1'],
+    ])
+
+    expect(response.status).toBe(400)
+    const html = await response.text()
+    expect(text(html)).toContain('Give each chosen epic a different rank.')
+    expect(html).toMatch(/name="rank-PAY-2"[^>]*value="1"/)
+    expect(html).toMatch(/name="rank-PAY-4"[^>]*value="1"/)
+    expect(html).toMatch(/name="rank-PAY-1"[^>]*value=""/)
+  })
+
+  test('a milestone with a rank missing is refused', async () => {
+    await startWithNoMilestone()
+
+    const response = await post('/inputs/milestone', [
+      ['name', 'Checkout v3'],
+      ['committedDate', '2027-02-26'],
+      ['rank-PAY-2', '1'],
+      ['rank-PAY-4', '3'],
+    ])
+
+    expect(response.status).toBe(400)
+    expect(text(await response.text())).toContain('Rank the chosen epics 1 to 2, with none missing.')
+  })
+
+  test('a refused milestone says why and keeps what was typed', async () => {
+    await startWithNoMilestone()
+
+    const response = await post('/inputs/milestone', [
+      ['name', 'Checkout v3'],
+      ['committedDate', '2027-02-26'],
+    ])
+
+    expect(response.status).toBe(400)
+    const html = await response.text()
+    expect(text(html)).toContain('Choose at least one epic.')
+    expect(html).toMatch(/name="name"[^>]*value="Checkout v3"/)
+    expect(html).toMatch(/name="committedDate"[^>]*value="2027-02-26"/)
+  })
+
+  test("lists the milestone's epics in rank order, and offers the team's other epics to add", async () => {
+    await startOnSampleData()
+
+    const html = await page('/inputs')
+
+    expect(text(html)).toMatch(/Card vaulting.*Refunds.*Receipts redesign/)
+    expect(html).toMatch(/<option value="PAY-4">PAY-4 Fraud rules<\/option>/)
+    expect(html).not.toMatch(/<option value="PAY-1">/)
+  })
+
+  test('adding, removing and reordering epics change the milestone the forecast is for', async () => {
+    await startOnSampleData()
+
+    const added = await post('/inputs/epics', [['epic', 'PAY-4'], ['action', 'add']])
+    expect(added.status).toBe(303)
+    expect(added.headers.get('location')).toBe('/inputs')
+    expect(await forecastEpics()).toEqual(['Card vaulting', 'Refunds', 'Receipts redesign', 'Fraud rules'])
+
+    await post('/inputs/epics', [['epic', 'PAY-3'], ['action', 'remove']])
+    expect(await forecastEpics()).toEqual(['Card vaulting', 'Refunds', 'Fraud rules'])
+
+    await post('/inputs/epics', [['epic', 'PAY-4'], ['action', 'up']])
+    await post('/inputs/epics', [['epic', 'PAY-1'], ['action', 'down']])
+    expect(await forecastEpics()).toEqual(['Fraud rules', 'Card vaulting', 'Refunds'])
+  })
+
+  test("editing the milestone's name and committed date shows them on both screens", async () => {
+    await startOnSampleData()
+    expect(await page('/inputs')).toMatch(/<form method="post" action="\/inputs\/milestone\/details">/)
+
+    const response = await post('/inputs/milestone/details', [
+      ['name', 'Checkout v4'],
+      ['committedDate', '2027-03-26'],
+    ])
+
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('/inputs')
+    const inputs = await page('/inputs')
+    expect(inputs).toMatch(/name="name"[^>]*value="Checkout v4"/)
+    expect(inputs).toMatch(/name="committedDate"[^>]*value="2027-03-26"/)
+    expect(text(await page('/'))).toContain('Checkout v4 · committed 26 Mar 2027')
+  })
+
+  test("a refused name and committed date say why and keep what was typed", async () => {
+    await startOnSampleData()
+
+    const response = await post('/inputs/milestone/details', [
+      ['name', 'Checkout v4'],
+      ['committedDate', '2027-02-30'],
+    ])
+
+    expect(response.status).toBe(400)
+    const html = await response.text()
+    expect(text(html)).toContain('Enter the committed date as a calendar date.')
+    expect(html).toMatch(/name="name"[^>]*value="Checkout v4"/)
+    expect(html).toMatch(/name="committedDate"[^>]*value="2027-02-30"/)
+  })
+
+  test('an epic change that names no action says why', async () => {
+    await startOnSampleData()
+
+    const response = await post('/inputs/epics', [['epic', 'PAY-1']])
+
+    expect(response.status).toBe(400)
+    expect(text(await response.text())).toContain('Choose Add, Remove, Up or Down.')
+  })
+
+  test('a refused epic change says why', async () => {
+    await startOnSampleData()
+
+    const response = await post('/inputs/epics', [['epic', 'PAY-1'], ['action', 'add']])
+
+    expect(response.status).toBe(400)
+    expect(text(await response.text())).toContain('That epic is already in the milestone.')
+  })
+})
+
 describe('Milestone forecast screen', () => {
+  test('with no milestone, points the EM to the Inputs screen to define one', async () => {
+    await startWithNoMilestone()
+
+    const html = await page('/')
+
+    expect(text(html)).toContain('No milestone defined yet.')
+    expect(html).toMatch(/Define a milestone[^<]*on the <a href="\/inputs">Inputs screen<\/a>/)
+  })
+
   test('before pace is entered, points the EM to the Inputs screen', async () => {
     await startOnSampleData()
 
