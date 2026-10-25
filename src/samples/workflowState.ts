@@ -4,7 +4,8 @@ import type { Facts, WorkItem, WorkItemEvent } from '../model/workItem.js'
 /**
  * The facts as the team's workflow reads them: each ticket's started, done and cancelled times come from its status
  * history and the EM's status mapping, so changing the mapping changes which tickets count as done.
- * - started: when the ticket first entered the started status;
+ * - started: when the ticket first entered the started status; a ticket that skipped it starts when it first entered
+ *   any status mapped to started, or, if it skipped those too, when it first entered one mapped to done;
  * - done or cancelled: when the ticket entered its current status, if that status (and any run of the same
  *   category just before it) is mapped to done or cancelled;
  * - a status the EM hasn't mapped counts as not started.
@@ -28,7 +29,12 @@ export function factsUnderWorkflow(facts: Facts, workflow: WorkflowSettings): Fa
     if (!statuses) return item
     const ordered = [...statuses].sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
     const { startedAt: _startedAt, doneAt: _doneAt, cancelledAt: _cancelledAt, ...rest } = item
-    const startedAt = ordered.find((event) => event.to === workflow.startedStatus)?.at
+    const firstEntry = (matches: (status: string | undefined) => boolean): string | undefined =>
+      ordered.find((event) => matches(event.to))?.at
+    const startedAt =
+      firstEntry((status) => status === workflow.startedStatus) ??
+      firstEntry((status) => category(status) === 'started') ??
+      firstEntry((status) => category(status) === 'done')
 
     const ended = category(ordered.at(-1)?.to)
     let endedAt: string | undefined

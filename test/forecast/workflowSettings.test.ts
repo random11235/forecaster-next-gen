@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
-import { editWorkflowSettings, workflowSettingsView, type WorkflowForm } from '../../src/forecast/workflowSettings.js'
+import { editWorkflowSettings, teamFacts, workflowSettingsView, type WorkflowEdit } from '../../src/forecast/workflowSettings.js'
 import type { WorkItem, WorkItemEvent } from '../../src/model/workItem.js'
 import { loadSampleDataIfEmpty } from '../../src/sample/loadSampleData.js'
 import { SAMPLE_DATA } from '../../src/sample/sampleData.js'
@@ -60,23 +60,21 @@ function shipped(id: string, at: string): TicketSpec {
   return { id, path: [['Backlog', CREATED], ['Building', '2026-10-01T09:00:00Z'], ['Shipped', at]] }
 }
 
-/** The settings form the EM would submit for this board: `categories` by status, and the rest as typed. */
-function form(categories: Record<string, string>, fields: Partial<WorkflowForm> = {}): WorkflowForm {
+/** The settings the EM would submit for this board: `categories` by status, and the rest as typed. */
+function form(categories: Record<string, string>, fields: Partial<WorkflowEdit> = {}): WorkflowEdit {
   return {
     categories,
     startedStatus: 'Building',
-    spikeTypes: 'spike',
-    spikeLabels: '',
+    spikeRule: { types: ['spike'], labels: [] },
     commitLabel: '',
-    blockedStatuses: '',
-    blockedLabels: '',
+    blockedRule: { statuses: [], labels: [] },
     ...fields,
   }
 }
 
 const BOARD = { Backlog: 'notStarted', Building: 'started', Shipped: 'done', Dropped: 'cancelled' }
 
-function save(storage: Storage, typed: WorkflowForm): void {
+function save(storage: Storage, typed: WorkflowEdit): void {
   const result = editWorkflowSettings(storage, TEAM, typed)
   if (!result.ok) throw new Error(`settings refused: ${result.error}`)
 }
@@ -142,6 +140,44 @@ describe('status mapping', () => {
   })
 })
 
+describe('cycle time start', () => {
+  function startedAt(storage: Storage, id: string): string | undefined {
+    return teamFacts(storage, TEAM).workItems.find((item) => item.id === id)?.startedAt
+  }
+
+  test('a ticket starts when it first enters the started status', () => {
+    const storage = teamWithBoard([
+      { id: 'T1', path: [['Backlog', CREATED], ['Review', '2026-10-01T09:00:00Z'], ['Building', '2026-10-02T09:00:00Z'], ['Shipped', '2026-10-05T09:00:00Z']] },
+    ])
+    save(storage, form({ ...BOARD, Review: 'started' }))
+
+    expect(startedAt(storage, 'T1')).toBe('2026-10-02T09:00:00Z')
+  })
+
+  test('a ticket that skips the started status starts when it first enters another status mapped to started', () => {
+    const storage = teamWithBoard([
+      { id: 'T1', path: [['Backlog', CREATED], ['Review', '2026-10-01T09:00:00Z'], ['Shipped', '2026-10-05T09:00:00Z']] },
+    ])
+    save(storage, form({ ...BOARD, Review: 'started' }))
+
+    expect(startedAt(storage, 'T1')).toBe('2026-10-01T09:00:00Z')
+  })
+
+  test('a ticket that skips every started status starts when it first enters a status mapped to done', () => {
+    const storage = teamWithBoard([{ id: 'T1', path: [['Backlog', CREATED], ['Shipped', '2026-10-05T09:00:00Z']] }])
+    save(storage, form(BOARD))
+
+    expect(startedAt(storage, 'T1')).toBe('2026-10-05T09:00:00Z')
+  })
+
+  test('a ticket that has only been in not-started or cancelled statuses has not started', () => {
+    const storage = teamWithBoard([{ id: 'T1', path: [['Backlog', CREATED], ['Dropped', '2026-10-05T09:00:00Z']] }])
+    save(storage, form(BOARD))
+
+    expect(startedAt(storage, 'T1')).toBeUndefined()
+  })
+})
+
 describe('workflow settings view', () => {
   test("a team that hasn't set its workflow has the sample board's, then its own statuses still to map", () => {
     const storage = teamWithBoard([shipped('T1', '2026-10-20T16:00:00Z')])
@@ -157,11 +193,9 @@ describe('workflow settings view', () => {
         { status: 'Shipped', category: undefined },
       ],
       startedStatus: 'In Progress',
-      spikeTypes: ['spike'],
-      spikeLabels: ['spike'],
+      spikeRule: { types: ['spike'], labels: ['spike'] },
       commitLabel: undefined,
-      blockedStatuses: [],
-      blockedLabels: ['blocked'],
+      blockedRule: { statuses: [], labels: ['blocked'] },
     })
   })
 
@@ -174,11 +208,9 @@ describe('workflow settings view', () => {
         { Backlog: 'notStarted', Building: 'started', Review: 'started', Shipped: 'done' },
         {
           startedStatus: ' Building ',
-          spikeTypes: 'Spike, Research ,',
-          spikeLabels: 'discovery',
+          spikeRule: { types: ['Spike', ' Research ', ''], labels: ['discovery'] },
           commitLabel: ' committed ',
-          blockedStatuses: 'Review',
-          blockedLabels: 'blocked, waiting, blocked',
+          blockedRule: { statuses: ['Review'], labels: ['blocked', ' waiting', 'blocked'] },
         },
       ),
     )
@@ -191,11 +223,9 @@ describe('workflow settings view', () => {
         { status: 'Shipped', category: 'done' },
       ],
       startedStatus: 'Building',
-      spikeTypes: ['spike', 'research'],
-      spikeLabels: ['discovery'],
+      spikeRule: { types: ['spike', 'research'], labels: ['discovery'] },
       commitLabel: 'committed',
-      blockedStatuses: ['Review'],
-      blockedLabels: ['blocked', 'waiting'],
+      blockedRule: { statuses: ['Review'], labels: ['blocked', 'waiting'] },
     })
   })
 
@@ -241,11 +271,9 @@ describe('the sample data', () => {
         { status: 'Cancelled', category: 'cancelled' },
       ],
       startedStatus: 'In Progress',
-      spikeTypes: ['spike'],
-      spikeLabels: ['spike'],
+      spikeRule: { types: ['spike'], labels: ['spike'] },
       commitLabel: undefined,
-      blockedStatuses: [],
-      blockedLabels: ['blocked'],
+      blockedRule: { statuses: [], labels: ['blocked'] },
     })
   })
 
@@ -258,11 +286,9 @@ describe('the sample data', () => {
     const result = editWorkflowSettings(storage, teamId, {
       categories: { 'To Do': 'notStarted', 'In Progress': 'started', Done: 'started', Cancelled: 'cancelled' },
       startedStatus: 'In Progress',
-      spikeTypes: 'spike',
-      spikeLabels: 'spike',
+      spikeRule: { types: ['spike'], labels: ['spike'] },
       commitLabel: '',
-      blockedStatuses: '',
-      blockedLabels: 'blocked',
+      blockedRule: { statuses: [], labels: ['blocked'] },
     })
 
     expect(result).toEqual({ ok: true })
@@ -281,7 +307,7 @@ describe('refused workflow settings', () => {
     { why: 'a status given no category', categories: { ...BOARD, Shipped: '' }, fields: {}, error: UNMAPPED_SHIPPED },
     { why: 'a started status not mapped to started', categories: BOARD, fields: { startedStatus: 'Backlog' }, error: NOT_A_STARTED_STATUS },
     { why: 'a started status not on the board', categories: BOARD, fields: { startedStatus: 'Coding' }, error: NOT_A_STARTED_STATUS },
-    { why: 'a blocked status not on the board', categories: BOARD, fields: { blockedStatuses: 'On hold' }, error: `"On hold" isn't a status on the board.` },
+    { why: 'a blocked status not on the board', categories: BOARD, fields: { blockedRule: { statuses: ['On hold'], labels: [] } }, error: `"On hold" isn't a status on the board.` },
   ])('$why says why and changes nothing', ({ categories, fields, error }) => {
     const storage = teamWithBoard([shipped('T1', '2026-10-20T16:00:00Z')])
     save(storage, form(BOARD))
