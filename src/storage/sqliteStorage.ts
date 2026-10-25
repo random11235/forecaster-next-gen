@@ -6,8 +6,14 @@ import type { Team } from '../model/team.js'
 import type { Facts, WorkItem, WorkItemEvent } from '../model/workItem.js'
 import type { Storage } from './storage.js'
 
-// Every table carries team_id, so every query can be scoped by team.
-const SCHEMA = `
+/**
+ * The schema, as the steps that build it. The file records how many it has applied (`PRAGMA user_version`), and
+ * opening it applies the rest in order. Steps are released history: never edit one, append a new one.
+ * Every table carries team_id, so every query can be scoped by team.
+ */
+const MIGRATIONS: readonly string[] = [
+  // 1: the schema shipped before files recorded a version. `IF NOT EXISTS` lets it adopt those files as they are.
+  `
 CREATE TABLE IF NOT EXISTS teams (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -63,7 +69,8 @@ CREATE TABLE IF NOT EXISTS pace_settings (
   PRIMARY KEY (team_id, milestone_id),
   FOREIGN KEY (team_id, milestone_id) REFERENCES milestones(team_id, id)
 );
-`
+`,
+]
 
 type Row = Record<string, SQLInputValue>
 
@@ -71,8 +78,6 @@ type Row = Record<string, SQLInputValue>
 export function openSqliteStorage(file: string): Storage {
   if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true })
   const db = new DatabaseSync(file)
-  db.exec('PRAGMA foreign_keys = ON')
-  db.exec(SCHEMA)
 
   function transaction(work: () => void): void {
     db.exec('BEGIN')
@@ -84,6 +89,9 @@ export function openSqliteStorage(file: string): Storage {
       throw error
     }
   }
+
+  db.exec('PRAGMA foreign_keys = ON')
+  migrate(db, file, transaction)
 
   const upsertTeam = db.prepare(`
     INSERT INTO teams (id, name, source, source_ref) VALUES (?, ?, ?, ?)
@@ -214,6 +222,24 @@ export function openSqliteStorage(file: string): Storage {
     close() {
       db.close()
     },
+  }
+}
+
+/** Brings the file up to the latest schema, one step per transaction, recording the version after each. */
+function migrate(db: DatabaseSync, file: string, transaction: (work: () => void) => void): void {
+  const version = Number(db.prepare('PRAGMA user_version').get()?.user_version)
+  if (version > MIGRATIONS.length) {
+    db.close()
+    throw new Error(
+      `${file} was written by a newer version of the Forecaster (schema ${version}; this version reads up to schema ${MIGRATIONS.length}). ` +
+        'Update the Forecaster to open it.',
+    )
+  }
+  for (let next = version; next < MIGRATIONS.length; next++) {
+    transaction(() => {
+      db.exec(MIGRATIONS[next]!)
+      db.exec(`PRAGMA user_version = ${next + 1}`)
+    })
   }
 }
 

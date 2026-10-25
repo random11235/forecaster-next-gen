@@ -334,6 +334,8 @@ Connectors are tested through Seam B by replaying recorded API responses, with n
 
 The one exception is the PRNG: `engine/random.ts` is checked against output vectors from the authors' reference C code for xoshiro128**, because a port must reproduce its exact stream and Seam A can't show that.
 
+`test/storage/` holds the schema migration tests. They are not a forecasting seam either: they write a data file as an earlier release left it, open it through `openSqliteStorage`, and check what reads back. A ticket that changes the schema appends a step to `MIGRATIONS` in `src/storage/sqliteStorage.ts` (never editing a released one) and adds a test there that opens a file from the version before.
+
 ---
 
 ## Language choice
