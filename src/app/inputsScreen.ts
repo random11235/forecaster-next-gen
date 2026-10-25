@@ -1,5 +1,7 @@
 import type { EpicChoice, MilestoneDefinitionView, RankedEpic } from '../forecast/milestoneDefinition.js'
+import type { WorkflowEdit, WorkflowSettingsView } from '../forecast/workflowSettings.js'
 import type { ThroughputRange } from '../model/paceSetting.js'
+import { STATUS_CATEGORIES, STATUS_CATEGORY_NAMES, type StatusCategory } from '../model/workflow.js'
 import { escapeHtml, formatDate, htmlPage } from './html.js'
 
 /** Far above any real team's weekly pace; keeps typos like 1000000 out of the forecast. */
@@ -55,6 +57,68 @@ export function parseMilestoneForm(body: URLSearchParams): { form: MilestoneForm
   return { form: { ...parseDetailsForm(body), ranks }, epics }
 }
 
+/** The workflow settings form as typed: a category for each status by name, and the rest as text. */
+export interface WorkflowForm {
+  /** Each status's category as chosen, by status name; blank when none was chosen. */
+  categories: Record<string, string>
+  startedStatus: string
+  /** Comma-separated lists. */
+  spikeTypes: string
+  spikeLabels: string
+  /** Blank for none. */
+  commitLabel: string
+  blockedStatuses: string
+  blockedLabels: string
+}
+
+const STATUS_FIELD = 'status:'
+const LIST_SEPARATOR = ', '
+
+/** Reads the submitted workflow settings form; the rules they must meet are checked when they are saved. */
+export function parseWorkflowForm(body: URLSearchParams): { form: WorkflowForm; edit: WorkflowEdit } {
+  const categories: Record<string, string> = {}
+  for (const [field, value] of body) if (field.startsWith(STATUS_FIELD)) categories[field.slice(STATUS_FIELD.length)] = value
+  const text = (field: keyof WorkflowForm): string => body.get(field) ?? ''
+  const form: WorkflowForm = {
+    categories,
+    startedStatus: text('startedStatus'),
+    spikeTypes: text('spikeTypes'),
+    spikeLabels: text('spikeLabels'),
+    commitLabel: text('commitLabel'),
+    blockedStatuses: text('blockedStatuses'),
+    blockedLabels: text('blockedLabels'),
+  }
+  const list = (typed: string): string[] => typed.split(',')
+  const edit: WorkflowEdit = {
+    categories,
+    startedStatus: form.startedStatus,
+    spikeRule: { types: list(form.spikeTypes), labels: list(form.spikeLabels) },
+    commitLabel: form.commitLabel,
+    blockedRule: { statuses: list(form.blockedStatuses), labels: list(form.blockedLabels) },
+  }
+  return { form, edit }
+}
+
+/** The workflow settings form filled with the team's saved settings. */
+export function savedWorkflowForm({ statuses, startedStatus, spikeRule, commitLabel, blockedRule }: WorkflowSettingsView): WorkflowForm {
+  return {
+    categories: Object.fromEntries(statuses.map(({ status, category }) => [status, category ?? ''])),
+    startedStatus,
+    spikeTypes: spikeRule.types.join(LIST_SEPARATOR),
+    spikeLabels: spikeRule.labels.join(LIST_SEPARATOR),
+    commitLabel: commitLabel ?? '',
+    blockedStatuses: blockedRule.statuses.join(LIST_SEPARATOR),
+    blockedLabels: blockedRule.labels.join(LIST_SEPARATOR),
+  }
+}
+
+/** The workflow section: the statuses to map, in order, and the form as saved or as typed when refused. */
+export interface WorkflowScreen {
+  statuses: string[]
+  form: WorkflowForm
+  error?: string
+}
+
 /** What the Inputs screen shows. */
 export interface InputsScreen {
   milestone: MilestoneDefinitionView
@@ -66,15 +130,19 @@ export interface InputsScreen {
   epicsError?: string
   /** The pace form; undefined when there is no milestone yet. */
   pace: PaceForm | undefined
+  workflow: WorkflowScreen
 }
 
-/** The Inputs screen: the milestone's definition and its manual pace range. */
+/** The Inputs screen: the milestone's definition, its manual pace range and the team's workflow settings. */
 export function renderInputsScreen(screen: InputsScreen): string {
   const milestone =
     screen.milestone.kind === 'milestone'
       ? epicsSection(screen.milestone, screen.detailsForm ?? screen.milestone, screen.epicsError)
       : newMilestoneSection(screen.milestone.teamEpics, screen.milestoneForm ?? { name: '', committedDate: '', ranks: {} })
-  return htmlPage('Inputs', `${milestone}\n${screen.pace ? paceSection(screen.pace) : NO_MILESTONE}`)
+  return htmlPage(
+    'Inputs',
+    `${milestone}\n${screen.pace ? paceSection(screen.pace) : NO_MILESTONE}\n${workflowSection(screen.workflow)}`,
+  )
 }
 
 function newMilestoneSection(teamEpics: EpicChoice[], form: MilestoneForm): string {
@@ -169,6 +237,59 @@ function paceSection(form: PaceForm): string {
         <label>High <input type="number" name="high" min="0" max="${MAX_TICKETS_PER_WEEK}" step="1" value="${escapeHtml(form.high)}" required></label>
         <span>tickets per week</span>
         <p><button type="submit">Save and forecast</button></p>
+      </form>
+    </section>`
+}
+
+/** The category's name as an option label: "Not started". */
+function categoryLabel(category: StatusCategory): string {
+  const name = STATUS_CATEGORY_NAMES[category]
+  return name.charAt(0).toUpperCase() + name.slice(1)
+}
+
+function workflowSection({ statuses, form, error }: WorkflowScreen): string {
+  const rows = statuses
+    .map((status) => {
+      const chosen = form.categories[status] ?? ''
+      const options = [
+        `<option value=""${chosen === '' ? ' selected' : ''}>Choose…</option>`,
+        ...STATUS_CATEGORIES.map(
+          (category) => `<option value="${category}"${chosen === category ? ' selected' : ''}>${categoryLabel(category)}</option>`,
+        ),
+      ].join('')
+      return `          <tr>
+            <td>${escapeHtml(status)}</td>
+            <td><select name="${STATUS_FIELD}${escapeHtml(status)}" aria-label="What ${escapeHtml(status)} means">${options}</select></td>
+          </tr>`
+    })
+    .join('\n')
+  const startedOptions = statuses
+    .map(
+      (status) =>
+        `<option value="${escapeHtml(status)}"${form.startedStatus === status ? ' selected' : ''}>${escapeHtml(status)}</option>`,
+    )
+    .join('')
+  const textField = (name: Exclude<keyof WorkflowForm, 'categories'>, label: string, hint: string): string =>
+    `        <p><label>${label} <input type="text" name="${name}" value="${escapeHtml(form[name])}"></label> <span class="note">${hint}</span></p>`
+  return `    <section aria-label="Workflow">
+      <h2>Workflow</h2>
+      <p>How the team's board works: what each status means to the forecast, and which tickets are spikes.</p>
+      <form method="post" action="/inputs/workflow">${errorLine(error)}
+        <table>
+          <thead>
+            <tr><th>Board status</th><th>Means</th></tr>
+          </thead>
+          <tbody>
+${rows}
+          </tbody>
+        </table>
+        <p><label>Cycle time starts at <select name="startedStatus">${startedOptions}</select></label> <span class="note">A status that means started.</span></p>
+${textField('spikeTypes', 'Spike issue types', 'Comma-separated, e.g. spike.')}
+${textField('spikeLabels', 'Spike labels', 'Comma-separated. A ticket with any of these types or labels is a spike.')}
+${textField('commitLabel', 'Commit label', 'Optional. Applying it to an epic commits the epic.')}
+${textField('blockedStatuses', 'Blocked statuses', 'Comma-separated statuses that mark an epic as blocked.')}
+${textField('blockedLabels', 'Blocked labels or flags', 'Comma-separated labels that mark an epic as blocked.')}
+        <p><button type="submit">Save workflow</button></p>
       </form>
     </section>`
 }
