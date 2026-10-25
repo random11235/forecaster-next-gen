@@ -3,6 +3,14 @@ export type StatusCategory = 'notStarted' | 'started' | 'done' | 'cancelled'
 
 export const STATUS_CATEGORIES: readonly StatusCategory[] = ['notStarted', 'started', 'done', 'cancelled']
 
+/** Each category as the EM reads it, in lower case. */
+export const STATUS_CATEGORY_NAMES: Record<StatusCategory, string> = {
+  notStarted: 'not started',
+  started: 'started',
+  done: 'done',
+  cancelled: 'cancelled',
+}
+
 /** One board status and its category. */
 export interface StatusMapping {
   status: string

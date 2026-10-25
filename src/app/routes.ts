@@ -49,14 +49,14 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
   const milestone = teamMilestone(storage, team.id)
   const form = request.form ?? new URLSearchParams()
   const workflow = workflowSettingsView(storage, team.id)
-  const boardStatuses = workflow.statuses.map((entry) => entry.status)
+  const statusesToMap = workflow.statuses.map((entry) => entry.status)
   const inputsScreen = (status: number, screen: Partial<InputsScreen> = {}): Reply => ({
     kind: 'html',
     status,
     html: renderInputsScreen({
       milestone: milestoneDefinitionView(storage, team.id),
       pace: milestone && savedPaceForm(storage, milestone.teamId, milestone.id),
-      workflow: { statuses: boardStatuses, form: savedWorkflowForm(workflow) },
+      workflow: { statuses: statusesToMap, form: savedWorkflowForm(workflow) },
       ...screen,
     }),
   })
@@ -88,8 +88,8 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
   }
   if (request.method === 'POST' && request.path === '/inputs/workflow') {
     const typed = parseWorkflowForm(form)
-    const saved = editWorkflowSettings(storage, team.id, typed)
-    if (!saved.ok) return inputsScreen(400, { workflow: { statuses: boardStatuses, form: typed, error: saved.error } })
+    const saved = editWorkflowSettings(storage, team.id, typed.edit)
+    if (!saved.ok) return inputsScreen(400, { workflow: { statuses: statusesToMap, form: typed.form, error: saved.error } })
     return { kind: 'redirect', location: '/inputs' }
   }
   return { kind: 'notFound' }

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { Milestone } from '../model/milestone.js'
 import type { WorkItem } from '../model/workItem.js'
 import type { Storage } from '../storage/storage.js'
+import { refuse, type EditResult } from './editResult.js'
 import { teamFacts } from './workflowSettings.js'
 
 /** A change the EM makes to the team's milestone on the Inputs screen. */
@@ -20,9 +21,6 @@ export interface RankedEpic {
   epicId: string
   rank: string
 }
-
-/** Whether the edit was saved, or why it was refused. */
-export type EditResult = { ok: true } | { ok: false; error: string }
 
 /** An epic as the EM picks it: its key in the ticketing tool, and its title, or its key when it has none. */
 export interface EpicChoice {
@@ -130,10 +128,6 @@ export function parseEpicForm(body: URLSearchParams): { ok: true; edit: Mileston
 
 const NOT_A_TEAM_EPIC = "Choose epics from the team's epics."
 const NOT_IN_MILESTONE = 'That epic is not in the milestone.'
-
-function refuse(error: string): { ok: false; error: string } {
-  return { ok: false, error }
-}
 
 /** The milestone's name, trimmed, and its committed date, if both are valid. */
 function checkedDetails(typed: {

@@ -1,7 +1,7 @@
 import type { EpicChoice, MilestoneDefinitionView, RankedEpic } from '../forecast/milestoneDefinition.js'
-import type { WorkflowForm, WorkflowSettingsView } from '../forecast/workflowSettings.js'
+import type { WorkflowEdit, WorkflowSettingsView } from '../forecast/workflowSettings.js'
 import type { ThroughputRange } from '../model/paceSetting.js'
-import { STATUS_CATEGORIES, type StatusCategory } from '../model/workflow.js'
+import { STATUS_CATEGORIES, STATUS_CATEGORY_NAMES, type StatusCategory } from '../model/workflow.js'
 import { escapeHtml, formatDate, htmlPage } from './html.js'
 
 /** Far above any real team's weekly pace; keeps typos like 1000000 out of the forecast. */
@@ -57,14 +57,29 @@ export function parseMilestoneForm(body: URLSearchParams): { form: MilestoneForm
   return { form: { ...parseDetailsForm(body), ranks }, epics }
 }
 
+/** The workflow settings form as typed: a category for each status by name, and the rest as text. */
+export interface WorkflowForm {
+  /** Each status's category as chosen, by status name; blank when none was chosen. */
+  categories: Record<string, string>
+  startedStatus: string
+  /** Comma-separated lists. */
+  spikeTypes: string
+  spikeLabels: string
+  /** Blank for none. */
+  commitLabel: string
+  blockedStatuses: string
+  blockedLabels: string
+}
+
 const STATUS_FIELD = 'status:'
+const LIST_SEPARATOR = ', '
 
 /** Reads the submitted workflow settings form; the rules they must meet are checked when they are saved. */
-export function parseWorkflowForm(body: URLSearchParams): WorkflowForm {
+export function parseWorkflowForm(body: URLSearchParams): { form: WorkflowForm; edit: WorkflowEdit } {
   const categories: Record<string, string> = {}
   for (const [field, value] of body) if (field.startsWith(STATUS_FIELD)) categories[field.slice(STATUS_FIELD.length)] = value
-  const text = (field: string): string => body.get(field) ?? ''
-  return {
+  const text = (field: keyof WorkflowForm): string => body.get(field) ?? ''
+  const form: WorkflowForm = {
     categories,
     startedStatus: text('startedStatus'),
     spikeTypes: text('spikeTypes'),
@@ -73,22 +88,31 @@ export function parseWorkflowForm(body: URLSearchParams): WorkflowForm {
     blockedStatuses: text('blockedStatuses'),
     blockedLabels: text('blockedLabels'),
   }
+  const list = (typed: string): string[] => typed.split(',')
+  const edit: WorkflowEdit = {
+    categories,
+    startedStatus: form.startedStatus,
+    spikeRule: { types: list(form.spikeTypes), labels: list(form.spikeLabels) },
+    commitLabel: form.commitLabel,
+    blockedRule: { statuses: list(form.blockedStatuses), labels: list(form.blockedLabels) },
+  }
+  return { form, edit }
 }
 
 /** The workflow settings form filled with the team's saved settings. */
-export function savedWorkflowForm(view: WorkflowSettingsView): WorkflowForm {
+export function savedWorkflowForm({ statuses, startedStatus, spikeRule, commitLabel, blockedRule }: WorkflowSettingsView): WorkflowForm {
   return {
-    categories: Object.fromEntries(view.statuses.map(({ status, category }) => [status, category ?? ''])),
-    startedStatus: view.startedStatus,
-    spikeTypes: view.spikeTypes.join(', '),
-    spikeLabels: view.spikeLabels.join(', '),
-    commitLabel: view.commitLabel ?? '',
-    blockedStatuses: view.blockedStatuses.join(', '),
-    blockedLabels: view.blockedLabels.join(', '),
+    categories: Object.fromEntries(statuses.map(({ status, category }) => [status, category ?? ''])),
+    startedStatus,
+    spikeTypes: spikeRule.types.join(LIST_SEPARATOR),
+    spikeLabels: spikeRule.labels.join(LIST_SEPARATOR),
+    commitLabel: commitLabel ?? '',
+    blockedStatuses: blockedRule.statuses.join(LIST_SEPARATOR),
+    blockedLabels: blockedRule.labels.join(LIST_SEPARATOR),
   }
 }
 
-/** The workflow section: the board's statuses in order, and the form as saved or as typed when refused. */
+/** The workflow section: the statuses to map, in order, and the form as saved or as typed when refused. */
 export interface WorkflowScreen {
   statuses: string[]
   form: WorkflowForm
@@ -217,11 +241,10 @@ function paceSection(form: PaceForm): string {
     </section>`
 }
 
-const CATEGORY_TEXT: Record<StatusCategory, string> = {
-  notStarted: 'Not started',
-  started: 'Started',
-  done: 'Done',
-  cancelled: 'Cancelled',
+/** The category's name as an option label: "Not started". */
+function categoryLabel(category: StatusCategory): string {
+  const name = STATUS_CATEGORY_NAMES[category]
+  return name.charAt(0).toUpperCase() + name.slice(1)
 }
 
 function workflowSection({ statuses, form, error }: WorkflowScreen): string {
@@ -231,7 +254,7 @@ function workflowSection({ statuses, form, error }: WorkflowScreen): string {
       const options = [
         `<option value=""${chosen === '' ? ' selected' : ''}>Choose…</option>`,
         ...STATUS_CATEGORIES.map(
-          (category) => `<option value="${category}"${chosen === category ? ' selected' : ''}>${CATEGORY_TEXT[category]}</option>`,
+          (category) => `<option value="${category}"${chosen === category ? ' selected' : ''}>${categoryLabel(category)}</option>`,
         ),
       ].join('')
       return `          <tr>
