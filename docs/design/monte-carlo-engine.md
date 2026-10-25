@@ -42,11 +42,16 @@ The data model is designed so that each of these can be relaxed later without re
 ### Layer 1: observed facts (ingested)
 
 ```ts
-Team          { id, name, source: 'sample'|'jira'|'github', sourceRef,
-                workflowMap: Record<sourceStatus, 'not_started'|'started'|'done'|'cancelled'>,
-                startedSignal?,      // GitHub: the label, project column or assignee that means "started"
-                spikeRule,           // issue types and/or labels that mark a spike
-                commitLabel? }       // optional label that commits an epic when applied
+Team          { id, name, source: 'sample'|'jira'|'github', sourceRef }
+
+WorkflowSettings { teamId,            // set by the EM; one per team
+                statuses: { status, category: 'notStarted'|'started'|'done'|'cancelled' }[],
+                startedStatus,       // the status where cycle time starts; one mapped to started
+                startedSignal?,      // later, with the GitHub connector: the label, project column or assignee
+                                     // that means "started"; not in the model yet
+                spikeRule: { types, labels },        // issue types and/or labels that mark a spike
+                commitLabel?,        // optional label that commits an epic when applied
+                blockedRule: { statuses, labels } }  // statuses and/or labels (flags) that mark an epic blocked
 
 WorkItem      { id, teamId, sourceKey, type: 'story'|'bug'|'task'|'epic'|...,
                 parentId?, labels, createdAt, startedAt?, doneAt?, cancelledAt?, lastSyncedAt }
@@ -56,7 +61,7 @@ WorkItemEvent { itemId, at, kind: 'status'|'parent'|'type'|'label', from?, to? }
 
 `WorkItemEvent` holds parent-change history (Jira changelog, GitHub sub-issue events). That history tells you how many children an epic had at any point in time, which is what makes growth measurable.
 
-`startedAt` comes from the status mapped as "started" in `workflowMap` (or `startedSignal` on GitHub). Cycle time is `startedAt → doneAt`. Created-to-done (lead time) is not used in v1.
+The forecast reads `startedAt`, `doneAt` and `cancelledAt` from each ticket's status history under the team's `WorkflowSettings` (`samples/workflowState.ts`), so changing the mapping changes which tickets count as done. `startedAt` is when the ticket first entered `startedStatus`. A ticket that skipped it starts when it first entered any status mapped to started, or, if it skipped those too, when it first entered one mapped to done, so work that jumps columns still has a cycle time. On GitHub, `startedSignal` will set it instead, once that connector adds it. A status the EM hasn't mapped counts as not started. Cycle time is `startedAt → doneAt`. Created-to-done (lead time) is not used in v1.
 
 Ingestion follows data minimisation (see [Security](#security)). On GitHub, an assignee used as `startedSignal` is read only as "has an assignee".
 
@@ -267,6 +272,7 @@ src/
     team.ts
     workItem.ts           # WorkItem, WorkItemEvent, Facts
     milestone.ts          # Milestone: defined by the EM, not ingested
+    workflow.ts           # WorkflowSettings: the EM's status mapping, spike rule, commit label, blocked rule
 
   samples/                # Layer 2: pure derivations from model/
     commits.ts            # commits, pull-back resets, uncommitted-but-active detection
@@ -274,6 +280,7 @@ src/
     growth.ts             # commits + final counts → GrowthSample[]
     epicSize.ts           # finished epics → EpicSizeSample[]
     cycleTime.ts          # started → done; spread and ageing
+    workflowState.ts      # status history + WorkflowSettings → started, done and cancelled times
 
   engine/                 # pure: no I/O, no DB, no clock; see src/engine/ for its files
     index.ts              # exports simulateCase, periodEndDate and the types only
@@ -333,6 +340,8 @@ Connectors are tested through Seam B by replaying recorded API responses, with n
 `test/app/` holds the launch smoke test. It is not a forecasting seam: it builds the app, runs the built `npm start` entry point (`dist/app/main.js`) with `FORECASTER_NO_BROWSER=1` so no browser opens and a temporary `FORECASTER_DATA_FILE`, and checks that the Milestone forecast screen is served. It also checks that a bad `PORT` is refused.
 
 The one exception is the PRNG: `engine/random.ts` is checked against output vectors from the authors' reference C code for xoshiro128**, because a port must reproduce its exact stream and Seam A can't show that.
+
+`test/storage/` holds the schema migration tests. They are not a forecasting seam either: they write a data file as an earlier release left it, open it through `openSqliteStorage`, and check what reads back. A ticket that changes the schema appends a step to `MIGRATIONS` in `src/storage/sqliteStorage.ts` (never editing a released one) and adds a test there that opens a file from the version before.
 
 ---
 
