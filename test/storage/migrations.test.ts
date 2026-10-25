@@ -173,6 +173,48 @@ describe('schema version', () => {
   })
 })
 
+describe('a data file from schema version 1, before workflow settings', () => {
+  // Version 1's tables are the unversioned schema's, recorded as version 1.
+  const SAMPLE_WORKFLOW = {
+    teamId: TEAM,
+    statuses: [
+      { status: 'To Do', category: 'notStarted' },
+      { status: 'In Progress', category: 'started' },
+      { status: 'Done', category: 'done' },
+      { status: 'Cancelled', category: 'cancelled' },
+    ],
+    startedStatus: 'In Progress',
+    spikeRule: { types: ['spike'], labels: ['spike'] },
+    blockedRule: { statuses: [], labels: ['blocked'] },
+  }
+
+  test("keeps its data, gives each team the sample board's workflow, and opens again unchanged", () => {
+    const file = writeFile('v1.db', UNVERSIONED_SCHEMA, 1)
+
+    const storage = open(file)
+    expect(storage.teams()).toEqual([{ id: TEAM, name: 'Acme', source: 'jira', sourceRef: TEAM }])
+    expect(storage.facts(TEAM).workItems.map((item) => item.id)).toEqual(['E1', 'S1'])
+    expect(storage.milestones(TEAM)).toEqual([
+      { id: 'M1', teamId: TEAM, name: 'Launch', committedDate: '2026-12-18', epicIds: ['E1'] },
+    ])
+    expect(storage.paceSetting(TEAM, 'M1')).toEqual({ teamId: TEAM, milestoneId: 'M1', mode: 'manual', low: 3, high: 7 })
+    expect(storage.workflowSettings(TEAM)).toEqual(SAMPLE_WORKFLOW)
+
+    const reopened = open(file)
+    expect(reopened.workflowSettings(TEAM)).toEqual(SAMPLE_WORKFLOW)
+    expect(reopened.facts(TEAM).workItems.map((item) => item.id)).toEqual(['E1', 'S1'])
+  })
+
+  test('takes new workflow settings, and they survive reopening', () => {
+    const file = writeFile('v1.db', UNVERSIONED_SCHEMA, 1)
+    const changed = { ...SAMPLE_WORKFLOW, startedStatus: 'Doing', commitLabel: 'committed' }
+
+    open(file).saveWorkflowSettings({ ...changed, statuses: [{ status: 'Doing', category: 'started' }] })
+
+    expect(open(file).workflowSettings(TEAM)).toEqual({ ...changed, statuses: [{ status: 'Doing', category: 'started' }] })
+  })
+})
+
 describe('a data file from a newer release', () => {
   test('refuses to open, says why, and leaves the file as it was', () => {
     const file = writeFile('newer.db', 'CREATE TABLE from_the_future (id TEXT);', 999)

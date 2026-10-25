@@ -2,11 +2,14 @@ import { milestoneForecastView, type MilestoneForecastView } from '../forecast/m
 import { DEFAULT_SETTINGS } from '../forecast/settings.js'
 import type { Storage } from '../storage/storage.js'
 import { editMilestone, milestoneDefinitionView, parseEpicForm, teamMilestone } from '../forecast/milestoneDefinition.js'
+import { editWorkflowSettings, workflowSettingsView } from '../forecast/workflowSettings.js'
 import {
   parseDetailsForm,
   parseMilestoneForm,
   parsePaceForm,
+  parseWorkflowForm,
   renderInputsScreen,
+  savedWorkflowForm,
   type InputsScreen,
   type PaceForm,
 } from './inputsScreen.js'
@@ -45,12 +48,15 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
   // v1 is single-team: the inputs are for its milestone
   const milestone = teamMilestone(storage, team.id)
   const form = request.form ?? new URLSearchParams()
+  const workflow = workflowSettingsView(storage, team.id)
+  const boardStatuses = workflow.statuses.map((entry) => entry.status)
   const inputsScreen = (status: number, screen: Partial<InputsScreen> = {}): Reply => ({
     kind: 'html',
     status,
     html: renderInputsScreen({
       milestone: milestoneDefinitionView(storage, team.id),
       pace: milestone && savedPaceForm(storage, milestone.teamId, milestone.id),
+      workflow: { statuses: boardStatuses, form: savedWorkflowForm(workflow) },
       ...screen,
     }),
   })
@@ -78,6 +84,12 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
     const change = parseEpicForm(form)
     const saved = change.ok ? editMilestone(storage, team.id, change.edit) : change
     if (!saved.ok) return inputsScreen(400, { epicsError: saved.error })
+    return { kind: 'redirect', location: '/inputs' }
+  }
+  if (request.method === 'POST' && request.path === '/inputs/workflow') {
+    const typed = parseWorkflowForm(form)
+    const saved = editWorkflowSettings(storage, team.id, typed)
+    if (!saved.ok) return inputsScreen(400, { workflow: { statuses: boardStatuses, form: typed, error: saved.error } })
     return { kind: 'redirect', location: '/inputs' }
   }
   return { kind: 'notFound' }

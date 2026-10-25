@@ -1,5 +1,6 @@
 import type { Milestone } from '../model/milestone.js'
 import type { Team } from '../model/team.js'
+import { defaultWorkflowSettings, type WorkflowSettings } from '../model/workflow.js'
 import type { Facts, WorkItem, WorkItemEvent } from '../model/workItem.js'
 
 /** Canned data loaded on first launch, so the EM can see how the Forecaster works without connecting Jira. */
@@ -7,6 +8,8 @@ export interface SampleData {
   team: Team
   facts: Facts
   milestone: Milestone
+  /** The sample board's workflow: To Do, In Progress, Done and Cancelled, with spikes by type or label. */
+  workflow: WorkflowSettings
 }
 
 const TEAM_ID = 'sample-team'
@@ -127,4 +130,5 @@ export const SAMPLE_DATA: SampleData = {
     committedDate: '2026-12-18',
     epicIds: ['PAY-1', 'PAY-2', 'PAY-3'],
   },
+  workflow: defaultWorkflowSettings(TEAM_ID),
 }
