@@ -1,3 +1,5 @@
+import type { CommitView } from '../forecast/milestoneDefinition.js'
+
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 /** A whole screen: the shared head and navigation around `main`. */
@@ -35,6 +37,11 @@ ${main}
 </body>
 </html>
 `
+}
+
+/** A committed epic's commit, the same on every screen: `Committed at 14 items`. */
+export function commitText(commit: CommitView): string {
+  return `Committed at ${commit.baseline} items`
 }
 
 /** `2026-12-18` → `18 Dec 2026`. */

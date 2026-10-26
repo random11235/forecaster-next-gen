@@ -4,18 +4,21 @@ import type { Pace } from '../model/paceSetting.js'
 import { childrenOf, type Facts } from '../model/workItem.js'
 import { milestoneThroughput } from '../samples/throughput.js'
 import type { ForecastSettings } from './settings.js'
+import type { TeamFacts } from './teamFacts.js'
 
 /** The engine case, or why there is none: measured pace with no ticket under the milestone's epics done yet. */
 export type BuiltCase = { ok: true; simulationCase: SimulationCase } | { ok: false; reason: 'noDoneTickets' }
 
 /**
  * The engine case for the milestone's 'when' forecast, starting `today`.
- * v1 so far: every epic is uncommitted, so its current count is a provisional baseline and it grows by the
- * medium ambiguity range; an epic with no children draws its size from the default range.
+ * A committed epic grows from its baseline, its count at commit; an uncommitted one from its current count, a
+ * provisional baseline.
+ * v1 so far: every epic grows by the medium ambiguity range, and an epic with no baseline children draws its size from
+ * the default range.
  */
 export function buildCase(
   milestone: Milestone,
-  facts: Facts,
+  { facts, commits }: TeamFacts,
   pace: Pace,
   settings: ForecastSettings,
   today: string,
@@ -38,7 +41,7 @@ export function buildCase(
         return {
           epicId,
           rank,
-          baseCount: children.length,
+          baseCount: commits.get(epicId)?.baseline ?? children.length,
           currentCount: children.length,
           doneCount: children.filter((child) => child.doneAt !== undefined).length,
           growth: settings.mediumAmbiguity,

@@ -1,13 +1,13 @@
 import { periodEndDate, simulateCase } from '../engine/index.js'
 import type { Milestone } from '../model/milestone.js'
 import type { Pace, PaceSetting } from '../model/paceSetting.js'
-import { childrenOf, type Facts } from '../model/workItem.js'
+import { childrenOf } from '../model/workItem.js'
 import type { Storage } from '../storage/storage.js'
 import { buildCase } from './buildCase.js'
-import { teamMilestone } from './milestoneDefinition.js'
+import { commitView, teamMilestone, type CommitView } from './milestoneDefinition.js'
 import { informationNotes, thinDataMessage } from './diagnostics.js'
 import type { ForecastSettings } from './settings.js'
-import { teamFacts } from './teamFacts.js'
+import { teamFacts, type TeamFacts } from './teamFacts.js'
 
 export interface EpicRow {
   epicId: string
@@ -17,7 +17,8 @@ export interface EpicRow {
   name: string
   /** Children now, done or not; cancelled children don't count. */
   itemsNow: number
-  status: 'notCommitted'
+  /** Its commit, whose baseline its growth applies to, or undefined when not committed: a wide range. */
+  commit: CommitView | undefined
 }
 
 /** The milestone's finish date at one confidence level. */
@@ -57,31 +58,37 @@ export function milestoneForecastView(storage: Storage, teamId: string, options:
   const milestone = teamMilestone(storage, teamId)
   if (!milestone) return { kind: 'noMilestone' }
 
-  const { facts } = teamFacts(storage, teamId)
+  const team = teamFacts(storage, teamId)
+  const { facts } = team
   const byId = new Map(facts.workItems.map((item) => [item.id, item]))
 
   return {
     kind: 'milestone',
     name: milestone.name,
     committedDate: milestone.committedDate,
-    forecast: forecastFor(milestone, facts, storage.paceSetting(teamId, milestone.id), options),
-    epics: milestone.epicIds.map((epicId) => {
+    forecast: forecastFor(milestone, team, storage.paceSetting(teamId, milestone.id), options),
+    epics: milestone.epicIds.map((epicId): EpicRow => {
       const epic = byId.get(epicId)
       return {
         epicId,
         key: epic?.sourceKey ?? epicId,
         name: epic?.title ?? epic?.sourceKey ?? epicId,
         itemsNow: childrenOf(facts.workItems, epicId).length,
-        status: 'notCommitted',
+        commit: commitView(team, epicId),
       }
     }),
   }
 }
 
-function forecastFor(milestone: Milestone, facts: Facts, setting: PaceSetting | undefined, options: ViewOptions): ForecastSection {
+function forecastFor(
+  milestone: Milestone,
+  team: TeamFacts,
+  setting: PaceSetting | undefined,
+  options: ViewOptions,
+): ForecastSection {
   if (!setting) return { kind: 'needsPace' }
   const { teamId: _teamId, milestoneId: _milestoneId, ...pace } = setting
-  const built = buildCase(milestone, facts, pace, options.settings, options.today)
+  const built = buildCase(milestone, team, pace, options.settings, options.today)
   if (!built.ok) return { kind: 'thinData', message: thinDataMessage(built.reason) }
 
   const result = simulateCase(built.simulationCase)

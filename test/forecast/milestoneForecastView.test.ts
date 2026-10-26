@@ -84,9 +84,9 @@ describe('milestone forecast view on sample data', () => {
       committedDate: '2026-12-18',
       forecast: { kind: 'needsPace' },
       epics: [
-        { epicId: 'PAY-1', key: 'PAY-1', name: 'Card vaulting', itemsNow: 6, status: 'notCommitted' },
-        { epicId: 'PAY-2', key: 'PAY-2', name: 'Refunds', itemsNow: 14, status: 'notCommitted' },
-        { epicId: 'PAY-3', key: 'PAY-3', name: 'Receipts redesign', itemsNow: 3, status: 'notCommitted' },
+        { epicId: 'PAY-1', key: 'PAY-1', name: 'Card vaulting', itemsNow: 6, commit: undefined },
+        { epicId: 'PAY-2', key: 'PAY-2', name: 'Refunds', itemsNow: 14, commit: undefined },
+        { epicId: 'PAY-3', key: 'PAY-3', name: 'Receipts redesign', itemsNow: 3, commit: undefined },
       ],
     })
   })
@@ -103,7 +103,7 @@ describe('milestone forecast view on sample data', () => {
       name: 'ACME milestone',
       committedDate: '2027-01-29',
       forecast: { kind: 'needsPace' },
-      epics: [{ epicId: 'ACME-E', key: 'ACME-E', name: 'ACME epic', itemsNow: 2, status: 'notCommitted' }],
+      epics: [{ epicId: 'ACME-E', key: 'ACME-E', name: 'ACME epic', itemsNow: 2, commit: undefined }],
     })
   })
 
@@ -128,7 +128,7 @@ describe('milestone forecast view on sample data', () => {
       name: 'BETA milestone',
       committedDate: '2027-01-29',
       forecast: { kind: 'needsPace' },
-      epics: [{ epicId: 'BETA-E', key: 'BETA-E', name: 'BETA epic', itemsNow: 5, status: 'notCommitted' }],
+      epics: [{ epicId: 'BETA-E', key: 'BETA-E', name: 'BETA epic', itemsNow: 5, commit: undefined }],
     })
   })
 

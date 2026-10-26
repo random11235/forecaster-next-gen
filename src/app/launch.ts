@@ -27,6 +27,7 @@ export async function startAppAndOpenBrowser(options: LaunchOptions): Promise<Ru
   const context: AppContext = {
     storage: options.storage,
     today: options.today ?? (() => new Date().toISOString().slice(0, 10)),
+    now: () => new Date().toISOString(),
   }
   loadSampleDataIfEmpty(context.storage)
   const server = createServer((request, response) => {
