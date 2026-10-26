@@ -13,6 +13,7 @@ import {
   savedWorkflowForm,
   type InputsScreen,
   type PaceForm,
+  type WorkflowScreen,
 } from './inputsScreen.js'
 import { renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
 
@@ -49,19 +50,24 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
   // v1 is single-team: the inputs are for its milestone
   const milestone = teamMilestone(storage, team.id)
   const form = request.form ?? new URLSearchParams()
-  const facts = teamFacts(storage, team.id)
-  const workflow = workflowSettingsView(storage, team.id, facts)
-  const statusesToMap = workflow.statuses.map((entry) => entry.status)
-  const inputsScreen = (status: number, screen: Partial<InputsScreen> = {}): Reply => ({
-    kind: 'html',
-    status,
-    html: renderInputsScreen({
-      milestone: milestoneDefinitionView(storage, team.id, facts),
-      pace: milestone && savedPaceForm(storage, milestone.teamId, milestone.id),
-      workflow: { statuses: statusesToMap, form: savedWorkflowForm(workflow) },
-      ...screen,
-    }),
-  })
+  // the team's facts are read only to render the screen, so a saved POST that redirects doesn't read them here
+  const inputsScreen = (
+    status: number,
+    { workflowForm, ...screen }: Partial<Omit<InputsScreen, 'workflow'>> & { workflowForm?: Omit<WorkflowScreen, 'statuses'> } = {},
+  ): Reply => {
+    const facts = teamFacts(storage, team.id)
+    const workflow = workflowSettingsView(facts)
+    return {
+      kind: 'html',
+      status,
+      html: renderInputsScreen({
+        milestone: milestoneDefinitionView(storage, team.id, facts),
+        pace: milestone && savedPaceForm(storage, milestone.teamId, milestone.id),
+        workflow: { statuses: workflow.statuses.map((entry) => entry.status), ...(workflowForm ?? { form: savedWorkflowForm(workflow) }) },
+        ...screen,
+      }),
+    }
+  }
 
   if (request.method === 'GET' && request.path === '/inputs') return inputsScreen(200)
   if (request.method === 'POST' && request.path === '/inputs' && milestone) {
@@ -91,7 +97,7 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
   if (request.method === 'POST' && request.path === '/inputs/workflow') {
     const typed = parseWorkflowForm(form)
     const saved = editWorkflowSettings(storage, team.id, typed.edit)
-    if (!saved.ok) return inputsScreen(400, { workflow: { statuses: statusesToMap, form: typed.form, error: saved.error } })
+    if (!saved.ok) return inputsScreen(400, { workflowForm: { form: typed.form, error: saved.error } })
     return { kind: 'redirect', location: '/inputs' }
   }
   return { kind: 'notFound' }
