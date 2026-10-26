@@ -2,7 +2,7 @@ import type { EpicChoice, MilestoneDefinitionView, RankedEpic } from '../forecas
 import type { WorkflowEdit, WorkflowSettingsView } from '../forecast/workflowSettings.js'
 import type { ThroughputRange } from '../model/paceSetting.js'
 import { STATUS_CATEGORIES, STATUS_CATEGORY_NAMES, type StatusCategory } from '../model/workflow.js'
-import { escapeHtml, formatDate, htmlPage } from './html.js'
+import { commitText, escapeHtml, formatDate, htmlPage } from './html.js'
 
 /** Far above any real team's weekly pace; keeps typos like 1000000 out of the forecast. */
 const MAX_TICKETS_PER_WEEK = 1000
@@ -189,6 +189,7 @@ function epicsSection(
             <button type="submit" name="action" value="up"${rank === 0 ? ' disabled' : ''}>Up</button>
             <button type="submit" name="action" value="down"${rank === last ? ' disabled' : ''}>Down</button>
             <button type="submit" name="action" value="remove"${last === 0 ? ' disabled' : ''}>Remove</button>
+            ${epic.commit ? `<span class="note">${commitText(epic.commit)}</span>` : '<button type="submit" name="action" value="commit">Commit</button>'}
           </form>
         </li>`,
     )
