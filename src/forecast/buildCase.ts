@@ -3,6 +3,7 @@ import type { Milestone } from '../model/milestone.js'
 import type { Pace } from '../model/paceSetting.js'
 import { childrenOf, type Facts } from '../model/workItem.js'
 import { milestoneThroughput } from '../samples/throughput.js'
+import { baselineOf, milestoneEpics } from './milestoneEpics.js'
 import type { ForecastSettings } from './settings.js'
 import type { TeamFacts } from './teamFacts.js'
 
@@ -11,19 +12,18 @@ export type BuiltCase = { ok: true; simulationCase: SimulationCase } | { ok: fal
 
 /**
  * The engine case for the milestone's 'when' forecast, starting `today`.
- * A committed epic grows from its baseline, its count at commit; an uncommitted one from its current count, a
- * provisional baseline.
+ * Each epic grows from its baseline (`baselineOf`).
  * v1 so far: every epic grows by the medium ambiguity range, and an epic with no baseline children draws its size from
  * the default range.
  */
 export function buildCase(
   milestone: Milestone,
-  { facts, commits }: TeamFacts,
+  team: TeamFacts,
   pace: Pace,
   settings: ForecastSettings,
   today: string,
 ): BuiltCase {
-  const throughputSamples = pace.mode === 'manual' ? manualRange(pace) : measuredSamples(milestone, facts, settings, today)
+  const throughputSamples = pace.mode === 'manual' ? manualRange(pace) : measuredSamples(milestone, team.facts, settings, today)
   if (throughputSamples === undefined) return { ok: false, reason: 'noDoneTickets' }
 
   return {
@@ -36,17 +36,14 @@ export function buildCase(
       question: { kind: 'when' },
       startDate: today,
       periodDays: settings.periodDays,
-      scope: milestone.epicIds.map((epicId, rank) => {
-        const children = childrenOf(facts.workItems, epicId)
-        return {
-          epicId,
-          rank,
-          baseCount: commits.get(epicId)?.baseline ?? children.length,
-          currentCount: children.length,
-          doneCount: children.filter((child) => child.doneAt !== undefined).length,
-          growth: settings.mediumAmbiguity,
-        }
-      }),
+      scope: milestoneEpics(milestone, team).map((epic, rank) => ({
+        epicId: epic.epicId,
+        rank,
+        baseCount: baselineOf(epic),
+        currentCount: epic.itemsNow,
+        doneCount: childrenOf(team.facts.workItems, epic.epicId).filter((child) => child.doneAt !== undefined).length,
+        growth: settings.mediumAmbiguity,
+      })),
       throughputSamples,
       epicSizeSamples: settings.defaultEpicSize,
       percentiles: settings.percentiles,
