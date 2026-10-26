@@ -45,49 +45,7 @@ function text(html: string): string {
     .replace(/\s+/g, ' ')
 }
 
-/** The real storage, counting each time the team's facts are read from it. */
-function countingFactReads(real: Storage): { storage: Storage; reads: () => number } {
-  let reads = 0
-  const storage: Storage = {
-    isEmpty: () => real.isEmpty(),
-    saveTeam: (team) => real.saveTeam(team),
-    teams: () => real.teams(),
-    addFacts: (teamId, facts) => real.addFacts(teamId, facts),
-    facts: (teamId) => {
-      reads++
-      return real.facts(teamId)
-    },
-    saveMilestone: (milestone) => real.saveMilestone(milestone),
-    milestones: (teamId) => real.milestones(teamId),
-    savePaceSetting: (setting) => real.savePaceSetting(setting),
-    paceSetting: (teamId, milestoneId) => real.paceSetting(teamId, milestoneId),
-    saveWorkflowSettings: (settings) => real.saveWorkflowSettings(settings),
-    workflowSettings: (teamId) => real.workflowSettings(teamId),
-    saveEpicCommit: (commit) => real.saveEpicCommit(commit),
-    epicCommits: (teamId) => real.epicCommits(teamId),
-    close: () => real.close(),
-  }
-  return { storage, reads: () => reads }
-}
-
-/** Starts the app on the sample data, counting reads of the team's facts from launch on. */
-async function startCountingFactReads(): Promise<() => number> {
-  storage = openSqliteStorage(':memory:')
-  const counting = countingFactReads(storage)
-  app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage: counting.storage, today: () => '2026-10-24' })
-  const atLaunch = counting.reads()
-  return () => counting.reads() - atLaunch
-}
-
 describe('Inputs screen', () => {
-  test("reads the team's facts from storage once", async () => {
-    const reads = await startCountingFactReads()
-
-    await page('/inputs')
-
-    expect(reads()).toBe(1)
-  })
-
   test('asks for pace as a low–high range of tickets per week', async () => {
     await startOnSampleData()
 
@@ -117,22 +75,15 @@ describe('Inputs screen', () => {
     expect(inputs).toMatch(/name="high"[^>]*value="6"/)
   })
 
-  test.each([
-    { low: '6', high: '3', message: 'The low end must not be above the high end.' },
-    { low: 'two', high: '6', message: 'Enter whole numbers of tickets, 0 or more.' },
-    { low: '1.5', high: '6', message: 'Enter whole numbers of tickets, 0 or more.' },
-    { low: '-1', high: '6', message: 'Enter whole numbers of tickets, 0 or more.' },
-    { low: '', high: '6', message: 'Enter whole numbers of tickets, 0 or more.' },
-    { low: '1', high: '1000000', message: 'Enter at most 1000 tickets per week.' },
-  ])('refuses $low to $high, saying why and keeping what was typed', async ({ low, high, message }) => {
+  test('refuses a pace the rules forbid, saying why and keeping what was typed', async () => {
     await startOnSampleData()
 
-    const response = await submitPace(low, high)
+    const response = await submitPace('6', '3')
 
     expect(response.status).toBe(400)
     const html = await response.text()
-    expect(text(html)).toContain(message)
-    expect(html).toMatch(new RegExp(`name="low"[^>]*value="${low}"`))
+    expect(text(html)).toContain('The low end must not be above the high end.')
+    expect(html).toMatch(/name="low"[^>]*value="6"/)
     expect(text(await page('/'))).toContain('Enter your pace on the Inputs screen')
   })
 })
@@ -354,15 +305,6 @@ function workflowForm(changes: Record<string, string> = {}): [string, string][] 
 }
 
 describe('Inputs screen: workflow', () => {
-  test("saving the settings reads the team's facts from storage once", async () => {
-    const reads = await startCountingFactReads()
-
-    const response = await post('/inputs/workflow', workflowForm())
-
-    expect(response.status).toBe(303)
-    expect(reads()).toBe(1)
-  })
-
   test("shows the sample board's status mapping, started status, spike rules, commit label and blocked marker", async () => {
     await startOnSampleData()
 

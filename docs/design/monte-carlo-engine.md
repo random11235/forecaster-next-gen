@@ -287,8 +287,10 @@ src/
 
   forecast/               # the only module that knows both stored data and the engine
     teamFacts.ts          # team facts: stored facts and the commits that stand, read under the team's WorkflowSettings, once per call
-    milestoneDefinition.ts  # the Inputs screen's milestone view and edits, including committing an epic
-    workflowSettings.ts   # the Inputs screen's workflow settings view and edit
+    milestoneEpics.ts     # a milestone's epics as they stand: items now and commit; the baseline growth applies to
+    inputs.ts             # Seam B: stored data → the Inputs screen's view; its edits (milestone, workflow, pace) and their rules
+    milestoneDefinition.ts  # behind inputs.ts: the milestone's view and edits, including committing an epic
+    workflowSettings.ts   # behind inputs.ts: the workflow settings view and edit
     buildCase.ts          # pace mode, ambiguity ranges, provisional baselines, limits
     settings.ts           # ForecastSettings and AmbiguityRanges defaults
     suggestions.ts        # suggested pace range, measured medium range, switch offers
@@ -329,7 +331,7 @@ test/
 
 **Test seams.** There are two, as set in the spec:
 - **Seam A** is `simulateCase`, tested with fixed seeds.
-- **Seam B** is `forecast/`: stored facts, settings and the ledger go in, and the milestone forecast view comes out. Team facts is part of it: tests may call `teamFacts` directly.
+- **Seam B** is `forecast/`: stored facts, settings and the ledger go in, and the screens' views come out: `milestoneForecastView` for the Milestone forecast screen, and `inputsView` with `editInputs` for the Inputs screen. Team facts is part of it: tests may call `teamFacts` directly.
 
 Warning text and provenance are tested at Seam B, not Seam A. These cases moved from the engine tests. Each is owed, in `test/forecast/`, by the ticket that adds its warning or diagnostic:
 - the horizon warning when fewer trials finish than the highest reported percentile, with the floored percentage and the horizon date, and none when enough finish;
