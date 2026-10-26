@@ -44,6 +44,12 @@ export interface WorkflowSettings {
   blockedRule: StatusOrLabelRule
 }
 
+/** A lookup of each status's category under the workflow. A status the EM hasn't mapped counts as not started. */
+export function categoryLookup(workflow: WorkflowSettings): (status: string | undefined) => StatusCategory {
+  const categoryOf = new Map(workflow.statuses.map((mapping) => [mapping.status, mapping.category]))
+  return (status) => (status !== undefined && categoryOf.get(status)) || 'notStarted'
+}
+
 /**
  * The sample board's workflow, and the one a team has until the EM sets its own. Schema migration 2 writes the
  * same settings into data files from before workflow settings existed.
