@@ -1,25 +1,16 @@
 import { periodEndDate, simulateCase } from '../engine/index.js'
 import type { Milestone } from '../model/milestone.js'
 import type { Pace, PaceSetting } from '../model/paceSetting.js'
-import { childrenOf } from '../model/workItem.js'
 import type { Storage } from '../storage/storage.js'
 import { buildCase } from './buildCase.js'
-import { commitView, teamMilestone, type CommitView } from './milestoneDefinition.js'
+import { teamMilestone } from './milestoneDefinition.js'
+import { milestoneEpics, type MilestoneEpic } from './milestoneEpics.js'
 import { informationNotes, thinDataMessage } from './diagnostics.js'
 import type { ForecastSettings } from './settings.js'
 import { teamFacts, type TeamFacts } from './teamFacts.js'
 
-export interface EpicRow {
-  epicId: string
-  /** The epic's key in the ticketing tool. */
-  key: string
-  /** The epic's title, or its key when it has none. */
-  name: string
-  /** Children now, done or not; cancelled children don't count. */
-  itemsNow: number
-  /** Its commit, whose baseline its growth applies to, or undefined when not committed: a wide range. */
-  commit: CommitView | undefined
-}
+/** An epic row on the Milestone forecast screen. */
+export type EpicRow = MilestoneEpic
 
 /** The milestone's finish date at one confidence level. */
 export interface ForecastDate {
@@ -59,24 +50,13 @@ export function milestoneForecastView(storage: Storage, teamId: string, options:
   if (!milestone) return { kind: 'noMilestone' }
 
   const team = teamFacts(storage, teamId)
-  const { facts } = team
-  const byId = new Map(facts.workItems.map((item) => [item.id, item]))
 
   return {
     kind: 'milestone',
     name: milestone.name,
     committedDate: milestone.committedDate,
     forecast: forecastFor(milestone, team, storage.paceSetting(teamId, milestone.id), options),
-    epics: milestone.epicIds.map((epicId): EpicRow => {
-      const epic = byId.get(epicId)
-      return {
-        epicId,
-        key: epic?.sourceKey ?? epicId,
-        name: epic?.title ?? epic?.sourceKey ?? epicId,
-        itemsNow: childrenOf(facts.workItems, epicId).length,
-        commit: commitView(team, epicId),
-      }
-    }),
+    epics: milestoneEpics(milestone, team),
   }
 }
 

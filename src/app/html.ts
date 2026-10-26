@@ -1,4 +1,4 @@
-import type { CommitView } from '../forecast/milestoneDefinition.js'
+import type { CommitView } from '../forecast/milestoneEpics.js'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 

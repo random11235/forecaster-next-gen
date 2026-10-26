@@ -3,6 +3,7 @@ import type { Milestone } from '../model/milestone.js'
 import { childrenOf, type WorkItem } from '../model/workItem.js'
 import type { Storage } from '../storage/storage.js'
 import { refuse, type EditResult } from './editResult.js'
+import { milestoneEpics, type MilestoneEpic } from './milestoneEpics.js'
 import { teamFacts, type TeamFacts } from './teamFacts.js'
 
 /** A change the EM makes to the team's milestone on the Inputs screen. */
@@ -34,16 +35,6 @@ export interface EpicChoice {
   name: string
 }
 
-/** An epic's commit as the screens show it: its baseline, the children it had when the EM committed it. */
-export interface CommitView {
-  baseline: number
-}
-
-/** An epic in the milestone, and its commit, or undefined when not committed. */
-export interface MilestoneEpic extends EpicChoice {
-  commit: CommitView | undefined
-}
-
 /** What the Inputs screen shows of the milestone's definition, and the team's epics the EM can add to it. */
 export type MilestoneDefinitionView =
   | { kind: 'noMilestone'; teamEpics: EpicChoice[] }
@@ -61,18 +52,11 @@ export function milestoneDefinitionView(storage: Storage, teamId: string, team: 
   if (!milestone) return { kind: 'noMilestone', teamEpics: epics.map(toChoice) }
 
   const inMilestone = new Set(milestone.epicIds)
-  const byId = new Map(epics.map((epic) => [epic.id, epic]))
   return {
     kind: 'milestone',
     name: milestone.name,
     committedDate: milestone.committedDate,
-    epics: milestone.epicIds.map((epicId) => {
-      const epic = byId.get(epicId)
-      return {
-        ...(epic ? toChoice(epic) : { epicId, key: epicId, name: epicId }),
-        commit: commitView(team, epicId),
-      }
-    }),
+    epics: milestoneEpics(milestone, team),
     otherEpics: epics.filter((epic) => !inMilestone.has(epic.id)).map(toChoice),
   }
 }
@@ -191,12 +175,6 @@ function isCalendarDate(value: string): boolean {
 /** The team's epics a milestone can hold: cancelled epics are left out. */
 function teamEpics(team: TeamFacts): WorkItem[] {
   return team.facts.workItems.filter((item) => item.type === 'epic' && item.cancelledAt === undefined)
-}
-
-/** The epic's standing commit as the screens show it, or undefined when it is not committed. */
-export function commitView(team: TeamFacts, epicId: string): CommitView | undefined {
-  const commit = team.commits.get(epicId)
-  return commit && { baseline: commit.baseline }
 }
 
 function toChoice(epic: WorkItem): EpicChoice {
