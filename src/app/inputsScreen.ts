@@ -14,7 +14,7 @@ export interface PaceForm {
 
 /** Reads the submitted pace form; the rules it must meet are checked when it is saved. */
 export function parsePaceForm(body: URLSearchParams): PaceForm {
-  return { low: body.get('low') ?? '', high: body.get('high') ?? '' }
+  return { low: body.get('low')?.trim() ?? '', high: body.get('high')?.trim() ?? '' }
 }
 
 /** The pace form filled with the saved manual range, or empty. */

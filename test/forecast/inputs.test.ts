@@ -6,6 +6,7 @@ import { loadSampleDataIfEmpty } from '../../src/sample/loadSampleData.js'
 import { SAMPLE_DATA } from '../../src/sample/sampleData.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
+import { countingFactReads } from '../storage/countingFactReads.js'
 
 const TEAM = SAMPLE_DATA.team.id
 const TODAY = '2026-10-24'
@@ -30,24 +31,6 @@ function noMilestone(): Storage {
   storage.saveTeam(SAMPLE_DATA.team)
   storage.addFacts(TEAM, SAMPLE_DATA.facts)
   return storage
-}
-
-/** The storage, counting each time the team's facts are read from it. */
-function countingFactReads(real: Storage): { storage: Storage; reads: () => number } {
-  let reads = 0
-  const counting = new Proxy(real, {
-    get(target, property) {
-      if (property === 'facts') {
-        return (teamId: string) => {
-          reads++
-          return target.facts(teamId)
-        }
-      }
-      const value = Reflect.get(target, property)
-      return typeof value === 'function' ? value.bind(target) : value
-    },
-  })
-  return { storage: counting, reads: () => reads }
 }
 
 function setPace(storage: Storage, low: string, high: string) {
@@ -106,11 +89,12 @@ describe('setting pace', () => {
 })
 
 describe('an edit', () => {
-  test.each<{ why: string; edit: InputsEdit }>([
-    { why: 'pace', edit: { kind: 'setPace', low: '3', high: '6' } },
-    { why: 'an epic change', edit: { kind: 'moveEpic', epicId: 'PAY-2', direction: 'up' } },
+  test.each<{ why: string; edit: InputsEdit; reads: number }>([
+    { why: 'pace, which needs none', edit: { kind: 'setPace', low: '3', high: '6' }, reads: 0 },
+    { why: 'an epic change', edit: { kind: 'moveEpic', epicId: 'PAY-2', direction: 'up' }, reads: 1 },
     {
       why: 'workflow settings',
+      reads: 1,
       edit: {
         kind: 'editWorkflow',
         categories: { 'To Do': 'notStarted', 'In Progress': 'started', Done: 'done', Cancelled: 'cancelled' },
@@ -120,11 +104,11 @@ describe('an edit', () => {
         blockedRule: { statuses: [], labels: ['blocked'] },
       },
     },
-  ])("that is saved reads the team's facts from storage at most once: $why", ({ edit }) => {
+  ])("that is saved reads the team's facts from storage $reads time(s): $why", ({ edit, reads }) => {
     const counting = countingFactReads(sampleData())
 
     expect(editInputs(counting.storage, TEAM, edit)).toEqual({ ok: true })
 
-    expect(counting.reads()).toBeLessThanOrEqual(1)
+    expect(counting.reads()).toBe(reads)
   })
 })

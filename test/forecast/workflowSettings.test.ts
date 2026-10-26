@@ -105,10 +105,10 @@ describe('status mapping', () => {
     ])
 
     save(storage, form({ ...BOARD, Dropped: 'notStarted' }))
-    expect(forecastView(storage).epics[0]).toMatchObject({ itemsNow: 2 })
+    expect(forecastView(storage).epics[0]).toMatchObject({ currentCount: 2 })
 
     save(storage, form(BOARD))
-    expect(forecastView(storage).epics[0]).toMatchObject({ itemsNow: 1 })
+    expect(forecastView(storage).epics[0]).toMatchObject({ currentCount: 1 })
   })
 
   test('a ticket reopened from done counts as not done', () => {

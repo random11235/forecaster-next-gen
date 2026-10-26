@@ -89,8 +89,8 @@ describe('creating a milestone', () => {
       committedDate: '2026-12-18',
       forecast: { kind: 'needsPace' },
       epics: [
-        { epicId: 'E3', key: 'E3', name: 'Epic E3', itemsNow: 1, commit: undefined },
-        { epicId: 'E1', key: 'E1', name: 'Epic E1', itemsNow: 2, commit: undefined },
+        { epicId: 'E3', key: 'E3', name: 'Epic E3', currentCount: 1, doneCount: 0, commit: undefined },
+        { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 2, doneCount: 0, commit: undefined },
       ],
     })
   })
@@ -203,8 +203,8 @@ describe('the epics to choose from', () => {
       name: 'Launch',
       committedDate: '2026-12-18',
       epics: [
-        { epicId: 'E3', key: 'E3', name: 'Epic E3', itemsNow: 1, commit: undefined },
-        { epicId: 'E1', key: 'E1', name: 'Epic E1', itemsNow: 2, commit: undefined },
+        { epicId: 'E3', key: 'E3', name: 'Epic E3', currentCount: 1, doneCount: 0, commit: undefined },
+        { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 2, doneCount: 0, commit: undefined },
       ],
       otherEpics: [{ epicId: 'E2', key: 'E2', name: 'Epic E2' }],
     })

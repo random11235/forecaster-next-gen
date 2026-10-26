@@ -73,7 +73,7 @@ function openStorage(): Storage {
 }
 
 describe('milestone forecast view on sample data', () => {
-  test('on first launch, lists the sample milestone with each epic’s items now and status', () => {
+  test('on first launch, lists the sample milestone with each epic’s current count and status', () => {
     const storage = openStorage()
 
     loadSampleDataIfEmpty(storage)
@@ -84,9 +84,9 @@ describe('milestone forecast view on sample data', () => {
       committedDate: '2026-12-18',
       forecast: { kind: 'needsPace' },
       epics: [
-        { epicId: 'PAY-1', key: 'PAY-1', name: 'Card vaulting', itemsNow: 6, commit: undefined },
-        { epicId: 'PAY-2', key: 'PAY-2', name: 'Refunds', itemsNow: 14, commit: undefined },
-        { epicId: 'PAY-3', key: 'PAY-3', name: 'Receipts redesign', itemsNow: 3, commit: undefined },
+        { epicId: 'PAY-1', key: 'PAY-1', name: 'Card vaulting', currentCount: 6, doneCount: 4, commit: undefined },
+        { epicId: 'PAY-2', key: 'PAY-2', name: 'Refunds', currentCount: 14, doneCount: 2, commit: undefined },
+        { epicId: 'PAY-3', key: 'PAY-3', name: 'Receipts redesign', currentCount: 3, doneCount: 0, commit: undefined },
       ],
     })
   })
@@ -103,7 +103,7 @@ describe('milestone forecast view on sample data', () => {
       name: 'ACME milestone',
       committedDate: '2027-01-29',
       forecast: { kind: 'needsPace' },
-      epics: [{ epicId: 'ACME-E', key: 'ACME-E', name: 'ACME epic', itemsNow: 2, commit: undefined }],
+      epics: [{ epicId: 'ACME-E', key: 'ACME-E', name: 'ACME epic', currentCount: 2, doneCount: 0, commit: undefined }],
     })
   })
 
@@ -128,7 +128,7 @@ describe('milestone forecast view on sample data', () => {
       name: 'BETA milestone',
       committedDate: '2027-01-29',
       forecast: { kind: 'needsPace' },
-      epics: [{ epicId: 'BETA-E', key: 'BETA-E', name: 'BETA epic', itemsNow: 5, commit: undefined }],
+      epics: [{ epicId: 'BETA-E', key: 'BETA-E', name: 'BETA epic', currentCount: 5, doneCount: 0, commit: undefined }],
     })
   })
 
@@ -144,7 +144,7 @@ describe('milestone forecast view on sample data', () => {
 
     expect(milestoneForecastView(storage, 'ACME', { today: TODAY, settings: DEFAULT_SETTINGS })).toMatchObject({
       name: 'ACME milestone',
-      epics: [{ name: 'ACME epic', itemsNow: 2 }],
+      epics: [{ name: 'ACME epic', currentCount: 2 }],
     })
   })
 
