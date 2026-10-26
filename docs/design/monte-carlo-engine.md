@@ -61,7 +61,7 @@ WorkItemEvent { itemId, at, kind: 'status'|'parent'|'type'|'label', from?, to? }
 
 `WorkItemEvent` holds parent-change history (Jira changelog, GitHub sub-issue events). That history tells you how many children an epic had at any point in time, which is what makes growth measurable.
 
-The forecast reads `startedAt`, `doneAt` and `cancelledAt` from each ticket's status history under the team's `WorkflowSettings` (`samples/workflowState.ts`), so changing the mapping changes which tickets count as done. `startedAt` is when the ticket first entered `startedStatus`. A ticket that skipped it starts when it first entered any status mapped to started, or, if it skipped those too, when it first entered one mapped to done, so work that jumps columns still has a cycle time. On GitHub, `startedSignal` will set it instead, once that connector adds it. A status the EM hasn't mapped counts as not started. Cycle time is `startedAt → doneAt`. Created-to-done (lead time) is not used in v1.
+The forecast reads `startedAt`, `doneAt` and `cancelledAt` from each ticket's status history under the team's `WorkflowSettings` (**team facts**, `forecast/teamFacts.ts`), so changing the mapping changes which tickets count as done. `startedAt` is when the ticket first entered `startedStatus`. A ticket that skipped it starts when it first entered any status mapped to started, or, if it skipped those too, when it first entered one mapped to done, so work that jumps columns still has a cycle time. On GitHub, `startedSignal` will set it instead, once that connector adds it. A status the EM hasn't mapped counts as not started. Cycle time is `startedAt → doneAt`. Created-to-done (lead time) is not used in v1.
 
 Ingestion follows data minimisation (see [Security](#security)). On GitHub, an assignee used as `startedSignal` is read only as "has an assignee".
 
@@ -280,12 +280,13 @@ src/
     growth.ts             # commits + final counts → GrowthSample[]
     epicSize.ts           # finished epics → EpicSizeSample[]
     cycleTime.ts          # started → done; spread and ageing
-    workflowState.ts      # status history + WorkflowSettings → started, done and cancelled times
 
   engine/                 # pure: no I/O, no DB, no clock; see src/engine/ for its files
     index.ts              # exports simulateCase, periodEndDate and the types only
 
   forecast/               # the only module that knows both stored data and the engine
+    teamFacts.ts          # team facts: stored facts read under the team's WorkflowSettings, read once per call
+    workflowSettings.ts   # the Inputs screen's workflow settings view and edit
     buildCase.ts          # pace mode, ambiguity ranges, provisional baselines, limits
     settings.ts           # ForecastSettings and AmbiguityRanges defaults
     suggestions.ts        # suggested pace range, measured medium range, switch offers
@@ -315,6 +316,7 @@ test/
 - `forecast/` is the only module that depends on both stored data and `engine/`.
 - `ledger/` depends only on `engine/types.ts`.
 - `app/` reaches forecasts through `forecast/`, never `engine/` directly.
+- Forecast code reads facts only through team facts (`teamFacts`), never `storage.facts`, so a forecast always sees the EM's status mapping. Storage, the sample loader and storage tests may still read raw facts.
 - `connectors/`, `storage/` and `secrets/` sit at the edges behind interfaces, so v1 can run from canned data and the same code can be hosted later.
 
 **File types:**
@@ -325,7 +327,7 @@ test/
 
 **Test seams.** There are two, as set in the spec:
 - **Seam A** is `simulateCase`, tested with fixed seeds.
-- **Seam B** is `forecast/`: stored facts, settings and the ledger go in, and the milestone forecast view comes out.
+- **Seam B** is `forecast/`: stored facts, settings and the ledger go in, and the milestone forecast view comes out. Team facts is part of it: tests may call `teamFacts` directly.
 
 Warning text and provenance are tested at Seam B, not Seam A. These cases moved from the engine tests. Each is owed, in `test/forecast/`, by the ticket that adds its warning or diagnostic:
 - the horizon warning when fewer trials finish than the highest reported percentile, with the floored percentage and the horizon date, and none when enough finish;
