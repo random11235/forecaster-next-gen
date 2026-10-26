@@ -300,6 +300,22 @@ describe('Inputs screen: milestone', () => {
     expect(html).toMatch(/name="committedDate"[^>]*value="2027-02-30"/)
   })
 
+  test('each epic has a commit button; committing shows its baseline on both screens', async () => {
+    await startOnSampleData()
+    expect((await page('/inputs')).match(/<button type="submit" name="action" value="commit">Commit<\/button>/g)).toHaveLength(3)
+
+    const committed = await post('/inputs/epics', [['epic', 'PAY-2'], ['action', 'commit']])
+
+    expect(committed.status).toBe(303)
+    expect(committed.headers.get('location')).toBe('/inputs')
+    const inputs = await page('/inputs')
+    expect(text(inputs)).toMatch(/Refunds Up Down Remove Committed at 14 items/)
+    expect(inputs.match(/value="commit">Commit</g)).toHaveLength(2)
+    const forecast = text(await page('/'))
+    expect(forecast).toMatch(/Refunds 14 Committed at 14 items/)
+    expect(forecast.match(/Not committed: wide range/g)).toHaveLength(2)
+  })
+
   test('an epic change that names no action says why', async () => {
     await startOnSampleData()
 
