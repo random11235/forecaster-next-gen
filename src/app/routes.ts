@@ -35,10 +35,12 @@ export interface AppContext {
   storage: Storage
   /** Today's ISO calendar date, the day forecasts start from. */
   today: () => string
+  /** The ISO timestamp now, when the EM's edits are made. */
+  now: () => string
 }
 
 /** The Milestone forecast screen at `/` and the Inputs screen at `/inputs`; not found for everything else. */
-export function route(request: Request, { storage, today }: AppContext): Reply {
+export function route(request: Request, { storage, today, now }: AppContext): Reply {
   const team = storage.teams()[0]
   if (request.method === 'GET' && request.path === '/') {
     const view: MilestoneForecastView = team
@@ -89,7 +91,7 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
     return { kind: 'redirect', location: '/inputs' }
   }
   if (request.method === 'POST' && request.path === '/inputs/epics') {
-    const change = parseEpicForm(form)
+    const change = parseEpicForm(form, now())
     const saved = change.ok ? editMilestone(storage, team.id, change.edit) : change
     if (!saved.ok) return inputsScreen(400, { epicsError: saved.error })
     return { kind: 'redirect', location: '/inputs' }

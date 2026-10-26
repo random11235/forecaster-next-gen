@@ -90,8 +90,8 @@ describe('creating a milestone', () => {
       committedDate: '2026-12-18',
       forecast: { kind: 'needsPace' },
       epics: [
-        { epicId: 'E3', key: 'E3', name: 'Epic E3', itemsNow: 1, status: 'notCommitted' },
-        { epicId: 'E1', key: 'E1', name: 'Epic E1', itemsNow: 2, status: 'notCommitted' },
+        { epicId: 'E3', key: 'E3', name: 'Epic E3', itemsNow: 1, commit: undefined },
+        { epicId: 'E1', key: 'E1', name: 'Epic E1', itemsNow: 2, commit: undefined },
       ],
     })
   })

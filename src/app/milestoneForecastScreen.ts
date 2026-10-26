@@ -1,7 +1,9 @@
 import type { EpicRow, ForecastSection, MilestoneForecastView } from '../forecast/milestoneForecastView.js'
-import { escapeHtml, formatDate, htmlPage } from './html.js'
+import { commitText, escapeHtml, formatDate, htmlPage } from './html.js'
 
-const STATUS_TEXT: Record<EpicRow['status'], string> = { notCommitted: 'Not committed: wide range' }
+function statusText(epic: EpicRow): string {
+  return epic.commit ? commitText(epic.commit) : 'Not committed: wide range'
+}
 
 /** The Milestone forecast screen (EM home): the milestone's forecast and epics, or its empty state when no milestone is defined. */
 export function renderMilestoneForecastScreen(view: MilestoneForecastView): string {
@@ -19,7 +21,7 @@ function milestoneSection(view: Extract<MilestoneForecastView, { kind: 'mileston
       (epic) => `          <tr>
             <td>${escapeHtml(epic.name)}</td>
             <td class="number">${epic.itemsNow}</td>
-            <td>${STATUS_TEXT[epic.status]}</td>
+            <td>${statusText(epic)}</td>
           </tr>`,
     )
     .join('\n')

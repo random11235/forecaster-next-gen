@@ -306,7 +306,7 @@ describe('Inputs screen: milestone', () => {
     const response = await post('/inputs/epics', [['epic', 'PAY-1']])
 
     expect(response.status).toBe(400)
-    expect(text(await response.text())).toContain('Choose Add, Remove, Up or Down.')
+    expect(text(await response.text())).toContain('Choose Add, Remove, Up, Down or Commit.')
   })
 
   test('a refused epic change says why', async () => {
