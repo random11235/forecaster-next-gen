@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
+import type { EpicCommit } from '../model/epicCommit.js'
 import type { Milestone } from '../model/milestone.js'
 import type { Team } from '../model/team.js'
 import type { StatusMapping } from '../model/workflow.js'
@@ -90,6 +91,16 @@ SELECT id,
   'In Progress', '["spike"]', '["spike"]', NULL, '[]', '["blocked"]'
 FROM teams;
 `,
+  // 3: the EM's epic commits (#19), the latest per epic.
+  `
+CREATE TABLE epic_commits (
+  team_id TEXT NOT NULL REFERENCES teams(id),
+  epic_id TEXT NOT NULL,
+  committed_at TEXT NOT NULL,
+  child_count_at_commit INTEGER NOT NULL,
+  PRIMARY KEY (team_id, epic_id)
+);
+`,
 ]
 
 type Row = Record<string, SQLInputValue>
@@ -148,6 +159,11 @@ export function openSqliteStorage(file: string): Storage {
       spike_labels = excluded.spike_labels, commit_label = excluded.commit_label,
       blocked_statuses = excluded.blocked_statuses, blocked_labels = excluded.blocked_labels`)
   const selectWorkflowSettings = db.prepare('SELECT * FROM workflow_settings WHERE team_id = ?')
+  const upsertEpicCommit = db.prepare(`
+    INSERT INTO epic_commits (team_id, epic_id, committed_at, child_count_at_commit) VALUES (?, ?, ?, ?)
+    ON CONFLICT (team_id, epic_id) DO UPDATE SET
+      committed_at = excluded.committed_at, child_count_at_commit = excluded.child_count_at_commit`)
+  const selectEpicCommits = db.prepare('SELECT * FROM epic_commits WHERE team_id = ? ORDER BY rowid')
 
   return {
     isEmpty() {
@@ -272,6 +288,21 @@ export function openSqliteStorage(file: string): Storage {
         ...optional('commitLabel', row.commit_label),
         blockedRule: { statuses: list(row.blocked_statuses), labels: list(row.blocked_labels) },
       }
+    },
+
+    saveEpicCommit(commit) {
+      upsertEpicCommit.run(commit.teamId, commit.epicId, commit.committedAt, commit.baseline)
+    },
+
+    epicCommits(teamId) {
+      return selectEpicCommits.all(teamId).map(
+        (row: Row): EpicCommit => ({
+          teamId: String(row.team_id),
+          epicId: String(row.epic_id),
+          committedAt: String(row.committed_at),
+          baseline: Number(row.child_count_at_commit),
+        }),
+      )
     },
 
     close() {
