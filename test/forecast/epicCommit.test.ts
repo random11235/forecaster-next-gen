@@ -95,7 +95,7 @@ describe('committing an epic', () => {
     addChildren(storage, 'E1', 5, 3)
 
     expect(view(storage).epics).toEqual([
-      { epicId: 'E1', key: 'E1', name: 'Epic E1', itemsNow: 8, commit: { baseline: 5 } },
+      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 8, doneCount: 0, commit: { baseline: 5 } },
     ])
   })
 
@@ -167,7 +167,7 @@ describe('pulling an epic back to not started', () => {
     enterManualPace(storage, 10, 10)
 
     expect(view(storage).epics).toEqual([
-      { epicId: 'E1', key: 'E1', name: 'Epic E1', itemsNow: 10, commit: undefined },
+      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 10, doneCount: 0, commit: undefined },
     ])
     expect(datesOf(storage)).toEqual(['2026-11-07', '2026-11-07', '2026-11-07'])
   })
@@ -207,7 +207,7 @@ describe('pulling an epic back to not started', () => {
     addChildren(storage, 'E1', 7, 1)
 
     expect(view(storage).epics).toEqual([
-      { epicId: 'E1', key: 'E1', name: 'Epic E1', itemsNow: 8, commit: { baseline: 7 } },
+      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 8, doneCount: 0, commit: { baseline: 7 } },
     ])
   })
 })

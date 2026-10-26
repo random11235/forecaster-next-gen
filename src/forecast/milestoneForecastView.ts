@@ -9,9 +9,6 @@ import { informationNotes, thinDataMessage } from './diagnostics.js'
 import type { ForecastSettings } from './settings.js'
 import { teamFacts, type TeamFacts } from './teamFacts.js'
 
-/** An epic row on the Milestone forecast screen. */
-export type EpicRow = MilestoneEpic
-
 /** The milestone's finish date at one confidence level. */
 export interface ForecastDate {
   percent: number
@@ -36,7 +33,7 @@ export type ForecastSection =
 /** What the Milestone forecast screen shows. */
 export type MilestoneForecastView =
   | { kind: 'noMilestone' }
-  | { kind: 'milestone'; name: string; committedDate: string; forecast: ForecastSection; epics: EpicRow[] }
+  | { kind: 'milestone'; name: string; committedDate: string; forecast: ForecastSection; epics: MilestoneEpic[] }
 
 export interface ViewOptions {
   /** ISO calendar date the forecast starts from. */

@@ -52,7 +52,7 @@ export function route(request: Request, { storage, today, now }: AppContext): Re
   // a saved POST redirects, so only a GET or a refused edit reads the Inputs view
   const inputsScreen = (
     status: number,
-    { workflowForm, ...screen }: Partial<Omit<InputsScreen, 'milestone' | 'workflow'>> & { workflowForm?: Omit<WorkflowScreen, 'statuses'> } = {},
+    { pace, workflowForm, ...screen }: Partial<Omit<InputsScreen, 'milestone' | 'workflow'>> & { workflowForm?: Omit<WorkflowScreen, 'statuses'> } = {},
   ): Reply => {
     const view = inputsView(storage, team.id)
     return {
@@ -60,7 +60,8 @@ export function route(request: Request, { storage, today, now }: AppContext): Re
       status,
       html: renderInputsScreen({
         milestone: view.milestone,
-        pace: view.milestone.kind === 'milestone' ? savedPaceForm(view.pace) : undefined,
+        // with no milestone there is no pace form, even to show a refused pace in
+        pace: view.milestone.kind === 'milestone' ? (pace ?? savedPaceForm(view.pace)) : undefined,
         workflow: { statuses: view.workflow.statuses.map((entry) => entry.status), ...(workflowForm ?? { form: savedWorkflowForm(view.workflow) }) },
         ...screen,
       }),

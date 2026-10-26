@@ -3,6 +3,7 @@ import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
 import { SAMPLE_DATA } from '../../src/sample/sampleData.js'
+import { countingFactReads } from '../storage/countingFactReads.js'
 
 // The screens on the canned sample data, through the local server, as the EM's browser sees them.
 
@@ -45,7 +46,24 @@ function text(html: string): string {
     .replace(/\s+/g, ' ')
 }
 
+/** Starts the app on the sample data, counting reads of the team's facts from launch on. */
+async function startCountingFactReads(): Promise<() => number> {
+  storage = openSqliteStorage(':memory:')
+  const counting = countingFactReads(storage)
+  app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage: counting.storage, today: () => '2026-10-24' })
+  const atLaunch = counting.reads()
+  return () => counting.reads() - atLaunch
+}
+
 describe('Inputs screen', () => {
+  test("reads the team's facts from storage once", async () => {
+    const reads = await startCountingFactReads()
+
+    await page('/inputs')
+
+    expect(reads()).toBe(1)
+  })
+
   test('asks for pace as a low–high range of tickets per week', async () => {
     await startOnSampleData()
 
@@ -78,7 +96,7 @@ describe('Inputs screen', () => {
   test('refuses a pace the rules forbid, saying why and keeping what was typed', async () => {
     await startOnSampleData()
 
-    const response = await submitPace('6', '3')
+    const response = await submitPace(' 6 ', '3')
 
     expect(response.status).toBe(400)
     const html = await response.text()
@@ -115,6 +133,17 @@ async function forecastEpics(): Promise<string[]> {
 }
 
 describe('Inputs screen: milestone', () => {
+  test('refuses a pace sent before the milestone is defined, still offering no pace form', async () => {
+    await startWithNoMilestone()
+
+    const response = await post('/inputs', [['low', '3'], ['high', '6']])
+
+    expect(response.status).toBe(400)
+    const html = await response.text()
+    expect(text(html)).toContain('No milestone defined yet. Define a milestone to enter its pace.')
+    expect(html).not.toMatch(/<input[^>]*name="low"/)
+  })
+
   test("with no milestone, offers a form for its name, committed date and a rank for each of the team's epics", async () => {
     await startWithNoMilestone()
 

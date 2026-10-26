@@ -1,7 +1,7 @@
 import { ENGINE_VERSION, type SimulationCase, type ThroughputRange } from '../engine/index.js'
 import type { Milestone } from '../model/milestone.js'
 import type { Pace } from '../model/paceSetting.js'
-import { childrenOf, type Facts } from '../model/workItem.js'
+import type { Facts } from '../model/workItem.js'
 import { milestoneThroughput } from '../samples/throughput.js'
 import { baselineOf, milestoneEpics } from './milestoneEpics.js'
 import type { ForecastSettings } from './settings.js'
@@ -40,8 +40,8 @@ export function buildCase(
         epicId: epic.epicId,
         rank,
         baseCount: baselineOf(epic),
-        currentCount: epic.itemsNow,
-        doneCount: childrenOf(team.facts.workItems, epic.epicId).filter((child) => child.doneAt !== undefined).length,
+        currentCount: epic.currentCount,
+        doneCount: epic.doneCount,
         growth: settings.mediumAmbiguity,
       })),
       throughputSamples,

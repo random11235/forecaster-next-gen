@@ -1,7 +1,8 @@
-import type { EpicRow, ForecastSection, MilestoneForecastView } from '../forecast/milestoneForecastView.js'
+import type { MilestoneEpic } from '../forecast/milestoneEpics.js'
+import type { ForecastSection, MilestoneForecastView } from '../forecast/milestoneForecastView.js'
 import { commitText, escapeHtml, formatDate, htmlPage } from './html.js'
 
-function statusText(epic: EpicRow): string {
+function statusText(epic: MilestoneEpic): string {
   return epic.commit ? commitText(epic.commit) : 'Not committed: wide range'
 }
 
@@ -20,7 +21,7 @@ function milestoneSection(view: Extract<MilestoneForecastView, { kind: 'mileston
     .map(
       (epic) => `          <tr>
             <td>${escapeHtml(epic.name)}</td>
-            <td class="number">${epic.itemsNow}</td>
+            <td class="number">${epic.currentCount}</td>
             <td>${statusText(epic)}</td>
           </tr>`,
     )

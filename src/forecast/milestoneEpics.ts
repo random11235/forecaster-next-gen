@@ -15,8 +15,10 @@ export interface MilestoneEpic {
   /** The epic's title, or its key when it has none. */
   name: string
   /** Children now, done or not; cancelled children don't count. */
-  itemsNow: number
-  /** Its commit, whose baseline its growth applies to, or undefined when not committed: a wide range. */
+  currentCount: number
+  /** Children done so far. */
+  doneCount: number
+  /** Its commit, or undefined when the EM hasn't committed it. */
   commit: CommitView | undefined
 }
 
@@ -26,11 +28,13 @@ export function milestoneEpics(milestone: Milestone, team: TeamFacts): Milestone
   return milestone.epicIds.map((epicId) => {
     const epic = byId.get(epicId)
     const commit = team.commits.get(epicId)
+    const children = childrenOf(team.facts.workItems, epicId)
     return {
       epicId,
       key: epic?.sourceKey ?? epicId,
       name: epic?.title ?? epic?.sourceKey ?? epicId,
-      itemsNow: childrenOf(team.facts.workItems, epicId).length,
+      currentCount: children.length,
+      doneCount: children.filter((child) => child.doneAt !== undefined).length,
       commit: commit && { baseline: commit.baseline },
     }
   })
@@ -38,5 +42,5 @@ export function milestoneEpics(milestone: Milestone, team: TeamFacts): Milestone
 
 /** The count the epic's growth applies to: its commit's baseline, or, uncommitted, its current count as a provisional baseline. */
 export function baselineOf(epic: MilestoneEpic): number {
-  return epic.commit?.baseline ?? epic.itemsNow
+  return epic.commit?.baseline ?? epic.currentCount
 }
