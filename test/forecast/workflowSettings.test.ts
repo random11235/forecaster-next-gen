@@ -2,7 +2,8 @@ import { afterEach, describe, expect, test } from 'vitest'
 import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import { teamFacts } from '../../src/forecast/teamFacts.js'
-import { editWorkflowSettings, workflowSettingsView, type WorkflowEdit } from '../../src/forecast/workflowSettings.js'
+import { editInputs, inputsView } from '../../src/forecast/inputs.js'
+import type { WorkflowEdit } from '../../src/forecast/workflowSettings.js'
 import type { WorkItem, WorkItemEvent } from '../../src/model/workItem.js'
 import { loadSampleDataIfEmpty } from '../../src/sample/loadSampleData.js'
 import { SAMPLE_DATA } from '../../src/sample/sampleData.js'
@@ -76,7 +77,7 @@ function form(categories: Record<string, string>, fields: Partial<WorkflowEdit> 
 const BOARD = { Backlog: 'notStarted', Building: 'started', Shipped: 'done', Dropped: 'cancelled' }
 
 function save(storage: Storage, typed: WorkflowEdit): void {
-  const result = editWorkflowSettings(storage, TEAM, typed)
+  const result = editInputs(storage, TEAM, { kind: 'editWorkflow', ...typed })
   if (!result.ok) throw new Error(`settings refused: ${result.error}`)
 }
 
@@ -211,7 +212,7 @@ describe('workflow settings view', () => {
   test("a team that hasn't set its workflow has the sample board's, then its own statuses still to map", () => {
     const storage = teamWithBoard([shipped('T1', '2026-10-20T16:00:00Z')])
 
-    expect(workflowSettingsView(teamFacts(storage, TEAM))).toEqual({
+    expect(inputsView(storage, TEAM).workflow).toEqual({
       statuses: [
         { status: 'To Do', category: 'notStarted' },
         { status: 'In Progress', category: 'started' },
@@ -244,7 +245,7 @@ describe('workflow settings view', () => {
       ),
     )
 
-    expect(workflowSettingsView(teamFacts(storage, TEAM))).toEqual({
+    expect(inputsView(storage, TEAM).workflow).toEqual({
       statuses: [
         { status: 'Backlog', category: 'notStarted' },
         { status: 'Building', category: 'started' },
@@ -263,7 +264,7 @@ describe('workflow settings view', () => {
 
     save(storage, form({ 'To Do': '', 'In Progress': '', Done: '', Cancelled: '', ...BOARD }))
 
-    expect(workflowSettingsView(teamFacts(storage, TEAM)).statuses.map((entry) => entry.status)).toEqual([
+    expect(inputsView(storage, TEAM).workflow.statuses.map((entry) => entry.status)).toEqual([
       'Backlog',
       'Building',
       'Shipped',
@@ -277,7 +278,7 @@ describe('workflow settings view', () => {
 
     save(storage, form(BOARD, { commitLabel: '  ' }))
 
-    expect(workflowSettingsView(teamFacts(storage, TEAM))).toMatchObject({ commitLabel: undefined })
+    expect(inputsView(storage, TEAM).workflow).toMatchObject({ commitLabel: undefined })
   })
 })
 
@@ -292,7 +293,7 @@ describe('the sample data', () => {
   test("ships with its board's mapping, started status and spike rules, and no commit label", () => {
     const storage = sampleTeam()
 
-    expect(workflowSettingsView(teamFacts(storage, SAMPLE_DATA.team.id))).toEqual({
+    expect(inputsView(storage, SAMPLE_DATA.team.id).workflow).toEqual({
       statuses: [
         { status: 'To Do', category: 'notStarted' },
         { status: 'In Progress', category: 'started' },
@@ -312,7 +313,8 @@ describe('the sample data', () => {
     const before = milestoneForecastView(storage, teamId, { today: TODAY, settings: DEFAULT_SETTINGS })
     expect(before).toMatchObject({ forecast: { kind: 'forecast' } })
 
-    const result = editWorkflowSettings(storage, teamId, {
+    const result = editInputs(storage, teamId, {
+      kind: 'editWorkflow',
       categories: { 'To Do': 'notStarted', 'In Progress': 'started', Done: 'started', Cancelled: 'cancelled' },
       startedStatus: 'In Progress',
       spikeRule: { types: ['spike'], labels: ['spike'] },
@@ -340,9 +342,9 @@ describe('refused workflow settings', () => {
   ])('$why says why and changes nothing', ({ categories, fields, error }) => {
     const storage = teamWithBoard([shipped('T1', '2026-10-20T16:00:00Z')])
     save(storage, form(BOARD))
-    const before = workflowSettingsView(teamFacts(storage, TEAM))
+    const before = inputsView(storage, TEAM).workflow
 
-    expect(editWorkflowSettings(storage, TEAM, form(categories, fields))).toEqual({ ok: false, error })
-    expect(workflowSettingsView(teamFacts(storage, TEAM))).toEqual(before)
+    expect(editInputs(storage, TEAM, { kind: 'editWorkflow', ...form(categories, fields) })).toEqual({ ok: false, error })
+    expect(inputsView(storage, TEAM).workflow).toEqual(before)
   })
 })

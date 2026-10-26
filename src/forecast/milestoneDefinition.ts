@@ -119,25 +119,6 @@ export function editMilestone(storage: Storage, teamId: string, edit: MilestoneE
   return { ok: true }
 }
 
-/** Reads an epic change submitted from the Inputs screen at `at` (an ISO timestamp): add, remove, move up or down, or commit. */
-export function parseEpicForm(body: URLSearchParams, at: string): { ok: true; edit: MilestoneEdit } | { ok: false; error: string } {
-  const epicId = body.get('epic') ?? ''
-  const action = body.get('action')
-  switch (action) {
-    case 'commit':
-      return { ok: true, edit: { kind: 'commitEpic', epicId, at } }
-    case 'add':
-      return { ok: true, edit: { kind: 'addEpic', epicId } }
-    case 'remove':
-      return { ok: true, edit: { kind: 'removeEpic', epicId } }
-    case 'up':
-    case 'down':
-      return { ok: true, edit: { kind: 'moveEpic', epicId, direction: action } }
-    default:
-      return refuse('Choose Add, Remove, Up, Down or Commit.')
-  }
-}
-
 const NOT_A_TEAM_EPIC = "Choose epics from the team's epics."
 const NOT_IN_MILESTONE = 'That epic is not in the milestone.'
 
