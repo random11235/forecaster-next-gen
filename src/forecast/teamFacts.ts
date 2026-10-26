@@ -1,5 +1,37 @@
-import type { StatusCategory, WorkflowSettings } from '../model/workflow.js'
+import { defaultWorkflowSettings, type StatusCategory, type WorkflowSettings } from '../model/workflow.js'
 import type { Facts, WorkItem, WorkItemEvent } from '../model/workItem.js'
+import type { Storage } from '../storage/storage.js'
+
+/**
+ * Team facts: a team's facts as its workflow reads them. Forecast code reads facts only through here, never
+ * `storage.facts`, so forecasts always see the EM's status mapping.
+ */
+export interface TeamFacts {
+  /** The facts with each ticket's started, done and cancelled times read under the workflow's status mapping. */
+  facts: Facts
+  /** The team's workflow settings: as the EM set them, or the sample board's until then. */
+  workflow: WorkflowSettings
+  /** Every status the team's tickets have been in, in the order first seen. */
+  statusesSeen: string[]
+}
+
+/** Seam B: the team's facts, workflow and statuses seen, reading the facts from storage once. */
+export function teamFacts(storage: Storage, teamId: string): TeamFacts {
+  const stored = storage.facts(teamId)
+  const workflow = storage.workflowSettings(teamId) ?? defaultWorkflowSettings(teamId)
+  return { facts: factsUnderWorkflow(stored, workflow), workflow, statusesSeen: statusesSeen(stored) }
+}
+
+/** Every status the tickets have been in, in the order first seen. */
+function statusesSeen(facts: Facts): string[] {
+  const statuses = new Set<string>()
+  for (const event of facts.events) {
+    if (event.kind !== 'status') continue
+    if (event.from !== undefined) statuses.add(event.from)
+    if (event.to !== undefined) statuses.add(event.to)
+  }
+  return [...statuses]
+}
 
 /**
  * The facts as the team's workflow reads them: each ticket's started, done and cancelled times come from its status
@@ -11,7 +43,7 @@ import type { Facts, WorkItem, WorkItemEvent } from '../model/workItem.js'
  * - a status the EM hasn't mapped counts as not started.
  * A ticket with no status history keeps the times the connector gave it.
  */
-export function factsUnderWorkflow(facts: Facts, workflow: WorkflowSettings): Facts {
+function factsUnderWorkflow(facts: Facts, workflow: WorkflowSettings): Facts {
   const categoryOf = new Map(workflow.statuses.map((mapping) => [mapping.status, mapping.category]))
   const category = (status: string | undefined): StatusCategory =>
     (status !== undefined && categoryOf.get(status)) || 'notStarted'
