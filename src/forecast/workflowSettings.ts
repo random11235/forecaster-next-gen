@@ -37,12 +37,8 @@ export interface WorkflowSettingsView {
   blockedRule: StatusOrLabelRule
 }
 
-/** The team's workflow settings as the Inputs screen shows them. Pass `team` when its team facts are already read. */
-export function workflowSettingsView(
-  storage: Storage,
-  teamId: string,
-  team: TeamFacts = teamFacts(storage, teamId),
-): WorkflowSettingsView {
+/** The team's workflow settings as the Inputs screen shows them. */
+export function workflowSettingsView(team: TeamFacts): WorkflowSettingsView {
   const { statuses, startedStatus, spikeRule, commitLabel, blockedRule } = team.workflow
   const mapped = new Set(statuses.map((mapping) => mapping.status))
   const unmapped = team.statusesSeen.filter((status) => !mapped.has(status))

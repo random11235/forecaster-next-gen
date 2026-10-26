@@ -211,7 +211,7 @@ describe('workflow settings view', () => {
   test("a team that hasn't set its workflow has the sample board's, then its own statuses still to map", () => {
     const storage = teamWithBoard([shipped('T1', '2026-10-20T16:00:00Z')])
 
-    expect(workflowSettingsView(storage, TEAM)).toEqual({
+    expect(workflowSettingsView(teamFacts(storage, TEAM))).toEqual({
       statuses: [
         { status: 'To Do', category: 'notStarted' },
         { status: 'In Progress', category: 'started' },
@@ -244,7 +244,7 @@ describe('workflow settings view', () => {
       ),
     )
 
-    expect(workflowSettingsView(storage, TEAM)).toEqual({
+    expect(workflowSettingsView(teamFacts(storage, TEAM))).toEqual({
       statuses: [
         { status: 'Backlog', category: 'notStarted' },
         { status: 'Building', category: 'started' },
@@ -263,7 +263,7 @@ describe('workflow settings view', () => {
 
     save(storage, form({ 'To Do': '', 'In Progress': '', Done: '', Cancelled: '', ...BOARD }))
 
-    expect(workflowSettingsView(storage, TEAM).statuses.map((entry) => entry.status)).toEqual([
+    expect(workflowSettingsView(teamFacts(storage, TEAM)).statuses.map((entry) => entry.status)).toEqual([
       'Backlog',
       'Building',
       'Shipped',
@@ -277,7 +277,7 @@ describe('workflow settings view', () => {
 
     save(storage, form(BOARD, { commitLabel: '  ' }))
 
-    expect(workflowSettingsView(storage, TEAM)).toMatchObject({ commitLabel: undefined })
+    expect(workflowSettingsView(teamFacts(storage, TEAM))).toMatchObject({ commitLabel: undefined })
   })
 })
 
@@ -292,7 +292,7 @@ describe('the sample data', () => {
   test("ships with its board's mapping, started status and spike rules, and no commit label", () => {
     const storage = sampleTeam()
 
-    expect(workflowSettingsView(storage, SAMPLE_DATA.team.id)).toEqual({
+    expect(workflowSettingsView(teamFacts(storage, SAMPLE_DATA.team.id))).toEqual({
       statuses: [
         { status: 'To Do', category: 'notStarted' },
         { status: 'In Progress', category: 'started' },
@@ -340,9 +340,9 @@ describe('refused workflow settings', () => {
   ])('$why says why and changes nothing', ({ categories, fields, error }) => {
     const storage = teamWithBoard([shipped('T1', '2026-10-20T16:00:00Z')])
     save(storage, form(BOARD))
-    const before = workflowSettingsView(storage, TEAM)
+    const before = workflowSettingsView(teamFacts(storage, TEAM))
 
     expect(editWorkflowSettings(storage, TEAM, form(categories, fields))).toEqual({ ok: false, error })
-    expect(workflowSettingsView(storage, TEAM)).toEqual(before)
+    expect(workflowSettingsView(teamFacts(storage, TEAM))).toEqual(before)
   })
 })

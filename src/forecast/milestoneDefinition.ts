@@ -39,16 +39,9 @@ export function teamMilestone(storage: Storage, teamId: string): Milestone | und
   return storage.milestones(teamId)[0]
 }
 
-/**
- * The team's milestone as defined so far (v1 has one), and the epics the EM can choose from. Pass `team` when its
- * team facts are already read.
- */
-export function milestoneDefinitionView(
-  storage: Storage,
-  teamId: string,
-  team: TeamFacts = teamFacts(storage, teamId),
-): MilestoneDefinitionView {
-  const epics = teamEpics(team.facts.workItems)
+/** The team's milestone as defined so far (v1 has one), and the epics the EM can choose from. */
+export function milestoneDefinitionView(storage: Storage, teamId: string, team: TeamFacts): MilestoneDefinitionView {
+  const epics = teamEpics(team)
   const milestone = teamMilestone(storage, teamId)
   if (!milestone) return { kind: 'noMilestone', teamEpics: epics.map(toChoice) }
 
@@ -69,7 +62,7 @@ export function milestoneDefinitionView(
 /** Applies the EM's edit to the team's milestone and saves it. A refused edit changes nothing. */
 export function editMilestone(storage: Storage, teamId: string, edit: MilestoneEdit): EditResult {
   const milestone = teamMilestone(storage, teamId)
-  const teamEpicIds = new Set(teamEpics(teamFacts(storage, teamId).facts.workItems).map((epic) => epic.id))
+  const teamEpicIds = new Set(teamEpics(teamFacts(storage, teamId)).map((epic) => epic.id))
   const isTeamEpic = (epicId: string): boolean => teamEpicIds.has(epicId)
 
   if (edit.kind === 'create') {
@@ -168,8 +161,8 @@ function isCalendarDate(value: string): boolean {
 }
 
 /** The team's epics a milestone can hold: cancelled epics are left out. */
-function teamEpics(workItems: readonly WorkItem[]): WorkItem[] {
-  return workItems.filter((item) => item.type === 'epic' && item.cancelledAt === undefined)
+function teamEpics(team: TeamFacts): WorkItem[] {
+  return team.facts.workItems.filter((item) => item.type === 'epic' && item.cancelledAt === undefined)
 }
 
 function toChoice(epic: WorkItem): EpicChoice {

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import { editMilestone, milestoneDefinitionView, type MilestoneEdit } from '../../src/forecast/milestoneDefinition.js'
+import { teamFacts } from '../../src/forecast/teamFacts.js'
 import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import type { WorkItem } from '../../src/model/workItem.js'
@@ -125,7 +126,7 @@ describe('creating a milestone', () => {
     ])
 
     expect(editMilestone(storage, TEAM, { kind: 'create', name, committedDate, epics })).toEqual({ ok: false, error })
-    expect(milestoneDefinitionView(storage, TEAM)).toMatchObject({ kind: 'noMilestone' })
+    expect(milestoneDefinitionView(storage, TEAM, teamFacts(storage, TEAM))).toMatchObject({ kind: 'noMilestone' })
   })
 
   test('takes ranks with spaces around them', () => {
@@ -155,7 +156,7 @@ describe("editing the milestone's name and committed date", () => {
 
     edit(storage, { kind: 'editDetails', name: '  Launch v2 ', committedDate: '2027-01-29' })
 
-    expect(milestoneDefinitionView(storage, TEAM)).toMatchObject({
+    expect(milestoneDefinitionView(storage, TEAM, teamFacts(storage, TEAM))).toMatchObject({
       kind: 'milestone',
       name: 'Launch v2',
       committedDate: '2027-01-29',
@@ -173,7 +174,7 @@ describe("editing the milestone's name and committed date", () => {
     create(storage, ['E1'])
 
     expect(editMilestone(storage, TEAM, { kind: 'editDetails', name, committedDate })).toEqual({ ok: false, error })
-    expect(milestoneDefinitionView(storage, TEAM)).toMatchObject({ name: 'Launch', committedDate: '2026-12-18' })
+    expect(milestoneDefinitionView(storage, TEAM, teamFacts(storage, TEAM))).toMatchObject({ name: 'Launch', committedDate: '2026-12-18' })
   })
 })
 
@@ -184,7 +185,7 @@ describe('the epics to choose from', () => {
       [ticket('E3', 'epic'), ticket('BUG-1', 'bug', { labels: ['ktlo'] })],
     )
 
-    expect(milestoneDefinitionView(storage, TEAM)).toEqual({
+    expect(milestoneDefinitionView(storage, TEAM, teamFacts(storage, TEAM))).toEqual({
       kind: 'noMilestone',
       teamEpics: [
         { epicId: 'E1', key: 'E1', name: 'Epic E1' },
@@ -198,7 +199,7 @@ describe('the epics to choose from', () => {
 
     create(storage, ['E3', 'E1'])
 
-    expect(milestoneDefinitionView(storage, TEAM)).toEqual({
+    expect(milestoneDefinitionView(storage, TEAM, teamFacts(storage, TEAM))).toEqual({
       kind: 'milestone',
       name: 'Launch',
       committedDate: '2026-12-18',
@@ -227,7 +228,7 @@ describe('adding an epic', () => {
 
     expect(epicKeys(storage)).toEqual(['E1', 'E2'])
     for (const date of datesOf(storage)) expect(TWO_OR_THREE_WEEKS).toContain(date)
-    expect(milestoneDefinitionView(storage, TEAM)).toMatchObject({ otherEpics: [] })
+    expect(milestoneDefinitionView(storage, TEAM, teamFacts(storage, TEAM))).toMatchObject({ otherEpics: [] })
   })
 
   test.each([
@@ -254,7 +255,7 @@ describe('removing an epic', () => {
 
     expect(epicKeys(storage)).toEqual(['E1'])
     expect(datesOf(storage)).toEqual([ONE_WEEK, ONE_WEEK, ONE_WEEK])
-    expect(milestoneDefinitionView(storage, TEAM)).toMatchObject({ otherEpics: [{ key: 'E2' }] })
+    expect(milestoneDefinitionView(storage, TEAM, teamFacts(storage, TEAM))).toMatchObject({ otherEpics: [{ key: 'E2' }] })
   })
 
   test('is refused for an epic not in the milestone', () => {
