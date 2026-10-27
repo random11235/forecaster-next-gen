@@ -1,3 +1,5 @@
+import type { CommitView } from '../forecast/milestoneEpics.js'
+
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 /** The screens in the sidebar, by path. */
@@ -52,6 +54,11 @@ ${main}
 </body>
 </html>
 `
+}
+
+/** A committed epic's commit, the same on every screen: `Committed at 14 items`. */
+export function commitText(commit: CommitView): string {
+  return `Committed at ${commit.baseline} items`
 }
 
 const STYLE = `
@@ -148,7 +155,7 @@ const STYLE = `
     .rows { display: flex; flex-direction: column; }
     .row { display: grid; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--hairline); }
     ol.epics { list-style: none; margin: 0; padding: 0; counter-reset: rank; }
-    ol.epics form { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto auto; flex-direction: row; gap: 8px 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--hairline); }
+    ol.epics form { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto auto auto; flex-direction: row; gap: 8px 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--hairline); }
     ol.epics form::before { counter-increment: rank; content: counter(rank); font-family: var(--mono); color: var(--faint); }
     ol.epics .name { font-weight: 600; }
     ol.epics .key, .epic-choice .key { font-family: var(--mono); font-size: 12px; color: var(--faint); font-weight: 400; }

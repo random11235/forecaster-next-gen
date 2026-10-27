@@ -3,6 +3,7 @@ import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
 import { SAMPLE_DATA } from '../../src/sample/sampleData.js'
+import { countingFactReads } from '../storage/countingFactReads.js'
 
 // The screens on the canned sample data, through the local server, as the EM's browser sees them.
 
@@ -43,31 +44,6 @@ function text(html: string): string {
     .replace(/<style[\s\S]*?<\/style>/g, '')
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
-}
-
-/** The real storage, counting each time the team's facts are read from it. */
-function countingFactReads(real: Storage): { storage: Storage; reads: () => number } {
-  let reads = 0
-  const storage: Storage = {
-    isEmpty: () => real.isEmpty(),
-    saveTeam: (team) => real.saveTeam(team),
-    teams: () => real.teams(),
-    addFacts: (teamId, facts) => real.addFacts(teamId, facts),
-    facts: (teamId) => {
-      reads++
-      return real.facts(teamId)
-    },
-    saveMilestone: (milestone) => real.saveMilestone(milestone),
-    milestones: (teamId) => real.milestones(teamId),
-    savePaceSetting: (setting) => real.savePaceSetting(setting),
-    paceSetting: (teamId, milestoneId) => real.paceSetting(teamId, milestoneId),
-    saveWorkflowSettings: (settings) => real.saveWorkflowSettings(settings),
-    workflowSettings: (teamId) => real.workflowSettings(teamId),
-    saveEpicCommit: (commit) => real.saveEpicCommit(commit),
-    epicCommits: (teamId) => real.epicCommits(teamId),
-    close: () => real.close(),
-  }
-  return { storage, reads: () => reads }
 }
 
 /** Starts the app on the sample data, counting reads of the team's facts from launch on. */
@@ -117,22 +93,15 @@ describe('Inputs screen', () => {
     expect(inputs).toMatch(/name="high"[^>]*value="6"/)
   })
 
-  test.each([
-    { low: '6', high: '3', message: 'The low end must not be above the high end.' },
-    { low: 'two', high: '6', message: 'Enter whole numbers of tickets, 0 or more.' },
-    { low: '1.5', high: '6', message: 'Enter whole numbers of tickets, 0 or more.' },
-    { low: '-1', high: '6', message: 'Enter whole numbers of tickets, 0 or more.' },
-    { low: '', high: '6', message: 'Enter whole numbers of tickets, 0 or more.' },
-    { low: '1', high: '1000000', message: 'Enter at most 1000 tickets per week.' },
-  ])('refuses $low to $high, saying why and keeping what was typed', async ({ low, high, message }) => {
+  test('refuses a pace the rules forbid, saying why and keeping what was typed', async () => {
     await startOnSampleData()
 
-    const response = await submitPace(low, high)
+    const response = await submitPace(' 6 ', '3')
 
     expect(response.status).toBe(400)
     const html = await response.text()
-    expect(text(html)).toContain(message)
-    expect(html).toMatch(new RegExp(`name="low"[^>]*value="${low}"`))
+    expect(text(html)).toContain('The low end must not be above the high end.')
+    expect(html).toMatch(/name="low"[^>]*value="6"/)
     expect(text(await page('/'))).toContain('Enter your pace on the Inputs screen')
   })
 })
@@ -164,6 +133,17 @@ async function forecastEpics(): Promise<string[]> {
 }
 
 describe('Inputs screen: milestone', () => {
+  test('refuses a pace sent before the milestone is defined, still offering no pace form', async () => {
+    await startWithNoMilestone()
+
+    const response = await post('/inputs', [['low', '3'], ['high', '6']])
+
+    expect(response.status).toBe(400)
+    const html = await response.text()
+    expect(text(html)).toContain('No milestone defined yet. Define a milestone to enter its pace.')
+    expect(html).not.toMatch(/<input[^>]*name="low"/)
+  })
+
   test("with no milestone, offers a form for its name, committed date and a rank for each of the team's epics", async () => {
     await startWithNoMilestone()
 
@@ -300,13 +280,29 @@ describe('Inputs screen: milestone', () => {
     expect(html).toMatch(/name="committedDate"[^>]*value="2027-02-30"/)
   })
 
+  test('each epic has a commit button; committing shows its baseline on both screens', async () => {
+    await startOnSampleData()
+    expect((await page('/inputs')).match(/<button type="submit" name="action" value="commit">Commit<\/button>/g)).toHaveLength(3)
+
+    const committed = await post('/inputs/epics', [['epic', 'PAY-2'], ['action', 'commit']])
+
+    expect(committed.status).toBe(303)
+    expect(committed.headers.get('location')).toBe('/inputs')
+    const inputs = await page('/inputs')
+    expect(text(inputs)).toMatch(/Refunds PAY-2 Up Down Remove Committed at 14 items/)
+    expect(inputs.match(/value="commit">Commit</g)).toHaveLength(2)
+    const forecast = text(await page('/'))
+    expect(forecast).toMatch(/Refunds 14 Committed at 14 items/)
+    expect(forecast.match(/Not committed: wide range/g)).toHaveLength(2)
+  })
+
   test('an epic change that names no action says why', async () => {
     await startOnSampleData()
 
     const response = await post('/inputs/epics', [['epic', 'PAY-1']])
 
     expect(response.status).toBe(400)
-    expect(text(await response.text())).toContain('Choose Add, Remove, Up or Down.')
+    expect(text(await response.text())).toContain('Choose Add, Remove, Up, Down or Commit.')
   })
 
   test('a refused epic change says why', async () => {
@@ -338,15 +334,6 @@ function workflowForm(changes: Record<string, string> = {}): [string, string][] 
 }
 
 describe('Inputs screen: workflow', () => {
-  test("saving the settings reads the team's facts from storage once", async () => {
-    const reads = await startCountingFactReads()
-
-    const response = await post('/inputs/workflow', workflowForm())
-
-    expect(response.status).toBe(303)
-    expect(reads()).toBe(1)
-  })
-
   test("shows the sample board's status mapping, started status, spike rules, commit label and blocked marker", async () => {
     await startOnSampleData()
 

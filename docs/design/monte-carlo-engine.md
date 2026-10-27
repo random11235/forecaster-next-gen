@@ -68,9 +68,9 @@ Ingestion follows data minimisation (see [Security](#security)). On GitHub, an a
 ### Layer 2: derived samples (recomputable, cacheable)
 
 ```ts
-EpicCommit       { epicId, committedAt, childCountAtCommit,
-                   source: 'user_marked'|'label',
-                   resetAt? }            // set when the epic is pulled back to not started
+EpicCommit       { teamId, epicId, committedAt,
+                   baseline }            // children at commit; stored as child_count_at_commit.
+                                         // Later, with the commit label: source: 'user_marked'|'label'
 
 GrowthSample     { epicId, teamId, committedCount, finalCount,
                    ratio /* finalCount / committedCount */, completedAt }
@@ -81,7 +81,7 @@ ThroughputSample { teamId, milestoneId, periodStart, periodDays /* 1 | 7 */,
                    scope: 'milestoneEpics', count }
 ```
 
-**Committing.** The EM commits an epic in the tool after kickoff, or a configured label in the ticketing tool commits it. The commit records the epic's child count at that moment. Spikes never commit an epic. A pull-back (from started to not started) resets the commit: `resetAt` is set and the EM commits again on restart. Only the latest commit counts towards the growth ratio. A blocked epic keeps its commit.
+**Committing.** The EM commits an epic in the tool after kickoff, or a configured label in the ticketing tool commits it. The commit records the epic's child count at that moment, its **baseline**. Spikes never commit an epic. A **pull-back** (the epic moving from started to not started) resets the commit, and the EM commits again on restart. The reset is not stored: on each read, `samples/commits.ts` checks the epic's status history under the team's `WorkflowSettings` for a pull-back after `committedAt`, so changing the status mapping can change which commits stand. Team facts carries the commits that stand. Only the latest commit is stored, and only it counts towards the growth ratio. A blocked epic keeps its commit.
 
 **The uncommitted-but-active warning.** "The epic moved to in progress, or a non-spike child started" is no longer a commit rule. It only triggers a warning when the epic isn't committed.
 
@@ -273,9 +273,10 @@ src/
     workItem.ts           # WorkItem, WorkItemEvent, Facts
     milestone.ts          # Milestone: defined by the EM, not ingested
     workflow.ts           # WorkflowSettings: the EM's status mapping, spike rule, commit label, blocked rule
+    epicCommit.ts         # EpicCommit: the EM's commit of an epic and its baseline
 
   samples/                # Layer 2: pure derivations from model/
-    commits.ts            # commits, pull-back resets, uncommitted-but-active detection
+    commits.ts            # commits that stand after pull-back resets; later, uncommitted-but-active detection
     throughput.ts         # WorkItems → ThroughputSample[] (milestone epics only)
     growth.ts             # commits + final counts → GrowthSample[]
     epicSize.ts           # finished epics → EpicSizeSample[]
@@ -285,8 +286,11 @@ src/
     index.ts              # exports simulateCase, periodEndDate and the types only
 
   forecast/               # the only module that knows both stored data and the engine
-    teamFacts.ts          # team facts: stored facts read under the team's WorkflowSettings, read once per call
-    workflowSettings.ts   # the Inputs screen's workflow settings view and edit
+    teamFacts.ts          # team facts: stored facts and the commits that stand, read under the team's WorkflowSettings, once per call
+    milestoneEpics.ts     # a milestone's epics as they stand: items now and commit; the baseline growth applies to
+    inputs.ts             # Seam B: stored data → the Inputs screen's view; its edits (milestone, workflow, pace) and their rules
+    milestoneDefinition.ts  # behind inputs.ts: the milestone's view and edits, including committing an epic
+    workflowSettings.ts   # behind inputs.ts: the workflow settings view and edit
     buildCase.ts          # pace mode, ambiguity ranges, provisional baselines, limits
     settings.ts           # ForecastSettings and AmbiguityRanges defaults
     suggestions.ts        # suggested pace range, measured medium range, switch offers
@@ -327,7 +331,7 @@ test/
 
 **Test seams.** There are two, as set in the spec:
 - **Seam A** is `simulateCase`, tested with fixed seeds.
-- **Seam B** is `forecast/`: stored facts, settings and the ledger go in, and the milestone forecast view comes out. Team facts is part of it: tests may call `teamFacts` directly.
+- **Seam B** is `forecast/`: stored facts, settings and the ledger go in, and the screens' views come out: `milestoneForecastView` for the Milestone forecast screen, and `inputsView` with `editInputs` for the Inputs screen. Team facts is part of it: tests may call `teamFacts` directly.
 
 Warning text and provenance are tested at Seam B, not Seam A. These cases moved from the engine tests. Each is owed, in `test/forecast/`, by the ticket that adds its warning or diagnostic:
 - the horizon warning when fewer trials finish than the highest reported percentile, with the floored percentage and the horizon date, and none when enough finish;
