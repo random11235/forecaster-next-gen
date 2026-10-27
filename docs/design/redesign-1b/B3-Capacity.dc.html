@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0;background:#F7F5F0}a{color:#1F5F6B}a:hover{color:#123F47}button{font:inherit;cursor:pointer}</style>
+</helmet>
+<div style="font-family: 'Geist', system-ui, sans-serif; color: #1C1B18; background: #F7F5F0; min-height: 100vh; font-size: 14px; display: grid; grid-template-columns: 244px minmax(0, 1fr)">
+<dc-import name="B-Sidebar" active="capacity" hint-size="244px,100%"></dc-import>
+<main style="padding: 40px 56px 64px; max-width: 1040px; display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 24px">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<span style="font-size: 13px; color: #5E5A52">Payments team · next 12 weeks</span>
+<h1 style="margin: 0; font-size: 40px; line-height: 1.15; font-weight: 600; letter-spacing: -0.03em; max-width: 720px; text-wrap: pretty">Two short weeks before the committed date, two near-empty after it.</h1>
+</div>
+<button style="min-height: 42px; padding: 0 18px; border-radius: 6px; border: 0; background: #1C1B18; color: #F7F5F0; font-weight: 600; white-space: nowrap">Add absence</button>
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 8px">
+<h2 style="margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid #1C1B18; padding-bottom: 8px">Share of a normal week</h2>
+<div style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 6px; padding-top: 8px">
+<sc-for list="{{bars}}" as="b" hint-placeholder-count="12">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="height: 90px; border-radius: 4px; background: #EAE6DD; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden"><div style="{{b.barStyle}}"></div></div>
+<span style="font-family: 'Geist Mono', monospace; font-size: 12px; font-weight: 600; {{b.valStyle}}">{{b.text}}</span>
+<span style="font-family: 'Geist Mono', monospace; font-size: 10px; color: #8C877C">{{b.label}}</span>
+</div>
+</sc-for>
+</div>
+</section>
+
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px">
+<section style="display: flex; flex-direction: column">
+<h2 style="margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid #1C1B18; padding-bottom: 8px">Absences</h2>
+<sc-for list="{{abs}}" as="a" hint-placeholder-count="3"><div style="display: grid; grid-template-columns: minmax(0, 1fr) 120px 60px; gap: 12px; padding: 12px 0; border-bottom: 1px solid #E2DDD2"><span style="font-weight: 600">{{a.who}}</span><span style="font-family: 'Geist Mono', monospace; font-size: 13px; color: #3F3C35">{{a.when}}</span><a href="#" style="text-align: right; font-size: 13px">Remove</a></div></sc-for>
+</section>
+<section style="display: flex; flex-direction: column">
+<h2 style="margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid #1C1B18; padding-bottom: 8px">Team setups and their pace</h2>
+<sc-for list="{{periods}}" as="p" hint-placeholder-count="3"><div style="display: grid; grid-template-columns: 120px minmax(0, 1fr) 50px 90px; gap: 12px; padding: 12px 0; border-bottom: 1px solid #E2DDD2; align-items: baseline"><span style="font-family: 'Geist Mono', monospace; font-size: 12px; color: #5E5A52">{{p.when}}</span><span>{{p.what}}</span><span style="font-family: 'Geist Mono', monospace; text-align: right; font-weight: 600">{{p.pace}}</span><span style="font-size: 12px; text-align: right; {{p.tagStyle}}">{{p.tag}}</span></div></sc-for>
+<p style="margin: 12px 0 0; font-size: 13px; color: #5E5A52; line-height: 1.5">41% more people once gave 17% more pace, so Alex isn't counted until it's measured.</p>
+</section>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  renderVals() {
+    const labels = ['19 Oct','26 Oct','2 Nov','9 Nov','16 Nov','23 Nov','30 Nov','7 Dec','14 Dec','21 Dec','28 Dec','4 Jan'];
+    const f = [1.0,1.0,1.0,0.85,0.71,0.71,1.0,1.0,1.0,0.24,0.12,1.0];
+    const bars = labels.map((label, i) => ({ label, text: Math.round(f[i] * 100) + '%', valStyle: f[i] < 0.9 ? 'color:#B5482A' : 'color:#8C877C', barStyle: 'height:' + Math.round(f[i] * 90) + 'px;background:' + (f[i] < 0.9 ? '#B5482A' : '#1F5F6B') }));
+    const abs = [{ who: 'Company holiday', when: '21 Dec – 1 Jan' }, { who: 'Dana', when: '16 – 27 Nov' }, { who: 'Sam · on call, half', when: '9 – 13 Nov' }];
+    const periods = [
+      { when: '28 Sep – now', what: 'Alex joined', pace: '7.0', tag: 'from 26 Oct', tagStyle: 'color:#8C5E0F' },
+      { when: '3 Aug – 27 Sep', what: 'Lee to 60%', pace: '6.5', tag: 'in use', tagStyle: 'color:#2F6B3F;font-weight:600' },
+      { when: '15 Jun – 2 Aug', what: 'Morgan left', pace: '6.9', tag: 'history', tagStyle: 'color:#8C877C' }
+    ];
+    return { bars, abs, periods };
+  }
+}
+</script>
+</body>
+</html>
