@@ -2,16 +2,16 @@ import type { ForecastResult } from '../engine/index.js'
 import type { MilestoneEpic } from './milestoneEpics.js'
 
 /**
- * Pace variation (relative standard error) bands. Split-halves' 25% and 75% bands correspond to about 15% and 44%
- * RSE (split-halves ≈ 1.70 × RSE): see
- * https://github.com/random11235/forecaster-next-gen/blob/main/docs/research/pace-stability/README.md#split-halves-error-is-the-relative-standard-error
- */
-/**
  * Where an epic's growth is drawn from: the team's measured growth samples, its ambiguity level's range, or, with no
  * baseline children, a whole-epic size.
  */
 export type GrowthSource = 'samples' | 'ambiguity' | 'epicSize'
 
+/**
+ * Pace variation (relative standard error) bands. Split-halves' 25% and 75% bands correspond to about 15% and 44%
+ * RSE (split-halves ≈ 1.70 × RSE): see
+ * https://github.com/random11235/forecaster-next-gen/blob/main/docs/research/pace-stability/README.md#split-halves-error-is-the-relative-standard-error
+ */
 const STEADY_BELOW = 0.15
 const VARIES_A_LOT_FROM = 0.44
 

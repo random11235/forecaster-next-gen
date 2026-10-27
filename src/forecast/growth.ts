@@ -55,18 +55,13 @@ export interface TeamGrowth {
 
 /** The team's ambiguity ranges, and the growth and sizes measured from its finished committed epics. */
 export function teamGrowth(storage: Storage, teamId: string, team: TeamFacts): TeamGrowth {
-  const { teamId: _teamId, ...ranges } = storage.ambiguityRanges(teamId) ?? { teamId, ...DEFAULT_AMBIGUITY_RANGES }
+  const { teamId: _teamId, ...ranges } = savedRanges(storage, teamId)
   const finished = finishedEpics(team.commits.values(), team.facts.workItems)
   return {
     ranges,
     growthSamples: growthSamples(finished).map((sample) => sample.ratio),
     epicSizeSamples: epicSizeSamples(finished).map((sample) => sample.finalCount),
   }
-}
-
-/** The ambiguity level the EM set for each of the milestone's epics, by epic ID; an epic not set is medium. */
-export function epicAmbiguities(storage: Storage, teamId: string, milestoneId: string): Map<string, Ambiguity> {
-  return new Map(storage.epicAmbiguities(teamId, milestoneId).map((setting) => [setting.epicId, setting.ambiguity]))
 }
 
 /**
@@ -90,9 +85,9 @@ export function epicGrowth(
  * Where the epic's growth comes from, as the Milestone forecast screen says it: "Medium ambiguity: grows 1–2×",
  * "Medium ambiguity: grows as measured from 7 finished epics" or "No items yet: sized from 3 finished epics".
  */
-export function growthBasis(epic: MilestoneEpic, growth: TeamGrowth, settings: ForecastSettings): string {
+export function growthBasis(epic: MilestoneEpic, source: GrowthSource, growth: TeamGrowth, settings: ForecastSettings): string {
   const level = `${ambiguityName(epic.ambiguity)} ambiguity`
-  switch (epicGrowth(epic, growth, settings).source) {
+  switch (source) {
     case 'ambiguity':
       return `${level}: grows ${rangeText(growth.ranges[epic.ambiguity])}`
     case 'samples':
@@ -155,7 +150,7 @@ export function editGrowth(storage: Storage, teamId: string, team: TeamFacts, ed
       return { ok: true }
     }
     case 'useMediumRange':
-      storage.saveAmbiguityRanges({ ...(storage.ambiguityRanges(teamId) ?? { teamId, ...DEFAULT_AMBIGUITY_RANGES }), mediumMeasured: false })
+      storage.saveAmbiguityRanges({ ...savedRanges(storage, teamId), mediumMeasured: false })
       return { ok: true }
     case 'setEpicAmbiguity':
       return setEpicAmbiguity(storage, teamId, edit)
@@ -185,7 +180,7 @@ function setAmbiguityRanges(storage: Storage, teamId: string, typed: Record<Ambi
     if (range.low > range.high) return refuse('The low end must not be above the high end.')
     ranges[level] = range
   }
-  const { mediumMeasured } = storage.ambiguityRanges(teamId) ?? DEFAULT_AMBIGUITY_RANGES
+  const { mediumMeasured } = savedRanges(storage, teamId)
   storage.saveAmbiguityRanges({ teamId, ...(ranges as Record<Ambiguity, GrowthRange>), mediumMeasured })
   return { ok: true }
 }
@@ -193,4 +188,9 @@ function setAmbiguityRanges(storage: Storage, teamId: string, typed: Record<Ambi
 /** A plain decimal: `1`, `1.5` or `.5`. */
 function isNumber(value: string): boolean {
   return /^(\d+(\.\d*)?|\.\d+)$/.test(value)
+}
+
+/** The team's saved ambiguity ranges, or the defaults until the EM saves some. */
+function savedRanges(storage: Storage, teamId: string): AmbiguityRanges {
+  return storage.ambiguityRanges(teamId) ?? { teamId, ...DEFAULT_AMBIGUITY_RANGES }
 }

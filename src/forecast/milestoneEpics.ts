@@ -3,6 +3,7 @@ import type { Milestone } from '../model/milestone.js'
 import { categoryLookup, type StatusCategory } from '../model/workflow.js'
 import { childrenOf, type WorkItem, type WorkItemEvent } from '../model/workItem.js'
 import type { StandingCommit } from '../samples/commits.js'
+import type { Storage } from '../storage/storage.js'
 import type { TeamFacts } from './teamFacts.js'
 
 /** An epic's commit as the screens show it: its baseline, the children it had when committed, and how it was made. */
@@ -100,4 +101,9 @@ function categoryFromTimes(epic: WorkItem | undefined): StatusCategory {
   if (epic?.doneAt !== undefined) return 'done'
   if (epic?.cancelledAt !== undefined) return 'cancelled'
   return epic?.startedAt !== undefined ? 'started' : 'notStarted'
+}
+
+/** The ambiguity level the EM set for each of the milestone's epics, by epic ID; an epic not set is medium. */
+export function epicAmbiguities(storage: Storage, teamId: string, milestoneId: string): Map<string, Ambiguity> {
+  return new Map(storage.epicAmbiguities(teamId, milestoneId).map((setting) => [setting.epicId, setting.ambiguity]))
 }

@@ -365,8 +365,8 @@ function measuredGrowth({ finishedEpics, suggestion, mediumMeasured }: GrowthVie
         <p class="note">${epics} so far. Once enough have finished, their growth is suggested for medium.</p>`
   }
   const [line, source, label] = mediumMeasured
-    ? [`Medium epics grow as measured: ${rangeText(suggestion)}.`, 'range', 'Use the medium range instead']
-    : [`Suggested for medium: ${rangeText(suggestion)}.`, 'measured', 'Use measured growth for medium']
+    ? [`Medium epics grow as measured, from ${rangeText(suggestion)}.`, 'range', 'Use the medium range instead']
+    : [`Suggested for medium: grow as measured, from ${rangeText(suggestion)}.`, 'measured', 'Use measured growth for medium']
   return `        <form method="post" action="/inputs/growth/medium" class="suggestion">${errorLine(error)}
           <p><strong>${line}</strong> <span class="note">${escapeHtml(suggestion.basis)}.</span></p>
           <button type="submit" name="source" value="${source}">${label}</button>

@@ -4,9 +4,9 @@ import type { Pace, PaceSetting } from '../model/paceSetting.js'
 import type { Storage } from '../storage/storage.js'
 import { buildCase } from './buildCase.js'
 import { teamMilestone } from './milestoneDefinition.js'
-import { milestoneEpics, type MilestoneEpic } from './milestoneEpics.js'
+import { epicAmbiguities, milestoneEpics, type MilestoneEpic } from './milestoneEpics.js'
 import { epicWarnings, informationNotes, thinDataMessage, type GrowthSource } from './diagnostics.js'
-import { epicAmbiguities, epicGrowth, growthBasis, teamGrowth, type TeamGrowth } from './growth.js'
+import { epicGrowth, growthBasis, teamGrowth, type TeamGrowth } from './growth.js'
 import type { ForecastSettings } from './settings.js'
 import { teamFacts, type TeamFacts } from './teamFacts.js'
 
@@ -72,11 +72,10 @@ export function milestoneForecastView(storage: Storage, teamId: string, options:
     committedDate: milestone.committedDate,
     forecast: forecastFor(milestone, team, epics, growth, storage.paceSetting(teamId, milestone.id), options),
     warnings: epicWarnings(epics, team.workflow.commitLabel),
-    epics: epics.map((epic) => ({
-      ...epic,
-      growthSource: epicGrowth(epic, growth, options.settings).source,
-      growthBasis: growthBasis(epic, growth, options.settings),
-    })),
+    epics: epics.map((epic) => {
+      const { source } = epicGrowth(epic, growth, options.settings)
+      return { ...epic, growthSource: source, growthBasis: growthBasis(epic, source, growth, options.settings) }
+    }),
   }
 }
 
