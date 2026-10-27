@@ -33,8 +33,8 @@ export interface MilestoneEpic {
   finished: boolean
   /** The epic is in a status, or has a label, of the workflow's blocked rule. It stays in the milestone and forecast. */
   blocked: boolean
-  /** The epic carries the workflow's commit label now, whether or not a commit stands. */
-  hasCommitLabel: boolean
+  /** The epic carries the workflow's commit label now, but a pull-back since reset the commit the label made. */
+  labelCommitReset: boolean
 }
 
 /** The milestone's epics in rank order, as the team's facts and standing commits have them now. */
@@ -69,7 +69,7 @@ export function milestoneEpics(milestone: Milestone, team: TeamFacts): Milestone
       blocked:
         (status !== undefined && blockedRule.statuses.includes(status)) ||
         (epic?.labels ?? []).some((label) => blockedRule.labels.includes(label)),
-      hasCommitLabel,
+      labelCommitReset: hasCommitLabel && team.labelCommitsReset.has(epicId),
     }
   })
 }

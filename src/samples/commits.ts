@@ -10,8 +10,16 @@ export interface StandingCommit extends EpicCommit {
   source: CommitSource
 }
 
+/** An epic's commits as they stand, from the EM's commits in the tool and the facts' label and status history. */
+export interface Commits {
+  /** The commits that still stand, by epic ID. */
+  standing: Map<string, StandingCommit>
+  /** Epics with a commit made by the commit label that a pull-back has since reset. */
+  labelCommitsReset: Set<string>
+}
+
 /**
- * The commits that still stand, by epic ID. An epic is committed by the EM in the tool, or by applying the workflow's
+ * The commits that still stand, by epic ID, and the epics whose label commit a pull-back reset. An epic is committed by the EM in the tool, or by applying the workflow's
  * commit label, which records the epic's child count at that moment as its baseline. A pull-back (the epic moving from
  * started to not started, as the workflow reads its statuses) after a commit resets it, until the epic is committed
  * again. A blocked epic keeps its commit: a move into or out of a status of the blocked rule is not a pull-back, nor
@@ -23,7 +31,7 @@ export function standingCommits(
   commits: readonly EpicCommit[],
   facts: Facts,
   workflow: WorkflowSettings,
-): Map<string, StandingCommit> {
+): Commits {
   const category = categoryLookup(workflow)
   const blockedStatuses = new Set(workflow.blockedRule.statuses)
   const history = historyByItem(facts.events)
@@ -58,12 +66,16 @@ export function standingCommits(
 
   // The earliest since the last pull-back stands, however it was made.
   const standing = new Map<string, StandingCommit>()
+  const labelCommitsReset = new Set<string>()
   for (const commit of made) {
-    if ((lastPullBack.get(commit.epicId) ?? -Infinity) > Date.parse(commit.committedAt)) continue
+    if ((lastPullBack.get(commit.epicId) ?? -Infinity) > Date.parse(commit.committedAt)) {
+      if (commit.source === 'label') labelCommitsReset.add(commit.epicId)
+      continue
+    }
     const earliest = standing.get(commit.epicId)
     if (!earliest || Date.parse(commit.committedAt) < Date.parse(earliest.committedAt)) standing.set(commit.epicId, commit)
   }
-  return standing
+  return { standing, labelCommitsReset }
 }
 
 /**
