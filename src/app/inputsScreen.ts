@@ -358,23 +358,23 @@ ${measuredGrowth(view, mediumError)}`,
   )
 }
 
-/** The measured medium range: how many finished committed epics there are, and, once enough, the suggestion to adopt. */
-function measuredGrowth({ finishedEpics, samplesNeeded, suggestion, mediumMeasured, paused, ranges }: GrowthView, error: string | undefined): string {
-  const epics = counted(finishedEpics, 'finished committed epic')
+/** The measured medium range: how many growth samples there are, and, once enough, the suggestion to adopt. */
+function measuredGrowth({ growthSamples, samplesNeeded, suggestion, mediumMeasured, paused, ranges }: GrowthView, error: string | undefined): string {
+  const needed = counted(samplesNeeded, 'growth sample')
   if (paused) {
-    const left = counted(finishedEpics, 'is left', 'are left')
     return `        <form method="post" action="/inputs/growth/medium" class="suggestion">${errorLine(error)}
-          <p><strong>Measured growth is paused: it needs ${samplesNeeded} finished committed epics, and ${left}.</strong> <span class="note">Medium epics grow ${rangeText(ranges.medium)} until there are ${samplesNeeded} again.</span></p>
+          <p><strong>Measured growth is paused: it needs ${needed}, and has ${growthSamples}.</strong> <span class="note">Medium epics grow ${rangeText(ranges.medium)} until there are ${samplesNeeded} again.</span></p>
           <button type="submit" name="source" value="range">Use the medium range instead</button>
         </form>`
   }
   if (!suggestion) {
     return `${errorLine(error)}
-        <p class="note">${epics} so far. Once enough have finished, their growth is suggested for medium.</p>`
+        <p class="note">${counted(growthSamples, 'growth sample')} so far: one from each finished committed epic that had items when committed. Once there are ${samplesNeeded}, their growth is suggested for medium.</p>`
   }
+  // The span shown is rounded; medium epics draw from the measured epics' growth itself
   const [line, source, label] = mediumMeasured
-    ? [`Medium epics grow as measured, from ${rangeText(suggestion)}.`, 'range', 'Use the medium range instead']
-    : [`Suggested for medium: grow as measured, from ${rangeText(suggestion)}.`, 'measured', 'Use measured growth for medium']
+    ? [`Medium epics grow as the measured epics did, roughly ${rangeText(suggestion)}.`, 'range', 'Use the medium range instead']
+    : [`Suggested for medium: grow as the measured epics did, roughly ${rangeText(suggestion)}.`, 'measured', 'Use measured growth for medium']
   return `        <form method="post" action="/inputs/growth/medium" class="suggestion">${errorLine(error)}
           <p><strong>${line}</strong> <span class="note">${escapeHtml(suggestion.basis)}.</span></p>
           <button type="submit" name="source" value="${source}">${label}</button>
