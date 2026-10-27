@@ -25,9 +25,9 @@ export function hasEnoughGrowthSamples(growthSamples: readonly number[], setting
   return growthSamples.length >= settings.minGrowthSamples
 }
 
-/** The nearest half at or below the ratio: 1.2 → 1. */
+/** The nearest half at or below the ratio, and at least a half, as growth is above 0: 1.2 → 1, 0.4 → 0.5. */
 function halfBelow(ratio: number): number {
-  return Math.floor(ratio * 2 + ROUNDING_SLACK) / 2
+  return Math.max(0.5, Math.floor(ratio * 2 + ROUNDING_SLACK) / 2)
 }
 
 /** The nearest half at or above the ratio: 2.6 → 3. */
