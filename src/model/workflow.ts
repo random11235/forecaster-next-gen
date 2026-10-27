@@ -43,7 +43,7 @@ export function categoryLookup(workflow: WorkflowSettings): (status: string | un
 }
 
 /**
- * The sample board's workflow, and the one a team has until the EM sets its own. Schema migration 2 writes the
+ * The sample board's workflow (less its commit label), and the one a team has until the EM sets its own. Schema migration 2 writes the
  * same settings into data files from before workflow settings existed.
  */
 export function defaultWorkflowSettings(teamId: string): WorkflowSettings {

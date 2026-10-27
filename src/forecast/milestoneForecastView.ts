@@ -5,7 +5,7 @@ import type { Storage } from '../storage/storage.js'
 import { buildCase } from './buildCase.js'
 import { teamMilestone } from './milestoneDefinition.js'
 import { milestoneEpics, type MilestoneEpic } from './milestoneEpics.js'
-import { informationNotes, thinDataMessage } from './diagnostics.js'
+import { epicWarnings, informationNotes, thinDataMessage } from './diagnostics.js'
 import type { ForecastSettings } from './settings.js'
 import { teamFacts, type TeamFacts } from './teamFacts.js'
 
@@ -33,7 +33,15 @@ export type ForecastSection =
 /** What the Milestone forecast screen shows. */
 export type MilestoneForecastView =
   | { kind: 'noMilestone' }
-  | { kind: 'milestone'; name: string; committedDate: string; forecast: ForecastSection; epics: MilestoneEpic[] }
+  | {
+      kind: 'milestone'
+      name: string
+      committedDate: string
+      forecast: ForecastSection
+      /** Warnings about the milestone's epics, shown whether or not there is a forecast yet. */
+      warnings: string[]
+      epics: MilestoneEpic[]
+    }
 
 export interface ViewOptions {
   /** ISO calendar date the forecast starts from. */
@@ -47,13 +55,15 @@ export function milestoneForecastView(storage: Storage, teamId: string, options:
   if (!milestone) return { kind: 'noMilestone' }
 
   const team = teamFacts(storage, teamId)
+  const epics = milestoneEpics(milestone, team)
 
   return {
     kind: 'milestone',
     name: milestone.name,
     committedDate: milestone.committedDate,
     forecast: forecastFor(milestone, team, storage.paceSetting(teamId, milestone.id), options),
-    epics: milestoneEpics(milestone, team),
+    warnings: epicWarnings(epics),
+    epics,
   }
 }
 
