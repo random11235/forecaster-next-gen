@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0;background:#F7F5F0}a{color:#1F5F6B}a:hover{color:#123F47}button{font:inherit;cursor:pointer}</style>
+</helmet>
+<div style="font-family: 'Geist', system-ui, sans-serif; color: #1C1B18; background: #F7F5F0; min-height: 100vh; font-size: 14px; display: grid; grid-template-columns: 244px minmax(0, 1fr)">
+<dc-import name="B-Sidebar" active="track" hint-size="244px,100%"></dc-import>
+<main style="padding: 40px 56px 64px; max-width: 1040px; display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<span style="font-size: 13px; color: #5E5A52">Payments team · 18 finished forecasts</span>
+<h1 style="margin: 0; font-size: 40px; line-height: 1.15; font-weight: 600; letter-spacing: -0.03em; max-width: 780px; text-wrap: pretty">When we say “85% sure”, we're right <span style="color: #B5482A">78%</span> of the time.</h1>
+<p style="margin: 0; font-size: 16px; color: #3F3C35; line-height: 1.5; max-width: 680px">A little optimistic. Most misses came from High-ambiguity epics growing, not from pace. With 18 forecasts the rate itself is uncertain by about ±10 points.</p>
+</div>
+
+<section style="display: flex; flex-direction: column">
+<h2 style="margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid #1C1B18; padding-bottom: 8px">Said vs happened</h2>
+<sc-for list="{{rel}}" as="r" hint-placeholder-count="4">
+<div style="display: grid; grid-template-columns: 90px minmax(0, 1fr) 110px; gap: 24px; align-items: center; padding: 14px 0; border-bottom: 1px solid #E2DDD2">
+<span style="font-weight: 600">{{r.label}}</span>
+<div style="position: relative; height: 16px"><div style="position: absolute; left: 0; right: 0; top: 7px; height: 2px; background: #E2DDD2"></div><div style="position: absolute; top: 2px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #1C1B18; box-sizing: border-box; background: #F7F5F0; {{r.statedPos}}"></div><div style="position: absolute; top: 2px; width: 12px; height: 12px; border-radius: 50%; {{r.actualPos}}"></div><div style="position: absolute; top: 7px; height: 2px; {{r.gapLine}}"></div></div>
+<span style="font-family: 'Geist Mono', monospace; text-align: right"><strong style="{{r.valStyle}}">{{r.actual}}</strong> <span style="color: #8C877C">of {{r.stated}}</span></span>
+</div>
+</sc-for>
+<p style="margin: 12px 0 0; font-size: 13px; color: #5E5A52">Open circle: what was promised. Filled: what happened.</p>
+</section>
+
+<section style="display: flex; flex-direction: column">
+<div style="display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #1C1B18; padding-bottom: 8px"><h2 style="margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em">Finished milestones</h2><a href="#" style="font-size: 13px">Export CSV</a></div>
+<sc-for list="{{ledger}}" as="l" hint-placeholder-count="7">
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 80px 80px 80px 100px; gap: 20px; padding: 12px 0; border-bottom: 1px solid #E2DDD2; align-items: baseline">
+<span style="font-weight: 600">{{l.project}}</span>
+<span style="font-family: 'Geist Mono', monospace; font-size: 13px; color: #8C877C">{{l.made}}</span>
+<span style="font-family: 'Geist Mono', monospace; font-size: 13px; text-align: right">{{l.p85}}</span>
+<span style="font-family: 'Geist Mono', monospace; font-size: 13px; text-align: right">{{l.actual}}</span>
+<span style="font-family: 'Geist Mono', monospace; font-size: 13px; text-align: right; {{l.offStyle}}">{{l.off}}</span>
+</div>
+</sc-for>
+</section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:1000}}">
+class Component extends DCLogic {
+  renderVals() {
+    const p = v => ((v - 40) / 60 * 100);
+    const rel = [[50, 46], [70, 63], [85, 78], [95, 89]].map(([s, a]) => ({
+      label: s + '% sure', stated: s + '%', actual: a + '%',
+      statedPos: 'left:calc(' + p(s) + '% - 6px)', actualPos: 'left:calc(' + p(a) + '% - 6px);background:' + (a < s - 3 ? '#B5482A' : '#1C1B18'),
+      gapLine: 'left:' + p(a) + '%;width:' + (p(s) - p(a)) + '%;background:' + (a < s - 3 ? '#B5482A' : '#1C1B18'),
+      valStyle: a < s - 3 ? 'color:#B5482A' : ''
+    }));
+    const rows = [
+      ['Payouts dashboard', '4 Aug', '15 Sep', '21 Sep', 6], ['Dispute evidence upload', '1 Sep', '6 Oct', '29 Sep', -7], ['Invoice PDFs', '11 Aug', '29 Sep', '22 Sep', -7],
+      ['Wallet tokenisation', '28 Jul', '22 Sep', '13 Oct', 21], ['Currency rounding', '14 Jul', '4 Aug', '28 Jul', -7], ['Fraud rules v3', '30 Jun', '15 Sep', '1 Sep', -14], ['Payment links', '16 Jun', '4 Aug', '28 Jul', -7]
+    ];
+    const ledger = rows.map(([project, made, p85, actual, off]) => ({ project, made, p85, actual, off: off > 0 ? 'missed ' + off + ' d' : 'met, ' + (-off) + ' d', offStyle: off > 0 ? 'color:#B5482A;font-weight:600' : 'color:#2F6B3F' }));
+    return { rel, ledger };
+  }
+}
+</script>
+</body>
+</html>
