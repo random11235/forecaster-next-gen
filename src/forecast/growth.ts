@@ -39,6 +39,8 @@ export interface GrowthView {
   mediumMeasured: boolean
   /** Finished committed epics with a baseline: the team's growth samples. */
   finishedEpics: number
+  /** How many measured growth needs (`minGrowthSamples`): below it, adopted measured growth is paused. */
+  needed: number
   /** The measured medium range, once enough finished committed epics exist. */
   suggestion: Suggestion | undefined
 }
@@ -88,8 +90,12 @@ export function epicGrowth(
 export function growthBasis(epic: MilestoneEpic, source: GrowthSource, growth: TeamGrowth, settings: ForecastSettings): string {
   const level = `${ambiguityName(epic.ambiguity)} ambiguity`
   switch (source) {
-    case 'ambiguity':
-      return `${level}: grows ${rangeText(growth.ranges[epic.ambiguity])}`
+    case 'ambiguity': {
+      const grows = `${level}: grows ${rangeText(growth.ranges[epic.ambiguity])}`
+      return epic.ambiguity === 'medium' && measuredPaused(growth, settings)
+        ? `${grows} (measured growth paused: ${growth.growthSamples.length} of ${settings.minGrowthSamples} finished epics)`
+        : grows
+    }
     case 'samples':
       return `${level}: grows as measured from ${finishedEpicsText(growth.growthSamples.length)}`
     case 'epicSize': {
@@ -111,6 +117,11 @@ export function rangeText({ low, high }: GrowthRange): string {
   return low === high ? `${low}×` : `${low}–${high}×`
 }
 
+/** The EM adopted measured growth for medium, but too few finished committed epics are left to draw from. */
+function measuredPaused(growth: TeamGrowth, settings: ForecastSettings): boolean {
+  return growth.ranges.mediumMeasured && !hasEnoughGrowthSamples(growth.growthSamples, settings)
+}
+
 function finishedEpicsText(count: number): string {
   return count === 1 ? '1 finished epic' : `${count} finished epics`
 }
@@ -128,6 +139,7 @@ export function growthView(storage: Storage, teamId: string, team: TeamFacts, se
     ranges: { low, medium, high },
     mediumMeasured,
     finishedEpics: growthSamples.length,
+    needed: settings.minGrowthSamples,
     suggestion: measuredMediumSuggestion(growthSamples, settings),
   }
 }

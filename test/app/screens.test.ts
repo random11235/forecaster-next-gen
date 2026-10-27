@@ -474,6 +474,26 @@ describe('Inputs screen: growth', () => {
     expect(text(await page('/'))).toContain('Medium ambiguity: grows 1–2×')
   })
 
+  test('says measured growth is paused once too few finished epics are left, and the EM can turn it off', async () => {
+    await startOnSampleData()
+    addFinishedEpics(7)
+    await post('/inputs/growth/medium', [['source', 'measured']])
+
+    storage!.addFacts('sample-team', {
+      workItems: [],
+      events: [{ itemId: 'DONE-7', at: '2026-09-01T09:00:00Z', kind: 'status', from: 'Done', to: 'In Progress' }],
+    })
+
+    expect(text(await page('/inputs'))).toContain(
+      'Measured growth is paused: it needs 7 finished committed epics, and 6 are left. Medium epics grow 1–2× until there are 7 again.',
+    )
+    expect(text(await page('/'))).toContain('Medium ambiguity: grows 1–2× (measured growth paused: 6 of 7 finished epics)')
+
+    expect((await post('/inputs/growth/medium', [['source', 'range']])).status).toBe(303)
+    expect(text(await page('/inputs'))).toContain('6 finished committed epics so far.')
+    expect(text(await page('/'))).not.toContain('paused')
+  })
+
   test('refuses measured growth before 7 finished committed epics', async () => {
     await startOnSampleData()
     addFinishedEpics(6)

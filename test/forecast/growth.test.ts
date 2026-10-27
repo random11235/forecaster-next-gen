@@ -283,6 +283,20 @@ describe('measured growth', () => {
     expect(datesOf(storage)).toEqual(before)
   })
 
+  test('adopted, and then too few finished epics: medium is back on its range, and both screens say why', () => {
+    const storage = team()
+    finishedEpics(storage, 7)
+    edit(storage, { kind: 'useMeasuredMedium' })
+
+    storage.addFacts(TEAM, { workItems: [], events: [status('F3', '2026-09-01T09:00:00Z', 'In Progress', 'Done')] })
+
+    expect(inputsView(storage, TEAM).growth).toMatchObject({ mediumMeasured: true, finishedEpics: 6, needed: 7, suggestion: undefined })
+    expect(view(storage).epics[0]).toMatchObject({
+      growthSource: 'ambiguity',
+      growthBasis: 'Medium ambiguity: grows 1–2× (measured growth paused: 6 of 7 finished epics)',
+    })
+  })
+
   test('Inputs and the forecast read the same threshold from the settings given', () => {
     const storage = team()
     finishedEpics(storage, 5)
