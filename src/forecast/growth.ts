@@ -4,6 +4,7 @@ import { epicSizeSamples } from '../samples/epicSize.js'
 import { finishedEpics } from '../samples/finishedEpics.js'
 import { growthSamples } from '../samples/growth.js'
 import type { Storage } from '../storage/storage.js'
+import { counted } from './counted.js'
 import type { GrowthSource } from './diagnostics.js'
 import { refuse, type EditResult } from './editResult.js'
 import { teamMilestone } from './milestoneDefinition.js'
@@ -99,11 +100,11 @@ export function growthBasis(epic: MilestoneEpic, source: GrowthSource, growth: T
         : grows
     }
     case 'samples':
-      return `${level}: grows as measured from ${finishedEpicsText(growth.growthSamples.length)}`
+      return `${level}: grows as measured from ${counted(growth.growthSamples.length, 'finished epic')}`
     case 'epicSize': {
       const sizes = epicSizes(growth, settings)
       return Array.isArray(sizes)
-        ? `No items yet: sized from ${finishedEpicsText(sizes.length)}`
+        ? `No items yet: sized from ${counted(sizes.length, 'finished epic')}`
         : `No items yet: sized ${sizes.low}–${sizes.high} items`
     }
   }
@@ -122,10 +123,6 @@ export function rangeText({ low, high }: GrowthRange): string {
 /** The EM adopted measured growth for medium, but too few finished committed epics are left to draw from. */
 function measuredPaused(growth: TeamGrowth, settings: ForecastSettings): boolean {
   return growth.ranges.mediumMeasured && !hasEnoughGrowthSamples(growth.growthSamples, settings)
-}
-
-function finishedEpicsText(count: number): string {
-  return count === 1 ? '1 finished epic' : `${count} finished epics`
 }
 
 /** The sizes an epic with no children draws from: finished committed epics' final sizes, or the default range until any exist. */
