@@ -99,7 +99,6 @@ describe('an edit', () => {
         kind: 'editWorkflow',
         categories: { 'To Do': 'notStarted', 'In Progress': 'started', Done: 'done', Cancelled: 'cancelled' },
         startedStatus: 'In Progress',
-        spikeRule: { types: ['spike'], labels: ['spike'] },
         commitLabel: '',
         blockedRule: { statuses: [], labels: ['blocked'] },
       },

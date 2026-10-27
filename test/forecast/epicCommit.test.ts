@@ -183,7 +183,6 @@ describe('pulling an epic back to not started', () => {
         { status: 'Review', category: 'started' },
       ],
       startedStatus: 'In Progress',
-      spikeRule: { types: ['spike'], labels: [] },
       blockedRule: { statuses: [], labels: [] },
     })
     commit(storage, 'E1', COMMITTED)
