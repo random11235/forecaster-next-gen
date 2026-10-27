@@ -427,7 +427,7 @@ describe('Inputs screen: growth', () => {
     for (const [field, value] of Object.entries(Object.fromEntries(growthForm()))) {
       expect(html).toMatch(new RegExp(`name="${field}"[^>]*value="${value}"`))
     }
-    expect(text(html)).toContain('0 finished committed epics so far.')
+    expect(text(html)).toContain('0 growth samples so far: one from each finished committed epic that had items when committed.')
     expect(text(await page('/'))).toContain('Medium ambiguity: grows 1–2×')
 
     const response = await post('/inputs/epics', [['epic', 'PAY-1'], ['ambiguity', 'high'], ['action', 'ambiguity']])
@@ -463,12 +463,12 @@ describe('Inputs screen: growth', () => {
     addFinishedEpics(7)
 
     const html = text(await page('/inputs'))
-    expect(html).toContain('Suggested for medium: grow as measured, from 1.5×. Measured from 7 finished committed epics.')
+    expect(html).toContain('Suggested for medium: grow as the measured epics did, roughly 1.5×. Measured from 7 finished committed epics.')
     expect(text(await page('/'))).toContain('Medium ambiguity: grows 1–2×')
 
     expect((await post('/inputs/growth/medium', [['source', 'measured']])).status).toBe(303)
-    expect(text(await page('/inputs'))).toContain('Medium epics grow as measured, from 1.5×.')
-    expect(text(await page('/'))).toContain('Medium ambiguity: grows as measured from 7 finished epics')
+    expect(text(await page('/inputs'))).toContain('Medium epics grow as the measured epics did, roughly 1.5×.')
+    expect(text(await page('/'))).toContain('Medium ambiguity: grows as measured from 7 finished committed epics')
 
     await post('/inputs/growth/medium', [['source', 'range']])
     expect(text(await page('/'))).toContain('Medium ambiguity: grows 1–2×')
@@ -485,12 +485,12 @@ describe('Inputs screen: growth', () => {
     })
 
     expect(text(await page('/inputs'))).toContain(
-      'Measured growth is paused: it needs 7 finished committed epics, and 6 are left. Medium epics grow 1–2× until there are 7 again.',
+      'Measured growth is paused: it needs 7 growth samples, and has 6. Medium epics grow 1–2× until there are 7 again.',
     )
-    expect(text(await page('/'))).toContain('Medium ambiguity: grows 1–2× (measured growth paused: 6 of 7 finished epics)')
+    expect(text(await page('/'))).toContain('Medium ambiguity: grows 1–2× (measured growth paused: 6 of 7 growth samples)')
 
     expect((await post('/inputs/growth/medium', [['source', 'range']])).status).toBe(303)
-    expect(text(await page('/inputs'))).toContain('6 finished committed epics so far.')
+    expect(text(await page('/inputs'))).toContain('6 growth samples so far')
     expect(text(await page('/'))).not.toContain('paused')
   })
 
@@ -501,7 +501,7 @@ describe('Inputs screen: growth', () => {
     const response = await post('/inputs/growth/medium', [['source', 'measured']])
 
     expect(response.status).toBe(400)
-    expect(text(await response.text())).toContain('Measured growth needs 7 finished committed epics; there are 6 so far.')
+    expect(text(await response.text())).toContain('Measured growth needs 7 growth samples, and has 6.')
   })
 
   test('the forecast says an epic with no items yet is sized from finished epics', async () => {
@@ -513,7 +513,7 @@ describe('Inputs screen: growth', () => {
     })
     await post('/inputs/epics', [['epic', 'PAY-9'], ['action', 'add']])
 
-    expect(text(await page('/'))).toContain('No items yet: sized from 2 finished epics')
+    expect(text(await page('/'))).toContain('No items yet: sized from 2 finished committed epics')
   })
 })
 

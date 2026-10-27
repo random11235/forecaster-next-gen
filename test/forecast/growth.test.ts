@@ -220,7 +220,7 @@ describe('measured growth', () => {
     finishedEpic(storage, 'U1', 10, 30, 'not')
     finishedEpic(storage, 'Z1', 0, 30)
 
-    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).growth).toMatchObject({ finishedEpics: 6, mediumMeasured: false, paused: false, suggestion: undefined })
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).growth).toMatchObject({ growthSamples: 6, mediumMeasured: false, paused: false, suggestion: undefined })
   })
 
   test('from 7 finished committed epics, suggests their range for medium, rounded out to the half, which changes nothing until the EM adopts it', () => {
@@ -229,7 +229,7 @@ describe('measured growth', () => {
     finishedEpics(storage, 7)
 
     expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).growth).toMatchObject({
-      finishedEpics: 7,
+      growthSamples: 7,
       mediumMeasured: false,
       suggestion: { low: 1, high: 3, basis: 'Measured from 7 finished committed epics' },
     })
@@ -303,10 +303,10 @@ describe('measured growth', () => {
 
     storage.addFacts(TEAM, { workItems: [], events: [status('F3', '2026-09-01T09:00:00Z', 'In Progress', 'Done')] })
 
-    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).growth).toMatchObject({ mediumMeasured: true, paused: true, finishedEpics: 6, samplesNeeded: 7, suggestion: undefined })
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).growth).toMatchObject({ mediumMeasured: true, paused: true, growthSamples: 6, samplesNeeded: 7, suggestion: undefined })
     expect(view(storage).epics[0]).toMatchObject({
       growthSource: 'ambiguity',
-      growthBasis: 'Medium ambiguity: grows 1–2× (measured growth paused: 6 of 7 finished epics)',
+      growthBasis: 'Medium ambiguity: grows 1–2× (measured growth paused: 6 of 7 growth samples)',
     })
   })
 
@@ -327,7 +327,7 @@ describe('measured growth', () => {
 
     expect(editInputs(storage, TEAM, { kind: 'useMeasuredMedium' }, DEFAULT_SETTINGS)).toEqual({
       ok: false,
-      error: 'Measured growth needs 7 finished committed epics; there are 6 so far.',
+      error: 'Measured growth needs 7 growth samples, and has 6.',
     })
     expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).growth.mediumMeasured).toBe(false)
   })
