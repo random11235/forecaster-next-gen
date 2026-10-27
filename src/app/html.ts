@@ -159,6 +159,8 @@ const STYLE = `
     ol.epics form { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto auto 210px; flex-direction: row; gap: 8px 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--hairline); }
     ol.epics form::before { counter-increment: rank; content: counter(rank); font-family: var(--mono); color: var(--faint); }
     ol.epics .name { font-weight: 600; }
+    /* The epic's ambiguity sits on a second line, under its name. */
+    ol.epics .ambiguity { grid-column: 2 / 5; grid-row: 2; display: flex; gap: 8px; align-items: center; }
     /* The last column holds Commit or the commit's text, at one width so every row's buttons line up. */
     ol.epics form > :last-child { justify-self: end; }
     ol.epics .note { font-size: 13px; color: var(--muted); white-space: nowrap; }
@@ -178,6 +180,13 @@ const STYLE = `
     table.workflow td { padding: 8px 12px 8px 0; border-bottom: 1px solid var(--hairline); }
     table.workflow td:first-child { width: 184px; font-family: var(--mono); font-size: 13px; }
     table.workflow td:first-child::after { content: '→'; float: right; color: var(--faint); font-family: 'Geist', system-ui, sans-serif; }
+    table.growth { border-collapse: collapse; }
+    table.growth th { padding: 0 24px 6px 0; text-align: left; font-size: 12px; font-weight: 500; color: var(--faint); }
+    table.growth td { padding: 6px 24px 6px 0; }
+    table.growth input[type=number] { width: 64px; text-align: center; }
+    table.growth .to, table.growth .unit { padding: 0 8px; font-size: 13px; color: var(--muted); }
+    section.input form.suggestion { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+    form.suggestion p { margin: 0; font-size: 14px; }
     .settings { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px 24px; }
     .settings .note { font-size: 12px; line-height: 1.4; color: var(--faint); }
 

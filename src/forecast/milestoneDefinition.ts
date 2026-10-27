@@ -3,6 +3,7 @@ import type { Milestone } from '../model/milestone.js'
 import { childrenOf, type WorkItem } from '../model/workItem.js'
 import type { Storage } from '../storage/storage.js'
 import { refuse, type EditResult } from './editResult.js'
+import { epicAmbiguities } from './growth.js'
 import { milestoneEpics, type MilestoneEpic } from './milestoneEpics.js'
 import { teamFacts, type TeamFacts } from './teamFacts.js'
 
@@ -56,7 +57,7 @@ export function milestoneDefinitionView(storage: Storage, teamId: string, team: 
     kind: 'milestone',
     name: milestone.name,
     committedDate: milestone.committedDate,
-    epics: milestoneEpics(milestone, team),
+    epics: milestoneEpics(milestone, team, epicAmbiguities(storage, teamId, milestone.id)),
     otherEpics: epics.filter((epic) => !inMilestone.has(epic.id)).map(toChoice),
   }
 }

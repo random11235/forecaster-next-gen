@@ -3,7 +3,8 @@ import type { Milestone } from '../model/milestone.js'
 import type { Pace } from '../model/paceSetting.js'
 import type { Facts } from '../model/workItem.js'
 import { milestoneThroughput } from '../samples/throughput.js'
-import { baselineOf, milestoneEpics } from './milestoneEpics.js'
+import { epicGrowth, epicSizes, type TeamGrowth } from './growth.js'
+import { baselineOf, type MilestoneEpic } from './milestoneEpics.js'
 import type { ForecastSettings } from './settings.js'
 import type { TeamFacts } from './teamFacts.js'
 
@@ -12,13 +13,14 @@ export type BuiltCase = { ok: true; simulationCase: SimulationCase } | { ok: fal
 
 /**
  * The engine case for the milestone's 'when' forecast, starting `today`.
- * Each epic grows from its baseline (`baselineOf`).
- * v1 so far: every epic grows by the medium ambiguity range, and an epic with no baseline children draws its size from
- * the default range.
+ * Each of the milestone's epics grows from its baseline (`baselineOf`) as `epicGrowth` says, and an epic with no
+ * baseline children draws its size from `epicSizes`.
  */
 export function buildCase(
   milestone: Milestone,
   team: TeamFacts,
+  epics: readonly MilestoneEpic[],
+  growth: TeamGrowth,
   pace: Pace,
   settings: ForecastSettings,
   today: string,
@@ -36,16 +38,16 @@ export function buildCase(
       question: { kind: 'when' },
       startDate: today,
       periodDays: settings.periodDays,
-      scope: milestoneEpics(milestone, team).map((epic, rank) => ({
+      scope: epics.map((epic, rank) => ({
         epicId: epic.epicId,
         rank,
         baseCount: baselineOf(epic),
         currentCount: epic.currentCount,
         doneCount: epic.doneCount,
-        growth: settings.mediumAmbiguity,
+        growth: epicGrowth(epic, growth, settings).growth,
       })),
       throughputSamples,
-      epicSizeSamples: settings.defaultEpicSize,
+      epicSizeSamples: epicSizes(growth, settings),
       percentiles: settings.percentiles,
     },
   }

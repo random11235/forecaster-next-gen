@@ -49,14 +49,14 @@ function twoEpics(): Storage {
 }
 
 function epicsOf(storage: Storage): MilestoneEpic[] {
-  return milestoneEpics(MILESTONE, teamFacts(storage, TEAM))
+  return milestoneEpics(MILESTONE, teamFacts(storage, TEAM), new Map())
 }
 
 describe("a milestone's epics", () => {
   test('come in rank order with their current and done counts, not counting cancelled children', () => {
     expect(epicsOf(twoEpics())).toEqual([
-      { epicId: 'E2', key: 'E2', name: 'E2', currentCount: 1, doneCount: 0, commit: undefined, inProgress: true, finished: false, blocked: false, labelCommitReset: false },
-      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 2, doneCount: 1, commit: undefined, inProgress: true, finished: false, blocked: false, labelCommitReset: false },
+      { epicId: 'E2', key: 'E2', name: 'E2', currentCount: 1, doneCount: 0, commit: undefined, inProgress: true, finished: false, blocked: false, labelCommitReset: false, ambiguity: 'medium' },
+      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 2, doneCount: 1, commit: undefined, inProgress: true, finished: false, blocked: false, labelCommitReset: false, ambiguity: 'medium' },
     ])
   })
 })

@@ -5,7 +5,8 @@ import type { Storage } from '../storage/storage.js'
 import { buildCase } from './buildCase.js'
 import { teamMilestone } from './milestoneDefinition.js'
 import { milestoneEpics, type MilestoneEpic } from './milestoneEpics.js'
-import { epicWarnings, informationNotes, thinDataMessage } from './diagnostics.js'
+import { epicWarnings, informationNotes, thinDataMessage, type GrowthSource } from './diagnostics.js'
+import { epicAmbiguities, epicGrowth, growthBasis, teamGrowth, type TeamGrowth } from './growth.js'
 import type { ForecastSettings } from './settings.js'
 import { teamFacts, type TeamFacts } from './teamFacts.js'
 
@@ -30,6 +31,13 @@ export type ForecastSection =
       notes: string[]
     }
 
+/** A milestone's epic as the Milestone forecast screen shows it: as it stands, and where its growth comes from. */
+export interface ForecastEpic extends MilestoneEpic {
+  growthSource: GrowthSource
+  /** Where its growth comes from, in the EM's words: "Medium ambiguity: grows 1–2×". */
+  growthBasis: string
+}
+
 /** What the Milestone forecast screen shows. */
 export type MilestoneForecastView =
   | { kind: 'noMilestone' }
@@ -40,7 +48,7 @@ export type MilestoneForecastView =
       forecast: ForecastSection
       /** Warnings about the milestone's epics, shown whether or not there is a forecast yet. */
       warnings: string[]
-      epics: MilestoneEpic[]
+      epics: ForecastEpic[]
     }
 
 export interface ViewOptions {
@@ -55,27 +63,34 @@ export function milestoneForecastView(storage: Storage, teamId: string, options:
   if (!milestone) return { kind: 'noMilestone' }
 
   const team = teamFacts(storage, teamId)
-  const epics = milestoneEpics(milestone, team)
+  const epics = milestoneEpics(milestone, team, epicAmbiguities(storage, teamId, milestone.id))
+  const growth = teamGrowth(storage, teamId, team)
 
   return {
     kind: 'milestone',
     name: milestone.name,
     committedDate: milestone.committedDate,
-    forecast: forecastFor(milestone, team, storage.paceSetting(teamId, milestone.id), options),
+    forecast: forecastFor(milestone, team, epics, growth, storage.paceSetting(teamId, milestone.id), options),
     warnings: epicWarnings(epics, team.workflow.commitLabel),
-    epics,
+    epics: epics.map((epic) => ({
+      ...epic,
+      growthSource: epicGrowth(epic, growth, options.settings).source,
+      growthBasis: growthBasis(epic, growth, options.settings),
+    })),
   }
 }
 
 function forecastFor(
   milestone: Milestone,
   team: TeamFacts,
+  epics: readonly MilestoneEpic[],
+  growth: TeamGrowth,
   setting: PaceSetting | undefined,
   options: ViewOptions,
 ): ForecastSection {
   if (!setting) return { kind: 'needsPace' }
   const { teamId: _teamId, milestoneId: _milestoneId, ...pace } = setting
-  const built = buildCase(milestone, team, pace, options.settings, options.today)
+  const built = buildCase(milestone, team, epics, growth, pace, options.settings, options.today)
   if (!built.ok) return { kind: 'thinData', message: thinDataMessage(built.reason) }
 
   const result = simulateCase(built.simulationCase)

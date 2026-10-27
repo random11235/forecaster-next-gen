@@ -64,6 +64,7 @@ function milestoneSections(view: Extract<MilestoneForecastView, { kind: 'milesto
             <td>${escapeHtml(epic.name)}</td>
             <td class="number">${epic.currentCount}</td>
             <td class="status">${statusText(epic)}</td>
+            <td class="status">${escapeHtml(epic.growthBasis)}</td>
           </tr>`,
     )
     .join('\n')
@@ -72,7 +73,7 @@ function milestoneSections(view: Extract<MilestoneForecastView, { kind: 'milesto
       <div class="heading"><h2>Epics by rank</h2><a href="/inputs">Edit</a></div>
       <table class="epics">
         <thead>
-          <tr><th>Epics in this milestone</th><th class="number">Items now</th><th>Status</th></tr>
+          <tr><th>Epics in this milestone</th><th class="number">Items now</th><th>Status</th><th>Growth</th></tr>
         </thead>
         <tbody>
 ${rows}

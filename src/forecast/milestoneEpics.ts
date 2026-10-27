@@ -1,3 +1,4 @@
+import type { Ambiguity } from '../model/ambiguity.js'
 import type { Milestone } from '../model/milestone.js'
 import { categoryLookup, type StatusCategory } from '../model/workflow.js'
 import { childrenOf, type WorkItem, type WorkItemEvent } from '../model/workItem.js'
@@ -35,10 +36,19 @@ export interface MilestoneEpic {
   blocked: boolean
   /** The epic carries the workflow's commit label now, but a pull-back since reset the commit the label made. */
   labelCommitReset: boolean
+  /** How well the EM judges the epic is understood; medium until the EM sets it. */
+  ambiguity: Ambiguity
 }
 
-/** The milestone's epics in rank order, as the team's facts and standing commits have them now. */
-export function milestoneEpics(milestone: Milestone, team: TeamFacts): MilestoneEpic[] {
+/**
+ * The milestone's epics in rank order, as the team's facts and standing commits have them now, with the ambiguity
+ * level the EM set for each, by epic ID.
+ */
+export function milestoneEpics(
+  milestone: Milestone,
+  team: TeamFacts,
+  ambiguities: ReadonlyMap<string, Ambiguity>,
+): MilestoneEpic[] {
   const byId = new Map(team.facts.workItems.map((item) => [item.id, item]))
   const inMilestone = new Set(milestone.epicIds)
   const lastStatus = new Map<string, WorkItemEvent>()
@@ -70,6 +80,7 @@ export function milestoneEpics(milestone: Milestone, team: TeamFacts): Milestone
         (status !== undefined && blockedRule.statuses.includes(status)) ||
         (epic?.labels ?? []).some((label) => blockedRule.labels.includes(label)),
       labelCommitReset: hasCommitLabel && team.labelCommitsReset.has(epicId),
+      ambiguity: ambiguities.get(epicId) ?? 'medium',
     }
   })
 }
