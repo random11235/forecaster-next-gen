@@ -3,8 +3,7 @@ import type { Milestone } from '../model/milestone.js'
 import { childrenOf, type WorkItem } from '../model/workItem.js'
 import type { Storage } from '../storage/storage.js'
 import { refuse, type EditResult } from './editResult.js'
-import { epicAmbiguities } from './growth.js'
-import { milestoneEpics, type MilestoneEpic } from './milestoneEpics.js'
+import { epicAmbiguities, milestoneEpics, type MilestoneEpic } from './milestoneEpics.js'
 import { teamFacts, type TeamFacts } from './teamFacts.js'
 
 /** A change the EM makes to the team's milestone on the Inputs screen. */

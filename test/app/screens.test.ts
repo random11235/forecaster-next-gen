@@ -463,11 +463,11 @@ describe('Inputs screen: growth', () => {
     addFinishedEpics(7)
 
     const html = text(await page('/inputs'))
-    expect(html).toContain('Suggested for medium: 1.5×. Measured from 7 finished committed epics.')
+    expect(html).toContain('Suggested for medium: grow as measured, from 1.5×. Measured from 7 finished committed epics.')
     expect(text(await page('/'))).toContain('Medium ambiguity: grows 1–2×')
 
     expect((await post('/inputs/growth/medium', [['source', 'measured']])).status).toBe(303)
-    expect(text(await page('/inputs'))).toContain('Medium epics grow as measured: 1.5×.')
+    expect(text(await page('/inputs'))).toContain('Medium epics grow as measured, from 1.5×.')
     expect(text(await page('/'))).toContain('Medium ambiguity: grows as measured from 7 finished epics')
 
     await post('/inputs/growth/medium', [['source', 'range']])
