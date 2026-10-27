@@ -86,7 +86,7 @@ ThroughputSample { teamId, milestoneId, periodStart, periodDays /* 1 | 7 */,
 
 **The uncommitted-but-active warning.** An epic whose own status is mapped to started, with no commit standing, is flagged "<epic> is in progress but isn't committed". Its children's statuses play no part, so the tool needs no rule for which tickets are spikes ([ADR-0002](../adr/0002-no-spike-rule.md)).
 
-**Samples.** Only committed epics (in the tool or by label) that have since finished produce samples. Epics committed with no children (`committedCount` of 0) produce no `GrowthSample`, since their ratio is undefined. They still produce an `EpicSizeSample`. Old epics are excluded either way.
+**Samples.** Only committed epics (in the tool or by label) that have since finished produce samples. Epics committed with no children (`committedCount` of 0) produce no `GrowthSample`, since their ratio is undefined. They still produce an `EpicSizeSample`. A label commit counts however long ago the label was applied, even before installation: label commits are commits, so a team that committed by label before installing the tool has its growth measured from day one.
 
 **Throughput.** `ThroughputSample`s count done tickets whose parent is one of the milestone's epics. Because `WorkItem.parentId` is ingested, other scopes (e.g. children of any epic, or all tickets) can be derived later from the same data without re-ingesting.
 
@@ -395,7 +395,7 @@ v1 is a local, single-user tool, so items 1 and 2 are what matter. Items 3 and 4
 
 | Feature | What changes |
 |---|---|
-| Pre-installation history (v1.1 or v2) | Read ticket history from before installation to measure pace and growth. The risks to handle: a different team, a different KTLO load, different products, company-wide efforts, or a change of method (e.g. story points to Kanban). In v1, old data may only pre-fill a suggestion. |
+| Pre-installation history (v1.1 or v2) | Read ticket history from before installation to measure pace, and growth from epics never committed. (Epics committed by label before installation already count; see [Samples](#layer-2-derived-samples-recomputable-cacheable).) The risks to handle: a different team, a different KTLO load, different products, company-wide efforts, or a change of method (e.g. story points to Kanban). In v1, old data may only pre-fill a suggestion. |
 | Other pace scopes (v2) | Pace from children of any epic, or from all of the team's work. Derive `ThroughputSample`s with that `scope` from `WorkItem.parentId`; the forecast's `throughputScope` reports the choice. |
 | Capacity calendar | The last step of v1's build order: absences as a capacity fraction per period, with `capacityByPeriod` and a `capacityModel` (linear by default) on `SimulationCase`. A per-person allocation table comes later, if ever. |
 | Per-epic dates in the UI | Shown only after evidence (back-testing or the ledger) that they're reliable despite parallel work. |
