@@ -4,7 +4,7 @@ status: accepted
 
 # The tool doesn't identify spikes
 
-The EM's workflow settings had a spike rule: the issue types and labels that mark a ticket as a spike. Nothing read it. Its one planned use was the uncommitted-but-active warning (#20), so that a spike in progress before kickoff wouldn't count as the epic starting. On 2026-10-27 we dropped it as over-design for v1: it asks every EM to describe their spikes before anyone has seen whether the warning helps. Schema migration 4 drops its columns.
+The EM's workflow settings had a spike rule: the issue types and labels that mark a ticket as a spike. Nothing read it. Its one planned use was the uncommitted-but-active warning (#20), so that a spike in progress before kickoff wouldn't count as the epic starting. On 2026-10-27 we dropped it as over-design for v1: it asks every EM to describe their spikes before anyone has seen whether the warning helps. Schema migration 4 drops its columns, so any spike types and labels an EM had saved are lost.
 
 The warning stays, triggered by the epic alone: an epic whose own status is mapped to started, with no commit standing, is flagged "<epic> is in progress but isn't committed". That uses the status mapping the EM already sets.
 

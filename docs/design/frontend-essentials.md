@@ -55,7 +55,7 @@ Checkout v2 · committed 18 Dec                 Jira data as of 13 Oct 07:10 [Re
 
  Pace: manual range 6–10 per week (measured pace available in 3 weeks)
  Pace counts tickets under this milestone's epics only
- ⚠ Refunds has 4 tickets in progress but isn't committed
+ ⚠ Refunds is in progress but isn't committed
 ─────────────────────────────────────────────────────────────────────────────
  Epics in this milestone   Items now   Ambiguity   Pace (4 wk)   Status
  Card vaulting              6          Low         2.0 / wk      Committed
