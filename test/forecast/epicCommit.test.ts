@@ -117,7 +117,7 @@ describe('committing an epic', () => {
     addChildren(storage, 'E1', 5, 3)
 
     expect(view(storage).epics).toEqual([
-      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 8, doneCount: 0, commit: { baseline: 5, source: 'inTool' }, inProgress: true, blocked: false },
+      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 8, doneCount: 0, commit: { baseline: 5, source: 'inTool' }, inProgress: true, blocked: false, hasCommitLabel: false },
     ])
   })
 
@@ -189,7 +189,7 @@ describe('pulling an epic back to not started', () => {
     enterManualPace(storage, 10, 10)
 
     expect(view(storage).epics).toEqual([
-      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 10, doneCount: 0, commit: undefined, inProgress: false, blocked: false },
+      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 10, doneCount: 0, commit: undefined, inProgress: false, blocked: false, hasCommitLabel: false },
     ])
     expect(datesOf(storage)).toEqual(['2026-11-07', '2026-11-07', '2026-11-07'])
   })
@@ -236,7 +236,7 @@ describe('pulling an epic back to not started', () => {
     addChildren(storage, 'E1', 7, 1)
 
     expect(view(storage).epics).toEqual([
-      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 8, doneCount: 0, commit: { baseline: 7, source: 'inTool' }, inProgress: true, blocked: false },
+      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 8, doneCount: 0, commit: { baseline: 7, source: 'inTool' }, inProgress: true, blocked: false, hasCommitLabel: false },
     ])
   })
 })
@@ -382,6 +382,56 @@ describe('the commit label coming off', () => {
   })
 })
 
+describe('the commit label left on through a pull-back', () => {
+  const LABELLED = '2026-10-03T09:00:00Z'
+  const PULLED_BACK = '2026-10-09T09:00:00Z'
+  const WARNING =
+    "Epic E1 has the “committed” label but isn't committed: it moved back to not started after the label went on. " +
+    'Commit it on Inputs, or take the label off and put it back.'
+
+  /** E1, committed by its label, then pulled back with the label still on. */
+  function pulledBackWithLabel(): Storage {
+    const storage = teamWithEpic(5)
+    useWorkflow(storage, { commitLabel: 'committed' })
+    labelEpic(storage, ['committed'], [{ at: LABELLED, to: 'committed' }])
+    moveEpic(storage, PULLED_BACK, 'In Progress', 'To Do')
+    return storage
+  }
+
+  test('warns that the epic carries the label but isn’t committed, and how to commit it', () => {
+    const storage = pulledBackWithLabel()
+
+    expect(view(storage)).toMatchObject({ epics: [{ commit: undefined }], warnings: [WARNING] })
+  })
+
+  test('once restarted, warns about the label in place of the in-progress warning', () => {
+    const storage = pulledBackWithLabel()
+
+    moveEpic(storage, '2026-10-16T09:00:00Z', 'To Do', 'In Progress')
+
+    expect(view(storage)).toMatchObject({ epics: [{ commit: undefined }], warnings: [WARNING] })
+  })
+
+  test('the EM committing it in the tool clears the warning', () => {
+    const storage = pulledBackWithLabel()
+    moveEpic(storage, '2026-10-16T09:00:00Z', 'To Do', 'In Progress')
+
+    commit(storage, 'E1', '2026-10-16T12:00:00Z')
+
+    expect(view(storage)).toMatchObject({ epics: [{ commit: { source: 'inTool' } }], warnings: [] })
+  })
+
+  test('taking the label off and putting it back commits it by label and clears the warning', () => {
+    const storage = pulledBackWithLabel()
+    moveEpic(storage, '2026-10-16T09:00:00Z', 'To Do', 'In Progress')
+
+    labelEpic(storage, [], [{ at: '2026-10-16T10:00:00Z', from: 'committed' }])
+    labelEpic(storage, ['committed'], [{ at: '2026-10-16T11:00:00Z', to: 'committed' }])
+
+    expect(view(storage)).toMatchObject({ epics: [{ commit: { source: 'label' } }], warnings: [] })
+  })
+})
+
 describe('the in-progress-but-not-committed warning', () => {
   test('flags an epic whose own status is started with no commit standing, before any pace is entered', () => {
     const storage = teamWithEpic(5)
@@ -451,6 +501,7 @@ describe('a blocked epic', () => {
         commit: { baseline: 5, source: 'inTool' },
         inProgress: true,
         blocked: true,
+        hasCommitLabel: false,
       },
     ])
     expect(datesOf(storage)).toEqual(unblocked)

@@ -31,6 +31,8 @@ export interface MilestoneEpic {
   inProgress: boolean
   /** The epic is in a status, or has a label, of the workflow's blocked rule. It stays in the milestone and forecast. */
   blocked: boolean
+  /** The epic carries the workflow's commit label now, whether or not a commit stands. */
+  hasCommitLabel: boolean
 }
 
 /** The milestone's epics in rank order, as the team's facts and standing commits have them now. */
@@ -44,7 +46,7 @@ export function milestoneEpics(milestone: Milestone, team: TeamFacts): Milestone
     if (!last || Date.parse(event.at) >= Date.parse(last.at)) lastStatus.set(event.itemId, event)
   }
   const category = categoryLookup(team.workflow)
-  const { blockedRule } = team.workflow
+  const { blockedRule, commitLabel } = team.workflow
 
   return milestone.epicIds.map((epicId) => {
     const epic = byId.get(epicId)
@@ -52,17 +54,19 @@ export function milestoneEpics(milestone: Milestone, team: TeamFacts): Milestone
     const children = childrenOf(team.facts.workItems, epicId)
     const status = lastStatus.get(epicId)?.to
     const statusCategory = lastStatus.has(epicId) ? category(status) : categoryFromTimes(epic)
+    const hasCommitLabel = commitLabel !== undefined && (epic?.labels ?? []).includes(commitLabel)
     return {
       epicId,
       key: epic?.sourceKey ?? epicId,
       name: epic?.title ?? epic?.sourceKey ?? epicId,
       currentCount: children.length,
       doneCount: children.filter((child) => child.doneAt !== undefined).length,
-      commit: commit && commitView(commit, epic, team.workflow.commitLabel),
+      commit: commit && commitView(commit, hasCommitLabel),
       inProgress: statusCategory === 'started',
       blocked:
         (status !== undefined && blockedRule.statuses.includes(status)) ||
         (epic?.labels ?? []).some((label) => blockedRule.labels.includes(label)),
+      hasCommitLabel,
     }
   })
 }
@@ -72,10 +76,9 @@ export function baselineOf(epic: MilestoneEpic): number {
   return epic.commit?.baseline ?? epic.currentCount
 }
 
-function commitView(commit: StandingCommit, epic: WorkItem | undefined, commitLabel: string | undefined): CommitView {
+function commitView(commit: StandingCommit, hasCommitLabel: boolean): CommitView {
   if (commit.source === 'inTool') return { baseline: commit.baseline, source: 'inTool' }
-  const labelRemoved = commitLabel === undefined || !(epic?.labels ?? []).includes(commitLabel)
-  return { baseline: commit.baseline, source: 'label', labelRemoved }
+  return { baseline: commit.baseline, source: 'label', labelRemoved: !hasCommitLabel }
 }
 
 /** An epic with no status history is where the connector's times put it. */
