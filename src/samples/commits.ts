@@ -16,8 +16,8 @@ export interface StandingCommit extends EpicCommit {
  * started to not started, as the workflow reads its statuses) after a commit resets it, until the epic is committed
  * again. A blocked epic keeps its commit: a move into or out of a status of the blocked rule is not a pull-back, nor
  * is a move to not started while the epic carries a label of the rule. An epic out of scope is removed from the
- * milestone instead. The EM's commit stands over a label commit, and while a commit stands, applying the label again
- * doesn't replace it.
+ * milestone instead. The two ways of committing count the same: the commit that stands is the first made since the last
+ * pull-back, so while one stands, neither the EM nor applying the label again replaces it.
  */
 export function standingCommits(
   commits: readonly EpicCommit[],
@@ -56,16 +56,12 @@ export function standingCommits(
     }
   }
 
-  // The EM's commit stands over a label commit; otherwise the earliest since the last pull-back stands.
+  // The earliest since the last pull-back stands, however it was made.
   const standing = new Map<string, StandingCommit>()
   for (const commit of made) {
     if ((lastPullBack.get(commit.epicId) ?? -Infinity) > Date.parse(commit.committedAt)) continue
-    const other = standing.get(commit.epicId)
-    const wins =
-      !other ||
-      (commit.source === 'inTool' && other.source === 'label') ||
-      (commit.source === other.source && Date.parse(commit.committedAt) < Date.parse(other.committedAt))
-    if (wins) standing.set(commit.epicId, commit)
+    const earliest = standing.get(commit.epicId)
+    if (!earliest || Date.parse(commit.committedAt) < Date.parse(earliest.committedAt)) standing.set(commit.epicId, commit)
   }
   return standing
 }
