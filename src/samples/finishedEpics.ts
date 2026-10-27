@@ -1,7 +1,7 @@
 import type { EpicCommit } from '../model/epicCommit.js'
 import type { WorkflowSettings } from '../model/workflow.js'
 import type { Facts } from '../model/workItem.js'
-import { childCounter } from './commits.js'
+import { childCounter } from './itemHistory.js'
 
 /** A committed epic that has since finished: its baseline, and its children when done. */
 export interface FinishedEpic {
