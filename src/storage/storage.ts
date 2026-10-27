@@ -1,3 +1,4 @@
+import type { EpicCommit } from '../model/epicCommit.js'
 import type { Milestone } from '../model/milestone.js'
 import type { PaceSetting } from '../model/paceSetting.js'
 import type { Team } from '../model/team.js'
@@ -25,5 +26,9 @@ export interface Storage {
   saveWorkflowSettings(settings: WorkflowSettings): void
   /** The team's workflow settings, if any are stored. */
   workflowSettings(teamId: string): WorkflowSettings | undefined
+  /** Adds the epic's commit, or replaces the one it has: only the latest commit counts. */
+  saveEpicCommit(commit: EpicCommit): void
+  /** The team's epic commits, one per epic the EM has committed. */
+  epicCommits(teamId: string): EpicCommit[]
   close(): void
 }

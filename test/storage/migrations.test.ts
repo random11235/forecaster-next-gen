@@ -215,6 +215,34 @@ describe('a data file from schema version 1, before workflow settings', () => {
   })
 })
 
+describe('a data file from schema version 2, before epic commits', () => {
+  /** Version 2's tables: version 1's, plus workflow settings as #18 shipped them. Kept verbatim: it is a past release. */
+  const VERSION_2_SCHEMA = `${UNVERSIONED_SCHEMA}
+CREATE TABLE workflow_settings (
+  team_id TEXT PRIMARY KEY REFERENCES teams(id), statuses TEXT NOT NULL, started_status TEXT NOT NULL,
+  spike_types TEXT NOT NULL, spike_labels TEXT NOT NULL, commit_label TEXT, blocked_statuses TEXT NOT NULL,
+  blocked_labels TEXT NOT NULL
+);
+INSERT INTO workflow_settings VALUES ('ACME', '[{"status":"Doing","category":"started"}]', 'Doing', '[]', '[]', NULL, '[]', '[]');
+`
+
+  test('keeps its data, has no epic commits, and takes one that survives reopening', () => {
+    const file = writeFile('v2.db', VERSION_2_SCHEMA, 2)
+
+    const storage = open(file)
+    expect(storage.workflowSettings(TEAM)).toMatchObject({ startedStatus: 'Doing' })
+    expect(storage.milestones(TEAM)).toEqual([
+      { id: 'M1', teamId: TEAM, name: 'Launch', committedDate: '2026-12-18', epicIds: ['E1'] },
+    ])
+    expect(storage.epicCommits(TEAM)).toEqual([])
+
+    const commit = { teamId: TEAM, epicId: 'E1', committedAt: '2026-10-02T12:00:00Z', baseline: 1 }
+    storage.saveEpicCommit(commit)
+
+    expect(open(file).epicCommits(TEAM)).toEqual([commit])
+  })
+})
+
 describe('a data file from a newer release', () => {
   test('refuses to open, says why, and leaves the file as it was', () => {
     const file = writeFile('newer.db', 'CREATE TABLE from_the_future (id TEXT);', 999)
