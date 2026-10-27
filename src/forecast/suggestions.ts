@@ -8,13 +8,14 @@ export interface Suggestion extends GrowthRange {
 
 /**
  * The measured growth suggested for medium ambiguity: the span of the team's growth samples, once there are at least
- * `minGrowthSamples`. Adopted, medium epics draw from the samples themselves.
+ * `minGrowthSamples`, rounded out to the half like the ranges the EM types: a few epics' extremes are too noisy to
+ * show finer. Adopted, medium epics draw from the samples themselves, not this span.
  */
 export function measuredMediumSuggestion(growthSamples: readonly number[], settings: ForecastSettings): Suggestion | undefined {
   if (!hasEnoughGrowthSamples(growthSamples, settings)) return undefined
   return {
-    low: roundRatio(Math.min(...growthSamples)),
-    high: roundRatio(Math.max(...growthSamples)),
+    low: Math.floor(Math.min(...growthSamples) * 2 + ROUNDING_SLACK) / 2,
+    high: Math.ceil(Math.max(...growthSamples) * 2 - ROUNDING_SLACK) / 2,
     basis: `Measured from ${growthSamples.length} finished committed epics`,
   }
 }
@@ -24,6 +25,5 @@ export function hasEnoughGrowthSamples(growthSamples: readonly number[], setting
   return growthSamples.length >= settings.minGrowthSamples
 }
 
-function roundRatio(ratio: number): number {
-  return Math.round(ratio * 100) / 100
-}
+/** Keeps a ratio that is a half in all but floating-point error, such as 2.9999999999, from rounding to the next half. */
+const ROUNDING_SLACK = 1e-9

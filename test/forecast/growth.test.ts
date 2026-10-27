@@ -223,7 +223,7 @@ describe('measured growth', () => {
     expect(inputsView(storage, TEAM).growth).toMatchObject({ finishedEpics: 6, mediumMeasured: false, suggestion: undefined })
   })
 
-  test('from 7 finished committed epics, suggests their range for medium, which changes nothing until the EM adopts it', () => {
+  test('from 7 finished committed epics, suggests their range for medium, rounded out to the half, which changes nothing until the EM adopts it', () => {
     const storage = team()
     const before = datesOf(storage)
     finishedEpics(storage, 7)
@@ -231,7 +231,7 @@ describe('measured growth', () => {
     expect(inputsView(storage, TEAM).growth).toMatchObject({
       finishedEpics: 7,
       mediumMeasured: false,
-      suggestion: { low: 1.2, high: 3, basis: 'Measured from 7 finished committed epics' },
+      suggestion: { low: 1, high: 3, basis: 'Measured from 7 finished committed epics' },
     })
     expect(view(storage).epics[0]!.growthSource).toBe('ambiguity')
     expect(datesOf(storage)).toEqual(before)
