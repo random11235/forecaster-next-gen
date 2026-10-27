@@ -49,7 +49,6 @@ WorkflowSettings { teamId,            // set by the EM; one per team
                 startedStatus,       // the status where cycle time starts; one mapped to started
                 startedSignal?,      // later, with the GitHub connector: the label, project column or assignee
                                      // that means "started"; not in the model yet
-                spikeRule: { types, labels },        // issue types and/or labels that mark a spike
                 commitLabel?,        // optional label that commits an epic when applied
                 blockedRule: { statuses, labels } }  // statuses and/or labels (flags) that mark an epic blocked
 
@@ -81,9 +80,9 @@ ThroughputSample { teamId, milestoneId, periodStart, periodDays /* 1 | 7 */,
                    scope: 'milestoneEpics', count }
 ```
 
-**Committing.** The EM commits an epic in the tool after kickoff, or a configured label in the ticketing tool commits it. The commit records the epic's child count at that moment, its **baseline**. Spikes never commit an epic. A **pull-back** (the epic moving from started to not started) resets the commit, and the EM commits again on restart. The reset is not stored: on each read, `samples/commits.ts` checks the epic's status history under the team's `WorkflowSettings` for a pull-back after `committedAt`, so changing the status mapping can change which commits stand. Team facts carries the commits that stand. Only the latest commit is stored, and only it counts towards the growth ratio. A blocked epic keeps its commit.
+**Committing.** The EM commits an epic in the tool after kickoff, or a configured label in the ticketing tool commits it. The commit records the epic's child count at that moment, its **baseline**. A **pull-back** (the epic moving from started to not started) resets the commit, and the EM commits again on restart. The reset is not stored: on each read, `samples/commits.ts` checks the epic's status history under the team's `WorkflowSettings` for a pull-back after `committedAt`, so changing the status mapping can change which commits stand. Team facts carries the commits that stand. Only the latest commit is stored, and only it counts towards the growth ratio. A blocked epic keeps its commit.
 
-**The uncommitted-but-active warning.** "The epic moved to in progress, or a non-spike child started" is no longer a commit rule. It only triggers a warning when the epic isn't committed.
+**The uncommitted-but-active warning.** An epic whose own status is mapped to started, with no commit standing, is flagged "<epic> is in progress but isn't committed". Its children's statuses play no part, so the tool needs no rule for which tickets are spikes ([ADR-0002](../adr/0002-no-spike-rule.md)).
 
 **Samples.** Only epics committed in the tool that have since finished produce samples. Epics committed with no children (`committedCount` of 0) produce no `GrowthSample`, since their ratio is undefined. They still produce an `EpicSizeSample`. Old epics are excluded either way.
 
@@ -272,7 +271,7 @@ src/
     team.ts
     workItem.ts           # WorkItem, WorkItemEvent, Facts
     milestone.ts          # Milestone: defined by the EM, not ingested
-    workflow.ts           # WorkflowSettings: the EM's status mapping, spike rule, commit label, blocked rule
+    workflow.ts           # WorkflowSettings: the EM's status mapping, commit label, blocked rule
     epicCommit.ts         # EpicCommit: the EM's commit of an epic and its baseline
 
   samples/                # Layer 2: pure derivations from model/

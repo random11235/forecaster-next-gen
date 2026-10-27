@@ -323,8 +323,6 @@ function workflowForm(changes: Record<string, string> = {}): [string, string][] 
     'status:Done': 'done',
     'status:Cancelled': 'cancelled',
     startedStatus: 'In Progress',
-    spikeTypes: 'spike',
-    spikeLabels: 'spike',
     commitLabel: '',
     blockedStatuses: '',
     blockedLabels: 'blocked',
@@ -334,7 +332,7 @@ function workflowForm(changes: Record<string, string> = {}): [string, string][] 
 }
 
 describe('Inputs screen: workflow', () => {
-  test("shows the sample board's status mapping, started status, spike rules, commit label and blocked marker", async () => {
+  test("shows the sample board's status mapping, started status, commit label and blocked marker, and asks nothing about spikes", async () => {
     await startOnSampleData()
 
     const html = await page('/inputs')
@@ -348,23 +346,21 @@ describe('Inputs screen: workflow', () => {
       expect(html).toMatch(new RegExp(`<select name="status:${status}"[^>]*>[\\s\\S]*?<option value="${category}" selected>`))
     }
     expect(html).toMatch(/<select name="startedStatus"[^>]*>[\s\S]*?<option value="In Progress" selected>/)
-    expect(html).toMatch(/name="spikeTypes"[^>]*value="spike"/)
-    expect(html).toMatch(/name="spikeLabels"[^>]*value="spike"/)
     expect(html).toMatch(/name="commitLabel"[^>]*value=""/)
     expect(html).toMatch(/name="blockedStatuses"[^>]*value=""/)
     expect(html).toMatch(/name="blockedLabels"[^>]*value="blocked"/)
+    expect(html).not.toMatch(/name="spike/)
   })
 
   test('saving the settings shows them on the Inputs screen', async () => {
     await startOnSampleData()
 
-    const response = await post('/inputs/workflow', workflowForm({ commitLabel: 'committed', spikeLabels: 'spike, discovery' }))
+    const response = await post('/inputs/workflow', workflowForm({ commitLabel: 'committed' }))
 
     expect(response.status).toBe(303)
     expect(response.headers.get('location')).toBe('/inputs')
     const html = await page('/inputs')
     expect(html).toMatch(/name="commitLabel"[^>]*value="committed"/)
-    expect(html).toMatch(/name="spikeLabels"[^>]*value="spike, discovery"/)
   })
 
   test('changing the mapping changes the forecast', async () => {

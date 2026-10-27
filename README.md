@@ -18,7 +18,7 @@ npm start
 
 This starts a local server on `http://127.0.0.1:5180/` (localhost only) and opens it in your browser on the Milestone forecast screen. If the browser doesn't open, open that address by hand. Stop it with Ctrl+C.
 
-To see a forecast, enter your team's pace (a low–high range of tickets per week) on the Inputs screen, `http://127.0.0.1:5180/inputs`. The Inputs screen is also where you define the milestone (its name, committed date and epics) and add, remove or reorder its epics after a scope change. Its Workflow section says how your board works: what each status means (not started, started, done or cancelled), the status where cycle time starts, which issue types or labels mark a spike, an optional commit label, and what marks an epic as blocked.
+To see a forecast, enter your team's pace (a low–high range of tickets per week) on the Inputs screen, `http://127.0.0.1:5180/inputs`. The Inputs screen is also where you define the milestone (its name, committed date and epics) and add, remove or reorder its epics after a scope change. Its Workflow section says how your board works: what each status means (not started, started, done or cancelled), the status where cycle time starts, an optional commit label, and what marks an epic as blocked.
 
 To use another port: `PORT=5181 npm start`. `PORT=0` picks a free port.
 
