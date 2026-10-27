@@ -95,10 +95,10 @@ describe('milestone forecast view on sample data', () => {
           inProgress: true,
           finished: false,
           blocked: false,
-          hasCommitLabel: true,
+          labelCommitReset: false,
         },
-        { epicId: 'PAY-2', key: 'PAY-2', name: 'Refunds', currentCount: 14, doneCount: 2, commit: undefined, inProgress: true, finished: false, blocked: false, hasCommitLabel: false },
-        { epicId: 'PAY-3', key: 'PAY-3', name: 'Receipts redesign', currentCount: 3, doneCount: 0, commit: undefined, inProgress: false, finished: false, blocked: true, hasCommitLabel: false },
+        { epicId: 'PAY-2', key: 'PAY-2', name: 'Refunds', currentCount: 14, doneCount: 2, commit: undefined, inProgress: true, finished: false, blocked: false, labelCommitReset: false },
+        { epicId: 'PAY-3', key: 'PAY-3', name: 'Receipts redesign', currentCount: 3, doneCount: 0, commit: undefined, inProgress: false, finished: false, blocked: true, labelCommitReset: false },
       ],
     })
   })
@@ -116,7 +116,7 @@ describe('milestone forecast view on sample data', () => {
       committedDate: '2027-01-29',
       forecast: { kind: 'needsPace' },
       warnings: [],
-      epics: [{ epicId: 'ACME-E', key: 'ACME-E', name: 'ACME epic', currentCount: 2, doneCount: 0, commit: undefined, inProgress: false, finished: false, blocked: false, hasCommitLabel: false }],
+      epics: [{ epicId: 'ACME-E', key: 'ACME-E', name: 'ACME epic', currentCount: 2, doneCount: 0, commit: undefined, inProgress: false, finished: false, blocked: false, labelCommitReset: false }],
     })
   })
 
@@ -142,7 +142,7 @@ describe('milestone forecast view on sample data', () => {
       committedDate: '2027-01-29',
       forecast: { kind: 'needsPace' },
       warnings: [],
-      epics: [{ epicId: 'BETA-E', key: 'BETA-E', name: 'BETA epic', currentCount: 5, doneCount: 0, commit: undefined, inProgress: false, finished: false, blocked: false, hasCommitLabel: false }],
+      epics: [{ epicId: 'BETA-E', key: 'BETA-E', name: 'BETA epic', currentCount: 5, doneCount: 0, commit: undefined, inProgress: false, finished: false, blocked: false, labelCommitReset: false }],
     })
   })
 

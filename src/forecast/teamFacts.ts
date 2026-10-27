@@ -19,17 +19,21 @@ export interface TeamFacts {
    * since a commit, under the workflow, has reset it.
    */
   commits: ReadonlyMap<string, StandingCommit>
+  /** Epics with a commit made by the commit label that a pull-back has since reset. */
+  labelCommitsReset: ReadonlySet<string>
 }
 
-/** Seam B: the team's facts, workflow, statuses seen and standing commits, reading the facts from storage once. */
+/** Seam B: the team's facts, workflow, statuses seen and commits, reading the facts from storage once. */
 export function teamFacts(storage: Storage, teamId: string): TeamFacts {
   const stored = storage.facts(teamId)
   const workflow = storage.workflowSettings(teamId) ?? defaultWorkflowSettings(teamId)
+  const { standing, labelCommitsReset } = standingCommits(storage.epicCommits(teamId), stored, workflow)
   return {
     facts: factsUnderWorkflow(stored, workflow),
     workflow,
     statusesSeen: statusesSeen(stored),
-    commits: standingCommits(storage.epicCommits(teamId), stored, workflow),
+    commits: standing,
+    labelCommitsReset,
   }
 }
 
