@@ -407,6 +407,23 @@ describe('a blocked epic', () => {
     expect(view(storage).epics[0]).toMatchObject({ blocked: true, commit: { baseline: 5 } })
   })
 
+  test('keeps its commit when unblocked back to started, and loses it when unblocked to not started', () => {
+    const storage = teamWithEpic(5)
+    useWorkflow(storage, {
+      statuses: [...defaultWorkflowSettings(TEAM).statuses, { status: 'Blocked', category: 'notStarted' }],
+      blockedRule: { statuses: ['Blocked'], labels: [] },
+    })
+    commit(storage, 'E1', COMMITTED)
+    moveEpic(storage, BLOCKED, 'In Progress', 'Blocked')
+    moveEpic(storage, '2026-10-12T09:00:00Z', 'Blocked', 'In Progress')
+    expect(view(storage).epics[0]).toMatchObject({ blocked: false, commit: { baseline: 5 } })
+
+    // started, blocked, then back to not started: a pull-back
+    moveEpic(storage, '2026-10-14T09:00:00Z', 'In Progress', 'Blocked')
+    moveEpic(storage, '2026-10-16T09:00:00Z', 'Blocked', 'To Do')
+    expect(view(storage).epics[0]).toMatchObject({ blocked: false, commit: undefined })
+  })
+
   test('is no longer flagged once unblocked', () => {
     const storage = teamWithEpic(5)
     labelEpic(storage, ['blocked'], [{ at: BLOCKED, to: 'blocked' }])
