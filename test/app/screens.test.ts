@@ -63,6 +63,8 @@ function countingFactReads(real: Storage): { storage: Storage; reads: () => numb
     paceSetting: (teamId, milestoneId) => real.paceSetting(teamId, milestoneId),
     saveWorkflowSettings: (settings) => real.saveWorkflowSettings(settings),
     workflowSettings: (teamId) => real.workflowSettings(teamId),
+    saveEpicCommit: (commit) => real.saveEpicCommit(commit),
+    epicCommits: (teamId) => real.epicCommits(teamId),
     close: () => real.close(),
   }
   return { storage, reads: () => reads }
