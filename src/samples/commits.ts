@@ -123,9 +123,14 @@ function historyByItem(events: readonly WorkItemEvent[]): Map<string, ItemHistor
 
 /**
  * The children an epic had at a moment: tickets created by then whose parent then was the epic, and that weren't
- * cancelled then. A ticket with no parent history has had its current parent since it was created; one with no status
- * history was cancelled when the connector says.
+ * cancelled then, as the workflow reads their statuses. A ticket with no parent history has had its current parent
+ * since it was created; one with no status history was cancelled when the connector says.
  */
+export function childCounter(facts: Facts, workflow: WorkflowSettings): (epicId: string, at: string) => number {
+  return childCountAt(facts.workItems, historyByItem(facts.events), categoryLookup(workflow))
+}
+
+/** `childCounter`, from the history already sorted by item. */
 function childCountAt(
   workItems: readonly WorkItem[],
   history: ReadonlyMap<string, ItemHistory>,
