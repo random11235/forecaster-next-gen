@@ -237,6 +237,19 @@ describe('measured growth', () => {
     expect(datesOf(storage)).toEqual(before)
   })
 
+  test("suggests a low end above 0, as the EM's ranges are, even when an epic shrank", () => {
+    const storage = team()
+    finishedEpics(storage, 7)
+    // 8 of F1's 12 tickets move to another epic before it finishes: 10 at commit, 4 when done (0.4×)
+    const moved = ['F1-4', 'F1-5', 'F1-6', 'F1-7', 'F1-8', 'F1-9', 'F1-10', 'F1-11']
+    storage.addFacts(TEAM, {
+      workItems: moved.map((id) => ticket(id, 'story', { parentId: 'F9' })),
+      events: moved.map((id) => ({ itemId: id, at: GREW, kind: 'parent' as const, from: 'F1', to: 'F9' })),
+    })
+
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).growth.suggestion).toMatchObject({ low: 0.5, high: 3 })
+  })
+
   test('measures each epic at its children when done: tickets added or moved away since change nothing', () => {
     const storage = team()
     finishedEpics(storage, 7)
