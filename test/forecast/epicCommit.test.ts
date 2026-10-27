@@ -217,6 +217,14 @@ describe('pulling an epic back to not started', () => {
     expect(view(storage).epics[0]).toMatchObject({ commit: undefined })
   })
 
+  test('a move to not started that comes without the status it left is still a pull-back', () => {
+    const storage = teamWithEpic(5)
+    commit(storage, 'E1', COMMITTED)
+    storage.addFacts(TEAM, { workItems: [], events: [{ itemId: 'E1', at: '2026-10-09T09:00:00Z', kind: 'status', to: 'To Do' }] })
+
+    expect(view(storage).epics[0]).toMatchObject({ commit: undefined })
+  })
+
   test('the EM can commit the restarted epic again, recording a new baseline', () => {
     const storage = teamWithEpic(5)
     commit(storage, 'E1', COMMITTED)
@@ -318,6 +326,17 @@ describe('the commit label', () => {
 
     expect(view(storage).epics[0]).toMatchObject({ commit: { baseline: 5, source: 'inTool' } })
   })
+
+  test('the EM’s commit stands over the label applied before the EM set it as the commit label', () => {
+    const storage = teamWithEpic(5)
+    labelEpic(storage, ['committed'], [{ at: '2026-10-01T10:00:00Z', to: 'committed' }])
+    addChildren(storage, 'E1', 5, 2, '2026-10-01T12:00:00Z')
+    commit(storage, 'E1', COMMITTED)
+
+    useWorkflow(storage, { commitLabel: 'committed' })
+
+    expect(view(storage).epics[0]).toMatchObject({ commit: { baseline: 7, source: 'inTool' } })
+  })
 })
 
 describe('the in-progress-but-not-committed warning', () => {
@@ -407,7 +426,7 @@ describe('a blocked epic', () => {
     expect(view(storage).epics[0]).toMatchObject({ blocked: true, commit: { baseline: 5 } })
   })
 
-  test('keeps its commit when unblocked back to started, and loses it when unblocked to not started', () => {
+  test('keeps its commit when unblocked, back to started or to not started', () => {
     const storage = teamWithEpic(5)
     useWorkflow(storage, {
       statuses: [...defaultWorkflowSettings(TEAM).statuses, { status: 'Blocked', category: 'notStarted' }],
@@ -418,10 +437,22 @@ describe('a blocked epic', () => {
     moveEpic(storage, '2026-10-12T09:00:00Z', 'Blocked', 'In Progress')
     expect(view(storage).epics[0]).toMatchObject({ blocked: false, commit: { baseline: 5 } })
 
-    // started, blocked, then back to not started: a pull-back
+    // started, blocked, then not started: not a pull-back, since an epic out of scope is removed from the milestone
     moveEpic(storage, '2026-10-14T09:00:00Z', 'In Progress', 'Blocked')
     moveEpic(storage, '2026-10-16T09:00:00Z', 'Blocked', 'To Do')
-    expect(view(storage).epics[0]).toMatchObject({ blocked: false, commit: undefined })
+    expect(view(storage).epics[0]).toMatchObject({ blocked: false, commit: { baseline: 5 } })
+  })
+
+  test('keeps its commit when moved to not started while it carries a blocked label, and after the label comes off', () => {
+    const storage = teamWithEpic(5)
+    commit(storage, 'E1', COMMITTED)
+    labelEpic(storage, ['blocked'], [{ at: BLOCKED, to: 'blocked' }])
+
+    moveEpic(storage, '2026-10-12T09:00:00Z', 'In Progress', 'To Do')
+    expect(view(storage).epics[0]).toMatchObject({ blocked: true, commit: { baseline: 5 } })
+
+    labelEpic(storage, [], [{ at: '2026-10-14T09:00:00Z', from: 'blocked' }])
+    expect(view(storage).epics[0]).toMatchObject({ blocked: false, commit: { baseline: 5 } })
   })
 
   test('is no longer flagged once unblocked', () => {

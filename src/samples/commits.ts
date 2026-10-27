@@ -14,8 +14,10 @@ export interface StandingCommit extends EpicCommit {
  * The commits that still stand, by epic ID. An epic is committed by the EM in the tool, or by applying the workflow's
  * commit label, which records the epic's child count at that moment as its baseline. A pull-back (the epic moving from
  * started to not started, as the workflow reads its statuses) after a commit resets it, until the epic is committed
- * again; a move into a status of the blocked rule is not a pull-back, so a blocked epic keeps its commit, but leaving it
- * for not started is. While a commit stands, applying the label again doesn't replace it.
+ * again. A blocked epic keeps its commit: a move into or out of a status of the blocked rule is not a pull-back, nor
+ * is a move to not started while the epic carries a label of the rule. An epic out of scope is removed from the
+ * milestone instead. The EM's commit stands over a label commit, and while a commit stands, applying the label again
+ * doesn't replace it.
  */
 export function standingCommits(
   commits: readonly EpicCommit[],
@@ -27,15 +29,17 @@ export function standingCommits(
   const history = historyByItem(facts.events)
 
   const isBlocked = (status: string | undefined): boolean => status !== undefined && blockedStatuses.has(status)
+  const blockedLabelAt = blockedLabelAtTime(facts.workItems, history, workflow.blockedRule.labels)
   const lastPullBack = new Map<string, number>()
   for (const [itemId, { status }] of history) {
-    // The category the epic was in before any blocked spell, so started, blocked, then not started is a pull-back.
+    // The category of the status the move left, or undefined for a blocked one. A move with no `from` left the status
+    // the last move went to.
     let before: StatusCategory | undefined
     for (const event of status) {
-      if (!isBlocked(event.from)) before = category(event.from)
-      if (isBlocked(event.to)) continue
-      if (before === 'started' && category(event.to) === 'notStarted') lastPullBack.set(itemId, Date.parse(event.at))
-      before = category(event.to)
+      if (event.from !== undefined) before = isBlocked(event.from) ? undefined : category(event.from)
+      const pulledBack = before === 'started' && !isBlocked(event.to) && category(event.to) === 'notStarted'
+      if (pulledBack && !blockedLabelAt(itemId, event.at)) lastPullBack.set(itemId, Date.parse(event.at))
+      before = isBlocked(event.to) ? undefined : category(event.to)
     }
   }
 
@@ -52,13 +56,40 @@ export function standingCommits(
     }
   }
 
+  // The EM's commit stands over a label commit; otherwise the earliest since the last pull-back stands.
   const standing = new Map<string, StandingCommit>()
   for (const commit of made) {
     if ((lastPullBack.get(commit.epicId) ?? -Infinity) > Date.parse(commit.committedAt)) continue
-    const earlier = standing.get(commit.epicId)
-    if (!earlier || Date.parse(commit.committedAt) < Date.parse(earlier.committedAt)) standing.set(commit.epicId, commit)
+    const other = standing.get(commit.epicId)
+    const wins =
+      !other ||
+      (commit.source === 'inTool' && other.source === 'label') ||
+      (commit.source === other.source && Date.parse(commit.committedAt) < Date.parse(other.committedAt))
+    if (wins) standing.set(commit.epicId, commit)
   }
   return standing
+}
+
+/**
+ * Whether an item carried a label of the blocked rule at a moment: its labels now, less those added since and plus
+ * those removed since.
+ */
+function blockedLabelAtTime(
+  workItems: readonly WorkItem[],
+  history: ReadonlyMap<string, ItemHistory>,
+  blockedLabels: readonly string[],
+): (itemId: string, at: string) => boolean {
+  const labelsNow = new Map(workItems.map((item) => [item.id, item.labels]))
+  return (itemId, at) => {
+    const labels = new Set(labelsNow.get(itemId) ?? [])
+    const time = Date.parse(at)
+    const since = (history.get(itemId)?.label ?? []).filter((event) => Date.parse(event.at) > time)
+    for (const event of since.reverse()) {
+      if (event.to !== undefined) labels.delete(event.to)
+      if (event.from !== undefined) labels.add(event.from)
+    }
+    return blockedLabels.some((label) => labels.has(label))
+  }
 }
 
 interface ItemHistory {
