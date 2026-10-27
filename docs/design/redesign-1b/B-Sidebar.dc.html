@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<nav style="font-family: 'Geist', system-ui, sans-serif; font-size: 14px; color: #1C1B18; background: #EFEBE3; border-right: 1px solid #E2DDD2; padding: 24px 14px; display: flex; flex-direction: column; gap: 22px; height: 100%; box-sizing: border-box">
+<div style="padding: 0 10px; font-weight: 700; font-size: 17px; letter-spacing: -0.02em">Forecaster</div>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<span style="padding: 0 10px 6px; font-size: 11px; color: #8C877C; text-transform: uppercase; letter-spacing: 0.08em">Milestones</span>
+<a href="B1-Forecast.dc.html" style="display: flex; justify-content: space-between; padding: 9px 10px; border-radius: 6px; background: #FFFFFF; color: #1C1B18; text-decoration: none; font-weight: 600; box-shadow: 0 1px 2px rgba(28,27,24,0.06)"><span>Checkout v2</span><span style="font-family: 'Geist Mono', monospace; color: #B5482A">67%</span></a>
+<a href="B1-Forecast.dc.html" style="display: flex; justify-content: space-between; padding: 9px 10px; border-radius: 6px; color: #3F3C35; text-decoration: none"><span>Merchant onboarding</span><span style="font-family: 'Geist Mono', monospace; color: #2F6B3F">88%</span></a>
+</div>
+<sc-for list="{{groups}}" as="g" hint-placeholder-count="2">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<span style="padding: 0 10px 6px; font-size: 11px; color: #8C877C; text-transform: uppercase; letter-spacing: 0.08em">{{g.title}}</span>
+<sc-for list="{{g.items}}" as="i" hint-placeholder-count="3"><a href="{{i.href}}" style="padding: 8px 10px; border-radius: 6px; text-decoration: none; {{i.style}}">{{i.label}}</a></sc-for>
+</div>
+</sc-for>
+<div style="margin-top: auto; padding: 0 10px; display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: #5E5A52">Jira data 13 Oct, 07:10<button style="font: inherit; cursor: pointer; min-height: 34px; border-radius: 6px; border: 1px solid #D6D0C3; background: transparent; color: #1C1B18; font-size: 13px">Refresh</button></div>
+</nav>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:244,&quot;height&quot;:900},&quot;active&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;forecast&quot;,&quot;gap&quot;,&quot;inputs&quot;,&quot;growth&quot;,&quot;capacity&quot;,&quot;track&quot;,&quot;roadmap&quot;],&quot;default&quot;:&quot;forecast&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const a = this.props.active ?? 'forecast';
+    const item = (id, label, href) => ({ label, href, style: id === a ? 'background:#E4DFD4;color:#1C1B18;font-weight:600' : 'color:#3F3C35' });
+    return { groups: [
+      { title: 'This milestone', items: [item('forecast', 'Forecast', 'B1-Forecast.dc.html'), item('gap', 'Gap history', 'B6-Gap-history.dc.html'), item('inputs', 'Inputs', 'B7-Inputs.dc.html')] },
+      { title: 'Payments team', items: [item('growth', 'Growth', 'B2-Split-rate.dc.html'), item('capacity', 'Capacity', 'B3-Capacity.dc.html'), item('track', 'Track record', 'B4-Track-record.dc.html'), item('roadmap', 'Roadmap', 'B5-Roadmap.dc.html')] }
+    ] };
+  }
+}
+</script>
+</body>
+</html>

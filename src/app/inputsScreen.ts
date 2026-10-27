@@ -135,110 +135,152 @@ export interface InputsScreen {
 
 /** The Inputs screen: the milestone's definition, its manual pace range and the team's workflow settings. */
 export function renderInputsScreen(screen: InputsScreen): string {
-  const milestone =
-    screen.milestone.kind === 'milestone'
-      ? epicsSection(screen.milestone, screen.detailsForm ?? screen.milestone, screen.epicsError)
-      : newMilestoneSection(screen.milestone.teamEpics, screen.milestoneForm ?? { name: '', committedDate: '', ranks: {} })
-  return htmlPage(
-    'Inputs',
-    `${milestone}\n${screen.pace ? paceSection(screen.pace) : NO_MILESTONE}\n${workflowSection(screen.workflow)}`,
-  )
+  const milestone = screen.milestone
+  const sections =
+    milestone.kind === 'milestone'
+      ? [
+          detailsSection(screen.detailsForm ?? milestone),
+          epicsSection(milestone, screen.epicsError),
+          screen.pace ? paceSection(screen.pace) : NO_MILESTONE,
+        ]
+      : [newMilestoneSection(milestone.teamEpics, screen.milestoneForm ?? { name: '', committedDate: '', ranks: {} }), NO_MILESTONE]
+  sections.push(workflowSection(screen.workflow))
+  const header = {
+    context: milestone.kind === 'milestone' ? `${milestone.name} · committed ${formatDate(milestone.committedDate)}` : undefined,
+    heading: 'Inputs',
+    lede: 'What drives the forecast: the milestone and its epics, the team’s pace, and how the board works.',
+  }
+  return htmlPage('Inputs', '/inputs', header, sections.map((section, index) => section(index + 1)).join('\n'))
 }
 
-function newMilestoneSection(teamEpics: EpicChoice[], form: MilestoneForm): string {
-  const epics =
-    teamEpics.length === 0
-      ? '          <p>The team has no epics yet.</p>'
-      : teamEpics
-          .map(
-            (epic) =>
-              `          <label class="epic"><input type="number" name="${RANK_FIELD}${escapeHtml(epic.epicId)}" min="1" max="${teamEpics.length}" step="1" value="${escapeHtml(form.ranks[epic.epicId] ?? '')}" aria-label="Rank of ${epicLabel(epic)}"> ${epicLabel(epic)}</label>`,
-          )
-          .join('\n')
-  return `    <section aria-label="Milestone">
-      <h2>Milestone</h2>
-      <p>Name the milestone, give the date committed to stakeholders, and rank the epics it holds.</p>
-      <form method="post" action="/inputs/milestone">${errorLine(form.error)}
-${detailsFields(form)}
-        <fieldset>
-          <legend>Rank each epic in the milestone, 1 for the highest; leave the others blank</legend>
-${epics}
-        </fieldset>
-        <p><button type="submit">Create milestone</button></p>
-      </form>
+/** A section of the Inputs screen, given its number on the screen. */
+type Section = (number: number) => string
+
+/** A numbered section: its name and hint in the label column, `body` beside them. */
+function inputSection(label: string, name: string, hint: string, body: string): Section {
+  return (number) => `    <section class="input" aria-label="${label}">
+      <div class="label">
+        <span class="number">${String(number).padStart(2, '0')}</span>
+        <h2>${name}</h2>
+        <p>${hint}</p>
+      </div>
+      <div class="body">
+${body}
+      </div>
     </section>`
 }
 
-function detailsFields(form: DetailsForm): string {
-  return `        <label>Name <input type="text" name="name" value="${escapeHtml(form.name)}" required></label>
-        <label>Committed date <input type="date" name="committedDate" value="${escapeHtml(form.committedDate)}" required></label>`
+function newMilestoneSection(teamEpics: EpicChoice[], form: MilestoneForm): Section {
+  const epics =
+    teamEpics.length === 0
+      ? '              <p class="note">The team has no epics yet.</p>'
+      : teamEpics
+          .map(
+            (epic) =>
+              `              <label class="epic"><input type="number" name="${RANK_FIELD}${escapeHtml(epic.epicId)}" min="1" max="${teamEpics.length}" step="1" value="${escapeHtml(form.ranks[epic.epicId] ?? '')}" aria-label="Rank of ${epicLabel(epic)}"> ${epicName(epic)}</label>`,
+          )
+          .join('\n')
+  return inputSection(
+    'Milestone',
+    'Milestone',
+    'Name the milestone, give the date committed to stakeholders, and rank the epics it holds.',
+    `        <form method="post" action="/inputs/milestone">${errorLine(form.error)}
+${detailsFields(form)}
+          <fieldset>
+            <legend>Rank each epic in the milestone, 1 for the highest; leave the others blank</legend>
+${epics}
+          </fieldset>
+          <div class="actions"><button type="submit" class="primary">Create milestone</button></div>
+        </form>`,
+  )
 }
 
-function epicsSection(
-  milestone: Extract<MilestoneDefinitionView, { kind: 'milestone' }>,
-  details: DetailsForm,
-  error: string | undefined,
-): string {
+function detailsFields(form: DetailsForm): string {
+  return `          <div class="fields">
+            <label class="wide">Name <input type="text" name="name" value="${escapeHtml(form.name)}" required></label>
+            <label>Committed date <input type="date" name="committedDate" value="${escapeHtml(form.committedDate)}" required></label>
+          </div>`
+}
+
+function detailsSection(details: DetailsForm): Section {
+  return inputSection(
+    'Milestone',
+    'Milestone',
+    'The name, and the date committed to stakeholders.',
+    `        <form method="post" action="/inputs/milestone/details">${errorLine(details.error)}
+${detailsFields(details)}
+          <div class="actions"><button type="submit">Save name and date</button></div>
+        </form>`,
+  )
+}
+
+function epicsSection(milestone: Extract<MilestoneDefinitionView, { kind: 'milestone' }>, error: string | undefined): Section {
   const last = milestone.epics.length - 1
   const rows = milestone.epics
     .map(
-      (epic, rank) => `        <li>
-          <form method="post" action="/inputs/epics">
-            <span>${epicLabel(epic)}</span>
-            <input type="hidden" name="epic" value="${escapeHtml(epic.epicId)}">
-            <button type="submit" name="action" value="up"${rank === 0 ? ' disabled' : ''}>Up</button>
-            <button type="submit" name="action" value="down"${rank === last ? ' disabled' : ''}>Down</button>
-            <button type="submit" name="action" value="remove"${last === 0 ? ' disabled' : ''}>Remove</button>
-          </form>
-        </li>`,
+      (epic, rank) => `          <li>
+            <form method="post" action="/inputs/epics">
+              <span>${epicName(epic)}</span>
+              <input type="hidden" name="epic" value="${escapeHtml(epic.epicId)}">
+              <button type="submit" name="action" value="up"${rank === 0 ? ' disabled' : ''}>Up</button>
+              <button type="submit" name="action" value="down"${rank === last ? ' disabled' : ''}>Down</button>
+              <button type="submit" name="action" value="remove"${last === 0 ? ' disabled' : ''}>Remove</button>
+            </form>
+          </li>`,
     )
     .join('\n')
   const add =
     milestone.otherEpics.length === 0
-      ? `      <p class="note">Every one of the team's epics is in this milestone.</p>`
-      : `      <form method="post" action="/inputs/epics">
-        <label>Add an epic <select name="epic">
-${milestone.otherEpics.map((epic) => `          <option value="${escapeHtml(epic.epicId)}">${epicLabel(epic)}</option>`).join('\n')}
-        </select></label>
-        <button type="submit" name="action" value="add">Add</button>
-      </form>`
-  return `    <section aria-label="Milestone">
-      <h2>${escapeHtml(milestone.name)} · committed ${formatDate(milestone.committedDate)}</h2>
-      <form method="post" action="/inputs/milestone/details">${errorLine(details.error)}
-${detailsFields(details)}
-        <button type="submit">Save name and date</button>
-      </form>${errorLine(error)}
-      <p>Epics, highest rank first:</p>
-      <ol class="epics">
+      ? `        <p class="note">Every one of the team's epics is in this milestone.</p>`
+      : `        <form method="post" action="/inputs/epics" class="add">
+          <select name="epic" aria-label="Epic to add">
+${milestone.otherEpics.map((epic) => `            <option value="${escapeHtml(epic.epicId)}">${epicLabel(epic)}</option>`).join('\n')}
+          </select>
+          <button type="submit" name="action" value="add" class="dashed">+ Add epic</button>
+        </form>`
+  return inputSection(
+    'Epics',
+    'Epics',
+    'Highest rank first. The forecast works through them in this order.',
+    `${errorLine(error).replace(/^\n/, '')}
+        <ol class="epics">
 ${rows}
-      </ol>
-${add}
-    </section>`
+        </ol>
+${add}`,
+  )
 }
 
 function epicLabel(epic: EpicChoice): string {
   return epic.name === epic.key ? escapeHtml(epic.key) : `${escapeHtml(epic.key)} ${escapeHtml(epic.name)}`
 }
 
-function errorLine(error: string | undefined): string {
-  return error ? `\n        <p class="error" role="alert">${escapeHtml(error)}</p>` : ''
+/** The epic's name with its key beside it: "Card vaulting PAY-1". */
+function epicName(epic: EpicChoice): string {
+  const key = `<span class="key">${escapeHtml(epic.key)}</span>`
+  return epic.name === epic.key ? key : `<span class="name">${escapeHtml(epic.name)}</span> ${key}`
 }
 
-const NO_MILESTONE = `    <section aria-label="Pace">
-      <p>No milestone defined yet. Define a milestone to enter its pace.</p>
-    </section>`
+function errorLine(error: string | undefined): string {
+  return error ? `\n          <p class="error" role="alert">${escapeHtml(error)}</p>` : ''
+}
 
-function paceSection(form: PaceForm): string {
-  return `    <section aria-label="Pace">
-      <h2>Pace</h2>
-      <p>How many of this milestone's tickets the team finishes in a week, as a range from a slow week to a good one.</p>
-      <form method="post" action="/inputs">${errorLine(form.error)}
-        <label>Low <input type="number" name="low" min="0" max="${MAX_TICKETS_PER_WEEK}" step="1" value="${escapeHtml(form.low)}" required></label>
-        <label>High <input type="number" name="high" min="0" max="${MAX_TICKETS_PER_WEEK}" step="1" value="${escapeHtml(form.high)}" required></label>
-        <span>tickets per week</span>
-        <p><button type="submit">Save and forecast</button></p>
-      </form>
-    </section>`
+const NO_MILESTONE: Section = inputSection('Pace', 'Pace', 'Tickets the team finishes in a week.', '        <p class="note">No milestone defined yet. Define a milestone to enter its pace.</p>')
+
+function paceSection(form: PaceForm): Section {
+  return inputSection(
+    'Pace',
+    'Pace',
+    'How many of this milestone’s tickets the team finishes in a week, from a slow week to a good one.',
+    `        <form method="post" action="/inputs">${errorLine(form.error)}
+          <div class="pace">
+            <label>Low <input type="number" name="low" min="0" max="${MAX_TICKETS_PER_WEEK}" step="1" value="${escapeHtml(form.low)}" required></label>
+            <span class="to">to</span>
+            <label>High <input type="number" name="high" min="0" max="${MAX_TICKETS_PER_WEEK}" step="1" value="${escapeHtml(form.high)}" required></label>
+            <span class="unit">tickets per week</span>
+          </div>
+          <div class="actions"><button type="submit" class="primary">Save and forecast</button></div>
+        </form>`,
+  )
 }
 
 /** The category's name as an option label: "Not started". */
@@ -247,7 +289,7 @@ function categoryLabel(category: StatusCategory): string {
   return name.charAt(0).toUpperCase() + name.slice(1)
 }
 
-function workflowSection({ statuses, form, error }: WorkflowScreen): string {
+function workflowSection({ statuses, form, error }: WorkflowScreen): Section {
   const rows = statuses
     .map((status) => {
       const chosen = form.categories[status] ?? ''
@@ -257,10 +299,10 @@ function workflowSection({ statuses, form, error }: WorkflowScreen): string {
           (category) => `<option value="${category}"${chosen === category ? ' selected' : ''}>${categoryLabel(category)}</option>`,
         ),
       ].join('')
-      return `          <tr>
-            <td>${escapeHtml(status)}</td>
-            <td><select name="${STATUS_FIELD}${escapeHtml(status)}" aria-label="What ${escapeHtml(status)} means">${options}</select></td>
-          </tr>`
+      return `              <tr>
+                <td>${escapeHtml(status)}</td>
+                <td><select name="${STATUS_FIELD}${escapeHtml(status)}" aria-label="What ${escapeHtml(status)} means">${options}</select></td>
+              </tr>`
     })
     .join('\n')
   const startedOptions = statuses
@@ -270,26 +312,29 @@ function workflowSection({ statuses, form, error }: WorkflowScreen): string {
     )
     .join('')
   const textField = (name: Exclude<keyof WorkflowForm, 'categories'>, label: string, hint: string): string =>
-    `        <p><label>${label} <input type="text" name="${name}" value="${escapeHtml(form[name])}"></label> <span class="note">${hint}</span></p>`
-  return `    <section aria-label="Workflow">
-      <h2>Workflow</h2>
-      <p>How the team's board works: what each status means to the forecast, and which tickets are spikes.</p>
-      <form method="post" action="/inputs/workflow">${errorLine(error)}
-        <table>
-          <thead>
-            <tr><th>Board status</th><th>Means</th></tr>
-          </thead>
-          <tbody>
+    `            <label class="field">${label} <input type="text" name="${name}" value="${escapeHtml(form[name])}"> <span class="note">${hint}</span></label>`
+  return inputSection(
+    'Workflow',
+    'Workflow',
+    'How the team’s board works: what each status means to the forecast, and which tickets are spikes.',
+    `        <form method="post" action="/inputs/workflow">${errorLine(error)}
+          <table class="workflow">
+            <thead>
+              <tr><th>Board status</th><th>Means</th></tr>
+            </thead>
+            <tbody>
 ${rows}
-          </tbody>
-        </table>
-        <p><label>Cycle time starts at <select name="startedStatus">${startedOptions}</select></label> <span class="note">A status that means started.</span></p>
+            </tbody>
+          </table>
+          <div class="settings">
+            <label class="field">Cycle time starts at <select name="startedStatus">${startedOptions}</select> <span class="note">A status that means started.</span></label>
 ${textField('spikeTypes', 'Spike issue types', 'Comma-separated, e.g. spike.')}
 ${textField('spikeLabels', 'Spike labels', 'Comma-separated. A ticket with any of these types or labels is a spike.')}
 ${textField('commitLabel', 'Commit label', 'Optional. Applying it to an epic commits the epic.')}
 ${textField('blockedStatuses', 'Blocked statuses', 'Comma-separated statuses that mark an epic as blocked.')}
 ${textField('blockedLabels', 'Blocked labels or flags', 'Comma-separated labels that mark an epic as blocked.')}
-        <p><button type="submit">Save workflow</button></p>
-      </form>
-    </section>`
+          </div>
+          <div class="actions"><button type="submit" class="primary">Save workflow</button></div>
+        </form>`,
+  )
 }

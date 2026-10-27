@@ -1,41 +1,184 @@
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-/** A whole screen: the shared head and navigation around `main`. */
-export function htmlPage(title: string, main: string): string {
+/** The screens in the sidebar, by path. */
+const SCREENS = [
+  { path: '/', name: 'Milestone forecast' },
+  { path: '/inputs', name: 'Inputs' },
+] as const
+
+export type ScreenPath = (typeof SCREENS)[number]['path']
+
+/** The top of a screen: a context line, the headline and an optional lede. `heading` and `lede` are HTML. */
+export interface PageHeader {
+  context?: string | undefined
+  heading: string
+  lede?: string
+}
+
+/**
+ * A whole screen: the shared head and sidebar around `main`, in the 1b "Weekly brief" look
+ * (`docs/design/redesign-1b/`). `title` names the screen in the browser tab.
+ */
+export function htmlPage(title: string, path: ScreenPath, header: PageHeader, main: string): string {
+  const links = SCREENS.map(
+    (screen) => `      <a href="${screen.path}"${screen.path === path ? ' aria-current="page"' : ''}>${screen.name}</a>`,
+  ).join('\n')
+  const context = header.context ? `\n      <p class="context">${escapeHtml(header.context)}</p>` : ''
+  const lede = header.lede ? `\n      <p class="lede">${header.lede}</p>` : ''
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)} · Forecaster</title>
-  <style>
-    body { font-family: system-ui, sans-serif; margin: 2rem; color: #1f2328; }
-    nav a { margin-right: 1rem; }
-    table { border-collapse: collapse; margin-top: 1rem; }
-    th, td { padding: 0.4rem 1.5rem 0.4rem 0; text-align: left; border-bottom: 1px solid #d0d7de; }
-    td.number { text-align: right; }
-    ul.dates { list-style: none; padding: 0; font-size: 1.15rem; }
-    ul.dates li { margin: 0.25rem 0; }
-    p.note { color: #57606a; }
-    p.error { color: #cf222e; }
-    label { margin-right: 1rem; }
-    input[type=number] { width: 5rem; }
-    fieldset { margin: 1rem 0; border: 1px solid #d0d7de; }
-    label.epic { display: block; margin: 0.25rem 0; }
-    ol.epics li { margin: 0.35rem 0; }
-    ol.epics span { display: inline-block; min-width: 16rem; }
-  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+  <style>${STYLE}</style>
 </head>
 <body>
-  <nav><a href="/">Milestone forecast</a><a href="/inputs">Inputs</a></nav>
+  <nav>
+    <span class="wordmark">Forecaster</span>
+    <div class="links">
+${links}
+    </div>
+  </nav>
   <main>
-    <h1>${escapeHtml(title)}</h1>
+    <header>${context}
+      <h1>${header.heading}</h1>${lede}
+    </header>
 ${main}
   </main>
 </body>
 </html>
 `
 }
+
+const STYLE = `
+    :root {
+      --page: #F7F5F0; --ink: #1C1B18; --text-2: #3F3C35; --muted: #5E5A52; --faint: #8C877C;
+      --hairline: #E2DDD2; --border: #D6D0C3; --dashed: #A8A194; --sidebar: #EFEBE3; --active: #E4DFD4;
+      --link: #1F5F6B; --link-hover: #123F47; --risk: #B5482A; --good: #2F6B3F;
+      --mono: 'Geist Mono', ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: grid; grid-template-columns: 244px minmax(0, 1fr);
+      font-family: 'Geist', system-ui, sans-serif; font-size: 14px; color: var(--ink); background: var(--page);
+    }
+    a { color: var(--link); }
+    a:hover { color: var(--link-hover); }
+    button, input, select { font: inherit; color: inherit; }
+
+    nav {
+      background: var(--sidebar); border-right: 1px solid var(--hairline); padding: 24px 14px;
+      display: flex; flex-direction: column; gap: 22px;
+    }
+    nav .wordmark { padding: 0 10px; font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
+    nav .links { display: flex; flex-direction: column; gap: 2px; }
+    nav .links a { padding: 8px 10px; border-radius: 6px; color: var(--text-2); text-decoration: none; }
+    nav .links a[aria-current] { background: var(--active); color: var(--ink); font-weight: 600; }
+
+    main { padding: 40px 56px 64px; max-width: 1040px; display: flex; flex-direction: column; gap: 40px; }
+    header { display: flex; flex-direction: column; gap: 14px; }
+    header p { margin: 0; }
+    .context { font-size: 13px; color: var(--muted); }
+    h1 { margin: 0; font-size: 40px; line-height: 1.15; font-weight: 600; letter-spacing: -0.03em; max-width: 820px; text-wrap: pretty; }
+    .risk { color: var(--risk); }
+    .good { color: var(--good); }
+    .lede { font-size: 16px; line-height: 1.5; color: var(--text-2); max-width: 680px; }
+    p.note { margin: 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
+    p.error { margin: 0; color: var(--risk); font-weight: 600; }
+
+    /* Milestone forecast: sections under an ink rule. */
+    .brief { display: flex; flex-direction: column; gap: 10px; }
+    .brief > .heading {
+      display: flex; justify-content: space-between; align-items: baseline;
+      border-bottom: 1px solid var(--ink); padding-bottom: 8px;
+    }
+    .brief h2 { margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
+    .brief > .heading a { font-size: 13px; }
+    ul.dates { list-style: none; margin: 0; padding: 0; }
+    ul.dates li { display: flex; gap: 8px; align-items: baseline; padding: 12px 0; border-bottom: 1px solid var(--hairline); font-size: 15px; }
+    ul.dates .percent { font-family: var(--mono); font-weight: 600; min-width: 3.5em; }
+    ul.dates .date { font-family: var(--mono); font-weight: 600; }
+    table.epics { border-collapse: collapse; width: 100%; counter-reset: rank; }
+    table.epics th {
+      padding: 10px 16px 6px 0; text-align: left; font-size: 12px; font-weight: 500; color: var(--faint);
+    }
+    table.epics td { padding: 13px 16px 13px 0; border-bottom: 1px solid var(--hairline); }
+    table.epics tbody td:first-child { font-weight: 600; }
+    table.epics tbody td:first-child::before {
+      counter-increment: rank; content: counter(rank); display: inline-block; width: 28px;
+      font-family: var(--mono); font-weight: 400; color: var(--faint);
+    }
+    table.epics thead th:first-child { padding-left: 28px; }
+    table.epics .number { text-align: right; font-family: var(--mono); }
+    table.epics .status { font-size: 13px; color: var(--muted); }
+
+    /* Inputs: numbered sections, a label column beside the form. */
+    section.input {
+      display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 32px;
+      border-top: 1px solid var(--ink); padding-top: 18px;
+    }
+    section.input > .label { display: flex; flex-direction: column; gap: 6px; }
+    section.input > .label .number { font-family: var(--mono); font-size: 12px; color: var(--faint); }
+    section.input > .label h2 { margin: 0; font-size: 17px; font-weight: 600; }
+    section.input > .label p { margin: 0; font-size: 13px; line-height: 1.45; color: var(--muted); }
+    section.input > .body { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+    section.input form { margin: 0; display: flex; flex-direction: column; gap: 16px; }
+    .fields { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; }
+    .fields label, label.field { flex: 1 1 200px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); }
+    .fields label.wide { flex-grow: 2; }
+    input[type=text], input[type=date], input[type=number] {
+      font-size: 15px; color: var(--ink); background: transparent;
+      border: 0; border-bottom: 1px solid var(--ink); border-radius: 0; padding: 6px 0;
+    }
+    input[type=date], input[type=number] { font-family: var(--mono); }
+    input:focus, select:focus, button:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+    select { font-size: 13px; background: transparent; border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; }
+    button {
+      min-height: 34px; padding: 0 12px; border-radius: 6px; font-size: 13px; cursor: pointer;
+      border: 1px solid var(--border); background: transparent;
+    }
+    button:disabled { color: var(--faint); border-color: var(--hairline); cursor: default; }
+    button.dashed { border-style: dashed; border-color: var(--dashed); }
+    .actions { display: flex; justify-content: flex-end; }
+    button.primary { min-height: 42px; padding: 0 20px; border: 0; background: var(--ink); color: var(--page); font-size: 14px; font-weight: 600; }
+    .rows { display: flex; flex-direction: column; }
+    .row { display: grid; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--hairline); }
+    ol.epics { list-style: none; margin: 0; padding: 0; counter-reset: rank; }
+    ol.epics form { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto auto; flex-direction: row; gap: 8px 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--hairline); }
+    ol.epics form::before { counter-increment: rank; content: counter(rank); font-family: var(--mono); color: var(--faint); }
+    ol.epics .name { font-weight: 600; }
+    ol.epics .key, .epic-choice .key { font-family: var(--mono); font-size: 12px; color: var(--faint); font-weight: 400; }
+    section.input form.add { flex-direction: row; align-items: center; gap: 10px; }
+    fieldset { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; }
+    legend { padding: 0 0 8px; font-size: 12px; color: var(--muted); }
+    label.epic { display: grid; grid-template-columns: 60px minmax(0, 1fr); gap: 16px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--hairline); }
+    label.epic input { text-align: center; }
+    .pace { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; }
+    .pace label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+    .pace input[type=number] { font-size: 32px; width: 72px; text-align: center; padding: 2px 0; }
+    .pace .to { font-size: 24px; color: var(--faint); padding-bottom: 6px; }
+    .pace .unit { color: var(--text-2); padding-bottom: 10px; }
+    table.workflow { border-collapse: collapse; width: 100%; }
+    table.workflow th { padding: 0 12px 6px 0; text-align: left; font-size: 12px; font-weight: 500; color: var(--faint); }
+    table.workflow td { padding: 8px 12px 8px 0; border-bottom: 1px solid var(--hairline); }
+    table.workflow td:first-child { width: 184px; font-family: var(--mono); font-size: 13px; }
+    table.workflow td:first-child::after { content: '→'; float: right; color: var(--faint); font-family: 'Geist', system-ui, sans-serif; }
+    .settings { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px 24px; }
+    .settings .note { font-size: 12px; line-height: 1.4; color: var(--faint); }
+
+    @media (max-width: 760px) {
+      body { grid-template-columns: minmax(0, 1fr); }
+      nav { flex-direction: row; align-items: center; padding: 12px 16px; border-right: 0; border-bottom: 1px solid var(--hairline); }
+      nav .links { flex-direction: row; }
+      main { padding: 28px 16px 48px; }
+      h1 { font-size: 30px; }
+      section.input { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+    }
+  `
 
 /** `2026-12-18` → `18 Dec 2026`. */
 export function formatDate(isoDate: string): string {
