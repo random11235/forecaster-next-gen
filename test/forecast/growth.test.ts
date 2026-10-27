@@ -290,7 +290,7 @@ describe('measured growth', () => {
 
     storage.addFacts(TEAM, { workItems: [], events: [status('F3', '2026-09-01T09:00:00Z', 'In Progress', 'Done')] })
 
-    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).growth).toMatchObject({ mediumMeasured: true, paused: true, finishedEpics: 6, needed: 7, suggestion: undefined })
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).growth).toMatchObject({ mediumMeasured: true, paused: true, finishedEpics: 6, samplesNeeded: 7, suggestion: undefined })
     expect(view(storage).epics[0]).toMatchObject({
       growthSource: 'ambiguity',
       growthBasis: 'Medium ambiguity: grows 1–2× (measured growth paused: 6 of 7 finished epics)',

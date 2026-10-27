@@ -42,8 +42,8 @@ export interface GrowthView {
   paused: boolean
   /** Finished committed epics with a baseline: the team's growth samples. */
   finishedEpics: number
-  /** How many measured growth needs (`minGrowthSamples`): below it, adopted measured growth is paused. */
-  needed: number
+  /** Growth samples measured growth needs (`minGrowthSamples`): below it, adopted measured growth is paused. */
+  samplesNeeded: number
   /** The measured medium range, once enough finished committed epics exist. */
   suggestion: Suggestion | undefined
 }
@@ -140,7 +140,7 @@ export function growthView(storage: Storage, teamId: string, team: TeamFacts, se
     mediumMeasured,
     paused: measuredPaused(growth, settings),
     finishedEpics: growthSamples.length,
-    needed: settings.minGrowthSamples,
+    samplesNeeded: settings.minGrowthSamples,
     suggestion: measuredMediumSuggestion(growthSamples, settings),
   }
 }
