@@ -1,4 +1,5 @@
 import type { ForecastResult } from '../engine/index.js'
+import type { MilestoneEpic } from './milestoneEpics.js'
 
 /**
  * Pace variation (relative standard error) bands. Split-halves' 25% and 75% bands correspond to about 15% and 44%
@@ -15,6 +16,14 @@ const VARIES_A_LOT_FROM = 0.44
 export function informationNotes(result: ForecastResult): string[] {
   const { paceVariation } = result.diagnostics
   return paceVariation === undefined ? [] : [paceVariationNote(paceVariation)]
+}
+
+/**
+ * Warnings about the milestone's epics, in rank order: each epic in progress (by its own status) with no commit
+ * standing, since an epic never committed never produces a growth sample. Blocked epics are flagged on their row.
+ */
+export function epicWarnings(epics: readonly MilestoneEpic[]): string[] {
+  return epics.filter((epic) => epic.inProgress && !epic.commit).map((epic) => `${epic.name} is in progress but isn't committed`)
 }
 
 /** Says plainly why measured pace gives no forecast yet. */

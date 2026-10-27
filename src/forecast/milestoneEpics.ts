@@ -1,10 +1,13 @@
 import type { Milestone } from '../model/milestone.js'
-import { childrenOf } from '../model/workItem.js'
+import { categoryLookup, type StatusCategory } from '../model/workflow.js'
+import { childrenOf, type WorkItem, type WorkItemEvent } from '../model/workItem.js'
+import type { CommitSource } from '../samples/commits.js'
 import type { TeamFacts } from './teamFacts.js'
 
-/** An epic's commit as the screens show it: its baseline, the children it had when the EM committed it. */
+/** An epic's commit as the screens show it: its baseline, the children it had when committed, and how it was made. */
 export interface CommitView {
   baseline: number
+  source: CommitSource
 }
 
 /** A milestone's epic as it stands, the same on every screen and in the forecast. */
@@ -18,24 +21,44 @@ export interface MilestoneEpic {
   currentCount: number
   /** Children done so far. */
   doneCount: number
-  /** Its commit, or undefined when the EM hasn't committed it. */
+  /** Its commit, or undefined when it isn't committed. */
   commit: CommitView | undefined
+  /** The epic's own status is mapped to started; its children's statuses play no part. */
+  inProgress: boolean
+  /** The epic is in a status, or has a label, of the workflow's blocked rule. It stays in the milestone and forecast. */
+  blocked: boolean
 }
 
 /** The milestone's epics in rank order, as the team's facts and standing commits have them now. */
 export function milestoneEpics(milestone: Milestone, team: TeamFacts): MilestoneEpic[] {
   const byId = new Map(team.facts.workItems.map((item) => [item.id, item]))
+  const inMilestone = new Set(milestone.epicIds)
+  const lastStatus = new Map<string, WorkItemEvent>()
+  for (const event of team.facts.events) {
+    if (event.kind !== 'status' || !inMilestone.has(event.itemId)) continue
+    const last = lastStatus.get(event.itemId)
+    if (!last || Date.parse(event.at) >= Date.parse(last.at)) lastStatus.set(event.itemId, event)
+  }
+  const category = categoryLookup(team.workflow)
+  const { blockedRule } = team.workflow
+
   return milestone.epicIds.map((epicId) => {
     const epic = byId.get(epicId)
     const commit = team.commits.get(epicId)
     const children = childrenOf(team.facts.workItems, epicId)
+    const status = lastStatus.get(epicId)?.to
+    const statusCategory = lastStatus.has(epicId) ? category(status) : categoryFromTimes(epic)
     return {
       epicId,
       key: epic?.sourceKey ?? epicId,
       name: epic?.title ?? epic?.sourceKey ?? epicId,
       currentCount: children.length,
       doneCount: children.filter((child) => child.doneAt !== undefined).length,
-      commit: commit && { baseline: commit.baseline },
+      commit: commit && { baseline: commit.baseline, source: commit.source },
+      inProgress: statusCategory === 'started',
+      blocked:
+        (status !== undefined && blockedRule.statuses.includes(status)) ||
+        (epic?.labels ?? []).some((label) => blockedRule.labels.includes(label)),
     }
   })
 }
@@ -43,4 +66,11 @@ export function milestoneEpics(milestone: Milestone, team: TeamFacts): Milestone
 /** The count the epic's growth applies to: its commit's baseline, or, uncommitted, its current count as a provisional baseline. */
 export function baselineOf(epic: MilestoneEpic): number {
   return epic.commit?.baseline ?? epic.currentCount
+}
+
+/** An epic with no status history is where the connector's times put it. */
+function categoryFromTimes(epic: WorkItem | undefined): StatusCategory {
+  if (epic?.doneAt !== undefined) return 'done'
+  if (epic?.cancelledAt !== undefined) return 'cancelled'
+  return epic?.startedAt !== undefined ? 'started' : 'notStarted'
 }

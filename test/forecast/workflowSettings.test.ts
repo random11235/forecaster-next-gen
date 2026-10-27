@@ -286,7 +286,7 @@ describe('the sample data', () => {
     return storage
   }
 
-  test("ships with its board's mapping and started status, and no commit label", () => {
+  test("ships with its board's mapping started status and commit label", () => {
     const storage = sampleTeam()
 
     expect(inputsView(storage, SAMPLE_DATA.team.id).workflow).toEqual({
@@ -297,7 +297,7 @@ describe('the sample data', () => {
         { status: 'Cancelled', category: 'cancelled' },
       ],
       startedStatus: 'In Progress',
-      commitLabel: undefined,
+      commitLabel: 'committed',
       blockedRule: { statuses: [], labels: ['blocked'] },
     })
   })

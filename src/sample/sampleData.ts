@@ -8,7 +8,7 @@ export interface SampleData {
   team: Team
   facts: Facts
   milestone: Milestone
-  /** The sample board's workflow: To Do, In Progress, Done and Cancelled. */
+  /** The sample board's workflow: To Do, In Progress, Done and Cancelled, with `committed` as its commit label. */
   workflow: WorkflowSettings
 }
 
@@ -25,6 +25,8 @@ interface SampleTicket {
   /** The parent the ticket had before it was moved under `parent`, and when it moved. */
   movedFrom?: { parent: string; at: string }
   labels?: string[]
+  /** When the labels were applied, if not when the ticket was created. */
+  labelledAt?: string
   createdAt: string
   state: State
   startedAt?: string
@@ -33,9 +35,10 @@ interface SampleTicket {
 }
 
 const tickets: SampleTicket[] = [
-  { key: 'PAY-1', type: 'epic', title: 'Card vaulting', createdAt: '2026-08-31T09:00:00Z', state: 'inProgress', startedAt: '2026-09-07T09:00:00Z' },
+  // Card vaulting was committed by its label at kickoff, with 5 tickets; Receipts redesign is blocked
+  { key: 'PAY-1', type: 'epic', title: 'Card vaulting', labels: ['committed'], labelledAt: '2026-09-07T10:00:00Z', createdAt: '2026-08-31T09:00:00Z', state: 'inProgress', startedAt: '2026-09-07T09:00:00Z' },
   { key: 'PAY-2', type: 'epic', title: 'Refunds', createdAt: '2026-08-31T09:00:00Z', state: 'inProgress', startedAt: '2026-09-21T09:00:00Z' },
-  { key: 'PAY-3', type: 'epic', title: 'Receipts redesign', createdAt: '2026-09-01T09:00:00Z', state: 'toDo' },
+  { key: 'PAY-3', type: 'epic', title: 'Receipts redesign', labels: ['blocked'], labelledAt: '2026-10-12T09:00:00Z', createdAt: '2026-09-01T09:00:00Z', state: 'toDo' },
   { key: 'PAY-4', type: 'epic', title: 'Fraud rules', createdAt: '2026-09-01T09:00:00Z', state: 'inProgress', startedAt: '2026-09-14T09:00:00Z' },
 
   // Card vaulting: 6 tickets now (PAY-17 was cancelled)
@@ -106,7 +109,7 @@ function events(row: SampleTicket): WorkItemEvent[] {
   const history: WorkItemEvent[] = [{ itemId, at: row.createdAt, kind: 'status', to: STATUS_NAME.toDo }]
   const firstParent = row.movedFrom?.parent ?? row.parent
   if (firstParent !== undefined) history.push({ itemId, at: row.createdAt, kind: 'parent', to: firstParent })
-  for (const label of row.labels ?? []) history.push({ itemId, at: row.createdAt, kind: 'label', to: label })
+  for (const label of row.labels ?? []) history.push({ itemId, at: row.labelledAt ?? row.createdAt, kind: 'label', to: label })
   if (row.movedFrom && row.parent !== undefined) {
     history.push({ itemId, at: row.movedFrom.at, kind: 'parent', from: row.movedFrom.parent, to: row.parent })
   }
@@ -130,5 +133,5 @@ export const SAMPLE_DATA: SampleData = {
     committedDate: '2026-12-18',
     epicIds: ['PAY-1', 'PAY-2', 'PAY-3'],
   },
-  workflow: defaultWorkflowSettings(TEAM_ID),
+  workflow: { ...defaultWorkflowSettings(TEAM_ID), commitLabel: 'committed' },
 }
