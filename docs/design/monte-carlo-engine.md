@@ -69,7 +69,7 @@ Ingestion follows data minimisation (see [Security](#security)). On GitHub, an a
 ```ts
 EpicCommit       { teamId, epicId, committedAt,
                    baseline }            // children at commit; stored as child_count_at_commit.
-                                         // Later, with the commit label: source: 'user_marked'|'label'
+                                         // Team facts adds source: 'inTool'|'label' to the commits that stand
 
 GrowthSample     { epicId, teamId, committedCount, finalCount,
                    ratio /* finalCount / committedCount */, completedAt }
@@ -80,11 +80,13 @@ ThroughputSample { teamId, milestoneId, periodStart, periodDays /* 1 | 7 */,
                    scope: 'milestoneEpics', count }
 ```
 
-**Committing.** The EM commits an epic in the tool after kickoff, or a configured label in the ticketing tool commits it. The commit records the epic's child count at that moment, its **baseline**. A **pull-back** (the epic moving from started to not started) resets the commit, and the EM commits again on restart. The reset is not stored: on each read, `samples/commits.ts` checks the epic's status history under the team's `WorkflowSettings` for a pull-back after `committedAt`, so changing the status mapping can change which commits stand. Team facts carries the commits that stand. Only the latest commit is stored, and only it counts towards the growth ratio. A blocked epic keeps its commit.
+**Committing.** The EM commits an epic in the tool after kickoff, or a configured label in the ticketing tool commits it. The commit records the epic's child count at that moment, its **baseline**. A label commit is not stored: on each read, `samples/commits.ts` finds each time the epic's label history applies `commitLabel`, and counts the children it had then from the tickets' creation, parent and status history (cancelled children don't count). A **pull-back** (the epic moving from started to not started) resets the commit, and the EM commits again on restart, in the tool or by applying the label again. The reset is not stored either: `samples/commits.ts` checks the epic's status history under the team's `WorkflowSettings` for a pull-back after `committedAt`, so changing the status mapping can change which commits stand. The two count the same: the first commit since the last pull-back stands, however it was made, so while one stands, neither the EM nor applying the label again replaces it. Removing the label doesn't uncommit the epic: the Milestone forecast warns "<epic> is committed but no longer has the “<label>” label" until it is put back or the epic is done or cancelled, and a commit made in the tool is never warned about. The label commits only when applied, so a pull-back with the label still on leaves the epic uncommitted while it carries the label; the tool doesn't recommit it on restart, which would surprise the EM. The Milestone forecast warns instead: "<epic> has the “<label>” label but isn't committed: it moved back to not started after the label went on. Commit it on Inputs, or take the label off and put it back." It needs a label commit the pull-back reset, so an epic carrying the label with no record of it going on isn't warned, and it stops once the epic is done or cancelled. For that epic this replaces the uncommitted-but-active warning. Team facts carries the commits that stand, with their source (`'inTool'` or `'label'`), and the epics whose label commit a pull-back reset (`labelCommitsReset`). Only the EM's latest commit is stored. Either kind of commit counts towards the growth ratio.
+
+**Blocked epics.** An epic in a status, or with a label, of `blockedRule` is flagged "Blocked" in the Milestone forecast's epic list. It keeps its commit: a move into or out of a blocked status is not a pull-back, even to or from a status mapped to not started, nor is a move to not started while the epic carries a blocked label. An epic out of scope is removed from the milestone explicitly. A blocked epic stays in the milestone and is forecast like any other epic.
 
 **The uncommitted-but-active warning.** An epic whose own status is mapped to started, with no commit standing, is flagged "<epic> is in progress but isn't committed". Its children's statuses play no part, so the tool needs no rule for which tickets are spikes ([ADR-0002](../adr/0002-no-spike-rule.md)).
 
-**Samples.** Only epics committed in the tool that have since finished produce samples. Epics committed with no children (`committedCount` of 0) produce no `GrowthSample`, since their ratio is undefined. They still produce an `EpicSizeSample`. Old epics are excluded either way.
+**Samples.** Only committed epics (in the tool or by label) that have since finished produce samples. Epics committed with no children (`committedCount` of 0) produce no `GrowthSample`, since their ratio is undefined. They still produce an `EpicSizeSample`. Old epics are excluded either way.
 
 **Throughput.** `ThroughputSample`s count done tickets whose parent is one of the milestone's epics. Because `WorkItem.parentId` is ingested, other scopes (e.g. children of any epic, or all tickets) can be derived later from the same data without re-ingesting.
 
@@ -275,7 +277,7 @@ src/
     epicCommit.ts         # EpicCommit: the EM's commit of an epic and its baseline
 
   samples/                # Layer 2: pure derivations from model/
-    commits.ts            # commits that stand after pull-back resets; later, uncommitted-but-active detection
+    commits.ts            # commits that stand: in the tool or by the commit label, after pull-back resets
     throughput.ts         # WorkItems → ThroughputSample[] (milestone epics only)
     growth.ts             # commits + final counts → GrowthSample[]
     epicSize.ts           # finished epics → EpicSizeSample[]
@@ -286,14 +288,14 @@ src/
 
   forecast/               # the only module that knows both stored data and the engine
     teamFacts.ts          # team facts: stored facts and the commits that stand, read under the team's WorkflowSettings, once per call
-    milestoneEpics.ts     # a milestone's epics as they stand: items now and commit; the baseline growth applies to
+    milestoneEpics.ts     # a milestone's epics as they stand: items now, commit, in progress, blocked; the baseline growth applies to
     inputs.ts             # Seam B: stored data → the Inputs screen's view; its edits (milestone, workflow, pace) and their rules
     milestoneDefinition.ts  # behind inputs.ts: the milestone's view and edits, including committing an epic
     workflowSettings.ts   # behind inputs.ts: the workflow settings view and edit
     buildCase.ts          # pace mode, ambiguity ranges, provisional baselines, limits
     settings.ts           # ForecastSettings and AmbiguityRanges defaults
     suggestions.ts        # suggested pace range, measured medium range, switch offers
-    diagnostics.ts        # sample counts, pace variation text, warnings, provenance (ThroughputScope, GrowthSource)
+    diagnostics.ts        # sample counts, pace variation text, warnings (e.g. in progress but not committed), provenance (ThroughputScope, GrowthSource)
     milestoneForecastView.ts  # Seam B: stored data → the Milestone forecast screen's view
 
   ledger/                 # Layer 5

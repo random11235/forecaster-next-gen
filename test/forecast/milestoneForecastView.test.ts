@@ -73,7 +73,7 @@ function openStorage(): Storage {
 }
 
 describe('milestone forecast view on sample data', () => {
-  test('on first launch, lists the sample milestone with each epic’s current count and status', () => {
+  test('on first launch, lists the sample milestone with each epic’s current count, commit and status, and warns of the uncommitted one in progress', () => {
     const storage = openStorage()
 
     loadSampleDataIfEmpty(storage)
@@ -83,10 +83,22 @@ describe('milestone forecast view on sample data', () => {
       name: 'Checkout v2',
       committedDate: '2026-12-18',
       forecast: { kind: 'needsPace' },
+      warnings: ["Refunds is in progress but isn't committed"],
       epics: [
-        { epicId: 'PAY-1', key: 'PAY-1', name: 'Card vaulting', currentCount: 6, doneCount: 4, commit: undefined },
-        { epicId: 'PAY-2', key: 'PAY-2', name: 'Refunds', currentCount: 14, doneCount: 2, commit: undefined },
-        { epicId: 'PAY-3', key: 'PAY-3', name: 'Receipts redesign', currentCount: 3, doneCount: 0, commit: undefined },
+        {
+          epicId: 'PAY-1',
+          key: 'PAY-1',
+          name: 'Card vaulting',
+          currentCount: 6,
+          doneCount: 4,
+          commit: { baseline: 5, source: 'label', labelRemoved: false },
+          inProgress: true,
+          finished: false,
+          blocked: false,
+          labelCommitReset: false,
+        },
+        { epicId: 'PAY-2', key: 'PAY-2', name: 'Refunds', currentCount: 14, doneCount: 2, commit: undefined, inProgress: true, finished: false, blocked: false, labelCommitReset: false },
+        { epicId: 'PAY-3', key: 'PAY-3', name: 'Receipts redesign', currentCount: 3, doneCount: 0, commit: undefined, inProgress: false, finished: false, blocked: true, labelCommitReset: false },
       ],
     })
   })
@@ -103,7 +115,8 @@ describe('milestone forecast view on sample data', () => {
       name: 'ACME milestone',
       committedDate: '2027-01-29',
       forecast: { kind: 'needsPace' },
-      epics: [{ epicId: 'ACME-E', key: 'ACME-E', name: 'ACME epic', currentCount: 2, doneCount: 0, commit: undefined }],
+      warnings: [],
+      epics: [{ epicId: 'ACME-E', key: 'ACME-E', name: 'ACME epic', currentCount: 2, doneCount: 0, commit: undefined, inProgress: false, finished: false, blocked: false, labelCommitReset: false }],
     })
   })
 
@@ -128,7 +141,8 @@ describe('milestone forecast view on sample data', () => {
       name: 'BETA milestone',
       committedDate: '2027-01-29',
       forecast: { kind: 'needsPace' },
-      epics: [{ epicId: 'BETA-E', key: 'BETA-E', name: 'BETA epic', currentCount: 5, doneCount: 0, commit: undefined }],
+      warnings: [],
+      epics: [{ epicId: 'BETA-E', key: 'BETA-E', name: 'BETA epic', currentCount: 5, doneCount: 0, commit: undefined, inProgress: false, finished: false, blocked: false, labelCommitReset: false }],
     })
   })
 
