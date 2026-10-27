@@ -283,6 +283,17 @@ describe('measured growth', () => {
     expect(datesOf(storage)).toEqual(before)
   })
 
+  test('Inputs and the forecast read the same threshold from the settings given', () => {
+    const storage = team()
+    finishedEpics(storage, 5)
+    const settings = { ...DEFAULT_SETTINGS, minGrowthSamples: 5 }
+
+    expect(inputsView(storage, TEAM, settings).growth.suggestion).toMatchObject({ low: 1, high: 3 })
+    expect(editInputs(storage, TEAM, { kind: 'useMeasuredMedium' }, settings)).toEqual({ ok: true })
+    const shown = milestoneForecastView(storage, TEAM, { today: TODAY, settings })
+    expect(shown.kind === 'milestone' && shown.epics[0]!.growthSource).toBe('samples')
+  })
+
   test('refuses measured growth before 7 finished committed epics', () => {
     const storage = team()
     finishedEpics(storage, 6)
