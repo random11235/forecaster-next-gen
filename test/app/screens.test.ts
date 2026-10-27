@@ -280,9 +280,9 @@ describe('Inputs screen: milestone', () => {
     expect(html).toMatch(/name="committedDate"[^>]*value="2027-02-30"/)
   })
 
-  test('each epic has a commit button; committing shows its baseline on both screens', async () => {
+  test('each epic not committed has a commit button; committing shows its baseline on both screens', async () => {
     await startOnSampleData()
-    expect((await page('/inputs')).match(/<button type="submit" name="action" value="commit">Commit<\/button>/g)).toHaveLength(3)
+    expect((await page('/inputs')).match(/<button type="submit" name="action" value="commit">Commit<\/button>/g)).toHaveLength(2)
 
     const committed = await post('/inputs/epics', [['epic', 'PAY-2'], ['action', 'commit']])
 
@@ -290,10 +290,10 @@ describe('Inputs screen: milestone', () => {
     expect(committed.headers.get('location')).toBe('/inputs')
     const inputs = await page('/inputs')
     expect(text(inputs)).toMatch(/Refunds PAY-2 Up Down Remove Committed at 14 items/)
-    expect(inputs.match(/value="commit">Commit</g)).toHaveLength(2)
+    expect(inputs.match(/value="commit">Commit</g)).toHaveLength(1)
     const forecast = text(await page('/'))
     expect(forecast).toMatch(/Refunds 14 Committed at 14 items/)
-    expect(forecast.match(/Not committed: wide range/g)).toHaveLength(2)
+    expect(forecast.match(/Not committed: wide range/g)).toHaveLength(1)
   })
 
   test('an epic change that names no action says why', async () => {
@@ -346,7 +346,7 @@ describe('Inputs screen: workflow', () => {
       expect(html).toMatch(new RegExp(`<select name="status:${status}"[^>]*>[\\s\\S]*?<option value="${category}" selected>`))
     }
     expect(html).toMatch(/<select name="startedStatus"[^>]*>[\s\S]*?<option value="In Progress" selected>/)
-    expect(html).toMatch(/name="commitLabel"[^>]*value=""/)
+    expect(html).toMatch(/name="commitLabel"[^>]*value="committed"/)
     expect(html).toMatch(/name="blockedStatuses"[^>]*value=""/)
     expect(html).toMatch(/name="blockedLabels"[^>]*value="blocked"/)
     expect(html).not.toMatch(/name="spike/)
@@ -419,7 +419,7 @@ describe('Milestone forecast screen', () => {
 
   test('headlines how far the 85% date falls after the committed date', async () => {
     await startOnSampleData()
-    await submitPace('3', '6')
+    await submitPace('2', '4')
 
     const screen = text(await page('/'))
 
@@ -451,13 +451,32 @@ describe('Milestone forecast screen', () => {
     expect(screen).toContain(`Not 85% sure of finishing by ${horizon}.`)
   })
 
-  test('labels each epic "Not committed: wide range"', async () => {
+  test('labels each epic not committed "Not committed: wide range", and one committed by its label with its baseline', async () => {
     await startOnSampleData()
     await submitPace('3', '6')
 
     const screen = text(await page('/'))
 
-    expect(screen.match(/Not committed: wide range/g)).toHaveLength(3)
+    expect(screen).toMatch(/Card vaulting 6 Committed by label at 5 items/)
+    expect(screen.match(/Not committed: wide range/g)).toHaveLength(2)
+  })
+
+  test('flags a blocked epic "Blocked", keeping it in the milestone', async () => {
+    await startOnSampleData()
+
+    const screen = text(await page('/'))
+
+    expect(screen).toMatch(/Receipts redesign 3 Not committed: wide range · Blocked/)
+    expect(screen.match(/Blocked/g)).toHaveLength(1)
+  })
+
+  test('warns of an epic in progress but not committed, before any pace is entered', async () => {
+    await startOnSampleData()
+
+    const html = await page('/')
+
+    expect(html).toContain('<p class="warning">⚠ Refunds is in progress but isn&#39;t committed</p>')
+    expect(text(html).match(/is in progress but/g)).toHaveLength(1)
   })
 
   test('shows no absence input', async () => {

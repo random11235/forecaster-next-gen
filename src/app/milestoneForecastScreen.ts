@@ -3,7 +3,8 @@ import type { ForecastSection, MilestoneForecastView } from '../forecast/milesto
 import { commitText, escapeHtml, formatDate, htmlPage, type PageHeader } from './html.js'
 
 function statusText(epic: MilestoneEpic): string {
-  return epic.commit ? commitText(epic.commit) : 'Not committed: wide range'
+  const commit = epic.commit ? commitText(epic.commit) : 'Not committed: wide range'
+  return epic.blocked ? `${commit} · <span class="risk">Blocked</span>` : commit
 }
 
 /** The confidence the headline plans for. */
@@ -66,7 +67,7 @@ function milestoneSections(view: Extract<MilestoneForecastView, { kind: 'milesto
           </tr>`,
     )
     .join('\n')
-  return `${renderForecast(view.forecast)}
+  return `${renderForecast(view.forecast)}${renderWarnings(view.warnings)}
     <section class="brief" aria-label="Epics">
       <div class="heading"><h2>Epics by rank</h2><a href="/inputs">Edit</a></div>
       <table class="epics">
@@ -77,6 +78,14 @@ function milestoneSections(view: Extract<MilestoneForecastView, { kind: 'milesto
 ${rows}
         </tbody>
       </table>
+    </section>`
+}
+
+function renderWarnings(warnings: readonly string[]): string {
+  if (warnings.length === 0) return ''
+  const lines = warnings.map((warning) => `\n      <p class="warning">⚠ ${escapeHtml(warning)}</p>`).join('')
+  return `
+    <section class="brief" aria-label="Warnings">${lines}
     </section>`
 }
 

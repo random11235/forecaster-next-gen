@@ -56,9 +56,9 @@ ${main}
 `
 }
 
-/** A committed epic's commit, the same on every screen: `Committed at 14 items`. */
+/** A committed epic's commit, the same on every screen: `Committed at 14 items`, or `Committed by label at 14 items`. */
 export function commitText(commit: CommitView): string {
-  return `Committed at ${commit.baseline} items`
+  return `Committed ${commit.source === 'label' ? 'by label ' : ''}at ${commit.baseline} items`
 }
 
 const STYLE = `
@@ -96,6 +96,7 @@ const STYLE = `
     .lede { font-size: 16px; line-height: 1.5; color: var(--text-2); max-width: 680px; }
     p.note { margin: 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
     p.error { margin: 0; color: var(--risk); font-weight: 600; }
+    p.warning { margin: 0; font-size: 14px; line-height: 1.5; color: var(--risk); }
 
     /* Milestone forecast: sections under an ink rule. */
     .brief { display: flex; flex-direction: column; gap: 10px; }
@@ -155,7 +156,7 @@ const STYLE = `
     .rows { display: flex; flex-direction: column; }
     .row { display: grid; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--hairline); }
     ol.epics { list-style: none; margin: 0; padding: 0; counter-reset: rank; }
-    ol.epics form { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto auto 160px; flex-direction: row; gap: 8px 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--hairline); }
+    ol.epics form { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto auto 210px; flex-direction: row; gap: 8px 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--hairline); }
     ol.epics form::before { counter-increment: rank; content: counter(rank); font-family: var(--mono); color: var(--faint); }
     ol.epics .name { font-weight: 600; }
     /* The last column holds Commit or the commit's text, at one width so every row's buttons line up. */

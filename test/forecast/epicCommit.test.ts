@@ -6,6 +6,7 @@ import type { EditResult } from '../../src/forecast/editResult.js'
 import { editInputs, inputsView } from '../../src/forecast/inputs.js'
 import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
+import { defaultWorkflowSettings, type WorkflowSettings } from '../../src/model/workflow.js'
 import type { WorkItem, WorkItemEvent } from '../../src/model/workItem.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
@@ -43,14 +44,35 @@ function ticket(id: string, type: string, fields: Partial<WorkItem> = {}): WorkI
   return { id, teamId: TEAM, sourceKey: id, type, labels: [], createdAt: CREATED, lastSyncedAt: CREATED, ...fields }
 }
 
-/** `count` tickets under the epic, numbered from `from`. */
-function childTickets(epicId: string, from: number, count: number): WorkItem[] {
-  return Array.from({ length: count }, (_, i) => ticket(`${epicId}-${from + i}`, 'story', { parentId: epicId }))
+/** `count` tickets under the epic, numbered from `from`, created at `createdAt`. */
+function childTickets(epicId: string, from: number, count: number, createdAt = CREATED): WorkItem[] {
+  return Array.from({ length: count }, (_, i) => ticket(`${epicId}-${from + i}`, 'story', { parentId: epicId, createdAt }))
 }
 
-/** A sync that brings new tickets under the epic. */
-function addChildren(storage: Storage, epicId: string, from: number, count: number): void {
-  storage.addFacts(TEAM, { workItems: childTickets(epicId, from, count), events: [] })
+/** A sync that brings new tickets under the epic, created at `createdAt`. */
+function addChildren(storage: Storage, epicId: string, from: number, count: number, createdAt = CREATED): void {
+  storage.addFacts(TEAM, { workItems: childTickets(epicId, from, count, createdAt), events: [] })
+}
+
+/** The EM's workflow: the sample board's, with these settings changed. */
+function useWorkflow(storage: Storage, changes: Partial<WorkflowSettings>): void {
+  storage.saveWorkflowSettings({ ...defaultWorkflowSettings(TEAM), ...changes })
+}
+
+/** A sync that brings E1 now carrying `labels`, with the label events that got it there. */
+function labelEpic(storage: Storage, labels: string[], events: Omit<WorkItemEvent, 'itemId' | 'kind'>[]): void {
+  storage.addFacts(TEAM, {
+    workItems: [ticket('E1', 'epic', { title: 'Epic E1', labels })],
+    events: events.map((event) => ({ itemId: 'E1', kind: 'label', ...event })),
+  })
+}
+
+/** A sync that brings a ticket moved from one epic to another at `at`. */
+function moveChild(storage: Storage, item: WorkItem, at: string, to: string): void {
+  storage.addFacts(TEAM, {
+    workItems: [{ ...item, parentId: to }],
+    events: [{ itemId: item.id, at, kind: 'parent', ...(item.parentId !== undefined && { from: item.parentId }), to }],
+  })
 }
 
 /** A sync that brings a status change of the epic. */
@@ -95,7 +117,7 @@ describe('committing an epic', () => {
     addChildren(storage, 'E1', 5, 3)
 
     expect(view(storage).epics).toEqual([
-      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 8, doneCount: 0, commit: { baseline: 5 } },
+      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 8, doneCount: 0, commit: { baseline: 5, source: 'inTool' }, inProgress: true, finished: false, blocked: false, labelCommitReset: false },
     ])
   })
 
@@ -167,7 +189,7 @@ describe('pulling an epic back to not started', () => {
     enterManualPace(storage, 10, 10)
 
     expect(view(storage).epics).toEqual([
-      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 10, doneCount: 0, commit: undefined },
+      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 10, doneCount: 0, commit: undefined, inProgress: false, finished: false, blocked: false, labelCommitReset: false },
     ])
     expect(datesOf(storage)).toEqual(['2026-11-07', '2026-11-07', '2026-11-07'])
   })
@@ -195,6 +217,14 @@ describe('pulling an epic back to not started', () => {
     expect(view(storage).epics[0]).toMatchObject({ commit: undefined })
   })
 
+  test('a move to not started that comes without the status it left is still a pull-back', () => {
+    const storage = teamWithEpic(5)
+    commit(storage, 'E1', COMMITTED)
+    storage.addFacts(TEAM, { workItems: [], events: [{ itemId: 'E1', at: '2026-10-09T09:00:00Z', kind: 'status', to: 'To Do' }] })
+
+    expect(view(storage).epics[0]).toMatchObject({ commit: undefined })
+  })
+
   test('the EM can commit the restarted epic again, recording a new baseline', () => {
     const storage = teamWithEpic(5)
     commit(storage, 'E1', COMMITTED)
@@ -206,7 +236,363 @@ describe('pulling an epic back to not started', () => {
     addChildren(storage, 'E1', 7, 1)
 
     expect(view(storage).epics).toEqual([
-      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 8, doneCount: 0, commit: { baseline: 7 } },
+      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 8, doneCount: 0, commit: { baseline: 7, source: 'inTool' }, inProgress: true, finished: false, blocked: false, labelCommitReset: false },
     ])
+  })
+})
+
+describe('the commit label', () => {
+  const LABELLED = '2026-10-03T09:00:00Z'
+  const LATER = '2026-10-10T09:00:00Z'
+
+  test('applying it commits the epic, with the child count at that moment as its baseline', () => {
+    const storage = teamWithEpic(5)
+    useWorkflow(storage, { commitLabel: 'committed' })
+
+    labelEpic(storage, ['committed'], [{ at: LABELLED, to: 'committed' }])
+    addChildren(storage, 'E1', 5, 3, LATER)
+
+    expect(view(storage).epics[0]).toMatchObject({ currentCount: 8, commit: { baseline: 5, source: 'label' } })
+  })
+
+  test('the baseline counts the children the epic had then, not the ones it has now', () => {
+    const storage = teamWithEpic(4)
+    useWorkflow(storage, { commitLabel: 'committed' })
+    const elsewhere = ticket('X', 'story', { parentId: 'E2' })
+    storage.addFacts(TEAM, {
+      workItems: [ticket('E2', 'epic'), elsewhere],
+      events: [
+        { itemId: 'E1-1', at: CREATED, kind: 'status', to: 'To Do' },
+        { itemId: 'E1-1', at: KICKOFF, kind: 'status', from: 'To Do', to: 'Cancelled' },
+        { itemId: 'E1-2', at: CREATED, kind: 'status', to: 'To Do' },
+      ],
+    })
+
+    labelEpic(storage, ['committed'], [{ at: LABELLED, to: 'committed' }])
+    // E1-0 moves away and E1-2 is cancelled after the label: both were children then. X moves in after: it wasn't.
+    // E1-1 was cancelled before the label, so it doesn't count.
+    moveChild(storage, childTickets('E1', 0, 1)[0]!, LATER, 'E2')
+    storage.addFacts(TEAM, { workItems: [], events: [{ itemId: 'E1-2', at: LATER, kind: 'status', from: 'To Do', to: 'Cancelled' }] })
+    moveChild(storage, elsewhere, LATER, 'E1')
+
+    expect(view(storage).epics[0]).toMatchObject({ currentCount: 2, commit: { baseline: 3, source: 'label' } })
+  })
+
+  test('commits nothing until the EM sets it, and only the label the EM set commits', () => {
+    const storage = teamWithEpic(5)
+    labelEpic(storage, ['committed'], [{ at: LABELLED, to: 'committed' }])
+    expect(view(storage).epics[0]).toMatchObject({ commit: undefined })
+
+    useWorkflow(storage, { commitLabel: 'kicked-off' })
+    expect(view(storage).epics[0]).toMatchObject({ commit: undefined })
+
+    useWorkflow(storage, { commitLabel: 'committed' })
+    expect(view(storage).epics[0]).toMatchObject({ commit: { baseline: 5, source: 'label' } })
+  })
+
+  test('a pull-back resets a label commit, and applying the label again on restart records a new baseline', () => {
+    const storage = teamWithEpic(5)
+    useWorkflow(storage, { commitLabel: 'committed' })
+    labelEpic(storage, ['committed'], [{ at: LABELLED, to: 'committed' }])
+    moveEpic(storage, '2026-10-09T09:00:00Z', 'In Progress', 'To Do')
+    expect(view(storage).epics[0]).toMatchObject({ commit: undefined })
+
+    addChildren(storage, 'E1', 5, 2, LATER)
+    moveEpic(storage, '2026-10-16T09:00:00Z', 'To Do', 'In Progress')
+    labelEpic(storage, ['committed'], [
+      { at: '2026-10-16T10:00:00Z', from: 'committed' },
+      { at: '2026-10-16T11:00:00Z', to: 'committed' },
+    ])
+    addChildren(storage, 'E1', 7, 1, '2026-10-20T09:00:00Z')
+
+    expect(view(storage).epics[0]).toMatchObject({ currentCount: 8, commit: { baseline: 7, source: 'label' } })
+  })
+
+  test('an epic committed by its label is committed: the EM cannot commit it again', () => {
+    const storage = teamWithEpic(5)
+    useWorkflow(storage, { commitLabel: 'committed' })
+    labelEpic(storage, ['committed'], [{ at: LABELLED, to: 'committed' }])
+
+    expect(tryCommit(storage, 'E1', LATER)).toEqual({ ok: false, error: 'That epic is already committed.' })
+  })
+
+  test('applying the label to an epic the EM already committed keeps the EM’s commit and baseline', () => {
+    const storage = teamWithEpic(5)
+    useWorkflow(storage, { commitLabel: 'committed' })
+    commit(storage, 'E1', COMMITTED)
+    addChildren(storage, 'E1', 5, 3, LABELLED)
+
+    labelEpic(storage, ['committed'], [{ at: LATER, to: 'committed' }])
+
+    expect(view(storage).epics[0]).toMatchObject({ commit: { baseline: 5, source: 'inTool' } })
+  })
+
+  test('the earlier commit stands, so a label commit stands over a later one by the EM', () => {
+    const storage = teamWithEpic(5)
+    labelEpic(storage, ['committed'], [{ at: '2026-10-01T10:00:00Z', to: 'committed' }])
+    addChildren(storage, 'E1', 5, 2, '2026-10-01T12:00:00Z')
+    commit(storage, 'E1', COMMITTED)
+
+    useWorkflow(storage, { commitLabel: 'committed' })
+
+    expect(view(storage).epics[0]).toMatchObject({ commit: { baseline: 5, source: 'label' } })
+  })
+})
+
+describe('the commit label coming off', () => {
+  const LABELLED = '2026-10-03T09:00:00Z'
+  const REMOVED = '2026-10-10T09:00:00Z'
+
+  test('warns that the epic no longer has the label, and keeps its commit', () => {
+    const storage = teamWithEpic(5)
+    useWorkflow(storage, { commitLabel: 'committed' })
+    labelEpic(storage, ['committed'], [{ at: LABELLED, to: 'committed' }])
+    expect(view(storage).warnings).toEqual([])
+
+    labelEpic(storage, [], [{ at: REMOVED, from: 'committed' }])
+
+    expect(view(storage)).toMatchObject({
+      epics: [{ commit: { baseline: 5, source: 'label', labelRemoved: true } }],
+      warnings: ['Epic E1 is committed but no longer has the “committed” label'],
+    })
+  })
+
+  test('applying the label again clears the warning, keeping the first baseline', () => {
+    const storage = teamWithEpic(5)
+    useWorkflow(storage, { commitLabel: 'committed' })
+    labelEpic(storage, ['committed'], [{ at: LABELLED, to: 'committed' }])
+    labelEpic(storage, [], [{ at: REMOVED, from: 'committed' }])
+    addChildren(storage, 'E1', 5, 2, REMOVED)
+
+    labelEpic(storage, ['committed'], [{ at: '2026-10-12T09:00:00Z', to: 'committed' }])
+
+    expect(view(storage)).toMatchObject({
+      epics: [{ commit: { baseline: 5, source: 'label', labelRemoved: false } }],
+      warnings: [],
+    })
+  })
+
+  test.each(['Done', 'Cancelled'])('is not raised once the epic moves to %s', (status) => {
+    const storage = teamWithEpic(5)
+    useWorkflow(storage, { commitLabel: 'committed' })
+    labelEpic(storage, ['committed'], [{ at: LABELLED, to: 'committed' }])
+    labelEpic(storage, [], [{ at: REMOVED, from: 'committed' }])
+
+    moveEpic(storage, '2026-10-20T09:00:00Z', 'In Progress', status)
+
+    expect(view(storage).warnings).toEqual([])
+  })
+
+  test('an epic the EM committed in the tool is not warned about for lacking the label', () => {
+    const storage = teamWithEpic(5)
+    useWorkflow(storage, { commitLabel: 'committed' })
+
+    commit(storage, 'E1', COMMITTED)
+
+    expect(view(storage).warnings).toEqual([])
+  })
+})
+
+describe('the commit label left on through a pull-back', () => {
+  const LABELLED = '2026-10-03T09:00:00Z'
+  const PULLED_BACK = '2026-10-09T09:00:00Z'
+  const WARNING =
+    "Epic E1 has the “committed” label but isn't committed: it moved back to not started after the label went on. " +
+    'Commit it on Inputs, or take the label off and put it back.'
+
+  /** E1, committed by its label, then pulled back with the label still on. */
+  function pulledBackWithLabel(): Storage {
+    const storage = teamWithEpic(5)
+    useWorkflow(storage, { commitLabel: 'committed' })
+    labelEpic(storage, ['committed'], [{ at: LABELLED, to: 'committed' }])
+    moveEpic(storage, PULLED_BACK, 'In Progress', 'To Do')
+    return storage
+  }
+
+  test('warns that the epic carries the label but isn’t committed, and how to commit it', () => {
+    const storage = pulledBackWithLabel()
+
+    expect(view(storage)).toMatchObject({ epics: [{ commit: undefined }], warnings: [WARNING] })
+  })
+
+  test('once restarted, warns about the label in place of the in-progress warning', () => {
+    const storage = pulledBackWithLabel()
+
+    moveEpic(storage, '2026-10-16T09:00:00Z', 'To Do', 'In Progress')
+
+    expect(view(storage)).toMatchObject({ epics: [{ commit: undefined }], warnings: [WARNING] })
+  })
+
+  test('the EM committing it in the tool clears the warning', () => {
+    const storage = pulledBackWithLabel()
+    moveEpic(storage, '2026-10-16T09:00:00Z', 'To Do', 'In Progress')
+
+    commit(storage, 'E1', '2026-10-16T12:00:00Z')
+
+    expect(view(storage)).toMatchObject({ epics: [{ commit: { source: 'inTool' } }], warnings: [] })
+  })
+
+  test('taking the label off and putting it back commits it by label and clears the warning', () => {
+    const storage = pulledBackWithLabel()
+    moveEpic(storage, '2026-10-16T09:00:00Z', 'To Do', 'In Progress')
+
+    labelEpic(storage, [], [{ at: '2026-10-16T10:00:00Z', from: 'committed' }])
+    labelEpic(storage, ['committed'], [{ at: '2026-10-16T11:00:00Z', to: 'committed' }])
+
+    expect(view(storage)).toMatchObject({ epics: [{ commit: { source: 'label' } }], warnings: [] })
+  })
+
+  test('is not raised for an epic carrying the label with no record of it going on, so never pulled back', () => {
+    const storage = teamWithEpic(5)
+    useWorkflow(storage, { commitLabel: 'committed' })
+
+    labelEpic(storage, ['committed'], [])
+
+    expect(view(storage).warnings).toEqual(["Epic E1 is in progress but isn't committed"])
+  })
+
+  test.each(['Done', 'Cancelled'])('is not raised once the epic moves to %s', (status) => {
+    const storage = pulledBackWithLabel()
+
+    moveEpic(storage, '2026-10-16T09:00:00Z', 'To Do', status)
+
+    expect(view(storage).warnings).toEqual([])
+  })
+})
+
+describe('the in-progress-but-not-committed warning', () => {
+  test('flags an epic whose own status is started with no commit standing, before any pace is entered', () => {
+    const storage = teamWithEpic(5)
+
+    expect(view(storage)).toMatchObject({
+      forecast: { kind: 'needsPace' },
+      warnings: ["Epic E1 is in progress but isn't committed"],
+    })
+  })
+
+  test('is not raised once the epic is committed', () => {
+    const storage = teamWithEpic(5)
+
+    commit(storage, 'E1', COMMITTED)
+
+    expect(view(storage).warnings).toEqual([])
+  })
+
+  test("its children's statuses play no part", () => {
+    const storage = teamWithEpic(5)
+    moveEpic(storage, '2026-10-02T09:00:00Z', 'In Progress', 'To Do')
+    storage.addFacts(TEAM, {
+      workItems: [],
+      events: [{ itemId: 'E1-0', at: '2026-10-05T09:00:00Z', kind: 'status', from: 'To Do', to: 'In Progress' }],
+    })
+
+    expect(view(storage).warnings).toEqual([])
+  })
+
+  test('reads the epic’s status under the EM’s status mapping', () => {
+    const storage = teamWithEpic(5)
+    moveEpic(storage, '2026-10-05T09:00:00Z', 'In Progress', 'Review')
+    // Review is unmapped, so it counts as not started
+    expect(view(storage).warnings).toEqual([])
+
+    useWorkflow(storage, { statuses: [...defaultWorkflowSettings(TEAM).statuses, { status: 'Review', category: 'started' }] })
+    expect(view(storage).warnings).toEqual(["Epic E1 is in progress but isn't committed"])
+  })
+
+  test('is not raised for a done epic', () => {
+    const storage = teamWithEpic(5)
+
+    moveEpic(storage, '2026-10-20T09:00:00Z', 'In Progress', 'Done')
+
+    expect(view(storage).warnings).toEqual([])
+  })
+})
+
+describe('a blocked epic', () => {
+  const BLOCKED = '2026-10-09T09:00:00Z'
+
+  test('is flagged blocked by a blocked label, keeps its baseline and stays in the milestone and forecast', () => {
+    const storage = teamWithEpic(5)
+    commit(storage, 'E1', COMMITTED)
+    enterManualPace(storage, 2, 4)
+    const unblocked = datesOf(storage)
+
+    labelEpic(storage, ['blocked'], [{ at: BLOCKED, to: 'blocked' }])
+
+    expect(view(storage).epics).toEqual([
+      {
+        epicId: 'E1',
+        key: 'E1',
+        name: 'Epic E1',
+        currentCount: 5,
+        doneCount: 0,
+        commit: { baseline: 5, source: 'inTool' },
+        inProgress: true,
+        finished: false,
+        blocked: true,
+        labelCommitReset: false,
+      },
+    ])
+    expect(datesOf(storage)).toEqual(unblocked)
+  })
+
+  test('is flagged blocked by a blocked status, and keeps its commit even when that status is mapped to not started', () => {
+    const storage = teamWithEpic(5)
+    useWorkflow(storage, {
+      statuses: [...defaultWorkflowSettings(TEAM).statuses, { status: 'Blocked', category: 'notStarted' }],
+      blockedRule: { statuses: ['Blocked'], labels: [] },
+    })
+    commit(storage, 'E1', COMMITTED)
+
+    moveEpic(storage, BLOCKED, 'In Progress', 'Blocked')
+
+    expect(view(storage).epics[0]).toMatchObject({ blocked: true, commit: { baseline: 5 } })
+  })
+
+  test('keeps its commit when unblocked, back to started or to not started', () => {
+    const storage = teamWithEpic(5)
+    useWorkflow(storage, {
+      statuses: [...defaultWorkflowSettings(TEAM).statuses, { status: 'Blocked', category: 'notStarted' }],
+      blockedRule: { statuses: ['Blocked'], labels: [] },
+    })
+    commit(storage, 'E1', COMMITTED)
+    moveEpic(storage, BLOCKED, 'In Progress', 'Blocked')
+    moveEpic(storage, '2026-10-12T09:00:00Z', 'Blocked', 'In Progress')
+    expect(view(storage).epics[0]).toMatchObject({ blocked: false, commit: { baseline: 5 } })
+
+    // started, blocked, then not started: not a pull-back, since an epic out of scope is removed from the milestone
+    moveEpic(storage, '2026-10-14T09:00:00Z', 'In Progress', 'Blocked')
+    moveEpic(storage, '2026-10-16T09:00:00Z', 'Blocked', 'To Do')
+    expect(view(storage).epics[0]).toMatchObject({ blocked: false, commit: { baseline: 5 } })
+  })
+
+  test('keeps its commit when moved to not started while it carries a blocked label, and after the label comes off', () => {
+    const storage = teamWithEpic(5)
+    commit(storage, 'E1', COMMITTED)
+    labelEpic(storage, ['blocked'], [{ at: BLOCKED, to: 'blocked' }])
+
+    moveEpic(storage, '2026-10-12T09:00:00Z', 'In Progress', 'To Do')
+    expect(view(storage).epics[0]).toMatchObject({ blocked: true, commit: { baseline: 5 } })
+
+    labelEpic(storage, [], [{ at: '2026-10-14T09:00:00Z', from: 'blocked' }])
+    expect(view(storage).epics[0]).toMatchObject({ blocked: false, commit: { baseline: 5 } })
+  })
+
+  test('is no longer flagged once unblocked', () => {
+    const storage = teamWithEpic(5)
+    labelEpic(storage, ['blocked'], [{ at: BLOCKED, to: 'blocked' }])
+
+    labelEpic(storage, [], [{ at: '2026-10-12T09:00:00Z', from: 'blocked' }])
+
+    expect(view(storage).epics[0]).toMatchObject({ blocked: false })
+  })
+
+  test('a label the EM has not set as blocking flags nothing', () => {
+    const storage = teamWithEpic(5)
+    useWorkflow(storage, { blockedRule: { statuses: [], labels: ['on-hold'] } })
+
+    labelEpic(storage, ['blocked'], [{ at: BLOCKED, to: 'blocked' }])
+
+    expect(view(storage).epics[0]).toMatchObject({ blocked: false })
   })
 })
