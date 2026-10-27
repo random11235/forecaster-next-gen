@@ -8,7 +8,7 @@ export interface SampleData {
   team: Team
   facts: Facts
   milestone: Milestone
-  /** The sample board's workflow: To Do, In Progress, Done and Cancelled, with spikes by type or label. */
+  /** The sample board's workflow: To Do, In Progress, Done and Cancelled. */
   workflow: WorkflowSettings
 }
 

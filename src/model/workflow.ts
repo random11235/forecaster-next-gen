@@ -17,12 +17,6 @@ export interface StatusMapping {
   category: StatusCategory
 }
 
-/** Issue types and labels; a ticket matching any of them matches the rule. Types are lower case, as ingested. */
-export interface TypeOrLabelRule {
-  types: string[]
-  labels: string[]
-}
-
 /** Statuses and labels (flags); an epic in any of the statuses, or with any of the labels, matches the rule. */
 export interface StatusOrLabelRule {
   statuses: string[]
@@ -36,8 +30,6 @@ export interface WorkflowSettings {
   statuses: StatusMapping[]
   /** The status where cycle time starts; one mapped to started. */
   startedStatus: string
-  /** Tickets that are spikes: discovery work, which never counts as an epic starting. */
-  spikeRule: TypeOrLabelRule
   /** A label that commits an epic when applied, if the team uses one. */
   commitLabel?: string
   /** What marks an epic as blocked. */
@@ -64,7 +56,6 @@ export function defaultWorkflowSettings(teamId: string): WorkflowSettings {
       { status: 'Cancelled', category: 'cancelled' },
     ],
     startedStatus: 'In Progress',
-    spikeRule: { types: ['spike'], labels: ['spike'] },
     blockedRule: { statuses: [], labels: ['blocked'] },
   }
 }

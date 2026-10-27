@@ -101,6 +101,11 @@ CREATE TABLE epic_commits (
   PRIMARY KEY (team_id, epic_id)
 );
 `,
+  // 4: spike rules are dropped (ADR-0002): nothing read them.
+  `
+ALTER TABLE workflow_settings DROP COLUMN spike_types;
+ALTER TABLE workflow_settings DROP COLUMN spike_labels;
+`,
 ]
 
 type Row = Record<string, SQLInputValue>
@@ -152,11 +157,10 @@ export function openSqliteStorage(file: string): Storage {
     'SELECT team_id, milestone_id, mode, low, high FROM pace_settings WHERE team_id = ? AND milestone_id = ?',
   )
   const upsertWorkflowSettings = db.prepare(`
-    INSERT INTO workflow_settings (team_id, statuses, started_status, spike_types, spike_labels, commit_label, blocked_statuses, blocked_labels)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO workflow_settings (team_id, statuses, started_status, commit_label, blocked_statuses, blocked_labels)
+    VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT (team_id) DO UPDATE SET
-      statuses = excluded.statuses, started_status = excluded.started_status, spike_types = excluded.spike_types,
-      spike_labels = excluded.spike_labels, commit_label = excluded.commit_label,
+      statuses = excluded.statuses, started_status = excluded.started_status, commit_label = excluded.commit_label,
       blocked_statuses = excluded.blocked_statuses, blocked_labels = excluded.blocked_labels`)
   const selectWorkflowSettings = db.prepare('SELECT * FROM workflow_settings WHERE team_id = ?')
   const upsertEpicCommit = db.prepare(`
@@ -268,8 +272,6 @@ export function openSqliteStorage(file: string): Storage {
         settings.teamId,
         JSON.stringify(settings.statuses),
         settings.startedStatus,
-        JSON.stringify(settings.spikeRule.types),
-        JSON.stringify(settings.spikeRule.labels),
         settings.commitLabel ?? null,
         JSON.stringify(settings.blockedRule.statuses),
         JSON.stringify(settings.blockedRule.labels),
@@ -284,7 +286,6 @@ export function openSqliteStorage(file: string): Storage {
         teamId: String(row.team_id),
         statuses: JSON.parse(String(row.statuses)) as StatusMapping[],
         startedStatus: String(row.started_status),
-        spikeRule: { types: list(row.spike_types), labels: list(row.spike_labels) },
         ...optional('commitLabel', row.commit_label),
         blockedRule: { statuses: list(row.blocked_statuses), labels: list(row.blocked_labels) },
       }

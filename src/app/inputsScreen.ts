@@ -75,11 +75,9 @@ export interface WorkflowForm {
   /** Each status's category as chosen, by status name; blank when none was chosen. */
   categories: Record<string, string>
   startedStatus: string
-  /** Comma-separated lists. */
-  spikeTypes: string
-  spikeLabels: string
   /** Blank for none. */
   commitLabel: string
+  /** Comma-separated lists. */
   blockedStatuses: string
   blockedLabels: string
 }
@@ -95,8 +93,6 @@ export function parseWorkflowForm(body: URLSearchParams): { form: WorkflowForm; 
   const form: WorkflowForm = {
     categories,
     startedStatus: text('startedStatus'),
-    spikeTypes: text('spikeTypes'),
-    spikeLabels: text('spikeLabels'),
     commitLabel: text('commitLabel'),
     blockedStatuses: text('blockedStatuses'),
     blockedLabels: text('blockedLabels'),
@@ -105,7 +101,6 @@ export function parseWorkflowForm(body: URLSearchParams): { form: WorkflowForm; 
   const edit: WorkflowEdit = {
     categories,
     startedStatus: form.startedStatus,
-    spikeRule: { types: list(form.spikeTypes), labels: list(form.spikeLabels) },
     commitLabel: form.commitLabel,
     blockedRule: { statuses: list(form.blockedStatuses), labels: list(form.blockedLabels) },
   }
@@ -113,12 +108,10 @@ export function parseWorkflowForm(body: URLSearchParams): { form: WorkflowForm; 
 }
 
 /** The workflow settings form filled with the team's saved settings. */
-export function savedWorkflowForm({ statuses, startedStatus, spikeRule, commitLabel, blockedRule }: WorkflowSettingsView): WorkflowForm {
+export function savedWorkflowForm({ statuses, startedStatus, commitLabel, blockedRule }: WorkflowSettingsView): WorkflowForm {
   return {
     categories: Object.fromEntries(statuses.map(({ status, category }) => [status, category ?? ''])),
     startedStatus,
-    spikeTypes: spikeRule.types.join(LIST_SEPARATOR),
-    spikeLabels: spikeRule.labels.join(LIST_SEPARATOR),
     commitLabel: commitLabel ?? '',
     blockedStatuses: blockedRule.statuses.join(LIST_SEPARATOR),
     blockedLabels: blockedRule.labels.join(LIST_SEPARATOR),
@@ -330,7 +323,7 @@ function workflowSection({ statuses, form, error }: WorkflowScreen): Section {
   return inputSection(
     'Workflow',
     'Workflow',
-    'How the team’s board works: what each status means to the forecast, and which tickets are spikes.',
+    'How the team’s board works: what each status means to the forecast, and what commits or blocks an epic.',
     `        <form method="post" action="/inputs/workflow">${errorLine(error)}
           <table class="workflow">
             <thead>
@@ -342,8 +335,6 @@ ${rows}
           </table>
           <div class="settings">
             <label class="field">Cycle time starts at <select name="startedStatus">${startedOptions}</select> <span class="note">A status that means started.</span></label>
-${textField('spikeTypes', 'Spike issue types', 'Comma-separated, e.g. spike.')}
-${textField('spikeLabels', 'Spike labels', 'Comma-separated. A ticket with any of these types or labels is a spike.')}
 ${textField('commitLabel', 'Commit label', 'Optional. Applying it to an epic commits the epic.')}
 ${textField('blockedStatuses', 'Blocked statuses', 'Comma-separated statuses that mark an epic as blocked.')}
 ${textField('blockedLabels', 'Blocked labels or flags', 'Comma-separated labels that mark an epic as blocked.')}
