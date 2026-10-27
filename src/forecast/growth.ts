@@ -56,7 +56,7 @@ export interface TeamGrowth {
 /** The team's ambiguity ranges, and the growth and sizes measured from its finished committed epics. */
 export function teamGrowth(storage: Storage, teamId: string, team: TeamFacts): TeamGrowth {
   const { teamId: _teamId, ...ranges } = savedRanges(storage, teamId)
-  const finished = finishedEpics(team.commits.values(), team.facts.workItems)
+  const finished = finishedEpics(team.commits.values(), team.facts, team.workflow)
   return {
     ranges,
     growthSamples: growthSamples(finished).map((sample) => sample.ratio),

@@ -237,6 +237,20 @@ describe('measured growth', () => {
     expect(datesOf(storage)).toEqual(before)
   })
 
+  test('measures each epic at its children when done: tickets added or moved away since change nothing', () => {
+    const storage = team()
+    finishedEpics(storage, 7)
+    const after = '2026-09-01T09:00:00Z'
+    const moved = ['F1-0', 'F1-1', 'F1-2', 'F1-3']
+    storage.addFacts(TEAM, {
+      // F2 gains 20 tickets after it finished, and 4 of F1's tickets move to F9
+      workItems: [...children('F2', 30, 20, after), ...moved.map((id) => ticket(id, 'story', { parentId: 'F9' }))],
+      events: moved.map((id) => ({ itemId: id, at: after, kind: 'parent' as const, from: 'F1', to: 'F9' })),
+    })
+
+    expect(inputsView(storage, TEAM).growth.suggestion).toMatchObject({ low: 1, high: 3 })
+  })
+
   test('once adopted, medium epics draw from the measured growth, while low and high keep their ranges', () => {
     const storage = team({ E1: 10, E2: 10 })
     finishedEpics(storage, 7)
