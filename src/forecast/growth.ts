@@ -11,7 +11,7 @@ import { teamMilestone } from './milestoneDefinition.js'
 import { baselineOf, type MilestoneEpic } from './milestoneEpics.js'
 import { DEFAULT_AMBIGUITY_RANGES, type ForecastSettings } from './settings.js'
 import { hasEnoughGrowthSamples, measuredMediumSuggestion, type Suggestion } from './suggestions.js'
-import type { TeamFacts } from './teamFacts.js'
+import { teamFacts, type TeamFacts } from './teamFacts.js'
 
 /** A change the EM makes to how the milestone's epics grow, on the Inputs screen. */
 export type GrowthEdit =
@@ -131,8 +131,7 @@ export function epicSizes(growth: TeamGrowth, settings: ForecastSettings): numbe
 }
 
 /** Seam B, behind `inputsView`: the team's growth as the Inputs screen shows it. */
-export function growthView(storage: Storage, teamId: string, team: TeamFacts, settings: ForecastSettings): GrowthView {
-  const growth = teamGrowth(storage, teamId, team)
+export function growthView(growth: TeamGrowth, settings: ForecastSettings): GrowthView {
   const { ranges, growthSamples } = growth
   const { low, medium, high, mediumMeasured } = ranges
   return {
@@ -146,18 +145,12 @@ export function growthView(storage: Storage, teamId: string, team: TeamFacts, se
 }
 
 /** Applies the EM's growth edit and saves it. A refused edit changes nothing. */
-export function editGrowth(
-  storage: Storage,
-  teamId: string,
-  team: TeamFacts,
-  edit: GrowthEdit,
-  settings: ForecastSettings,
-): EditResult {
+export function editGrowth(storage: Storage, teamId: string, edit: GrowthEdit, settings: ForecastSettings): EditResult {
   switch (edit.kind) {
     case 'setAmbiguityRanges':
       return setAmbiguityRanges(storage, teamId, edit)
     case 'useMeasuredMedium': {
-      const { ranges, growthSamples } = teamGrowth(storage, teamId, team)
+      const { ranges, growthSamples } = teamGrowth(storage, teamId, teamFacts(storage, teamId))
       if (!hasEnoughGrowthSamples(growthSamples, settings)) {
         const needed = settings.minGrowthSamples
         return refuse(`Measured growth needs ${needed} finished committed epics; there are ${growthSamples.length} so far.`)

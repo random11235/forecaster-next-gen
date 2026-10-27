@@ -1,7 +1,7 @@
 import type { ThroughputRange } from '../model/paceSetting.js'
 import type { Storage } from '../storage/storage.js'
 import { refuse, type EditResult } from './editResult.js'
-import { editGrowth, growthView, type GrowthEdit, type GrowthView } from './growth.js'
+import { editGrowth, growthView, teamGrowth, type GrowthEdit, type GrowthView } from './growth.js'
 import { editMilestone, milestoneDefinitionView, teamMilestone, type MilestoneDefinitionView, type MilestoneEdit } from './milestoneDefinition.js'
 import type { ForecastSettings } from './settings.js'
 import { teamFacts } from './teamFacts.js'
@@ -39,7 +39,7 @@ export function inputsView(storage: Storage, teamId: string, settings: ForecastS
     milestone: milestoneDefinitionView(storage, teamId, team),
     pace: pace?.mode === 'manual' ? { low: pace.low, high: pace.high } : undefined,
     workflow: workflowSettingsView(team),
-    growth: growthView(storage, teamId, team, settings),
+    growth: growthView(teamGrowth(storage, teamId, team), settings),
   }
 }
 
@@ -61,7 +61,7 @@ export function editInputs(
     case 'setAmbiguityRanges':
     case 'useMeasuredMedium':
     case 'useMediumRange':
-      return editGrowth(storage, teamId, teamFacts(storage, teamId), edit, settings)
+      return editGrowth(storage, teamId, edit, settings)
     default:
       return editMilestone(storage, teamId, edit)
   }
