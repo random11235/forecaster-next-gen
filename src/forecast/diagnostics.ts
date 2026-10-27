@@ -19,8 +19,8 @@ export function informationNotes(result: ForecastResult): string[] {
 }
 
 /**
- * Warnings about the milestone's epics, in rank order, at most one per epic:
- * - an unfinished epic still carrying the commit label, with no commit standing since a pull-back reset its label
+ * Warnings about the milestone's epics, in rank order, at most one per epic, and none once an epic is done or cancelled:
+ * - an epic still carrying the commit label, with no commit standing since a pull-back reset its label
  *   commit: the label commits only when applied, so the EM commits it in the tool or takes the label off and puts it
  *   back;
  * - an epic in progress (by its own status) with no commit standing, since an epic never committed never produces a
@@ -31,7 +31,8 @@ export function informationNotes(result: ForecastResult): string[] {
  */
 export function epicWarnings(epics: readonly MilestoneEpic[], commitLabel: string | undefined): string[] {
   return epics.flatMap((epic) => {
-    if (epic.labelCommitReset && !epic.commit && !epic.finished) {
+    if (epic.finished) return []
+    if (epic.labelCommitReset && !epic.commit) {
       return [
         `${epic.name} has the “${commitLabel ?? ''}” label but isn't committed: it moved back to not started after the ` +
           'label went on. Commit it on Inputs, or take the label off and put it back.',

@@ -372,6 +372,17 @@ describe('the commit label coming off', () => {
     })
   })
 
+  test.each(['Done', 'Cancelled'])('is not raised once the epic moves to %s', (status) => {
+    const storage = teamWithEpic(5)
+    useWorkflow(storage, { commitLabel: 'committed' })
+    labelEpic(storage, ['committed'], [{ at: LABELLED, to: 'committed' }])
+    labelEpic(storage, [], [{ at: REMOVED, from: 'committed' }])
+
+    moveEpic(storage, '2026-10-20T09:00:00Z', 'In Progress', status)
+
+    expect(view(storage).warnings).toEqual([])
+  })
+
   test('an epic the EM committed in the tool is not warned about for lacking the label', () => {
     const storage = teamWithEpic(5)
     useWorkflow(storage, { commitLabel: 'committed' })
