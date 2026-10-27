@@ -14,8 +14,8 @@ export interface StandingCommit extends EpicCommit {
  * The commits that still stand, by epic ID. An epic is committed by the EM in the tool, or by applying the workflow's
  * commit label, which records the epic's child count at that moment as its baseline. A pull-back (the epic moving from
  * started to not started, as the workflow reads its statuses) after a commit resets it, until the epic is committed
- * again; a move into a status of the blocked rule is not a pull-back, so a blocked epic keeps its commit. While a
- * commit stands, applying the label again doesn't replace it.
+ * again; a move into a status of the blocked rule is not a pull-back, so a blocked epic keeps its commit, but leaving it
+ * for not started is. While a commit stands, applying the label again doesn't replace it.
  */
 export function standingCommits(
   commits: readonly EpicCommit[],
@@ -26,14 +26,16 @@ export function standingCommits(
   const blockedStatuses = new Set(workflow.blockedRule.statuses)
   const history = historyByItem(facts.events)
 
+  const isBlocked = (status: string | undefined): boolean => status !== undefined && blockedStatuses.has(status)
   const lastPullBack = new Map<string, number>()
   for (const [itemId, { status }] of history) {
+    // The category the epic was in before any blocked spell, so started, blocked, then not started is a pull-back.
+    let before: StatusCategory | undefined
     for (const event of status) {
-      const pulledBack =
-        category(event.from) === 'started' &&
-        category(event.to) === 'notStarted' &&
-        !(event.to !== undefined && blockedStatuses.has(event.to))
-      if (pulledBack) lastPullBack.set(itemId, Math.max(lastPullBack.get(itemId) ?? -Infinity, Date.parse(event.at)))
+      if (!isBlocked(event.from)) before = category(event.from)
+      if (isBlocked(event.to)) continue
+      if (before === 'started' && category(event.to) === 'notStarted') lastPullBack.set(itemId, Date.parse(event.at))
+      before = category(event.to)
     }
   }
 
