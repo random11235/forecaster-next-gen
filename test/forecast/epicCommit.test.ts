@@ -327,7 +327,7 @@ describe('the commit label', () => {
     expect(view(storage).epics[0]).toMatchObject({ commit: { baseline: 5, source: 'inTool' } })
   })
 
-  test('the EM’s commit stands over the label applied before the EM set it as the commit label', () => {
+  test('the earlier commit stands, so a label commit stands over a later one by the EM', () => {
     const storage = teamWithEpic(5)
     labelEpic(storage, ['committed'], [{ at: '2026-10-01T10:00:00Z', to: 'committed' }])
     addChildren(storage, 'E1', 5, 2, '2026-10-01T12:00:00Z')
@@ -335,7 +335,7 @@ describe('the commit label', () => {
 
     useWorkflow(storage, { commitLabel: 'committed' })
 
-    expect(view(storage).epics[0]).toMatchObject({ commit: { baseline: 7, source: 'inTool' } })
+    expect(view(storage).epics[0]).toMatchObject({ commit: { baseline: 5, source: 'label' } })
   })
 })
 
