@@ -1,4 +1,4 @@
-import { categoryLookup, type StatusCategory, type WorkflowSettings } from '../model/workflow.js'
+import { categoryLookup, type WorkflowSettings } from '../model/workflow.js'
 import type { Facts, WorkItem, WorkItemEvent } from '../model/workItem.js'
 
 /** An item's events, by kind. */
@@ -27,18 +27,16 @@ export function historyByItem(events: readonly WorkItemEvent[]): Map<string, Ite
 /**
  * The children an epic had at a moment: tickets created by then whose parent then was the epic, and that weren't
  * cancelled then, as the workflow reads their statuses. A ticket with no parent history has had its current parent
- * since it was created; one with no status history was cancelled when the connector says.
+ * since it was created; one with no status history was cancelled when the connector says. `history` saves sorting the
+ * facts' events again for a caller that has already.
  */
-export function childCounter(facts: Facts, workflow: WorkflowSettings): (epicId: string, at: string) => number {
-  return childCountAt(facts.workItems, historyByItem(facts.events), categoryLookup(workflow))
-}
-
-/** `childCounter`, from the history already sorted by item. */
-export function childCountAt(
-  workItems: readonly WorkItem[],
-  history: ReadonlyMap<string, ItemHistory>,
-  category: (status: string | undefined) => StatusCategory,
+export function childCounter(
+  facts: Facts,
+  workflow: WorkflowSettings,
+  history: ReadonlyMap<string, ItemHistory> = historyByItem(facts.events),
 ): (epicId: string, at: string) => number {
+  const { workItems } = facts
+  const category = categoryLookup(workflow)
   const lastBy = (events: readonly WorkItemEvent[], time: number): WorkItemEvent | undefined =>
     events.filter((event) => Date.parse(event.at) <= time).at(-1)
 

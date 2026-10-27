@@ -79,8 +79,7 @@ export function epicGrowth(
   growth: TeamGrowth,
   settings: ForecastSettings,
 ): { growth: number[] | GrowthRange; source: GrowthSource } {
-  const measured =
-    epic.ambiguity === 'medium' && growth.ranges.mediumMeasured && hasEnoughGrowthSamples(growth.growthSamples, settings)
+  const measured = epic.ambiguity === 'medium' && mediumGrowth(growth, settings) === 'measured'
   const drawn = measured ? growth.growthSamples : growth.ranges[epic.ambiguity]
   if (baselineOf(epic) === 0) return { growth: drawn, source: 'epicSize' }
   return { growth: drawn, source: measured ? 'samples' : 'ambiguity' }
@@ -95,7 +94,7 @@ export function growthBasis(epic: MilestoneEpic, source: GrowthSource, growth: T
   switch (source) {
     case 'ambiguity': {
       const grows = `${level}: grows ${rangeText(growth.ranges[epic.ambiguity])}`
-      return epic.ambiguity === 'medium' && measuredPaused(growth, settings)
+      return epic.ambiguity === 'medium' && mediumGrowth(growth, settings) === 'paused'
         ? `${grows} (measured growth paused: ${growth.growthSamples.length} of ${settings.minGrowthSamples} finished epics)`
         : grows
     }
@@ -120,9 +119,13 @@ export function rangeText({ low, high }: GrowthRange): string {
   return low === high ? `${low}×` : `${low}–${high}×`
 }
 
-/** The EM adopted measured growth for medium, but too few finished committed epics are left to draw from. */
-function measuredPaused(growth: TeamGrowth, settings: ForecastSettings): boolean {
-  return growth.ranges.mediumMeasured && !hasEnoughGrowthSamples(growth.growthSamples, settings)
+/**
+ * How medium epics grow: by the medium range, as measured once the EM adopted measured growth, or by the range again
+ * while adopted measured growth is paused for too few growth samples.
+ */
+function mediumGrowth(growth: TeamGrowth, settings: ForecastSettings): 'range' | 'measured' | 'paused' {
+  if (!growth.ranges.mediumMeasured) return 'range'
+  return hasEnoughGrowthSamples(growth.growthSamples, settings) ? 'measured' : 'paused'
 }
 
 /** The sizes an epic with no children draws from: finished committed epics' final sizes, or the default range until any exist. */
@@ -137,7 +140,7 @@ export function growthView(growth: TeamGrowth, settings: ForecastSettings): Grow
   return {
     ranges: { low, medium, high },
     mediumMeasured,
-    paused: measuredPaused(growth, settings),
+    paused: mediumGrowth(growth, settings) === 'paused',
     finishedEpics: growthSamples.length,
     samplesNeeded: settings.minGrowthSamples,
     suggestion: measuredMediumSuggestion(growthSamples, settings),
