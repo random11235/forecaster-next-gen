@@ -43,10 +43,12 @@ export interface AppContext {
 
 /** The Milestone forecast screen at `/` and the Inputs screen at `/inputs`; not found for everything else. */
 export function route(request: Request, { storage, today, now }: AppContext): Reply {
+  // the settings aren't editable yet; both screens read the same ones
+  const settings = DEFAULT_SETTINGS
   const team = storage.teams()[0]
   if (request.method === 'GET' && request.path === '/') {
     const view: MilestoneForecastView = team
-      ? milestoneForecastView(storage, team.id, { today: today(), settings: DEFAULT_SETTINGS })
+      ? milestoneForecastView(storage, team.id, { today: today(), settings })
       : { kind: 'noMilestone' }
     return { kind: 'html', status: 200, html: renderMilestoneForecastScreen(view) }
   }
@@ -65,7 +67,7 @@ export function route(request: Request, { storage, today, now }: AppContext): Re
       growthForm?: Partial<Omit<GrowthScreen, 'view'>>
     } = {},
   ): Reply => {
-    const view = inputsView(storage, team.id)
+    const view = inputsView(storage, team.id, settings)
     return {
       kind: 'html',
       status,
@@ -81,7 +83,7 @@ export function route(request: Request, { storage, today, now }: AppContext): Re
   }
   /** Saves the edit and redirects, or shows the Inputs screen again with the refusal. */
   const edit = (change: InputsEdit, location: string, refused: (error: string) => Parameters<typeof inputsScreen>[1]): Reply => {
-    const saved = editInputs(storage, team.id, change)
+    const saved = editInputs(storage, team.id, change, settings)
     return saved.ok ? { kind: 'redirect', location } : inputsScreen(400, refused(saved.error))
   }
 

@@ -8,7 +8,7 @@ import type { GrowthSource } from './diagnostics.js'
 import { refuse, type EditResult } from './editResult.js'
 import { teamMilestone } from './milestoneDefinition.js'
 import { baselineOf, type MilestoneEpic } from './milestoneEpics.js'
-import { DEFAULT_AMBIGUITY_RANGES, DEFAULT_SETTINGS, type ForecastSettings } from './settings.js'
+import { DEFAULT_AMBIGUITY_RANGES, type ForecastSettings } from './settings.js'
 import { hasEnoughGrowthSamples, measuredMediumSuggestion, type Suggestion } from './suggestions.js'
 import type { TeamFacts } from './teamFacts.js'
 
@@ -120,30 +120,33 @@ export function epicSizes(growth: TeamGrowth, settings: ForecastSettings): numbe
   return growth.epicSizeSamples.length > 0 ? growth.epicSizeSamples : settings.defaultEpicSize
 }
 
-/**
- * Seam B, behind `inputsView`: the team's growth as the Inputs screen shows it. The settings aren't editable yet, so
- * the Inputs screen reads the defaults.
- */
-export function growthView(storage: Storage, teamId: string, team: TeamFacts): GrowthView {
+/** Seam B, behind `inputsView`: the team's growth as the Inputs screen shows it. */
+export function growthView(storage: Storage, teamId: string, team: TeamFacts, settings: ForecastSettings): GrowthView {
   const { ranges, growthSamples } = teamGrowth(storage, teamId, team)
   const { low, medium, high, mediumMeasured } = ranges
   return {
     ranges: { low, medium, high },
     mediumMeasured,
     finishedEpics: growthSamples.length,
-    suggestion: measuredMediumSuggestion(growthSamples, DEFAULT_SETTINGS),
+    suggestion: measuredMediumSuggestion(growthSamples, settings),
   }
 }
 
 /** Applies the EM's growth edit and saves it. A refused edit changes nothing. */
-export function editGrowth(storage: Storage, teamId: string, team: TeamFacts, edit: GrowthEdit): EditResult {
+export function editGrowth(
+  storage: Storage,
+  teamId: string,
+  team: TeamFacts,
+  edit: GrowthEdit,
+  settings: ForecastSettings,
+): EditResult {
   switch (edit.kind) {
     case 'setAmbiguityRanges':
       return setAmbiguityRanges(storage, teamId, edit)
     case 'useMeasuredMedium': {
       const { ranges, growthSamples } = teamGrowth(storage, teamId, team)
-      const needed = DEFAULT_SETTINGS.minGrowthSamples
-      if (!hasEnoughGrowthSamples(growthSamples, DEFAULT_SETTINGS)) {
+      if (!hasEnoughGrowthSamples(growthSamples, settings)) {
+        const needed = settings.minGrowthSamples
         return refuse(`Measured growth needs ${needed} finished committed epics; there are ${growthSamples.length} so far.`)
       }
       storage.saveAmbiguityRanges({ teamId, ...ranges, mediumMeasured: true })
