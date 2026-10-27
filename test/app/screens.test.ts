@@ -289,7 +289,7 @@ describe('Inputs screen: milestone', () => {
     expect(committed.status).toBe(303)
     expect(committed.headers.get('location')).toBe('/inputs')
     const inputs = await page('/inputs')
-    expect(text(inputs)).toMatch(/Refunds Up Down Remove Committed at 14 items/)
+    expect(text(inputs)).toMatch(/Refunds PAY-2 Up Down Remove Committed at 14 items/)
     expect(inputs.match(/value="commit">Commit</g)).toHaveLength(2)
     const forecast = text(await page('/'))
     expect(forecast).toMatch(/Refunds 14 Committed at 14 items/)
@@ -419,6 +419,40 @@ describe('Milestone forecast screen', () => {
     expect(screen).toMatch(/85% sure by \d{1,2} [A-Z][a-z]{2} 20\d\d/)
     expect(screen).toMatch(/95% sure by \d{1,2} [A-Z][a-z]{2} 20\d\d/)
     expect(screen).toContain('Pace: 3–6 tickets per week (manual)')
+  })
+
+  test('headlines how far the 85% date falls after the committed date', async () => {
+    await startOnSampleData()
+    await submitPace('3', '6')
+
+    const screen = text(await page('/'))
+
+    const sure = screen.match(/85% sure by (\d{1,2} [A-Z][a-z]{2} 20\d\d)/)![1]!
+    const days = Math.round((Date.parse(sure) - Date.parse('18 Dec 2026')) / 86_400_000)
+    expect(days).toBeGreaterThan(1)
+    expect(screen).toContain(`Plan for ${sure} to be 85% sure: ${days} days after the committed date.`)
+  })
+
+  test('headlines how far the 85% date falls before the committed date', async () => {
+    await startOnSampleData()
+    await submitPace('20', '30')
+
+    const screen = text(await page('/'))
+
+    const sure = screen.match(/85% sure by (\d{1,2} [A-Z][a-z]{2} 20\d\d)/)![1]!
+    const days = Math.round((Date.parse('18 Dec 2026') - Date.parse(sure)) / 86_400_000)
+    expect(days).toBeGreaterThan(1)
+    expect(screen).toContain(`85% sure of finishing by ${sure}: ${days} days before the committed date.`)
+  })
+
+  test('headlines an 85% date beyond the horizon as not sure by the horizon date', async () => {
+    await startOnSampleData()
+    await submitPace('0', '0')
+
+    const screen = text(await page('/'))
+
+    const horizon = screen.match(/85% sure: later than (\d{1,2} [A-Z][a-z]{2} 20\d\d)/)![1]!
+    expect(screen).toContain(`Not 85% sure of finishing by ${horizon}.`)
   })
 
   test('labels each epic "Not committed: wide range"', async () => {

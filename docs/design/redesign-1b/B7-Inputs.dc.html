@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0;background:#F7F5F0}a{color:#1F5F6B}a:hover{color:#123F47}button{font:inherit;cursor:pointer}</style>
+</helmet>
+<div style="font-family: 'Geist', system-ui, sans-serif; color: #1C1B18; background: #F7F5F0; min-height: 100vh; font-size: 14px; display: grid; grid-template-columns: 244px minmax(0, 1fr)">
+<dc-import name="B-Sidebar" active="inputs" hint-size="244px,100%"></dc-import>
+<main style="padding: 40px 56px 64px; max-width: 1040px; display: flex; flex-direction: column; gap: 40px">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 13px; color: #5E5A52">Checkout v2</span>
+<h1 style="margin: 0; font-size: 40px; line-height: 1.15; font-weight: 600; letter-spacing: -0.03em">Inputs</h1>
+<p style="margin: 0; font-size: 16px; color: #3F3C35; line-height: 1.5; max-width: 640px">Four things drive the forecast: what's in the milestone, how it's committed, the team's pace, and how the board works.</p>
+</div>
+
+<section style="display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 32px; border-top: 1px solid #1C1B18; padding-top: 18px">
+<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-family: 'Geist Mono', monospace; font-size: 12px; color: #8C877C">01</span><h2 style="margin: 0; font-size: 17px; font-weight: 600">Milestone</h2></div>
+<div style="display: flex; gap: 16px; align-items: end">
+<label style="flex: 2; display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #5E5A52">Name<input value="Checkout v2" style="font: inherit; font-size: 15px; color: #1C1B18; background: transparent; border: 0; border-bottom: 1px solid #1C1B18; padding: 6px 0"></label>
+<label style="flex: 1; display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #5E5A52">Committed date<input value="18 Dec 2026" style="font: inherit; font-family: 'Geist Mono', monospace; font-size: 15px; color: #1C1B18; background: transparent; border: 0; border-bottom: 1px solid #1C1B18; padding: 6px 0"></label>
+</div>
+</section>
+
+<section style="display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 32px; border-top: 1px solid #1C1B18; padding-top: 18px">
+<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-family: 'Geist Mono', monospace; font-size: 12px; color: #8C877C">02</span><h2 style="margin: 0; font-size: 17px; font-weight: 600">Epics</h2><p style="margin: 0; font-size: 13px; color: #5E5A52; line-height: 1.45">Ranked. Commit after kickoff; that records today's ticket count as the baseline.</p></div>
+<div style="display: flex; flex-direction: column">
+<sc-for list="{{epics}}" as="e" hint-placeholder-count="5">
+<div style="display: grid; grid-template-columns: 20px minmax(0, 1fr) 150px 150px; gap: 16px; padding: 14px 0; border-bottom: 1px solid #E2DDD2; align-items: center">
+<span style="font-family: 'Geist Mono', monospace; color: #8C877C">{{e.rank}}</span>
+<div style="display: flex; flex-direction: column; gap: 3px"><span><strong style="font-weight: 600">{{e.name}}</strong> <span style="font-family: 'Geist Mono', monospace; font-size: 12px; color: #8C877C">{{e.key}} · {{e.items}} tickets</span></span><sc-if value="{{e.hasNote}}" hint-placeholder-val="{{false}}"><span style="font-size: 12px; color: #B5482A">{{e.note}}</span></sc-if></div>
+<select style="font: inherit; font-size: 13px; background: transparent; border: 1px solid #D6D0C3; border-radius: 6px; padding: 6px 8px"><option>{{e.amb}} ambiguity</option></select>
+<button style="min-height: 34px; padding: 0 12px; border-radius: 6px; font-size: 13px; {{e.btnStyle}}">{{e.btn}}</button>
+</div>
+</sc-for>
+<div style="display: flex; gap: 10px; padding-top: 14px"><button style="min-height: 34px; padding: 0 12px; border-radius: 6px; border: 1px dashed #A8A194; background: transparent; font-size: 13px">+ Add epic from Jira</button></div>
+</div>
+</section>
+
+<section style="display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 32px; border-top: 1px solid #1C1B18; padding-top: 18px">
+<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-family: 'Geist Mono', monospace; font-size: 12px; color: #8C877C">03</span><h2 style="margin: 0; font-size: 17px; font-weight: 600">Pace</h2><p style="margin: 0; font-size: 13px; color: #5E5A52; line-height: 1.45">This milestone's tickets finished per week, slow week to good week.</p></div>
+<div style="display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; align-items: baseline; gap: 12px">
+<input value="4" style="font: inherit; font-family: 'Geist Mono', monospace; font-size: 32px; width: 60px; text-align: center; background: transparent; border: 0; border-bottom: 1px solid #1C1B18"><span style="font-size: 24px; color: #8C877C">to</span><input value="8" style="font: inherit; font-family: 'Geist Mono', monospace; font-size: 32px; width: 60px; text-align: center; background: transparent; border: 0; border-bottom: 1px solid #1C1B18"><span style="color: #3F3C35">tickets a week</span>
+</div>
+<div style="position: relative; height: 34px">
+<div style="position: absolute; left: 0; right: 0; top: 16px; height: 2px; background: #E2DDD2"></div>
+<div style="position: absolute; left: 33%; width: 33%; top: 12px; height: 10px; border-radius: 5px; background: #1F5F6B"></div>
+<div style="position: absolute; left: calc(37.5% - 1px); top: 4px; width: 2px; height: 26px; background: #D9A23A"></div>
+<span style="position: absolute; left: calc(37.5% + 6px); top: -12px; font-size: 11px; color: #8C5E0F; white-space: nowrap">measured 5.5 (3 weeks)</span>
+<span style="position: absolute; left: 0; top: 24px; font-family: 'Geist Mono', monospace; font-size: 10px; color: #8C877C">0</span><span style="position: absolute; right: 0; top: 24px; font-family: 'Geist Mono', monospace; font-size: 10px; color: #8C877C">12</span>
+</div>
+<p style="margin: 0; font-size: 13px; color: #5E5A52; line-height: 1.5">Measured pace is offered as a replacement once there are 6 weeks of it (3 Nov). Team changed 28 Sep when Alex joined; pace is stale until 26 Oct.</p>
+</div>
+</section>
+
+<section style="display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 32px; border-top: 1px solid #1C1B18; padding-top: 18px">
+<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-family: 'Geist Mono', monospace; font-size: 12px; color: #8C877C">04</span><h2 style="margin: 0; font-size: 17px; font-weight: 600">Workflow</h2></div>
+<div style="display: flex; flex-direction: column">
+<sc-for list="{{statuses}}" as="s" hint-placeholder-count="4">
+<div style="display: grid; grid-template-columns: 160px 24px minmax(0, 1fr); gap: 12px; padding: 10px 0; border-bottom: 1px solid #E2DDD2; align-items: center"><span style="font-family: 'Geist Mono', monospace; font-size: 13px">{{s.name}}</span><span style="color: #8C877C">→</span><span>{{s.means}}</span></div>
+</sc-for>
+<div style="display: grid; grid-template-columns: 160px 24px minmax(0, 1fr); gap: 12px; padding: 10px 0; border-bottom: 1px solid #E2DDD2; align-items: center"><span style="font-family: 'Geist Mono', monospace; font-size: 13px">type = Spike</span><span style="color: #8C877C">→</span><span>Spike (never commits an epic)</span></div>
+<div style="display: grid; grid-template-columns: 160px 24px minmax(0, 1fr); gap: 12px; padding: 10px 0; border-bottom: 1px solid #E2DDD2; align-items: center"><span style="font-family: 'Geist Mono', monospace; font-size: 13px">label = blocked</span><span style="color: #8C877C">→</span><span>Epic is blocked</span></div>
+</div>
+</section>
+
+<div style="display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid #1C1B18; padding-top: 18px"><span style="align-self: center; font-size: 13px; color: #5E5A52">2 unsaved changes</span><button style="min-height: 42px; padding: 0 20px; border-radius: 6px; border: 0; background: #1C1B18; color: #F7F5F0; font-weight: 600">Save and re-forecast</button></div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:1240}}">
+class Component extends DCLogic {
+  renderVals() {
+    const dark = 'border:0;background:#1C1B18;color:#F7F5F0;font-weight:600', ghost = 'border:1px solid #D6D0C3;background:transparent;color:#1C1B18', done = 'border:0;background:#E3EEDF;color:#2F6B3F;font-weight:600';
+    const raw = [
+      [1, 'PAY-300', 'Card vaulting', 6, 'Low', 'Committed at 6 ✓', done, ''],
+      [2, 'PAY-310', '3DS2 challenge', 11, 'Medium', 'Committed at 9 ✓', done, ''],
+      [3, 'PAY-322', 'Refunds', 14, 'Medium', 'Commit at 14', dark, '4 tickets in progress but not committed'],
+      [4, 'PAY-335', 'Wallet payments', 8, 'High', 'Commit', ghost, ''],
+      [5, 'PAY-340', 'Receipts redesign', 3, 'High', 'Commit', ghost, 'Blocked in Jira · stays in scope']
+    ];
+    const epics = raw.map(([rank, key, name, items, amb, btn, btnStyle, note]) => ({ rank, key, name, items, amb, btn, btnStyle, note, hasNote: !!note }));
+    const statuses = [{ name: 'To Do', means: 'Not started' }, { name: 'In Progress', means: 'Started · cycle time begins' }, { name: 'Done', means: 'Done' }, { name: "Won't do", means: 'Cancelled' }];
+    return { epics, statuses };
+  }
+}
+</script>
+</body>
+</html>
