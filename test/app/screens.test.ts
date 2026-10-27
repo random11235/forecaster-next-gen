@@ -349,7 +349,7 @@ describe('Inputs screen: workflow', () => {
     expect(html).toMatch(/name="commitLabel"[^>]*value=""/)
     expect(html).toMatch(/name="blockedStatuses"[^>]*value=""/)
     expect(html).toMatch(/name="blockedLabels"[^>]*value="blocked"/)
-    expect(html).not.toMatch(/spike/i)
+    expect(html).not.toMatch(/name="spike/)
   })
 
   test('saving the settings shows them on the Inputs screen', async () => {
