@@ -14,8 +14,8 @@ export interface Suggestion extends GrowthRange {
 export function measuredMediumSuggestion(growthSamples: readonly number[], settings: ForecastSettings): Suggestion | undefined {
   if (!hasEnoughGrowthSamples(growthSamples, settings)) return undefined
   return {
-    low: Math.floor(Math.min(...growthSamples) * 2 + ROUNDING_SLACK) / 2,
-    high: Math.ceil(Math.max(...growthSamples) * 2 - ROUNDING_SLACK) / 2,
+    low: halfBelow(Math.min(...growthSamples)),
+    high: halfAbove(Math.max(...growthSamples)),
     basis: `Measured from ${growthSamples.length} finished committed epics`,
   }
 }
@@ -23,6 +23,16 @@ export function measuredMediumSuggestion(growthSamples: readonly number[], setti
 /** Whether there are enough growth samples to suggest, or draw from, measured growth. */
 export function hasEnoughGrowthSamples(growthSamples: readonly number[], settings: ForecastSettings): boolean {
   return growthSamples.length >= settings.minGrowthSamples
+}
+
+/** The nearest half at or below the ratio: 1.2 → 1. */
+function halfBelow(ratio: number): number {
+  return Math.floor(ratio * 2 + ROUNDING_SLACK) / 2
+}
+
+/** The nearest half at or above the ratio: 2.6 → 3. */
+function halfAbove(ratio: number): number {
+  return Math.ceil(ratio * 2 - ROUNDING_SLACK) / 2
 }
 
 /** Keeps a ratio that is a half in all but floating-point error, such as 2.9999999999, from rounding to the next half. */
