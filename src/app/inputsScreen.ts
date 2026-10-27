@@ -1,11 +1,9 @@
+import { MAX_TICKETS_PER_WEEK, type InputsEdit } from '../forecast/inputs.js'
 import type { EpicChoice, MilestoneDefinitionView, RankedEpic } from '../forecast/milestoneDefinition.js'
 import type { WorkflowEdit, WorkflowSettingsView } from '../forecast/workflowSettings.js'
 import type { ThroughputRange } from '../model/paceSetting.js'
 import { STATUS_CATEGORIES, STATUS_CATEGORY_NAMES, type StatusCategory } from '../model/workflow.js'
-import { escapeHtml, formatDate, htmlPage } from './html.js'
-
-/** Far above any real team's weekly pace; keeps typos like 1000000 out of the forecast. */
-const MAX_TICKETS_PER_WEEK = 1000
+import { commitText, escapeHtml, formatDate, htmlPage } from './html.js'
 
 /** The pace form as typed: what the EM entered, and why it was refused, if it was. */
 export interface PaceForm {
@@ -14,18 +12,33 @@ export interface PaceForm {
   error?: string
 }
 
-export type ParsedPace = { ok: true; range: ThroughputRange } | { ok: false; form: PaceForm }
+/** Reads the submitted pace form; the rules it must meet are checked when it is saved. */
+export function parsePaceForm(body: URLSearchParams): PaceForm {
+  return { low: body.get('low')?.trim() ?? '', high: body.get('high')?.trim() ?? '' }
+}
 
-/** Reads the submitted pace form: whole tickets per week, low ≤ high. */
-export function parsePaceForm(body: URLSearchParams): ParsedPace {
-  const low = body.get('low')?.trim() ?? ''
-  const high = body.get('high')?.trim() ?? ''
-  const refuse = (error: string): ParsedPace => ({ ok: false, form: { low, high, error } })
-  if (!/^\d+$/.test(low) || !/^\d+$/.test(high)) return refuse('Enter whole numbers of tickets, 0 or more.')
-  const [lowCount, highCount] = [Number(low), Number(high)]
-  if (highCount > MAX_TICKETS_PER_WEEK) return refuse(`Enter at most ${MAX_TICKETS_PER_WEEK} tickets per week.`)
-  if (lowCount > highCount) return refuse('The low end must not be above the high end.')
-  return { ok: true, range: { low: lowCount, high: highCount } }
+/** The pace form filled with the saved manual range, or empty. */
+export function savedPaceForm(range: ThroughputRange | undefined): PaceForm {
+  return range ? { low: String(range.low), high: String(range.high) } : { low: '', high: '' }
+}
+
+/** Reads an epic change submitted from the Inputs screen at `at` (an ISO timestamp): add, remove, move up or down, or commit. */
+export function parseEpicForm(body: URLSearchParams, at: string): { ok: true; edit: InputsEdit } | { ok: false; error: string } {
+  const epicId = body.get('epic') ?? ''
+  const action = body.get('action')
+  switch (action) {
+    case 'commit':
+      return { ok: true, edit: { kind: 'commitEpic', epicId, at } }
+    case 'add':
+      return { ok: true, edit: { kind: 'addEpic', epicId } }
+    case 'remove':
+      return { ok: true, edit: { kind: 'removeEpic', epicId } }
+    case 'up':
+    case 'down':
+      return { ok: true, edit: { kind: 'moveEpic', epicId, direction: action } }
+    default:
+      return { ok: false, error: 'Choose Add, Remove, Up, Down or Commit.' }
+  }
 }
 
 /** The milestone's name and committed date as typed, and why they were refused, if they were. */
@@ -225,6 +238,7 @@ function epicsSection(milestone: Extract<MilestoneDefinitionView, { kind: 'miles
               <button type="submit" name="action" value="up"${rank === 0 ? ' disabled' : ''}>Up</button>
               <button type="submit" name="action" value="down"${rank === last ? ' disabled' : ''}>Down</button>
               <button type="submit" name="action" value="remove"${last === 0 ? ' disabled' : ''}>Remove</button>
+              ${epic.commit ? `<span class="note">${commitText(epic.commit)}</span>` : '<button type="submit" name="action" value="commit">Commit</button>'}
             </form>
           </li>`,
     )

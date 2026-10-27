@@ -1,5 +1,7 @@
-import { defaultWorkflowSettings, type StatusCategory, type WorkflowSettings } from '../model/workflow.js'
+import type { EpicCommit } from '../model/epicCommit.js'
+import { categoryLookup, defaultWorkflowSettings, type WorkflowSettings } from '../model/workflow.js'
 import type { Facts, WorkItem, WorkItemEvent } from '../model/workItem.js'
+import { standingCommits } from '../samples/commits.js'
 import type { Storage } from '../storage/storage.js'
 
 /**
@@ -13,13 +15,20 @@ export interface TeamFacts {
   workflow: WorkflowSettings
   /** Every status the team's tickets have been in, in the order first seen. */
   statusesSeen: string[]
+  /** The EM's commits that still stand, by epic ID: a pull-back since a commit, under the workflow, has reset it. */
+  commits: ReadonlyMap<string, EpicCommit>
 }
 
-/** Seam B: the team's facts, workflow and statuses seen, reading the facts from storage once. */
+/** Seam B: the team's facts, workflow, statuses seen and standing commits, reading the facts from storage once. */
 export function teamFacts(storage: Storage, teamId: string): TeamFacts {
   const stored = storage.facts(teamId)
   const workflow = storage.workflowSettings(teamId) ?? defaultWorkflowSettings(teamId)
-  return { facts: factsUnderWorkflow(stored, workflow), workflow, statusesSeen: statusesSeen(stored) }
+  return {
+    facts: factsUnderWorkflow(stored, workflow),
+    workflow,
+    statusesSeen: statusesSeen(stored),
+    commits: standingCommits(storage.epicCommits(teamId), stored.events, workflow),
+  }
 }
 
 /** Every status the tickets have been in, in the order first seen. */
@@ -44,9 +53,7 @@ function statusesSeen(facts: Facts): string[] {
  * A ticket with no status history keeps the times the connector gave it.
  */
 function factsUnderWorkflow(facts: Facts, workflow: WorkflowSettings): Facts {
-  const categoryOf = new Map(workflow.statuses.map((mapping) => [mapping.status, mapping.category]))
-  const category = (status: string | undefined): StatusCategory =>
-    (status !== undefined && categoryOf.get(status)) || 'notStarted'
+  const category = categoryLookup(workflow)
 
   const history = new Map<string, WorkItemEvent[]>()
   for (const event of facts.events) {

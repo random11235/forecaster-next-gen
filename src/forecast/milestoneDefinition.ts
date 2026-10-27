@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import type { Milestone } from '../model/milestone.js'
-import type { WorkItem } from '../model/workItem.js'
+import { childrenOf, type WorkItem } from '../model/workItem.js'
 import type { Storage } from '../storage/storage.js'
 import { refuse, type EditResult } from './editResult.js'
+import { milestoneEpics, type MilestoneEpic } from './milestoneEpics.js'
 import { teamFacts, type TeamFacts } from './teamFacts.js'
 
 /** A change the EM makes to the team's milestone on the Inputs screen. */
@@ -15,6 +16,11 @@ export type MilestoneEdit =
   | { kind: 'removeEpic'; epicId: string }
   /** Moves the epic one place up or down in rank. */
   | { kind: 'moveEpic'; epicId: string; direction: 'up' | 'down' }
+  /**
+   * Commits the epic at `at` (an ISO timestamp), recording its child count now as the baseline its growth is measured
+   * from. An epic is committed again only once a pull-back has reset its commit; only the latest commit counts.
+   */
+  | { kind: 'commitEpic'; epicId: string; at: string }
 
 /** An epic the EM chose for a new milestone, and its rank as typed: 1 is the highest. */
 export interface RankedEpic {
@@ -32,7 +38,7 @@ export interface EpicChoice {
 /** What the Inputs screen shows of the milestone's definition, and the team's epics the EM can add to it. */
 export type MilestoneDefinitionView =
   | { kind: 'noMilestone'; teamEpics: EpicChoice[] }
-  | { kind: 'milestone'; name: string; committedDate: string; epics: EpicChoice[]; otherEpics: EpicChoice[] }
+  | { kind: 'milestone'; name: string; committedDate: string; epics: MilestoneEpic[]; otherEpics: EpicChoice[] }
 
 /** The team's milestone, if the EM has defined it. v1 forecasts one milestone per team. */
 export function teamMilestone(storage: Storage, teamId: string): Milestone | undefined {
@@ -46,15 +52,11 @@ export function milestoneDefinitionView(storage: Storage, teamId: string, team: 
   if (!milestone) return { kind: 'noMilestone', teamEpics: epics.map(toChoice) }
 
   const inMilestone = new Set(milestone.epicIds)
-  const byId = new Map(epics.map((epic) => [epic.id, epic]))
   return {
     kind: 'milestone',
     name: milestone.name,
     committedDate: milestone.committedDate,
-    epics: milestone.epicIds.map((epicId) => {
-      const epic = byId.get(epicId)
-      return epic ? toChoice(epic) : { epicId, key: epicId, name: epicId }
-    }),
+    epics: milestoneEpics(milestone, team),
     otherEpics: epics.filter((epic) => !inMilestone.has(epic.id)).map(toChoice),
   }
 }
@@ -62,7 +64,8 @@ export function milestoneDefinitionView(storage: Storage, teamId: string, team: 
 /** Applies the EM's edit to the team's milestone and saves it. A refused edit changes nothing. */
 export function editMilestone(storage: Storage, teamId: string, edit: MilestoneEdit): EditResult {
   const milestone = teamMilestone(storage, teamId)
-  const teamEpicIds = new Set(teamEpics(teamFacts(storage, teamId)).map((epic) => epic.id))
+  const team = teamFacts(storage, teamId)
+  const teamEpicIds = new Set(teamEpics(team).map((epic) => epic.id))
   const isTeamEpic = (epicId: string): boolean => teamEpicIds.has(epicId)
 
   if (edit.kind === 'create') {
@@ -78,6 +81,13 @@ export function editMilestone(storage: Storage, teamId: string, edit: MilestoneE
   }
 
   if (!milestone) return refuse('Define the milestone first.')
+  if (edit.kind === 'commitEpic') {
+    if (!milestone.epicIds.includes(edit.epicId)) return refuse(NOT_IN_MILESTONE)
+    if (team.commits.has(edit.epicId)) return refuse('That epic is already committed.')
+    const baseline = childrenOf(team.facts.workItems, edit.epicId).length
+    storage.saveEpicCommit({ teamId, epicId: edit.epicId, committedAt: edit.at, baseline })
+    return { ok: true }
+  }
   if (edit.kind === 'editDetails') {
     const details = checkedDetails(edit)
     if (!details.ok) return details
@@ -107,23 +117,6 @@ export function editMilestone(storage: Storage, teamId: string, edit: MilestoneE
   }
   storage.saveMilestone({ ...milestone, epicIds })
   return { ok: true }
-}
-
-/** Reads a submitted epic change from the Inputs screen: add, remove, or move up or down. */
-export function parseEpicForm(body: URLSearchParams): { ok: true; edit: MilestoneEdit } | { ok: false; error: string } {
-  const epicId = body.get('epic') ?? ''
-  const action = body.get('action')
-  switch (action) {
-    case 'add':
-      return { ok: true, edit: { kind: 'addEpic', epicId } }
-    case 'remove':
-      return { ok: true, edit: { kind: 'removeEpic', epicId } }
-    case 'up':
-    case 'down':
-      return { ok: true, edit: { kind: 'moveEpic', epicId, direction: action } }
-    default:
-      return refuse('Choose Add, Remove, Up or Down.')
-  }
 }
 
 const NOT_A_TEAM_EPIC = "Choose epics from the team's epics."

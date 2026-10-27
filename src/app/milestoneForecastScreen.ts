@@ -1,7 +1,10 @@
-import type { EpicRow, ForecastSection, MilestoneForecastView } from '../forecast/milestoneForecastView.js'
-import { escapeHtml, formatDate, htmlPage, type PageHeader } from './html.js'
+import type { MilestoneEpic } from '../forecast/milestoneEpics.js'
+import type { ForecastSection, MilestoneForecastView } from '../forecast/milestoneForecastView.js'
+import { commitText, escapeHtml, formatDate, htmlPage, type PageHeader } from './html.js'
 
-const STATUS_TEXT: Record<EpicRow['status'], string> = { notCommitted: 'Not committed: wide range' }
+function statusText(epic: MilestoneEpic): string {
+  return epic.commit ? commitText(epic.commit) : 'Not committed: wide range'
+}
 
 /** The confidence the headline plans for. */
 const HEADLINE_PERCENT = 85
@@ -58,8 +61,8 @@ function milestoneSections(view: Extract<MilestoneForecastView, { kind: 'milesto
     .map(
       (epic) => `          <tr>
             <td>${escapeHtml(epic.name)}</td>
-            <td class="number">${epic.itemsNow}</td>
-            <td class="status">${STATUS_TEXT[epic.status]}</td>
+            <td class="number">${epic.currentCount}</td>
+            <td class="status">${statusText(epic)}</td>
           </tr>`,
     )
     .join('\n')

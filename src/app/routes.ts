@@ -1,18 +1,17 @@
+import { editInputs, inputsView, type InputsEdit } from '../forecast/inputs.js'
 import { milestoneForecastView, type MilestoneForecastView } from '../forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS } from '../forecast/settings.js'
 import type { Storage } from '../storage/storage.js'
-import { editMilestone, milestoneDefinitionView, parseEpicForm, teamMilestone } from '../forecast/milestoneDefinition.js'
-import { teamFacts } from '../forecast/teamFacts.js'
-import { editWorkflowSettings, workflowSettingsView } from '../forecast/workflowSettings.js'
 import {
   parseDetailsForm,
+  parseEpicForm,
   parseMilestoneForm,
   parsePaceForm,
   parseWorkflowForm,
   renderInputsScreen,
+  savedPaceForm,
   savedWorkflowForm,
   type InputsScreen,
-  type PaceForm,
   type WorkflowScreen,
 } from './inputsScreen.js'
 import { renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
@@ -35,10 +34,12 @@ export interface AppContext {
   storage: Storage
   /** Today's ISO calendar date, the day forecasts start from. */
   today: () => string
+  /** The ISO timestamp now, when the EM's edits are made. */
+  now: () => string
 }
 
 /** The Milestone forecast screen at `/` and the Inputs screen at `/inputs`; not found for everything else. */
-export function route(request: Request, { storage, today }: AppContext): Reply {
+export function route(request: Request, { storage, today, now }: AppContext): Reply {
   const team = storage.teams()[0]
   if (request.method === 'GET' && request.path === '/') {
     const view: MilestoneForecastView = team
@@ -47,64 +48,53 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
     return { kind: 'html', status: 200, html: renderMilestoneForecastScreen(view) }
   }
   if (!team) return { kind: 'notFound' }
-  // v1 is single-team: the inputs are for its milestone
-  const milestone = teamMilestone(storage, team.id)
   const form = request.form ?? new URLSearchParams()
-  // the team's facts are read only to render the screen, so a saved POST that redirects doesn't read them here
+  // a saved POST redirects, so only a GET or a refused edit reads the Inputs view
   const inputsScreen = (
     status: number,
-    { workflowForm, ...screen }: Partial<Omit<InputsScreen, 'workflow'>> & { workflowForm?: Omit<WorkflowScreen, 'statuses'> } = {},
+    { pace, workflowForm, ...screen }: Partial<Omit<InputsScreen, 'milestone' | 'workflow'>> & { workflowForm?: Omit<WorkflowScreen, 'statuses'> } = {},
   ): Reply => {
-    const facts = teamFacts(storage, team.id)
-    const workflow = workflowSettingsView(facts)
+    const view = inputsView(storage, team.id)
     return {
       kind: 'html',
       status,
       html: renderInputsScreen({
-        milestone: milestoneDefinitionView(storage, team.id, facts),
-        pace: milestone && savedPaceForm(storage, milestone.teamId, milestone.id),
-        workflow: { statuses: workflow.statuses.map((entry) => entry.status), ...(workflowForm ?? { form: savedWorkflowForm(workflow) }) },
+        milestone: view.milestone,
+        // with no milestone there is no pace form, even to show a refused pace in
+        pace: view.milestone.kind === 'milestone' ? (pace ?? savedPaceForm(view.pace)) : undefined,
+        workflow: { statuses: view.workflow.statuses.map((entry) => entry.status), ...(workflowForm ?? { form: savedWorkflowForm(view.workflow) }) },
         ...screen,
       }),
     }
   }
+  /** Saves the edit and redirects, or shows the Inputs screen again with the refusal. */
+  const edit = (change: InputsEdit, location: string, refused: (error: string) => Parameters<typeof inputsScreen>[1]): Reply => {
+    const saved = editInputs(storage, team.id, change)
+    return saved.ok ? { kind: 'redirect', location } : inputsScreen(400, refused(saved.error))
+  }
 
   if (request.method === 'GET' && request.path === '/inputs') return inputsScreen(200)
-  if (request.method === 'POST' && request.path === '/inputs' && milestone) {
-    const pace = parsePaceForm(form)
-    if (!pace.ok) return inputsScreen(400, { pace: pace.form })
-    storage.savePaceSetting({ teamId: milestone.teamId, milestoneId: milestone.id, mode: 'manual', ...pace.range })
-    return { kind: 'redirect', location: '/' }
+  if (request.method === 'POST' && request.path === '/inputs') {
+    const typed = parsePaceForm(form)
+    return edit({ kind: 'setPace', ...typed }, '/', (error) => ({ pace: { ...typed, error } }))
   }
   if (request.method === 'POST' && request.path === '/inputs/milestone') {
     const typed = parseMilestoneForm(form)
-    const saved = editMilestone(storage, team.id, { kind: 'create', name: typed.form.name, committedDate: typed.form.committedDate, epics: typed.epics })
-    if (!saved.ok) return inputsScreen(400, { milestoneForm: { ...typed.form, error: saved.error } })
-    return { kind: 'redirect', location: '/inputs' }
+    const { name, committedDate } = typed.form
+    return edit({ kind: 'create', name, committedDate, epics: typed.epics }, '/inputs', (error) => ({ milestoneForm: { ...typed.form, error } }))
   }
   if (request.method === 'POST' && request.path === '/inputs/milestone/details') {
     const typed = parseDetailsForm(form)
-    const saved = editMilestone(storage, team.id, { kind: 'editDetails', ...typed })
-    if (!saved.ok) return inputsScreen(400, { detailsForm: { ...typed, error: saved.error } })
-    return { kind: 'redirect', location: '/inputs' }
+    return edit({ kind: 'editDetails', ...typed }, '/inputs', (error) => ({ detailsForm: { ...typed, error } }))
   }
   if (request.method === 'POST' && request.path === '/inputs/epics') {
-    const change = parseEpicForm(form)
-    const saved = change.ok ? editMilestone(storage, team.id, change.edit) : change
-    if (!saved.ok) return inputsScreen(400, { epicsError: saved.error })
-    return { kind: 'redirect', location: '/inputs' }
+    const change = parseEpicForm(form, now())
+    if (!change.ok) return inputsScreen(400, { epicsError: change.error })
+    return edit(change.edit, '/inputs', (error) => ({ epicsError: error }))
   }
   if (request.method === 'POST' && request.path === '/inputs/workflow') {
     const typed = parseWorkflowForm(form)
-    const saved = editWorkflowSettings(storage, team.id, typed.edit)
-    if (!saved.ok) return inputsScreen(400, { workflowForm: { form: typed.form, error: saved.error } })
-    return { kind: 'redirect', location: '/inputs' }
+    return edit({ kind: 'editWorkflow', ...typed.edit }, '/inputs', (error) => ({ workflowForm: { form: typed.form, error } }))
   }
   return { kind: 'notFound' }
-}
-
-/** The pace form filled with the saved manual range, or empty. */
-function savedPaceForm(storage: Storage, teamId: string, milestoneId: string): PaceForm {
-  const saved = storage.paceSetting(teamId, milestoneId)
-  return saved?.mode === 'manual' ? { low: String(saved.low), high: String(saved.high) } : { low: '', high: '' }
 }
