@@ -155,9 +155,12 @@ const STYLE = `
     .rows { display: flex; flex-direction: column; }
     .row { display: grid; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--hairline); }
     ol.epics { list-style: none; margin: 0; padding: 0; counter-reset: rank; }
-    ol.epics form { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto auto auto; flex-direction: row; gap: 8px 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--hairline); }
+    ol.epics form { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto auto 160px; flex-direction: row; gap: 8px 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--hairline); }
     ol.epics form::before { counter-increment: rank; content: counter(rank); font-family: var(--mono); color: var(--faint); }
     ol.epics .name { font-weight: 600; }
+    /* The last column holds Commit or the commit's text, at one width so every row's buttons line up. */
+    ol.epics form > :last-child { justify-self: end; }
+    ol.epics .note { font-size: 13px; color: var(--muted); white-space: nowrap; }
     ol.epics .key, .epic-choice .key { font-family: var(--mono); font-size: 12px; color: var(--faint); font-weight: 400; }
     section.input form.add { flex-direction: row; align-items: center; gap: 10px; }
     fieldset { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; }
