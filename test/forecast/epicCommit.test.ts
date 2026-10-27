@@ -339,6 +339,49 @@ describe('the commit label', () => {
   })
 })
 
+describe('the commit label coming off', () => {
+  const LABELLED = '2026-10-03T09:00:00Z'
+  const REMOVED = '2026-10-10T09:00:00Z'
+
+  test('warns that the epic no longer has the label, and keeps its commit', () => {
+    const storage = teamWithEpic(5)
+    useWorkflow(storage, { commitLabel: 'committed' })
+    labelEpic(storage, ['committed'], [{ at: LABELLED, to: 'committed' }])
+    expect(view(storage).warnings).toEqual([])
+
+    labelEpic(storage, [], [{ at: REMOVED, from: 'committed' }])
+
+    expect(view(storage)).toMatchObject({
+      epics: [{ commit: { baseline: 5, source: 'label', labelRemoved: true } }],
+      warnings: ['Epic E1 is committed but no longer has the “committed” label'],
+    })
+  })
+
+  test('applying the label again clears the warning, keeping the first baseline', () => {
+    const storage = teamWithEpic(5)
+    useWorkflow(storage, { commitLabel: 'committed' })
+    labelEpic(storage, ['committed'], [{ at: LABELLED, to: 'committed' }])
+    labelEpic(storage, [], [{ at: REMOVED, from: 'committed' }])
+    addChildren(storage, 'E1', 5, 2, REMOVED)
+
+    labelEpic(storage, ['committed'], [{ at: '2026-10-12T09:00:00Z', to: 'committed' }])
+
+    expect(view(storage)).toMatchObject({
+      epics: [{ commit: { baseline: 5, source: 'label', labelRemoved: false } }],
+      warnings: [],
+    })
+  })
+
+  test('an epic the EM committed in the tool is not warned about for lacking the label', () => {
+    const storage = teamWithEpic(5)
+    useWorkflow(storage, { commitLabel: 'committed' })
+
+    commit(storage, 'E1', COMMITTED)
+
+    expect(view(storage).warnings).toEqual([])
+  })
+})
+
 describe('the in-progress-but-not-committed warning', () => {
   test('flags an epic whose own status is started with no commit standing, before any pace is entered', () => {
     const storage = teamWithEpic(5)
