@@ -67,7 +67,6 @@ function form(categories: Record<string, string>, fields: Partial<WorkflowEdit> 
   return {
     categories,
     startedStatus: 'Building',
-    spikeRule: { types: ['spike'], labels: [] },
     commitLabel: '',
     blockedRule: { statuses: [], labels: [] },
     ...fields,
@@ -223,13 +222,12 @@ describe('workflow settings view', () => {
         { status: 'Shipped', category: undefined },
       ],
       startedStatus: 'In Progress',
-      spikeRule: { types: ['spike'], labels: ['spike'] },
       commitLabel: undefined,
       blockedRule: { statuses: [], labels: ['blocked'] },
     })
   })
 
-  test('shows the settings as saved: the mapping in order, the started status, spike rules, commit label and blocked marker', () => {
+  test('shows the settings as saved: the mapping in order, the started status, commit label and blocked marker', () => {
     const storage = teamWithBoard([shipped('T1', '2026-10-20T16:00:00Z')])
 
     save(
@@ -238,7 +236,6 @@ describe('workflow settings view', () => {
         { Backlog: 'notStarted', Building: 'started', Review: 'started', Shipped: 'done' },
         {
           startedStatus: ' Building ',
-          spikeRule: { types: ['Spike', ' Research ', ''], labels: ['discovery'] },
           commitLabel: ' committed ',
           blockedRule: { statuses: ['Review'], labels: ['blocked', ' waiting', 'blocked'] },
         },
@@ -253,7 +250,6 @@ describe('workflow settings view', () => {
         { status: 'Shipped', category: 'done' },
       ],
       startedStatus: 'Building',
-      spikeRule: { types: ['spike', 'research'], labels: ['discovery'] },
       commitLabel: 'committed',
       blockedRule: { statuses: ['Review'], labels: ['blocked', 'waiting'] },
     })
@@ -290,7 +286,7 @@ describe('the sample data', () => {
     return storage
   }
 
-  test("ships with its board's mapping, started status and spike rules, and no commit label", () => {
+  test("ships with its board's mapping and started status, and no commit label", () => {
     const storage = sampleTeam()
 
     expect(inputsView(storage, SAMPLE_DATA.team.id).workflow).toEqual({
@@ -301,7 +297,6 @@ describe('the sample data', () => {
         { status: 'Cancelled', category: 'cancelled' },
       ],
       startedStatus: 'In Progress',
-      spikeRule: { types: ['spike'], labels: ['spike'] },
       commitLabel: undefined,
       blockedRule: { statuses: [], labels: ['blocked'] },
     })
@@ -317,7 +312,6 @@ describe('the sample data', () => {
       kind: 'editWorkflow',
       categories: { 'To Do': 'notStarted', 'In Progress': 'started', Done: 'started', Cancelled: 'cancelled' },
       startedStatus: 'In Progress',
-      spikeRule: { types: ['spike'], labels: ['spike'] },
       commitLabel: '',
       blockedRule: { statuses: [], labels: ['blocked'] },
     })

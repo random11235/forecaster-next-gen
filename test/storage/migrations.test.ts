@@ -184,7 +184,6 @@ describe('a data file from schema version 1, before workflow settings', () => {
       { status: 'Cancelled', category: 'cancelled' },
     ],
     startedStatus: 'In Progress',
-    spikeRule: { types: ['spike'], labels: ['spike'] },
     blockedRule: { statuses: [], labels: ['blocked'] },
   }
 
@@ -215,9 +214,8 @@ describe('a data file from schema version 1, before workflow settings', () => {
   })
 })
 
-describe('a data file from schema version 2, before epic commits', () => {
-  /** Version 2's tables: version 1's, plus workflow settings as #18 shipped them. Kept verbatim: it is a past release. */
-  const VERSION_2_SCHEMA = `${UNVERSIONED_SCHEMA}
+/** Version 2's tables: version 1's, plus workflow settings as #18 shipped them. Kept verbatim: it is a past release. */
+const VERSION_2_SCHEMA = `${UNVERSIONED_SCHEMA}
 CREATE TABLE workflow_settings (
   team_id TEXT PRIMARY KEY REFERENCES teams(id), statuses TEXT NOT NULL, started_status TEXT NOT NULL,
   spike_types TEXT NOT NULL, spike_labels TEXT NOT NULL, commit_label TEXT, blocked_statuses TEXT NOT NULL,
@@ -226,6 +224,7 @@ CREATE TABLE workflow_settings (
 INSERT INTO workflow_settings VALUES ('ACME', '[{"status":"Doing","category":"started"}]', 'Doing', '[]', '[]', NULL, '[]', '[]');
 `
 
+describe('a data file from schema version 2, before epic commits', () => {
   test('keeps its data, has no epic commits, and takes one that survives reopening', () => {
     const file = writeFile('v2.db', VERSION_2_SCHEMA, 2)
 
@@ -240,6 +239,41 @@ INSERT INTO workflow_settings VALUES ('ACME', '[{"status":"Doing","category":"st
     storage.saveEpicCommit(commit)
 
     expect(open(file).epicCommits(TEAM)).toEqual([commit])
+  })
+})
+
+describe('a data file from schema version 3, with spike rules', () => {
+  /** Version 3's tables: version 2's, plus epic commits as #19 shipped them. Kept verbatim: it is a past release. */
+  const VERSION_3_SCHEMA = `${VERSION_2_SCHEMA}
+CREATE TABLE epic_commits (
+  team_id TEXT NOT NULL REFERENCES teams(id), epic_id TEXT NOT NULL, committed_at TEXT NOT NULL,
+  child_count_at_commit INTEGER NOT NULL, PRIMARY KEY (team_id, epic_id)
+);
+INSERT INTO epic_commits VALUES ('ACME', 'E1', '2026-10-02T12:00:00Z', 1);
+`
+
+  test('keeps its workflow settings and commits, drops its spike rules, and takes new settings', () => {
+    const file = writeFile('v3.db', VERSION_3_SCHEMA, 3)
+
+    const storage = open(file)
+    expect(storage.workflowSettings(TEAM)).toEqual({
+      teamId: TEAM,
+      statuses: [{ status: 'Doing', category: 'started' }],
+      startedStatus: 'Doing',
+      blockedRule: { statuses: [], labels: [] },
+    })
+    expect(storage.epicCommits(TEAM)).toEqual([{ teamId: TEAM, epicId: 'E1', committedAt: '2026-10-02T12:00:00Z', baseline: 1 }])
+
+    const changed = {
+      teamId: TEAM,
+      statuses: [{ status: 'Doing', category: 'started' as const }],
+      startedStatus: 'Doing',
+      commitLabel: 'committed',
+      blockedRule: { statuses: [], labels: ['blocked'] },
+    }
+    storage.saveWorkflowSettings(changed)
+
+    expect(open(file).workflowSettings(TEAM)).toEqual(changed)
   })
 })
 

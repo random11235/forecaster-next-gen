@@ -4,7 +4,6 @@ import {
   type StatusCategory,
   type StatusMapping,
   type StatusOrLabelRule,
-  type TypeOrLabelRule,
 } from '../model/workflow.js'
 import type { Storage } from '../storage/storage.js'
 import { refuse, type EditResult } from './editResult.js'
@@ -18,7 +17,6 @@ export interface WorkflowEdit {
   /** Each status's category as chosen, by status name; blank when none was chosen. */
   categories: Record<string, string>
   startedStatus: string
-  spikeRule: TypeOrLabelRule
   /** Blank for none. */
   commitLabel: string
   blockedRule: StatusOrLabelRule
@@ -32,14 +30,13 @@ export interface WorkflowSettingsView {
    */
   statuses: { status: string; category: StatusCategory | undefined }[]
   startedStatus: string
-  spikeRule: TypeOrLabelRule
   commitLabel: string | undefined
   blockedRule: StatusOrLabelRule
 }
 
 /** The team's workflow settings as the Inputs screen shows them. */
 export function workflowSettingsView(team: TeamFacts): WorkflowSettingsView {
-  const { statuses, startedStatus, spikeRule, commitLabel, blockedRule } = team.workflow
+  const { statuses, startedStatus, commitLabel, blockedRule } = team.workflow
   const mapped = new Set(statuses.map((mapping) => mapping.status))
   const unmapped = team.statusesSeen.filter((status) => !mapped.has(status))
   return {
@@ -48,7 +45,6 @@ export function workflowSettingsView(team: TeamFacts): WorkflowSettingsView {
       ...unmapped.map((status) => ({ status, category: undefined })),
     ],
     startedStatus,
-    spikeRule,
     commitLabel,
     blockedRule,
   }
@@ -81,10 +77,6 @@ export function editWorkflowSettings(storage: Storage, teamId: string, edit: Wor
     teamId,
     statuses,
     startedStatus,
-    spikeRule: {
-      types: cleaned(edit.spikeRule.types.map((type) => type.toLowerCase())),
-      labels: cleaned(edit.spikeRule.labels),
-    },
     ...(commitLabel !== '' && { commitLabel }),
     blockedRule,
   })
