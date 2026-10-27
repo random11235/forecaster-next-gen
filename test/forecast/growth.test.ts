@@ -220,7 +220,7 @@ describe('measured growth', () => {
     finishedEpic(storage, 'U1', 10, 30, 'not')
     finishedEpic(storage, 'Z1', 0, 30)
 
-    expect(inputsView(storage, TEAM).growth).toMatchObject({ finishedEpics: 6, mediumMeasured: false, suggestion: undefined })
+    expect(inputsView(storage, TEAM).growth).toMatchObject({ finishedEpics: 6, mediumMeasured: false, paused: false, suggestion: undefined })
   })
 
   test('from 7 finished committed epics, suggests their range for medium, rounded out to the half, which changes nothing until the EM adopts it', () => {
@@ -290,7 +290,7 @@ describe('measured growth', () => {
 
     storage.addFacts(TEAM, { workItems: [], events: [status('F3', '2026-09-01T09:00:00Z', 'In Progress', 'Done')] })
 
-    expect(inputsView(storage, TEAM).growth).toMatchObject({ mediumMeasured: true, finishedEpics: 6, needed: 7, suggestion: undefined })
+    expect(inputsView(storage, TEAM).growth).toMatchObject({ mediumMeasured: true, paused: true, finishedEpics: 6, needed: 7, suggestion: undefined })
     expect(view(storage).epics[0]).toMatchObject({
       growthSource: 'ambiguity',
       growthBasis: 'Medium ambiguity: grows 1–2× (measured growth paused: 6 of 7 finished epics)',

@@ -37,6 +37,8 @@ export interface GrowthView {
   ranges: Record<Ambiguity, GrowthRange>
   /** The EM adopted the measured growth for medium. */
   mediumMeasured: boolean
+  /** Adopted measured growth is paused: too few finished committed epics are left, so medium grows by its range. */
+  paused: boolean
   /** Finished committed epics with a baseline: the team's growth samples. */
   finishedEpics: number
   /** How many measured growth needs (`minGrowthSamples`): below it, adopted measured growth is paused. */
@@ -133,11 +135,13 @@ export function epicSizes(growth: TeamGrowth, settings: ForecastSettings): numbe
 
 /** Seam B, behind `inputsView`: the team's growth as the Inputs screen shows it. */
 export function growthView(storage: Storage, teamId: string, team: TeamFacts, settings: ForecastSettings): GrowthView {
-  const { ranges, growthSamples } = teamGrowth(storage, teamId, team)
+  const growth = teamGrowth(storage, teamId, team)
+  const { ranges, growthSamples } = growth
   const { low, medium, high, mediumMeasured } = ranges
   return {
     ranges: { low, medium, high },
     mediumMeasured,
+    paused: measuredPaused(growth, settings),
     finishedEpics: growthSamples.length,
     needed: settings.minGrowthSamples,
     suggestion: measuredMediumSuggestion(growthSamples, settings),

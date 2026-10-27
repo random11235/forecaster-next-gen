@@ -358,9 +358,9 @@ ${measuredGrowth(view, mediumError)}`,
 }
 
 /** The measured medium range: how many finished committed epics there are, and, once enough, the suggestion to adopt. */
-function measuredGrowth({ finishedEpics, needed, suggestion, mediumMeasured, ranges }: GrowthView, error: string | undefined): string {
+function measuredGrowth({ finishedEpics, needed, suggestion, mediumMeasured, paused, ranges }: GrowthView, error: string | undefined): string {
   const epics = finishedEpics === 1 ? '1 finished committed epic' : `${finishedEpics} finished committed epics`
-  if (!suggestion && mediumMeasured) {
+  if (paused) {
     const left = finishedEpics === 1 ? '1 is left' : `${finishedEpics} are left`
     return `        <form method="post" action="/inputs/growth/medium" class="suggestion">${errorLine(error)}
           <p><strong>Measured growth is paused: it needs ${needed} finished committed epics, and ${left}.</strong> <span class="note">Medium epics grow ${rangeText(ranges.medium)} until there are ${needed} again.</span></p>
