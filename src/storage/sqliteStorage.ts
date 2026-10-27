@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
+import type { Ambiguity, AmbiguityRanges, EpicAmbiguity } from '../model/ambiguity.js'
 import type { EpicCommit } from '../model/epicCommit.js'
 import type { Milestone } from '../model/milestone.js'
 import type { Team } from '../model/team.js'
@@ -106,6 +107,27 @@ CREATE TABLE epic_commits (
 ALTER TABLE workflow_settings DROP COLUMN spike_types;
 ALTER TABLE workflow_settings DROP COLUMN spike_labels;
 `,
+  // 5: each team's ambiguity ranges, and the EM's ambiguity level for a milestone's epics (#21).
+  `
+CREATE TABLE ambiguity_ranges (
+  team_id TEXT PRIMARY KEY REFERENCES teams(id),
+  low_low REAL NOT NULL,
+  low_high REAL NOT NULL,
+  medium_low REAL NOT NULL,
+  medium_high REAL NOT NULL,
+  high_low REAL NOT NULL,
+  high_high REAL NOT NULL,
+  medium_measured INTEGER NOT NULL
+);
+CREATE TABLE epic_ambiguities (
+  team_id TEXT NOT NULL,
+  milestone_id TEXT NOT NULL,
+  epic_id TEXT NOT NULL,
+  ambiguity TEXT NOT NULL,
+  PRIMARY KEY (team_id, milestone_id, epic_id),
+  FOREIGN KEY (team_id, milestone_id) REFERENCES milestones(team_id, id)
+);
+`,
 ]
 
 type Row = Record<string, SQLInputValue>
@@ -168,6 +190,20 @@ export function openSqliteStorage(file: string): Storage {
     ON CONFLICT (team_id, epic_id) DO UPDATE SET
       committed_at = excluded.committed_at, child_count_at_commit = excluded.child_count_at_commit`)
   const selectEpicCommits = db.prepare('SELECT * FROM epic_commits WHERE team_id = ? ORDER BY rowid')
+  const upsertAmbiguityRanges = db.prepare(`
+    INSERT INTO ambiguity_ranges (team_id, low_low, low_high, medium_low, medium_high, high_low, high_high, medium_measured)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (team_id) DO UPDATE SET
+      low_low = excluded.low_low, low_high = excluded.low_high, medium_low = excluded.medium_low,
+      medium_high = excluded.medium_high, high_low = excluded.high_low, high_high = excluded.high_high,
+      medium_measured = excluded.medium_measured`)
+  const selectAmbiguityRanges = db.prepare('SELECT * FROM ambiguity_ranges WHERE team_id = ?')
+  const upsertEpicAmbiguity = db.prepare(`
+    INSERT INTO epic_ambiguities (team_id, milestone_id, epic_id, ambiguity) VALUES (?, ?, ?, ?)
+    ON CONFLICT (team_id, milestone_id, epic_id) DO UPDATE SET ambiguity = excluded.ambiguity`)
+  const selectEpicAmbiguities = db.prepare(
+    'SELECT * FROM epic_ambiguities WHERE team_id = ? AND milestone_id = ? ORDER BY rowid',
+  )
 
   return {
     isEmpty() {
@@ -302,6 +338,47 @@ export function openSqliteStorage(file: string): Storage {
           epicId: String(row.epic_id),
           committedAt: String(row.committed_at),
           baseline: Number(row.child_count_at_commit),
+        }),
+      )
+    },
+
+    saveAmbiguityRanges(ranges) {
+      upsertAmbiguityRanges.run(
+        ranges.teamId,
+        ranges.low.low,
+        ranges.low.high,
+        ranges.medium.low,
+        ranges.medium.high,
+        ranges.high.low,
+        ranges.high.high,
+        ranges.mediumMeasured ? 1 : 0,
+      )
+    },
+
+    ambiguityRanges(teamId) {
+      const row = selectAmbiguityRanges.get(teamId)
+      if (row === undefined) return undefined
+      const range = (level: string) => ({ low: Number(row[`${level}_low`]), high: Number(row[`${level}_high`]) })
+      return {
+        teamId: String(row.team_id),
+        low: range('low'),
+        medium: range('medium'),
+        high: range('high'),
+        mediumMeasured: Number(row.medium_measured) === 1,
+      } satisfies AmbiguityRanges
+    },
+
+    saveEpicAmbiguity(setting) {
+      upsertEpicAmbiguity.run(setting.teamId, setting.milestoneId, setting.epicId, setting.ambiguity)
+    },
+
+    epicAmbiguities(teamId, milestoneId) {
+      return selectEpicAmbiguities.all(teamId, milestoneId).map(
+        (row: Row): EpicAmbiguity => ({
+          teamId: String(row.team_id),
+          milestoneId: String(row.milestone_id),
+          epicId: String(row.epic_id),
+          ambiguity: String(row.ambiguity) as Ambiguity,
         }),
       )
     },

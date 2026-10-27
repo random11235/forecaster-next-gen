@@ -117,7 +117,7 @@ describe('committing an epic', () => {
     addChildren(storage, 'E1', 5, 3)
 
     expect(view(storage).epics).toEqual([
-      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 8, doneCount: 0, commit: { baseline: 5, source: 'inTool' }, inProgress: true, finished: false, blocked: false, labelCommitReset: false },
+      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 8, doneCount: 0, commit: { baseline: 5, source: 'inTool' }, inProgress: true, finished: false, blocked: false, labelCommitReset: false, ambiguity: 'medium', growthSource: 'ambiguity', growthBasis: 'Medium ambiguity: grows 1–2×' },
     ])
   })
 
@@ -189,7 +189,7 @@ describe('pulling an epic back to not started', () => {
     enterManualPace(storage, 10, 10)
 
     expect(view(storage).epics).toEqual([
-      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 10, doneCount: 0, commit: undefined, inProgress: false, finished: false, blocked: false, labelCommitReset: false },
+      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 10, doneCount: 0, commit: undefined, inProgress: false, finished: false, blocked: false, labelCommitReset: false, ambiguity: 'medium', growthSource: 'ambiguity', growthBasis: 'Medium ambiguity: grows 1–2×' },
     ])
     expect(datesOf(storage)).toEqual(['2026-11-07', '2026-11-07', '2026-11-07'])
   })
@@ -236,7 +236,7 @@ describe('pulling an epic back to not started', () => {
     addChildren(storage, 'E1', 7, 1)
 
     expect(view(storage).epics).toEqual([
-      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 8, doneCount: 0, commit: { baseline: 7, source: 'inTool' }, inProgress: true, finished: false, blocked: false, labelCommitReset: false },
+      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 8, doneCount: 0, commit: { baseline: 7, source: 'inTool' }, inProgress: true, finished: false, blocked: false, labelCommitReset: false, ambiguity: 'medium', growthSource: 'ambiguity', growthBasis: 'Medium ambiguity: grows 1–2×' },
     ])
   })
 })
@@ -530,7 +530,7 @@ describe('a blocked epic', () => {
         inProgress: true,
         finished: false,
         blocked: true,
-        labelCommitReset: false,
+        labelCommitReset: false, ambiguity: 'medium', growthSource: 'ambiguity', growthBasis: 'Medium ambiguity: grows 1–2×',
       },
     ])
     expect(datesOf(storage)).toEqual(unblocked)

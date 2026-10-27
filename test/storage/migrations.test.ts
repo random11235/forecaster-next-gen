@@ -277,6 +277,41 @@ INSERT INTO epic_commits VALUES ('ACME', 'E1', '2026-10-02T12:00:00Z', 1);
   })
 })
 
+describe('a data file from schema version 4, before ambiguity', () => {
+  /** Version 4's tables: version 3's, less its spike rules. Kept verbatim: it is a past release. */
+  const VERSION_4_SCHEMA = `${VERSION_2_SCHEMA}
+ALTER TABLE workflow_settings DROP COLUMN spike_types;
+ALTER TABLE workflow_settings DROP COLUMN spike_labels;
+CREATE TABLE epic_commits (
+  team_id TEXT NOT NULL REFERENCES teams(id), epic_id TEXT NOT NULL, committed_at TEXT NOT NULL,
+  child_count_at_commit INTEGER NOT NULL, PRIMARY KEY (team_id, epic_id)
+);
+`
+
+  test('has no ambiguity ranges or epic levels, and takes them, and they survive reopening', () => {
+    const file = writeFile('v4.db', VERSION_4_SCHEMA, 4)
+
+    const storage = open(file)
+    expect(storage.ambiguityRanges(TEAM)).toBeUndefined()
+    expect(storage.epicAmbiguities(TEAM, 'M1')).toEqual([])
+
+    const ranges = {
+      teamId: TEAM,
+      low: { low: 1, high: 1.25 },
+      medium: { low: 1, high: 2.5 },
+      high: { low: 1.5, high: 4 },
+      mediumMeasured: true,
+    }
+    const level = { teamId: TEAM, milestoneId: 'M1', epicId: 'E1', ambiguity: 'high' as const }
+    storage.saveAmbiguityRanges(ranges)
+    storage.saveEpicAmbiguity(level)
+
+    const reopened = open(file)
+    expect(reopened.ambiguityRanges(TEAM)).toEqual(ranges)
+    expect(reopened.epicAmbiguities(TEAM, 'M1')).toEqual([level])
+  })
+})
+
 describe('a data file from a newer release', () => {
   test('refuses to open, says why, and leaves the file as it was', () => {
     const file = writeFile('newer.db', 'CREATE TABLE from_the_future (id TEXT);', 999)

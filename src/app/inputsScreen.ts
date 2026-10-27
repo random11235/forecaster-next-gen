@@ -1,6 +1,8 @@
 import { MAX_TICKETS_PER_WEEK, type InputsEdit } from '../forecast/inputs.js'
 import type { EpicChoice, MilestoneDefinitionView, RankedEpic } from '../forecast/milestoneDefinition.js'
+import { ambiguityName, MAX_GROWTH, rangeText, type GrowthView, type TypedRange } from '../forecast/growth.js'
 import type { WorkflowEdit, WorkflowSettingsView } from '../forecast/workflowSettings.js'
+import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
 import type { ThroughputRange } from '../model/paceSetting.js'
 import { STATUS_CATEGORIES, STATUS_CATEGORY_NAMES, type StatusCategory } from '../model/workflow.js'
 import { commitText, escapeHtml, formatDate, htmlPage } from './html.js'
@@ -22,13 +24,18 @@ export function savedPaceForm(range: ThroughputRange | undefined): PaceForm {
   return range ? { low: String(range.low), high: String(range.high) } : { low: '', high: '' }
 }
 
-/** Reads an epic change submitted from the Inputs screen at `at` (an ISO timestamp): add, remove, move up or down, or commit. */
+/**
+ * Reads an epic change submitted from the Inputs screen at `at` (an ISO timestamp): add, remove, move up or down,
+ * commit, or set its ambiguity.
+ */
 export function parseEpicForm(body: URLSearchParams, at: string): { ok: true; edit: InputsEdit } | { ok: false; error: string } {
   const epicId = body.get('epic') ?? ''
   const action = body.get('action')
   switch (action) {
     case 'commit':
       return { ok: true, edit: { kind: 'commitEpic', epicId, at } }
+    case 'ambiguity':
+      return { ok: true, edit: { kind: 'setEpicAmbiguity', epicId, ambiguity: body.get('ambiguity') ?? '' } }
     case 'add':
       return { ok: true, edit: { kind: 'addEpic', epicId } }
     case 'remove':
@@ -37,8 +44,33 @@ export function parseEpicForm(body: URLSearchParams, at: string): { ok: true; ed
     case 'down':
       return { ok: true, edit: { kind: 'moveEpic', epicId, direction: action } }
     default:
-      return { ok: false, error: 'Choose Add, Remove, Up, Down or Commit.' }
+      return { ok: false, error: 'Choose Add, Remove, Up, Down, Commit or Set.' }
   }
+}
+
+/** The ambiguity ranges form as typed: each level's low and high, and why they were refused, if they were. */
+export interface GrowthForm {
+  ranges: Record<Ambiguity, TypedRange>
+  error?: string
+}
+
+/** Reads the submitted ambiguity ranges; the rules they must meet are checked when they are saved. */
+export function parseGrowthForm(body: URLSearchParams): GrowthForm {
+  const typed = (level: Ambiguity): TypedRange => ({ low: body.get(`${level}-low`) ?? '', high: body.get(`${level}-high`) ?? '' })
+  return { ranges: { low: typed('low'), medium: typed('medium'), high: typed('high') } }
+}
+
+/** The ambiguity ranges form filled with the team's saved ranges. */
+export function savedGrowthForm({ ranges }: GrowthView): GrowthForm {
+  const typed = ({ low, high }: { low: number; high: number }): TypedRange => ({ low: String(low), high: String(high) })
+  return { ranges: { low: typed(ranges.low), medium: typed(ranges.medium), high: typed(ranges.high) } }
+}
+
+/** The growth section: the team's growth, the ranges form as saved or as typed when refused, and why adopting failed. */
+export interface GrowthScreen {
+  view: GrowthView
+  form: GrowthForm
+  mediumError?: string
 }
 
 /** The milestone's name and committed date as typed, and why they were refused, if they were. */
@@ -137,9 +169,10 @@ export interface InputsScreen {
   /** The pace form; undefined when there is no milestone yet. */
   pace: PaceForm | undefined
   workflow: WorkflowScreen
+  growth: GrowthScreen
 }
 
-/** The Inputs screen: the milestone's definition, its manual pace range and the team's workflow settings. */
+/** The Inputs screen: the milestone's definition, its manual pace range, the team's growth and its workflow settings. */
 export function renderInputsScreen(screen: InputsScreen): string {
   const milestone = screen.milestone
   const sections =
@@ -150,11 +183,11 @@ export function renderInputsScreen(screen: InputsScreen): string {
           screen.pace ? paceSection(screen.pace) : NO_MILESTONE,
         ]
       : [newMilestoneSection(milestone.teamEpics, screen.milestoneForm ?? { name: '', committedDate: '', ranks: {} }), NO_MILESTONE]
-  sections.push(workflowSection(screen.workflow))
+  sections.push(growthSection(screen.growth), workflowSection(screen.workflow))
   const header = {
     context: milestone.kind === 'milestone' ? `${milestone.name} · committed ${formatDate(milestone.committedDate)}` : undefined,
     heading: 'Inputs',
-    lede: 'What drives the forecast: the milestone and its epics, the team’s pace, and how the board works.',
+    lede: 'What drives the forecast: the milestone and its epics, the team’s pace, how epics grow, and how the board works.',
   }
   return htmlPage('Inputs', '/inputs', header, sections.map((section, index) => section(index + 1)).join('\n'))
 }
@@ -228,6 +261,12 @@ function epicsSection(milestone: Extract<MilestoneDefinitionView, { kind: 'miles
             <form method="post" action="/inputs/epics">
               <span>${epicName(epic)}</span>
               <input type="hidden" name="epic" value="${escapeHtml(epic.epicId)}">
+              <span class="ambiguity">
+                <select name="ambiguity" aria-label="Ambiguity of ${epicLabel(epic)}">${AMBIGUITIES.map(
+                  (level) => `<option value="${level}"${epic.ambiguity === level ? ' selected' : ''}>${ambiguityName(level)} ambiguity</option>`,
+                ).join('')}</select>
+                <button type="submit" name="action" value="ambiguity">Set</button>
+              </span>
               <button type="submit" name="action" value="up"${rank === 0 ? ' disabled' : ''}>Up</button>
               <button type="submit" name="action" value="down"${rank === last ? ' disabled' : ''}>Down</button>
               <button type="submit" name="action" value="remove"${last === 0 ? ' disabled' : ''}>Remove</button>
@@ -288,6 +327,50 @@ function paceSection(form: PaceForm): Section {
           <div class="actions"><button type="submit" class="primary">Save and forecast</button></div>
         </form>`,
   )
+}
+
+function growthSection({ view, form, mediumError }: GrowthScreen): Section {
+  const rows = AMBIGUITIES.map((level) => {
+    const field = (end: 'low' | 'high'): string =>
+      `<input type="number" name="${level}-${end}" min="0" max="${MAX_GROWTH}" step="any" value="${escapeHtml(form.ranges[level][end])}" aria-label="${ambiguityName(level)} ambiguity, ${end} end" required>`
+    return `              <tr>
+                <td>${ambiguityName(level)}</td>
+                <td>${field('low')} <span class="to">to</span> ${field('high')} <span class="unit">× the baseline</span></td>
+              </tr>`
+  }).join('\n')
+  return inputSection(
+    'Growth',
+    'Growth',
+    'How much an epic may grow from its baseline, by how well it is understood. Each epic’s ambiguity is set beside it above.',
+    `        <form method="post" action="/inputs/growth">${errorLine(form.error)}
+          <table class="growth">
+            <thead>
+              <tr><th>Ambiguity</th><th>Grows by</th></tr>
+            </thead>
+            <tbody>
+${rows}
+            </tbody>
+          </table>
+          <div class="actions"><button type="submit">Save ranges</button></div>
+        </form>
+${measuredGrowth(view, mediumError)}`,
+  )
+}
+
+/** The measured medium range: how many finished committed epics there are, and, once enough, the suggestion to adopt. */
+function measuredGrowth({ finishedEpics, suggestion, mediumMeasured }: GrowthView, error: string | undefined): string {
+  const epics = finishedEpics === 1 ? '1 finished committed epic' : `${finishedEpics} finished committed epics`
+  if (!suggestion) {
+    return `${errorLine(error)}
+        <p class="note">${epics} so far. Once enough have finished, their growth is suggested for medium.</p>`
+  }
+  const [line, source, label] = mediumMeasured
+    ? [`Medium epics grow as measured: ${rangeText(suggestion)}.`, 'range', 'Use the medium range instead']
+    : [`Suggested for medium: ${rangeText(suggestion)}.`, 'measured', 'Use measured growth for medium']
+  return `        <form method="post" action="/inputs/growth/medium" class="suggestion">${errorLine(error)}
+          <p><strong>${line}</strong> <span class="note">${escapeHtml(suggestion.basis)}.</span></p>
+          <button type="submit" name="source" value="${source}">${label}</button>
+        </form>`
 }
 
 /** The category's name as an option label: "Not started". */

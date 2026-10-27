@@ -289,7 +289,7 @@ describe('Inputs screen: milestone', () => {
     expect(committed.status).toBe(303)
     expect(committed.headers.get('location')).toBe('/inputs')
     const inputs = await page('/inputs')
-    expect(text(inputs)).toMatch(/Refunds PAY-2 Up Down Remove Committed at 14 items/)
+    expect(text(inputs)).toMatch(/Refunds PAY-2 [A-Za-z ]* Up Down Remove Committed at 14 items/)
     expect(inputs.match(/value="commit">Commit</g)).toHaveLength(1)
     const forecast = text(await page('/'))
     expect(forecast).toMatch(/Refunds 14 Committed at 14 items/)
@@ -302,7 +302,7 @@ describe('Inputs screen: milestone', () => {
     const response = await post('/inputs/epics', [['epic', 'PAY-1']])
 
     expect(response.status).toBe(400)
-    expect(text(await response.text())).toContain('Choose Add, Remove, Up, Down or Commit.')
+    expect(text(await response.text())).toContain('Choose Add, Remove, Up, Down, Commit or Set.')
   })
 
   test('a refused epic change says why', async () => {
@@ -383,6 +383,117 @@ describe('Inputs screen: workflow', () => {
     expect(text(html)).toContain('Choose a started status from the statuses mapped to started.')
     expect(html).toMatch(/name="commitLabel"[^>]*value="committed"/)
     expect(html).toMatch(/<select name="startedStatus"[^>]*>[\s\S]*?<option value="Done" selected>/)
+  })
+})
+
+/** Adds `count` finished epics to the sample team, each committed in the tool at 10 tickets and done at 15 (1.5×). */
+function addFinishedEpics(count: number): void {
+  const at = '2026-06-01T09:00:00Z'
+  for (let i = 1; i <= count; i++) {
+    const id = `DONE-${i}`
+    const item = (itemId: string, type: string, parentId?: string) => ({
+      id: itemId,
+      teamId: 'sample-team',
+      sourceKey: itemId,
+      type,
+      labels: [],
+      createdAt: at,
+      lastSyncedAt: at,
+      ...(parentId !== undefined && { parentId }),
+    })
+    storage!.addFacts('sample-team', {
+      workItems: [item(id, 'epic'), ...Array.from({ length: 15 }, (_, n) => item(`${id}-${n}`, 'story', id))],
+      events: [
+        { itemId: id, at, kind: 'status', to: 'To Do' },
+        { itemId: id, at: '2026-08-01T09:00:00Z', kind: 'status', from: 'To Do', to: 'Done' },
+      ],
+    })
+    storage!.saveEpicCommit({ teamId: 'sample-team', epicId: id, committedAt: at, baseline: 10 })
+  }
+}
+
+/** The ambiguity ranges form, with the defaults unless overridden. */
+function growthForm(overrides: Record<string, string> = {}): [string, string][] {
+  const fields = { 'low-low': '1', 'low-high': '1.5', 'medium-low': '1', 'medium-high': '2', 'high-low': '1.5', 'high-high': '3', ...overrides }
+  return Object.entries(fields)
+}
+
+describe('Inputs screen: growth', () => {
+  test('shows each epic at medium ambiguity and the default ranges, and setting an epic high shows on both screens', async () => {
+    await startOnSampleData()
+
+    const html = await page('/inputs')
+    expect(html.match(/<select name="ambiguity"[^>]*>[\s\S]*?<option value="medium" selected>/g)).toHaveLength(3)
+    for (const [field, value] of Object.entries(Object.fromEntries(growthForm()))) {
+      expect(html).toMatch(new RegExp(`name="${field}"[^>]*value="${value}"`))
+    }
+    expect(text(html)).toContain('0 finished committed epics so far.')
+    expect(text(await page('/'))).toContain('Medium ambiguity: grows 1–2×')
+
+    const response = await post('/inputs/epics', [['epic', 'PAY-1'], ['ambiguity', 'high'], ['action', 'ambiguity']])
+
+    expect(response.status).toBe(303)
+    expect(await page('/inputs')).toMatch(/<select name="ambiguity"[^>]*aria-label="Ambiguity of [^"]*PAY-1[^"]*"[^>]*>[\s\S]*?<option value="high" selected>/)
+    expect(text(await page('/'))).toContain('High ambiguity: grows 1.5–3×')
+  })
+
+  test('saved ranges show on the Inputs screen and the forecast', async () => {
+    await startOnSampleData()
+
+    const response = await post('/inputs/growth', growthForm({ 'medium-high': '2.5' }))
+
+    expect(response.status).toBe(303)
+    expect(await page('/inputs')).toMatch(/name="medium-high"[^>]*value="2.5"/)
+    expect(text(await page('/'))).toContain('Medium ambiguity: grows 1–2.5×')
+  })
+
+  test('refused ranges say why and keep what was typed', async () => {
+    await startOnSampleData()
+
+    const response = await post('/inputs/growth', growthForm({ 'high-low': '4' }))
+
+    expect(response.status).toBe(400)
+    const html = await response.text()
+    expect(text(html)).toContain('The low end must not be above the high end.')
+    expect(html).toMatch(/name="high-low"[^>]*value="4"/)
+  })
+
+  test('from 7 finished committed epics, suggests their growth for medium, which the EM can adopt and undo', async () => {
+    await startOnSampleData()
+    addFinishedEpics(7)
+
+    const html = text(await page('/inputs'))
+    expect(html).toContain('Suggested for medium: 1.5×. Measured from 7 finished committed epics.')
+    expect(text(await page('/'))).toContain('Medium ambiguity: grows 1–2×')
+
+    expect((await post('/inputs/growth/medium', [['source', 'measured']])).status).toBe(303)
+    expect(text(await page('/inputs'))).toContain('Medium epics grow as measured: 1.5×.')
+    expect(text(await page('/'))).toContain('Medium ambiguity: grows as measured from 7 finished epics')
+
+    await post('/inputs/growth/medium', [['source', 'range']])
+    expect(text(await page('/'))).toContain('Medium ambiguity: grows 1–2×')
+  })
+
+  test('refuses measured growth before 7 finished committed epics', async () => {
+    await startOnSampleData()
+    addFinishedEpics(6)
+
+    const response = await post('/inputs/growth/medium', [['source', 'measured']])
+
+    expect(response.status).toBe(400)
+    expect(text(await response.text())).toContain('Measured growth needs 7 finished committed epics; there are 6 so far.')
+  })
+
+  test('the forecast says an epic with no items yet is sized from finished epics', async () => {
+    await startOnSampleData()
+    addFinishedEpics(2)
+    storage!.addFacts('sample-team', {
+      workItems: [{ id: 'PAY-9', teamId: 'sample-team', sourceKey: 'PAY-9', type: 'epic', title: 'Refunds', labels: [], createdAt: '2026-10-01T09:00:00Z', lastSyncedAt: '2026-10-01T09:00:00Z' }],
+      events: [{ itemId: 'PAY-9', at: '2026-10-01T09:00:00Z', kind: 'status', to: 'To Do' }],
+    })
+    await post('/inputs/epics', [['epic', 'PAY-9'], ['action', 'add']])
+
+    expect(text(await page('/'))).toContain('No items yet: sized from 2 finished epics')
   })
 })
 

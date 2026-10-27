@@ -275,10 +275,12 @@ src/
     milestone.ts          # Milestone: defined by the EM, not ingested
     workflow.ts           # WorkflowSettings: the EM's status mapping, commit label, blocked rule
     epicCommit.ts         # EpicCommit: the EM's commit of an epic and its baseline
+    ambiguity.ts          # Ambiguity, AmbiguityRanges and each epic's level: set by the EM
 
   samples/                # Layer 2: pure derivations from model/
     commits.ts            # commits that stand: in the tool or by the commit label, after pull-back resets
     throughput.ts         # WorkItems → ThroughputSample[] (milestone epics only)
+    finishedEpics.ts      # commits that stand + work items → the committed epics now done, with baseline and final count
     growth.ts             # commits + final counts → GrowthSample[]
     epicSize.ts           # finished epics → EpicSizeSample[]
     cycleTime.ts          # started → done; spread and ageing
@@ -292,6 +294,7 @@ src/
     inputs.ts             # Seam B: stored data → the Inputs screen's view; its edits (milestone, workflow, pace) and their rules
     milestoneDefinition.ts  # behind inputs.ts: the milestone's view and edits, including committing an epic
     workflowSettings.ts   # behind inputs.ts: the workflow settings view and edit
+    growth.ts             # behind inputs.ts: ambiguity ranges and levels, measured growth; each epic's growth and its source
     buildCase.ts          # pace mode, ambiguity ranges, provisional baselines, limits
     settings.ts           # ForecastSettings and AmbiguityRanges defaults
     suggestions.ts        # suggested pace range, measured medium range, switch offers

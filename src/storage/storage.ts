@@ -1,3 +1,4 @@
+import type { AmbiguityRanges, EpicAmbiguity } from '../model/ambiguity.js'
 import type { EpicCommit } from '../model/epicCommit.js'
 import type { Milestone } from '../model/milestone.js'
 import type { PaceSetting } from '../model/paceSetting.js'
@@ -30,5 +31,13 @@ export interface Storage {
   saveEpicCommit(commit: EpicCommit): void
   /** The team's epic commits, one per epic the EM has committed. */
   epicCommits(teamId: string): EpicCommit[]
+  /** Adds the team's ambiguity ranges, or replaces the ones it has. */
+  saveAmbiguityRanges(ranges: AmbiguityRanges): void
+  /** The team's ambiguity ranges, if the EM has edited them. */
+  ambiguityRanges(teamId: string): AmbiguityRanges | undefined
+  /** Adds the epic's ambiguity level in the milestone, or replaces the one it has. */
+  saveEpicAmbiguity(setting: EpicAmbiguity): void
+  /** The ambiguity levels the EM has set for the milestone's epics. */
+  epicAmbiguities(teamId: string, milestoneId: string): EpicAmbiguity[]
   close(): void
 }

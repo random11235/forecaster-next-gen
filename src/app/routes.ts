@@ -5,12 +5,15 @@ import type { Storage } from '../storage/storage.js'
 import {
   parseDetailsForm,
   parseEpicForm,
+  parseGrowthForm,
   parseMilestoneForm,
   parsePaceForm,
   parseWorkflowForm,
   renderInputsScreen,
+  savedGrowthForm,
   savedPaceForm,
   savedWorkflowForm,
+  type GrowthScreen,
   type InputsScreen,
   type WorkflowScreen,
 } from './inputsScreen.js'
@@ -52,7 +55,15 @@ export function route(request: Request, { storage, today, now }: AppContext): Re
   // a saved POST redirects, so only a GET or a refused edit reads the Inputs view
   const inputsScreen = (
     status: number,
-    { pace, workflowForm, ...screen }: Partial<Omit<InputsScreen, 'milestone' | 'workflow'>> & { workflowForm?: Omit<WorkflowScreen, 'statuses'> } = {},
+    {
+      pace,
+      workflowForm,
+      growthForm,
+      ...screen
+    }: Partial<Omit<InputsScreen, 'milestone' | 'workflow' | 'growth'>> & {
+      workflowForm?: Omit<WorkflowScreen, 'statuses'>
+      growthForm?: Partial<Omit<GrowthScreen, 'view'>>
+    } = {},
   ): Reply => {
     const view = inputsView(storage, team.id)
     return {
@@ -62,6 +73,7 @@ export function route(request: Request, { storage, today, now }: AppContext): Re
         milestone: view.milestone,
         // with no milestone there is no pace form, even to show a refused pace in
         pace: view.milestone.kind === 'milestone' ? (pace ?? savedPaceForm(view.pace)) : undefined,
+        growth: { view: view.growth, form: savedGrowthForm(view.growth), ...growthForm },
         workflow: { statuses: view.workflow.statuses.map((entry) => entry.status), ...(workflowForm ?? { form: savedWorkflowForm(view.workflow) }) },
         ...screen,
       }),
@@ -91,6 +103,14 @@ export function route(request: Request, { storage, today, now }: AppContext): Re
     const change = parseEpicForm(form, now())
     if (!change.ok) return inputsScreen(400, { epicsError: change.error })
     return edit(change.edit, '/inputs', (error) => ({ epicsError: error }))
+  }
+  if (request.method === 'POST' && request.path === '/inputs/growth') {
+    const typed = parseGrowthForm(form)
+    return edit({ kind: 'setAmbiguityRanges', ...typed.ranges }, '/inputs', (error) => ({ growthForm: { form: { ...typed, error } } }))
+  }
+  if (request.method === 'POST' && request.path === '/inputs/growth/medium') {
+    const change: InputsEdit = form.get('source') === 'measured' ? { kind: 'useMeasuredMedium' } : { kind: 'useMediumRange' }
+    return edit(change, '/inputs', (error) => ({ growthForm: { mediumError: error } }))
   }
   if (request.method === 'POST' && request.path === '/inputs/workflow') {
     const typed = parseWorkflowForm(form)
