@@ -117,7 +117,7 @@ describe('committing an epic', () => {
     addChildren(storage, 'E1', 5, 3)
 
     expect(view(storage).epics).toEqual([
-      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 8, doneCount: 0, commit: { baseline: 5, source: 'inTool' }, inProgress: true, blocked: false, hasCommitLabel: false },
+      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 8, doneCount: 0, commit: { baseline: 5, source: 'inTool' }, inProgress: true, finished: false, blocked: false, hasCommitLabel: false },
     ])
   })
 
@@ -189,7 +189,7 @@ describe('pulling an epic back to not started', () => {
     enterManualPace(storage, 10, 10)
 
     expect(view(storage).epics).toEqual([
-      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 10, doneCount: 0, commit: undefined, inProgress: false, blocked: false, hasCommitLabel: false },
+      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 10, doneCount: 0, commit: undefined, inProgress: false, finished: false, blocked: false, hasCommitLabel: false },
     ])
     expect(datesOf(storage)).toEqual(['2026-11-07', '2026-11-07', '2026-11-07'])
   })
@@ -236,7 +236,7 @@ describe('pulling an epic back to not started', () => {
     addChildren(storage, 'E1', 7, 1)
 
     expect(view(storage).epics).toEqual([
-      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 8, doneCount: 0, commit: { baseline: 7, source: 'inTool' }, inProgress: true, blocked: false, hasCommitLabel: false },
+      { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 8, doneCount: 0, commit: { baseline: 7, source: 'inTool' }, inProgress: true, finished: false, blocked: false, hasCommitLabel: false },
     ])
   })
 })
@@ -430,6 +430,14 @@ describe('the commit label left on through a pull-back', () => {
 
     expect(view(storage)).toMatchObject({ epics: [{ commit: { source: 'label' } }], warnings: [] })
   })
+
+  test.each(['Done', 'Cancelled'])('is not raised once the epic moves to %s', (status) => {
+    const storage = pulledBackWithLabel()
+
+    moveEpic(storage, '2026-10-16T09:00:00Z', 'To Do', status)
+
+    expect(view(storage).warnings).toEqual([])
+  })
 })
 
 describe('the in-progress-but-not-committed warning', () => {
@@ -500,6 +508,7 @@ describe('a blocked epic', () => {
         doneCount: 0,
         commit: { baseline: 5, source: 'inTool' },
         inProgress: true,
+        finished: false,
         blocked: true,
         hasCommitLabel: false,
       },

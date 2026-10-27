@@ -29,6 +29,8 @@ export interface MilestoneEpic {
   commit: CommitView | undefined
   /** The epic's own status is mapped to started; its children's statuses play no part. */
   inProgress: boolean
+  /** The epic's own status is mapped to done or cancelled. */
+  finished: boolean
   /** The epic is in a status, or has a label, of the workflow's blocked rule. It stays in the milestone and forecast. */
   blocked: boolean
   /** The epic carries the workflow's commit label now, whether or not a commit stands. */
@@ -63,6 +65,7 @@ export function milestoneEpics(milestone: Milestone, team: TeamFacts): Milestone
       doneCount: children.filter((child) => child.doneAt !== undefined).length,
       commit: commit && commitView(commit, hasCommitLabel),
       inProgress: statusCategory === 'started',
+      finished: statusCategory === 'done' || statusCategory === 'cancelled',
       blocked:
         (status !== undefined && blockedRule.statuses.includes(status)) ||
         (epic?.labels ?? []).some((label) => blockedRule.labels.includes(label)),

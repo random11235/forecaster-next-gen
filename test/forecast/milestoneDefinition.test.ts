@@ -90,8 +90,8 @@ describe('creating a milestone', () => {
       forecast: { kind: 'needsPace' },
       warnings: [],
       epics: [
-        { epicId: 'E3', key: 'E3', name: 'Epic E3', currentCount: 1, doneCount: 0, commit: undefined, inProgress: false, blocked: false, hasCommitLabel: false },
-        { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 2, doneCount: 0, commit: undefined, inProgress: false, blocked: false, hasCommitLabel: false },
+        { epicId: 'E3', key: 'E3', name: 'Epic E3', currentCount: 1, doneCount: 0, commit: undefined, inProgress: false, finished: false, blocked: false, hasCommitLabel: false },
+        { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 2, doneCount: 0, commit: undefined, inProgress: false, finished: false, blocked: false, hasCommitLabel: false },
       ],
     })
   })
@@ -204,8 +204,8 @@ describe('the epics to choose from', () => {
       name: 'Launch',
       committedDate: '2026-12-18',
       epics: [
-        { epicId: 'E3', key: 'E3', name: 'Epic E3', currentCount: 1, doneCount: 0, commit: undefined, inProgress: false, blocked: false, hasCommitLabel: false },
-        { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 2, doneCount: 0, commit: undefined, inProgress: false, blocked: false, hasCommitLabel: false },
+        { epicId: 'E3', key: 'E3', name: 'Epic E3', currentCount: 1, doneCount: 0, commit: undefined, inProgress: false, finished: false, blocked: false, hasCommitLabel: false },
+        { epicId: 'E1', key: 'E1', name: 'Epic E1', currentCount: 2, doneCount: 0, commit: undefined, inProgress: false, finished: false, blocked: false, hasCommitLabel: false },
       ],
       otherEpics: [{ epicId: 'E2', key: 'E2', name: 'Epic E2' }],
     })
