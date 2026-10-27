@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import { editInputs } from '../../src/forecast/inputs.js'
 import { baselineOf, milestoneEpics, type MilestoneEpic } from '../../src/forecast/milestoneEpics.js'
+import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import { teamFacts } from '../../src/forecast/teamFacts.js'
 import type { WorkItem } from '../../src/model/workItem.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
@@ -70,7 +71,7 @@ describe('the baseline', () => {
 
   test("of a committed epic is its commit's, however the epic has grown since", () => {
     const storage = twoEpics()
-    expect(editInputs(storage, TEAM, { kind: 'commitEpic', epicId: 'E1', at: '2026-10-02T12:00:00Z' })).toEqual({ ok: true })
+    expect(editInputs(storage, TEAM, { kind: 'commitEpic', epicId: 'E1', at: '2026-10-02T12:00:00Z' }, DEFAULT_SETTINGS)).toEqual({ ok: true })
     storage.addFacts(TEAM, { workItems: [ticket('E1-4', 'story', { parentId: 'E1' })], events: [] })
 
     const [, e1] = epicsOf(storage)

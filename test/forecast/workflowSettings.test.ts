@@ -76,7 +76,7 @@ function form(categories: Record<string, string>, fields: Partial<WorkflowEdit> 
 const BOARD = { Backlog: 'notStarted', Building: 'started', Shipped: 'done', Dropped: 'cancelled' }
 
 function save(storage: Storage, typed: WorkflowEdit): void {
-  const result = editInputs(storage, TEAM, { kind: 'editWorkflow', ...typed })
+  const result = editInputs(storage, TEAM, { kind: 'editWorkflow', ...typed }, DEFAULT_SETTINGS)
   if (!result.ok) throw new Error(`settings refused: ${result.error}`)
 }
 
@@ -211,7 +211,7 @@ describe('workflow settings view', () => {
   test("a team that hasn't set its workflow has the sample board's, then its own statuses still to map", () => {
     const storage = teamWithBoard([shipped('T1', '2026-10-20T16:00:00Z')])
 
-    expect(inputsView(storage, TEAM).workflow).toEqual({
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).workflow).toEqual({
       statuses: [
         { status: 'To Do', category: 'notStarted' },
         { status: 'In Progress', category: 'started' },
@@ -242,7 +242,7 @@ describe('workflow settings view', () => {
       ),
     )
 
-    expect(inputsView(storage, TEAM).workflow).toEqual({
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).workflow).toEqual({
       statuses: [
         { status: 'Backlog', category: 'notStarted' },
         { status: 'Building', category: 'started' },
@@ -260,7 +260,7 @@ describe('workflow settings view', () => {
 
     save(storage, form({ 'To Do': '', 'In Progress': '', Done: '', Cancelled: '', ...BOARD }))
 
-    expect(inputsView(storage, TEAM).workflow.statuses.map((entry) => entry.status)).toEqual([
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).workflow.statuses.map((entry) => entry.status)).toEqual([
       'Backlog',
       'Building',
       'Shipped',
@@ -274,7 +274,7 @@ describe('workflow settings view', () => {
 
     save(storage, form(BOARD, { commitLabel: '  ' }))
 
-    expect(inputsView(storage, TEAM).workflow).toMatchObject({ commitLabel: undefined })
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).workflow).toMatchObject({ commitLabel: undefined })
   })
 })
 
@@ -289,7 +289,7 @@ describe('the sample data', () => {
   test("ships with its board's mapping started status and commit label", () => {
     const storage = sampleTeam()
 
-    expect(inputsView(storage, SAMPLE_DATA.team.id).workflow).toEqual({
+    expect(inputsView(storage, SAMPLE_DATA.team.id, DEFAULT_SETTINGS).workflow).toEqual({
       statuses: [
         { status: 'To Do', category: 'notStarted' },
         { status: 'In Progress', category: 'started' },
@@ -314,7 +314,7 @@ describe('the sample data', () => {
       startedStatus: 'In Progress',
       commitLabel: '',
       blockedRule: { statuses: [], labels: ['blocked'] },
-    })
+    }, DEFAULT_SETTINGS)
 
     expect(result).toEqual({ ok: true })
     expect(milestoneForecastView(storage, teamId, { today: TODAY, settings: DEFAULT_SETTINGS })).toMatchObject({
@@ -336,9 +336,9 @@ describe('refused workflow settings', () => {
   ])('$why says why and changes nothing', ({ categories, fields, error }) => {
     const storage = teamWithBoard([shipped('T1', '2026-10-20T16:00:00Z')])
     save(storage, form(BOARD))
-    const before = inputsView(storage, TEAM).workflow
+    const before = inputsView(storage, TEAM, DEFAULT_SETTINGS).workflow
 
-    expect(editInputs(storage, TEAM, { kind: 'editWorkflow', ...form(categories, fields) })).toEqual({ ok: false, error })
-    expect(inputsView(storage, TEAM).workflow).toEqual(before)
+    expect(editInputs(storage, TEAM, { kind: 'editWorkflow', ...form(categories, fields) }, DEFAULT_SETTINGS)).toEqual({ ok: false, error })
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).workflow).toEqual(before)
   })
 })
