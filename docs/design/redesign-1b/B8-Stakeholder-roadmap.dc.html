@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0;background:#F7F5F0}a{color:#1F5F6B}a:hover{color:#123F47}</style>
+</helmet>
+<div style="font-family: 'Geist', system-ui, sans-serif; color: #1C1B18; background: #F7F5F0; min-height: 100vh; font-size: 14px">
+<main style="max-width: 1040px; margin: 0 auto; padding: 48px 32px 64px; display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #1C1B18; padding-bottom: 12px"><span style="font-weight: 700; font-size: 17px; letter-spacing: -0.02em">Roadmap</span><span style="font-size: 13px; color: #5E5A52">Read-only · as published by each team</span></div>
+<h1 style="margin: 0; font-size: 40px; line-height: 1.15; font-weight: 600; letter-spacing: -0.03em; max-width: 760px; text-wrap: pretty">Will each milestone land by its committed date?</h1>
+<section style="display: flex; flex-direction: column">
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="5">
+<div style="display: grid; grid-template-columns: 90px minmax(0, 1fr) 220px 150px; gap: 28px; padding: 20px 0; border-bottom: 1px solid #E2DDD2; align-items: center">
+<span style="font-family: 'Geist Mono', monospace; font-size: 36px; font-weight: 600; line-height: 1; {{r.cStyle}}">{{r.chance}}</span>
+<div style="display: flex; flex-direction: column; gap: 3px"><strong style="font-weight: 600; font-size: 17px">{{r.name}}</strong><span style="color: #5E5A52">{{r.team}} · committed {{r.committed}}</span></div>
+<div style="display: flex; flex-direction: column; gap: 3px"><span style="font-size: 12px; color: #8C877C">85% sure by</span><span style="font-family: 'Geist Mono', monospace; {{r.p85Style}}">{{r.p85}}</span></div>
+<div style="display: flex; flex-direction: column; gap: 3px; text-align: right"><span style="font-family: 'Geist Mono', monospace; {{r.deltaStyle}}">{{r.delta}}</span><span style="font-size: 12px; {{r.pubStyle}}">{{r.pub}}</span></div>
+</div>
+</sc-for>
+</section>
+<p style="margin: 0; font-size: 13px; color: #5E5A52">Change is against the team's previous publish. Forecasts older than a week are flagged.</p>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:760}}">
+class Component extends DCLogic {
+  renderVals() {
+    const col = c => c >= 85 ? '#2F6B3F' : c >= 60 ? '#B5482A' : '#8E1F1F';
+    const raw = [
+      ['Platform', 'Observability migration', '30 Nov', 92, '20 Nov', 0, 0, '12 Oct', false],
+      ['Mobile', 'Push preferences', '11 Dec', 84, '11 Dec', 0, 3, '12 Oct', false],
+      ['Payments', 'Checkout v2', '18 Dec', 74, '25 Dec', 7, -6, '6 Oct', true],
+      ['Mobile', 'Offline mode', '31 Jan', 58, '12 Feb', 12, -4, '12 Oct', false],
+      ['Payments', 'Merchant onboarding', '19 Feb', 88, '12 Feb', 0, 2, '13 Oct', false]
+    ];
+    const rows = raw.map(([team, name, committed, c, p85, late, d, pub, stale]) => ({
+      team, name, committed, chance: c + '%', cStyle: 'color:' + col(c),
+      p85: late ? p85 + ' · ' + late + ' days late' : p85, p85Style: late ? 'color:#B5482A;font-weight:600' : '',
+      delta: d === 0 ? 'no change' : (d < 0 ? '▼ ' + (-d) : '▲ ' + d) + ' pts', deltaStyle: d < 0 ? 'color:#B5482A' : d > 0 ? 'color:#2F6B3F' : 'color:#8C877C',
+      pub: stale ? 'Published ' + pub + ' · 8 days old' : 'Published ' + pub, pubStyle: stale ? 'color:#B5482A;font-weight:600' : 'color:#8C877C'
+    }));
+    return { rows };
+  }
+}
+</script>
+</body>
+</html>
