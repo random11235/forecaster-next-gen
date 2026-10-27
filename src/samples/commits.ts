@@ -1,7 +1,7 @@
 import type { EpicCommit } from '../model/epicCommit.js'
 import { categoryLookup, type StatusCategory, type WorkflowSettings } from '../model/workflow.js'
 import type { Facts, WorkItem } from '../model/workItem.js'
-import { childCountAt, historyByItem, type ItemHistory } from './itemHistory.js'
+import { childCounter, historyByItem, type ItemHistory } from './itemHistory.js'
 
 /** How an epic was committed: by the EM in the tool, or by applying the workflow's commit label. */
 export type CommitSource = 'inTool' | 'label'
@@ -55,7 +55,7 @@ export function standingCommits(
   const made: StandingCommit[] = commits.map((commit) => ({ ...commit, source: 'inTool' }))
   const { commitLabel } = workflow
   if (commitLabel !== undefined) {
-    const at = childCountAt(facts.workItems, history, category)
+    const at = childCounter(facts, workflow, history)
     for (const epic of facts.workItems) {
       if (epic.type !== 'epic') continue
       for (const event of history.get(epic.id)?.label ?? []) {
