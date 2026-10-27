@@ -79,7 +79,7 @@ function finishedEpic(
 }
 
 function edit(storage: Storage, change: InputsEdit): void {
-  const result = editInputs(storage, TEAM, change)
+  const result = editInputs(storage, TEAM, change, DEFAULT_SETTINGS)
   if (!result.ok) throw new Error(`edit refused: ${result.error}`)
 }
 
@@ -104,7 +104,7 @@ describe('ambiguity', () => {
       { ambiguity: 'medium', growthSource: 'ambiguity' },
       { ambiguity: 'medium', growthSource: 'ambiguity' },
     ])
-    const milestone = inputsView(storage, TEAM).milestone
+    const milestone = inputsView(storage, TEAM, DEFAULT_SETTINGS).milestone
     expect(milestone.kind === 'milestone' && milestone.epics.map((epic) => epic.ambiguity)).toEqual(['medium', 'medium'])
   })
 
@@ -135,11 +135,11 @@ describe('ambiguity', () => {
   test('refuses a level that is not low, medium or high, or an epic not in the milestone', () => {
     const storage = team()
 
-    expect(editInputs(storage, TEAM, { kind: 'setEpicAmbiguity', epicId: 'E1', ambiguity: 'huge' })).toEqual({
+    expect(editInputs(storage, TEAM, { kind: 'setEpicAmbiguity', epicId: 'E1', ambiguity: 'huge' }, DEFAULT_SETTINGS)).toEqual({
       ok: false,
       error: 'Choose low, medium or high ambiguity.',
     })
-    expect(editInputs(storage, TEAM, { kind: 'setEpicAmbiguity', epicId: 'E9', ambiguity: 'high' })).toEqual({
+    expect(editInputs(storage, TEAM, { kind: 'setEpicAmbiguity', epicId: 'E9', ambiguity: 'high' }, DEFAULT_SETTINGS)).toEqual({
       ok: false,
       error: 'That epic is not in the milestone.',
     })
@@ -157,7 +157,7 @@ describe('ambiguity ranges', () => {
   })
 
   test('start at low 1–1.5×, medium 1–2× and high 1.5–3×', () => {
-    expect(inputsView(team(), TEAM).growth.ranges).toEqual({
+    expect(inputsView(team(), TEAM, DEFAULT_SETTINGS).growth.ranges).toEqual({
       low: { low: 1, high: 1.5 },
       medium: { low: 1, high: 2 },
       high: { low: 1.5, high: 3 },
@@ -169,7 +169,7 @@ describe('ambiguity ranges', () => {
 
     edit(storage!, ranges(typed(' 2.5 ', '3')))
 
-    expect(inputsView(storage!, TEAM).growth.ranges.medium).toEqual({ low: 2.5, high: 3 })
+    expect(inputsView(storage!, TEAM, DEFAULT_SETTINGS).growth.ranges.medium).toEqual({ low: 2.5, high: 3 })
     expect(datesOf(storage!)[0]! > before[2]!).toBe(true)
   })
 
@@ -182,8 +182,8 @@ describe('ambiguity ranges', () => {
   ])('refuses a medium range typed %o', (medium, error) => {
     const storage = team()
 
-    expect(editInputs(storage, TEAM, ranges(medium))).toEqual({ ok: false, error })
-    expect(inputsView(storage, TEAM).growth.ranges.medium).toEqual({ low: 1, high: 2 })
+    expect(editInputs(storage, TEAM, ranges(medium), DEFAULT_SETTINGS)).toEqual({ ok: false, error })
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).growth.ranges.medium).toEqual({ low: 1, high: 2 })
   })
 })
 
@@ -220,7 +220,7 @@ describe('measured growth', () => {
     finishedEpic(storage, 'U1', 10, 30, 'not')
     finishedEpic(storage, 'Z1', 0, 30)
 
-    expect(inputsView(storage, TEAM).growth).toMatchObject({ finishedEpics: 6, mediumMeasured: false, paused: false, suggestion: undefined })
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).growth).toMatchObject({ finishedEpics: 6, mediumMeasured: false, paused: false, suggestion: undefined })
   })
 
   test('from 7 finished committed epics, suggests their range for medium, rounded out to the half, which changes nothing until the EM adopts it', () => {
@@ -228,7 +228,7 @@ describe('measured growth', () => {
     const before = datesOf(storage)
     finishedEpics(storage, 7)
 
-    expect(inputsView(storage, TEAM).growth).toMatchObject({
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).growth).toMatchObject({
       finishedEpics: 7,
       mediumMeasured: false,
       suggestion: { low: 1, high: 3, basis: 'Measured from 7 finished committed epics' },
@@ -248,7 +248,7 @@ describe('measured growth', () => {
       events: moved.map((id) => ({ itemId: id, at: after, kind: 'parent' as const, from: 'F1', to: 'F9' })),
     })
 
-    expect(inputsView(storage, TEAM).growth.suggestion).toMatchObject({ low: 1, high: 3 })
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).growth.suggestion).toMatchObject({ low: 1, high: 3 })
   })
 
   test('once adopted, medium epics draw from the measured growth, while low and high keep their ranges', () => {
@@ -259,7 +259,7 @@ describe('measured growth', () => {
 
     edit(storage, { kind: 'useMeasuredMedium' })
 
-    expect(inputsView(storage, TEAM).growth.mediumMeasured).toBe(true)
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).growth.mediumMeasured).toBe(true)
     expect(view(storage).epics.map((epic) => epic.growthSource)).toEqual(['samples', 'ambiguity'])
     expect(datesOf(storage)[1]! > before[1]!).toBe(true)
   })
@@ -275,7 +275,7 @@ describe('measured growth', () => {
       medium: { low: '1', high: '2' },
       high: { low: '1.5', high: '3' },
     })
-    expect(inputsView(storage, TEAM).growth.mediumMeasured).toBe(true)
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).growth.mediumMeasured).toBe(true)
 
     edit(storage, { kind: 'useMediumRange' })
 
@@ -290,7 +290,7 @@ describe('measured growth', () => {
 
     storage.addFacts(TEAM, { workItems: [], events: [status('F3', '2026-09-01T09:00:00Z', 'In Progress', 'Done')] })
 
-    expect(inputsView(storage, TEAM).growth).toMatchObject({ mediumMeasured: true, paused: true, finishedEpics: 6, needed: 7, suggestion: undefined })
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).growth).toMatchObject({ mediumMeasured: true, paused: true, finishedEpics: 6, needed: 7, suggestion: undefined })
     expect(view(storage).epics[0]).toMatchObject({
       growthSource: 'ambiguity',
       growthBasis: 'Medium ambiguity: grows 1–2× (measured growth paused: 6 of 7 finished epics)',
@@ -312,10 +312,10 @@ describe('measured growth', () => {
     const storage = team()
     finishedEpics(storage, 6)
 
-    expect(editInputs(storage, TEAM, { kind: 'useMeasuredMedium' })).toEqual({
+    expect(editInputs(storage, TEAM, { kind: 'useMeasuredMedium' }, DEFAULT_SETTINGS)).toEqual({
       ok: false,
       error: 'Measured growth needs 7 finished committed epics; there are 6 so far.',
     })
-    expect(inputsView(storage, TEAM).growth.mediumMeasured).toBe(false)
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).growth.mediumMeasured).toBe(false)
   })
 })

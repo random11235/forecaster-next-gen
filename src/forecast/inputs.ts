@@ -3,7 +3,7 @@ import type { Storage } from '../storage/storage.js'
 import { refuse, type EditResult } from './editResult.js'
 import { editGrowth, growthView, type GrowthEdit, type GrowthView } from './growth.js'
 import { editMilestone, milestoneDefinitionView, teamMilestone, type MilestoneDefinitionView, type MilestoneEdit } from './milestoneDefinition.js'
-import { DEFAULT_SETTINGS, type ForecastSettings } from './settings.js'
+import type { ForecastSettings } from './settings.js'
 import { teamFacts } from './teamFacts.js'
 import { editWorkflowSettings, workflowSettingsView, type WorkflowEdit, type WorkflowSettingsView } from './workflowSettings.js'
 
@@ -31,7 +31,7 @@ export interface InputsView {
  * Seam B: the Inputs screen for the team, reading its facts from storage once. The settings are the forecast's, so both
  * screens agree on thresholds such as `minGrowthSamples`.
  */
-export function inputsView(storage: Storage, teamId: string, settings: ForecastSettings = DEFAULT_SETTINGS): InputsView {
+export function inputsView(storage: Storage, teamId: string, settings: ForecastSettings): InputsView {
   const team = teamFacts(storage, teamId)
   const milestone = teamMilestone(storage, teamId)
   const pace = milestone && storage.paceSetting(teamId, milestone.id)
@@ -48,7 +48,7 @@ export function editInputs(
   storage: Storage,
   teamId: string,
   edit: InputsEdit,
-  settings: ForecastSettings = DEFAULT_SETTINGS,
+  settings: ForecastSettings,
 ): EditResult {
   switch (edit.kind) {
     case 'setPace':

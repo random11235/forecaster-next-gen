@@ -36,7 +36,7 @@ function ticket(id: string, type: string, fields: Partial<WorkItem> = {}): WorkI
 
 /** Applies the EM's edit, failing the test if it is refused. */
 function edit(storage: Storage, change: InputsEdit): void {
-  const result = editInputs(storage, TEAM, change)
+  const result = editInputs(storage, TEAM, change, DEFAULT_SETTINGS)
   if (!result.ok) throw new Error(`edit refused: ${result.error}`)
 }
 
@@ -125,8 +125,8 @@ describe('creating a milestone', () => {
       { id: 'E3', open: 1 },
     ])
 
-    expect(editInputs(storage, TEAM, { kind: 'create', name, committedDate, epics })).toEqual({ ok: false, error })
-    expect(inputsView(storage, TEAM).milestone).toMatchObject({ kind: 'noMilestone' })
+    expect(editInputs(storage, TEAM, { kind: 'create', name, committedDate, epics }, DEFAULT_SETTINGS)).toEqual({ ok: false, error })
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).milestone).toMatchObject({ kind: 'noMilestone' })
   })
 
   test('takes ranks with spaces around them', () => {
@@ -141,7 +141,7 @@ describe('creating a milestone', () => {
     const storage = teamWithEpics([{ id: 'E1', open: 2 }, { id: 'E2', open: 1 }])
     create(storage, ['E1'])
 
-    expect(editInputs(storage, TEAM, { kind: 'create', name: 'Other', committedDate: '2027-01-29', epics: ranked(['E2']) })).toEqual({
+    expect(editInputs(storage, TEAM, { kind: 'create', name: 'Other', committedDate: '2027-01-29', epics: ranked(['E2']) }, DEFAULT_SETTINGS)).toEqual({
       ok: false,
       error: 'This team already has a milestone.',
     })
@@ -156,7 +156,7 @@ describe("editing the milestone's name and committed date", () => {
 
     edit(storage, { kind: 'editDetails', name: '  Launch v2 ', committedDate: '2027-01-29' })
 
-    expect(inputsView(storage, TEAM).milestone).toMatchObject({
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).milestone).toMatchObject({
       kind: 'milestone',
       name: 'Launch v2',
       committedDate: '2027-01-29',
@@ -173,8 +173,8 @@ describe("editing the milestone's name and committed date", () => {
     const storage = teamWithEpics([{ id: 'E1', open: 2 }])
     create(storage, ['E1'])
 
-    expect(editInputs(storage, TEAM, { kind: 'editDetails', name, committedDate })).toEqual({ ok: false, error })
-    expect(inputsView(storage, TEAM).milestone).toMatchObject({ name: 'Launch', committedDate: '2026-12-18' })
+    expect(editInputs(storage, TEAM, { kind: 'editDetails', name, committedDate }, DEFAULT_SETTINGS)).toEqual({ ok: false, error })
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).milestone).toMatchObject({ name: 'Launch', committedDate: '2026-12-18' })
   })
 })
 
@@ -185,7 +185,7 @@ describe('the epics to choose from', () => {
       [ticket('E3', 'epic'), ticket('BUG-1', 'bug', { labels: ['ktlo'] })],
     )
 
-    expect(inputsView(storage, TEAM).milestone).toEqual({
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).milestone).toEqual({
       kind: 'noMilestone',
       teamEpics: [
         { epicId: 'E1', key: 'E1', name: 'Epic E1' },
@@ -199,7 +199,7 @@ describe('the epics to choose from', () => {
 
     create(storage, ['E3', 'E1'])
 
-    expect(inputsView(storage, TEAM).milestone).toEqual({
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).milestone).toEqual({
       kind: 'milestone',
       name: 'Launch',
       committedDate: '2026-12-18',
@@ -228,7 +228,7 @@ describe('adding an epic', () => {
 
     expect(epicKeys(storage)).toEqual(['E1', 'E2'])
     for (const date of datesOf(storage)) expect(TWO_OR_THREE_WEEKS).toContain(date)
-    expect(inputsView(storage, TEAM).milestone).toMatchObject({ otherEpics: [] })
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).milestone).toMatchObject({ otherEpics: [] })
   })
 
   test.each([
@@ -239,7 +239,7 @@ describe('adding an epic', () => {
     const storage = teamWithEpics([{ id: 'E1', open: 4 }, { id: 'E2', open: 1 }, { id: 'E3', open: 0, fields: { cancelledAt: CREATED } }])
     create(storage, ['E1'])
 
-    expect(editInputs(storage, TEAM, { kind: 'addEpic', epicId })).toEqual({ ok: false, error })
+    expect(editInputs(storage, TEAM, { kind: 'addEpic', epicId }, DEFAULT_SETTINGS)).toEqual({ ok: false, error })
     expect(epicKeys(storage)).toEqual(['E1'])
   })
 })
@@ -255,14 +255,14 @@ describe('removing an epic', () => {
 
     expect(epicKeys(storage)).toEqual(['E1'])
     expect(datesOf(storage)).toEqual([ONE_WEEK, ONE_WEEK, ONE_WEEK])
-    expect(inputsView(storage, TEAM).milestone).toMatchObject({ otherEpics: [{ key: 'E2' }] })
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).milestone).toMatchObject({ otherEpics: [{ key: 'E2' }] })
   })
 
   test('is refused for an epic not in the milestone', () => {
     const storage = teamWithEpics([{ id: 'E1', open: 4 }, { id: 'E2', open: 1 }])
     create(storage, ['E1'])
 
-    expect(editInputs(storage, TEAM, { kind: 'removeEpic', epicId: 'E2' })).toEqual({
+    expect(editInputs(storage, TEAM, { kind: 'removeEpic', epicId: 'E2' }, DEFAULT_SETTINGS)).toEqual({
       ok: false,
       error: 'That epic is not in the milestone.',
     })
@@ -272,7 +272,7 @@ describe('removing an epic', () => {
     const storage = teamWithEpics([{ id: 'E1', open: 4 }])
     create(storage, ['E1'])
 
-    expect(editInputs(storage, TEAM, { kind: 'removeEpic', epicId: 'E1' })).toEqual({
+    expect(editInputs(storage, TEAM, { kind: 'removeEpic', epicId: 'E1' }, DEFAULT_SETTINGS)).toEqual({
       ok: false,
       error: 'A milestone holds at least one epic. Add another before removing this one.',
     })
@@ -318,7 +318,7 @@ describe('reordering epics', () => {
     const storage = teamWithEpics([{ id: 'E1', open: 4 }, { id: 'E2', open: 1 }])
     create(storage, ['E1'])
 
-    expect(editInputs(storage, TEAM, { kind: 'moveEpic', epicId: 'E2', direction: 'up' })).toEqual({
+    expect(editInputs(storage, TEAM, { kind: 'moveEpic', epicId: 'E2', direction: 'up' }, DEFAULT_SETTINGS)).toEqual({
       ok: false,
       error: 'That epic is not in the milestone.',
     })
@@ -334,6 +334,6 @@ describe('editing a milestone before it exists', () => {
   ])('$kind is refused', (change) => {
     const storage = teamWithEpics([{ id: 'E1', open: 4 }])
 
-    expect(editInputs(storage, TEAM, change)).toEqual({ ok: false, error: 'Define the milestone first.' })
+    expect(editInputs(storage, TEAM, change, DEFAULT_SETTINGS)).toEqual({ ok: false, error: 'Define the milestone first.' })
   })
 })
