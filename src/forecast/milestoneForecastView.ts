@@ -62,7 +62,7 @@ export function milestoneForecastView(storage: Storage, teamId: string, options:
     name: milestone.name,
     committedDate: milestone.committedDate,
     forecast: forecastFor(milestone, team, storage.paceSetting(teamId, milestone.id), options),
-    warnings: epicWarnings(epics),
+    warnings: epicWarnings(epics, team.workflow.commitLabel),
     epics,
   }
 }

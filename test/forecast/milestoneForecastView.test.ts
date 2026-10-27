@@ -91,7 +91,7 @@ describe('milestone forecast view on sample data', () => {
           name: 'Card vaulting',
           currentCount: 6,
           doneCount: 4,
-          commit: { baseline: 5, source: 'label' },
+          commit: { baseline: 5, source: 'label', labelRemoved: false },
           inProgress: true,
           blocked: false,
         },

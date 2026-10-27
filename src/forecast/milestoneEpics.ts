@@ -1,14 +1,18 @@
 import type { Milestone } from '../model/milestone.js'
 import { categoryLookup, type StatusCategory } from '../model/workflow.js'
 import { childrenOf, type WorkItem, type WorkItemEvent } from '../model/workItem.js'
-import type { CommitSource } from '../samples/commits.js'
+import type { StandingCommit } from '../samples/commits.js'
 import type { TeamFacts } from './teamFacts.js'
 
 /** An epic's commit as the screens show it: its baseline, the children it had when committed, and how it was made. */
-export interface CommitView {
-  baseline: number
-  source: CommitSource
-}
+export type CommitView =
+  | { baseline: number; source: 'inTool' }
+  | {
+      baseline: number
+      source: 'label'
+      /** The commit label has since come off the epic. The commit stands until the EM acts on it. */
+      labelRemoved: boolean
+    }
 
 /** A milestone's epic as it stands, the same on every screen and in the forecast. */
 export interface MilestoneEpic {
@@ -54,7 +58,7 @@ export function milestoneEpics(milestone: Milestone, team: TeamFacts): Milestone
       name: epic?.title ?? epic?.sourceKey ?? epicId,
       currentCount: children.length,
       doneCount: children.filter((child) => child.doneAt !== undefined).length,
-      commit: commit && { baseline: commit.baseline, source: commit.source },
+      commit: commit && commitView(commit, epic, team.workflow.commitLabel),
       inProgress: statusCategory === 'started',
       blocked:
         (status !== undefined && blockedRule.statuses.includes(status)) ||
@@ -66,6 +70,12 @@ export function milestoneEpics(milestone: Milestone, team: TeamFacts): Milestone
 /** The count the epic's growth applies to: its commit's baseline, or, uncommitted, its current count as a provisional baseline. */
 export function baselineOf(epic: MilestoneEpic): number {
   return epic.commit?.baseline ?? epic.currentCount
+}
+
+function commitView(commit: StandingCommit, epic: WorkItem | undefined, commitLabel: string | undefined): CommitView {
+  if (commit.source === 'inTool') return { baseline: commit.baseline, source: 'inTool' }
+  const labelRemoved = commitLabel === undefined || !(epic?.labels ?? []).includes(commitLabel)
+  return { baseline: commit.baseline, source: 'label', labelRemoved }
 }
 
 /** An epic with no status history is where the connector's times put it. */

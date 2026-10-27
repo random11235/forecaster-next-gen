@@ -20,10 +20,18 @@ export function informationNotes(result: ForecastResult): string[] {
 
 /**
  * Warnings about the milestone's epics, in rank order: each epic in progress (by its own status) with no commit
- * standing, since an epic never committed never produces a growth sample. Blocked epics are flagged on their row.
+ * standing, since an epic never committed never produces a growth sample, and each epic committed by the commit label
+ * that has since lost it, for the EM to put the label back or remove the epic from the milestone. Blocked epics are
+ * flagged on their row.
  */
-export function epicWarnings(epics: readonly MilestoneEpic[]): string[] {
-  return epics.filter((epic) => epic.inProgress && !epic.commit).map((epic) => `${epic.name} is in progress but isn't committed`)
+export function epicWarnings(epics: readonly MilestoneEpic[], commitLabel: string | undefined): string[] {
+  return epics.flatMap((epic) => {
+    if (epic.inProgress && !epic.commit) return [`${epic.name} is in progress but isn't committed`]
+    if (epic.commit?.source === 'label' && epic.commit.labelRemoved) {
+      return [`${epic.name} is committed but no longer has the “${commitLabel ?? ''}” label`]
+    }
+    return []
+  })
 }
 
 /** Says plainly why measured pace gives no forecast yet. */
