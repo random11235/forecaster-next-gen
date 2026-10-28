@@ -458,23 +458,23 @@ describe('Inputs screen: growth', () => {
     expect(html).toMatch(/name="high-low"[^>]*value="4"/)
   })
 
-  test('from 7 finished committed epics, suggests their growth for medium, which the EM can adopt and undo', async () => {
+  test('from 7 growth samples, suggests their growth for medium, which the EM can adopt and undo', async () => {
     await startOnSampleData()
     addFinishedEpics(7)
 
     const html = text(await page('/inputs'))
-    expect(html).toContain('Suggested for medium: grow as the measured epics did, roughly 1.5×. Measured from 7 finished committed epics.')
+    expect(html).toContain('Suggested for medium: grow as the measured epics did, roughly 1.5×. Measured from 7 growth samples.')
     expect(text(await page('/'))).toContain('Medium ambiguity: grows 1–2×')
 
     expect((await post('/inputs/growth/medium', [['source', 'measured']])).status).toBe(303)
     expect(text(await page('/inputs'))).toContain('Medium epics grow as the measured epics did, roughly 1.5×.')
-    expect(text(await page('/'))).toContain('Medium ambiguity: grows as measured from 7 finished committed epics')
+    expect(text(await page('/'))).toContain('Medium ambiguity: grows as measured from 7 growth samples')
 
     await post('/inputs/growth/medium', [['source', 'range']])
     expect(text(await page('/'))).toContain('Medium ambiguity: grows 1–2×')
   })
 
-  test('says measured growth is paused once too few finished epics are left, and the EM can turn it off', async () => {
+  test('says measured growth is paused once too few growth samples are left, and the EM can turn it off', async () => {
     await startOnSampleData()
     addFinishedEpics(7)
     await post('/inputs/growth/medium', [['source', 'measured']])
@@ -487,14 +487,14 @@ describe('Inputs screen: growth', () => {
     expect(text(await page('/inputs'))).toContain(
       'Measured growth is paused: it needs 7 growth samples, and has 6. Medium epics grow 1–2× until there are 7 again.',
     )
-    expect(text(await page('/'))).toContain('Medium ambiguity: grows 1–2× (measured growth paused: 6 of 7 growth samples)')
+    expect(text(await page('/'))).toContain('Medium ambiguity: grows 1–2× (measured growth paused: it needs 7 growth samples, and has 6)')
 
     expect((await post('/inputs/growth/medium', [['source', 'range']])).status).toBe(303)
     expect(text(await page('/inputs'))).toContain('6 growth samples so far')
     expect(text(await page('/'))).not.toContain('paused')
   })
 
-  test('refuses measured growth before 7 finished committed epics', async () => {
+  test('refuses measured growth before 7 growth samples', async () => {
     await startOnSampleData()
     addFinishedEpics(6)
 

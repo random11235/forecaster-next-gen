@@ -214,7 +214,7 @@ describe('measured growth', () => {
     for (let i = 1; i <= count; i++) finishedEpic(storage, `F${i}`, 10, i === 1 ? 12 : 30, i % 2 === 0 ? 'label' : 'inTool')
   }
 
-  test('suggests no medium range before 7 finished committed epics, and counts only those with a baseline', () => {
+  test('suggests no medium range before 7 growth samples, which only epics with a baseline give', () => {
     const storage = team()
     finishedEpics(storage, 6)
     finishedEpic(storage, 'U1', 10, 30, 'not')
@@ -223,7 +223,7 @@ describe('measured growth', () => {
     expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).growth).toMatchObject({ growthSamples: 6, mediumMeasured: false, paused: false, suggestion: undefined })
   })
 
-  test('from 7 finished committed epics, suggests their range for medium, rounded out to the half, which changes nothing until the EM adopts it', () => {
+  test('from 7 growth samples, suggests their range for medium, rounded out to the half, which changes nothing until the EM adopts it', () => {
     const storage = team()
     const before = datesOf(storage)
     finishedEpics(storage, 7)
@@ -231,7 +231,7 @@ describe('measured growth', () => {
     expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).growth).toMatchObject({
       growthSamples: 7,
       mediumMeasured: false,
-      suggestion: { low: 1, high: 3, basis: 'Measured from 7 finished committed epics' },
+      suggestion: { low: 1, high: 3, basis: 'Measured from 7 growth samples' },
     })
     expect(view(storage).epics[0]!.growthSource).toBe('ambiguity')
     expect(datesOf(storage)).toEqual(before)
@@ -296,7 +296,7 @@ describe('measured growth', () => {
     expect(datesOf(storage)).toEqual(before)
   })
 
-  test('adopted, and then too few finished epics: medium is back on its range, and both screens say why', () => {
+  test('adopted, and then too few growth samples: medium is back on its range, and both screens say why', () => {
     const storage = team()
     finishedEpics(storage, 7)
     edit(storage, { kind: 'useMeasuredMedium' })
@@ -306,7 +306,7 @@ describe('measured growth', () => {
     expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).growth).toMatchObject({ mediumMeasured: true, paused: true, growthSamples: 6, samplesNeeded: 7, suggestion: undefined })
     expect(view(storage).epics[0]).toMatchObject({
       growthSource: 'ambiguity',
-      growthBasis: 'Medium ambiguity: grows 1–2× (measured growth paused: 6 of 7 growth samples)',
+      growthBasis: 'Medium ambiguity: grows 1–2× (measured growth paused: it needs 7 growth samples, and has 6)',
     })
   })
 
@@ -321,7 +321,7 @@ describe('measured growth', () => {
     expect(shown.kind === 'milestone' && shown.epics[0]!.growthSource).toBe('samples')
   })
 
-  test('refuses measured growth before 7 finished committed epics', () => {
+  test('refuses measured growth before 7 growth samples', () => {
     const storage = team()
     finishedEpics(storage, 6)
 

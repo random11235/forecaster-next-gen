@@ -1,7 +1,7 @@
 import { counted } from '../forecast/counted.js'
 import { MAX_TICKETS_PER_WEEK, type InputsEdit } from '../forecast/inputs.js'
 import type { EpicChoice, MilestoneDefinitionView, RankedEpic } from '../forecast/milestoneDefinition.js'
-import { ambiguityName, MAX_GROWTH, rangeText, type GrowthView, type TypedRange } from '../forecast/growth.js'
+import { ambiguityName, MAX_GROWTH, rangeText, samplesShortfall, type GrowthView, type TypedRange } from '../forecast/growth.js'
 import type { WorkflowEdit, WorkflowSettingsView } from '../forecast/workflowSettings.js'
 import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
 import type { ThroughputRange } from '../model/paceSetting.js'
@@ -360,12 +360,10 @@ ${measuredGrowth(view, mediumError)}`,
 
 /** The measured medium range: how many growth samples there are, and, once enough, the suggestion to adopt. */
 function measuredGrowth({ growthSamples, samplesNeeded, suggestion, mediumMeasured, paused, ranges }: GrowthView, error: string | undefined): string {
-  const needed = counted(samplesNeeded, 'growth sample')
   if (paused) {
-    return `        <form method="post" action="/inputs/growth/medium" class="suggestion">${errorLine(error)}
-          <p><strong>Measured growth is paused: it needs ${needed}, and has ${growthSamples}.</strong> <span class="note">Medium epics grow ${rangeText(ranges.medium)} until there are ${samplesNeeded} again.</span></p>
-          <button type="submit" name="source" value="range">Use the medium range instead</button>
-        </form>`
+    const line = `Measured growth is paused: it ${samplesShortfall(growthSamples, samplesNeeded)}.`
+    const note = `Medium epics grow ${rangeText(ranges.medium)} until there are ${samplesNeeded} again.`
+    return mediumSourceForm(error, line, note, 'range', 'Use the medium range instead')
   }
   if (!suggestion) {
     return `${errorLine(error)}
@@ -373,10 +371,15 @@ function measuredGrowth({ growthSamples, samplesNeeded, suggestion, mediumMeasur
   }
   // The span shown is rounded; medium epics draw from the measured epics' growth itself
   const [line, source, label] = mediumMeasured
-    ? [`Medium epics grow as the measured epics did, roughly ${rangeText(suggestion)}.`, 'range', 'Use the medium range instead']
-    : [`Suggested for medium: grow as the measured epics did, roughly ${rangeText(suggestion)}.`, 'measured', 'Use measured growth for medium']
+    ? [`Medium epics grow as the measured epics did, roughly ${rangeText(suggestion)}.`, 'range', 'Use the medium range instead'] as const
+    : [`Suggested for medium: grow as the measured epics did, roughly ${rangeText(suggestion)}.`, 'measured', 'Use measured growth for medium'] as const
+  return mediumSourceForm(error, line, `${escapeHtml(suggestion.basis)}.`, source, label)
+}
+
+/** A statement about medium's growth, with the button that switches medium to the other source. */
+function mediumSourceForm(error: string | undefined, line: string, note: string, source: 'range' | 'measured', label: string): string {
   return `        <form method="post" action="/inputs/growth/medium" class="suggestion">${errorLine(error)}
-          <p><strong>${line}</strong> <span class="note">${escapeHtml(suggestion.basis)}.</span></p>
+          <p><strong>${line}</strong> <span class="note">${note}</span></p>
           <button type="submit" name="source" value="${source}">${label}</button>
         </form>`
 }

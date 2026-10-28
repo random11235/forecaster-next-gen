@@ -1,4 +1,5 @@
 import type { GrowthRange } from '../engine/index.js'
+import { counted } from './counted.js'
 import type { ForecastSettings } from './settings.js'
 
 /** A measured range offered to the EM, and what it was measured from. It applies only once the EM adopts it. */
@@ -16,7 +17,7 @@ export function measuredMediumSuggestion(growthSamples: readonly number[], setti
   return {
     low: halfBelow(Math.min(...growthSamples)),
     high: halfAbove(Math.max(...growthSamples)),
-    basis: `Measured from ${growthSamples.length} finished committed epics`,
+    basis: `Measured from ${counted(growthSamples.length, 'growth sample')}`,
   }
 }
 
