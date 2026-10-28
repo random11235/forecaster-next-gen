@@ -4,6 +4,9 @@ import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
 
+/** Before any ticket the tests finish, so installation leaves out none of them. */
+const INSTALLED = '2026-01-01T00:00:00Z'
+
 let app: RunningApp | undefined
 
 /** Starts the app on a free port without opening a browser, on empty storage unless given some. */
@@ -33,7 +36,7 @@ describe('one-command launch', () => {
 
   test('serves the Milestone forecast screen in its empty state when no milestone is defined', async () => {
     const storage = openSqliteStorage(':memory:')
-    storage.saveTeam({ id: 'ACME', name: 'ACME', source: 'jira', sourceRef: 'ACME' })
+    storage.saveTeam({ id: 'ACME', name: 'ACME', source: 'jira', sourceRef: 'ACME', installedAt: INSTALLED })
     app = await startOnFreePort(storage)
 
     const response = await fetch(app.url)

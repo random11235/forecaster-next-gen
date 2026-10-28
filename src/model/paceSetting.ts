@@ -3,10 +3,16 @@ import type { ThroughputRange } from '../engine/index.js'
 export type { ThroughputRange }
 
 /**
- * The pace a milestone's forecast uses: the EM's manual low–high range of tickets per week (set on the Inputs
- * screen), or the milestone's measured weekly pace once the EM has switched to it.
+ * The pace the EM chose for a milestone: their manual range, or measured pace. Measured pace applies only while the
+ * milestone has earned it (`minMeasuredPaceWeeks` of its own finished tickets); until then the manual range does.
  */
-export type Pace = ({ mode: 'manual' } & ThroughputRange) | { mode: 'measured' }
+export type PaceMode = 'manual' | 'measured'
 
 /** A milestone's pace, as stored. */
-export type PaceSetting = { teamId: string; milestoneId: string } & Pace
+export interface PaceSetting {
+  teamId: string
+  milestoneId: string
+  mode: PaceMode
+  /** The EM's manual range of tickets per week, if entered. Kept when the EM switches to measured pace. */
+  manual: ThroughputRange | undefined
+}

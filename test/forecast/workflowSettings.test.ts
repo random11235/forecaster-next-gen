@@ -10,6 +10,9 @@ import { SAMPLE_DATA } from '../../src/sample/sampleData.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
 
+/** Before any ticket the tests finish, so installation leaves out none of them. */
+const INSTALLED = '2026-01-01T00:00:00Z'
+
 const TEAM = 'ACME'
 const MILESTONE = 'ACME-M'
 const TODAY = '2026-10-24'
@@ -36,7 +39,7 @@ interface TicketSpec {
  */
 function teamWithBoard(tickets: TicketSpec[]): Storage {
   storage = openSqliteStorage(':memory:')
-  storage.saveTeam({ id: TEAM, name: TEAM, source: 'jira', sourceRef: TEAM })
+  storage.saveTeam({ id: TEAM, name: TEAM, source: 'jira', sourceRef: TEAM, installedAt: INSTALLED })
   const workItems: WorkItem[] = [item('E1', 'epic', { title: 'Epic E1' })]
   const events: WorkItemEvent[] = []
   for (const ticket of tickets) {
@@ -49,7 +52,6 @@ function teamWithBoard(tickets: TicketSpec[]): Storage {
   }
   storage.addFacts(TEAM, { workItems, events })
   storage.saveMilestone({ id: MILESTONE, teamId: TEAM, name: 'Launch', committedDate: '2026-12-18', epicIds: ['E1'] })
-  storage.savePaceSetting({ teamId: TEAM, milestoneId: MILESTONE, mode: 'measured' })
   return storage
 }
 
@@ -76,8 +78,13 @@ function form(categories: Record<string, string>, fields: Partial<WorkflowEdit> 
 const BOARD = { Backlog: 'notStarted', Building: 'started', Shipped: 'done', Dropped: 'cancelled' }
 
 function save(storage: Storage, typed: WorkflowEdit): void {
-  const result = editInputs(storage, TEAM, { kind: 'editWorkflow', ...typed }, DEFAULT_SETTINGS)
+  const result = editInputs(storage, TEAM, { kind: 'editWorkflow', ...typed }, DEFAULT_SETTINGS, TODAY)
   if (!result.ok) throw new Error(`settings refused: ${result.error}`)
+}
+
+/** Weeks of finished tickets under the milestone's epics: 0 while none counts as done. */
+function weeksOfFinishedTickets(storage: Storage): number | undefined {
+  return inputsView(storage, TEAM, DEFAULT_SETTINGS, TODAY).pace?.weeks
 }
 
 function forecastView(storage: Storage) {
@@ -91,10 +98,10 @@ describe('status mapping', () => {
     const storage = teamWithBoard([shipped('T1', '2026-10-20T16:00:00Z'), shipped('T2', '2026-10-13T16:00:00Z')])
 
     save(storage, form({ ...BOARD, Shipped: 'started' }))
-    expect(forecastView(storage).forecast).toMatchObject({ kind: 'thinData' })
+    expect(weeksOfFinishedTickets(storage)).toBe(0)
 
     save(storage, form(BOARD))
-    expect(forecastView(storage).forecast).toMatchObject({ kind: 'forecast', pace: { mode: 'measured' } })
+    expect(weeksOfFinishedTickets(storage)).toBe(2)
   })
 
   test("a ticket in a status mapped to cancelled no longer counts among the epic's items", () => {
@@ -116,28 +123,25 @@ describe('status mapping', () => {
     ])
     save(storage, form(BOARD))
 
-    expect(forecastView(storage).forecast).toMatchObject({ kind: 'thinData' })
+    expect(weeksOfFinishedTickets(storage)).toBe(0)
   })
 
   test('a ticket is done from when it entered the first of a run of done statuses', () => {
-    // Shipped in the week before last, Verified last week: done the week it shipped, so two weeks of pace (1, 0),
-    // which vary a lot. Counted from Verified, there would be one week, too few for a pace variation note.
+    // Shipped in the week before last, Verified last week: done the week it shipped, so two weeks of finished
+    // tickets. Counted from Verified, there would be one.
     const storage = teamWithBoard([
       { id: 'T1', path: [['Backlog', CREATED], ['Shipped', '2026-10-13T09:00:00Z'], ['Verified', '2026-10-21T09:00:00Z']] },
     ])
     save(storage, form({ ...BOARD, Verified: 'done' }))
 
-    expect(forecastView(storage).forecast).toMatchObject({
-      kind: 'forecast',
-      notes: ['Your weekly pace varies a lot, so the range is wide.'],
-    })
+    expect(weeksOfFinishedTickets(storage)).toBe(2)
   })
 
   test('a status that is not mapped counts as not started', () => {
     const storage = teamWithBoard([shipped('T1', '2026-10-20T16:00:00Z')])
     // A Jira team that hasn't set its workflow has the sample board's, which has no Shipped status
 
-    expect(forecastView(storage).forecast).toMatchObject({ kind: 'thinData' })
+    expect(weeksOfFinishedTickets(storage)).toBe(0)
   })
 })
 
@@ -211,7 +215,7 @@ describe('workflow settings view', () => {
   test("a team that hasn't set its workflow has the sample board's, then its own statuses still to map", () => {
     const storage = teamWithBoard([shipped('T1', '2026-10-20T16:00:00Z')])
 
-    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).workflow).toEqual({
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS, TODAY).workflow).toEqual({
       statuses: [
         { status: 'To Do', category: 'notStarted' },
         { status: 'In Progress', category: 'started' },
@@ -242,7 +246,7 @@ describe('workflow settings view', () => {
       ),
     )
 
-    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).workflow).toEqual({
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS, TODAY).workflow).toEqual({
       statuses: [
         { status: 'Backlog', category: 'notStarted' },
         { status: 'Building', category: 'started' },
@@ -260,7 +264,7 @@ describe('workflow settings view', () => {
 
     save(storage, form({ 'To Do': '', 'In Progress': '', Done: '', Cancelled: '', ...BOARD }))
 
-    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).workflow.statuses.map((entry) => entry.status)).toEqual([
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS, TODAY).workflow.statuses.map((entry) => entry.status)).toEqual([
       'Backlog',
       'Building',
       'Shipped',
@@ -274,7 +278,7 @@ describe('workflow settings view', () => {
 
     save(storage, form(BOARD, { commitLabel: '  ' }))
 
-    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).workflow).toMatchObject({ commitLabel: undefined })
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS, TODAY).workflow).toMatchObject({ commitLabel: undefined })
   })
 })
 
@@ -282,14 +286,13 @@ describe('the sample data', () => {
   function sampleTeam(): Storage {
     storage = openSqliteStorage(':memory:')
     loadSampleDataIfEmpty(storage)
-    storage.savePaceSetting({ teamId: SAMPLE_DATA.team.id, milestoneId: SAMPLE_DATA.milestone.id, mode: 'measured' })
     return storage
   }
 
   test("ships with its board's mapping started status and commit label", () => {
     const storage = sampleTeam()
 
-    expect(inputsView(storage, SAMPLE_DATA.team.id, DEFAULT_SETTINGS).workflow).toEqual({
+    expect(inputsView(storage, SAMPLE_DATA.team.id, DEFAULT_SETTINGS, TODAY).workflow).toEqual({
       statuses: [
         { status: 'To Do', category: 'notStarted' },
         { status: 'In Progress', category: 'started' },
@@ -305,8 +308,8 @@ describe('the sample data', () => {
   test('changing the mapping changes which tickets the forecast counts as done', () => {
     const storage = sampleTeam()
     const teamId = SAMPLE_DATA.team.id
-    const before = milestoneForecastView(storage, teamId, { today: TODAY, settings: DEFAULT_SETTINGS })
-    expect(before).toMatchObject({ forecast: { kind: 'forecast' } })
+    const weeks = () => inputsView(storage, teamId, DEFAULT_SETTINGS, TODAY).pace?.weeks
+    expect(weeks()).toBe(7)
 
     const result = editInputs(storage, teamId, {
       kind: 'editWorkflow',
@@ -314,12 +317,10 @@ describe('the sample data', () => {
       startedStatus: 'In Progress',
       commitLabel: '',
       blockedRule: { statuses: [], labels: ['blocked'] },
-    }, DEFAULT_SETTINGS)
+    }, DEFAULT_SETTINGS, TODAY)
 
     expect(result).toEqual({ ok: true })
-    expect(milestoneForecastView(storage, teamId, { today: TODAY, settings: DEFAULT_SETTINGS })).toMatchObject({
-      forecast: { kind: 'thinData' },
-    })
+    expect(weeks()).toBe(0)
   })
 })
 
@@ -336,9 +337,9 @@ describe('refused workflow settings', () => {
   ])('$why says why and changes nothing', ({ categories, fields, error }) => {
     const storage = teamWithBoard([shipped('T1', '2026-10-20T16:00:00Z')])
     save(storage, form(BOARD))
-    const before = inputsView(storage, TEAM, DEFAULT_SETTINGS).workflow
+    const before = inputsView(storage, TEAM, DEFAULT_SETTINGS, TODAY).workflow
 
-    expect(editInputs(storage, TEAM, { kind: 'editWorkflow', ...form(categories, fields) }, DEFAULT_SETTINGS)).toEqual({ ok: false, error })
-    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).workflow).toEqual(before)
+    expect(editInputs(storage, TEAM, { kind: 'editWorkflow', ...form(categories, fields) }, DEFAULT_SETTINGS, TODAY)).toEqual({ ok: false, error })
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS, TODAY).workflow).toEqual(before)
   })
 })
