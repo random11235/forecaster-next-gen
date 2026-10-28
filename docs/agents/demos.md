@@ -11,8 +11,8 @@ Give a ticket with a visible change the acceptance criterion `- [ ] Demo: screen
 1. Build the app and start it without opening a browser:
    `npm run build && PORT=5199 FORECASTER_NO_BROWSER=1 node dist/app/main.js &`
 2. Bring the screen into the state to show, using the canned sample data.
-3. Screenshot it with headless Chrome:
-   `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless --hide-scrollbars --window-size=1280,800 --screenshot=docs/demos/<issue>-<screen>-<state>.png <url>`
+3. Screenshot it with headless Chrome, giving the Geist web fonts time to load (without `--virtual-time-budget`, Chrome can shoot the page in the narrower system font):
+   `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless --hide-scrollbars --window-size=1280,800 --virtual-time-budget=5000 --screenshot=docs/demos/<issue>-<screen>-<state>.png <url>`
    A state that a URL alone can't reach (it needs clicks or typing) is captured with a browser automation tool instead.
 4. Open the image and check it shows the state, then stop the app.
 5. Commit the image to the ticket branch under `docs/demos/`.
