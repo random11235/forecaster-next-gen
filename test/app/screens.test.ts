@@ -427,7 +427,7 @@ describe('Inputs screen: growth', () => {
     for (const [field, value] of Object.entries(Object.fromEntries(growthForm()))) {
       expect(html).toMatch(new RegExp(`name="${field}"[^>]*value="${value}"`))
     }
-    expect(text(html)).toContain('0 finished committed epics so far.')
+    expect(text(html)).toContain('0 growth samples so far: one from each finished committed epic that had items when committed.')
     expect(text(await page('/'))).toContain('Medium ambiguity: grows 1–2×')
 
     const response = await post('/inputs/epics', [['epic', 'PAY-1'], ['ambiguity', 'high'], ['action', 'ambiguity']])
@@ -458,30 +458,50 @@ describe('Inputs screen: growth', () => {
     expect(html).toMatch(/name="high-low"[^>]*value="4"/)
   })
 
-  test('from 7 finished committed epics, suggests their growth for medium, which the EM can adopt and undo', async () => {
+  test('from 7 growth samples, suggests their growth for medium, which the EM can adopt and undo', async () => {
     await startOnSampleData()
     addFinishedEpics(7)
 
     const html = text(await page('/inputs'))
-    expect(html).toContain('Suggested for medium: grow as measured, from 1.5×. Measured from 7 finished committed epics.')
+    expect(html).toContain('Suggested for medium: grow as the measured epics did, roughly 1.5×. Measured from 7 growth samples.')
     expect(text(await page('/'))).toContain('Medium ambiguity: grows 1–2×')
 
     expect((await post('/inputs/growth/medium', [['source', 'measured']])).status).toBe(303)
-    expect(text(await page('/inputs'))).toContain('Medium epics grow as measured, from 1.5×.')
-    expect(text(await page('/'))).toContain('Medium ambiguity: grows as measured from 7 finished epics')
+    expect(text(await page('/inputs'))).toContain('Medium epics grow as the measured epics did, roughly 1.5×.')
+    expect(text(await page('/'))).toContain('Medium ambiguity: grows as measured from 7 growth samples')
 
     await post('/inputs/growth/medium', [['source', 'range']])
     expect(text(await page('/'))).toContain('Medium ambiguity: grows 1–2×')
   })
 
-  test('refuses measured growth before 7 finished committed epics', async () => {
+  test('says measured growth is paused once too few growth samples are left, and the EM can turn it off', async () => {
+    await startOnSampleData()
+    addFinishedEpics(7)
+    await post('/inputs/growth/medium', [['source', 'measured']])
+
+    storage!.addFacts('sample-team', {
+      workItems: [],
+      events: [{ itemId: 'DONE-7', at: '2026-09-01T09:00:00Z', kind: 'status', from: 'Done', to: 'In Progress' }],
+    })
+
+    expect(text(await page('/inputs'))).toContain(
+      'Measured growth is paused: it needs 7 growth samples, and has 6. Medium epics grow 1–2× until there are 7 again.',
+    )
+    expect(text(await page('/'))).toContain('Medium ambiguity: grows 1–2× (measured growth paused: it needs 7 growth samples, and has 6)')
+
+    expect((await post('/inputs/growth/medium', [['source', 'range']])).status).toBe(303)
+    expect(text(await page('/inputs'))).toContain('6 growth samples so far')
+    expect(text(await page('/'))).not.toContain('paused')
+  })
+
+  test('refuses measured growth before 7 growth samples', async () => {
     await startOnSampleData()
     addFinishedEpics(6)
 
     const response = await post('/inputs/growth/medium', [['source', 'measured']])
 
     expect(response.status).toBe(400)
-    expect(text(await response.text())).toContain('Measured growth needs 7 finished committed epics; there are 6 so far.')
+    expect(text(await response.text())).toContain('Measured growth needs 7 growth samples, and has 6.')
   })
 
   test('the forecast says an epic with no items yet is sized from finished epics', async () => {
@@ -493,7 +513,7 @@ describe('Inputs screen: growth', () => {
     })
     await post('/inputs/epics', [['epic', 'PAY-9'], ['action', 'add']])
 
-    expect(text(await page('/'))).toContain('No items yet: sized from 2 finished epics')
+    expect(text(await page('/'))).toContain('No items yet: sized from 2 finished committed epics')
   })
 })
 

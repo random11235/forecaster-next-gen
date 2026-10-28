@@ -83,7 +83,7 @@ function moveEpic(storage: Storage, at: string, from: string, to: string): void 
 
 /** The EM commits the epic at `at`. */
 function tryCommit(storage: Storage, epicId: string, at: string): EditResult {
-  return editInputs(storage, TEAM, { kind: 'commitEpic', epicId, at })
+  return editInputs(storage, TEAM, { kind: 'commitEpic', epicId, at }, DEFAULT_SETTINGS)
 }
 
 /** The EM commits the epic, failing the test if it is refused. */
@@ -135,11 +135,11 @@ describe('committing an epic', () => {
   test("the Inputs screen shows each of the milestone's epics with its baseline once committed", () => {
     const storage = teamWithEpic(5)
     storage.addFacts(TEAM, { workItems: [ticket('E2', 'epic', { title: 'Epic E2' })], events: [] })
-    editInputs(storage, TEAM, { kind: 'addEpic', epicId: 'E2' })
+    editInputs(storage, TEAM, { kind: 'addEpic', epicId: 'E2' }, DEFAULT_SETTINGS)
 
     commit(storage, 'E1', COMMITTED)
 
-    expect(inputsView(storage, TEAM).milestone).toMatchObject({
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).milestone).toMatchObject({
       epics: [
         { epicId: 'E1', key: 'E1', name: 'Epic E1', commit: { baseline: 5 } },
         { epicId: 'E2', key: 'E2', name: 'Epic E2', commit: undefined },
