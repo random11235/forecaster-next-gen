@@ -65,7 +65,7 @@ Growth ratios are measured from the count at commit, so they are applied to `bas
 
 An **uncommitted epic** has no baseline yet. `forecast/buildCase.ts` passes its current count as a provisional `baseCount`. The engine treats it like any other epic, and the forecast labels it "not committed: wide range".
 
-`throughputSamples` must be in the same period length as the case. `forecast/buildCase.ts` sums daily `ThroughputSample`s into `periodDays`-long periods and rejects samples with a different `periodDays`. Feeding daily counts into a weekly case would make the forecast about 7 times too slow. A manual range is already per period.
+`throughputSamples` must be in the same period length as the case. `forecast/pace.ts` sums daily `ThroughputSample`s into `periodDays`-long periods and rejects samples with a different `periodDays`. Feeding daily counts into a weekly case would make the forecast about 7 times too slow. A manual range is already per period.
 
 ### One trial ('when')
 

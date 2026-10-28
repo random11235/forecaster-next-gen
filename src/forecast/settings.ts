@@ -11,6 +11,8 @@ export interface ForecastSettings {
   maxPeriods: number
   /** Fixed, so the same inputs always give the same forecast. */
   seed: number
+  /** Weeks of the milestone's own finished tickets before measured pace is offered. */
+  minMeasuredPaceWeeks: number
   /** Growth samples needed before the measured medium range is suggested. */
   minGrowthSamples: number
   /** Size of an epic with no children, until finished epics give samples. Provisional. */
@@ -23,6 +25,7 @@ export const DEFAULT_SETTINGS: ForecastSettings = {
   periodDays: 7,
   maxPeriods: 156,
   seed: 1,
+  minMeasuredPaceWeeks: 8,
   minGrowthSamples: 7,
   defaultEpicSize: { low: 5, high: 15 },
 }

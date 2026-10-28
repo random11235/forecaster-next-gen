@@ -4,7 +4,8 @@ import type { EpicChoice, MilestoneDefinitionView, RankedEpic } from '../forecas
 import { ambiguityName, MAX_GROWTH, rangeText, samplesShortfall, type GrowthView, type TypedRange } from '../forecast/growth.js'
 import type { WorkflowEdit, WorkflowSettingsView } from '../forecast/workflowSettings.js'
 import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
-import type { ThroughputRange } from '../model/paceSetting.js'
+import type { PaceView } from '../forecast/pace.js'
+import type { PaceMode } from '../model/paceSetting.js'
 import { STATUS_CATEGORIES, STATUS_CATEGORY_NAMES, type StatusCategory } from '../model/workflow.js'
 import { commitText, escapeHtml, formatDate, htmlPage } from './html.js'
 
@@ -21,8 +22,15 @@ export function parsePaceForm(body: URLSearchParams): PaceForm {
 }
 
 /** The pace form filled with the saved manual range, or empty. */
-export function savedPaceForm(range: ThroughputRange | undefined): PaceForm {
-  return range ? { low: String(range.low), high: String(range.high) } : { low: '', high: '' }
+export function savedPaceForm(view: PaceView): PaceForm {
+  return view.manual ? { low: String(view.manual.low), high: String(view.manual.high) } : { low: '', high: '' }
+}
+
+/** The pace section: the milestone's pace, the manual range as typed, and why switching pace was refused, if it was. */
+export interface PaceScreen {
+  view: PaceView
+  form: PaceForm
+  sourceError?: string
 }
 
 /**
@@ -167,13 +175,13 @@ export interface InputsScreen {
   detailsForm?: DetailsForm
   /** Why an epic change was refused. */
   epicsError?: string
-  /** The pace form; undefined when there is no milestone yet. */
-  pace: PaceForm | undefined
+  /** The pace section; undefined when there is no milestone yet. */
+  pace: PaceScreen | undefined
   workflow: WorkflowScreen
   growth: GrowthScreen
 }
 
-/** The Inputs screen: the milestone's definition, its manual pace range, the team's growth and its workflow settings. */
+/** The Inputs screen: the milestone's definition, its pace, the team's growth and its workflow settings. */
 export function renderInputsScreen(screen: InputsScreen): string {
   const milestone = screen.milestone
   const sections =
@@ -313,11 +321,11 @@ function errorLine(error: string | undefined): string {
 
 const NO_MILESTONE: Section = inputSection('Pace', 'Pace', 'Tickets the team finishes in a week.', '        <p class="note">No milestone defined yet. Define a milestone to enter its pace.</p>')
 
-function paceSection(form: PaceForm): Section {
+function paceSection({ view, form, sourceError }: PaceScreen): Section {
   return inputSection(
     'Pace',
     'Pace',
-    'How many of this milestone’s tickets the team finishes in a week, from a slow week to a good one.',
+    'How many of this milestone’s tickets the team finishes in a week, from a slow week to a good one. Only tickets under its epics count: KTLO and unparented tickets are left out.',
     `        <form method="post" action="/inputs">${errorLine(form.error)}
           <div class="pace">
             <label>Low <input type="number" name="low" min="0" max="${MAX_TICKETS_PER_WEEK}" step="1" value="${escapeHtml(form.low)}" required></label>
@@ -326,8 +334,33 @@ function paceSection(form: PaceForm): Section {
             <span class="unit">tickets per week</span>
           </div>
           <div class="actions"><button type="submit" class="primary">Save and forecast</button></div>
-        </form>`,
+        </form>
+${measuredPace(view, sourceError)}`,
   )
+}
+
+/** Measured pace: how many weeks there are and, once enough, the offer to switch to it or back to the manual range. */
+function measuredPace({ manual, mode, paused, measured, message }: PaceView, error: string | undefined): string {
+  const untilThen = manual ? 'Until then the forecast uses your manual range.' : 'Until then, enter a manual range to forecast.'
+  if (paused) {
+    if (!manual) return `${errorLine(error)}
+        <p class="note">Measured pace is paused. ${escapeHtml(message ?? '')} ${untilThen}</p>`
+    return paceSourceForm(error, `Measured pace is paused. ${escapeHtml(message ?? '')}`, untilThen, 'manual', 'Use the manual range instead')
+  }
+  if (!measured) return `${errorLine(error)}
+        <p class="note">${escapeHtml(message ?? '')} ${untilThen}</p>`
+  const pace = `${measured.low}–${measured.high} tickets a week over ${measured.weeks} weeks`
+  return mode === 'measured'
+    ? paceSourceForm(error, `The forecast uses measured pace: ${pace}.`, 'Your manual range is kept.', 'manual', 'Use the manual range instead')
+    : paceSourceForm(error, `Measured pace: ${pace}.`, 'The forecast uses your manual range until you switch.', 'measured', 'Use measured pace')
+}
+
+/** A statement about the milestone's pace, with the button that switches it to the other source. */
+function paceSourceForm(error: string | undefined, line: string, note: string, source: PaceMode, label: string): string {
+  return `        <form method="post" action="/inputs/pace/source" class="suggestion">${errorLine(error)}
+          <p><strong>${line}</strong> <span class="note">${note}</span></p>
+          <button type="submit" name="source" value="${source}">${label}</button>
+        </form>`
 }
 
 function growthSection({ view, form, mediumError }: GrowthScreen): Section {

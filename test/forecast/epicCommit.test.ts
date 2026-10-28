@@ -11,6 +11,9 @@ import type { WorkItem, WorkItemEvent } from '../../src/model/workItem.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
 
+/** Before any ticket the tests finish, so installation leaves out none of them. */
+const INSTALLED = '2026-01-01T00:00:00Z'
+
 const TEAM = 'ACME'
 const MILESTONE = 'ACME-M'
 const TODAY = '2026-10-24'
@@ -28,7 +31,7 @@ afterEach(() => {
 /** A Jira team whose milestone holds one epic, E1, with `children` tickets not yet done, started at kickoff. */
 function teamWithEpic(children: number): Storage {
   storage = openSqliteStorage(':memory:')
-  storage.saveTeam({ id: TEAM, name: TEAM, source: 'jira', sourceRef: TEAM })
+  storage.saveTeam({ id: TEAM, name: TEAM, source: 'jira', sourceRef: TEAM, installedAt: INSTALLED })
   storage.addFacts(TEAM, {
     workItems: [ticket('E1', 'epic', { title: 'Epic E1' }), ...childTickets('E1', 0, children)],
     events: [
@@ -83,7 +86,7 @@ function moveEpic(storage: Storage, at: string, from: string, to: string): void 
 
 /** The EM commits the epic at `at`. */
 function tryCommit(storage: Storage, epicId: string, at: string): EditResult {
-  return editInputs(storage, TEAM, { kind: 'commitEpic', epicId, at }, DEFAULT_SETTINGS)
+  return editInputs(storage, TEAM, { kind: 'commitEpic', epicId, at }, DEFAULT_SETTINGS, TODAY)
 }
 
 /** The EM commits the epic, failing the test if it is refused. */
@@ -93,7 +96,7 @@ function commit(storage: Storage, epicId: string, at: string): void {
 }
 
 function enterManualPace(storage: Storage, low: number, high: number): void {
-  storage.savePaceSetting({ teamId: TEAM, milestoneId: MILESTONE, mode: 'manual', low, high })
+  storage.savePaceSetting({ teamId: TEAM, milestoneId: MILESTONE, mode: 'manual', manual: { low, high } })
 }
 
 /** The milestone's finish dates at 50%, 85% and 95%. */
@@ -135,11 +138,11 @@ describe('committing an epic', () => {
   test("the Inputs screen shows each of the milestone's epics with its baseline once committed", () => {
     const storage = teamWithEpic(5)
     storage.addFacts(TEAM, { workItems: [ticket('E2', 'epic', { title: 'Epic E2' })], events: [] })
-    editInputs(storage, TEAM, { kind: 'addEpic', epicId: 'E2' }, DEFAULT_SETTINGS)
+    editInputs(storage, TEAM, { kind: 'addEpic', epicId: 'E2' }, DEFAULT_SETTINGS, TODAY)
 
     commit(storage, 'E1', COMMITTED)
 
-    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).milestone).toMatchObject({
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS, TODAY).milestone).toMatchObject({
       epics: [
         { epicId: 'E1', key: 'E1', name: 'Epic E1', commit: { baseline: 5 } },
         { epicId: 'E2', key: 'E2', name: 'Epic E2', commit: undefined },
@@ -166,7 +169,7 @@ describe('committing an epic', () => {
   test('a commit survives a restart', () => {
     const file = join(mkdtempSync(join(tmpdir(), 'forecaster-')), 'forecaster.db')
     storage = openSqliteStorage(file)
-    storage.saveTeam({ id: TEAM, name: TEAM, source: 'jira', sourceRef: TEAM })
+    storage.saveTeam({ id: TEAM, name: TEAM, source: 'jira', sourceRef: TEAM, installedAt: INSTALLED })
     storage.addFacts(TEAM, { workItems: [ticket('E1', 'epic'), ...childTickets('E1', 0, 4)], events: [] })
     storage.saveMilestone({ id: MILESTONE, teamId: TEAM, name: 'Launch', committedDate: '2026-12-18', epicIds: ['E1'] })
     commit(storage, 'E1', COMMITTED)

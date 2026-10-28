@@ -93,7 +93,7 @@ ForecastSettings { teamId, trials /* 10_000 */,
                    warnAboveWeeks /* 26, provisional: tune from the calibration ledger */ }
 
 PaceSetting      { teamId, milestoneId, mode: 'manual'|'measured',
-                   manualLow, manualHigh,           // tickets per period
+                   manualLow, manualHigh,           // tickets per period; kept when mode is 'measured'
                    suggestion?: { low, high, basis }, // pre-fill only, e.g. "previous milestone"
                    setBy, setAt }
 
@@ -109,7 +109,7 @@ These defaults are the single source for the thresholds the app design refers to
 
 #### Pace
 
-`PaceSetting.mode` stays `'manual'` until the EM accepts measured pace. The tool offers the switch once the milestone has `minMeasuredPaceWeeks` of its own throughput since the last `TeamChange`. After a team change, the measured window restarts and the EM is prompted to review the manual range. Pace that predates the change is flagged stale until `staleWeeksAfterTeamChange` of new data exist.
+`PaceSetting.mode` stays `'manual'` until the EM accepts measured pace. The tool offers the switch once the milestone has `minMeasuredPaceWeeks` of its own throughput since the last `TeamChange`: whole weeks, ending as today starts, that began at or after the team's installation (so the part-week it was installed in is dropped), counted from the week of the first finished ticket under the milestone's epics. Below that, the Milestone forecast and Inputs screens say so ("Only 4 weeks of finished tickets. Measured pace needs 8.") and the manual range is used. Measured pace is shown beside the manual range, which is kept: the EM can switch back to it, and edit it, at any time. If the milestone has fewer weeks than measured pace needs after the EM chose it (say the status mapping changed which tickets are done), measured pace is paused and the manual range is used, saying so. After a team change, the measured window restarts and the EM is prompted to review the manual range. Pace that predates the change is flagged stale until `staleWeeksAfterTeamChange` of new data exist.
 
 #### Growth
 
