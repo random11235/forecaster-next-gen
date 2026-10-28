@@ -1,6 +1,7 @@
 import type { EpicCommit } from '../model/epicCommit.js'
 import { categoryLookup, type StatusCategory, type WorkflowSettings } from '../model/workflow.js'
-import type { Facts, WorkItem, WorkItemEvent } from '../model/workItem.js'
+import type { Facts, WorkItem } from '../model/workItem.js'
+import { childCounter, historyByItem, type ItemHistory } from './itemHistory.js'
 
 /** How an epic was committed: by the EM in the tool, or by applying the workflow's commit label. */
 export type CommitSource = 'inTool' | 'label'
@@ -54,7 +55,7 @@ export function standingCommits(
   const made: StandingCommit[] = commits.map((commit) => ({ ...commit, source: 'inTool' }))
   const { commitLabel } = workflow
   if (commitLabel !== undefined) {
-    const at = childCountAt(facts.workItems, history, category)
+    const at = childCounter(facts, workflow, history)
     for (const epic of facts.workItems) {
       if (epic.type !== 'epic') continue
       for (const event of history.get(epic.id)?.label ?? []) {
@@ -97,58 +98,5 @@ function blockedLabelAtTime(
       if (event.from !== undefined) labels.add(event.from)
     }
     return blockedLabels.some((label) => labels.has(label))
-  }
-}
-
-interface ItemHistory {
-  /** Each kind of event, in time order. */
-  status: WorkItemEvent[]
-  parent: WorkItemEvent[]
-  label: WorkItemEvent[]
-}
-
-function historyByItem(events: readonly WorkItemEvent[]): Map<string, ItemHistory> {
-  const history = new Map<string, ItemHistory>()
-  for (const event of events) {
-    if (event.kind === 'type') continue
-    let item = history.get(event.itemId)
-    if (!item) history.set(event.itemId, (item = { status: [], parent: [], label: [] }))
-    item[event.kind].push(event)
-  }
-  for (const item of history.values()) {
-    for (const events of [item.status, item.parent, item.label]) events.sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
-  }
-  return history
-}
-
-/**
- * The children an epic had at a moment: tickets created by then whose parent then was the epic, and that weren't
- * cancelled then. A ticket with no parent history has had its current parent since it was created; one with no status
- * history was cancelled when the connector says.
- */
-function childCountAt(
-  workItems: readonly WorkItem[],
-  history: ReadonlyMap<string, ItemHistory>,
-  category: (status: string | undefined) => StatusCategory,
-): (epicId: string, at: string) => number {
-  const lastBy = (events: readonly WorkItemEvent[], time: number): WorkItemEvent | undefined =>
-    events.filter((event) => Date.parse(event.at) <= time).at(-1)
-
-  const parentAt = (item: WorkItem, time: number): string | undefined => {
-    const changes = history.get(item.id)?.parent ?? []
-    if (changes.length === 0) return item.parentId
-    return (lastBy(changes, time) ?? { to: changes[0]!.from }).to
-  }
-  const cancelledAt = (item: WorkItem, time: number): boolean => {
-    const statuses = history.get(item.id)?.status ?? []
-    if (statuses.length === 0) return item.cancelledAt !== undefined && Date.parse(item.cancelledAt) <= time
-    return category(lastBy(statuses, time)?.to) === 'cancelled'
-  }
-
-  return (epicId, at) => {
-    const time = Date.parse(at)
-    return workItems.filter(
-      (item) => Date.parse(item.createdAt) <= time && parentAt(item, time) === epicId && !cancelledAt(item, time),
-    ).length
   }
 }

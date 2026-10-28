@@ -1,8 +1,9 @@
 import type { ThroughputRange } from '../model/paceSetting.js'
 import type { Storage } from '../storage/storage.js'
 import { refuse, type EditResult } from './editResult.js'
-import { editGrowth, growthView, type GrowthEdit, type GrowthView } from './growth.js'
+import { editGrowth, growthView, teamGrowth, type GrowthEdit, type GrowthView } from './growth.js'
 import { editMilestone, milestoneDefinitionView, teamMilestone, type MilestoneDefinitionView, type MilestoneEdit } from './milestoneDefinition.js'
+import type { ForecastSettings } from './settings.js'
 import { teamFacts } from './teamFacts.js'
 import { editWorkflowSettings, workflowSettingsView, type WorkflowEdit, type WorkflowSettingsView } from './workflowSettings.js'
 
@@ -26,8 +27,11 @@ export interface InputsView {
   growth: GrowthView
 }
 
-/** Seam B: the Inputs screen for the team, reading its facts from storage once. */
-export function inputsView(storage: Storage, teamId: string): InputsView {
+/**
+ * Seam B: the Inputs screen for the team, reading its facts from storage once. The settings are the forecast's, so both
+ * screens agree on thresholds such as `minGrowthSamples`.
+ */
+export function inputsView(storage: Storage, teamId: string, settings: ForecastSettings): InputsView {
   const team = teamFacts(storage, teamId)
   const milestone = teamMilestone(storage, teamId)
   const pace = milestone && storage.paceSetting(teamId, milestone.id)
@@ -35,12 +39,17 @@ export function inputsView(storage: Storage, teamId: string): InputsView {
     milestone: milestoneDefinitionView(storage, teamId, team),
     pace: pace?.mode === 'manual' ? { low: pace.low, high: pace.high } : undefined,
     workflow: workflowSettingsView(team),
-    growth: growthView(storage, teamId, team),
+    growth: growthView(teamGrowth(storage, teamId, team), settings),
   }
 }
 
 /** Seam B: applies the EM's edit from the Inputs screen and saves it. A refused edit changes nothing and says why. */
-export function editInputs(storage: Storage, teamId: string, edit: InputsEdit): EditResult {
+export function editInputs(
+  storage: Storage,
+  teamId: string,
+  edit: InputsEdit,
+  settings: ForecastSettings,
+): EditResult {
   switch (edit.kind) {
     case 'setPace':
       return setPace(storage, teamId, edit)
@@ -52,7 +61,7 @@ export function editInputs(storage: Storage, teamId: string, edit: InputsEdit): 
     case 'setAmbiguityRanges':
     case 'useMeasuredMedium':
     case 'useMediumRange':
-      return editGrowth(storage, teamId, teamFacts(storage, teamId), edit)
+      return editGrowth(storage, teamId, edit, settings)
     default:
       return editMilestone(storage, teamId, edit)
   }

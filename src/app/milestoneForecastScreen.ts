@@ -1,3 +1,4 @@
+import { counted } from '../forecast/counted.js'
 import type { MilestoneEpic } from '../forecast/milestoneEpics.js'
 import type { ForecastSection, MilestoneForecastView } from '../forecast/milestoneForecastView.js'
 import { commitText, escapeHtml, formatDate, htmlPage, type PageHeader } from './html.js'
@@ -54,7 +55,7 @@ function daysBetween(fromIsoDate: string, toIsoDate: string): number {
 }
 
 function days(count: number): string {
-  return count === 1 ? '1 day' : `${count} days`
+  return counted(count, 'day')
 }
 
 function milestoneSections(view: Extract<MilestoneForecastView, { kind: 'milestone' }>): string {
