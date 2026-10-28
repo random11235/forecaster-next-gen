@@ -6,7 +6,7 @@
 
 **Commit** (of an epic): the EM's statement, made in the tool after kickoff, that an epic's scope is understood. It records the epic's baseline. A team that labels consistently can commit instead by applying the workflow's commit label: the baseline is then the child count when the label was applied. A label commit counts the same as the EM's. Not the milestone's committed date, which is the date the milestone is promised for. Which commit stands, what removing the label does, and the warnings: [Committing](docs/design/forecast-model.md#committing).
 
-**Pull-back**: an epic moving from a status mapped to started back to one mapped to not started. It resets the epic's commit: the epic is uncommitted until it is committed again. A move into or out of the blocked rule is not one. The rules, including a commit label left on through one: [Pull-backs](docs/design/forecast-model.md#pull-backs).
+**Pull-back**: an epic moving from a status mapped to started back to one mapped to not started. It resets the epic's commit: the epic is uncommitted until it is committed again. A [blocked epic](docs/design/forecast-model.md#blocked-epics) moving into or out of a status of the blocked rule, or to not started while it carries a label of the rule, is not one. The rules, including a commit label left on through one: [Pull-backs](docs/design/forecast-model.md#pull-backs).
 
 **Ambiguity** (of an epic): how well the EM judges an epic is understood, as low, medium or high; medium until the EM says otherwise. Each level has a range of growth the EM can edit, which the forecast draws the epic's growth from.
 _Avoid_: uncertainty, confidence (the forecast's "85% sure" is its confidence)
