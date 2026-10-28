@@ -15,6 +15,7 @@ import {
   savedWorkflowForm,
   type GrowthScreen,
   type InputsScreen,
+  type PaceScreen,
   type WorkflowScreen,
 } from './inputsScreen.js'
 import { renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
@@ -58,23 +59,24 @@ export function route(request: Request, { storage, today, now }: AppContext): Re
   const inputsScreen = (
     status: number,
     {
-      pace,
+      paceForm,
       workflowForm,
       growthForm,
       ...screen
-    }: Partial<Omit<InputsScreen, 'milestone' | 'workflow' | 'growth'>> & {
+    }: Partial<Omit<InputsScreen, 'milestone' | 'pace' | 'workflow' | 'growth'>> & {
+      paceForm?: Partial<Omit<PaceScreen, 'view'>>
       workflowForm?: Omit<WorkflowScreen, 'statuses'>
       growthForm?: Partial<Omit<GrowthScreen, 'view'>>
     } = {},
   ): Reply => {
-    const view = inputsView(storage, team.id, settings)
+    const view = inputsView(storage, team.id, settings, today())
     return {
       kind: 'html',
       status,
       html: renderInputsScreen({
         milestone: view.milestone,
         // with no milestone there is no pace form, even to show a refused pace in
-        pace: view.milestone.kind === 'milestone' ? (pace ?? savedPaceForm(view.pace)) : undefined,
+        pace: view.pace && { view: view.pace, form: savedPaceForm(view.pace), ...paceForm },
         growth: { view: view.growth, form: savedGrowthForm(view.growth), ...growthForm },
         workflow: { statuses: view.workflow.statuses.map((entry) => entry.status), ...(workflowForm ?? { form: savedWorkflowForm(view.workflow) }) },
         ...screen,
@@ -83,14 +85,18 @@ export function route(request: Request, { storage, today, now }: AppContext): Re
   }
   /** Saves the edit and redirects, or shows the Inputs screen again with the refusal. */
   const edit = (change: InputsEdit, location: string, refused: (error: string) => Parameters<typeof inputsScreen>[1]): Reply => {
-    const saved = editInputs(storage, team.id, change, settings)
+    const saved = editInputs(storage, team.id, change, settings, today())
     return saved.ok ? { kind: 'redirect', location } : inputsScreen(400, refused(saved.error))
   }
 
   if (request.method === 'GET' && request.path === '/inputs') return inputsScreen(200)
   if (request.method === 'POST' && request.path === '/inputs') {
     const typed = parsePaceForm(form)
-    return edit({ kind: 'setPace', ...typed }, '/', (error) => ({ pace: { ...typed, error } }))
+    return edit({ kind: 'setPace', ...typed }, '/', (error) => ({ paceForm: { form: { ...typed, error } } }))
+  }
+  if (request.method === 'POST' && request.path === '/inputs/pace/source') {
+    const change: InputsEdit = form.get('source') === 'measured' ? { kind: 'useMeasuredPace' } : { kind: 'useManualPace' }
+    return edit(change, '/inputs', (error) => ({ paceForm: { sourceError: error } }))
   }
   if (request.method === 'POST' && request.path === '/inputs/milestone') {
     const typed = parseMilestoneForm(form)

@@ -17,10 +17,13 @@ afterEach(async () => {
   storage = undefined
 })
 
-/** Starts the app on the sample data, on 24 Oct 2026. */
-async function startOnSampleData(): Promise<RunningApp> {
+/**
+ * Starts the app on the sample data, on 24 Oct 2026 unless `today` says otherwise. On 24 Oct the sample milestone has
+ * 7 weeks of finished tickets; from 31 Oct, 8.
+ */
+async function startOnSampleData(today = '2026-10-24'): Promise<RunningApp> {
   storage = openSqliteStorage(':memory:')
-  app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage, today: () => '2026-10-24' })
+  app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage, today: () => today })
   return app
 }
 
@@ -131,6 +134,67 @@ async function forecastEpics(): Promise<string[]> {
   const body = html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] ?? ''
   return [...body.matchAll(/<tr>\s*<td>([^<]*)<\/td>/g)].map((row) => row[1]!)
 }
+
+describe('Inputs screen: pace', () => {
+  test('below 8 weeks of finished tickets, says how many there are and offers no switch', async () => {
+    await startOnSampleData()
+    await submitPace('3', '6')
+
+    const html = await page('/inputs')
+
+    expect(text(html)).toContain(
+      'Only 7 weeks of finished tickets. Measured pace needs 8. Until then the forecast uses your manual range.',
+    )
+    expect(text(html)).toContain('KTLO and unparented tickets are left out')
+    expect(html).not.toContain('/inputs/pace/source')
+  })
+
+  test('at 8 weeks, offers measured pace beside the manual range, and switching uses it', async () => {
+    await startOnSampleData('2026-10-31')
+    await submitPace('3', '6')
+
+    const html = await page('/inputs')
+    expect(html).toMatch(/name="low"[^>]*value="3"/)
+    expect(text(html)).toContain('Measured pace: 0–2 tickets a week over 8 weeks. The forecast uses your manual range until you switch.')
+
+    const response = await post('/inputs/pace/source', [['source', 'measured']])
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('/inputs')
+
+    const switched = await page('/inputs')
+    expect(text(switched)).toContain('The forecast uses measured pace: 0–2 tickets a week over 8 weeks. Your manual range is kept.')
+    expect(switched).toMatch(/name="low"[^>]*value="3"/)
+    expect(text(await page('/'))).toContain('Pace: measured over 8 weeks.')
+  })
+
+  test('the EM can go back to the manual range', async () => {
+    await startOnSampleData('2026-10-31')
+    await submitPace('3', '6')
+    await post('/inputs/pace/source', [['source', 'measured']])
+
+    await post('/inputs/pace/source', [['source', 'manual']])
+
+    expect(text(await page('/'))).toContain('Pace: 3–6 tickets per week (manual)')
+  })
+
+  test('below 8 weeks with no manual range, asks for one instead of claiming the forecast uses it', async () => {
+    await startOnSampleData()
+
+    const screen = text(await page('/inputs'))
+
+    expect(screen).toContain('Only 7 weeks of finished tickets. Measured pace needs 8. Until then, enter a manual range to forecast.')
+    expect(screen).not.toContain('uses your manual range')
+  })
+
+  test('refuses switching to measured pace below 8 weeks, saying why', async () => {
+    await startOnSampleData()
+
+    const response = await post('/inputs/pace/source', [['source', 'measured']])
+
+    expect(response.status).toBe(400)
+    expect(text(await response.text())).toContain('Only 7 weeks of finished tickets. Measured pace needs 8.')
+  })
+})
 
 describe('Inputs screen: milestone', () => {
   test('refuses a pace sent before the milestone is defined, still offering no pace form', async () => {
@@ -365,12 +429,12 @@ describe('Inputs screen: workflow', () => {
 
   test('changing the mapping changes the forecast', async () => {
     await startOnSampleData()
-    storage!.savePaceSetting({ teamId: 'sample-team', milestoneId: 'sample-milestone', mode: 'measured' })
-    expect(text(await page('/'))).toContain('Pace: measured')
+    await submitPace('3', '6')
+    expect(text(await page('/'))).toContain('Only 7 weeks of finished tickets.')
 
     await post('/inputs/workflow', workflowForm({ 'status:Done': 'started' }))
 
-    expect(text(await page('/'))).toContain('are done yet, so there is no measured pace to forecast from')
+    expect(text(await page('/'))).toContain('No finished tickets yet.')
   })
 
   test('refused settings say why and keep what was typed', async () => {
@@ -621,12 +685,38 @@ describe('Milestone forecast screen', () => {
   })
 
   test('shows the forecast notes and the pace they come from, for measured pace', async () => {
-    await startOnSampleData()
-    storage!.savePaceSetting({ teamId: 'sample-team', milestoneId: 'sample-milestone', mode: 'measured' })
+    await startOnSampleData('2026-10-31')
+    await post('/inputs/pace/source', [['source', 'measured']])
 
     const html = await page('/')
 
-    expect(html).toMatch(/<p class="note">[^<]+<\/p>/)
-    expect(text(html)).toContain('Pace: measured')
+    expect(html).toMatch(/<p class="note">Your weekly pace [^<]+<\/p>/)
+    expect(text(html)).toContain('Pace: measured over 8 weeks.')
+  })
+
+  test('says pace counts only tickets under the milestone’s epics, leaving out KTLO', async () => {
+    await startOnSampleData()
+    await submitPace('3', '6')
+
+    expect(text(await page('/'))).toContain(
+      'Pace: 3–6 tickets per week (manual). Only tickets under this milestone’s epics count: KTLO and unparented tickets are left out.',
+    )
+  })
+
+  test('below 8 weeks of finished tickets, says how many there are beside the manual pace', async () => {
+    await startOnSampleData()
+    await submitPace('3', '6')
+
+    expect(text(await page('/'))).toContain('Only 7 weeks of finished tickets. Measured pace needs 8.')
+  })
+
+  test('at 8 weeks, says measured pace is ready to switch to on Inputs', async () => {
+    await startOnSampleData('2026-10-31')
+    await submitPace('3', '6')
+
+    const screen = text(await page('/'))
+
+    expect(screen).toContain('Pace: 3–6 tickets per week (manual)')
+    expect(screen).toContain('Measured pace is ready, from 8 weeks of finished tickets. Switch to it on Inputs.')
   })
 })

@@ -7,10 +7,14 @@ import type { WorkItem } from '../../src/model/workItem.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
 
+/** Before any ticket the tests finish, so installation leaves out none of them. */
+const INSTALLED = '2026-01-01T00:00:00Z'
+
 const TEAM = 'ACME'
 const CREATED = '2026-09-01T09:00:00Z'
 const KICKOFF = '2026-10-01T09:00:00Z'
 const DONE = '2026-10-05T09:00:00Z'
+const TODAY = '2026-10-24'
 const MILESTONE = { id: 'ACME-M', teamId: TEAM, name: 'Launch', committedDate: '2026-12-18', epicIds: ['E2', 'E1'] }
 
 let storage: Storage | undefined
@@ -30,7 +34,7 @@ function ticket(id: string, type: string, fields: Partial<WorkItem> = {}): WorkI
  */
 function twoEpics(): Storage {
   storage = openSqliteStorage(':memory:')
-  storage.saveTeam({ id: TEAM, name: TEAM, source: 'jira', sourceRef: TEAM })
+  storage.saveTeam({ id: TEAM, name: TEAM, source: 'jira', sourceRef: TEAM, installedAt: INSTALLED })
   storage.addFacts(TEAM, {
     workItems: [
       ticket('E1', 'epic', { title: 'Epic E1' }),
@@ -71,7 +75,7 @@ describe('the baseline', () => {
 
   test("of a committed epic is its commit's, however the epic has grown since", () => {
     const storage = twoEpics()
-    expect(editInputs(storage, TEAM, { kind: 'commitEpic', epicId: 'E1', at: '2026-10-02T12:00:00Z' }, DEFAULT_SETTINGS)).toEqual({ ok: true })
+    expect(editInputs(storage, TEAM, { kind: 'commitEpic', epicId: 'E1', at: '2026-10-02T12:00:00Z' }, DEFAULT_SETTINGS, TODAY)).toEqual({ ok: true })
     storage.addFacts(TEAM, { workItems: [ticket('E1-4', 'story', { parentId: 'E1' })], events: [] })
 
     const [, e1] = epicsOf(storage)

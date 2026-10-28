@@ -1,12 +1,13 @@
 import { periodEndDate, simulateCase } from '../engine/index.js'
 import type { Milestone } from '../model/milestone.js'
-import type { Pace, PaceSetting } from '../model/paceSetting.js'
+import type { PaceSetting } from '../model/paceSetting.js'
 import type { Storage } from '../storage/storage.js'
 import { buildCase } from './buildCase.js'
 import { teamMilestone } from './milestoneDefinition.js'
 import { epicAmbiguities, milestoneEpics, type MilestoneEpic } from './milestoneEpics.js'
-import { epicWarnings, informationNotes, thinDataMessage, type GrowthSource } from './diagnostics.js'
+import { epicWarnings, informationNotes, type GrowthSource } from './diagnostics.js'
 import { epicGrowth, growthBasis, teamGrowth, type TeamGrowth } from './growth.js'
+import { milestonePace, weeksShortfall, type MilestonePace } from './pace.js'
 import type { ForecastSettings } from './settings.js'
 import { teamFacts, type TeamFacts } from './teamFacts.js'
 
@@ -17,17 +18,25 @@ export interface ForecastDate {
   date: string | null
 }
 
-/** The forecast part of the screen: a forecast, what the EM must enter first, or why the data can't forecast yet. */
+/**
+ * The pace a forecast used: the EM's manual range, or measured over some weeks. Either way it counts only tickets under
+ * the milestone's epics, so KTLO and unparented tickets are left out.
+ */
+export type ForecastPace = { scope: 'milestoneEpics' } & (
+  | { source: 'manual'; low: number; high: number }
+  | { source: 'measured'; weeks: number }
+)
+
+/** The forecast part of the screen: a forecast, or the pace the EM must enter first, and how far measured pace has got. */
 export type ForecastSection =
-  | { kind: 'needsPace' }
-  | { kind: 'thinData'; message: string }
+  | { kind: 'needsPace'; message: string }
   | {
       kind: 'forecast'
-      pace: Pace
+      pace: ForecastPace
       dates: ForecastDate[]
       /** The last date the forecast reaches; a null date is "later than" this. */
       horizonDate: string
-      /** Information for the EM, never warnings. */
+      /** Information for the EM, never warnings: how far measured pace has got, and how much pace varies. */
       notes: string[]
     }
 
@@ -87,18 +96,34 @@ function forecastFor(
   setting: PaceSetting | undefined,
   options: ViewOptions,
 ): ForecastSection {
-  if (!setting) return { kind: 'needsPace' }
-  const { teamId: _teamId, milestoneId: _milestoneId, ...pace } = setting
-  const built = buildCase(milestone, team, epics, growth, pace, options.settings, options.today)
-  if (!built.ok) return { kind: 'thinData', message: thinDataMessage(built.reason) }
+  const pace = milestonePace(milestone, team, setting, options.settings, options.today)
+  const { applied } = pace
+  if (!applied) return { kind: 'needsPace', message: measuredPaceNote(pace) }
 
-  const result = simulateCase(built.simulationCase)
-  const { startDate, periodDays, maxPeriods, percentiles } = built.simulationCase
+  const simulationCase = buildCase(
+    epics,
+    growth,
+    applied.source === 'manual' ? applied.range : applied.weekly,
+    options.settings,
+    options.today,
+  )
+  const result = simulateCase(simulationCase)
+  const { startDate, periodDays, maxPeriods, percentiles } = simulationCase
   return {
     kind: 'forecast',
-    pace,
+    pace:
+      applied.source === 'manual'
+        ? { scope: 'milestoneEpics', source: 'manual', ...applied.range }
+        : { scope: 'milestoneEpics', source: 'measured', weeks: applied.weekly.length },
     dates: percentiles.map((percent) => ({ percent, date: result.percentileDates[percent] ?? null })),
     horizonDate: periodEndDate(startDate, periodDays, maxPeriods),
-    notes: informationNotes(result),
+    notes: [...(applied.source === 'manual' ? [measuredPaceNote(pace)] : []), ...informationNotes(result)],
   }
+}
+
+/** How far measured pace has got, while the forecast doesn't use it: ready to switch to, paused, or the weeks it needs. */
+function measuredPaceNote(pace: MilestonePace): string {
+  const shortfall = weeksShortfall(pace)
+  if (shortfall === undefined) return `Measured pace is ready, from ${pace.weekly.length} weeks of finished tickets. Switch to it on Inputs.`
+  return pace.mode === 'measured' ? `Measured pace is paused. ${shortfall}` : shortfall
 }

@@ -9,6 +9,9 @@ import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
 import type { Facts } from '../../src/model/workItem.js'
 
+/** Before any ticket the tests finish, so installation leaves out none of them. */
+const INSTALLED = '2026-01-01T00:00:00Z'
+
 const TODAY = '2026-10-24'
 
 let dir: string
@@ -32,7 +35,7 @@ function restart(): Storage {
 
 /** A team connected to Jira, as the EM's own teams are. */
 function saveJiraTeam(storage: Storage, teamId: string): void {
-  storage.saveTeam({ id: teamId, name: teamId, source: 'jira', sourceRef: teamId })
+  storage.saveTeam({ id: teamId, name: teamId, source: 'jira', sourceRef: teamId, installedAt: INSTALLED })
 }
 
 /** A team of the EM's own, with one epic of `children` tickets and a milestone holding it. */
@@ -82,7 +85,7 @@ describe('milestone forecast view on sample data', () => {
       kind: 'milestone',
       name: 'Checkout v2',
       committedDate: '2026-12-18',
-      forecast: { kind: 'needsPace' },
+      forecast: { kind: 'needsPace', message: 'Only 7 weeks of finished tickets. Measured pace needs 8.' },
       warnings: ["Refunds is in progress but isn't committed"],
       epics: [
         {
@@ -114,7 +117,7 @@ describe('milestone forecast view on sample data', () => {
       kind: 'milestone',
       name: 'ACME milestone',
       committedDate: '2027-01-29',
-      forecast: { kind: 'needsPace' },
+      forecast: { kind: 'needsPace', message: 'No finished tickets yet. Measured pace needs 8 weeks of them.' },
       warnings: [],
       epics: [{ epicId: 'ACME-E', key: 'ACME-E', name: 'ACME epic', currentCount: 2, doneCount: 0, commit: undefined, inProgress: false, finished: false, blocked: false, labelCommitReset: false, ambiguity: 'medium', growthSource: 'ambiguity', growthBasis: 'Medium ambiguity: grows 1–2×' }],
     })
@@ -122,12 +125,12 @@ describe('milestone forecast view on sample data', () => {
 
   test('an entered pace range survives a restart', () => {
     saveOwnTeam(openStorage(), 'ACME', 2)
-    storage!.savePaceSetting({ teamId: 'ACME', milestoneId: 'ACME-M', mode: 'manual', low: 3, high: 5 })
+    storage!.savePaceSetting({ teamId: 'ACME', milestoneId: 'ACME-M', mode: 'manual', manual: { low: 3, high: 5 } })
 
     const reopened = restart()
 
     expect(milestoneForecastView(reopened, 'ACME', { today: TODAY, settings: DEFAULT_SETTINGS })).toMatchObject({
-      forecast: { kind: 'forecast', pace: { mode: 'manual', low: 3, high: 5 } },
+      forecast: { kind: 'forecast', pace: { source: 'manual', low: 3, high: 5 } },
     })
   })
 
@@ -140,7 +143,7 @@ describe('milestone forecast view on sample data', () => {
       kind: 'milestone',
       name: 'BETA milestone',
       committedDate: '2027-01-29',
-      forecast: { kind: 'needsPace' },
+      forecast: { kind: 'needsPace', message: 'No finished tickets yet. Measured pace needs 8 weeks of them.' },
       warnings: [],
       epics: [{ epicId: 'BETA-E', key: 'BETA-E', name: 'BETA epic', currentCount: 5, doneCount: 0, commit: undefined, inProgress: false, finished: false, blocked: false, labelCommitReset: false, ambiguity: 'medium', growthSource: 'ambiguity', growthBasis: 'Medium ambiguity: grows 1–2×' }],
     })

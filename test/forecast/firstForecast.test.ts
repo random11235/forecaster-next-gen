@@ -5,6 +5,9 @@ import type { Facts, WorkItem } from '../../src/model/workItem.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
 
+/** Before any ticket the tests finish, so installation leaves out none of them. */
+const INSTALLED = '2026-01-01T00:00:00Z'
+
 const TEAM = 'ACME'
 const MILESTONE = 'ACME-M'
 const TODAY = '2026-10-24'
@@ -28,7 +31,7 @@ interface EpicSpec {
 /** A Jira team whose milestone holds `epics` in rank order, plus any `extra` tickets outside it. */
 function teamWithMilestone(epics: EpicSpec[], extra: WorkItem[] = []): Storage {
   storage = openSqliteStorage(':memory:')
-  storage.saveTeam({ id: TEAM, name: TEAM, source: 'jira', sourceRef: TEAM })
+  storage.saveTeam({ id: TEAM, name: TEAM, source: 'jira', sourceRef: TEAM, installedAt: INSTALLED })
   const workItems: WorkItem[] = []
   for (const epic of epics) {
     workItems.push(ticket(epic.id, 'epic', { title: `Epic ${epic.id}` }))
@@ -54,11 +57,11 @@ function ticket(id: string, type: string, fields: Partial<WorkItem> = {}): WorkI
 }
 
 function enterManualPace(storage: Storage, low: number, high: number): void {
-  storage.savePaceSetting({ teamId: TEAM, milestoneId: MILESTONE, mode: 'manual', low, high })
+  storage.savePaceSetting({ teamId: TEAM, milestoneId: MILESTONE, mode: 'manual', manual: { low, high } })
 }
 
 function useMeasuredPace(storage: Storage): void {
-  storage.savePaceSetting({ teamId: TEAM, milestoneId: MILESTONE, mode: 'measured' })
+  storage.savePaceSetting({ teamId: TEAM, milestoneId: MILESTONE, mode: 'measured', manual: undefined })
 }
 
 /** Done times for `counts[i]` tickets in each week up to today, oldest week first. */
@@ -91,14 +94,14 @@ describe('first forecast from a manual pace range', () => {
 
     expect(forecastOf(storage)).toEqual({
       kind: 'forecast',
-      pace: { mode: 'manual', low: 10, high: 10 },
+      pace: { source: 'manual', low: 10, high: 10, scope: 'milestoneEpics' },
       dates: [
         { percent: 50, date: '2026-10-31' },
         { percent: 85, date: '2026-10-31' },
         { percent: 95, date: '2026-10-31' },
       ],
       horizonDate: '2029-10-20',
-      notes: [],
+      notes: ['No finished tickets yet. Measured pace needs 8 weeks of them.'],
     })
   })
 
@@ -149,7 +152,7 @@ describe('first forecast from a manual pace range', () => {
   test('with no pace entered, there is no forecast yet', () => {
     const storage = teamWithMilestone([{ id: 'E1', open: 4 }])
 
-    expect(forecastOf(storage)).toEqual({ kind: 'needsPace' })
+    expect(forecastOf(storage)).toEqual({ kind: 'needsPace', message: 'No finished tickets yet. Measured pace needs 8 weeks of them.' })
   })
 
   test('the confidence levels shown come from the settings', () => {
@@ -177,7 +180,7 @@ describe('first forecast from a manual pace range', () => {
     enterManualPace(storage, 0, 0)
     enterManualPace(storage, 10, 10)
 
-    expect(forecastOf(storage)).toMatchObject({ pace: { mode: 'manual', low: 10, high: 10 } })
+    expect(forecastOf(storage)).toMatchObject({ pace: { source: 'manual', low: 10, high: 10 } })
     expect(datesOf(storage)).toEqual(['2026-10-31', '2026-10-31', '2026-10-31'])
   })
 })
@@ -195,24 +198,16 @@ describe('pace variation note', () => {
     const storage = teamWithMilestone([{ id: 'E1', open: 30, doneAt: doneInWeeks(weeks) }])
     useMeasuredPace(storage)
 
-    expect(forecastOf(storage)).toMatchObject({ kind: 'forecast', pace: { mode: 'measured' }, notes: [note] })
-  })
-
-  test('measured pace with no ticket done yet says the data is too thin, rather than asking for a pace', () => {
-    const storage = teamWithMilestone([{ id: 'E1', open: 30 }])
-    useMeasuredPace(storage)
-
-    expect(forecastOf(storage)).toEqual({
-      kind: 'thinData',
-      message: "No tickets in this milestone's epics are done yet, so there is no measured pace to forecast from.",
-    })
+    // measured pace from 4 weeks, so the note is the only one
+    const settings = { ...DEFAULT_SETTINGS, minMeasuredPaceWeeks: 4 }
+    expect(forecastOf(storage, settings)).toMatchObject({ kind: 'forecast', pace: { source: 'measured' }, notes: [note] })
   })
 
   test('a manual pace range has no pace variation note', () => {
     const storage = teamWithMilestone([{ id: 'E1', open: 30, doneAt: doneInWeeks([0, 10, 0, 10]) }])
     enterManualPace(storage, 2, 8)
 
-    expect(forecastOf(storage)).toMatchObject({ notes: [] })
+    expect(forecastOf(storage)).toMatchObject({ notes: ['Only 3 weeks of finished tickets. Measured pace needs 8.'] })
   })
 })
 

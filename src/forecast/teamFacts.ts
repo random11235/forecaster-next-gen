@@ -21,10 +21,14 @@ export interface TeamFacts {
   commits: ReadonlyMap<string, StandingCommit>
   /** Epics with a commit made by the commit label that a pull-back has since reset. */
   labelCommitsReset: ReadonlySet<string>
+  /** ISO timestamp: when the Forecaster was installed for the team. Nothing finished before it counts towards pace. */
+  installedAt: string
 }
 
-/** Seam B: the team's facts, workflow, statuses seen and commits, reading the facts from storage once. */
+/** Seam B: the team's facts, workflow, statuses seen, commits and installation, reading the facts from storage once. */
 export function teamFacts(storage: Storage, teamId: string): TeamFacts {
+  const team = storage.teams().find((saved) => saved.id === teamId)
+  if (!team) throw new Error(`No team ${teamId} is stored.`)
   const stored = storage.facts(teamId)
   const workflow = storage.workflowSettings(teamId) ?? defaultWorkflowSettings(teamId)
   const { standing, labelCommitsReset } = standingCommits(storage.epicCommits(teamId), stored, workflow)
@@ -34,6 +38,7 @@ export function teamFacts(storage: Storage, teamId: string): TeamFacts {
     statusesSeen: statusesSeen(stored),
     commits: standing,
     labelCommitsReset,
+    installedAt: team.installedAt,
   }
 }
 

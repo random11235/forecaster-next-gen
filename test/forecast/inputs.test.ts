@@ -34,7 +34,7 @@ function noMilestone(): Storage {
 }
 
 function setPace(storage: Storage, low: string, high: string) {
-  return editInputs(storage, TEAM, { kind: 'setPace', low, high }, DEFAULT_SETTINGS)
+  return editInputs(storage, TEAM, { kind: 'setPace', low, high }, DEFAULT_SETTINGS, TODAY)
 }
 
 function forecastKind(storage: Storage): string {
@@ -47,13 +47,13 @@ describe('the Inputs view', () => {
   test("reads the team's facts from storage once", () => {
     const counting = countingFactReads(sampleData())
 
-    inputsView(counting.storage, TEAM, DEFAULT_SETTINGS)
+    inputsView(counting.storage, TEAM, DEFAULT_SETTINGS, TODAY)
 
     expect(counting.reads()).toBe(1)
   })
 
   test('has no pace before the EM enters one', () => {
-    expect(inputsView(sampleData(), TEAM, DEFAULT_SETTINGS).pace).toBeUndefined()
+    expect(inputsView(sampleData(), TEAM, DEFAULT_SETTINGS, TODAY).pace?.manual).toBeUndefined()
   })
 })
 
@@ -63,7 +63,7 @@ describe('setting pace', () => {
 
     expect(setPace(storage, ' 3 ', '6')).toEqual({ ok: true })
 
-    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).pace).toEqual({ low: 3, high: 6 })
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS, TODAY).pace?.manual).toEqual({ low: 3, high: 6 })
     expect(forecastKind(storage)).toBe('forecast')
   })
 
@@ -79,7 +79,7 @@ describe('setting pace', () => {
 
     expect(setPace(storage, low, high)).toEqual({ ok: false, error })
 
-    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS).pace).toBeUndefined()
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS, TODAY).pace?.manual).toBeUndefined()
     expect(forecastKind(storage)).toBe('needsPace')
   })
 
@@ -106,7 +106,7 @@ describe('an edit', () => {
   ])("that is saved reads the team's facts from storage $reads time(s): $why", ({ edit, reads }) => {
     const counting = countingFactReads(sampleData())
 
-    expect(editInputs(counting.storage, TEAM, edit, DEFAULT_SETTINGS)).toEqual({ ok: true })
+    expect(editInputs(counting.storage, TEAM, edit, DEFAULT_SETTINGS, TODAY)).toEqual({ ok: true })
 
     expect(counting.reads()).toBe(reads)
   })

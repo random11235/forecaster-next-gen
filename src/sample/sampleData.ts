@@ -124,7 +124,8 @@ function events(row: SampleTicket): WorkItemEvent[] {
 }
 
 export const SAMPLE_DATA: SampleData = {
-  team: { id: TEAM_ID, name: 'Payments (sample)', source: 'sample', sourceRef: 'PAY' },
+  // installed when the sample epics were created; schema migration 6 gives sample teams already stored the same date
+  team: { id: TEAM_ID, name: 'Payments (sample)', source: 'sample', sourceRef: 'PAY', installedAt: '2026-08-31T09:00:00Z' },
   facts: { workItems: tickets.map(workItem), events: tickets.flatMap(events) },
   milestone: {
     id: 'sample-milestone',
