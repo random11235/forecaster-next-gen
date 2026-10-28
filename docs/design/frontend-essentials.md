@@ -2,11 +2,11 @@
 
 Design date: 2026-10-14. Updated 2026-10-18 with the design grill decisions (Q1–Q31). Status: agreed in planning; not built. The v1 spec is [issue #6](https://github.com/random11235/forecaster-next-gen/issues/6).
 
-This is the minimal front-end for the Forecaster, reduced from a first prototype after review. It follows the architecture in [`../research/EM_usecase-arch.excalidraw`](../research/EM_usecase-arch.excalidraw) and the method recommended in [`../research/forecasting-approaches.md`](../research/forecasting-approaches.md). The engine is described in [`monte-carlo-engine.md`](monte-carlo-engine.md).
+This is the minimal front-end for the Forecaster, reduced from a first prototype after review. It follows the architecture in [`../research/EM_usecase-arch.excalidraw`](../research/EM_usecase-arch.excalidraw) and the method recommended in [`../research/forecasting-approaches.md`](../research/forecasting-approaches.md). The engine is described in [`engine.md`](engine.md), and the rest of the system in [`architecture.md`](architecture.md).
 
-v1's scope (single team, local, SQLite) is in the engine design's [v1 assumptions](monte-carlo-engine.md#v1-assumptions). The app is started with one command and opened in the browser. The first usable version runs on canned data, before any connector exists.
+v1's scope (single team, local, SQLite) is in the architecture's [v1 assumptions](architecture.md#v1-assumptions). The app is started with one command and opened in the browser. The first usable version runs on canned data, before any connector exists.
 
-Thresholds and default ranges below (growth samples, pace weeks, stale weeks, finished milestones, ambiguity ranges) are set in the engine design's [settings](monte-carlo-engine.md#layer-3-settings); this doc names them rather than repeating the numbers.
+Thresholds and default ranges below (growth samples, pace weeks, stale weeks, finished milestones, ambiguity ranges) are set in the forecast model's [settings](forecast-model.md#layer-3-settings); this doc names them rather than repeating the numbers.
 
 ---
 
