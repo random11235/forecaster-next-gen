@@ -38,13 +38,13 @@ export interface GrowthView {
   ranges: Record<Ambiguity, GrowthRange>
   /** The EM adopted the measured growth for medium. */
   mediumMeasured: boolean
-  /** Adopted measured growth is paused: too few finished committed epics are left, so medium grows by its range. */
+  /** Adopted measured growth is paused: too few growth samples are left, so medium grows by its range. */
   paused: boolean
   /** The team's growth samples: one from each finished committed epic with a baseline. */
   growthSamples: number
   /** Growth samples measured growth needs (`minGrowthSamples`): below it, adopted measured growth is paused. */
   samplesNeeded: number
-  /** The measured medium range, once enough finished committed epics exist. */
+  /** The measured medium range, once there are enough growth samples. */
   suggestion: Suggestion | undefined
 }
 
@@ -87,7 +87,7 @@ export function epicGrowth(
 
 /**
  * Where the epic's growth comes from, as the Milestone forecast screen says it: "Medium ambiguity: grows 1–2×",
- * "Medium ambiguity: grows as measured from 7 finished committed epics" or "No items yet: sized from 3 finished committed
+ * "Medium ambiguity: grows as measured from 7 growth samples" or "No items yet: sized from 3 finished committed
  * epics".
  */
 export function growthBasis(epic: MilestoneEpic, source: GrowthSource, growth: TeamGrowth, settings: ForecastSettings): string {
@@ -96,11 +96,11 @@ export function growthBasis(epic: MilestoneEpic, source: GrowthSource, growth: T
     case 'ambiguity': {
       const grows = `${level}: grows ${rangeText(growth.ranges[epic.ambiguity])}`
       return epic.ambiguity === 'medium' && mediumGrowth(growth, settings) === 'paused'
-        ? `${grows} (measured growth paused: ${growth.growthSamples.length} of ${counted(settings.minGrowthSamples, 'growth sample')})`
+        ? `${grows} (measured growth paused: it ${samplesShortfall(growth.growthSamples.length, settings.minGrowthSamples)})`
         : grows
     }
     case 'samples':
-      return `${level}: grows as measured from ${counted(growth.growthSamples.length, 'finished committed epic')}`
+      return `${level}: grows as measured from ${counted(growth.growthSamples.length, 'growth sample')}`
     case 'epicSize': {
       const sizes = epicSizes(growth, settings)
       return Array.isArray(sizes)
@@ -108,6 +108,11 @@ export function growthBasis(epic: MilestoneEpic, source: GrowthSource, growth: T
         : `No items yet: sized ${sizes.low}–${sizes.high} items`
     }
   }
+}
+
+/** How far the growth samples fall short of what measured growth needs: "needs 7 growth samples, and has 6". */
+export function samplesShortfall(growthSamples: number, samplesNeeded: number): string {
+  return `needs ${counted(samplesNeeded, 'growth sample')}, and has ${growthSamples}`
 }
 
 /** The level as a label: "Medium". */
@@ -156,8 +161,7 @@ export function editGrowth(storage: Storage, teamId: string, edit: GrowthEdit, s
     case 'useMeasuredMedium': {
       const { ranges, growthSamples } = teamGrowth(storage, teamId, teamFacts(storage, teamId))
       if (!hasEnoughGrowthSamples(growthSamples, settings)) {
-        const needed = counted(settings.minGrowthSamples, 'growth sample')
-        return refuse(`Measured growth needs ${needed}, and has ${growthSamples.length}.`)
+        return refuse(`Measured growth ${samplesShortfall(growthSamples.length, settings.minGrowthSamples)}.`)
       }
       storage.saveAmbiguityRanges({ teamId, ...ranges, mediumMeasured: true })
       return { ok: true }
