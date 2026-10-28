@@ -128,6 +128,16 @@ CREATE TABLE epic_ambiguities (
   FOREIGN KEY (team_id, milestone_id) REFERENCES milestones(team_id, id)
 );
 `,
+  // 6: when the Forecaster was installed for each team (#22): nothing finished before it counts towards measured pace.
+  // Teams already stored count from this upgrade, so no older pace is used; the sample team from when its canned
+  // epics were created, as `SAMPLE_DATA` has it.
+  `
+ALTER TABLE teams ADD COLUMN installed_at TEXT;
+UPDATE teams SET installed_at = CASE source
+  WHEN 'sample' THEN '2026-08-31T09:00:00Z'
+  ELSE strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+END;
+`,
 ]
 
 type Row = Record<string, SQLInputValue>
@@ -152,7 +162,7 @@ export function openSqliteStorage(file: string): Storage {
   migrate(db, file, transaction)
 
   const upsertTeam = db.prepare(`
-    INSERT INTO teams (id, name, source, source_ref) VALUES (?, ?, ?, ?)
+    INSERT INTO teams (id, name, source, source_ref, installed_at) VALUES (?, ?, ?, ?, ?)
     ON CONFLICT (id) DO UPDATE SET name = excluded.name, source = excluded.source, source_ref = excluded.source_ref`)
   const upsertItem = db.prepare(`
     INSERT INTO work_items (id, team_id, source_key, type, title, parent_id, labels, created_at, started_at, done_at, cancelled_at, last_synced_at)
@@ -211,18 +221,19 @@ export function openSqliteStorage(file: string): Storage {
     },
 
     saveTeam(team) {
-      upsertTeam.run(team.id, team.name, team.source, team.sourceRef)
+      upsertTeam.run(team.id, team.name, team.source, team.sourceRef, team.installedAt)
     },
 
     teams() {
       return db
-        .prepare('SELECT id, name, source, source_ref FROM teams ORDER BY rowid')
+        .prepare('SELECT id, name, source, source_ref, installed_at FROM teams ORDER BY rowid')
         .all()
         .map((row: Row) => ({
           id: String(row.id),
           name: String(row.name),
           source: String(row.source) as Team['source'],
           sourceRef: String(row.source_ref),
+          installedAt: String(row.installed_at),
         }))
     },
 
@@ -290,17 +301,18 @@ export function openSqliteStorage(file: string): Storage {
     },
 
     savePaceSetting(setting) {
-      const [low, high] = setting.mode === 'manual' ? [setting.low, setting.high] : [null, null]
-      upsertPaceSetting.run(setting.teamId, setting.milestoneId, setting.mode, low, high)
+      upsertPaceSetting.run(setting.teamId, setting.milestoneId, setting.mode, setting.manual?.low ?? null, setting.manual?.high ?? null)
     },
 
     paceSetting(teamId, milestoneId) {
       const row = selectPaceSetting.get(teamId, milestoneId)
       if (row === undefined) return undefined
-      const ids = { teamId: String(row.team_id), milestoneId: String(row.milestone_id) }
-      return row.mode === 'measured'
-        ? { ...ids, mode: 'measured' }
-        : { ...ids, mode: 'manual', low: Number(row.low), high: Number(row.high) }
+      return {
+        teamId: String(row.team_id),
+        milestoneId: String(row.milestone_id),
+        mode: row.mode === 'measured' ? 'measured' : 'manual',
+        manual: row.low === null ? undefined : { low: Number(row.low), high: Number(row.high) },
+      }
     },
 
     saveWorkflowSettings(settings) {

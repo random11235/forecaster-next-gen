@@ -21,3 +21,7 @@ _Avoid_: split rate, scope creep
 **Epic size**: a finished committed epic's children when it was done. An epic with no children yet is forecast as a whole epic of a size drawn from the team's epic sizes, or from a default range until any exist.
 
 **Measured growth**: medium epics drawing their growth from the team's growth samples instead of the medium range, once the EM adopts it. When it is suggested, paused and resumed, and why only medium: [Growth](docs/design/forecast-model.md#growth).
+
+**Installation** (of a team): when the Forecaster was set up for the team. Nothing the team finished before it is used automatically, so pace never quietly draws on another team, KTLO load or way of working. Stored as `installed_at`.
+
+**Measured pace**: the forecast drawing a milestone's pace from its own weeks of finished tickets (only those under its epics, and only in whole weeks since installation, from the first week one was finished) instead of the EM's manual range, once the EM switches to it. When it is offered, paused and resumed: [Pace](docs/design/forecast-model.md#pace).

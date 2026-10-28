@@ -29,10 +29,11 @@ function forecastHeader(view: Extract<MilestoneForecastView, { kind: 'milestone'
   const context = `${view.name} · committed ${formatDate(view.committedDate)}`
   const { forecast } = view
   if (forecast.kind === 'needsPace') {
-    return { context, heading: 'Enter your pace on the <a href="/inputs">Inputs screen</a> to see a forecast.' }
-  }
-  if (forecast.kind === 'thinData') {
-    return { context, heading: 'No forecast yet.', lede: escapeHtml(forecast.message) }
+    return {
+      context,
+      heading: 'Enter your pace on the <a href="/inputs">Inputs screen</a> to see a forecast.',
+      ...(forecast.message !== undefined && { lede: escapeHtml(forecast.message) }),
+    }
   }
   const sure = forecast.dates.find(({ percent }) => percent === HEADLINE_PERCENT)
   if (!sure) return { context, heading: 'Forecast' }
@@ -91,6 +92,9 @@ function renderWarnings(warnings: readonly string[]): string {
     </section>`
 }
 
+/** What pace counts; its `scope` is only ever the milestone's epics. */
+const PACE_SCOPE = 'Only tickets under this milestone’s epics count: KTLO and unparented tickets are left out.'
+
 function renderForecast(forecast: ForecastSection): string {
   if (forecast.kind !== 'forecast') return ''
   const dates = forecast.dates
@@ -101,15 +105,15 @@ function renderForecast(forecast: ForecastSection): string {
     )
     .join('\n')
   const pace =
-    forecast.pace.mode === 'manual'
+    forecast.pace.source === 'manual'
       ? `Pace: ${forecast.pace.low}–${forecast.pace.high} tickets per week (manual)`
-      : 'Pace: measured'
+      : `Pace: measured over ${counted(forecast.pace.weeks, 'week')}`
   const notes = forecast.notes.map((note) => `\n      <p class="note">${escapeHtml(note)}</p>`).join('')
   return `    <section class="brief" aria-label="Forecast">
       <div class="heading"><h2>When it could finish</h2></div>
       <ul class="dates">
 ${dates}
       </ul>
-      <p class="note">${pace}</p>${notes}
+      <p class="note">${pace}. ${PACE_SCOPE}</p>${notes}
     </section>`
 }

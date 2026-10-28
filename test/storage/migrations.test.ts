@@ -45,6 +45,8 @@ INSERT INTO milestone_epics VALUES ('ACME', 'M1', 0, 'E1');
 INSERT INTO pace_settings VALUES ('ACME', 'M1', 'manual', 3, 7);
 `
 
+const AN_ISO_TIMESTAMP = expect.stringMatching(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/)
+
 let dir: string
 let storage: Storage | undefined
 
@@ -110,7 +112,7 @@ describe('a data file written before schema versions', () => {
   test('opens and keeps its team, facts, milestone and pace setting', () => {
     const storage = open(writeFile('old.db', UNVERSIONED_SCHEMA))
 
-    expect(storage.teams()).toEqual([{ id: TEAM, name: 'Acme', source: 'jira', sourceRef: TEAM }])
+    expect(storage.teams()).toEqual([{ id: TEAM, name: 'Acme', source: 'jira', sourceRef: TEAM, installedAt: AN_ISO_TIMESTAMP }])
     expect(storage.facts(TEAM)).toEqual({
       workItems: [
         { id: 'E1', teamId: TEAM, sourceKey: 'ACME-1', type: 'epic', title: 'Checkout', labels: [], createdAt: CREATED, lastSyncedAt: CREATED },
@@ -131,7 +133,7 @@ describe('a data file written before schema versions', () => {
     expect(storage.milestones(TEAM)).toEqual([
       { id: 'M1', teamId: TEAM, name: 'Launch', committedDate: '2026-12-18', epicIds: ['E1'] },
     ])
-    expect(storage.paceSetting(TEAM, 'M1')).toEqual({ teamId: TEAM, milestoneId: 'M1', mode: 'manual', low: 3, high: 7 })
+    expect(storage.paceSetting(TEAM, 'M1')).toEqual({ teamId: TEAM, milestoneId: 'M1', mode: 'manual', manual: { low: 3, high: 7 } })
   })
 })
 
@@ -164,12 +166,12 @@ describe('schema version', () => {
 
     const storage = open(file)
     storage.addFacts(TEAM, { workItems: [ticket('S2')], events: [] })
-    storage.savePaceSetting({ teamId: TEAM, milestoneId: 'M1', mode: 'measured' })
+    storage.savePaceSetting({ teamId: TEAM, milestoneId: 'M1', mode: 'measured', manual: { low: 3, high: 7 } })
 
     expect(versionOf(file)).toBe(version)
     const reopened = open(file)
     expect(reopened.facts(TEAM).workItems.map((item) => item.id)).toEqual(['E1', 'S1', 'S2'])
-    expect(reopened.paceSetting(TEAM, 'M1')).toEqual({ teamId: TEAM, milestoneId: 'M1', mode: 'measured' })
+    expect(reopened.paceSetting(TEAM, 'M1')).toEqual({ teamId: TEAM, milestoneId: 'M1', mode: 'measured', manual: { low: 3, high: 7 } })
   })
 })
 
@@ -191,12 +193,12 @@ describe('a data file from schema version 1, before workflow settings', () => {
     const file = writeFile('v1.db', UNVERSIONED_SCHEMA, 1)
 
     const storage = open(file)
-    expect(storage.teams()).toEqual([{ id: TEAM, name: 'Acme', source: 'jira', sourceRef: TEAM }])
+    expect(storage.teams()).toEqual([{ id: TEAM, name: 'Acme', source: 'jira', sourceRef: TEAM, installedAt: AN_ISO_TIMESTAMP }])
     expect(storage.facts(TEAM).workItems.map((item) => item.id)).toEqual(['E1', 'S1'])
     expect(storage.milestones(TEAM)).toEqual([
       { id: 'M1', teamId: TEAM, name: 'Launch', committedDate: '2026-12-18', epicIds: ['E1'] },
     ])
-    expect(storage.paceSetting(TEAM, 'M1')).toEqual({ teamId: TEAM, milestoneId: 'M1', mode: 'manual', low: 3, high: 7 })
+    expect(storage.paceSetting(TEAM, 'M1')).toEqual({ teamId: TEAM, milestoneId: 'M1', mode: 'manual', manual: { low: 3, high: 7 } })
     expect(storage.workflowSettings(TEAM)).toEqual(SAMPLE_WORKFLOW)
 
     const reopened = open(file)
@@ -277,9 +279,8 @@ INSERT INTO epic_commits VALUES ('ACME', 'E1', '2026-10-02T12:00:00Z', 1);
   })
 })
 
-describe('a data file from schema version 4, before ambiguity', () => {
-  /** Version 4's tables: version 3's, less its spike rules. Kept verbatim: it is a past release. */
-  const VERSION_4_SCHEMA = `${VERSION_2_SCHEMA}
+/** Version 4's tables: version 3's, less its spike rules. Kept verbatim: it is a past release. */
+const VERSION_4_SCHEMA = `${VERSION_2_SCHEMA}
 ALTER TABLE workflow_settings DROP COLUMN spike_types;
 ALTER TABLE workflow_settings DROP COLUMN spike_labels;
 CREATE TABLE epic_commits (
@@ -287,6 +288,8 @@ CREATE TABLE epic_commits (
   child_count_at_commit INTEGER NOT NULL, PRIMARY KEY (team_id, epic_id)
 );
 `
+
+describe('a data file from schema version 4, before ambiguity', () => {
 
   test('has no ambiguity ranges or epic levels, and takes them, and they survive reopening', () => {
     const file = writeFile('v4.db', VERSION_4_SCHEMA, 4)
@@ -309,6 +312,46 @@ CREATE TABLE epic_commits (
     const reopened = open(file)
     expect(reopened.ambiguityRanges(TEAM)).toEqual(ranges)
     expect(reopened.epicAmbiguities(TEAM, 'M1')).toEqual([level])
+  })
+})
+
+describe('a data file from schema version 5, before installation dates', () => {
+  /** Version 5's tables: version 4's, plus ambiguity as #21 shipped it. Kept verbatim: it is a past release. */
+  const VERSION_5_SCHEMA = `${VERSION_4_SCHEMA}
+CREATE TABLE ambiguity_ranges (
+  team_id TEXT PRIMARY KEY REFERENCES teams(id), low_low REAL NOT NULL, low_high REAL NOT NULL, medium_low REAL NOT NULL,
+  medium_high REAL NOT NULL, high_low REAL NOT NULL, high_high REAL NOT NULL, medium_measured INTEGER NOT NULL
+);
+CREATE TABLE epic_ambiguities (
+  team_id TEXT NOT NULL, milestone_id TEXT NOT NULL, epic_id TEXT NOT NULL, ambiguity TEXT NOT NULL,
+  PRIMARY KEY (team_id, milestone_id, epic_id), FOREIGN KEY (team_id, milestone_id) REFERENCES milestones(team_id, id)
+);
+INSERT INTO teams VALUES ('sample-team', 'Payments (sample)', 'sample', 'PAY');
+INSERT INTO milestones VALUES ('sample-team', 'sample-milestone', 'Checkout v2', '2026-12-18');
+INSERT INTO pace_settings VALUES ('sample-team', 'sample-milestone', 'measured', NULL, NULL);
+`
+
+  test('counts its own teams from the upgrade and the sample team from its canned date, and keeps chosen measured pace', () => {
+    const file = writeFile('v5.db', VERSION_5_SCHEMA, 5)
+    // the upgrade records whole seconds
+    const before = Math.floor(Date.now() / 1000) * 1000
+
+    const storage = open(file)
+    const after = Date.now()
+    const [acme, sample] = storage.teams()
+    expect(acme!.installedAt).toEqual(AN_ISO_TIMESTAMP)
+    expect(Date.parse(acme!.installedAt)).toBeGreaterThanOrEqual(before)
+    expect(Date.parse(acme!.installedAt)).toBeLessThanOrEqual(after)
+    expect(sample).toMatchObject({ id: 'sample-team', installedAt: '2026-08-31T09:00:00Z' })
+    expect(storage.paceSetting('sample-team', 'sample-milestone')).toEqual({
+      teamId: 'sample-team',
+      milestoneId: 'sample-milestone',
+      mode: 'measured',
+      manual: undefined,
+    })
+
+    storage.saveTeam({ ...acme!, name: 'Acme Payments', installedAt: '2030-01-01T00:00:00Z' })
+    expect(open(file).teams()[0]).toEqual({ ...acme, name: 'Acme Payments' })
   })
 })
 

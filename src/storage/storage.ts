@@ -10,6 +10,7 @@ import type { Facts } from '../model/workItem.js'
 export interface Storage {
   /** True when nothing has been stored yet: the first launch. */
   isEmpty(): boolean
+  /** Adds the team, or updates the one with the same ID; a team's `installedAt` is kept from when it was added. */
   saveTeam(team: Team): void
   teams(): Team[]
   /** Adds the team's work items (replacing any with the same ID) and appends their events. */

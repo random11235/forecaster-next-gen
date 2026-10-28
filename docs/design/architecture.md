@@ -53,7 +53,7 @@ src/
 
   samples/                # Layer 2: pure derivations from model/
     commits.ts            # commits that stand: in the tool or by the commit label, after pull-back resets
-    throughput.ts         # WorkItems → ThroughputSample[] (milestone epics only)
+    throughput.ts         # WorkItems → daily ThroughputSample[] since installation (milestone epics only)
     finishedEpics.ts      # commits that stand + work items → the committed epics now done, with baseline and final count
     growth.ts             # commits + final counts → GrowthSample[]
     epicSize.ts           # finished epics → EpicSizeSample[]
@@ -69,7 +69,8 @@ src/
     milestoneDefinition.ts  # behind inputs.ts: the milestone's view and edits, including committing an epic
     workflowSettings.ts   # behind inputs.ts: the workflow settings view and edit
     growth.ts             # behind inputs.ts: ambiguity ranges and levels, measured growth; each epic's growth and its source
-    buildCase.ts          # pace mode, ambiguity ranges, provisional baselines, limits
+    pace.ts               # behind inputs.ts: weekly pace since installation, the measured-pace gate and switch; the pace a forecast uses
+    buildCase.ts          # the pace applied, ambiguity ranges, provisional baselines, limits
     settings.ts           # ForecastSettings and AmbiguityRanges defaults
     suggestions.ts        # suggested pace range, measured medium range, switch offers
     diagnostics.ts        # sample counts, pace variation text, warnings (e.g. in progress but not committed), provenance (ThroughputScope, GrowthSource)
