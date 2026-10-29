@@ -1,14 +1,7 @@
 import { periodName, type PeriodName } from '../forecast/cadence.js'
-import {
-  MAX_CADENCE_DAYS,
-  MAX_TICKETS_PER_PERIOD,
-  MAX_TICKETS_REMAINING,
-  type MilestoneInput,
-  type InputNote,
-  type MilestoneInputsView,
-} from '../forecast/milestoneInputs.js'
+import type { InputNote, MilestoneInput } from '../forecast/milestoneAssessment.js'
+import { MAX_CADENCE_DAYS, MAX_TICKETS_PER_PERIOD, MAX_TICKETS_REMAINING, type MilestoneInputsView } from '../forecast/milestoneInputs.js'
 import { ambiguityName, MAX_GROWTH, type GrowthView, type TypedRange } from '../forecast/growth.js'
-import { DEFAULT_SETTINGS } from '../forecast/settings.js'
 import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
 import type { PaceMode } from '../model/milestoneInputs.js'
 import { escapeHtml, htmlPage } from './html.js'
@@ -244,10 +237,9 @@ const PACE_MODE_NAMES: Record<PaceMode, string> = { range: 'Range', counts: 'Typ
 
 /** The pace: which one the forecast uses, the range, and the typed counts, the notes beside the one in use. */
 function paceSection(screen: InputsScreen, period: PeriodName): Section {
-  const { paceMode, notes } = screen.milestone
+  const { paceMode, notes, typedCountsNeeded: typedCounts } = screen.milestone
   const notesIfUsed = (mode: PaceMode): string => (mode === paceMode ? notesFor('pace', notes) : '')
   const { paceForm: range, paceCountsForm: counts } = screen
-  const { typedCounts } = DEFAULT_SETTINGS
   return inputSection(
     INPUT_LABELS.pace,
     INPUT_LABELS.pace,
