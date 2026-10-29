@@ -87,6 +87,7 @@ const STYLE = `
     h1 { margin: 0; font-size: 40px; line-height: 1.15; font-weight: 600; letter-spacing: -0.03em; max-width: 820px; text-wrap: pretty; }
     .risk { color: var(--risk); }
     .good { color: var(--good); }
+    .past { color: var(--risk); }
     .lede { font-size: 16px; line-height: 1.5; color: var(--text-2); max-width: 680px; }
     p.note { margin: 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
     p.error { margin: 0; color: var(--risk); font-weight: 600; }
@@ -150,6 +151,13 @@ const STYLE = `
     .pace input[type=number] { font-size: 32px; width: 72px; text-align: center; padding: 2px 0; }
     .pace .to { font-size: 24px; color: var(--faint); padding-bottom: 6px; }
     .pace .unit { color: var(--text-2); padding-bottom: 10px; }
+    fieldset.levels { margin: 0; padding: 0; border: 0; display: flex; flex-wrap: wrap; gap: 12px; }
+    fieldset.levels label {
+      display: flex; align-items: baseline; gap: 8px; padding: 10px 14px; cursor: pointer;
+      border: 1px solid var(--border); border-radius: 6px; font-size: 15px;
+    }
+    fieldset.levels label:has(input:checked) { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+    fieldset.levels .range { font-family: var(--mono); font-size: 13px; color: var(--muted); }
     table.growth { border-collapse: collapse; }
     table.growth th { padding: 0 24px 6px 0; text-align: left; font-size: 12px; font-weight: 500; color: var(--faint); }
     table.growth td { padding: 6px 24px 6px 0; }

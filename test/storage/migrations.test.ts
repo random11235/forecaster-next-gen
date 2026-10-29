@@ -370,7 +370,7 @@ INSERT INTO milestones VALUES ('ACME', 'M2', 'Later', '2027-03-01');
     )
 
     expect(entered).toEqual({ ok: true })
-    expect(milestoneForecastView(storage, TEAM, DEFAULT_SETTINGS)).toMatchObject({
+    expect(milestoneForecastView(storage, TEAM, DEFAULT_SETTINGS, '2026-09-01')).toMatchObject({
       kind: 'forecast',
       name: 'Launch',
       ticketsRemaining: 20,

@@ -1,8 +1,10 @@
 import type { ThroughputRange } from '../engine/index.js'
+import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
 import type { MilestoneInputs } from '../model/milestoneInputs.js'
 import type { Storage } from '../storage/storage.js'
 import { periodName } from './cadence.js'
-import { isCalendarDate } from './calendarDate.js'
+import { daysBetween, isCalendarDate } from './calendarDate.js'
+import { counted } from './counted.js'
 import { refuse, type EditResult } from './editResult.js'
 
 /** Far above any real team's pace in one period; keeps typos like 1000000 out of the forecast. */
@@ -19,6 +21,8 @@ export type MilestoneInputsEdit =
   | { kind: 'setMilestone'; name: string; startDate: string; ticketsRemaining: string }
   /** Whole tickets per period, low ≤ high. */
   | { kind: 'setPaceRange'; low: string; high: string }
+  /** One level for the whole milestone: `low`, `medium` or `high`. */
+  | { kind: 'setAmbiguity'; level: string }
   /** Whole days in one of the team's periods, 1 or more. */
   | { kind: 'setCadence'; cadenceDays: string }
 
@@ -36,6 +40,8 @@ export interface MilestoneInputsView {
   name: string
   startDate: string
   ticketsRemaining: number | undefined
+  /** How well the work is understood: medium until the EM chooses. */
+  ambiguity: Ambiguity
   /** Days in one of the team's periods, which pace is entered in. */
   cadenceDays: number
   paceRange: ThroughputRange | undefined
@@ -51,9 +57,10 @@ export function milestoneInputsView(storage: Storage, teamId: string, today: str
     name: inputs.name,
     startDate: inputs.startDate ?? today,
     ticketsRemaining: inputs.ticketsRemaining,
+    ambiguity: inputs.ambiguity,
     cadenceDays: inputs.cadenceDays,
     paceRange: inputs.paceRange,
-    notes: saved ? [...inputProblems(saved), ...inputWarnings(saved)] : [],
+    notes: saved ? [...inputProblems(saved), ...inputWarnings(saved, today)] : [],
   }
 }
 
@@ -76,8 +83,20 @@ export function isForecastable(inputs: MilestoneInputs): inputs is ForecastableI
   return inputProblems(inputs).length === 0
 }
 
-/** Inputs that can be forecast but give a forecast the EM should question. */
-export function inputWarnings(inputs: MilestoneInputs): InputNote[] {
+/** Inputs that can be forecast but give a forecast the EM should question, on `today`. */
+export function inputWarnings(inputs: MilestoneInputs, today: string): InputNote[] {
+  return [...startDateWarnings(inputs, today), ...paceWarnings(inputs)]
+}
+
+/** A start date before today forecasts "had we started then", from today's tickets remaining. */
+function startDateWarnings(inputs: MilestoneInputs, today: string): InputNote[] {
+  if (inputs.startDate === undefined) return []
+  const daysBefore = daysBetween(inputs.startDate, today)
+  if (daysBefore <= 0) return []
+  return [{ input: 'startDate', message: `Start date is ${counted(daysBefore, 'day')} before today; tickets remaining are still today's count.` }]
+}
+
+function paceWarnings(inputs: MilestoneInputs): InputNote[] {
   const workLeft = (inputs.ticketsRemaining ?? 0) > 0
   if (workLeft && inputs.paceRange?.high === 0) {
     return [{ input: 'pace', message: `At 0 tickets a ${periodName(inputs.cadenceDays)}, the work never finishes.` }]
@@ -113,6 +132,13 @@ export function editMilestoneInputs(storage: Storage, teamId: string, edit: Mile
       }
       if (low > high) return refuse('The low end must not be above the high end.')
       storage.saveMilestoneInputs({ ...saved, paceRange: { low, high } })
+      return { ok: true }
+    }
+    case 'setAmbiguity': {
+      if (!saved) return refuse('Enter the milestone first.')
+      const level = AMBIGUITIES.find((ambiguity) => ambiguity === edit.level)
+      if (level === undefined) return refuse('Choose low, medium or high ambiguity.')
+      storage.saveMilestoneInputs({ ...saved, ambiguity: level })
       return { ok: true }
     }
     case 'setCadence': {
