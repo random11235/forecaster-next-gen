@@ -212,6 +212,21 @@ describe('Inputs screen', () => {
     expect(text(await page('/'))).toContain('Pace: Enter a pace range.')
   })
 
+  test('every form posts to a fragment naming where it sits, so the browser lands on why, should it be refused', async () => {
+    await startOnPreMvpData()
+
+    const html = await page('/inputs')
+
+    const actions = [...html.matchAll(/<form[^>]*action="([^"]+)"/g)].map(([, action]) => action!)
+    expect(actions).toHaveLength(9)
+    for (const action of actions) {
+      const fragment = action.split('#')[1]
+      expect(fragment, action).toMatch(/^[a-z-]+$/)
+      expect(html.match(new RegExp(`<[a-z]+[^>]*id="${fragment}"[\\s\\S]*?</section>`))![0]).toContain(`action="${action}"`)
+    }
+    expect(html).toContain('action="/inputs/growth#growth"')
+  })
+
   test('shows a warning beside the input it is about', async () => {
     await startOnPreMvpData()
     await submitPace('0', '0')
@@ -249,6 +264,7 @@ describe('Inputs screen: cadence', () => {
 
     expect(html).toMatch(/<input type="number" name="cadenceDays"[^>]*value="7"/)
     expect(text(html)).toContain('Cadence length')
+    expect(text(html)).toContain('At 7 days a period is a week, so pace is entered per week; any other length makes it a sprint.')
   })
 
   test('saving a 14-day cadence shows it, and the pace input and its warning say per sprint', async () => {
@@ -262,6 +278,7 @@ describe('Inputs screen: cadence', () => {
     const html = await page('/inputs')
     expect(html).toMatch(/name="cadenceDays"[^>]*value="14"/)
     expect(text(html)).toContain('tickets per sprint')
+    expect(text(html)).toContain('At 14 days a period is a sprint, so pace is entered per sprint; 7 days makes it a week.')
     expect(text(html)).not.toContain('per week')
     expect(text(html)).toContain('At 0 tickets a sprint, the work never finishes.')
   })
@@ -483,6 +500,16 @@ describe('Inputs screen: growth', () => {
     expect(text(await page('/'))).toBe(before)
   })
 
+  test('a refused range lands on the growth section, with why at its top', async () => {
+    await startOnPreMvpData()
+
+    const response = await post('/inputs/growth', growthForm({ 'high-low': '4' }))
+
+    expect(response.status).toBe(400)
+    const growth = (await response.text()).match(/<section[^>]*id="growth"[\s\S]*?<\/section>/)![0]
+    expect(growth).toMatch(/<p class="error" role="alert">High ambiguity: the low end must not be above the high end.<\/p>[\s\S]*<table/)
+  })
+
   test('offers no measured growth, even where it was adopted before the MVP', async () => {
     await startOnPreMvpData()
 
@@ -508,9 +535,20 @@ describe('Milestone forecast screen', () => {
 
     const html = await page('/')
 
-    expect(text(html)).toContain('Fix these on the Inputs screen to see a forecast.')
+    expect(text(html)).toContain('Fix this on the Inputs screen to see a forecast.')
     expect(text(html)).toContain('Pace: Enter a pace range.')
     expect(html).toContain('href="/inputs"')
+  })
+
+  test('with more than one thing to fix, asks for them all to be fixed', async () => {
+    await startOnPreMvpData()
+    storage!.saveMilestoneInputs({ ...CHECKOUT, ticketsRemaining: undefined })
+
+    const screen = text(await page('/'))
+
+    expect(screen).toContain('Fix these on the Inputs screen to see a forecast.')
+    expect(screen).toContain('Tickets remaining: Enter how many tickets are left.')
+    expect(screen).toContain('Pace: Enter a pace range.')
   })
 
   test('headlines the 85% date from the start date, with the name and tickets remaining above it', async () => {
@@ -630,6 +668,42 @@ describe('Milestone forecast screen', () => {
     expect(graph.match(/class="mark headline"/g)).toHaveLength(1)
   })
 
+  test('labels each date of the finish graph once, combining the percents that share it, the 85% one stressed', async () => {
+    await startOnPreMvpData()
+    await submitMilestone('Checkout v2', '2026-09-01', '2')
+    await submitPace('4', '8')
+
+    const graph = (await page('/')).match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
+
+    expect(graph.match(/class="marker[ "]/g)).toHaveLength(1)
+    expect(graph).toMatch(/<span class="mark headline">50% · 70% · 85% · 95% <span class="date">8 Sep 2026<\/span><\/span>/)
+  })
+
+  test.each([
+    ['4', '8'],
+    ['1', '8'],
+    ['6', '7'],
+  ])("at a pace of %s–%s, runs no marker's label across the line of a marker above it", async (low, high) => {
+    await startOnPreMvpData()
+    await submitPace(low, high)
+
+    const graph = (await page('/')).match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
+    const markers = [...graph.matchAll(/<div class="marker([^"]*)" style="left: ([\d.]+)%; top: (\d+)px"/g)].map(([, classes, left, top]) => ({
+      runsLeft: classes!.split(' ').includes('end'),
+      left: Number(left),
+      top: Number(top),
+    }))
+
+    expect(markers.length).toBeGreaterThan(1)
+    for (const marker of markers) {
+      for (const above of markers.filter(({ top }) => top < marker.top)) {
+        // a label runs away from the lines that come down through its row
+        if (marker.runsLeft) expect(above.left).toBeGreaterThan(marker.left)
+        else expect(above.left).toBeLessThan(marker.left)
+      }
+    }
+  })
+
   test('each bar of the finish graph shows its date, its share of trials and the share finished by then, on hover or keyboard focus', async () => {
     await startOnPreMvpData()
     await submitPace('4', '8')
@@ -663,6 +737,17 @@ describe('Milestone forecast screen', () => {
     expect(await page('/')).not.toContain('<figure class="finish-graph"')
   })
 
+  test('with 0 tickets remaining, headlines the start date and draws no graph, as every trial finishes on it', async () => {
+    await startOnPreMvpData()
+    await submitMilestone('Checkout v2', '2026-12-01', '0')
+    await submitPace('4', '8')
+
+    const html = await page('/')
+
+    expect(text(html)).toContain('Starting 1 Dec 2026: 85% sure of finishing by 1 Dec 2026')
+    expect(html).not.toContain('<figure class="finish-graph"')
+  })
+
   test('states a past start date once, and marks finish dates before today as already past', async () => {
     await startOnPreMvpData()
     await submitMilestone('Checkout v2', '2026-03-02', '40')
@@ -675,6 +760,22 @@ describe('Milestone forecast screen', () => {
     expect(screen).toMatch(/Starting 2 Mar 2026: 85% sure of finishing by \d{1,2} [A-Z][a-z]{2} 2026 \(already past\)/)
     for (const percent of [50, 70, 85, 95]) {
       expect(screen).toMatch(new RegExp(`${percent}% sure by \\d{1,2} [A-Z][a-z]{2} 2026 \\(already past\\)`))
+    }
+  })
+
+  test('puts the warnings straight under the headline, above the dates and the graph', async () => {
+    await startOnPreMvpData()
+    await submitMilestone('Checkout v2', '2026-03-02', '40')
+    await submitCounts('6, 4, 9, 7')
+    await choosePace('counts')
+
+    const screen = text(await page('/'))
+
+    const warnings = [screen.indexOf('⚠ Start date is'), screen.indexOf('⚠ Pace: Typed counts: 4 weeks entered.')]
+    for (const at of warnings) {
+      expect(at).toBeGreaterThan(screen.indexOf('85% sure of finishing by'))
+      expect(at).toBeLessThan(screen.indexOf('When it could finish'))
+      expect(at).toBeLessThan(screen.indexOf('When the trials finish'))
     }
   })
 
