@@ -340,13 +340,15 @@ describe('Inputs screen: ambiguity', () => {
 })
 
 describe('Inputs screen: growth', () => {
-  test('shows the default ranges', async () => {
+  test('shows the default ranges, each as times the tickets remaining', async () => {
     await startOnPreMvpData()
 
     const html = await page('/inputs')
     for (const [field, value] of Object.entries(Object.fromEntries(growthForm()))) {
       expect(html).toMatch(new RegExp(`name="${field}"[^>]*value="${value}"`))
     }
+    expect(text(html)).toContain('× the tickets remaining')
+    expect(text(html)).not.toContain('baseline')
   })
 
   test('saved ranges show on the Inputs screen, and the medium range moves the forecast', async () => {
@@ -361,15 +363,20 @@ describe('Inputs screen: growth', () => {
     expect(Date.parse(dateAt(text(await page('/')), 85))).toBeGreaterThan(Date.parse(before))
   })
 
-  test('refused ranges say why and keep what was typed', async () => {
+  test('refused ranges say why, naming the level, keep what was typed, and change nothing', async () => {
     await startOnPreMvpData()
+    await submitPace('4', '8')
+    const before = text(await page('/'))
 
-    const response = await post('/inputs/growth', growthForm({ 'high-low': '4' }))
+    const response = await post('/inputs/growth', growthForm({ 'medium-high': '2.5', 'high-low': '4' }))
 
     expect(response.status).toBe(400)
     const html = await response.text()
-    expect(text(html)).toContain('The low end must not be above the high end.')
+    expect(text(html)).toContain('High ambiguity: the low end must not be above the high end.')
+    expect(html).toMatch(/name="medium-high"[^>]*value="2.5"/)
     expect(html).toMatch(/name="high-low"[^>]*value="4"/)
+    expect(text(html)).toContain('Medium 1–2×')
+    expect(text(await page('/'))).toBe(before)
   })
 
   test('offers no measured growth, even where it was adopted before the MVP', async () => {

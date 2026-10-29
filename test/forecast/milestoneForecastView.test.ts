@@ -558,12 +558,39 @@ describe('growth on the Inputs screen', () => {
     expect(view(storage)).toMatchObject({ dates: [50, 70, 85, 95].map((percent) => ({ percent, date: '2026-09-15' })) })
   })
 
+  test('the milestone grows by the edited range of its own level: high edited to 1–1×, 10 tickets at exactly 5 a week finish in 2 weeks', () => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '5', high: '5' })
+    expect(edit(storage, { kind: 'setAmbiguity', level: 'high' })).toEqual({ ok: true })
+
+    expect(edit(storage, { kind: 'setAmbiguityRanges', low: typed('1', '1.5'), medium: typed('1', '2'), high: typed('1', '1') })).toEqual({ ok: true })
+
+    expect(view(storage)).toMatchObject({
+      ambiguity: { level: 'high', low: 1, high: 1 },
+      dates: [50, 70, 85, 95].map((percent) => ({ percent, date: '2026-09-15' })),
+    })
+  })
+
+  test('edited ranges are kept across a restart', () => {
+    const storage = newTeam()
+    expect(edit(storage, { kind: 'setAmbiguityRanges', low: typed('1', '1.2'), medium: typed('1.1', '2.5'), high: typed('2', '4') })).toEqual({ ok: true })
+
+    const reopened = openStorage()
+
+    expect(growth(reopened)).toEqual({
+      low: { low: 1, high: 1.2 },
+      medium: { low: 1.1, high: 2.5 },
+      high: { low: 2, high: 4 },
+    })
+  })
+
   test.each([
-    [typed('', '2'), 'Enter each range as two numbers, such as 1 to 1.5.'],
-    [typed('one', '2'), 'Enter each range as two numbers, such as 1 to 1.5.'],
-    [typed('0', '2'), 'Enter growth above 0 and at most 10 times.'],
-    [typed('1', '11'), 'Enter growth above 0 and at most 10 times.'],
-    [typed('2', '1.5'), 'The low end must not be above the high end.'],
+    [typed('', '2'), 'Medium ambiguity: enter the range as two numbers, such as 1 to 1.5.'],
+    [typed('one', '2'), 'Medium ambiguity: enter the range as two numbers, such as 1 to 1.5.'],
+    [typed('0', '2'), 'Medium ambiguity: enter growth above 0 and at most 10 times.'],
+    [typed('-1', '2'), 'Medium ambiguity: enter growth above 0 and at most 10 times.'],
+    [typed('1', '11'), 'Medium ambiguity: enter growth above 0 and at most 10 times.'],
+    [typed('2', '1.5'), 'Medium ambiguity: the low end must not be above the high end.'],
   ])('refuses a medium range typed %o, saying why and saving nothing', (medium, error) => {
     const storage = newTeam()
 
