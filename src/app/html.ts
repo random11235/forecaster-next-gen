@@ -110,8 +110,20 @@ const STYLE = `
     figure.finish-graph { margin: 0; display: flex; flex-direction: column; gap: 6px; }
     .finish-graph .plot { position: relative; padding-top: 92px; }
     .finish-graph .bars { height: 160px; display: flex; align-items: flex-end; border-bottom: 1px solid var(--ink); }
-    .finish-graph .bar { flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; padding: 0 1px; min-width: 0; }
+    .finish-graph .bar { position: relative; flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; padding: 0 1px; min-width: 0; }
     .finish-graph .fill { width: 100%; background: var(--bar); border-radius: 2px 2px 0 0; }
+    .finish-graph .bar:hover .fill, .finish-graph .bar:focus-visible .fill { background: var(--ink); }
+    .finish-graph .bar:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+    /* A bar's hover text: hidden by opacity, not display, so a screen reader still reads it with the bar. Bars near
+       either edge open it inwards. */
+    .finish-graph .tip {
+      position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); z-index: 1;
+      white-space: nowrap; font-size: 12px; line-height: 16px; color: var(--ink); background: var(--page);
+      border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; opacity: 0; pointer-events: none;
+    }
+    .finish-graph .bar.start .tip { left: 0; transform: none; }
+    .finish-graph .bar.end .tip { left: auto; right: 0; transform: none; }
+    .finish-graph .bar:hover .tip, .finish-graph .bar:focus-visible .tip { opacity: 1; }
     .finish-graph .marker { position: absolute; bottom: 0; border-left: 1px dashed var(--faint); }
     .finish-graph .marker.headline { border-left: 2px solid var(--ink); }
     .finish-graph .mark { position: absolute; top: 0; left: 6px; white-space: nowrap; font-size: 12px; line-height: 16px; color: var(--muted); }
