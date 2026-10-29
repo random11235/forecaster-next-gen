@@ -13,6 +13,8 @@ export interface ForecastDate {
   percent: number
   /** ISO calendar date, `YYYY-MM-DD`, or null: later than the horizon date. */
   date: string | null
+  /** The date is before today: a past start date can give a finish that has already gone by. */
+  alreadyPast: boolean
 }
 
 /** What the Milestone forecast screen shows. */
@@ -35,8 +37,8 @@ export type MilestoneForecastView =
       warnings: InputNote[]
     }
 
-/** Seam B: the Milestone forecast screen for the team's milestone, forecast from its start date. */
-export function milestoneForecastView(storage: Storage, teamId: string, settings: ForecastSettings): MilestoneForecastView {
+/** Seam B: the Milestone forecast screen for the team's milestone, forecast from its start date, on `today`. */
+export function milestoneForecastView(storage: Storage, teamId: string, settings: ForecastSettings, today: string): MilestoneForecastView {
   const inputs = storage.milestoneInputs(teamId)
   if (!inputs) return { kind: 'empty' }
   if (!isForecastable(inputs)) return { kind: 'problems', name: inputs.name, problems: inputProblems(inputs) }
@@ -51,11 +53,16 @@ export function milestoneForecastView(storage: Storage, teamId: string, settings
     ticketsRemaining: inputs.ticketsRemaining,
     startDate: inputs.startDate,
     headlinePercent: HEADLINE_PERCENT,
-    dates: percentiles.map((percent) => ({ percent, date: result.percentileDates[percent] ?? null })),
+    dates: percentiles.map((percent) => forecastDate(percent, result.percentileDates[percent] ?? null, today)),
     horizonDate: periodEndDate(inputs.startDate, periodDays, maxPeriods),
     pace: { source: 'range', ...inputs.paceRange },
-    warnings: inputWarnings(inputs),
+    warnings: inputWarnings(inputs, today),
   }
+}
+
+function forecastDate(percent: number, date: string | null, today: string): ForecastDate {
+  // ISO calendar dates order as strings do
+  return { percent, date, alreadyPast: date !== null && date < today }
 }
 
 /**

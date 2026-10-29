@@ -10,7 +10,8 @@ import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
 
 const TEAM = 'ACME'
-const TODAY = '2026-10-24'
+/** Today, fixed: before every start date these tests enter, unless a test says the start date is past. */
+const TODAY = '2026-08-24'
 
 let dir: string
 let storage: Storage | undefined
@@ -71,7 +72,7 @@ const DATES_FROM_15_SEP = [
 ]
 
 function view(storage: Storage) {
-  return milestoneForecastView(storage, TEAM, DEFAULT_SETTINGS)
+  return milestoneForecastView(storage, TEAM, DEFAULT_SETTINGS, TODAY)
 }
 
 describe('the forecast from what the EM enters', () => {
@@ -88,10 +89,10 @@ describe('the forecast from what the EM enters', () => {
       startDate: '2026-09-01',
       headlinePercent: 85,
       dates: [
-        { percent: 50, date: '2026-09-15' },
-        { percent: 70, date: '2026-09-15' },
-        { percent: 85, date: '2026-09-15' },
-        { percent: 95, date: '2026-09-15' },
+        { percent: 50, date: '2026-09-15', alreadyPast: false },
+        { percent: 70, date: '2026-09-15', alreadyPast: false },
+        { percent: 85, date: '2026-09-15', alreadyPast: false },
+        { percent: 95, date: '2026-09-15', alreadyPast: false },
       ],
       horizonDate: '2029-08-28',
       pace: { source: 'range', low: 5, high: 5 },
@@ -165,6 +166,77 @@ describe('the forecast from what the EM enters', () => {
     enter(newTeam(), { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
 
     expect(view(openStorage())).toMatchObject({ name: 'Checkout v2', startDate: '2026-09-01', dates: DATES_FROM_1_SEP })
+  })
+})
+
+describe('a start date in the past', () => {
+  test('is stated as such, with the exact number of days before today, naming the start date', () => {
+    const storage = newTeam()
+
+    enter(storage, { startDate: '2026-05-24', ticketsRemaining: '100' }, { low: '4', high: '8' })
+
+    expect(view(storage)).toMatchObject({
+      warnings: [{ input: 'startDate', message: "Start date is 92 days before today; tickets remaining are still today's count." }],
+    })
+  })
+
+  test.each(['2026-08-24', '2026-08-25'])('a start date of today or later, %s, has no note', (startDate) => {
+    const storage = newTeam()
+
+    enter(storage, { startDate, ticketsRemaining: '100' }, { low: '4', high: '8' })
+
+    expect(view(storage)).toMatchObject({ warnings: [] })
+  })
+
+  test('a start date the day before today says 1 day', () => {
+    const storage = newTeam()
+
+    enter(storage, { startDate: '2026-08-23', ticketsRemaining: '100' }, { low: '4', high: '8' })
+
+    expect(view(storage)).toMatchObject({
+      warnings: [{ input: 'startDate', message: "Start date is 1 day before today; tickets remaining are still today's count." }],
+    })
+  })
+})
+
+describe('a start date in the past, on the Inputs screen', () => {
+  test('shows the same note beside the start date', () => {
+    const storage = newTeam()
+
+    enter(storage, { startDate: '2026-05-24', ticketsRemaining: '100' }, { low: '4', high: '8' })
+
+    expect(inputsView(storage, TEAM, TODAY).milestone.notes).toEqual([
+      { input: 'startDate', message: "Start date is 92 days before today; tickets remaining are still today's count." },
+    ])
+  })
+})
+
+describe('forecast dates before today', () => {
+  test('are marked already past, and dates on or after today are not', () => {
+    const storage = newTeam()
+    mediumGrowth(storage, { low: 1, high: 1 })
+
+    // 10 tickets at 1–9 a week from 3 Aug: some trials finish by 17 Aug, a week before today, others on or after it
+    enter(storage, { startDate: '2026-08-03', ticketsRemaining: '10' }, { low: '1', high: '9' })
+
+    expect(milestoneForecastView(storage, TEAM, DEFAULT_SETTINGS, '2026-08-24')).toMatchObject({
+      dates: [
+        { percent: 50, date: '2026-08-17', alreadyPast: true },
+        { percent: 70, date: '2026-08-24', alreadyPast: false },
+        { percent: 85, date: '2026-08-24', alreadyPast: false },
+        { percent: 95, date: '2026-08-31', alreadyPast: false },
+      ],
+    })
+  })
+
+  test('later than the horizon is never already past', () => {
+    const storage = newTeam()
+
+    enter(storage, { startDate: '2026-05-24', ticketsRemaining: '10' }, { low: '0', high: '0' })
+
+    expect(view(storage)).toMatchObject({
+      dates: [50, 70, 85, 95].map((percent) => ({ percent, date: null, alreadyPast: false })),
+    })
   })
 })
 

@@ -1,7 +1,8 @@
 import type { ThroughputRange } from '../engine/index.js'
 import type { MilestoneInputs } from '../model/milestoneInputs.js'
 import type { Storage } from '../storage/storage.js'
-import { isCalendarDate } from './calendarDate.js'
+import { daysBetween, isCalendarDate } from './calendarDate.js'
+import { counted } from './counted.js'
 import { refuse, type EditResult } from './editResult.js'
 
 /** Far above any real team's weekly pace; keeps typos like 1000000 out of the forecast. */
@@ -44,7 +45,7 @@ export function milestoneInputsView(storage: Storage, teamId: string, today: str
     startDate: inputs.startDate ?? today,
     ticketsRemaining: inputs.ticketsRemaining,
     paceRange: inputs.paceRange,
-    notes: saved ? [...inputProblems(saved), ...inputWarnings(saved)] : [],
+    notes: saved ? [...inputProblems(saved), ...inputWarnings(saved, today)] : [],
   }
 }
 
@@ -67,8 +68,20 @@ export function isForecastable(inputs: MilestoneInputs): inputs is ForecastableI
   return inputProblems(inputs).length === 0
 }
 
-/** Inputs that can be forecast but give a forecast the EM should question. */
-export function inputWarnings(inputs: MilestoneInputs): InputNote[] {
+/** Inputs that can be forecast but give a forecast the EM should question, on `today`. */
+export function inputWarnings(inputs: MilestoneInputs, today: string): InputNote[] {
+  return [...startDateWarnings(inputs, today), ...paceWarnings(inputs)]
+}
+
+/** A start date before today forecasts "had we started then", from today's tickets remaining. */
+function startDateWarnings(inputs: MilestoneInputs, today: string): InputNote[] {
+  if (inputs.startDate === undefined) return []
+  const daysBefore = daysBetween(inputs.startDate, today)
+  if (daysBefore <= 0) return []
+  return [{ input: 'startDate', message: `Start date is ${counted(daysBefore, 'day')} before today; tickets remaining are still today's count.` }]
+}
+
+function paceWarnings(inputs: MilestoneInputs): InputNote[] {
   const workLeft = (inputs.ticketsRemaining ?? 0) > 0
   if (workLeft && inputs.paceRange?.high === 0) {
     return [{ input: 'pace', message: 'At 0 tickets a week, the work never finishes.' }]

@@ -32,7 +32,7 @@ export type Reply =
 
 export interface AppContext {
   storage: Storage
-  /** Today's ISO calendar date: the start date's default. */
+  /** Today's ISO calendar date: the start date's default, and what marks dates as past. */
   today: () => string
 }
 
@@ -40,7 +40,7 @@ export interface AppContext {
 export function route(request: Request, { storage, today }: AppContext): Reply {
   const team = storage.teams()[0]
   if (request.method === 'GET' && request.path === '/') {
-    const view: MilestoneForecastView = team ? milestoneForecastView(storage, team.id, DEFAULT_SETTINGS) : { kind: 'empty' }
+    const view: MilestoneForecastView = team ? milestoneForecastView(storage, team.id, DEFAULT_SETTINGS, today()) : { kind: 'empty' }
     return { kind: 'html', status: 200, html: renderMilestoneForecastScreen(view) }
   }
   if (!team) return { kind: 'notFound' }
