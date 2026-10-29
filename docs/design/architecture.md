@@ -6,6 +6,8 @@ This covers the Forecaster as a whole: v1's assumptions, the principles every mo
 
 This builds on the recommendations in [`../research/forecasting-approaches.md`](../research/forecasting-approaches.md) ("Implications for a new tool") and the stores in [`../research/EM_usecase-arch.excalidraw`](../research/EM_usecase-arch.excalidraw).
 
+**The MVP overrides parts of this.** The MVP ([#84](https://github.com/random11235/forecaster-next-gen/issues/84)) forecasts one milestone per team from what the EM types in: a start date, the tickets remaining and a pace range, grown by the medium ambiguity range. It has no epics, commits, pull-backs, blocked epics, per-epic ambiguity, team facts, workflow settings, measured pace, measured growth or sample data, and #87 deleted the code for them. Where this doc describes them, it is the v1 design they follow on from, not the code as it stands; each such place says so. The tables earlier releases wrote for them are kept in the data file, unread.
+
 The engine is built and tested in isolation first (build order: engine → app on canned data → Jira → GitHub → capacity). The app design ([`frontend-essentials.md`](frontend-essentials.md)) need not match it until the app is built.
 
 ---
@@ -40,6 +42,8 @@ The data model is designed so that each of these can be relaxed later without re
 ---
 
 ## Folder structure
+
+The tree is v1's design. Since the MVP, `src/` has `model/` (team, milestone inputs, ambiguity), `engine/`, `forecast/` (`milestoneInputs.ts` and `growth.ts` behind `inputs.ts`, `milestoneForecastView.ts`, `settings.ts`), `storage/` and `app/`; `samples/`, `ledger/`, `secrets/` and `connectors/` don't exist yet, and the epic-era files below were deleted in #87.
 
 ```
 src/
@@ -83,7 +87,6 @@ src/
   secrets/                # credential storage interface; v1: OS keychain
   connectors/             # jira/ (first), github/ (second) → model/ types; read-only
   storage/                # interfaces; v1: SQLite file
-  sample/                 # canned sample data; no longer loaded, kept for the screens tests until #87
   app/                    # local server (localhost only), screens, `npm start` entry point
 
 test/
@@ -99,7 +102,7 @@ test/
 - `forecast/` is the only module that depends on both stored data and `engine/`.
 - `ledger/` depends only on `engine/types.ts`.
 - `app/` reaches forecasts through `forecast/`, never `engine/` directly.
-- Forecast code reads facts only through team facts (`teamFacts`), never `storage.facts`, so a forecast always sees the EM's status mapping. Storage, the sample loader and storage tests may still read raw facts.
+- Forecast code reads facts only through team facts (`teamFacts`), never `storage.facts`, so a forecast always sees the EM's status mapping. Storage and storage tests may still read raw facts. (The MVP reads no facts: it has neither, until connectors return.)
 - `connectors/`, `storage/` and `secrets/` sit at the edges behind interfaces, so v1 can run from canned data and the same code can be hosted later.
 
 **File types:**
@@ -110,9 +113,9 @@ test/
 
 **Test seams.** There are two, as set in the spec:
 - **Seam A** is `simulateCase`, tested with fixed seeds ([`engine.md`](engine.md)).
-- **Seam B** is `forecast/`: stored facts, settings and the ledger go in, and the screens' views come out: `milestoneForecastView` for the Milestone forecast screen, and `inputsView` with `editInputs` for the Inputs screen. Team facts is part of it: tests may call `teamFacts` directly. Its logic is in [`forecast-model.md`](forecast-model.md).
+- **Seam B** is `forecast/`: stored facts, settings and the ledger go in, and the screens' views come out: `milestoneForecastView` for the Milestone forecast screen, and `inputsView` with `editInputs` for the Inputs screen. In v1, team facts is part of it and tests may call `teamFacts` directly; the MVP has no team facts. Its logic is in [`forecast-model.md`](forecast-model.md).
 
-Warning text and provenance are tested at Seam B, not Seam A. These cases moved from the engine tests. Each is owed, in `test/forecast/`, by the ticket that adds its warning or diagnostic:
+Warning text and provenance are tested at Seam B, not Seam A. These cases moved from the engine tests. Each is owed, in `test/forecast/`, by the ticket that adds its warning or diagnostic. Since the MVP, only the first two can arise: the last four name epics, commits or measured pace, which return after it.
 - the horizon warning when fewer trials finish than the highest reported percentile, with the floored percentage and the horizon date, and none when enough finish;
 - the long-forecast warning above `warnAboveWeeks` weeks, none at or below it, its ticket figure for 'when' and 'howMany', a median beyond the horizon counting as over, the threshold coming from `ForecastSettings`, and weeks (not periods) keeping their meaning when `periodDays` changes;
 - the growth source of each epic in rank order: samples, ambiguity range, or epic size for a null or 0 `baseCount`;
