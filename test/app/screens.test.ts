@@ -456,6 +456,43 @@ describe('Milestone forecast screen', () => {
     expect(screen).toContain('Pace: At 0 tickets a week, the work never finishes.')
   })
 
+  test('graphs when the trials finish, a bar per week, marking the 50%, 70%, 85% and 95% dates and stressing the 85% one', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+
+    const html = await page('/')
+    const graph = html.match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
+
+    expect(graph).toContain('aria-label="When the trials finish, by week"')
+    expect(graph.match(/class="bar[ "]/g)!.length).toBeGreaterThan(10)
+    expect(text(graph)).toContain('50% 10 Nov 2026')
+    expect(text(graph)).toContain('70% 24 Nov 2026')
+    expect(text(graph)).toContain('95% 8 Dec 2026')
+    expect(graph).toMatch(/<span class="mark headline">85% <span class="date">1 Dec 2026<\/span><\/span>/)
+    expect(graph.match(/class="mark headline"/g)).toHaveLength(1)
+  })
+
+  test('at a 14-day cadence, graphs when the trials finish by sprint', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+    await submitCadence('14')
+
+    const graph = (await page('/')).match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
+
+    expect(graph).toContain('aria-label="When the trials finish, by sprint"')
+    expect(text(graph)).toContain('Share of trials finishing each sprint')
+  })
+
+  test('draws no graph when no trial finishes, nor before there is a forecast', async () => {
+    await startOnPreMvpData()
+
+    expect(await page('/')).not.toContain('<figure class="finish-graph"')
+
+    await submitPace('0', '0')
+
+    expect(await page('/')).not.toContain('<figure class="finish-graph"')
+  })
+
   test('states a past start date once, and marks finish dates before today as already past', async () => {
     await startOnPreMvpData()
     await submitMilestone('Checkout v2', '2026-03-02', '40')
