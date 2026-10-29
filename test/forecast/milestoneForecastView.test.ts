@@ -94,6 +94,7 @@ describe('the forecast from what the EM enters', () => {
         { percent: 95, date: '2026-09-15' },
       ],
       horizonDate: '2029-08-28',
+      cadenceDays: 7,
       pace: { source: 'range', low: 5, high: 5 },
       warnings: [],
     })
@@ -168,6 +169,71 @@ describe('the forecast from what the EM enters', () => {
   })
 })
 
+describe('the cadence', () => {
+  test('10 tickets at exactly 5 a sprint of 14 days, with no growth, finish 2 sprints after the start date, and the horizon is 156 sprints', () => {
+    const storage = newTeam()
+    mediumGrowth(storage, { low: 1, high: 1 })
+    expect(edit(storage, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-09-01', ticketsRemaining: '10' })).toEqual({ ok: true })
+
+    expect(edit(storage, { kind: 'setCadence', cadenceDays: '14' })).toEqual({ ok: true })
+    expect(edit(storage, { kind: 'setPaceRange', low: '5', high: '5' })).toEqual({ ok: true })
+
+    expect(view(storage)).toMatchObject({
+      cadenceDays: 14,
+      dates: [50, 70, 85, 95].map((percent) => ({ percent, date: '2026-09-29' })),
+      horizonDate: '2032-08-24',
+    })
+  })
+
+  test('changing the cadence keeps the pace as typed, so 4–8 a sprint of 14 days lands every date later than 4–8 a week', () => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
+
+    expect(edit(storage, { kind: 'setCadence', cadenceDays: '14' })).toEqual({ ok: true })
+
+    const forecast = view(storage)
+    expect(forecast).toMatchObject({ cadenceDays: 14, pace: { source: 'range', low: 4, high: 8 } })
+    if (forecast.kind !== 'forecast') throw new Error('expected a forecast')
+    forecast.dates.forEach(({ date }, index) => expect(date! > DATES_FROM_1_SEP[index]!.date).toBe(true))
+  })
+
+  test('a forecast at the untouched cadence is in 7-day periods', () => {
+    const storage = newTeam()
+
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
+
+    expect(view(storage)).toMatchObject({ cadenceDays: 7, dates: DATES_FROM_1_SEP, horizonDate: '2029-08-28' })
+  })
+
+  test('at a 14-day cadence, zero pace warns of 0 tickets a sprint, beside the pace and on the forecast', () => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '0', high: '0' })
+
+    expect(edit(storage, { kind: 'setCadence', cadenceDays: '14' })).toEqual({ ok: true })
+
+    const warning = { input: 'pace', message: 'At 0 tickets a sprint, the work never finishes.' }
+    expect(view(storage)).toMatchObject({ warnings: [warning] })
+    expect(inputsView(storage, TEAM, TODAY).milestone.notes).toEqual([warning])
+  })
+
+  test('at a 14-day cadence, a pace too high to be real is refused per sprint', () => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
+    expect(edit(storage, { kind: 'setCadence', cadenceDays: '14' })).toEqual({ ok: true })
+
+    expect(edit(storage, { kind: 'setPaceRange', low: '4', high: '1001' })).toEqual({ ok: false, error: 'Enter at most 1000 tickets per sprint.' })
+  })
+
+  test('the cadence is kept across a restart', () => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
+    expect(edit(storage, { kind: 'setCadence', cadenceDays: '14' })).toEqual({ ok: true })
+
+    expect(inputsView(openStorage(), TEAM, TODAY).milestone.cadenceDays).toBe(14)
+    expect(view(openStorage())).toMatchObject({ cadenceDays: 14, horizonDate: '2032-08-24' })
+  })
+})
+
 describe('before there is a forecast', () => {
   test('with nothing entered, the screen is empty', () => {
     expect(view(newTeam())).toEqual({ kind: 'empty' })
@@ -222,6 +288,12 @@ describe('refused edits change nothing and say why', () => {
     [{ kind: 'setPaceRange', low: '1.5', high: '4' }, 'Enter whole numbers of tickets, 0 or more.'],
     [{ kind: 'setPaceRange', low: '', high: '4' }, 'Enter whole numbers of tickets, 0 or more.'],
     [{ kind: 'setPaceRange', low: '4', high: '1001' }, 'Enter at most 1000 tickets per week.'],
+    [{ kind: 'setCadence', cadenceDays: '0' }, 'Enter the cadence as a whole number of days, 1 or more.'],
+    [{ kind: 'setCadence', cadenceDays: '-7' }, 'Enter the cadence as a whole number of days, 1 or more.'],
+    [{ kind: 'setCadence', cadenceDays: '10.5' }, 'Enter the cadence as a whole number of days, 1 or more.'],
+    [{ kind: 'setCadence', cadenceDays: '' }, 'Enter the cadence as a whole number of days, 1 or more.'],
+    [{ kind: 'setCadence', cadenceDays: 'two weeks' }, 'Enter the cadence as a whole number of days, 1 or more.'],
+    [{ kind: 'setCadence', cadenceDays: '366' }, 'Enter a cadence of at most 365 days.'],
   ] satisfies [InputsEdit, string][])('%j: %s', (change, error) => {
     const storage = newTeam()
     enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
@@ -230,6 +302,14 @@ describe('refused edits change nothing and say why', () => {
     expect(edit(storage, change)).toEqual({ ok: false, error })
 
     expect(view(storage)).toEqual(before)
+  })
+
+  test('a cadence needs the milestone first', () => {
+    const storage = newTeam()
+
+    expect(edit(storage, { kind: 'setCadence', cadenceDays: '14' })).toEqual({ ok: false, error: 'Enter the milestone first.' })
+
+    expect(view(storage)).toEqual({ kind: 'empty' })
   })
 
   test('a pace range needs the milestone first', () => {
@@ -247,7 +327,7 @@ describe('the milestone on the Inputs screen', () => {
   }
 
   test('before anything is entered, the start date is pre-filled with today', () => {
-    expect(inputs(newTeam())).toEqual({ name: '', startDate: TODAY, ticketsRemaining: undefined, paceRange: undefined, notes: [] })
+    expect(inputs(newTeam())).toEqual({ name: '', startDate: TODAY, ticketsRemaining: undefined, cadenceDays: 7, paceRange: undefined, notes: [] })
   })
 
   test('a milestone kept from before the MVP shows today pre-filled, noting that no start date is saved yet', () => {
@@ -279,6 +359,7 @@ describe('the milestone on the Inputs screen', () => {
       name: 'Checkout v2',
       startDate: '2026-09-01',
       ticketsRemaining: 10,
+      cadenceDays: 7,
       paceRange: { low: 0, high: 0 },
       notes: [{ input: 'pace', message: 'At 0 tickets a week, the work never finishes.' }],
     })

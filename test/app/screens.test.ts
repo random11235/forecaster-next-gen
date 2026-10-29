@@ -110,6 +110,11 @@ function submitPace(low: string, high: string): Promise<Response> {
   return post('/inputs/pace', [['low', low], ['high', high]])
 }
 
+/** Submits the Inputs screen's cadence form as the browser does. */
+function submitCadence(cadenceDays: string): Promise<Response> {
+  return post('/inputs/cadence', [['cadenceDays', cadenceDays]])
+}
+
 /** The date the forecast list gives at `percent`. */
 function dateAt(screen: string, percent: number): string {
   return screen.match(new RegExp(`${percent}% sure by (\\d{1,2} [A-Z][a-z]{2} 20\\d\\d)`))![1]!
@@ -217,6 +222,44 @@ describe('Inputs screen', () => {
   })
 })
 
+describe('Inputs screen: cadence', () => {
+  test('offers the cadence length in days, 7 for an untouched milestone', async () => {
+    await startOnPreMvpData()
+
+    const html = await page('/inputs')
+
+    expect(html).toMatch(/<input type="number" name="cadenceDays"[^>]*value="7"/)
+    expect(text(html)).toContain('Cadence length')
+  })
+
+  test('saving a 14-day cadence shows it, and the pace input and its warning say per sprint', async () => {
+    await startOnPreMvpData()
+    await submitPace('0', '0')
+
+    const response = await submitCadence('14')
+
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('/inputs')
+    const html = await page('/inputs')
+    expect(html).toMatch(/name="cadenceDays"[^>]*value="14"/)
+    expect(text(html)).toContain('tickets per sprint')
+    expect(text(html)).not.toContain('per week')
+    expect(text(html)).toContain('At 0 tickets a sprint, the work never finishes.')
+  })
+
+  test.each(['0', '1.5', 'two'])('refuses a cadence of %j, saying why, keeping what was typed and changing nothing', async (typed) => {
+    await startOnPreMvpData()
+
+    const response = await submitCadence(typed)
+
+    expect(response.status).toBe(400)
+    const html = await response.text()
+    expect(text(html)).toContain('Enter the cadence as a whole number of days, 1 or more.')
+    expect(html).toMatch(new RegExp(`name="cadenceDays"[^>]*value="${typed}"`))
+    expect(await page('/inputs')).toMatch(/name="cadenceDays"[^>]*value="7"/)
+  })
+})
+
 describe('Inputs screen: workflow', () => {
   test('offers no workflow settings, even with a workflow saved before the MVP', async () => {
     await startOnPreMvpData()
@@ -319,6 +362,19 @@ describe('Milestone forecast screen', () => {
     expect(screen).toContain('85% sure by 1 Dec 2026')
     expect(screen).toContain('95% sure by 8 Dec 2026')
     expect(screen).toContain('Pace: 4–8 tickets per week (range)')
+  })
+
+  test('at a 14-day cadence, says the pace is per sprint, and forecasts later than the same pace per week', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+    const weekly = dateAt(text(await page('/')), 85)
+
+    await submitCadence('14')
+
+    const screen = text(await page('/'))
+    expect(screen).toContain('Pace: 4–8 tickets per sprint (range)')
+    expect(screen).not.toContain('per week')
+    expect(Date.parse(dateAt(screen, 85))).toBeGreaterThan(Date.parse(weekly))
   })
 
   test('headlines an 85% date beyond the horizon as not sure by the horizon date, and each date as later than it', async () => {
