@@ -31,6 +31,8 @@ export type MilestoneForecastView =
       dates: ForecastDate[]
       /** The last date the forecast reaches; a null date is "later than" this. */
       horizonDate: string
+      /** Days in one of the team's periods, which the pace is per. */
+      cadenceDays: number
       pace: { source: 'range'; low: number; high: number }
       warnings: InputNote[]
     }
@@ -53,14 +55,16 @@ export function milestoneForecastView(storage: Storage, teamId: string, settings
     headlinePercent: HEADLINE_PERCENT,
     dates: percentiles.map((percent) => ({ percent, date: result.percentileDates[percent] ?? null })),
     horizonDate: periodEndDate(inputs.startDate, periodDays, maxPeriods),
+    cadenceDays: inputs.cadenceDays,
     pace: { source: 'range', ...inputs.paceRange },
     warnings: inputWarnings(inputs),
   }
 }
 
 /**
- * The milestone as one scope entry of the tickets remaining, none done, growing by the medium range. With 0 tickets
- * the engine would draw a size, so the size range is pinned to 0 and the forecast finishes on the start date.
+ * The milestone as one scope entry of the tickets remaining, none done, growing by the medium range, in periods of
+ * its cadence. With 0 tickets the engine would draw a size, so the size range is pinned to 0 and the forecast finishes
+ * on the start date.
  */
 function milestoneCase(inputs: ForecastableInputs, growth: GrowthRange, settings: ForecastSettings): SimulationCase {
   const { startDate, ticketsRemaining, paceRange } = inputs
@@ -71,7 +75,7 @@ function milestoneCase(inputs: ForecastableInputs, growth: GrowthRange, settings
     maxPeriods: settings.maxPeriods,
     question: { kind: 'when' },
     startDate,
-    periodDays: settings.periodDays,
+    periodDays: inputs.cadenceDays,
     scope: [
       {
         // The engine names each scope entry by its epic; the milestone is the team's only one
