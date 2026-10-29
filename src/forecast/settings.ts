@@ -5,8 +5,7 @@ export interface ForecastSettings {
   trials: number
   /** Confidence levels the Milestone forecast screen shows. */
   percentiles: number[]
-  periodDays: number
-  /** Horizon cap in periods: trials still running after it finish "later than" the horizon date. */
+  /** Horizon cap in periods of the milestone's cadence: trials still running after it finish "later than" the horizon date. */
   maxPeriods: number
   /** Fixed, so the same inputs always give the same forecast. */
   seed: number
@@ -15,7 +14,6 @@ export interface ForecastSettings {
 export const DEFAULT_SETTINGS: ForecastSettings = {
   trials: 10_000,
   percentiles: [50, 70, 85, 95],
-  periodDays: 7,
   maxPeriods: 156,
   seed: 1,
 }

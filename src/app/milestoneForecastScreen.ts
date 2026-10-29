@@ -1,3 +1,4 @@
+import { periodName } from '../forecast/cadence.js'
 import { counted } from '../forecast/counted.js'
 import type { InputNote } from '../forecast/milestoneInputs.js'
 import type { MilestoneForecastView } from '../forecast/milestoneForecastView.js'
@@ -54,7 +55,7 @@ function renderForecast(view: Forecast): string {
       <ul class="dates">
 ${dates}
       </ul>
-      <p class="note">Pace: ${view.pace.low}–${view.pace.high} tickets per week (range)</p>
+      <p class="note">Pace: ${view.pace.low}–${view.pace.high} tickets per ${periodName(view.cadenceDays)} (range)</p>
       <p class="note">Ambiguity: ${view.ambiguity.level}, growing ${view.ambiguity.low}–${view.ambiguity.high}×</p>
     </section>`
 }

@@ -27,6 +27,7 @@ export function editInputs(storage: Storage, teamId: string, edit: InputsEdit): 
     case 'setMilestone':
     case 'setPaceRange':
     case 'setAmbiguity':
+    case 'setCadence':
       return editMilestoneInputs(storage, teamId, edit)
     case 'setAmbiguityRanges':
       return editGrowth(storage, teamId, edit)

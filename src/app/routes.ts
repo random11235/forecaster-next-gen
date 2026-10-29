@@ -4,14 +4,17 @@ import { DEFAULT_SETTINGS } from '../forecast/settings.js'
 import type { Storage } from '../storage/storage.js'
 import {
   parseAmbiguityForm,
+  parseCadenceForm,
   parseGrowthForm,
   parseMilestoneForm,
   parsePaceForm,
   renderInputsScreen,
+  savedCadenceForm,
   savedGrowthForm,
   savedMilestoneForm,
   savedPaceForm,
   type AmbiguityForm,
+  type CadenceForm,
   type GrowthForm,
   type MilestoneForm,
   type PaceForm,
@@ -52,6 +55,7 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
     status: number,
     refused: {
       milestoneForm?: MilestoneForm
+      cadenceForm?: CadenceForm
       paceForm?: PaceForm
       ambiguityForm?: AmbiguityForm
       growthForm?: GrowthForm
@@ -64,6 +68,7 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
       html: renderInputsScreen({
         milestone: view.milestone,
         milestoneForm: refused.milestoneForm ?? savedMilestoneForm(view.milestone),
+        cadenceForm: refused.cadenceForm ?? savedCadenceForm(view.milestone),
         paceForm: refused.paceForm ?? savedPaceForm(view.milestone),
         ambiguityForm: refused.ambiguityForm ?? {},
         growth: refused.growthForm ?? savedGrowthForm(view.growth),
@@ -81,6 +86,10 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
   if (request.method === 'POST' && request.path === '/inputs/milestone') {
     const typed = parseMilestoneForm(form)
     return edit({ kind: 'setMilestone', ...typed }, '/inputs', (error) => ({ milestoneForm: { ...typed, error } }))
+  }
+  if (request.method === 'POST' && request.path === '/inputs/cadence') {
+    const typed = parseCadenceForm(form)
+    return edit({ kind: 'setCadence', ...typed }, '/inputs', (error) => ({ cadenceForm: { ...typed, error } }))
   }
   if (request.method === 'POST' && request.path === '/inputs/pace') {
     const typed = parsePaceForm(form)
