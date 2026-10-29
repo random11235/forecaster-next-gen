@@ -32,6 +32,6 @@ _Avoid_: split rate, scope creep
 
 **Start date** (of a milestone): the day the EM says work on the milestone starts, which the forecast counts from instead of today. Pre-filled with today's local date, and it may be in the past: then the forecast answers "when would we have finished had we started then", from today's tickets remaining, says so beside the start date, and marks dates before today **already past**. Stored as `start_date`.
 
-**Tickets remaining** (of a milestone): the whole tickets the EM says are left to do, 0 or more. The forecast grows them by the team's medium growth range, then works through them at the EM's pace. Stored as `tickets_remaining`.
+**Tickets remaining** (of a milestone): the whole tickets the EM says are left to do, 0 or more. The forecast grows them by the range of the milestone's ambiguity, then works through them at the EM's pace. Stored as `tickets_remaining`.
 
 **Typed counts** (of a milestone): the whole tickets the team finished in each of its past periods, 0 or more each, oldest first, as the EM types them. The EM chooses whether the forecast's pace comes from the pace range or the typed counts; both are kept whichever is chosen. The forecast draws each period's pace from the typed counts (a Bayesian bootstrap, [ADR-0001](docs/adr/0001-bayesian-bootstrap-pace-sampler.md)), and needs at least 2 to forecast. Stored as `pace_counts`, the choice as `pace_mode`.

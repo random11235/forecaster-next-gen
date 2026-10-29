@@ -315,7 +315,7 @@ function growthSection(form: GrowthForm): Section {
       `<input type="number" name="${level}-${end}" min="0" max="${MAX_GROWTH}" step="any" value="${escapeHtml(form.ranges[level][end])}" aria-label="${ambiguityName(level)} ambiguity, ${end} end" required>`
     return `              <tr>
                 <td>${ambiguityName(level)}</td>
-                <td>${field('low')} <span class="to">to</span> ${field('high')} <span class="unit">× the baseline</span></td>
+                <td>${field('low')} <span class="to">to</span> ${field('high')} <span class="unit">× the tickets remaining</span></td>
               </tr>`
   }).join('\n')
   return inputSection(

@@ -5,7 +5,7 @@ import type { Storage } from '../storage/storage.js'
 import { refuse, type EditResult } from './editResult.js'
 import { DEFAULT_AMBIGUITY_RANGES } from './settings.js'
 
-/** Each level's growth range as typed on the Inputs screen: numbers of times the baseline, low ≤ high. */
+/** Each level's growth range as typed on the Inputs screen: numbers of times the tickets remaining, low ≤ high. */
 export type GrowthEdit = { kind: 'setAmbiguityRanges' } & Record<Ambiguity, TypedRange>
 
 /** A range as the EM typed it. */
@@ -46,22 +46,28 @@ export function milestoneGrowth(storage: Storage, inputs: MilestoneInputs): Grow
   return savedRanges(storage, inputs.teamId)[inputs.ambiguity]
 }
 
-/** Seam B, through `editInputs`: saves the EM's ambiguity ranges. A refused edit changes nothing and says why. */
+/**
+ * Seam B, through `editInputs`: saves the EM's ambiguity ranges. A refused edit changes nothing and says why, naming
+ * the first level whose range is refused.
+ */
 export function editGrowth(storage: Storage, teamId: string, typed: GrowthEdit): EditResult {
   const ranges: Partial<Record<Ambiguity, GrowthRange>> = {}
   for (const level of AMBIGUITIES) {
+    const refuseLevel = (why: string) => refuse(`${ambiguityName(level)} ambiguity: ${why}`)
     const [low, high] = [typed[level].low.trim(), typed[level].high.trim()]
-    if (!isNumber(low) || !isNumber(high)) return refuse('Enter each range as two numbers, such as 1 to 1.5.')
+    if (!isNumber(low) || !isNumber(high)) return refuseLevel('enter the range as two numbers, such as 1 to 1.5.')
     const range = { low: Number(low), high: Number(high) }
-    if (range.low <= 0 || range.high > MAX_GROWTH) return refuse(`Enter growth above 0 and at most ${MAX_GROWTH} times.`)
-    if (range.low > range.high) return refuse('The low end must not be above the high end.')
+    if (range.low <= 0 || range.high <= 0 || range.high > MAX_GROWTH) {
+      return refuseLevel(`enter growth above 0 and at most ${MAX_GROWTH} times.`)
+    }
+    if (range.low > range.high) return refuseLevel('the low end must not be above the high end.')
     ranges[level] = range
   }
   storage.saveAmbiguityRanges({ teamId, ...(ranges as Record<Ambiguity, GrowthRange>) })
   return { ok: true }
 }
 
-/** A plain decimal: `1`, `1.5` or `.5`. */
+/** A plain decimal, signed or not: `1`, `1.5`, `.5` or `-1`; a negative one is refused as not above 0. */
 function isNumber(value: string): boolean {
-  return /^(\d+(\.\d*)?|\.\d+)$/.test(value)
+  return /^-?(\d+(\.\d*)?|\.\d+)$/.test(value)
 }
