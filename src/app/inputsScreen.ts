@@ -58,8 +58,8 @@ export function parseAddCount(body: URLSearchParams): string {
 }
 
 /** The typed counts forms filled with the saved counts, oldest first, and nothing to add. */
-export function savedPaceCountsForm(view: MilestoneInputsView): PaceCountsForm {
-  return { counts: view.paceCounts.join(', '), count: '' }
+export function savedPaceCountsForm({ paceCounts }: Pick<MilestoneInputsView, 'paceCounts'>): PaceCountsForm {
+  return { counts: paceCounts.join(', '), count: '' }
 }
 
 /** A form choosing one option: the choice is saved or shown as saved, so only why it was refused, if it was. */
