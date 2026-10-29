@@ -75,7 +75,13 @@ export function milestoneInputsView(storage: Storage, teamId: string, today: str
     paceRange: inputs.paceRange,
     paceCounts: inputs.paceCounts,
     paceMode: inputs.paceMode,
-    notes: saved ? [...inputProblems(saved), ...typedCountsNotes(saved), ...inputWarnings(saved, today)] : [],
+    notes: saved
+      ? [
+          ...inputProblems(saved),
+          ...typedCountsNotes(saved),
+          ...warnings(saved, today).map(({ input, message, beside }) => ({ input, message: beside ?? message })),
+        ]
+      : [],
   }
 }
 
@@ -127,9 +133,31 @@ export function paceInUse(inputs: MilestoneInputs): PaceInUse | undefined {
   return inputs.paceRange && { source: 'range', ...inputs.paceRange }
 }
 
+/** A warning as the forecast words it, and as the Inputs screen words it beside its input, if that differs. */
+interface Warning extends InputNote {
+  beside?: string
+}
+
 /** Inputs that can be forecast but give a forecast the EM should question, on `today`. */
 export function inputWarnings(inputs: MilestoneInputs, today: string): InputNote[] {
-  return [...startDateWarnings(inputs, today), ...paceWarnings(inputs)]
+  return warnings(inputs, today).map(({ input, message }) => ({ input, message }))
+}
+
+function warnings(inputs: MilestoneInputs, today: string): Warning[] {
+  return [...startDateWarnings(inputs, today), ...paceWarnings(inputs), ...typedCountsWarnings(inputs)]
+}
+
+/** Typed counts enough to forecast from, but too few for a range the EM can rely on. */
+function typedCountsWarnings(inputs: MilestoneInputs): Warning[] {
+  const entered = inputs.paceCounts.length
+  if (inputs.paceMode !== 'counts' || entered < TYPED_COUNTS.forForecast || entered >= TYPED_COUNTS.reliable) return []
+  return [
+    {
+      input: 'pace',
+      message: `Typed counts: ${counted(entered, periodName(inputs.cadenceDays))} entered. The forecast needs ${TYPED_COUNTS.reliable} to be reliable.`,
+      beside: `${entered} of ${TYPED_COUNTS.reliable} needed for reliable results`,
+    },
+  ]
 }
 
 /** A start date before today forecasts "had we started then", from today's tickets remaining. */

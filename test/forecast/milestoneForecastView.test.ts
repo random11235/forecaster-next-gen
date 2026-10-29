@@ -398,13 +398,13 @@ describe('typed counts', () => {
     mediumGrowth(storage, { low: 1, high: 1 })
     expect(edit(storage, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-09-01', ticketsRemaining: '10' })).toEqual({ ok: true })
 
-    expect(edit(storage, { kind: 'setPaceCounts', counts: '5, 5, 5' })).toEqual({ ok: true })
+    expect(edit(storage, { kind: 'setPaceCounts', counts: '5, 5, 5, 5, 5, 5, 5, 5' })).toEqual({ ok: true })
     expect(edit(storage, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
 
     expect(view(storage)).toMatchObject({
       kind: 'forecast',
       dates: [50, 70, 85, 95].map((percent) => ({ percent, date: '2026-09-15' })),
-      pace: { source: 'counts', counts: [5, 5, 5] },
+      pace: { source: 'counts', counts: [5, 5, 5, 5, 5, 5, 5, 5] },
       warnings: [],
     })
   })
@@ -422,6 +422,51 @@ describe('typed counts', () => {
     }
     expect(view(storage)).toEqual({ kind: 'needsPace', name: 'Checkout v2', note })
     expect(inputsView(storage, TEAM, TODAY).milestone.notes).toEqual([note])
+  })
+
+  test.each([
+    ['2, 3', 2],
+    ['6, 4, 9, 7', 4],
+    ['6, 4, 9, 7, 5, 8, 6', 7],
+  ])('with typed counts %s in use, the forecast warns it needs 8 to be reliable, and the Inputs screen says so beside the pace', (counts, entered) => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
+    expect(edit(storage, { kind: 'setPaceCounts', counts })).toEqual({ ok: true })
+
+    expect(edit(storage, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
+
+    expect(view(storage)).toMatchObject({
+      kind: 'forecast',
+      warnings: [{ input: 'pace', message: `Typed counts: ${entered} weeks entered. The forecast needs 8 to be reliable.` }],
+    })
+    expect(inputsView(storage, TEAM, TODAY).milestone.notes).toEqual([{ input: 'pace', message: `${entered} of 8 needed for reliable results` }])
+  })
+
+  test('at a 14-day cadence, the reliability warning counts sprints', () => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
+    expect(edit(storage, { kind: 'setCadence', cadenceDays: '14' })).toEqual({ ok: true })
+    expect(edit(storage, { kind: 'setPaceCounts', counts: '6, 4, 9, 7' })).toEqual({ ok: true })
+
+    expect(edit(storage, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
+
+    expect(view(storage)).toMatchObject({
+      warnings: [{ input: 'pace', message: 'Typed counts: 4 sprints entered. The forecast needs 8 to be reliable.' }],
+    })
+  })
+
+  test('with the range in use beside 4 typed counts, or 8 typed counts in use, nothing warns about the typed counts', () => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
+    expect(edit(storage, { kind: 'setPaceCounts', counts: '6, 4, 9, 7' })).toEqual({ ok: true })
+    expect(view(storage)).toMatchObject({ kind: 'forecast', pace: { source: 'range' }, warnings: [] })
+    expect(inputsView(storage, TEAM, TODAY).milestone.notes).toEqual([])
+
+    expect(edit(storage, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
+    expect(edit(storage, { kind: 'setPaceCounts', counts: '6, 4, 9, 7, 5, 8, 6, 7' })).toEqual({ ok: true })
+
+    expect(view(storage)).toMatchObject({ kind: 'forecast', pace: { source: 'counts' }, warnings: [] })
+    expect(inputsView(storage, TEAM, TODAY).milestone.notes).toEqual([])
   })
 
   test('the EM adds a count, removes the last one, and edits the list, oldest first, and the counts are kept across a restart', () => {
@@ -468,7 +513,7 @@ describe('typed counts', () => {
   test('typed counts of 0 throughout give no date, and a warning on the pace', () => {
     const storage = newTeam()
     enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
-    expect(edit(storage, { kind: 'setPaceCounts', counts: '0, 0, 0' })).toEqual({ ok: true })
+    expect(edit(storage, { kind: 'setPaceCounts', counts: '0, 0, 0, 0, 0, 0, 0, 0' })).toEqual({ ok: true })
 
     expect(edit(storage, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
 

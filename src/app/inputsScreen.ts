@@ -253,7 +253,7 @@ function paceSection(screen: InputsScreen, period: PeriodName): Section {
   return inputSection(
     INPUT_LABELS.pace,
     INPUT_LABELS.pace,
-    `How many tickets the team finishes in a ${period}: a range from a slow ${period} to a good one, or typed counts of past ${period}s. Typed counts need at least ${TYPED_COUNTS.forForecast} for a forecast.`,
+    `How many tickets the team finishes in a ${period}: a range from a slow ${period} to a good one, or typed counts of past ${period}s. Typed counts need at least ${TYPED_COUNTS.forForecast} for a forecast, and ${TYPED_COUNTS.reliable} to be reliable.`,
     `        <form method="post" action="/inputs/pace-mode">${errorLine(screen.paceModeForm.error)}
           <fieldset class="levels" aria-label="Pace the forecast uses">
 ${modes}

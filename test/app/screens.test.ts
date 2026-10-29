@@ -290,7 +290,7 @@ function choosePace(paceMode: string): Promise<Response> {
 }
 
 describe('Inputs screen: typed counts', () => {
-  test('offers pace as a range or as typed counts, the range chosen for an untouched milestone, and says typed counts need 2 for a forecast', async () => {
+  test('offers pace as a range or as typed counts, the range chosen for an untouched milestone, and says typed counts need 2 for a forecast and 8 to be reliable', async () => {
     await startOnPreMvpData()
 
     const html = await page('/inputs')
@@ -298,7 +298,7 @@ describe('Inputs screen: typed counts', () => {
     expect(html).toMatch(/<input type="radio" name="paceMode" value="range" checked/)
     expect(html).toMatch(/<input type="radio" name="paceMode" value="counts"(?! checked)/)
     expect(html).toMatch(/<input type="text" name="counts" value=""/)
-    expect(text(html)).toContain('Typed counts need at least 2 for a forecast.')
+    expect(text(html)).toContain('Typed counts need at least 2 for a forecast, and 8 to be reliable.')
   })
 
   test('saving typed counts keeps them on the Inputs screen, oldest first', async () => {
@@ -371,6 +371,15 @@ describe('Inputs screen: typed counts', () => {
     expect(await page('/inputs')).toMatch(
       /name="counts"[^>]*>[\s\S]*?<p class="warning">⚠ Typed counts: 1 week entered. The forecast needs at least 2. Add another count, or switch pace to the range.<\/p>/,
     )
+  })
+
+  test('with 4 typed counts in use, notes beside the typed counts that 8 are needed for reliable results', async () => {
+    await startOnPreMvpData()
+    await submitCounts('6, 4, 9, 7')
+
+    await choosePace('counts')
+
+    expect(await page('/inputs')).toMatch(/name="counts"[^>]*>[\s\S]*?<p class="warning">⚠ 4 of 8 needed for reliable results<\/p>/)
   })
 })
 
@@ -559,6 +568,27 @@ describe('Milestone forecast screen', () => {
     const screen = text(await page('/'))
     expect(screen).toContain('Pace: typed counts, 6 sprints')
     expect(screen).not.toContain('week')
+  })
+
+  test('with 4 typed counts in use, warns on the forecast that it needs 8 to be reliable, naming the pace', async () => {
+    await startOnPreMvpData()
+    await submitCounts('6, 4, 9, 7')
+
+    await choosePace('counts')
+
+    const screen = text(await page('/'))
+    expect(screen).toContain('sure')
+    expect(screen).toContain('Pace: Typed counts: 4 weeks entered. The forecast needs 8 to be reliable.')
+  })
+
+  test('with 8 typed counts in use, gives no warning about the typed counts', async () => {
+    await startOnPreMvpData()
+    await submitCounts('6, 4, 9, 7, 5, 8, 6, 7')
+
+    await choosePace('counts')
+
+    expect(text(await page('/'))).not.toContain('reliable')
+    expect(text(await page('/inputs'))).not.toContain('needed for reliable results')
   })
 
   test('with 1 typed count in use, shows no forecast, saying exactly why and pointing to the Inputs screen', async () => {
