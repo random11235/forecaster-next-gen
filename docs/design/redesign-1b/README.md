@@ -13,7 +13,7 @@ Each board is a Claude Design `.dc.html` file: inline styles, with `<sc-for>` lo
 
 ## What the app takes from it
 
-The look, not the scope. [`../frontend-essentials.md`](../frontend-essentials.md) still decides what each screen shows. The boards show sample data and features the app doesn't have yet (commit status, ambiguity, ageing tickets, gap history, track record, more than one milestone), and some the design doc rules out (the finish-week histogram, "What moved since", the roadmap and team-level screens). The app shows only the data it has, in 1b's style.
+The look, not the scope. [`../frontend-essentials.md`](../frontend-essentials.md) still decides what each screen shows. The boards show sample data and features the app doesn't have yet (commit status, ambiguity, ageing tickets, gap history, track record, more than one milestone), and some the design doc rules out ("What moved since", the roadmap and team-level screens). The app shows only the data it has, in 1b's style.
 
 ## Tokens
 

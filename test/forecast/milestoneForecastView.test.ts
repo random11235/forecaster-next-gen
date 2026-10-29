@@ -96,6 +96,11 @@ describe('the forecast from what the EM enters', () => {
       horizonDate: '2029-08-28',
       pace: { source: 'range', low: 5, high: 5 },
       warnings: [],
+      finishGraph: [
+        { date: '2026-09-01', share: 0, finishedBy: 0 },
+        { date: '2026-09-08', share: 0, finishedBy: 0 },
+        { date: '2026-09-15', share: 1, finishedBy: 1 },
+      ],
     })
   })
 
@@ -165,6 +170,72 @@ describe('the forecast from what the EM enters', () => {
     enter(newTeam(), { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
 
     expect(view(openStorage())).toMatchObject({ name: 'Checkout v2', startDate: '2026-09-01', dates: DATES_FROM_1_SEP })
+  })
+})
+
+describe('the finish graph', () => {
+  function graph(storage: Storage) {
+    const forecast = view(storage)
+    if (forecast.kind !== 'forecast') throw new Error(`no forecast: ${forecast.kind}`)
+    return forecast
+  }
+  const sum = (shares: number[]) => shares.reduce((total, share) => total + share, 0)
+
+  test('has a bar for each week from the start date to the last finish, each finished-by share the running sum of the shares, ending with every trial finished', () => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
+
+    const { finishGraph } = graph(storage)
+
+    expect(finishGraph[0]!.date).toBe('2026-09-01')
+    expect(finishGraph[1]!.date).toBe('2026-09-08')
+    finishGraph.forEach(({ finishedBy }, i) => expect(finishedBy).toBeCloseTo(sum(finishGraph.slice(0, i + 1).map((bar) => bar.share)), 9))
+    expect(finishGraph.at(-1)!.finishedBy).toBe(1)
+    expect(finishGraph.at(-1)!.share).toBeGreaterThan(0)
+  })
+
+  test('each confidence date falls on the first bar by which that share of trials has finished', () => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
+
+    const { finishGraph, dates } = graph(storage)
+
+    for (const { percent, date } of dates) {
+      expect(finishGraph.find(({ finishedBy }) => finishedBy >= percent / 100)!.date).toBe(date)
+    }
+  })
+
+  test('when some trials run past the horizon, the bars stop at the last finish within it and their shares sum to the share that finished', () => {
+    const storage = newTeam()
+    mediumGrowth(storage, { low: 1, high: 1 })
+
+    // 150 tickets at 0–2 a week, 1 on average: about 150 weeks, close to the 156-week horizon
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '150' }, { low: '0', high: '2' })
+
+    const { finishGraph, dates, horizonDate } = graph(storage)
+    const finished = finishGraph.at(-1)!.finishedBy
+
+    expect(dates.find(({ percent }) => percent === 85)!.date).toBeNull()
+    expect(finished).toBeGreaterThan(0.5)
+    expect(finished).toBeLessThan(0.85)
+    expect(sum(finishGraph.map((bar) => bar.share))).toBeCloseTo(finished, 9)
+    expect(finishGraph.at(-1)!.date <= horizonDate).toBe(true)
+  })
+
+  test('0 tickets remaining: one bar, on the start date, holding every trial', () => {
+    const storage = newTeam()
+
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '0' }, { low: '4', high: '8' })
+
+    expect(graph(storage).finishGraph).toEqual([{ date: '2026-09-01', share: 1, finishedBy: 1 }])
+  })
+
+  test('zero pace: no trial finishes, so there are no bars', () => {
+    const storage = newTeam()
+
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '0', high: '0' })
+
+    expect(graph(storage).finishGraph).toEqual([])
   })
 })
 

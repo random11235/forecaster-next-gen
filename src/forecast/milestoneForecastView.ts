@@ -1,4 +1,4 @@
-import { periodEndDate, simulateCase, ENGINE_VERSION, type SimulationCase } from '../engine/index.js'
+import { periodEndDate, simulateCase, ENGINE_VERSION, type ForecastResult, type SimulationCase } from '../engine/index.js'
 import type { GrowthRange } from '../model/ambiguity.js'
 import type { Storage } from '../storage/storage.js'
 import { savedRanges } from './growth.js'
@@ -13,6 +13,16 @@ export interface ForecastDate {
   percent: number
   /** ISO calendar date, `YYYY-MM-DD`, or null: later than the horizon date. */
   date: string | null
+}
+
+/** One period's bar on the finish graph. Shares are fractions of all trials, from 0 to 1. */
+export interface FinishBar {
+  /** ISO calendar date the period ends: the start date for the first bar, which counts trials with nothing to do. */
+  date: string
+  /** The share of trials that finish in this period. */
+  share: number
+  /** The share of trials finished by the end of this period. */
+  finishedBy: number
 }
 
 /** What the Milestone forecast screen shows. */
@@ -33,6 +43,8 @@ export type MilestoneForecastView =
       horizonDate: string
       pace: { source: 'range'; low: number; high: number }
       warnings: InputNote[]
+      /** When the trials finish: one bar per period, from the start date to the last finish within the horizon. */
+      finishGraph: FinishBar[]
     }
 
 /** Seam B: the Milestone forecast screen for the team's milestone, forecast from its start date. */
@@ -55,6 +67,7 @@ export function milestoneForecastView(storage: Storage, teamId: string, settings
     horizonDate: periodEndDate(inputs.startDate, periodDays, maxPeriods),
     pace: { source: 'range', ...inputs.paceRange },
     warnings: inputWarnings(inputs),
+    finishGraph: finishGraph(result, simulationCase),
   }
 }
 
@@ -87,4 +100,30 @@ function milestoneCase(inputs: ForecastableInputs, growth: GrowthRange, settings
     epicSizeSamples: { low: 0, high: 0 },
     percentiles: settings.percentiles,
   }
+}
+
+/**
+ * The finish graph from the result's 101 quantiles. Quantile p is the period by which p% of trials have finished, so
+ * the share finished by a period is the highest p whose quantile is no later than it, to the nearest whole percent
+ * below. The last bar takes the exact finished fraction, so the shares sum to it.
+ */
+function finishGraph(result: ForecastResult, { startDate, periodDays }: SimulationCase): FinishBar[] {
+  // Quantiles rise with p, and those beyond the horizon (null) come last
+  const finishPeriods = result.quantiles.filter((period) => period !== null)
+  const lastPeriod = finishPeriods.at(-1)
+  if (lastPeriod === undefined) return []
+  const bars: FinishBar[] = []
+  let finishedBefore = 0
+  for (let period = 0; period <= lastPeriod; period++) {
+    const percentBy = Math.max(finishPeriods.filter((finish) => finish <= period).length - 1, 0)
+    const finishedBy = period === lastPeriod ? result.finishedFraction : percentBy / 100
+    bars.push({ date: periodEndDate(startDate, periodDays, period), share: withoutFloatError(finishedBy - finishedBefore), finishedBy })
+    finishedBefore = finishedBy
+  }
+  return bars
+}
+
+/** Rounds to 9 decimal places, so a share of 0.07 − 0.05 reads 0.02. */
+function withoutFloatError(value: number): number {
+  return Math.round(value * 1e9) / 1e9
 }

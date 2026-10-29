@@ -332,6 +332,32 @@ describe('Milestone forecast screen', () => {
     expect(screen).toContain('Pace: At 0 tickets a week, the work never finishes.')
   })
 
+  test('graphs when the trials finish, a bar per week, marking the 50%, 70%, 85% and 95% dates and stressing the 85% one', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+
+    const html = await page('/')
+    const graph = html.match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
+
+    expect(graph).toContain('aria-label="When the trials finish, by week"')
+    expect(graph.match(/class="bar[ "]/g)!.length).toBeGreaterThan(10)
+    expect(text(graph)).toContain('50% 10 Nov 2026')
+    expect(text(graph)).toContain('70% 24 Nov 2026')
+    expect(text(graph)).toContain('95% 8 Dec 2026')
+    expect(graph).toMatch(/<span class="mark headline">85% <span class="date">1 Dec 2026<\/span><\/span>/)
+    expect(graph.match(/class="mark headline"/g)).toHaveLength(1)
+  })
+
+  test('draws no graph when no trial finishes, nor before there is a forecast', async () => {
+    await startOnPreMvpData()
+
+    expect(await page('/')).not.toContain('<figure class="finish-graph"')
+
+    await submitPace('0', '0')
+
+    expect(await page('/')).not.toContain('<figure class="finish-graph"')
+  })
+
   test("forecasts data from before the MVP from its MVP fields, adding no team and showing none of its epics on either screen", async () => {
     await startOnPreMvpData()
     await submitPace('4', '8')
