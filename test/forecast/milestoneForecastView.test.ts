@@ -39,7 +39,7 @@ function newTeam(): Storage {
   return storage
 }
 
-/** Sets the team's medium growth range: the growth every milestone has until it can choose its ambiguity. */
+/** Sets the team's medium growth range: the growth of a milestone of medium ambiguity, the default. */
 function mediumGrowth(storage: Storage, medium: GrowthRange): void {
   storage.saveAmbiguityRanges({ teamId: TEAM, low: { low: 1, high: 1.5 }, medium, high: { low: 1.5, high: 3 } })
 }
@@ -95,6 +95,7 @@ describe('the forecast from what the EM enters', () => {
       ],
       horizonDate: '2029-08-28',
       pace: { source: 'range', low: 5, high: 5 },
+      ambiguity: { level: 'medium', low: 1, high: 1 },
       warnings: [],
     })
   })
@@ -247,7 +248,14 @@ describe('the milestone on the Inputs screen', () => {
   }
 
   test('before anything is entered, the start date is pre-filled with today', () => {
-    expect(inputs(newTeam())).toEqual({ name: '', startDate: TODAY, ticketsRemaining: undefined, paceRange: undefined, notes: [] })
+    expect(inputs(newTeam())).toEqual({
+      name: '',
+      startDate: TODAY,
+      ticketsRemaining: undefined,
+      ambiguity: 'medium',
+      paceRange: undefined,
+      notes: [],
+    })
   })
 
   test('a milestone kept from before the MVP shows today pre-filled, noting that no start date is saved yet', () => {
@@ -279,9 +287,89 @@ describe('the milestone on the Inputs screen', () => {
       name: 'Checkout v2',
       startDate: '2026-09-01',
       ticketsRemaining: 10,
+      ambiguity: 'medium',
       paceRange: { low: 0, high: 0 },
       notes: [{ input: 'pace', message: 'At 0 tickets a week, the work never finishes.' }],
     })
+  })
+})
+
+describe('the milestone\'s ambiguity', () => {
+  function ambiguity(storage: Storage) {
+    return inputsView(storage, TEAM, TODAY).milestone.ambiguity
+  }
+
+  test('an untouched milestone is of medium ambiguity, and its forecast says it grew by the medium range', () => {
+    const storage = newTeam()
+    expect(ambiguity(storage)).toBe('medium')
+
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
+
+    expect(ambiguity(storage)).toBe('medium')
+    expect(view(storage)).toMatchObject({ dates: DATES_FROM_1_SEP, ambiguity: { level: 'medium', low: 1, high: 2 } })
+  })
+
+  test('the EM chooses high, and it is kept across a restart: the forecast grows by the high range', () => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
+
+    expect(edit(storage, { kind: 'setAmbiguity', level: 'high' })).toEqual({ ok: true })
+
+    const reopened = openStorage()
+    expect(ambiguity(reopened)).toBe('high')
+    expect(view(reopened)).toMatchObject({ ambiguity: { level: 'high', low: 1.5, high: 3 } })
+  })
+
+  test.each(['', 'extreme', 'Medium'])('refuses the level %j, saying why and changing nothing', (level) => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
+    expect(edit(storage, { kind: 'setAmbiguity', level: 'low' })).toEqual({ ok: true })
+    const before = view(storage)
+
+    expect(edit(storage, { kind: 'setAmbiguity', level })).toEqual({ ok: false, error: 'Choose low, medium or high ambiguity.' })
+
+    expect(ambiguity(storage)).toBe('low')
+    expect(view(storage)).toEqual(before)
+  })
+
+  test('high ambiguity finishes no earlier than medium, and medium no earlier than low, at every confidence level', () => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
+    const datesAt = (level: string) => {
+      expect(edit(storage, { kind: 'setAmbiguity', level })).toEqual({ ok: true })
+      const forecast = view(storage)
+      if (forecast.kind !== 'forecast') throw new Error(`no forecast at ${level} ambiguity`)
+      return forecast.dates.map(({ date }) => date!)
+    }
+
+    const [low, medium, high] = [datesAt('low'), datesAt('medium'), datesAt('high')]
+
+    for (let i = 0; i < 4; i++) {
+      expect(medium[i]! >= low[i]!).toBe(true)
+      expect(high[i]! >= medium[i]!).toBe(true)
+    }
+    expect(high[3]! > low[3]!).toBe(true)
+  })
+
+  test('a low range that would shrink the work never drops the ticket total below the tickets remaining: 10 tickets at exactly 5 a week still take 2 weeks', () => {
+    const storage = newTeam()
+    storage.saveAmbiguityRanges({ teamId: TEAM, low: { low: 0.5, high: 0.5 }, medium: { low: 1, high: 2 }, high: { low: 1.5, high: 3 } })
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '5', high: '5' })
+
+    expect(edit(storage, { kind: 'setAmbiguity', level: 'low' })).toEqual({ ok: true })
+
+    expect(view(storage)).toMatchObject({
+      ambiguity: { level: 'low', low: 0.5, high: 0.5 },
+      dates: [50, 70, 85, 95].map((percent) => ({ percent, date: '2026-09-15' })),
+    })
+  })
+
+  test('an ambiguity level needs the milestone first', () => {
+    const storage = newTeam()
+
+    expect(edit(storage, { kind: 'setAmbiguity', level: 'high' })).toEqual({ ok: false, error: 'Enter the milestone first.' })
+
+    expect(view(storage)).toEqual({ kind: 'empty' })
   })
 })
 

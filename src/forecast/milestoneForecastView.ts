@@ -1,7 +1,7 @@
 import { periodEndDate, simulateCase, ENGINE_VERSION, type SimulationCase } from '../engine/index.js'
-import type { GrowthRange } from '../model/ambiguity.js'
+import type { Ambiguity, GrowthRange } from '../model/ambiguity.js'
 import type { Storage } from '../storage/storage.js'
-import { savedRanges } from './growth.js'
+import { milestoneGrowth } from './growth.js'
 import { inputProblems, inputWarnings, isForecastable, type ForecastableInputs, type InputNote } from './milestoneInputs.js'
 import type { ForecastSettings } from './settings.js'
 
@@ -32,6 +32,8 @@ export type MilestoneForecastView =
       /** The last date the forecast reaches; a null date is "later than" this. */
       horizonDate: string
       pace: { source: 'range'; low: number; high: number }
+      /** The milestone's ambiguity level and the growth range it used. */
+      ambiguity: { level: Ambiguity } & GrowthRange
       warnings: InputNote[]
     }
 
@@ -41,7 +43,7 @@ export function milestoneForecastView(storage: Storage, teamId: string, settings
   if (!inputs) return { kind: 'empty' }
   if (!isForecastable(inputs)) return { kind: 'problems', name: inputs.name, problems: inputProblems(inputs) }
 
-  const growth = savedRanges(storage, teamId).medium
+  const growth = milestoneGrowth(storage, inputs)
   const simulationCase = milestoneCase(inputs, growth, settings)
   const result = simulateCase(simulationCase)
   const { periodDays, maxPeriods, percentiles } = simulationCase
@@ -54,12 +56,13 @@ export function milestoneForecastView(storage: Storage, teamId: string, settings
     dates: percentiles.map((percent) => ({ percent, date: result.percentileDates[percent] ?? null })),
     horizonDate: periodEndDate(inputs.startDate, periodDays, maxPeriods),
     pace: { source: 'range', ...inputs.paceRange },
+    ambiguity: { level: inputs.ambiguity, ...growth },
     warnings: inputWarnings(inputs),
   }
 }
 
 /**
- * The milestone as one scope entry of the tickets remaining, none done, growing by the medium range. With 0 tickets
+ * The milestone as one scope entry of the tickets remaining, none done, growing by its ambiguity's range. With 0 tickets
  * the engine would draw a size, so the size range is pinned to 0 and the forecast finishes on the start date.
  */
 function milestoneCase(inputs: ForecastableInputs, growth: GrowthRange, settings: ForecastSettings): SimulationCase {

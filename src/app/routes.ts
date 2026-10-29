@@ -3,6 +3,7 @@ import { milestoneForecastView, type MilestoneForecastView } from '../forecast/m
 import { DEFAULT_SETTINGS } from '../forecast/settings.js'
 import type { Storage } from '../storage/storage.js'
 import {
+  parseAmbiguityForm,
   parseGrowthForm,
   parseMilestoneForm,
   parsePaceForm,
@@ -10,6 +11,7 @@ import {
   savedGrowthForm,
   savedMilestoneForm,
   savedPaceForm,
+  type AmbiguityForm,
   type GrowthForm,
   type MilestoneForm,
   type PaceForm,
@@ -51,6 +53,7 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
     refused: {
       milestoneForm?: MilestoneForm
       paceForm?: PaceForm
+      ambiguityForm?: AmbiguityForm
       growthForm?: GrowthForm
     } = {},
   ): Reply => {
@@ -62,7 +65,9 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
         milestone: view.milestone,
         milestoneForm: refused.milestoneForm ?? savedMilestoneForm(view.milestone),
         paceForm: refused.paceForm ?? savedPaceForm(view.milestone),
+        ambiguityForm: refused.ambiguityForm ?? {},
         growth: refused.growthForm ?? savedGrowthForm(view.growth),
+        ranges: view.growth.ranges,
       }),
     }
   }
@@ -80,6 +85,10 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
   if (request.method === 'POST' && request.path === '/inputs/pace') {
     const typed = parsePaceForm(form)
     return edit({ kind: 'setPaceRange', ...typed }, '/', (error) => ({ paceForm: { ...typed, error } }))
+  }
+  if (request.method === 'POST' && request.path === '/inputs/ambiguity') {
+    const level = parseAmbiguityForm(form)
+    return edit({ kind: 'setAmbiguity', level }, '/', (error) => ({ ambiguityForm: { error } }))
   }
   if (request.method === 'POST' && request.path === '/inputs/growth') {
     const typed = parseGrowthForm(form)
