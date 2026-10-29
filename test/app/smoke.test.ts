@@ -66,7 +66,7 @@ async function failure(app: ChildProcess): Promise<{ code: number | null; stderr
 }
 
 describe('launch smoke test', () => {
-  test('the built entry point serves the Milestone forecast screen on the sample data', async () => {
+  test('the built entry point serves the Milestone forecast screen in its empty state, with no sample data', async () => {
     const url = await printedUrl(runEntry({ PORT: '0' }))
 
     const response = await fetch(url)
@@ -74,7 +74,8 @@ describe('launch smoke test', () => {
     expect(response.status).toBe(200)
     const html = await response.text()
     expect(html).toContain('Milestone forecast')
-    expect(html).toContain('Checkout v2')
+    expect(html).toContain('No milestone defined yet')
+    expect(html).not.toContain('Checkout v2')
   }, 15_000)
 
   test.each(['abc', '5180.5', '-1', '65536'])('refuses PORT=%j, naming the bad value', async (port) => {

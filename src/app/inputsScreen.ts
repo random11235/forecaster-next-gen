@@ -139,24 +139,22 @@ export interface InputsScreen {
   milestoneForm: MilestoneForm
   /** The pace form, as saved or as typed when refused. */
   paceForm: PaceForm
-  workflow: WorkflowScreen
   /** The ambiguity ranges form, as saved or as typed when refused. */
   growth: GrowthForm
 }
 
-/** The Inputs screen: the milestone and its pace, the team's growth and its workflow settings. */
+/** The Inputs screen: the milestone, its pace and the team's growth. */
 export function renderInputsScreen(screen: InputsScreen): string {
   const { milestone } = screen
   const sections = [
     milestoneSection(screen.milestoneForm, milestone.notes),
     paceSection(screen.paceForm, milestone.notes),
     growthSection(screen.growth),
-    workflowSection(screen.workflow),
   ]
   const header = {
     context: milestone.name === '' ? undefined : escapeHtml(milestone.name),
     heading: 'Inputs',
-    lede: 'What drives the forecast: the milestone, the team’s pace, how work grows, and how the board works.',
+    lede: 'What drives the forecast: the milestone, the team’s pace, and how work grows.',
   }
   return htmlPage('Inputs', '/inputs', header, sections.map((section, index) => section(index + 1)).join('\n'))
 }

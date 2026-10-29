@@ -83,7 +83,7 @@ src/
   secrets/                # credential storage interface; v1: OS keychain
   connectors/             # jira/ (first), github/ (second) → model/ types; read-only
   storage/                # interfaces; v1: SQLite file
-  sample/                 # canned sample data, loaded on first launch when storage is empty
+  sample/                 # canned sample data; no longer loaded, kept for the screens tests until #87
   app/                    # local server (localhost only), screens, `npm start` entry point
 
 test/
@@ -122,7 +122,7 @@ Warning text and provenance are tested at Seam B, not Seam A. These cases moved 
 
 Connectors are tested through Seam B by replaying recorded API responses, with no seam of their own.
 
-`test/app/` holds the launch smoke test. It is not a forecasting seam: it builds the app, runs the built `npm start` entry point (`dist/app/main.js`) with `FORECASTER_NO_BROWSER=1` so no browser opens and a temporary `FORECASTER_DATA_FILE`, and checks that the Milestone forecast screen is served. It also checks that a bad `PORT` is refused.
+`test/app/` holds the launch smoke test. It is not a forecasting seam: it builds the app, runs the built `npm start` entry point (`dist/app/main.js`) with `FORECASTER_NO_BROWSER=1` so no browser opens and a temporary `FORECASTER_DATA_FILE`, and checks that the Milestone forecast screen is served in its empty state, with no sample data. It also checks that a bad `PORT` is refused.
 
 The one exception is the PRNG: `engine/random.ts` is checked against output vectors from the authors' reference C code for xoshiro128**, because a port must reproduce its exact stream and Seam A can't show that.
 
