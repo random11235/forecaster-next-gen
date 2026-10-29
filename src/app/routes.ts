@@ -3,27 +3,26 @@ import { milestoneForecastView, type MilestoneForecastView } from '../forecast/m
 import { DEFAULT_SETTINGS } from '../forecast/settings.js'
 import type { Storage } from '../storage/storage.js'
 import {
-  parseAmbiguityForm,
-  parseAddCountForm,
+  parseAmbiguity,
+  parseAddCount,
   parseCadenceForm,
   parseGrowthForm,
   parseMilestoneForm,
-  parsePaceCountsForm,
+  parsePaceCounts,
   parsePaceForm,
-  parsePaceModeForm,
+  parsePaceMode,
   renderInputsScreen,
   savedCadenceForm,
   savedGrowthForm,
   savedMilestoneForm,
   savedPaceCountsForm,
   savedPaceForm,
-  type AmbiguityForm,
   type CadenceForm,
+  type ChoiceForm,
   type GrowthForm,
   type MilestoneForm,
   type PaceCountsForm,
   type PaceForm,
-  type PaceModeForm,
 } from './inputsScreen.js'
 import { renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
 
@@ -63,9 +62,9 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
       milestoneForm?: MilestoneForm
       cadenceForm?: CadenceForm
       paceForm?: PaceForm
-      paceModeForm?: PaceModeForm
+      paceModeForm?: ChoiceForm
       paceCountsForm?: PaceCountsForm
-      ambiguityForm?: AmbiguityForm
+      ambiguityForm?: ChoiceForm
       growthForm?: GrowthForm
     } = {},
   ): Reply => {
@@ -109,22 +108,22 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
     return edit({ kind: 'setPaceRange', ...typed }, '/', (error) => ({ paceForm: { ...typed, error } }))
   }
   if (request.method === 'POST' && request.path === '/inputs/pace-mode') {
-    const paceMode = parsePaceModeForm(form)
+    const paceMode = parsePaceMode(form)
     return edit({ kind: 'setPaceMode', paceMode }, '/', (error) => ({ paceModeForm: { error } }))
   }
   if (request.method === 'POST' && request.path === '/inputs/pace-counts') {
-    const counts = parsePaceCountsForm(form)
+    const counts = parsePaceCounts(form)
     return edit({ kind: 'setPaceCounts', counts }, '/inputs', (error) => ({ paceCountsForm: { counts, count: '', error } }))
   }
   if (request.method === 'POST' && request.path === '/inputs/pace-counts/add') {
-    const count = parseAddCountForm(form)
+    const count = parseAddCount(form)
     return edit({ kind: 'addPaceCount', count }, '/inputs', (error) => ({ paceCountsForm: { ...savedCounts(), count, error } }))
   }
   if (request.method === 'POST' && request.path === '/inputs/pace-counts/remove-last') {
     return edit({ kind: 'removeLastPaceCount' }, '/inputs', (error) => ({ paceCountsForm: { ...savedCounts(), error } }))
   }
   if (request.method === 'POST' && request.path === '/inputs/ambiguity') {
-    const level = parseAmbiguityForm(form)
+    const level = parseAmbiguity(form)
     return edit({ kind: 'setAmbiguity', level }, '/', (error) => ({ ambiguityForm: { error } }))
   }
   if (request.method === 'POST' && request.path === '/inputs/growth') {
