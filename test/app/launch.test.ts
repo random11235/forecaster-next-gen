@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import { networkInterfaces } from 'node:os'
-import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
+import { defaultTeam, startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
 
@@ -50,14 +50,18 @@ describe('one-command launch', () => {
     expect(home).toMatch(/Starting 2 Nov 2026: 85% sure of finishing by/)
   })
 
-  test('first launch creates one team, and launching again adds no other', async () => {
+  test('first launch creates the default team, installed at launch, and launching again adds no other', async () => {
     const storage = openSqliteStorage(':memory:')
+    const before = Date.now()
     app = await startOnFreePort(storage)
     await app.close()
 
     app = await startOnFreePort(storage)
 
-    expect(storage.teams()).toHaveLength(1)
+    const [team] = storage.teams()
+    expect(storage.teams()).toEqual([defaultTeam(team!.installedAt)])
+    expect(Date.parse(team!.installedAt)).toBeGreaterThanOrEqual(before)
+    expect(Date.parse(team!.installedAt)).toBeLessThanOrEqual(Date.now())
   })
 
   test('serves the Milestone forecast screen in its empty state when no milestone is defined', async () => {
