@@ -6,7 +6,7 @@ import { counted } from './counted.js'
 import type { ForecastSettings } from './settings.js'
 
 /** An input of the milestone on the Inputs screen. */
-export type MilestoneInput = 'name' | 'startDate' | 'ticketsRemaining' | 'pace'
+export type MilestoneInput = 'name' | 'startDate' | 'ticketsRemaining' | 'pace' | 'typedCounts'
 
 /** Something the EM should know about one input: shown beside it on Inputs, and on the forecast. */
 export interface InputNote {
@@ -67,7 +67,7 @@ function typedCountsShort(inputs: MilestoneInputs, { forForecast }: TypedCounts)
   if (inputs.paceMode !== 'counts' || inputs.paceCounts.length >= forForecast) return []
   return [
     {
-      input: 'pace',
+      input: 'typedCounts',
       message: `${typedCountsEntered(inputs)} The forecast needs at least ${forForecast}. Add another count, or switch pace to the range.`,
     },
   ]
@@ -84,7 +84,7 @@ function typedCountsWarnings(inputs: MilestoneInputs, { forForecast, reliable }:
   if (inputs.paceMode !== 'counts' || entered < forForecast || entered >= reliable) return []
   return [
     {
-      input: 'pace',
+      input: 'typedCounts',
       message: `${typedCountsEntered(inputs)} The forecast needs ${reliable} to be reliable.`,
       beside: `${entered} of ${reliable} needed for reliable results`,
     },

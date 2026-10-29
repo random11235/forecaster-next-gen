@@ -608,7 +608,7 @@ describe('Milestone forecast screen', () => {
     expect(screen).not.toContain('week')
   })
 
-  test('with 4 typed counts in use, warns on the forecast that it needs 8 to be reliable, naming the pace', async () => {
+  test('with 4 typed counts in use, warns on the forecast exactly that it needs 8 to be reliable, named by the typed counts', async () => {
     await startOnPreMvpData()
     await submitCounts('6, 4, 9, 7')
 
@@ -616,7 +616,8 @@ describe('Milestone forecast screen', () => {
 
     const screen = text(await page('/'))
     expect(screen).toContain('sure')
-    expect(screen).toContain('Pace: Typed counts: 4 weeks entered. The forecast needs 8 to be reliable.')
+    expect(screen).toContain('⚠ Typed counts: 4 weeks entered. The forecast needs 8 to be reliable.')
+    expect(screen).not.toContain('Pace: Typed counts')
   })
 
   test('with 8 typed counts in use, gives no warning about the typed counts', async () => {
@@ -771,7 +772,7 @@ describe('Milestone forecast screen', () => {
 
     const screen = text(await page('/'))
 
-    const warnings = [screen.indexOf('⚠ Start date is'), screen.indexOf('⚠ Pace: Typed counts: 4 weeks entered.')]
+    const warnings = [screen.indexOf('⚠ Start date is'), screen.indexOf('⚠ Typed counts: 4 weeks entered.')]
     for (const at of warnings) {
       expect(at).toBeGreaterThan(screen.indexOf('85% sure of finishing by'))
       expect(at).toBeLessThan(screen.indexOf('When it could finish'))

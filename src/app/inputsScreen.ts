@@ -13,6 +13,7 @@ export const INPUT_LABELS: Record<MilestoneInput, string> = {
   startDate: 'Start date',
   ticketsRemaining: 'Tickets remaining',
   pace: 'Pace',
+  typedCounts: 'Typed counts',
 }
 
 /** Reads a submitted form's fields, by the field names this screen gives them; the rules they must meet are checked when it is saved. */
@@ -132,12 +133,12 @@ function cadenceHint(savedDays: number): string {
     : `${lasts} At ${savedDays} days a period is a sprint, so pace is entered per sprint; 7 days makes it a week.`
 }
 
-const PACE_MODE_NAMES: Record<PaceMode, string> = { range: 'Range', counts: 'Typed counts' }
+const PACE_MODE_NAMES: Record<PaceMode, string> = { range: 'Range', counts: INPUT_LABELS.typedCounts }
 
 /** The pace: which one the forecast uses, the range, and the typed counts, the notes beside the one in use. */
 function paceSection(screen: InputsView, error: (form: InputsForm) => string | undefined, period: PeriodName): Section {
   const { paceMode, notes, typedCountsNeeded: typedCounts } = screen.milestone
-  const notesIfUsed = (mode: PaceMode): string => (mode === paceMode ? notesFor('pace', notes) : '')
+  const notesIfUsed = (mode: PaceMode): string => (mode === paceMode ? notesFor('pace', notes) + notesFor('typedCounts', notes) : '')
   const { paceRange: range, paceCounts: counts } = screen.forms
   return inputSection(
     INPUT_LABELS.pace,
