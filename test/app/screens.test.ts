@@ -2,10 +2,13 @@ import { afterEach, describe, expect, test } from 'vitest'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
+import { loadSampleDataIfEmpty } from '../../src/sample/loadSampleData.js'
 import { SAMPLE_DATA } from '../../src/sample/sampleData.js'
 import { countingFactReads } from '../storage/countingFactReads.js'
 
-// The screens on the canned sample data, through the local server, as the EM's browser sees them.
+// The screens through the local server, as the EM's browser sees them, on the canned sample data. The app no longer
+// loads it; it stands in for a data file from before the MVP: epics, commits and workflow settings beside the
+// milestone's MVP fields.
 
 let app: RunningApp | undefined
 let storage: Storage | undefined
@@ -23,6 +26,7 @@ afterEach(async () => {
  */
 async function startOnSampleData(today = '2026-10-24'): Promise<RunningApp> {
   storage = openSqliteStorage(':memory:')
+  loadSampleDataIfEmpty(storage)
   app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage, today: () => today })
   return app
 }
@@ -42,6 +46,7 @@ function text(html: string): string {
 /** Starts the app on the sample data, counting reads of the team's facts from launch on. */
 async function startCountingFactReads(): Promise<() => number> {
   storage = openSqliteStorage(':memory:')
+  loadSampleDataIfEmpty(storage)
   const counting = countingFactReads(storage)
   app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage: counting.storage, today: () => '2026-10-24' })
   const atLaunch = counting.reads()
@@ -192,64 +197,15 @@ describe('Inputs screen', () => {
   })
 })
 
-/** The sample board's workflow form, as the Inputs screen first fills it, with `changes` made. */
-function workflowForm(changes: Record<string, string> = {}): [string, string][] {
-  const fields: Record<string, string> = {
-    'status:To Do': 'notStarted',
-    'status:In Progress': 'started',
-    'status:Done': 'done',
-    'status:Cancelled': 'cancelled',
-    startedStatus: 'In Progress',
-    commitLabel: '',
-    blockedStatuses: '',
-    blockedLabels: 'blocked',
-    ...changes,
-  }
-  return Object.entries(fields)
-}
-
 describe('Inputs screen: workflow', () => {
-  test("shows the sample board's status mapping, started status, commit label and blocked marker, and asks nothing about spikes", async () => {
+  test('offers no workflow settings, even with a workflow saved before the MVP', async () => {
     await startOnSampleData()
 
     const html = await page('/inputs')
 
-    for (const [status, category] of [
-      ['To Do', 'notStarted'],
-      ['In Progress', 'started'],
-      ['Done', 'done'],
-      ['Cancelled', 'cancelled'],
-    ]) {
-      expect(html).toMatch(new RegExp(`<select name="status:${status}"[^>]*>[\\s\\S]*?<option value="${category}" selected>`))
-    }
-    expect(html).toMatch(/<select name="startedStatus"[^>]*>[\s\S]*?<option value="In Progress" selected>/)
-    expect(html).toMatch(/name="commitLabel"[^>]*value="committed"/)
-    expect(html).toMatch(/name="blockedStatuses"[^>]*value=""/)
-    expect(html).toMatch(/name="blockedLabels"[^>]*value="blocked"/)
-    expect(html).not.toMatch(/name="spike/)
-  })
-
-  test('saving the settings shows them on the Inputs screen', async () => {
-    await startOnSampleData()
-
-    const response = await post('/inputs/workflow', workflowForm({ commitLabel: 'committed' }))
-
-    expect(response.status).toBe(303)
-    expect(response.headers.get('location')).toBe('/inputs')
-    const html = await page('/inputs')
-    expect(html).toMatch(/name="commitLabel"[^>]*value="committed"/)
-  })
-
-  test('refused settings say why and keep what was typed', async () => {
-    await startOnSampleData()
-
-    const response = await post('/inputs/workflow', workflowForm({ startedStatus: 'Done', commitLabel: 'committed' }))
-
-    expect(response.status).toBe(400)
-    const html = await response.text()
-    expect(text(html)).toContain('Choose a started status from the statuses mapped to started.')
-    expect(html).toMatch(/name="commitLabel"[^>]*value="committed"/)
-    expect(html).toMatch(/<select name="startedStatus"[^>]*>[\s\S]*?<option value="Done" selected>/)
+    expect(html).not.toMatch(/\/inputs\/workflow|name="status:|name="startedStatus"|name="commitLabel"|name="blocked/)
+    expect(text(html)).not.toMatch(/Workflow|Board status|Commit label/)
+    expect((await post('/inputs/workflow', [['startedStatus', 'In Progress']])).status).toBe(404)
   })
 })
 
@@ -381,6 +337,17 @@ describe('Milestone forecast screen', () => {
     expect(screen).toContain('Starting 1 Sep 2026: not 85% sure of finishing by 28 Aug 2029')
     for (const percent of [50, 70, 85, 95]) expect(screen).toContain(`${percent}% sure: later than 28 Aug 2029`)
     expect(screen).toContain('Pace: At 0 tickets a week, the work never finishes.')
+  })
+
+  test("forecasts data from before the MVP from its MVP fields, adding no team and showing none of its epics on either screen", async () => {
+    await startOnSampleData()
+    await submitPace('4', '8')
+
+    const screens = [text(await page('/')), text(await page('/inputs'))]
+
+    expect(screens[0]).toContain('Starting 1 Sep 2026: 85% sure of finishing by 1 Dec 2026')
+    for (const screen of screens) expect(screen).not.toMatch(/Card vaulting|Refunds|Receipts redesign|PAY-\d|epic|commit/i)
+    expect(storage!.teams().map((team) => team.id)).toEqual(['sample-team'])
   })
 
   test('shows no epics, no committed date and no input', async () => {

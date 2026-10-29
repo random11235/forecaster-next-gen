@@ -6,16 +6,13 @@ import {
   parseGrowthForm,
   parseMilestoneForm,
   parsePaceForm,
-  parseWorkflowForm,
   renderInputsScreen,
   savedGrowthForm,
   savedMilestoneForm,
   savedPaceForm,
-  savedWorkflowForm,
   type GrowthForm,
   type MilestoneForm,
   type PaceForm,
-  type WorkflowScreen,
 } from './inputsScreen.js'
 import { renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
 
@@ -56,7 +53,6 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
     refused: {
       milestoneForm?: MilestoneForm
       paceForm?: PaceForm
-      workflowForm?: Omit<WorkflowScreen, 'statuses'>
       growthForm?: GrowthForm
     } = {},
   ): Reply => {
@@ -69,7 +65,6 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
         milestoneForm: refused.milestoneForm ?? savedMilestoneForm(view.forecastInputs),
         paceForm: refused.paceForm ?? savedPaceForm(view.forecastInputs),
         growth: refused.growthForm ?? savedGrowthForm(view.growth),
-        workflow: { statuses: view.workflow.statuses.map((entry) => entry.status), ...(refused.workflowForm ?? { form: savedWorkflowForm(view.workflow) }) },
       }),
     }
   }
@@ -91,10 +86,6 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
   if (request.method === 'POST' && request.path === '/inputs/growth') {
     const typed = parseGrowthForm(form)
     return edit({ kind: 'setAmbiguityRanges', ...typed.ranges }, '/inputs', (error) => ({ growthForm: { ...typed, error } }))
-  }
-  if (request.method === 'POST' && request.path === '/inputs/workflow') {
-    const typed = parseWorkflowForm(form)
-    return edit({ kind: 'editWorkflow', ...typed.edit }, '/inputs', (error) => ({ workflowForm: { form: typed.form, error } }))
   }
   return { kind: 'notFound' }
 }
