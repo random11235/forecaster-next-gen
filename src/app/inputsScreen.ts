@@ -48,12 +48,12 @@ export interface PaceCountsForm {
 }
 
 /** Reads the submitted typed counts list; the rules it must meet are checked when it is saved. */
-export function parsePaceCountsForm(body: URLSearchParams): string {
+export function parsePaceCounts(body: URLSearchParams): string {
   return body.get('counts')?.trim() ?? ''
 }
 
 /** Reads the submitted count to add; the rules it must meet are checked when it is saved. */
-export function parseAddCountForm(body: URLSearchParams): string {
+export function parseAddCount(body: URLSearchParams): string {
   return body.get('count')?.trim() ?? ''
 }
 
@@ -62,13 +62,13 @@ export function savedPaceCountsForm(view: MilestoneInputsView): PaceCountsForm {
   return { counts: view.paceCounts.join(', '), count: '' }
 }
 
-/** The pace choice form: the choice is saved or shown as saved, so only why it was refused, if it was. */
-export interface PaceModeForm {
+/** A form choosing one option: the choice is saved or shown as saved, so only why it was refused, if it was. */
+export interface ChoiceForm {
   error?: string
 }
 
 /** Reads the submitted pace choice; whether it is one is checked when it is saved. */
-export function parsePaceModeForm(body: URLSearchParams): string {
+export function parsePaceMode(body: URLSearchParams): string {
   return body.get('paceMode') ?? ''
 }
 
@@ -106,13 +106,8 @@ export function savedGrowthForm({ ranges }: GrowthView): GrowthForm {
   return { ranges: { low: typed(ranges.low), medium: typed(ranges.medium), high: typed(ranges.high) } }
 }
 
-/** The ambiguity form: the level is saved or shown as saved, so only why a level was refused, if it was. */
-export interface AmbiguityForm {
-  error?: string
-}
-
 /** Reads the submitted ambiguity level; whether it is one is checked when it is saved. */
-export function parseAmbiguityForm(body: URLSearchParams): string {
+export function parseAmbiguity(body: URLSearchParams): string {
   return body.get('ambiguity') ?? ''
 }
 
@@ -148,11 +143,11 @@ export interface InputsScreen {
   /** The pace form, as saved or as typed when refused. */
   paceForm: PaceForm
   /** Which pace the forecast uses, with why a choice was refused, if it was. */
-  paceModeForm: PaceModeForm
+  paceModeForm: ChoiceForm
   /** The typed counts forms, as saved or as typed when refused. */
   paceCountsForm: PaceCountsForm
   /** The milestone's ambiguity level, with why a level was refused, if it was. */
-  ambiguityForm: AmbiguityForm
+  ambiguityForm: ChoiceForm
   /** The ambiguity ranges form, as saved or as typed when refused. */
   growth: GrowthForm
   /** The team's saved ambiguity ranges, shown beside each level. */
@@ -243,12 +238,6 @@ const PACE_MODE_NAMES: Record<PaceMode, string> = { range: 'Range', counts: 'Typ
 function paceSection(screen: InputsScreen, period: PeriodName): Section {
   const { paceMode, notes } = screen.milestone
   const notesIfUsed = (mode: PaceMode): string => (mode === paceMode ? notesFor('pace', notes) : '')
-  const modes = (['range', 'counts'] as const)
-    .map(
-      (mode) =>
-        `            <label><input type="radio" name="paceMode" value="${mode}"${mode === paceMode ? ' checked' : ''} required> ${PACE_MODE_NAMES[mode]}</label>`,
-    )
-    .join('\n')
   const { paceForm: range, paceCountsForm: counts } = screen
   const { typedCounts } = DEFAULT_SETTINGS
   return inputSection(
@@ -256,9 +245,7 @@ function paceSection(screen: InputsScreen, period: PeriodName): Section {
     INPUT_LABELS.pace,
     `How many tickets the team finishes in a ${period}: a range from a slow ${period} to a good one, or typed counts of past ${period}s. Typed counts need at least ${typedCounts.forForecast} for a forecast, and ${typedCounts.reliable} to be reliable.`,
     `        <form method="post" action="/inputs/pace-mode">${errorLine(screen.paceModeForm.error)}
-          <fieldset class="levels" aria-label="Pace the forecast uses">
-${modes}
-          </fieldset>
+${radios('paceMode', 'Pace the forecast uses', ['range', 'counts'], paceMode, (mode) => PACE_MODE_NAMES[mode])}
           <div class="actions"><button type="submit" class="primary">Use this pace</button></div>
         </form>
         <form method="post" action="/inputs/pace">${errorLine(range.error)}
@@ -292,19 +279,25 @@ ${modes}
   )
 }
 
-function ambiguitySection(chosen: Ambiguity, ranges: GrowthView['ranges'], form: AmbiguityForm): Section {
-  const levels = AMBIGUITIES.map(
-    (level) =>
-      `            <label><input type="radio" name="ambiguity" value="${level}"${level === chosen ? ' checked' : ''} required> ${ambiguityName(level)} <span class="range">${ranges[level].low}–${ranges[level].high}×</span></label>`,
-  ).join('\n')
+/** One of `options` to choose, as radio buttons named `name` with the chosen one checked; `label` is each one's HTML. */
+function radios<T extends string>(name: string, ariaLabel: string, options: readonly T[], chosen: T, label: (option: T) => string): string {
+  const buttons = options.map(
+    (option) =>
+      `            <label><input type="radio" name="${name}" value="${option}"${option === chosen ? ' checked' : ''} required> ${label(option)}</label>`,
+  )
+  return `          <fieldset class="levels" aria-label="${ariaLabel}">
+${buttons.join('\n')}
+          </fieldset>`
+}
+
+function ambiguitySection(chosen: Ambiguity, ranges: GrowthView['ranges'], form: ChoiceForm): Section {
+  const level = (level: Ambiguity): string => `${ambiguityName(level)} <span class="range">${ranges[level].low}–${ranges[level].high}×</span>`
   return inputSection(
     'Ambiguity',
     'Ambiguity',
     'How well the milestone’s work is understood. The less it is, the more the work may grow, by the ranges below.',
     `        <form method="post" action="/inputs/ambiguity">${errorLine(form.error)}
-          <fieldset class="levels" aria-label="Ambiguity of the milestone">
-${levels}
-          </fieldset>
+${radios('ambiguity', 'Ambiguity of the milestone', AMBIGUITIES, chosen, level)}
           <div class="actions"><button type="submit" class="primary">Save and forecast</button></div>
         </form>`,
   )
