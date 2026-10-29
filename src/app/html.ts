@@ -59,7 +59,7 @@ const STYLE = `
     :root {
       --page: #F7F5F0; --ink: #1C1B18; --text-2: #3F3C35; --muted: #5E5A52; --faint: #8C877C;
       --hairline: #E2DDD2; --border: #D6D0C3; --sidebar: #EFEBE3; --active: #E4DFD4;
-      --link: #1F5F6B; --link-hover: #123F47; --risk: #B5482A; --good: #2F6B3F;
+      --link: #1F5F6B; --link-hover: #123F47; --bar: #9DB6BB; --risk: #B5482A; --good: #2F6B3F;
       --mono: 'Geist Mono', ui-monospace, monospace;
     }
     * { box-sizing: border-box; }
@@ -104,6 +104,20 @@ const STYLE = `
     ul.dates li { display: flex; gap: 8px; align-items: baseline; padding: 12px 0; border-bottom: 1px solid var(--hairline); font-size: 15px; }
     ul.dates .percent { font-family: var(--mono); font-weight: 600; min-width: 3.5em; }
     ul.dates .date { font-family: var(--mono); font-weight: 600; }
+
+    /* Milestone forecast: the finish graph. Markers stand on rows above the bars and run down through them. */
+    figure.finish-graph { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+    .finish-graph .plot { position: relative; padding-top: 92px; }
+    .finish-graph .bars { height: 160px; display: flex; align-items: flex-end; border-bottom: 1px solid var(--ink); }
+    .finish-graph .bar { flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; padding: 0 1px; min-width: 0; }
+    .finish-graph .fill { width: 100%; background: var(--bar); border-radius: 2px 2px 0 0; }
+    .finish-graph .marker { position: absolute; bottom: 0; border-left: 1px dashed var(--faint); }
+    .finish-graph .marker.headline { border-left: 2px solid var(--ink); }
+    .finish-graph .mark { position: absolute; top: 0; left: 6px; white-space: nowrap; font-size: 12px; line-height: 16px; color: var(--muted); }
+    .finish-graph .marker.end .mark { left: auto; right: 6px; }
+    .finish-graph .mark .date { font-family: var(--mono); }
+    .finish-graph .mark.headline { color: var(--ink); font-weight: 600; }
+    .finish-graph .axis { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 12px; color: var(--muted); }
 
     /* Inputs: numbered sections, a label column beside the form. */
     section.input {

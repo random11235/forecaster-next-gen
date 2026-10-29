@@ -55,7 +55,55 @@ function renderForecast(view: Forecast): string {
 ${dates}
       </ul>
       <p class="note">Pace: ${view.pace.low}–${view.pace.high} tickets per week (range)</p>
+    </section>${renderFinishGraph(view)}`
+}
+
+/**
+ * When the trials finish: a bar per period, its height the share of trials finishing then, with a marker at each
+ * confidence date and the headline's stressed. Each bar carries its date and shares for the hover text. Markers sit on
+ * their own rows, in percent order, so their labels never overlap.
+ */
+function renderFinishGraph(view: Forecast): string {
+  const bars = view.finishGraph
+  if (bars.length === 0) return ''
+  const tallest = Math.max(...bars.map(({ share }) => share))
+  const columns = bars
+    .map(
+      ({ date, share, finishedBy }) =>
+        `          <div class="bar" data-date="${date}" data-share="${share}" data-finished-by="${finishedBy}"><span class="fill" style="height: ${percentOf(share, tallest)}%"></span></div>`,
+    )
+    .join('\n')
+  const markers = view.dates
+    .flatMap(({ percent, date }, row) => {
+      const at = bars.findIndex((bar) => bar.date === date)
+      if (at < 0) return []
+      const left = percentOf(at + 0.5, bars.length)
+      const stressed = percent === view.headlinePercent ? ' headline' : ''
+      const side = left > 70 ? ' end' : ''
+      return [
+        `          <div class="marker${stressed}${side}" style="left: ${left}%; top: ${row * 22}px"><span class="mark${stressed}">${percent}% <span class="date">${formatDate(date!)}</span></span></div>`,
+      ]
+    })
+    .join('\n')
+  return `
+    <section class="brief" aria-label="Finish graph">
+      <div class="heading"><h2>When the trials finish</h2></div>
+      <figure class="finish-graph" aria-label="When the trials finish, by week">
+        <div class="plot">
+${markers}
+          <div class="bars">
+${columns}
+          </div>
+        </div>
+        <div class="axis"><span>${formatDate(bars[0]!.date)}</span><span>${formatDate(bars.at(-1)!.date)}</span></div>
+        <figcaption class="note">Share of trials finishing each week, from the start date. The ${view.headlinePercent}% date is the headline.</figcaption>
+      </figure>
     </section>`
+}
+
+/** `part` as a percentage of `whole`, to 2 decimal places. */
+function percentOf(part: number, whole: number): number {
+  return Math.round((part / whole) * 10_000) / 100
 }
 
 /** Notes about the inputs, each naming its input by its label on the Inputs screen. */
