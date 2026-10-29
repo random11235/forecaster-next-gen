@@ -14,8 +14,6 @@ export function renderMilestoneForecastScreen(view: MilestoneForecastView): stri
       return htmlPage('Milestone forecast', '/', EMPTY_STATE_HEADER, '')
     case 'problems':
       return htmlPage('Milestone forecast', '/', problemsHeader(view.name), renderNotes('What to fix', view.problems))
-    case 'needsPace':
-      return htmlPage('Milestone forecast', '/', problemsHeader(view.name), renderNotes('What to fix', [view.note]))
     case 'forecast':
       return htmlPage('Milestone forecast', '/', forecastHeader(view), `${renderForecast(view)}${renderNotes('Warnings', view.warnings)}`)
   }

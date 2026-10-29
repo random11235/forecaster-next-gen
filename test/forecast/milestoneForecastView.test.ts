@@ -420,7 +420,7 @@ describe('typed counts', () => {
       input: 'pace',
       message: 'Typed counts: 1 week entered. The forecast needs at least 2. Add another count, or switch pace to the range.',
     }
-    expect(view(storage)).toEqual({ kind: 'needsPace', name: 'Checkout v2', note })
+    expect(view(storage)).toEqual({ kind: 'problems', name: 'Checkout v2', problems: [note] })
     expect(inputsView(storage, TEAM, TODAY).milestone.notes).toEqual([note])
   })
 
@@ -567,8 +567,8 @@ describe('typed counts', () => {
     expect(edit(storage, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
 
     expect(view(storage)).toMatchObject({
-      kind: 'needsPace',
-      note: { message: 'Typed counts: 0 sprints entered. The forecast needs at least 2. Add another count, or switch pace to the range.' },
+      kind: 'problems',
+      problems: [{ message: 'Typed counts: 0 sprints entered. The forecast needs at least 2. Add another count, or switch pace to the range.' }],
     })
   })
 })
@@ -599,6 +599,33 @@ describe('before there is a forecast', () => {
         { input: 'startDate', message: 'No start date is saved yet.' },
         { input: 'ticketsRemaining', message: 'Enter how many tickets are left.' },
         { input: 'pace', message: 'Enter a pace range.' },
+      ],
+    })
+  })
+
+  test('a milestone kept from before the MVP, on too few typed counts, lists them with what else to enter', () => {
+    const storage = newTeam()
+    storage.saveMilestoneInputs({
+      teamId: TEAM,
+      name: 'Checkout v2',
+      startDate: undefined,
+      ticketsRemaining: 10,
+      ambiguity: 'medium',
+      cadenceDays: 7,
+      paceMode: 'counts',
+      paceRange: undefined,
+      paceCounts: [6],
+    })
+
+    expect(view(storage)).toEqual({
+      kind: 'problems',
+      name: 'Checkout v2',
+      problems: [
+        { input: 'startDate', message: 'No start date is saved yet.' },
+        {
+          input: 'pace',
+          message: 'Typed counts: 1 week entered. The forecast needs at least 2. Add another count, or switch pace to the range.',
+        },
       ],
     })
   })

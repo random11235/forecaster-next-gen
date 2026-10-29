@@ -78,14 +78,16 @@ export function milestoneInputsView(storage: Storage, teamId: string, today: str
     notes: saved
       ? [
           ...inputProblems(saved),
-          ...typedCountsNotes(saved),
           ...warnings(saved, today).map(({ input, message, beside }) => ({ input, message: beside ?? message })),
         ]
       : [],
   }
 }
 
-/** What the EM must enter before the milestone can be forecast; only a milestone kept from before the MVP lacks any. */
+/**
+ * What the EM must enter before the milestone can be forecast: typed counts enough to forecast from, if they're in use,
+ * and the inputs only a milestone kept from before the MVP lacks.
+ */
 export function inputProblems(inputs: MilestoneInputs): InputNote[] {
   return [
     ...(inputs.startDate === undefined ? [{ input: 'startDate', message: 'No start date is saved yet.' } as const] : []),
@@ -95,6 +97,7 @@ export function inputProblems(inputs: MilestoneInputs): InputNote[] {
     ...(inputs.paceMode === 'range' && inputs.paceRange === undefined
       ? [{ input: 'pace', message: 'Enter a pace range.' } as const]
       : []),
+    ...typedCountsShort(inputs),
   ]
 }
 
@@ -106,22 +109,20 @@ export function isForecastable(inputs: MilestoneInputs): inputs is ForecastableI
   return inputProblems(inputs).length === 0
 }
 
-/**
- * Why the typed counts in use are too few to forecast from, or undefined if they aren't in use or are enough: one
- * count isn't a pace.
- */
-export function typedCountsShort(inputs: MilestoneInputs): InputNote | undefined {
-  if (inputs.paceMode !== 'counts' || inputs.paceCounts.length >= TYPED_COUNTS.forForecast) return undefined
-  const entered = counted(inputs.paceCounts.length, periodName(inputs.cadenceDays))
-  return {
-    input: 'pace',
-    message: `Typed counts: ${entered} entered. The forecast needs at least ${TYPED_COUNTS.forForecast}. Add another count, or switch pace to the range.`,
-  }
+/** Why the typed counts in use are too few to forecast from, if they are: one count isn't a pace. */
+function typedCountsShort(inputs: MilestoneInputs): InputNote[] {
+  if (inputs.paceMode !== 'counts' || inputs.paceCounts.length >= TYPED_COUNTS.forForecast) return []
+  return [
+    {
+      input: 'pace',
+      message: `${typedCountsEntered(inputs)} The forecast needs at least ${TYPED_COUNTS.forForecast}. Add another count, or switch pace to the range.`,
+    },
+  ]
 }
 
-function typedCountsNotes(inputs: MilestoneInputs): InputNote[] {
-  const short = typedCountsShort(inputs)
-  return short ? [short] : []
+/** How many typed counts there are, in the milestone's periods: "Typed counts: 4 weeks entered." */
+function typedCountsEntered(inputs: MilestoneInputs): string {
+  return `Typed counts: ${counted(inputs.paceCounts.length, periodName(inputs.cadenceDays))} entered.`
 }
 
 /** The pace the forecast uses: the range, or the typed counts, whichever the EM chose. */
@@ -154,7 +155,7 @@ function typedCountsWarnings(inputs: MilestoneInputs): Warning[] {
   return [
     {
       input: 'pace',
-      message: `Typed counts: ${counted(entered, periodName(inputs.cadenceDays))} entered. The forecast needs ${TYPED_COUNTS.reliable} to be reliable.`,
+      message: `${typedCountsEntered(inputs)} The forecast needs ${TYPED_COUNTS.reliable} to be reliable.`,
       beside: `${entered} of ${TYPED_COUNTS.reliable} needed for reliable results`,
     },
   ]
