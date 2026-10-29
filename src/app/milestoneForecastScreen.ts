@@ -1,7 +1,7 @@
 import { periodName } from '../forecast/cadence.js'
 import { counted } from '../forecast/counted.js'
 import type { InputNote } from '../forecast/milestoneInputs.js'
-import type { ForecastDate, MilestoneForecastView } from '../forecast/milestoneForecastView.js'
+import type { FinishBar, ForecastDate, MilestoneForecastView } from '../forecast/milestoneForecastView.js'
 import { escapeHtml, formatDate, htmlPage, type PageHeader } from './html.js'
 import { INPUT_LABELS } from './inputsScreen.js'
 
@@ -64,8 +64,8 @@ ${dates}
 
 /**
  * When the trials finish: a bar per period, its height the share of trials finishing then, with a marker at each
- * confidence date and the headline's stressed. Each bar carries its date and shares for the hover text. Markers sit on
- * their own rows, in percent order, so their labels never overlap.
+ * confidence date and the headline's stressed. Each bar carries its date and shares, and shows them as text on hover or
+ * keyboard focus. Markers sit on their own rows, in percent order, so their labels never overlap.
  */
 function renderFinishGraph(view: Forecast): string {
   const bars = view.finishGraph
@@ -73,8 +73,8 @@ function renderFinishGraph(view: Forecast): string {
   const tallest = Math.max(...bars.map(({ share }) => share))
   const columns = bars
     .map(
-      ({ date, share, finishedBy }) =>
-        `          <div class="bar" data-date="${date}" data-share="${share}" data-finished-by="${finishedBy}"><span class="fill" style="height: ${percentOf(share, tallest)}%"></span></div>`,
+      (bar, at) =>
+        `          <div class="bar${edge(percentOf(at + 0.5, bars.length))}" tabindex="0" data-date="${bar.date}" data-share="${bar.share}" data-finished-by="${bar.finishedBy}"><span class="fill" style="height: ${percentOf(bar.share, tallest)}%"></span><span class="tip">${barText(bar, view.cadenceDays)}</span></div>`,
     )
     .join('\n')
   const markers = view.dates
@@ -109,6 +109,17 @@ ${columns}
 function paceUsed({ pace, cadenceDays }: Forecast): string {
   const period = periodName(cadenceDays)
   return pace.source === 'counts' ? `typed counts, ${counted(pace.counts.length, period)}` : `${pace.low}–${pace.high} tickets per ${period} (range)`
+}
+
+/** A bar's hover text, such as "1 Dec 2026: 13% of trials finish this week, 92% by then". */
+function barText({ date, share, finishedBy }: FinishBar, cadenceDays: number): string {
+  return `${formatDate(date)}: ${Math.round(share * 100)}% of trials finish this ${periodName(cadenceDays)}, ${Math.round(finishedBy * 100)}% by then`
+}
+
+/** Bars near either edge of the graph, at `left`% across it, open their hover text inwards so it stays on the page. */
+function edge(left: number): string {
+  if (left < 30) return ' start'
+  return left > 70 ? ' end' : ''
 }
 
 /** `part` as a percentage of `whole`, to 2 decimal places. */
