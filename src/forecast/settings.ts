@@ -9,6 +9,11 @@ export interface ForecastSettings {
   maxPeriods: number
   /** Fixed, so the same inputs always give the same forecast. */
   seed: number
+  /**
+   * How many typed counts of past periods the pace needs: fewer than `forForecast` give no forecast, and fewer than
+   * `reliable` a forecast warned as shaky.
+   */
+  typedCounts: { forForecast: number; reliable: number }
 }
 
 export const DEFAULT_SETTINGS: ForecastSettings = {
@@ -16,6 +21,7 @@ export const DEFAULT_SETTINGS: ForecastSettings = {
   percentiles: [50, 70, 85, 95],
   maxPeriods: 156,
   seed: 1,
+  typedCounts: { forForecast: 2, reliable: 8 },
 }
 
 /** Each ambiguity level's growth range until the EM edits them; medium is the default level. */
@@ -23,13 +29,4 @@ export const DEFAULT_AMBIGUITY_RANGES: Omit<AmbiguityRanges, 'teamId'> = {
   low: { low: 1, high: 1.5 },
   medium: { low: 1, high: 2 },
   high: { low: 1.5, high: 3 },
-}
-
-/**
- * How many typed counts of past periods the pace needs: fewer than `forForecast` give no forecast, and fewer than
- * `reliable` a forecast warned as shaky.
- */
-export const TYPED_COUNTS = {
-  forForecast: 2,
-  reliable: 8,
 }

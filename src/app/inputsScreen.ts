@@ -8,7 +8,7 @@ import {
   type MilestoneInputsView,
 } from '../forecast/milestoneInputs.js'
 import { ambiguityName, MAX_GROWTH, type GrowthView, type TypedRange } from '../forecast/growth.js'
-import { TYPED_COUNTS } from '../forecast/settings.js'
+import { DEFAULT_SETTINGS } from '../forecast/settings.js'
 import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
 import type { PaceMode } from '../model/milestoneInputs.js'
 import { escapeHtml, htmlPage } from './html.js'
@@ -250,10 +250,11 @@ function paceSection(screen: InputsScreen, period: PeriodName): Section {
     )
     .join('\n')
   const { paceForm: range, paceCountsForm: counts } = screen
+  const { typedCounts } = DEFAULT_SETTINGS
   return inputSection(
     INPUT_LABELS.pace,
     INPUT_LABELS.pace,
-    `How many tickets the team finishes in a ${period}: a range from a slow ${period} to a good one, or typed counts of past ${period}s. Typed counts need at least ${TYPED_COUNTS.forForecast} for a forecast, and ${TYPED_COUNTS.reliable} to be reliable.`,
+    `How many tickets the team finishes in a ${period}: a range from a slow ${period} to a good one, or typed counts of past ${period}s. Typed counts need at least ${typedCounts.forForecast} for a forecast, and ${typedCounts.reliable} to be reliable.`,
     `        <form method="post" action="/inputs/pace-mode">${errorLine(screen.paceModeForm.error)}
           <fieldset class="levels" aria-label="Pace the forecast uses">
 ${modes}

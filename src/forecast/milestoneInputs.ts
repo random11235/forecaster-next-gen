@@ -6,7 +6,10 @@ import { periodName } from './cadence.js'
 import { daysBetween, isCalendarDate } from './calendarDate.js'
 import { counted } from './counted.js'
 import { refuse, type EditResult, type Refusal } from './editResult.js'
-import { TYPED_COUNTS } from './settings.js'
+import { DEFAULT_SETTINGS } from './settings.js'
+
+/** How many typed counts the pace needs; not yet editable, so the defaults. */
+const TYPED_COUNTS = DEFAULT_SETTINGS.typedCounts
 
 /** Far above any real team's pace in one period; keeps typos like 1000000 out of the forecast. */
 export const MAX_TICKETS_PER_PERIOD = 1000
