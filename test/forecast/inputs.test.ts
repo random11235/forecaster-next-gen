@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import { editInputs, inputsView, type InputsEdit } from '../../src/forecast/inputs.js'
-import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
+import { epicForecastView } from '../../src/forecast/epicForecastView.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import { loadSampleDataIfEmpty } from '../../src/sample/loadSampleData.js'
 import { SAMPLE_DATA } from '../../src/sample/sampleData.js'
@@ -38,7 +38,7 @@ function setPace(storage: Storage, low: string, high: string) {
 }
 
 function forecastKind(storage: Storage): string {
-  const view = milestoneForecastView(storage, TEAM, { today: TODAY, settings: DEFAULT_SETTINGS })
+  const view = epicForecastView(storage, TEAM, { today: TODAY, settings: DEFAULT_SETTINGS })
   if (view.kind !== 'milestone') throw new Error('expected a milestone')
   return view.forecast.kind
 }

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { Milestone } from '../model/milestone.js'
 import { childrenOf, type WorkItem } from '../model/workItem.js'
 import type { Storage } from '../storage/storage.js'
+import { isCalendarDate } from './calendarDate.js'
 import { refuse, type EditResult } from './editResult.js'
 import { epicAmbiguities, milestoneEpics, type MilestoneEpic } from './milestoneEpics.js'
 import { teamFacts, type TeamFacts } from './teamFacts.js'
@@ -144,13 +145,6 @@ function inRankOrder(epics: readonly RankedEpic[]): { ok: true; epicIds: string[
   const epicIds: string[] = []
   epics.forEach((epic, i) => (epicIds[Number(ranks[i]) - 1] = epic.epicId))
   return { ok: true, epicIds }
-}
-
-/** `YYYY-MM-DD` naming a day that exists: 2026-02-30 is refused. */
-function isCalendarDate(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
-  const day = new Date(`${value}T00:00:00Z`)
-  return !Number.isNaN(day.getTime()) && day.toISOString().slice(0, 10) === value
 }
 
 /** The team's epics a milestone can hold: cancelled epics are left out. */

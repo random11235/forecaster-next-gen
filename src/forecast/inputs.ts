@@ -2,16 +2,17 @@ import type { Storage } from '../storage/storage.js'
 import { refuse, type EditResult } from './editResult.js'
 import { editGrowth, growthView, teamGrowth, type GrowthEdit, type GrowthView } from './growth.js'
 import { editPace, paceOf, type PaceEdit, type PaceView } from './pace.js'
+import { editMilestoneInputs, MAX_TICKETS_PER_WEEK, milestoneInputsView, type MilestoneInputsEdit, type MilestoneInputsView } from './milestoneInputs.js'
 import { editMilestone, milestoneDefinitionView, teamMilestone, type MilestoneDefinitionView, type MilestoneEdit } from './milestoneDefinition.js'
 import type { ForecastSettings } from './settings.js'
 import { teamFacts } from './teamFacts.js'
 import { editWorkflowSettings, workflowSettingsView, type WorkflowEdit, type WorkflowSettingsView } from './workflowSettings.js'
 
-/** Far above any real team's weekly pace; keeps typos like 1000000 out of the forecast. */
-export const MAX_TICKETS_PER_WEEK = 1000
+export { MAX_TICKETS_PER_WEEK } from './milestoneInputs.js'
 
 /** A change the EM makes on the Inputs screen: to the milestone, the team's workflow settings, or the milestone's pace. */
 export type InputsEdit =
+  | MilestoneInputsEdit
   | MilestoneEdit
   | GrowthEdit
   | PaceEdit
@@ -21,6 +22,8 @@ export type InputsEdit =
 
 /** What the Inputs screen shows. */
 export interface InputsView {
+  /** The milestone the forecast starts from, as entered so far. */
+  forecastInputs: MilestoneInputsView
   milestone: MilestoneDefinitionView
   /** The milestone's pace: the manual range, and measured pace once there are enough weeks; undefined with no milestone. */
   pace: PaceView | undefined
@@ -35,6 +38,7 @@ export interface InputsView {
 export function inputsView(storage: Storage, teamId: string, settings: ForecastSettings, today: string): InputsView {
   const team = teamFacts(storage, teamId)
   return {
+    forecastInputs: milestoneInputsView(storage, teamId, today),
     milestone: milestoneDefinitionView(storage, teamId, team),
     pace: paceOf(storage, teamId, team, settings, today),
     workflow: workflowSettingsView(team),
@@ -51,6 +55,9 @@ export function editInputs(
   today: string,
 ): EditResult {
   switch (edit.kind) {
+    case 'setMilestone':
+    case 'setPaceRange':
+      return editMilestoneInputs(storage, teamId, edit)
     case 'setPace':
       return setPace(storage, teamId, edit)
     case 'useMeasuredPace':

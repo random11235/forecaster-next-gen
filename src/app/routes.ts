@@ -3,19 +3,18 @@ import { milestoneForecastView, type MilestoneForecastView } from '../forecast/m
 import { DEFAULT_SETTINGS } from '../forecast/settings.js'
 import type { Storage } from '../storage/storage.js'
 import {
-  parseDetailsForm,
-  parseEpicForm,
   parseGrowthForm,
   parseMilestoneForm,
   parsePaceForm,
   parseWorkflowForm,
   renderInputsScreen,
   savedGrowthForm,
+  savedMilestoneForm,
   savedPaceForm,
   savedWorkflowForm,
-  type GrowthScreen,
-  type InputsScreen,
-  type PaceScreen,
+  type GrowthForm,
+  type MilestoneForm,
+  type PaceForm,
   type WorkflowScreen,
 } from './inputsScreen.js'
 import { renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
@@ -36,21 +35,17 @@ export type Reply =
 
 export interface AppContext {
   storage: Storage
-  /** Today's ISO calendar date, the day forecasts start from. */
+  /** Today's ISO calendar date: the start date's default. */
   today: () => string
-  /** The ISO timestamp now, when the EM's edits are made. */
-  now: () => string
 }
 
 /** The Milestone forecast screen at `/` and the Inputs screen at `/inputs`; not found for everything else. */
-export function route(request: Request, { storage, today, now }: AppContext): Reply {
+export function route(request: Request, { storage, today }: AppContext): Reply {
   // the settings aren't editable yet; both screens read the same ones
   const settings = DEFAULT_SETTINGS
   const team = storage.teams()[0]
   if (request.method === 'GET' && request.path === '/') {
-    const view: MilestoneForecastView = team
-      ? milestoneForecastView(storage, team.id, { today: today(), settings })
-      : { kind: 'noMilestone' }
+    const view: MilestoneForecastView = team ? milestoneForecastView(storage, team.id, settings) : { kind: 'empty' }
     return { kind: 'html', status: 200, html: renderMilestoneForecastScreen(view) }
   }
   if (!team) return { kind: 'notFound' }
@@ -58,15 +53,11 @@ export function route(request: Request, { storage, today, now }: AppContext): Re
   // a saved POST redirects, so only a GET or a refused edit reads the Inputs view
   const inputsScreen = (
     status: number,
-    {
-      paceForm,
-      workflowForm,
-      growthForm,
-      ...screen
-    }: Partial<Omit<InputsScreen, 'milestone' | 'pace' | 'workflow' | 'growth'>> & {
-      paceForm?: Partial<Omit<PaceScreen, 'view'>>
+    refused: {
+      milestoneForm?: MilestoneForm
+      paceForm?: PaceForm
       workflowForm?: Omit<WorkflowScreen, 'statuses'>
-      growthForm?: Partial<Omit<GrowthScreen, 'view'>>
+      growthForm?: GrowthForm
     } = {},
   ): Reply => {
     const view = inputsView(storage, team.id, settings, today())
@@ -74,12 +65,11 @@ export function route(request: Request, { storage, today, now }: AppContext): Re
       kind: 'html',
       status,
       html: renderInputsScreen({
-        milestone: view.milestone,
-        // with no milestone there is no pace form, even to show a refused pace in
-        pace: view.pace && { view: view.pace, form: savedPaceForm(view.pace), ...paceForm },
-        growth: { view: view.growth, form: savedGrowthForm(view.growth), ...growthForm },
-        workflow: { statuses: view.workflow.statuses.map((entry) => entry.status), ...(workflowForm ?? { form: savedWorkflowForm(view.workflow) }) },
-        ...screen,
+        milestone: view.forecastInputs,
+        milestoneForm: refused.milestoneForm ?? savedMilestoneForm(view.forecastInputs),
+        paceForm: refused.paceForm ?? savedPaceForm(view.forecastInputs),
+        growth: refused.growthForm ?? savedGrowthForm(view.growth),
+        workflow: { statuses: view.workflow.statuses.map((entry) => entry.status), ...(refused.workflowForm ?? { form: savedWorkflowForm(view.workflow) }) },
       }),
     }
   }
@@ -90,35 +80,17 @@ export function route(request: Request, { storage, today, now }: AppContext): Re
   }
 
   if (request.method === 'GET' && request.path === '/inputs') return inputsScreen(200)
-  if (request.method === 'POST' && request.path === '/inputs') {
-    const typed = parsePaceForm(form)
-    return edit({ kind: 'setPace', ...typed }, '/', (error) => ({ paceForm: { form: { ...typed, error } } }))
-  }
-  if (request.method === 'POST' && request.path === '/inputs/pace/source') {
-    const change: InputsEdit = form.get('source') === 'measured' ? { kind: 'useMeasuredPace' } : { kind: 'useManualPace' }
-    return edit(change, '/inputs', (error) => ({ paceForm: { sourceError: error } }))
-  }
   if (request.method === 'POST' && request.path === '/inputs/milestone') {
     const typed = parseMilestoneForm(form)
-    const { name, committedDate } = typed.form
-    return edit({ kind: 'create', name, committedDate, epics: typed.epics }, '/inputs', (error) => ({ milestoneForm: { ...typed.form, error } }))
+    return edit({ kind: 'setMilestone', ...typed }, '/inputs', (error) => ({ milestoneForm: { ...typed, error } }))
   }
-  if (request.method === 'POST' && request.path === '/inputs/milestone/details') {
-    const typed = parseDetailsForm(form)
-    return edit({ kind: 'editDetails', ...typed }, '/inputs', (error) => ({ detailsForm: { ...typed, error } }))
-  }
-  if (request.method === 'POST' && request.path === '/inputs/epics') {
-    const change = parseEpicForm(form, now())
-    if (!change.ok) return inputsScreen(400, { epicsError: change.error })
-    return edit(change.edit, '/inputs', (error) => ({ epicsError: error }))
+  if (request.method === 'POST' && request.path === '/inputs/pace') {
+    const typed = parsePaceForm(form)
+    return edit({ kind: 'setPaceRange', ...typed }, '/', (error) => ({ paceForm: { ...typed, error } }))
   }
   if (request.method === 'POST' && request.path === '/inputs/growth') {
     const typed = parseGrowthForm(form)
-    return edit({ kind: 'setAmbiguityRanges', ...typed.ranges }, '/inputs', (error) => ({ growthForm: { form: { ...typed, error } } }))
-  }
-  if (request.method === 'POST' && request.path === '/inputs/growth/medium') {
-    const change: InputsEdit = form.get('source') === 'measured' ? { kind: 'useMeasuredMedium' } : { kind: 'useMediumRange' }
-    return edit(change, '/inputs', (error) => ({ growthForm: { mediumError: error } }))
+    return edit({ kind: 'setAmbiguityRanges', ...typed.ranges }, '/inputs', (error) => ({ growthForm: { ...typed, error } }))
   }
   if (request.method === 'POST' && request.path === '/inputs/workflow') {
     const typed = parseWorkflowForm(form)

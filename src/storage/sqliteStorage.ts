@@ -4,6 +4,7 @@ import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import type { Ambiguity, AmbiguityRanges, EpicAmbiguity } from '../model/ambiguity.js'
 import type { EpicCommit } from '../model/epicCommit.js'
 import type { Milestone } from '../model/milestone.js'
+import type { MilestoneInputs, PaceMode } from '../model/milestoneInputs.js'
 import type { Team } from '../model/team.js'
 import type { StatusMapping } from '../model/workflow.js'
 import type { Facts, WorkItem, WorkItemEvent } from '../model/workItem.js'
@@ -138,6 +139,27 @@ UPDATE teams SET installed_at = CASE source
   ELSE strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
 END;
 `,
+  // 7: the milestone's inputs, one milestone per team (#85): everything the EM enters, with its default. A team that had milestones
+  // keeps its first one's name and manual pace range; its start date and tickets remaining are left for the EM.
+  `
+CREATE TABLE milestone_inputs (
+  team_id TEXT PRIMARY KEY REFERENCES teams(id),
+  name TEXT NOT NULL,
+  start_date TEXT,
+  tickets_remaining INTEGER,
+  ambiguity TEXT NOT NULL DEFAULT 'medium',
+  cadence_days INTEGER NOT NULL DEFAULT 7,
+  pace_mode TEXT NOT NULL DEFAULT 'range',
+  pace_low INTEGER,
+  pace_high INTEGER,
+  pace_counts TEXT NOT NULL DEFAULT '[]'
+);
+INSERT INTO milestone_inputs (team_id, name, pace_low, pace_high)
+SELECT m.team_id, m.name, p.low, p.high
+FROM milestones m
+LEFT JOIN pace_settings p ON p.team_id = m.team_id AND p.milestone_id = m.id
+WHERE m.rowid = (SELECT MIN(first.rowid) FROM milestones first WHERE first.team_id = m.team_id);
+`,
 ]
 
 type Row = Record<string, SQLInputValue>
@@ -188,6 +210,15 @@ export function openSqliteStorage(file: string): Storage {
   const selectPaceSetting = db.prepare(
     'SELECT team_id, milestone_id, mode, low, high FROM pace_settings WHERE team_id = ? AND milestone_id = ?',
   )
+  const upsertMilestoneInputs = db.prepare(`
+    INSERT INTO milestone_inputs
+      (team_id, name, start_date, tickets_remaining, ambiguity, cadence_days, pace_mode, pace_low, pace_high, pace_counts)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (team_id) DO UPDATE SET
+      name = excluded.name, start_date = excluded.start_date, tickets_remaining = excluded.tickets_remaining,
+      ambiguity = excluded.ambiguity, cadence_days = excluded.cadence_days, pace_mode = excluded.pace_mode,
+      pace_low = excluded.pace_low, pace_high = excluded.pace_high, pace_counts = excluded.pace_counts`)
+  const selectMilestoneInputs = db.prepare('SELECT * FROM milestone_inputs WHERE team_id = ?')
   const upsertWorkflowSettings = db.prepare(`
     INSERT INTO workflow_settings (team_id, statuses, started_status, commit_label, blocked_statuses, blocked_labels)
     VALUES (?, ?, ?, ?, ?, ?)
@@ -313,6 +344,37 @@ export function openSqliteStorage(file: string): Storage {
         mode: row.mode === 'measured' ? 'measured' : 'manual',
         manual: row.low === null ? undefined : { low: Number(row.low), high: Number(row.high) },
       }
+    },
+
+    saveMilestoneInputs(inputs) {
+      upsertMilestoneInputs.run(
+        inputs.teamId,
+        inputs.name,
+        inputs.startDate ?? null,
+        inputs.ticketsRemaining ?? null,
+        inputs.ambiguity,
+        inputs.cadenceDays,
+        inputs.paceMode,
+        inputs.paceRange?.low ?? null,
+        inputs.paceRange?.high ?? null,
+        JSON.stringify(inputs.paceCounts),
+      )
+    },
+
+    milestoneInputs(teamId) {
+      const row = selectMilestoneInputs.get(teamId)
+      if (row === undefined) return undefined
+      return {
+        teamId: String(row.team_id),
+        name: String(row.name),
+        startDate: row.start_date === null ? undefined : String(row.start_date),
+        ticketsRemaining: row.tickets_remaining === null ? undefined : Number(row.tickets_remaining),
+        ambiguity: String(row.ambiguity) as Ambiguity,
+        cadenceDays: Number(row.cadence_days),
+        paceMode: String(row.pace_mode) as PaceMode,
+        paceRange: row.pace_low === null ? undefined : { low: Number(row.pace_low), high: Number(row.pace_high) },
+        paceCounts: JSON.parse(String(row.pace_counts)) as number[],
+      } satisfies MilestoneInputs
     },
 
     saveWorkflowSettings(settings) {

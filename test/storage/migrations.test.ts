@@ -315,9 +315,8 @@ describe('a data file from schema version 4, before ambiguity', () => {
   })
 })
 
-describe('a data file from schema version 5, before installation dates', () => {
-  /** Version 5's tables: version 4's, plus ambiguity as #21 shipped it. Kept verbatim: it is a past release. */
-  const VERSION_5_SCHEMA = `${VERSION_4_SCHEMA}
+/** Version 5's tables: version 4's, plus ambiguity as #21 shipped it. Kept verbatim: it is a past release. */
+const VERSION_5_SCHEMA = `${VERSION_4_SCHEMA}
 CREATE TABLE ambiguity_ranges (
   team_id TEXT PRIMARY KEY REFERENCES teams(id), low_low REAL NOT NULL, low_high REAL NOT NULL, medium_low REAL NOT NULL,
   medium_high REAL NOT NULL, high_low REAL NOT NULL, high_high REAL NOT NULL, medium_measured INTEGER NOT NULL
@@ -331,6 +330,7 @@ INSERT INTO milestones VALUES ('sample-team', 'sample-milestone', 'Checkout v2',
 INSERT INTO pace_settings VALUES ('sample-team', 'sample-milestone', 'measured', NULL, NULL);
 `
 
+describe('a data file from schema version 5, before installation dates', () => {
   test('counts its own teams from the upgrade and the sample team from its canned date, and keeps chosen measured pace', () => {
     const file = writeFile('v5.db', VERSION_5_SCHEMA, 5)
     // the upgrade records whole seconds
@@ -352,6 +352,51 @@ INSERT INTO pace_settings VALUES ('sample-team', 'sample-milestone', 'measured',
 
     storage.saveTeam({ ...acme!, name: 'Acme Payments', installedAt: '2030-01-01T00:00:00Z' })
     expect(open(file).teams()[0]).toEqual({ ...acme, name: 'Acme Payments' })
+  })
+})
+
+describe('a data file from schema version 6, before milestone inputs', () => {
+  /** Version 6's tables: version 5's, plus installation dates as #22 shipped them. Kept verbatim: it is a past release. */
+  const VERSION_6_SCHEMA = `${VERSION_5_SCHEMA}
+ALTER TABLE teams ADD COLUMN installed_at TEXT;
+UPDATE teams SET installed_at = '2026-08-31T09:00:00Z';
+INSERT INTO milestones VALUES ('ACME', 'M2', 'Later', '2027-03-01');
+`
+
+  test("keeps each team's first milestone by name and manual pace, and leaves its start date and tickets to enter", () => {
+    const file = writeFile('v6.db', VERSION_6_SCHEMA, 6)
+
+    const storage = open(file)
+
+    const defaults = { ambiguity: 'medium', cadenceDays: 7, paceMode: 'range', paceCounts: [] }
+    const left = { startDate: undefined, ticketsRemaining: undefined }
+    expect(storage.milestoneInputs(TEAM)).toEqual({ teamId: TEAM, name: 'Launch', ...left, ...defaults, paceRange: { low: 3, high: 7 } })
+    expect(storage.milestoneInputs('sample-team')).toEqual({
+      teamId: 'sample-team',
+      name: 'Checkout v2',
+      ...left,
+      ...defaults,
+      paceRange: undefined,
+    })
+  })
+
+  test('takes the milestone inputs, and they survive reopening', () => {
+    const file = writeFile('v6.db', VERSION_6_SCHEMA, 6)
+    const inputs = {
+      teamId: TEAM,
+      name: 'Launch',
+      startDate: '2026-09-01',
+      ticketsRemaining: 120,
+      ambiguity: 'high' as const,
+      cadenceDays: 14,
+      paceMode: 'counts' as const,
+      paceRange: { low: 4, high: 8 },
+      paceCounts: [6, 0, 9],
+    }
+
+    open(file).saveMilestoneInputs(inputs)
+
+    expect(open(file).milestoneInputs(TEAM)).toEqual(inputs)
   })
 })
 

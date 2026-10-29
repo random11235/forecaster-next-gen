@@ -4,12 +4,15 @@ import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
 import type { EditResult } from '../../src/forecast/editResult.js'
 import { editInputs, inputsView } from '../../src/forecast/inputs.js'
-import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
-import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
+import { epicForecastView } from '../../src/forecast/epicForecastView.js'
+import { DEFAULT_SETTINGS as MVP_SETTINGS } from '../../src/forecast/settings.js'
 import { defaultWorkflowSettings, type WorkflowSettings } from '../../src/model/workflow.js'
 import type { WorkItem, WorkItemEvent } from '../../src/model/workItem.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
+
+/** The epic-era forecast, as it was written: at 50%, 85% and 95%. It goes with the epic code (#87). */
+const DEFAULT_SETTINGS = { ...MVP_SETTINGS, percentiles: [50, 85, 95] }
 
 /** Before any ticket the tests finish, so installation leaves out none of them. */
 const INSTALLED = '2026-01-01T00:00:00Z'
@@ -107,7 +110,7 @@ function datesOf(storage: Storage): (string | null)[] {
 }
 
 function view(storage: Storage) {
-  const shown = milestoneForecastView(storage, TEAM, { today: TODAY, settings: DEFAULT_SETTINGS })
+  const shown = epicForecastView(storage, TEAM, { today: TODAY, settings: DEFAULT_SETTINGS })
   if (shown.kind !== 'milestone') throw new Error('expected a milestone')
   return shown
 }

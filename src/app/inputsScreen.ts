@@ -1,13 +1,23 @@
-import { counted } from '../forecast/counted.js'
-import { MAX_TICKETS_PER_WEEK, type InputsEdit } from '../forecast/inputs.js'
-import type { EpicChoice, MilestoneDefinitionView, RankedEpic } from '../forecast/milestoneDefinition.js'
-import { ambiguityName, MAX_GROWTH, rangeText, samplesShortfall, type GrowthView, type TypedRange } from '../forecast/growth.js'
+import {
+  MAX_TICKETS_PER_WEEK,
+  MAX_TICKETS_REMAINING,
+  type MilestoneInput,
+  type InputNote,
+  type MilestoneInputsView,
+} from '../forecast/milestoneInputs.js'
+import { ambiguityName, MAX_GROWTH, type GrowthView, type TypedRange } from '../forecast/growth.js'
 import type { WorkflowEdit, WorkflowSettingsView } from '../forecast/workflowSettings.js'
 import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
-import type { PaceView } from '../forecast/pace.js'
-import type { PaceMode } from '../model/paceSetting.js'
 import { STATUS_CATEGORIES, STATUS_CATEGORY_NAMES, type StatusCategory } from '../model/workflow.js'
-import { commitText, escapeHtml, formatDate, htmlPage } from './html.js'
+import { escapeHtml, htmlPage } from './html.js'
+
+/** Each input of the milestone by its label on this screen, which notes about it are named by everywhere. */
+export const INPUT_LABELS: Record<MilestoneInput, string> = {
+  name: 'Name',
+  startDate: 'Start date',
+  ticketsRemaining: 'Tickets remaining',
+  pace: 'Pace',
+}
 
 /** The pace form as typed: what the EM entered, and why it was refused, if it was. */
 export interface PaceForm {
@@ -21,40 +31,9 @@ export function parsePaceForm(body: URLSearchParams): PaceForm {
   return { low: body.get('low')?.trim() ?? '', high: body.get('high')?.trim() ?? '' }
 }
 
-/** The pace form filled with the saved manual range, or empty. */
-export function savedPaceForm(view: PaceView): PaceForm {
-  return view.manual ? { low: String(view.manual.low), high: String(view.manual.high) } : { low: '', high: '' }
-}
-
-/** The pace section: the milestone's pace, the manual range as typed, and why switching pace was refused, if it was. */
-export interface PaceScreen {
-  view: PaceView
-  form: PaceForm
-  sourceError?: string
-}
-
-/**
- * Reads an epic change submitted from the Inputs screen at `at` (an ISO timestamp): add, remove, move up or down,
- * commit, or set its ambiguity.
- */
-export function parseEpicForm(body: URLSearchParams, at: string): { ok: true; edit: InputsEdit } | { ok: false; error: string } {
-  const epicId = body.get('epic') ?? ''
-  const action = body.get('action')
-  switch (action) {
-    case 'commit':
-      return { ok: true, edit: { kind: 'commitEpic', epicId, at } }
-    case 'ambiguity':
-      return { ok: true, edit: { kind: 'setEpicAmbiguity', epicId, ambiguity: body.get('ambiguity') ?? '' } }
-    case 'add':
-      return { ok: true, edit: { kind: 'addEpic', epicId } }
-    case 'remove':
-      return { ok: true, edit: { kind: 'removeEpic', epicId } }
-    case 'up':
-    case 'down':
-      return { ok: true, edit: { kind: 'moveEpic', epicId, direction: action } }
-    default:
-      return { ok: false, error: 'Choose Add, Remove, Up, Down, Commit or Set.' }
-  }
+/** The pace form filled with the saved range, or empty. */
+export function savedPaceForm(view: MilestoneInputsView): PaceForm {
+  return view.paceRange ? { low: String(view.paceRange.low), high: String(view.paceRange.high) } : { low: '', high: '' }
 }
 
 /** The ambiguity ranges form as typed: each level's low and high, and why they were refused, if they were. */
@@ -75,40 +54,27 @@ export function savedGrowthForm({ ranges }: GrowthView): GrowthForm {
   return { ranges: { low: typed(ranges.low), medium: typed(ranges.medium), high: typed(ranges.high) } }
 }
 
-/** The growth section: the team's growth, the ranges form as saved or as typed when refused, and why adopting failed. */
-export interface GrowthScreen {
-  view: GrowthView
-  form: GrowthForm
-  mediumError?: string
-}
 
-/** The milestone's name and committed date as typed, and why they were refused, if they were. */
-export interface DetailsForm {
+/** The milestone form as typed, and why it was refused, if it was. */
+export interface MilestoneForm {
   name: string
-  committedDate: string
+  startDate: string
+  ticketsRemaining: string
   error?: string
 }
 
-/** The new-milestone form as typed: its details, and the rank typed for each epic, by epic ID. */
-export interface MilestoneForm extends DetailsForm {
-  ranks: Record<string, string>
+/** Reads the submitted milestone form; the rules it must meet are checked when it is saved. */
+export function parseMilestoneForm(body: URLSearchParams): MilestoneForm {
+  return {
+    name: body.get('name') ?? '',
+    startDate: body.get('startDate')?.trim() ?? '',
+    ticketsRemaining: body.get('ticketsRemaining')?.trim() ?? '',
+  }
 }
 
-const RANK_FIELD = 'rank-'
-
-/** Reads the submitted name and committed date; the rules they must meet are checked when they are saved. */
-export function parseDetailsForm(body: URLSearchParams): DetailsForm {
-  return { name: body.get('name') ?? '', committedDate: body.get('committedDate')?.trim() ?? '' }
-}
-
-/** Reads the submitted new-milestone form. An epic with a rank typed is chosen; one left blank is not. */
-export function parseMilestoneForm(body: URLSearchParams): { form: MilestoneForm; epics: RankedEpic[] } {
-  const ranks: Record<string, string> = {}
-  for (const [field, value] of body) if (field.startsWith(RANK_FIELD)) ranks[field.slice(RANK_FIELD.length)] = value
-  const epics = Object.entries(ranks)
-    .filter(([, rank]) => rank.trim() !== '')
-    .map(([epicId, rank]) => ({ epicId, rank }))
-  return { form: { ...parseDetailsForm(body), ranks }, epics }
+/** The milestone form filled with what is saved, the start date pre-filled with today until one is. */
+export function savedMilestoneForm(view: MilestoneInputsView): MilestoneForm {
+  return { name: view.name, startDate: view.startDate, ticketsRemaining: view.ticketsRemaining === undefined ? '' : String(view.ticketsRemaining) }
 }
 
 /** The workflow settings form as typed: a category for each status by name, and the rest as text. */
@@ -168,35 +134,29 @@ export interface WorkflowScreen {
 
 /** What the Inputs screen shows. */
 export interface InputsScreen {
-  milestone: MilestoneDefinitionView
-  /** The new-milestone form as typed, when it was refused. */
-  milestoneForm?: MilestoneForm
-  /** The name and committed date as typed, when they were refused. */
-  detailsForm?: DetailsForm
-  /** Why an epic change was refused. */
-  epicsError?: string
-  /** The pace section; undefined when there is no milestone yet. */
-  pace: PaceScreen | undefined
+  milestone: MilestoneInputsView
+  /** The milestone form, as saved or as typed when refused. */
+  milestoneForm: MilestoneForm
+  /** The pace form, as saved or as typed when refused. */
+  paceForm: PaceForm
   workflow: WorkflowScreen
-  growth: GrowthScreen
+  /** The ambiguity ranges form, as saved or as typed when refused. */
+  growth: GrowthForm
 }
 
-/** The Inputs screen: the milestone's definition, its pace, the team's growth and its workflow settings. */
+/** The Inputs screen: the milestone and its pace, the team's growth and its workflow settings. */
 export function renderInputsScreen(screen: InputsScreen): string {
-  const milestone = screen.milestone
-  const sections =
-    milestone.kind === 'milestone'
-      ? [
-          detailsSection(screen.detailsForm ?? milestone),
-          epicsSection(milestone, screen.epicsError),
-          screen.pace ? paceSection(screen.pace) : NO_MILESTONE,
-        ]
-      : [newMilestoneSection(milestone.teamEpics, screen.milestoneForm ?? { name: '', committedDate: '', ranks: {} }), NO_MILESTONE]
-  sections.push(growthSection(screen.growth), workflowSection(screen.workflow))
+  const { milestone } = screen
+  const sections = [
+    milestoneSection(screen.milestoneForm, milestone.notes),
+    paceSection(screen.paceForm, milestone.notes),
+    growthSection(screen.growth),
+    workflowSection(screen.workflow),
+  ]
   const header = {
-    context: milestone.kind === 'milestone' ? `${milestone.name} · committed ${formatDate(milestone.committedDate)}` : undefined,
+    context: milestone.name === '' ? undefined : escapeHtml(milestone.name),
     heading: 'Inputs',
-    lede: 'What drives the forecast: the milestone and its epics, the team’s pace, how epics grow, and how the board works.',
+    lede: 'What drives the forecast: the milestone, the team’s pace, how work grows, and how the board works.',
   }
   return htmlPage('Inputs', '/inputs', header, sections.map((section, index) => section(index + 1)).join('\n'))
 }
@@ -218,152 +178,52 @@ ${body}
     </section>`
 }
 
-function newMilestoneSection(teamEpics: EpicChoice[], form: MilestoneForm): Section {
-  const epics =
-    teamEpics.length === 0
-      ? '              <p class="note">The team has no epics yet.</p>'
-      : teamEpics
-          .map(
-            (epic) =>
-              `              <label class="epic"><input type="number" name="${RANK_FIELD}${escapeHtml(epic.epicId)}" min="1" max="${teamEpics.length}" step="1" value="${escapeHtml(form.ranks[epic.epicId] ?? '')}" aria-label="Rank of ${epicLabel(epic)}"> ${epicName(epic)}</label>`,
-          )
-          .join('\n')
+function milestoneSection(form: MilestoneForm, notes: readonly InputNote[]): Section {
   return inputSection(
     'Milestone',
     'Milestone',
-    'Name the milestone, give the date committed to stakeholders, and rank the epics it holds.',
+    'Name the milestone, the date work on it starts, and how many tickets are left.',
     `        <form method="post" action="/inputs/milestone">${errorLine(form.error)}
-${detailsFields(form)}
-          <fieldset>
-            <legend>Rank each epic in the milestone, 1 for the highest; leave the others blank</legend>
-${epics}
-          </fieldset>
-          <div class="actions"><button type="submit" class="primary">Create milestone</button></div>
+          <div class="fields">
+            <label class="wide">${INPUT_LABELS.name} <input type="text" name="name" value="${escapeHtml(form.name)}" required></label>${notesFor('name', notes)}
+            <label>${INPUT_LABELS.startDate} <input type="date" name="startDate" value="${escapeHtml(form.startDate)}" required></label>${notesFor('startDate', notes)}
+            <label>${INPUT_LABELS.ticketsRemaining} <input type="number" name="ticketsRemaining" min="0" max="${MAX_TICKETS_REMAINING}" step="1" value="${escapeHtml(form.ticketsRemaining)}" required></label>${notesFor('ticketsRemaining', notes)}
+          </div>
+          <div class="actions"><button type="submit" class="primary">Save milestone</button></div>
         </form>`,
   )
 }
 
-function detailsFields(form: DetailsForm): string {
-  return `          <div class="fields">
-            <label class="wide">Name <input type="text" name="name" value="${escapeHtml(form.name)}" required></label>
-            <label>Committed date <input type="date" name="committedDate" value="${escapeHtml(form.committedDate)}" required></label>
-          </div>`
-}
-
-function detailsSection(details: DetailsForm): Section {
-  return inputSection(
-    'Milestone',
-    'Milestone',
-    'The name, and the date committed to stakeholders.',
-    `        <form method="post" action="/inputs/milestone/details">${errorLine(details.error)}
-${detailsFields(details)}
-          <div class="actions"><button type="submit">Save name and date</button></div>
-        </form>`,
-  )
-}
-
-function epicsSection(milestone: Extract<MilestoneDefinitionView, { kind: 'milestone' }>, error: string | undefined): Section {
-  const last = milestone.epics.length - 1
-  const rows = milestone.epics
-    .map(
-      (epic, rank) => `          <li>
-            <form method="post" action="/inputs/epics">
-              <span>${epicName(epic)}</span>
-              <input type="hidden" name="epic" value="${escapeHtml(epic.epicId)}">
-              <span class="ambiguity">
-                <select name="ambiguity" aria-label="Ambiguity of ${epicLabel(epic)}">${AMBIGUITIES.map(
-                  (level) => `<option value="${level}"${epic.ambiguity === level ? ' selected' : ''}>${ambiguityName(level)} ambiguity</option>`,
-                ).join('')}</select>
-                <button type="submit" name="action" value="ambiguity">Set</button>
-              </span>
-              <button type="submit" name="action" value="up"${rank === 0 ? ' disabled' : ''}>Up</button>
-              <button type="submit" name="action" value="down"${rank === last ? ' disabled' : ''}>Down</button>
-              <button type="submit" name="action" value="remove"${last === 0 ? ' disabled' : ''}>Remove</button>
-              ${epic.commit ? `<span class="note">${commitText(epic.commit)}</span>` : '<button type="submit" name="action" value="commit">Commit</button>'}
-            </form>
-          </li>`,
-    )
-    .join('\n')
-  const add =
-    milestone.otherEpics.length === 0
-      ? `        <p class="note">Every one of the team's epics is in this milestone.</p>`
-      : `        <form method="post" action="/inputs/epics" class="add">
-          <select name="epic" aria-label="Epic to add">
-${milestone.otherEpics.map((epic) => `            <option value="${escapeHtml(epic.epicId)}">${epicLabel(epic)}</option>`).join('\n')}
-          </select>
-          <button type="submit" name="action" value="add" class="dashed">+ Add epic</button>
-        </form>`
-  return inputSection(
-    'Epics',
-    'Epics',
-    'Highest rank first. The forecast works through them in this order.',
-    `${errorLine(error).replace(/^\n/, '')}
-        <ol class="epics">
-${rows}
-        </ol>
-${add}`,
-  )
-}
-
-function epicLabel(epic: EpicChoice): string {
-  return epic.name === epic.key ? escapeHtml(epic.key) : `${escapeHtml(epic.key)} ${escapeHtml(epic.name)}`
-}
-
-/** The epic's name with its key beside it: "Card vaulting PAY-1". */
-function epicName(epic: EpicChoice): string {
-  const key = `<span class="key">${escapeHtml(epic.key)}</span>`
-  return epic.name === epic.key ? key : `<span class="name">${escapeHtml(epic.name)}</span> ${key}`
+/** The notes about one input, shown beside it. */
+function notesFor(input: MilestoneInput, notes: readonly InputNote[]): string {
+  return notes
+    .filter((note) => note.input === input)
+    .map((note) => `\n            <p class="warning">⚠ ${escapeHtml(note.message)}</p>`)
+    .join('')
 }
 
 function errorLine(error: string | undefined): string {
   return error ? `\n          <p class="error" role="alert">${escapeHtml(error)}</p>` : ''
 }
 
-const NO_MILESTONE: Section = inputSection('Pace', 'Pace', 'Tickets the team finishes in a week.', '        <p class="note">No milestone defined yet. Define a milestone to enter its pace.</p>')
-
-function paceSection({ view, form, sourceError }: PaceScreen): Section {
+function paceSection(form: PaceForm, notes: readonly InputNote[]): Section {
   return inputSection(
-    'Pace',
-    'Pace',
-    'How many of this milestone’s tickets the team finishes in a week, from a slow week to a good one. Only tickets under its epics count: KTLO and unparented tickets are left out.',
-    `        <form method="post" action="/inputs">${errorLine(form.error)}
+    INPUT_LABELS.pace,
+    INPUT_LABELS.pace,
+    'How many tickets the team finishes in a week, from a slow week to a good one.',
+    `        <form method="post" action="/inputs/pace">${errorLine(form.error)}
           <div class="pace">
             <label>Low <input type="number" name="low" min="0" max="${MAX_TICKETS_PER_WEEK}" step="1" value="${escapeHtml(form.low)}" required></label>
             <span class="to">to</span>
             <label>High <input type="number" name="high" min="0" max="${MAX_TICKETS_PER_WEEK}" step="1" value="${escapeHtml(form.high)}" required></label>
             <span class="unit">tickets per week</span>
-          </div>
+          </div>${notesFor('pace', notes)}
           <div class="actions"><button type="submit" class="primary">Save and forecast</button></div>
-        </form>
-${measuredPace(view, sourceError)}`,
+        </form>`,
   )
 }
 
-/** Measured pace: how many weeks there are and, once enough, the offer to switch to it or back to the manual range. */
-function measuredPace({ manual, mode, paused, measured, message }: PaceView, error: string | undefined): string {
-  const untilThen = manual ? 'Until then the forecast uses your manual range.' : 'Until then, enter a manual range to forecast.'
-  if (paused) {
-    if (!manual) return `${errorLine(error)}
-        <p class="note">Measured pace is paused. ${escapeHtml(message ?? '')} ${untilThen}</p>`
-    return paceSourceForm(error, `Measured pace is paused. ${escapeHtml(message ?? '')}`, untilThen, 'manual', 'Use the manual range instead')
-  }
-  if (!measured) return `${errorLine(error)}
-        <p class="note">${escapeHtml(message ?? '')} ${untilThen}</p>`
-  const pace = `${measured.low}–${measured.high} tickets a week over ${measured.weeks} weeks`
-  return mode === 'measured'
-    ? paceSourceForm(error, `The forecast uses measured pace: ${pace}.`, 'Your manual range is kept.', 'manual', 'Use the manual range instead')
-    : paceSourceForm(error, `Measured pace: ${pace}.`, 'The forecast uses your manual range until you switch.', 'measured', 'Use measured pace')
-}
-
-/** A statement about the milestone's pace, with the button that switches it to the other source. */
-function paceSourceForm(error: string | undefined, line: string, note: string, source: PaceMode, label: string): string {
-  return `        <form method="post" action="/inputs/pace/source" class="suggestion">${errorLine(error)}
-          <p><strong>${line}</strong> <span class="note">${note}</span></p>
-          <button type="submit" name="source" value="${source}">${label}</button>
-        </form>`
-}
-
-function growthSection({ view, form, mediumError }: GrowthScreen): Section {
+function growthSection(form: GrowthForm): Section {
   const rows = AMBIGUITIES.map((level) => {
     const field = (end: 'low' | 'high'): string =>
       `<input type="number" name="${level}-${end}" min="0" max="${MAX_GROWTH}" step="any" value="${escapeHtml(form.ranges[level][end])}" aria-label="${ambiguityName(level)} ambiguity, ${end} end" required>`
@@ -375,7 +235,7 @@ function growthSection({ view, form, mediumError }: GrowthScreen): Section {
   return inputSection(
     'Growth',
     'Growth',
-    'How much an epic may grow from its baseline, by how well it is understood. Each epic’s ambiguity is set beside it above.',
+    'How much the work may grow, by how well it is understood. For now the milestone grows by the medium range.',
     `        <form method="post" action="/inputs/growth">${errorLine(form.error)}
           <table class="growth">
             <thead>
@@ -386,35 +246,8 @@ ${rows}
             </tbody>
           </table>
           <div class="actions"><button type="submit">Save ranges</button></div>
-        </form>
-${measuredGrowth(view, mediumError)}`,
+        </form>`,
   )
-}
-
-/** The measured medium range: how many growth samples there are, and, once enough, the suggestion to adopt. */
-function measuredGrowth({ growthSamples, samplesNeeded, suggestion, mediumMeasured, paused, ranges }: GrowthView, error: string | undefined): string {
-  if (paused) {
-    const line = `Measured growth is paused: it ${samplesShortfall(growthSamples, samplesNeeded)}.`
-    const note = `Medium epics grow ${rangeText(ranges.medium)} until there are ${samplesNeeded} again.`
-    return mediumSourceForm(error, line, note, 'range', 'Use the medium range instead')
-  }
-  if (!suggestion) {
-    return `${errorLine(error)}
-        <p class="note">${counted(growthSamples, 'growth sample')} so far: one from each finished committed epic that had items when committed. Once there are ${samplesNeeded}, their growth is suggested for medium.</p>`
-  }
-  // The span shown is rounded; medium epics draw from the measured epics' growth itself
-  const [line, source, label] = mediumMeasured
-    ? [`Medium epics grow as the measured epics did, roughly ${rangeText(suggestion)}.`, 'range', 'Use the medium range instead'] as const
-    : [`Suggested for medium: grow as the measured epics did, roughly ${rangeText(suggestion)}.`, 'measured', 'Use measured growth for medium'] as const
-  return mediumSourceForm(error, line, `${escapeHtml(suggestion.basis)}.`, source, label)
-}
-
-/** A statement about medium's growth, with the button that switches medium to the other source. */
-function mediumSourceForm(error: string | undefined, line: string, note: string, source: 'range' | 'measured', label: string): string {
-  return `        <form method="post" action="/inputs/growth/medium" class="suggestion">${errorLine(error)}
-          <p><strong>${line}</strong> <span class="note">${note}</span></p>
-          <button type="submit" name="source" value="${source}">${label}</button>
-        </form>`
 }
 
 /** The category's name as an option label: "Not started". */

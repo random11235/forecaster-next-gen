@@ -7,5 +7,6 @@ export function loadSampleDataIfEmpty(storage: Storage): void {
   storage.saveTeam(SAMPLE_DATA.team)
   storage.addFacts(SAMPLE_DATA.team.id, SAMPLE_DATA.facts)
   storage.saveMilestone(SAMPLE_DATA.milestone)
+  storage.saveMilestoneInputs(SAMPLE_DATA.milestoneInputs)
   storage.saveWorkflowSettings(SAMPLE_DATA.workflow)
 }

@@ -48,6 +48,26 @@ describe('one-command launch', () => {
     expect(html).toContain('No milestone defined yet')
   })
 
+  // 14 hours ahead of UTC, its date is a day after UTC's from 10:00 UTC; 11 hours behind, a day before until 11:00 UTC.
+  // Between them, one of the two dates differs from UTC's whenever the test runs.
+  test.each(['Pacific/Kiritimati', 'Pacific/Pago_Pago'])("pre-fills the start date with today's local calendar date in %s, not UTC's", async (zone) => {
+    const before = process.env.TZ
+    process.env.TZ = zone
+    try {
+      const storage = openSqliteStorage(':memory:')
+      storage.saveTeam({ id: 'ACME', name: 'ACME', source: 'jira', sourceRef: 'ACME', installedAt: INSTALLED })
+      app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage })
+
+      const html = await (await fetch(new URL('/inputs', app.url))).text()
+
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: zone }).format(new Date())
+      expect(html).toMatch(new RegExp(`name="startDate"[^>]*value="${today}"`))
+    } finally {
+      if (before === undefined) delete process.env.TZ
+      else process.env.TZ = before
+    }
+  })
+
   test('opens the browser on the Milestone forecast screen', async () => {
     const opened: string[] = []
     app = await startAppAndOpenBrowser({
