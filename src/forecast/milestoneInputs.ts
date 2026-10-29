@@ -175,7 +175,9 @@ function startDateWarnings(inputs: MilestoneInputs, today: string): InputNote[] 
 function paceWarnings(inputs: MilestoneInputs): InputNote[] {
   const workLeft = (inputs.ticketsRemaining ?? 0) > 0
   const pace = paceInUse(inputs)
-  const zeroPace = pace?.source === 'counts' ? pace.counts.every((count) => count === 0) : pace?.high === 0
+  // with no counts typed yet, the too-few-counts problem says what to do
+  const zeroPace =
+    pace?.source === 'counts' ? pace.counts.length > 0 && pace.counts.every((count) => count === 0) : pace?.high === 0
   if (workLeft && zeroPace) {
     return [{ input: 'pace', message: `At 0 tickets a ${periodName(inputs.cadenceDays)}, the work never finishes.` }]
   }

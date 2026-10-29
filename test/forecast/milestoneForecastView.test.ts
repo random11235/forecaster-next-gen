@@ -743,6 +743,15 @@ describe('the milestone on the Inputs screen', () => {
       notes: [{ input: 'pace', message: 'At 0 tickets a week, the work never finishes.' }],
     })
   })
+
+  test('typed counts in use with none entered yet do not say the work never finishes', () => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
+
+    expect(edit(storage, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
+
+    expect(inputs(storage).notes).not.toContainEqual({ input: 'pace', message: 'At 0 tickets a week, the work never finishes.' })
+  })
 })
 
 describe('the milestone\'s ambiguity', () => {
