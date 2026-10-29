@@ -2,7 +2,7 @@
 
 The [MVP](https://github.com/random11235/forecaster-next-gen/issues/84) forecasts a milestone from what the EM types in: its start date, tickets remaining and a pace (a range, or typed counts), grown by the range of its ambiguity. Entries marked *Follows the MVP* name epic-era behaviour the MVP set aside; the tables that held it are kept, unread, for [v1](https://github.com/random11235/forecaster-next-gen/issues/6) to build on.
 
-**Team facts**: a team's facts as its workflow reads them. Each ticket's started, done and cancelled times come from its status history under the EM's status mapping, and so do the commits that still stand (see **Pull-back**). Forecasts only ever see team facts, never the facts as the connector stored them. *Follows the MVP: nothing reads it since #84.* *Follows the MVP: nothing reads it since #84.*
+**Team facts**: a team's facts as its workflow reads them. Each ticket's started, done and cancelled times come from its status history under the EM's status mapping, and so do the commits that still stand (see **Pull-back**). Forecasts only ever see team facts, never the facts as the connector stored them. *Follows the MVP: nothing reads it since #84.*
 
 **Baseline**: the number of children an epic had when the EM committed it; cancelled children don't count. The epic's growth is measured from it. An uncommitted epic has only a provisional baseline, its current count. Stored as `child_count_at_commit`. *Follows the MVP: nothing reads it since #84.*
 
