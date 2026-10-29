@@ -217,6 +217,25 @@ describe('Inputs screen', () => {
   })
 })
 
+describe('Inputs screen: a start date in the past', () => {
+  test('notes beside the start date how many days before today it is', async () => {
+    await startOnPreMvpData()
+
+    const html = await page('/inputs')
+
+    expect(html).toMatch(
+      /name="startDate"[^>]*><\/label>\s*<p class="warning">⚠ Start date is 53 days before today; tickets remaining are still today&#39;s count.<\/p>\s*<label>Tickets remaining/,
+    )
+  })
+
+  test('shows no note for a start date of today', async () => {
+    await startOnPreMvpData()
+    await submitMilestone('Checkout v2', '2026-10-24', '40')
+
+    expect(text(await page('/inputs'))).not.toContain('before today')
+  })
+})
+
 describe('Inputs screen: workflow', () => {
   test('offers no workflow settings, even with a workflow saved before the MVP', async () => {
     await startOnPreMvpData()
@@ -330,6 +349,28 @@ describe('Milestone forecast screen', () => {
     expect(screen).toContain('Starting 1 Sep 2026: not 85% sure of finishing by 28 Aug 2029')
     for (const percent of [50, 70, 85, 95]) expect(screen).toContain(`${percent}% sure: later than 28 Aug 2029`)
     expect(screen).toContain('Pace: At 0 tickets a week, the work never finishes.')
+  })
+
+  test('states a past start date once, and marks finish dates before today as already past', async () => {
+    await startOnPreMvpData()
+    await submitMilestone('Checkout v2', '2026-03-02', '40')
+    await submitPace('4', '8')
+
+    const screen = text(await page('/'))
+
+    expect(screen).toContain('⚠ Start date is 236 days before today; tickets remaining are still today&#39;s count.')
+    expect(screen).not.toContain('Start date: Start date')
+    expect(screen).toMatch(/Starting 2 Mar 2026: 85% sure of finishing by \d{1,2} [A-Z][a-z]{2} 2026 \(already past\)/)
+    for (const percent of [50, 70, 85, 95]) {
+      expect(screen).toMatch(new RegExp(`${percent}% sure by \\d{1,2} [A-Z][a-z]{2} 2026 \\(already past\\)`))
+    }
+  })
+
+  test('does not mark finish dates on or after today', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+
+    expect(text(await page('/'))).not.toContain('already past')
   })
 
   test("forecasts data from before the MVP from its MVP fields, adding no team and showing none of its epics on either screen", async () => {

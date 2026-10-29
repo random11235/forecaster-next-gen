@@ -87,6 +87,7 @@ const STYLE = `
     h1 { margin: 0; font-size: 40px; line-height: 1.15; font-weight: 600; letter-spacing: -0.03em; max-width: 820px; text-wrap: pretty; }
     .risk { color: var(--risk); }
     .good { color: var(--good); }
+    .past { color: var(--risk); }
     .lede { font-size: 16px; line-height: 1.5; color: var(--text-2); max-width: 680px; }
     p.note { margin: 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
     p.error { margin: 0; color: var(--risk); font-weight: 600; }

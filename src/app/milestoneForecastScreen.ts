@@ -1,6 +1,6 @@
 import { counted } from '../forecast/counted.js'
 import type { InputNote } from '../forecast/milestoneInputs.js'
-import type { MilestoneForecastView } from '../forecast/milestoneForecastView.js'
+import type { ForecastDate, MilestoneForecastView } from '../forecast/milestoneForecastView.js'
 import { escapeHtml, formatDate, htmlPage, type PageHeader } from './html.js'
 import { INPUT_LABELS } from './inputsScreen.js'
 
@@ -38,15 +38,15 @@ function forecastHeader(view: Forecast): PageHeader {
   if (!sure || sure.date === null) {
     return { context, heading: `${starting}: not ${view.headlinePercent}% sure of finishing by <span class="risk">${formatDate(view.horizonDate)}</span>` }
   }
-  return { context, heading: `${starting}: ${view.headlinePercent}% sure of finishing by <span class="good">${formatDate(sure.date)}</span>` }
+  return { context, heading: `${starting}: ${view.headlinePercent}% sure of finishing by <span class="${sure.alreadyPast ? 'risk' : 'good'}">${formatDate(sure.date)}</span>${pastMark(sure)}` }
 }
 
 function renderForecast(view: Forecast): string {
   const dates = view.dates
-    .map(({ percent, date }) =>
+    .map(({ percent, date, alreadyPast }) =>
       date === null
         ? `          <li><span class="percent">${percent}%</span> sure: later than <span class="date">${formatDate(view.horizonDate)}</span></li>`
-        : `          <li><span class="percent">${percent}%</span> sure by <span class="date">${formatDate(date)}</span></li>`,
+        : `          <li><span class="percent">${percent}%</span> sure by <span class="date">${formatDate(date)}</span>${pastMark({ alreadyPast })}</li>`,
     )
     .join('\n')
   return `    <section class="brief" aria-label="Forecast">
@@ -58,11 +58,19 @@ ${dates}
     </section>`
 }
 
-/** Notes about the inputs, each naming its input by its label on the Inputs screen. */
+/** A forecast date before today is marked, so a past start date's finish can't be read as one still to come. */
+function pastMark({ alreadyPast }: Pick<ForecastDate, 'alreadyPast'>): string {
+  return alreadyPast ? ' <span class="past">(already past)</span>' : ''
+}
+
+/** Notes about the inputs, each naming its input by its label on the Inputs screen, unless the note already does. */
 function renderNotes(label: string, notes: readonly InputNote[]): string {
   if (notes.length === 0) return ''
   const lines = notes
-    .map(({ input, message }) => `\n      <p class="warning">⚠ <strong>${INPUT_LABELS[input]}:</strong> ${escapeHtml(message)}</p>`)
+    .map(({ input, message }) => {
+      const named = message.startsWith(INPUT_LABELS[input]) ? '' : `<strong>${INPUT_LABELS[input]}:</strong> `
+      return `\n      <p class="warning">⚠ ${named}${escapeHtml(message)}</p>`
+    })
     .join('')
   return `
     <section class="brief" aria-label="${label}">${lines}
