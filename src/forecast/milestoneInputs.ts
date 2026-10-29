@@ -5,11 +5,11 @@ import type { Storage } from '../storage/storage.js'
 import { periodName } from './cadence.js'
 import { daysBetween, isCalendarDate } from './calendarDate.js'
 import { counted } from './counted.js'
-import { refuse, type EditResult } from './editResult.js'
+import { refuse, type EditResult, type Refusal } from './editResult.js'
 import { TYPED_COUNTS } from './settings.js'
 
 /** Far above any real team's pace in one period; keeps typos like 1000000 out of the forecast. */
-export const MAX_TICKETS_PER_WEEK = 1000
+export const MAX_TICKETS_PER_PERIOD = 1000
 
 /** Far above any real team's sprint; keeps typos out of the forecast, and its 156-period horizon within the calendar. */
 export const MAX_CADENCE_DAYS = 365
@@ -181,74 +181,72 @@ function paceWarnings(inputs: MilestoneInputs): InputNote[] {
 /** Seam B, through `editInputs`: saves the EM's edit to the milestone. A refused edit changes nothing and says why. */
 export function editMilestoneInputs(storage: Storage, teamId: string, edit: MilestoneInputsEdit): EditResult {
   const saved = storage.milestoneInputs(teamId)
+  if (edit.kind === 'setMilestone') return save(storage, withMilestone(saved ?? newMilestone(teamId), edit))
+  if (!saved) return refuse('Enter the milestone first.')
+  return save(storage, edited(saved, edit))
+}
+
+/** The milestone as an edit leaves it, or why the edit was refused. */
+type Edited = MilestoneInputs | Refusal
+
+function save(storage: Storage, inputs: Edited): EditResult {
+  if ('error' in inputs) return inputs
+  storage.saveMilestoneInputs(inputs)
+  return { ok: true }
+}
+
+function withMilestone(inputs: MilestoneInputs, edit: { name: string; startDate: string; ticketsRemaining: string }): Edited {
+  const name = edit.name.trim()
+  if (name === '') return refuse('Give the milestone a name.')
+  if (!isCalendarDate(edit.startDate.trim())) return refuse('Enter the start date as a calendar date.')
+  const tickets = wholeNumber(edit.ticketsRemaining)
+  if (tickets === undefined) return refuse('Enter tickets remaining as a whole number, 0 or more.')
+  if (tickets > MAX_TICKETS_REMAINING) return refuse(`Enter at most ${MAX_TICKETS_REMAINING} tickets remaining.`)
+  return { ...inputs, name, startDate: edit.startDate.trim(), ticketsRemaining: tickets }
+}
+
+/** A saved milestone as any edit but the milestone's own leaves it. */
+function edited(saved: MilestoneInputs, edit: Exclude<MilestoneInputsEdit, { kind: 'setMilestone' }>): Edited {
   switch (edit.kind) {
-    case 'setMilestone': {
-      const name = edit.name.trim()
-      if (name === '') return refuse('Give the milestone a name.')
-      if (!isCalendarDate(edit.startDate.trim())) return refuse('Enter the start date as a calendar date.')
-      const tickets = wholeNumber(edit.ticketsRemaining)
-      if (tickets === undefined) return refuse('Enter tickets remaining as a whole number, 0 or more.')
-      if (tickets > MAX_TICKETS_REMAINING) return refuse(`Enter at most ${MAX_TICKETS_REMAINING} tickets remaining.`)
-      storage.saveMilestoneInputs({
-        ...(saved ?? newMilestone(teamId)),
-        name,
-        startDate: edit.startDate.trim(),
-        ticketsRemaining: tickets,
-      })
-      return { ok: true }
-    }
     case 'setPaceRange': {
-      if (!saved) return refuse('Enter the milestone first.')
       const [low, high] = [wholeNumber(edit.low), wholeNumber(edit.high)]
       if (low === undefined || high === undefined) return refuse('Enter whole numbers of tickets, 0 or more.')
-      if (high > MAX_TICKETS_PER_WEEK) {
-        return refuse(`Enter at most ${MAX_TICKETS_PER_WEEK} tickets per ${periodName(saved.cadenceDays)}.`)
-      }
+      if (high > MAX_TICKETS_PER_PERIOD) return refuseAbovePerPeriodCap(saved)
       if (low > high) return refuse('The low end must not be above the high end.')
-      storage.saveMilestoneInputs({ ...saved, paceRange: { low, high } })
-      return { ok: true }
+      return { ...saved, paceRange: { low, high } }
     }
     case 'setAmbiguity': {
-      if (!saved) return refuse('Enter the milestone first.')
       const level = AMBIGUITIES.find((ambiguity) => ambiguity === edit.level)
       if (level === undefined) return refuse('Choose low, medium or high ambiguity.')
-      storage.saveMilestoneInputs({ ...saved, ambiguity: level })
-      return { ok: true }
+      return { ...saved, ambiguity: level }
     }
     case 'setPaceCounts':
     case 'addPaceCount': {
-      if (!saved) return refuse('Enter the milestone first.')
       const typed = edit.kind === 'addPaceCount' ? [edit.count] : edit.counts.split(/[\s,]+/).filter((count) => count !== '')
       const counts = typed.map(wholeNumber)
       if (!counts.every((count) => count !== undefined)) return refuse('Enter typed counts as whole numbers of tickets, 0 or more.')
-      if (counts.some((count) => count > MAX_TICKETS_PER_WEEK)) {
-        return refuse(`Enter at most ${MAX_TICKETS_PER_WEEK} tickets per ${periodName(saved.cadenceDays)}.`)
-      }
-      const paceCounts = edit.kind === 'addPaceCount' ? [...saved.paceCounts, ...counts] : counts
-      storage.saveMilestoneInputs({ ...saved, paceCounts })
-      return { ok: true }
+      if (counts.some((count) => count > MAX_TICKETS_PER_PERIOD)) return refuseAbovePerPeriodCap(saved)
+      return { ...saved, paceCounts: edit.kind === 'addPaceCount' ? [...saved.paceCounts, ...counts] : counts }
     }
-    case 'removeLastPaceCount': {
-      if (!saved) return refuse('Enter the milestone first.')
-      storage.saveMilestoneInputs({ ...saved, paceCounts: saved.paceCounts.slice(0, -1) })
-      return { ok: true }
-    }
+    case 'removeLastPaceCount':
+      return { ...saved, paceCounts: saved.paceCounts.slice(0, -1) }
     case 'setPaceMode': {
-      if (!saved) return refuse('Enter the milestone first.')
       const paceMode = PACE_MODES.find((mode) => mode === edit.paceMode)
       if (paceMode === undefined) return refuse('Choose the range or typed counts.')
-      storage.saveMilestoneInputs({ ...saved, paceMode })
-      return { ok: true }
+      return { ...saved, paceMode }
     }
     case 'setCadence': {
-      if (!saved) return refuse('Enter the milestone first.')
       const days = wholeNumber(edit.cadenceDays)
       if (days === undefined || days < 1) return refuse('Enter the cadence as a whole number of days, 1 or more.')
       if (days > MAX_CADENCE_DAYS) return refuse(`Enter a cadence of at most ${MAX_CADENCE_DAYS} days.`)
-      storage.saveMilestoneInputs({ ...saved, cadenceDays: days })
-      return { ok: true }
+      return { ...saved, cadenceDays: days }
     }
   }
+}
+
+/** Refuses a pace above `MAX_TICKETS_PER_PERIOD` tickets in one period of the milestone's cadence. */
+function refuseAbovePerPeriodCap(saved: MilestoneInputs): Refusal {
+  return refuse(`Enter at most ${MAX_TICKETS_PER_PERIOD} tickets per ${periodName(saved.cadenceDays)}.`)
 }
 
 /** A milestone with every input the EM hasn't entered yet at its default. */
