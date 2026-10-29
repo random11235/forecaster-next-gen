@@ -1,7 +1,8 @@
 import { periodName, type PeriodName } from '../forecast/cadence.js'
 import type { InputNote, MilestoneInput } from '../forecast/milestoneAssessment.js'
-import { MAX_CADENCE_DAYS, MAX_TICKETS_PER_PERIOD, MAX_TICKETS_REMAINING, type MilestoneInputsView } from '../forecast/milestoneInputs.js'
+import { MAX_CADENCE_DAYS, MAX_TICKETS_PER_PERIOD, MAX_TICKETS_REMAINING } from '../forecast/milestoneInputs.js'
 import { ambiguityName, MAX_GROWTH, type GrowthView, type TypedRange } from '../forecast/growth.js'
+import type { InputsEdit, InputsForm, InputsView, TypedForms } from '../forecast/inputs.js'
 import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
 import type { PaceMode } from '../model/milestoneInputs.js'
 import { escapeHtml, htmlPage } from './html.js'
@@ -14,148 +15,46 @@ export const INPUT_LABELS: Record<MilestoneInput, string> = {
   pace: 'Pace',
 }
 
-/** The pace form as typed: what the EM entered, and why it was refused, if it was. */
-export interface PaceForm {
-  low: string
-  high: string
-  error?: string
-}
+/** Reads a submitted form's fields, by the field names this screen gives them; the rules they must meet are checked when it is saved. */
+type FormReader = (body: URLSearchParams) => InputsEdit
 
-/** Reads the submitted pace form; the rules it must meet are checked when it is saved. */
-export function parsePaceForm(body: URLSearchParams): PaceForm {
-  return { low: body.get('low')?.trim() ?? '', high: body.get('high')?.trim() ?? '' }
-}
-
-/** The pace form filled with the saved range, or empty. */
-export function savedPaceForm(view: MilestoneInputsView): PaceForm {
-  return view.paceRange ? { low: String(view.paceRange.low), high: String(view.paceRange.high) } : { low: '', high: '' }
-}
-
-/** The typed counts forms as typed: the list, the count to add, and why either was refused, if it was. */
-export interface PaceCountsForm {
-  /** The list, oldest first, apart by commas. */
-  counts: string
-  /** The newest count, to add after the rest. */
-  count: string
-  error?: string
-}
-
-/** Reads the submitted typed counts list; the rules it must meet are checked when it is saved. */
-export function parsePaceCounts(body: URLSearchParams): string {
-  return body.get('counts')?.trim() ?? ''
-}
-
-/** Reads the submitted count to add; the rules it must meet are checked when it is saved. */
-export function parseAddCount(body: URLSearchParams): string {
-  return body.get('count')?.trim() ?? ''
-}
-
-/** The typed counts forms filled with the saved counts, oldest first, and nothing to add. */
-export function savedPaceCountsForm({ paceCounts }: Pick<MilestoneInputsView, 'paceCounts'>): PaceCountsForm {
-  return { counts: paceCounts.join(', '), count: '' }
-}
-
-/** A form choosing one option: the choice is saved or shown as saved, so only why it was refused, if it was. */
-export interface ChoiceForm {
-  error?: string
-}
-
-/** Reads the submitted pace choice; whether it is one is checked when it is saved. */
-export function parsePaceMode(body: URLSearchParams): string {
-  return body.get('paceMode') ?? ''
-}
-
-/** The cadence form as typed, and why it was refused, if it was. */
-export interface CadenceForm {
-  cadenceDays: string
-  error?: string
-}
-
-/** Reads the submitted cadence form; the rules it must meet are checked when it is saved. */
-export function parseCadenceForm(body: URLSearchParams): CadenceForm {
-  return { cadenceDays: body.get('cadenceDays')?.trim() ?? '' }
-}
-
-/** The cadence form filled with the saved cadence, 7 days until the EM sets one. */
-export function savedCadenceForm(view: MilestoneInputsView): CadenceForm {
-  return { cadenceDays: String(view.cadenceDays) }
-}
-
-/** The ambiguity ranges form as typed: each level's low and high, and why they were refused, if they were. */
-export interface GrowthForm {
-  ranges: Record<Ambiguity, TypedRange>
-  error?: string
-}
-
-/** Reads the submitted ambiguity ranges; the rules they must meet are checked when they are saved. */
-export function parseGrowthForm(body: URLSearchParams): GrowthForm {
-  const typed = (level: Ambiguity): TypedRange => ({ low: body.get(`${level}-low`) ?? '', high: body.get(`${level}-high`) ?? '' })
-  return { ranges: { low: typed('low'), medium: typed('medium'), high: typed('high') } }
-}
-
-/** The ambiguity ranges form filled with the team's saved ranges. */
-export function savedGrowthForm({ ranges }: GrowthView): GrowthForm {
-  const typed = ({ low, high }: { low: number; high: number }): TypedRange => ({ low: String(low), high: String(high) })
-  return { ranges: { low: typed(ranges.low), medium: typed(ranges.medium), high: typed(ranges.high) } }
-}
-
-/** Reads the submitted ambiguity level; whether it is one is checked when it is saved. */
-export function parseAmbiguity(body: URLSearchParams): string {
-  return body.get('ambiguity') ?? ''
-}
-
-/** The milestone form as typed, and why it was refused, if it was. */
-export interface MilestoneForm {
-  name: string
-  startDate: string
-  ticketsRemaining: string
-  error?: string
-}
-
-/** Reads the submitted milestone form; the rules it must meet are checked when it is saved. */
-export function parseMilestoneForm(body: URLSearchParams): MilestoneForm {
-  return {
-    name: body.get('name') ?? '',
-    startDate: body.get('startDate')?.trim() ?? '',
-    ticketsRemaining: body.get('ticketsRemaining')?.trim() ?? '',
-  }
-}
-
-/** The milestone form filled with what is saved, the start date pre-filled with today until one is. */
-export function savedMilestoneForm(view: MilestoneInputsView): MilestoneForm {
-  return { name: view.name, startDate: view.startDate, ticketsRemaining: view.ticketsRemaining === undefined ? '' : String(view.ticketsRemaining) }
-}
-
-/** What the Inputs screen shows. */
-export interface InputsScreen {
-  milestone: MilestoneInputsView
-  /** The milestone form, as saved or as typed when refused. */
-  milestoneForm: MilestoneForm
-  /** The cadence form, as saved or as typed when refused. */
-  cadenceForm: CadenceForm
-  /** The pace form, as saved or as typed when refused. */
-  paceForm: PaceForm
-  /** Which pace the forecast uses, with why a choice was refused, if it was. */
-  paceModeForm: ChoiceForm
-  /** The typed counts forms, as saved or as typed when refused. */
-  paceCountsForm: PaceCountsForm
-  /** The milestone's ambiguity level, with why a level was refused, if it was. */
-  ambiguityForm: ChoiceForm
-  /** The ambiguity ranges form, as saved or as typed when refused. */
-  growth: GrowthForm
-  /** The team's saved ambiguity ranges, shown beside each level. */
-  ranges: GrowthView['ranges']
-}
+/** Each form this screen posts, by its action's path, and how its fields are read. */
+export const INPUTS_FORMS: ReadonlyMap<string, FormReader> = new Map<string, FormReader>([
+  [
+    '/inputs/milestone',
+    (body) => ({
+      kind: 'setMilestone',
+      name: body.get('name') ?? '',
+      startDate: body.get('startDate')?.trim() ?? '',
+      ticketsRemaining: body.get('ticketsRemaining')?.trim() ?? '',
+    }),
+  ],
+  ['/inputs/cadence', (body) => ({ kind: 'setCadence', cadenceDays: body.get('cadenceDays')?.trim() ?? '' })],
+  ['/inputs/pace', (body) => ({ kind: 'setPaceRange', low: body.get('low')?.trim() ?? '', high: body.get('high')?.trim() ?? '' })],
+  ['/inputs/pace-mode', (body) => ({ kind: 'setPaceMode', paceMode: body.get('paceMode') ?? '' })],
+  ['/inputs/pace-counts', (body) => ({ kind: 'setPaceCounts', counts: body.get('counts')?.trim() ?? '' })],
+  ['/inputs/pace-counts/add', (body) => ({ kind: 'addPaceCount', count: body.get('count')?.trim() ?? '' })],
+  ['/inputs/pace-counts/remove-last', () => ({ kind: 'removeLastPaceCount' })],
+  ['/inputs/ambiguity', (body) => ({ kind: 'setAmbiguity', level: body.get('ambiguity') ?? '' })],
+  [
+    '/inputs/growth',
+    (body) => {
+      const typed = (level: Ambiguity): TypedRange => ({ low: body.get(`${level}-low`) ?? '', high: body.get(`${level}-high`) ?? '' })
+      return { kind: 'setAmbiguityRanges', low: typed('low'), medium: typed('medium'), high: typed('high') }
+    },
+  ],
+])
 
 /** The Inputs screen: the milestone, its pace and the team's growth. */
-export function renderInputsScreen(screen: InputsScreen): string {
-  const { milestone } = screen
+export function renderInputsScreen(screen: InputsView): string {
+  const { milestone, forms } = screen
+  const error = (form: InputsForm): string | undefined => (screen.refusal?.form === form ? screen.refusal.error : undefined)
   const sections = [
-    milestoneSection(screen.milestoneForm, milestone.notes),
-    cadenceSection(screen.cadenceForm, milestone.cadenceDays),
-    paceSection(screen, periodName(milestone.cadenceDays)),
-    ambiguitySection(milestone.ambiguity, screen.ranges, screen.ambiguityForm),
-    growthSection(screen.growth),
+    milestoneSection(forms.milestone, error('milestone'), milestone.notes),
+    cadenceSection(forms.cadence, error('cadence'), milestone.cadenceDays),
+    paceSection(screen, error, periodName(milestone.cadenceDays)),
+    ambiguitySection(milestone.ambiguity, screen.growth.ranges, error('ambiguity')),
+    growthSection(forms.growth, error('growth')),
   ]
   const header = {
     context: milestone.name === '' ? undefined : escapeHtml(milestone.name),
@@ -182,12 +81,12 @@ ${body}
     </section>`
 }
 
-function milestoneSection(form: MilestoneForm, notes: readonly InputNote[]): Section {
+function milestoneSection(form: TypedForms['milestone'], error: string | undefined, notes: readonly InputNote[]): Section {
   return inputSection(
     'Milestone',
     'Milestone',
     'Name the milestone, the date work on it starts, and how many tickets are left.',
-    `        <form method="post" action="/inputs/milestone#milestone">${errorLine(form.error)}
+    `        <form method="post" action="/inputs/milestone#milestone">${errorLine(error)}
           <div class="fields">
             <label class="wide">${INPUT_LABELS.name} <input type="text" name="name" value="${escapeHtml(form.name)}" required></label>${notesFor('name', notes)}
             <label>${INPUT_LABELS.startDate} <input type="date" name="startDate" value="${escapeHtml(form.startDate)}" required></label>${notesFor('startDate', notes)}
@@ -210,12 +109,12 @@ function errorLine(error: string | undefined): string {
   return error ? `\n          <p class="error" role="alert">${escapeHtml(error)}</p>` : ''
 }
 
-function cadenceSection(form: CadenceForm, savedDays: number): Section {
+function cadenceSection(form: TypedForms['cadence'], error: string | undefined, savedDays: number): Section {
   return inputSection(
     'Cadence',
     'Cadence',
     cadenceHint(savedDays),
-    `        <form method="post" action="/inputs/cadence#cadence">${errorLine(form.error)}
+    `        <form method="post" action="/inputs/cadence#cadence">${errorLine(error)}
           <div class="pace">
             <label>Cadence length <input type="number" name="cadenceDays" min="1" max="${MAX_CADENCE_DAYS}" step="1" value="${escapeHtml(form.cadenceDays)}" required></label>
             <span class="unit">days</span>
@@ -236,19 +135,19 @@ function cadenceHint(savedDays: number): string {
 const PACE_MODE_NAMES: Record<PaceMode, string> = { range: 'Range', counts: 'Typed counts' }
 
 /** The pace: which one the forecast uses, the range, and the typed counts, the notes beside the one in use. */
-function paceSection(screen: InputsScreen, period: PeriodName): Section {
+function paceSection(screen: InputsView, error: (form: InputsForm) => string | undefined, period: PeriodName): Section {
   const { paceMode, notes, typedCountsNeeded: typedCounts } = screen.milestone
   const notesIfUsed = (mode: PaceMode): string => (mode === paceMode ? notesFor('pace', notes) : '')
-  const { paceForm: range, paceCountsForm: counts } = screen
+  const { paceRange: range, paceCounts: counts } = screen.forms
   return inputSection(
     INPUT_LABELS.pace,
     INPUT_LABELS.pace,
     `How many tickets the team finishes in a ${period}: a range from a slow ${period} to a good one, or typed counts of past ${period}s. Typed counts need at least ${typedCounts.forForecast} for a forecast, and ${typedCounts.reliable} to be reliable.`,
-    `        <form method="post" action="/inputs/pace-mode#pace">${errorLine(screen.paceModeForm.error)}
+    `        <form method="post" action="/inputs/pace-mode#pace">${errorLine(error('paceMode'))}
 ${radios('paceMode', 'Pace the forecast uses', ['range', 'counts'], paceMode, (mode) => PACE_MODE_NAMES[mode])}
           <div class="actions"><button type="submit" class="primary">Use this pace</button></div>
         </form>
-        <form method="post" action="/inputs/pace#pace-range" id="pace-range">${errorLine(range.error)}
+        <form method="post" action="/inputs/pace#pace-range" id="pace-range">${errorLine(error('paceRange'))}
           <h3>${PACE_MODE_NAMES.range}</h3>
           <div class="pace">
             <label>Low <input type="number" name="low" min="0" max="${MAX_TICKETS_PER_PERIOD}" step="1" value="${escapeHtml(range.low)}" required></label>
@@ -258,7 +157,7 @@ ${radios('paceMode', 'Pace the forecast uses', ['range', 'counts'], paceMode, (m
           </div>${notesIfUsed('range')}
           <div class="actions"><button type="submit" class="primary">Save and forecast</button></div>
         </form>
-        <form method="post" action="/inputs/pace-counts#pace-counts" id="pace-counts">${errorLine(counts.error)}
+        <form method="post" action="/inputs/pace-counts#pace-counts" id="pace-counts">${errorLine(error('paceCounts'))}
           <h3>${PACE_MODE_NAMES.counts}</h3>
           <div class="fields">
             <label class="wide">Tickets done each ${period}, oldest first <input type="text" name="counts" value="${escapeHtml(counts.counts)}" inputmode="numeric" placeholder="6, 4, 9"></label>
@@ -290,23 +189,23 @@ ${buttons.join('\n')}
           </fieldset>`
 }
 
-function ambiguitySection(chosen: Ambiguity, ranges: GrowthView['ranges'], form: ChoiceForm): Section {
+function ambiguitySection(chosen: Ambiguity, ranges: GrowthView['ranges'], error: string | undefined): Section {
   const level = (level: Ambiguity): string => `${ambiguityName(level)} <span class="range">${ranges[level].low}–${ranges[level].high}×</span>`
   return inputSection(
     'Ambiguity',
     'Ambiguity',
     'How well the milestone’s work is understood. The less it is, the more the work may grow, by the ranges below.',
-    `        <form method="post" action="/inputs/ambiguity#ambiguity">${errorLine(form.error)}
+    `        <form method="post" action="/inputs/ambiguity#ambiguity">${errorLine(error)}
 ${radios('ambiguity', 'Ambiguity of the milestone', AMBIGUITIES, chosen, level)}
           <div class="actions"><button type="submit" class="primary">Save and forecast</button></div>
         </form>`,
   )
 }
 
-function growthSection(form: GrowthForm): Section {
+function growthSection(form: TypedForms['growth'], error: string | undefined): Section {
   const rows = AMBIGUITIES.map((level) => {
     const field = (end: 'low' | 'high'): string =>
-      `<input type="number" name="${level}-${end}" min="0" max="${MAX_GROWTH}" step="any" value="${escapeHtml(form.ranges[level][end])}" aria-label="${ambiguityName(level)} ambiguity, ${end} end" required>`
+      `<input type="number" name="${level}-${end}" min="0" max="${MAX_GROWTH}" step="any" value="${escapeHtml(form[level][end])}" aria-label="${ambiguityName(level)} ambiguity, ${end} end" required>`
     return `              <tr>
                 <td>${ambiguityName(level)}</td>
                 <td>${field('low')} <span class="to">to</span> ${field('high')} <span class="unit">× the tickets remaining</span></td>
@@ -316,7 +215,7 @@ function growthSection(form: GrowthForm): Section {
     'Growth',
     'Growth',
     'How much the work may grow at each ambiguity level. The milestone grows by the range of its own level.',
-    `        <form method="post" action="/inputs/growth#growth">${errorLine(form.error)}
+    `        <form method="post" action="/inputs/growth#growth">${errorLine(error)}
           <table class="growth">
             <thead>
               <tr><th>Ambiguity</th><th>Grows by</th></tr>

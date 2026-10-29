@@ -47,7 +47,7 @@ export function milestoneGrowth(storage: Storage, inputs: MilestoneInputs): Grow
 }
 
 /**
- * Seam B, through `editInputs`: saves the EM's ambiguity ranges. A refused edit changes nothing and says why, naming
+ * Seam B, through `submitInputs`: saves the EM's ambiguity ranges. A refused edit changes nothing and says why, naming
  * the first level whose range is refused.
  */
 export function editGrowth(storage: Storage, teamId: string, typed: GrowthEdit): EditResult {
