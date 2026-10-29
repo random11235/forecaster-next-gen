@@ -40,7 +40,7 @@ export function savedRanges(storage: Storage, teamId: string): Omit<AmbiguityRan
 
 /**
  * The milestone's growth: the team's range for its ambiguity level. The only place ambiguity becomes growth, so
- * per-epic growth or split rates can replace it here; the engine keeps the grown total at or above the tickets remaining.
+ * per-epic or measured growth can replace it here; the engine keeps the grown total at or above the tickets remaining.
  */
 export function milestoneGrowth(storage: Storage, inputs: MilestoneInputs): GrowthRange {
   return savedRanges(storage, inputs.teamId)[inputs.ambiguity]

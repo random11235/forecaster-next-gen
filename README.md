@@ -1,6 +1,6 @@
 # Forecaster
 
-Forecasts when a milestone will finish, from your team's measured pace and growth. Runs locally: no installer, no hosted server.
+Forecasts when a milestone will finish, from the tickets left, your team's pace and how much the work may grow. Runs locally: no installer, no hosted server.
 
 ## Launch
 
@@ -18,7 +18,7 @@ npm start
 
 This starts a local server on `http://127.0.0.1:5180/` (localhost only) and opens it in your browser on the Milestone forecast screen. If the browser doesn't open, open that address by hand. Stop it with Ctrl+C.
 
-To see a forecast, enter your team's pace (a low–high range of tickets per week) on the Inputs screen, `http://127.0.0.1:5180/inputs`. The Inputs screen is also where you define the milestone (its name, committed date and epics) and add, remove or reorder its epics after a scope change. Its Workflow section says how your board works: what each status means (not started, started, done or cancelled), the status where cycle time starts, an optional commit label, and what marks an epic as blocked.
+To see a forecast, open the Inputs screen, `http://127.0.0.1:5180/inputs`, and enter your milestone: its name, the date work on it starts and how many tickets are left. Then give the team's pace in tickets per period: a low–high range, or typed counts of tickets finished in past periods, and choose which the forecast uses. A period is a week until you set the cadence to your sprint's length in days. Choose how well the milestone's work is understood (low, medium or high ambiguity); the forecast grows the tickets by that level's range, which you can edit in the Growth section.
 
 To use another port: `PORT=5181 npm start`. `PORT=0` picks a free port.
 

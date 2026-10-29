@@ -6,7 +6,7 @@ This covers the Forecaster as a whole: v1's assumptions, the principles every mo
 
 This builds on the recommendations in [`../research/forecasting-approaches.md`](../research/forecasting-approaches.md) ("Implications for a new tool") and the stores in [`../research/EM_usecase-arch.excalidraw`](../research/EM_usecase-arch.excalidraw).
 
-**The MVP overrides parts of this.** The MVP ([#84](https://github.com/random11235/forecaster-next-gen/issues/84)) forecasts one milestone per team from what the EM types in: a start date, the tickets remaining and a pace range, grown by the range of its ambiguity. It has no epics, commits, pull-backs, blocked epics, per-epic ambiguity, team facts, workflow settings, measured pace, measured growth or sample data, and #87 deleted the code for them. Where this doc describes them, it is the v1 design they follow on from, not the code as it stands; each such place says so. The tables earlier releases wrote for them are kept in the data file, unread.
+**The MVP overrides parts of this.** The MVP ([#84](https://github.com/random11235/forecaster-next-gen/issues/84)) forecasts one milestone per team from what the EM types in: a start date, the tickets remaining and a pace (a range, or typed counts) per period of the team's cadence, grown by the range of its ambiguity. It has no epics, commits, pull-backs, blocked epics, per-epic ambiguity, team facts, workflow settings, measured pace, measured growth or sample data, and #87 deleted the code for them. Where this doc describes them, it is the v1 design they follow on from, not the code as it stands; each such place says so. The tables earlier releases wrote for them are kept in the data file, unread.
 
 The engine is built and tested in isolation first (build order: engine → app on canned data → Jira → GitHub → capacity). The app design ([`frontend-essentials.md`](frontend-essentials.md)) need not match it until the app is built.
 
@@ -43,57 +43,37 @@ The data model is designed so that each of these can be relaxed later without re
 
 ## Folder structure
 
-The tree is v1's design. Since the MVP, `src/` has `model/` (team, milestone inputs, ambiguity), `engine/`, `forecast/` (`milestoneInputs.ts` and `growth.ts` behind `inputs.ts`, `milestoneForecastView.ts`, `settings.ts`), `storage/` and `app/`; `samples/`, `ledger/`, `secrets/` and `connectors/` don't exist yet, and the epic-era files below were deleted in #87.
+The tree is `src/` as it stands in the MVP. v1 adds `samples/` (Layer 2: commits, throughput, growth and epic-size samples derived from `model/`), `ledger/` (Layer 5), `secrets/` and `connectors/`, and the epic-era files #87 deleted (work items, workflow settings, epic commits, team facts, measured pace and growth); [`forecast-model.md`](forecast-model.md) describes them.
 
 ```
 src/
-  model/                  # Layer 1: ingested entity types, no logic
+  model/                  # Layer 1: record types, no logic
     team.ts
-    workItem.ts           # WorkItem, WorkItemEvent, Facts
-    milestone.ts          # Milestone: defined by the EM, not ingested
-    workflow.ts           # WorkflowSettings: the EM's status mapping, commit label, blocked rule
-    epicCommit.ts         # EpicCommit: the EM's commit of an epic and its baseline
-    ambiguity.ts          # Ambiguity, AmbiguityRanges and each epic's level: set by the EM
-
-  samples/                # Layer 2: pure derivations from model/
-    commits.ts            # commits that stand: in the tool or by the commit label, after pull-back resets
-    throughput.ts         # WorkItems → daily ThroughputSample[] since installation (milestone epics only)
-    finishedEpics.ts      # commits that stand + work items → the committed epics now done, with baseline and final count
-    growth.ts             # commits + final counts → GrowthSample[]
-    epicSize.ts           # finished epics → EpicSizeSample[]
-    cycleTime.ts          # started → done; spread and ageing
+    milestoneInputs.ts    # MilestoneInputs: what the EM types in for the team's milestone; PaceMode
+    ambiguity.ts          # Ambiguity and AmbiguityRanges: set by the EM
 
   engine/                 # pure: no I/O, no DB, no clock; see src/engine/ for its files
     index.ts              # exports simulateCase, periodEndDate and the types only
 
   forecast/               # the only module that knows both stored data and the engine
-    teamFacts.ts          # team facts: stored facts and the commits that stand, read under the team's WorkflowSettings, once per call
-    milestoneEpics.ts     # a milestone's epics as they stand: items now, commit, in progress, blocked; the baseline growth applies to
-    inputs.ts             # Seam B: stored data → the Inputs screen's view; its edits (milestone, workflow, pace) and their rules
-    milestoneDefinition.ts  # behind inputs.ts: the milestone's view and edits, including committing an epic
-    workflowSettings.ts   # behind inputs.ts: the workflow settings view and edit
-    growth.ts             # behind inputs.ts: ambiguity ranges and levels, measured growth; each epic's growth and its source
-    pace.ts               # behind inputs.ts: weekly pace since installation, the measured-pace gate and switch; the pace a forecast uses
-    buildCase.ts          # the pace applied, ambiguity ranges, provisional baselines, limits
+    inputs.ts             # Seam B: stored data → the Inputs screen's view; its edits, by the files behind it
+    milestoneInputs.ts    # behind inputs.ts: the milestone's view and edits, the pace in use, what stops a forecast, the warnings
+    growth.ts             # behind inputs.ts: the ambiguity ranges view and edit; the milestone's growth range
+    milestoneForecastView.ts  # Seam B: stored data → the Milestone forecast screen's view, through the engine
     settings.ts           # ForecastSettings and AmbiguityRanges defaults
-    suggestions.ts        # suggested pace range, measured medium range, switch offers
-    diagnostics.ts        # sample counts, pace variation text, warnings (e.g. in progress but not committed), provenance (ThroughputScope, GrowthSource)
-    milestoneForecastView.ts  # Seam B: stored data → the Milestone forecast screen's view
+    cadence.ts            # what the screens call a period: a week or a sprint
+    calendarDate.ts       # ISO calendar dates: checking and counting days between
+    counted.ts            # a count with its words: "1 ticket", "40 tickets"
+    editResult.ts         # an edit saved, or refused saying why
 
-  ledger/                 # Layer 5
-    forecastLog.ts
-    outcomes.ts           # record actuals; compute PIT and hit rates
-
-  secrets/                # credential storage interface; v1: OS keychain
-  connectors/             # jira/ (first), github/ (second) → model/ types; read-only
-  storage/                # interfaces; v1: SQLite file
+  storage/                # interface and its v1 SQLite file, with the schema's migrations
   app/                    # local server (localhost only), screens, `npm start` entry point
 
 test/
-  app/                    # launch smoke test: start the app, check the screen is served
+  app/                    # the screens, launch, and the launch smoke test: start the app, check the screen is served
   engine/                 # Seam A: fixed seeds, plus a performance benchmark
-  forecast/               # Seam B: facts + settings + ledger → milestone forecast view
-  fixtures/               # canned histories and recorded Jira/GitHub responses (.json)
+  forecast/               # Seam B: stored inputs + settings → the screens' views
+  storage/                # the schema's migrations
 ```
 
 **Dependency rules:**
