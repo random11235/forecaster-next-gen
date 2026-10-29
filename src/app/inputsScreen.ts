@@ -1,7 +1,7 @@
 import { periodName, type PeriodName } from '../forecast/cadence.js'
 import {
   MAX_CADENCE_DAYS,
-  MAX_TICKETS_PER_WEEK,
+  MAX_TICKETS_PER_PERIOD,
   MAX_TICKETS_REMAINING,
   type MilestoneInput,
   type InputNote,
@@ -263,9 +263,9 @@ ${modes}
         <form method="post" action="/inputs/pace">${errorLine(range.error)}
           <h3>${PACE_MODE_NAMES.range}</h3>
           <div class="pace">
-            <label>Low <input type="number" name="low" min="0" max="${MAX_TICKETS_PER_WEEK}" step="1" value="${escapeHtml(range.low)}" required></label>
+            <label>Low <input type="number" name="low" min="0" max="${MAX_TICKETS_PER_PERIOD}" step="1" value="${escapeHtml(range.low)}" required></label>
             <span class="to">to</span>
-            <label>High <input type="number" name="high" min="0" max="${MAX_TICKETS_PER_WEEK}" step="1" value="${escapeHtml(range.high)}" required></label>
+            <label>High <input type="number" name="high" min="0" max="${MAX_TICKETS_PER_PERIOD}" step="1" value="${escapeHtml(range.high)}" required></label>
             <span class="unit">tickets per ${period}</span>
           </div>${notesIfUsed('range')}
           <div class="actions"><button type="submit" class="primary">Save and forecast</button></div>
@@ -280,7 +280,7 @@ ${modes}
         <div class="counts">
           <form method="post" action="/inputs/pace-counts/add">
             <div class="fields">
-              <label>Newest ${period} <input type="number" name="count" min="0" max="${MAX_TICKETS_PER_WEEK}" step="1" value="${escapeHtml(counts.count)}" required></label>
+              <label>Newest ${period} <input type="number" name="count" min="0" max="${MAX_TICKETS_PER_PERIOD}" step="1" value="${escapeHtml(counts.count)}" required></label>
               <button type="submit">Add count</button>
             </div>
           </form>
