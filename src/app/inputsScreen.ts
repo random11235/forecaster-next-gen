@@ -70,6 +70,16 @@ export function savedGrowthForm({ ranges }: GrowthView): GrowthForm {
   return { ranges: { low: typed(ranges.low), medium: typed(ranges.medium), high: typed(ranges.high) } }
 }
 
+/** The ambiguity form: the level is saved or shown as saved, so only why a level was refused, if it was. */
+export interface AmbiguityForm {
+  error?: string
+}
+
+/** Reads the submitted ambiguity level; whether it is one is checked when it is saved. */
+export function parseAmbiguityForm(body: URLSearchParams): string {
+  return body.get('ambiguity') ?? ''
+}
+
 /** The milestone form as typed, and why it was refused, if it was. */
 export interface MilestoneForm {
   name: string
@@ -101,8 +111,12 @@ export interface InputsScreen {
   cadenceForm: CadenceForm
   /** The pace form, as saved or as typed when refused. */
   paceForm: PaceForm
+  /** The milestone's ambiguity level, with why a level was refused, if it was. */
+  ambiguityForm: AmbiguityForm
   /** The ambiguity ranges form, as saved or as typed when refused. */
   growth: GrowthForm
+  /** The team's saved ambiguity ranges, shown beside each level. */
+  ranges: GrowthView['ranges']
 }
 
 /** The Inputs screen: the milestone, its pace and the team's growth. */
@@ -112,6 +126,7 @@ export function renderInputsScreen(screen: InputsScreen): string {
     milestoneSection(screen.milestoneForm, milestone.notes),
     cadenceSection(screen.cadenceForm),
     paceSection(screen.paceForm, milestone.notes, periodName(milestone.cadenceDays)),
+    ambiguitySection(milestone.ambiguity, screen.ranges, screen.ambiguityForm),
     growthSection(screen.growth),
   ]
   const header = {
@@ -199,6 +214,24 @@ function paceSection(form: PaceForm, notes: readonly InputNote[], period: Period
   )
 }
 
+function ambiguitySection(chosen: Ambiguity, ranges: GrowthView['ranges'], form: AmbiguityForm): Section {
+  const levels = AMBIGUITIES.map(
+    (level) =>
+      `            <label><input type="radio" name="ambiguity" value="${level}"${level === chosen ? ' checked' : ''} required> ${ambiguityName(level)} <span class="range">${ranges[level].low}–${ranges[level].high}×</span></label>`,
+  ).join('\n')
+  return inputSection(
+    'Ambiguity',
+    'Ambiguity',
+    'How well the milestone’s work is understood. The less it is, the more the work may grow, by the ranges below.',
+    `        <form method="post" action="/inputs/ambiguity">${errorLine(form.error)}
+          <fieldset class="levels" aria-label="Ambiguity of the milestone">
+${levels}
+          </fieldset>
+          <div class="actions"><button type="submit" class="primary">Save and forecast</button></div>
+        </form>`,
+  )
+}
+
 function growthSection(form: GrowthForm): Section {
   const rows = AMBIGUITIES.map((level) => {
     const field = (end: 'low' | 'high'): string =>
@@ -211,7 +244,7 @@ function growthSection(form: GrowthForm): Section {
   return inputSection(
     'Growth',
     'Growth',
-    'How much the work may grow, by how well it is understood. For now the milestone grows by the medium range.',
+    'How much the work may grow at each ambiguity level. The milestone grows by the range of its own level.',
     `        <form method="post" action="/inputs/growth">${errorLine(form.error)}
           <table class="growth">
             <thead>
