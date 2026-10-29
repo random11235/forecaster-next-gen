@@ -1,3 +1,4 @@
+import { periodName } from '../forecast/cadence.js'
 import { counted } from '../forecast/counted.js'
 import type { InputNote } from '../forecast/milestoneInputs.js'
 import type { MilestoneForecastView } from '../forecast/milestoneForecastView.js'
@@ -54,7 +55,7 @@ function renderForecast(view: Forecast): string {
       <ul class="dates">
 ${dates}
       </ul>
-      <p class="note">Pace: ${view.pace.low}–${view.pace.high} tickets per week (range)</p>
+      <p class="note">Pace: ${view.pace.low}–${view.pace.high} tickets per ${periodName(view.cadenceDays)} (range)</p>
     </section>${renderFinishGraph(view)}`
 }
 
@@ -88,7 +89,7 @@ function renderFinishGraph(view: Forecast): string {
   return `
     <section class="brief" aria-label="Finish graph">
       <div class="heading"><h2>When the trials finish</h2></div>
-      <figure class="finish-graph" aria-label="When the trials finish, by week">
+      <figure class="finish-graph" aria-label="When the trials finish, by ${periodName(view.cadenceDays)}">
         <div class="plot">
 ${markers}
           <div class="bars">
@@ -96,7 +97,7 @@ ${columns}
           </div>
         </div>
         <div class="axis"><span>${formatDate(bars[0]!.date)}</span><span>${formatDate(bars.at(-1)!.date)}</span></div>
-        <figcaption class="note">Share of trials finishing each week, from the start date. The ${view.headlinePercent}% date is the headline.</figcaption>
+        <figcaption class="note">Share of trials finishing each ${periodName(view.cadenceDays)}, from the start date. The ${view.headlinePercent}% date is the headline.</figcaption>
       </figure>
     </section>`
 }

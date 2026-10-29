@@ -1,11 +1,15 @@
 import type { ThroughputRange } from '../engine/index.js'
 import type { MilestoneInputs } from '../model/milestoneInputs.js'
 import type { Storage } from '../storage/storage.js'
+import { periodName } from './cadence.js'
 import { isCalendarDate } from './calendarDate.js'
 import { refuse, type EditResult } from './editResult.js'
 
-/** Far above any real team's weekly pace; keeps typos like 1000000 out of the forecast. */
+/** Far above any real team's pace in one period; keeps typos like 1000000 out of the forecast. */
 export const MAX_TICKETS_PER_WEEK = 1000
+
+/** Far above any real team's sprint; keeps typos out of the forecast, and its 156-period horizon within the calendar. */
+export const MAX_CADENCE_DAYS = 365
 
 /** Far above any real milestone; keeps typos out of the forecast. */
 export const MAX_TICKETS_REMAINING = 100_000
@@ -13,8 +17,10 @@ export const MAX_TICKETS_REMAINING = 100_000
 /** A change the EM makes to the milestone on the Inputs screen, as typed. */
 export type MilestoneInputsEdit =
   | { kind: 'setMilestone'; name: string; startDate: string; ticketsRemaining: string }
-  /** Whole tickets per week, low ≤ high. */
+  /** Whole tickets per period, low ≤ high. */
   | { kind: 'setPaceRange'; low: string; high: string }
+  /** Whole days in one of the team's periods, 1 or more. */
+  | { kind: 'setCadence'; cadenceDays: string }
 
 /** An input of the milestone on the Inputs screen. */
 export type MilestoneInput = 'name' | 'startDate' | 'ticketsRemaining' | 'pace'
@@ -30,6 +36,8 @@ export interface MilestoneInputsView {
   name: string
   startDate: string
   ticketsRemaining: number | undefined
+  /** Days in one of the team's periods, which pace is entered in. */
+  cadenceDays: number
   paceRange: ThroughputRange | undefined
   /** What stops a forecast, then the warnings, each beside its input; none before anything is entered. */
   notes: InputNote[]
@@ -43,6 +51,7 @@ export function milestoneInputsView(storage: Storage, teamId: string, today: str
     name: inputs.name,
     startDate: inputs.startDate ?? today,
     ticketsRemaining: inputs.ticketsRemaining,
+    cadenceDays: inputs.cadenceDays,
     paceRange: inputs.paceRange,
     notes: saved ? [...inputProblems(saved), ...inputWarnings(saved)] : [],
   }
@@ -71,7 +80,7 @@ export function isForecastable(inputs: MilestoneInputs): inputs is ForecastableI
 export function inputWarnings(inputs: MilestoneInputs): InputNote[] {
   const workLeft = (inputs.ticketsRemaining ?? 0) > 0
   if (workLeft && inputs.paceRange?.high === 0) {
-    return [{ input: 'pace', message: 'At 0 tickets a week, the work never finishes.' }]
+    return [{ input: 'pace', message: `At 0 tickets a ${periodName(inputs.cadenceDays)}, the work never finishes.` }]
   }
   return []
 }
@@ -99,9 +108,19 @@ export function editMilestoneInputs(storage: Storage, teamId: string, edit: Mile
       if (!saved) return refuse('Enter the milestone first.')
       const [low, high] = [wholeNumber(edit.low), wholeNumber(edit.high)]
       if (low === undefined || high === undefined) return refuse('Enter whole numbers of tickets, 0 or more.')
-      if (high > MAX_TICKETS_PER_WEEK) return refuse(`Enter at most ${MAX_TICKETS_PER_WEEK} tickets per week.`)
+      if (high > MAX_TICKETS_PER_WEEK) {
+        return refuse(`Enter at most ${MAX_TICKETS_PER_WEEK} tickets per ${periodName(saved.cadenceDays)}.`)
+      }
       if (low > high) return refuse('The low end must not be above the high end.')
       storage.saveMilestoneInputs({ ...saved, paceRange: { low, high } })
+      return { ok: true }
+    }
+    case 'setCadence': {
+      if (!saved) return refuse('Enter the milestone first.')
+      const days = wholeNumber(edit.cadenceDays)
+      if (days === undefined || days < 1) return refuse('Enter the cadence as a whole number of days, 1 or more.')
+      if (days > MAX_CADENCE_DAYS) return refuse(`Enter a cadence of at most ${MAX_CADENCE_DAYS} days.`)
+      storage.saveMilestoneInputs({ ...saved, cadenceDays: days })
       return { ok: true }
     }
   }
