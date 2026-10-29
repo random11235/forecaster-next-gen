@@ -57,7 +57,8 @@ src/
 
   forecast/               # the only module that knows both stored data and the engine
     inputs.ts             # Seam B: stored data → the Inputs screen's view; its edits, by the files behind it
-    milestoneInputs.ts    # behind inputs.ts: the milestone's view and edits, the pace in use, what stops a forecast, the warnings
+    milestoneInputs.ts    # behind inputs.ts: the milestone's view and edits
+    milestoneAssessment.ts  # behind both views: the milestone's inputs against the settings and today: the pace in use, what stops a forecast, the warnings
     growth.ts             # behind inputs.ts: the ambiguity ranges view and edit; the milestone's growth range
     milestoneForecastView.ts  # Seam B: stored data → the Milestone forecast screen's view, through the engine
     settings.ts           # ForecastSettings and AmbiguityRanges defaults
@@ -93,7 +94,7 @@ test/
 
 **Test seams.** There are two, as set in the spec:
 - **Seam A** is `simulateCase`, tested with fixed seeds ([`engine.md`](engine.md)).
-- **Seam B** is `forecast/`: stored facts, settings and the ledger go in, and the screens' views come out: `milestoneForecastView` for the Milestone forecast screen, and `inputsView` with `editInputs` for the Inputs screen. In v1, team facts is part of it and tests may call `teamFacts` directly; the MVP has no team facts. Its logic is in [`forecast-model.md`](forecast-model.md).
+- **Seam B** is `forecast/`: stored facts, settings and the ledger go in, and the screens' views come out: `milestoneForecastView` for the Milestone forecast screen, and `inputsView` with `editInputs` for the Inputs screen. Both views take the same `ForecastSettings` and judge the milestone by one assessment (`assessMilestone`), so the typed counts a forecast needs, the notes beside the inputs and the Inputs screen's hint all come from those settings. In v1, team facts is part of it and tests may call `teamFacts` directly; the MVP has no team facts. Its logic is in [`forecast-model.md`](forecast-model.md).
 
 Warning text and provenance are tested at Seam B, not Seam A. These cases moved from the engine tests. Each is owed, in `test/forecast/`, by the ticket that adds its warning or diagnostic. Since the MVP, only the first two can arise: the last four name epics, commits or measured pace, which return after it.
 - the horizon warning when fewer trials finish than the highest reported percentile, with the floored percentage and the horizon date, and none when enough finish;

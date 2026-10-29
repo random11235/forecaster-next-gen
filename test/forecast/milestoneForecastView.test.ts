@@ -71,8 +71,12 @@ const DATES_FROM_15_SEP = [
   { percent: 95, date: '2027-05-04' },
 ]
 
-function view(storage: Storage) {
-  return milestoneForecastView(storage, TEAM, DEFAULT_SETTINGS, TODAY)
+function view(storage: Storage, settings = DEFAULT_SETTINGS) {
+  return milestoneForecastView(storage, TEAM, settings, TODAY)
+}
+
+function inputsScreenView(storage: Storage, settings = DEFAULT_SETTINGS) {
+  return inputsView(storage, TEAM, settings, TODAY)
 }
 
 describe('the forecast from what the EM enters', () => {
@@ -292,7 +296,7 @@ describe('a start date in the past, on the Inputs screen', () => {
 
     enter(storage, { startDate: '2026-05-24', ticketsRemaining: '100' }, { low: '4', high: '8' })
 
-    expect(inputsView(storage, TEAM, TODAY).milestone.notes).toEqual([
+    expect(inputsScreenView(storage).milestone.notes).toEqual([
       { input: 'startDate', message: "Start date is 92 days before today; tickets remaining are still today's count." },
     ])
   })
@@ -371,7 +375,7 @@ describe('the cadence', () => {
 
     const warning = { input: 'pace', message: 'At 0 tickets a sprint, the work never finishes.' }
     expect(view(storage)).toMatchObject({ warnings: [warning] })
-    expect(inputsView(storage, TEAM, TODAY).milestone.notes).toEqual([warning])
+    expect(inputsScreenView(storage).milestone.notes).toEqual([warning])
   })
 
   test('at a 14-day cadence, a pace too high to be real is refused per sprint', () => {
@@ -387,7 +391,7 @@ describe('the cadence', () => {
     enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
     expect(edit(storage, { kind: 'setCadence', cadenceDays: '14' })).toEqual({ ok: true })
 
-    expect(inputsView(openStorage(), TEAM, TODAY).milestone.cadenceDays).toBe(14)
+    expect(inputsScreenView(openStorage()).milestone.cadenceDays).toBe(14)
     expect(view(openStorage())).toMatchObject({ cadenceDays: 14, horizonDate: '2032-08-24' })
   })
 })
@@ -421,7 +425,7 @@ describe('typed counts', () => {
       message: 'Typed counts: 1 week entered. The forecast needs at least 2. Add another count, or switch pace to the range.',
     }
     expect(view(storage)).toEqual({ kind: 'problems', name: 'Checkout v2', problems: [note] })
-    expect(inputsView(storage, TEAM, TODAY).milestone.notes).toEqual([note])
+    expect(inputsScreenView(storage).milestone.notes).toEqual([note])
   })
 
   test.each([
@@ -439,7 +443,7 @@ describe('typed counts', () => {
       kind: 'forecast',
       warnings: [{ input: 'pace', message: `Typed counts: ${entered} weeks entered. The forecast needs 8 to be reliable.` }],
     })
-    expect(inputsView(storage, TEAM, TODAY).milestone.notes).toEqual([{ input: 'pace', message: `${entered} of 8 needed for reliable results` }])
+    expect(inputsScreenView(storage).milestone.notes).toEqual([{ input: 'pace', message: `${entered} of 8 needed for reliable results` }])
   })
 
   test('at a 14-day cadence, the reliability warning counts sprints', () => {
@@ -460,19 +464,19 @@ describe('typed counts', () => {
     enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
     expect(edit(storage, { kind: 'setPaceCounts', counts: '6, 4, 9, 7' })).toEqual({ ok: true })
     expect(view(storage)).toMatchObject({ kind: 'forecast', pace: { source: 'range' }, warnings: [] })
-    expect(inputsView(storage, TEAM, TODAY).milestone.notes).toEqual([])
+    expect(inputsScreenView(storage).milestone.notes).toEqual([])
 
     expect(edit(storage, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
     expect(edit(storage, { kind: 'setPaceCounts', counts: '6, 4, 9, 7, 5, 8, 6, 7' })).toEqual({ ok: true })
 
     expect(view(storage)).toMatchObject({ kind: 'forecast', pace: { source: 'counts' }, warnings: [] })
-    expect(inputsView(storage, TEAM, TODAY).milestone.notes).toEqual([])
+    expect(inputsScreenView(storage).milestone.notes).toEqual([])
   })
 
   test('the EM adds a count, removes the last one, and edits the list, oldest first, and the counts are kept across a restart', () => {
     const storage = newTeam()
     enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
-    const counts = () => inputsView(openStorage(), TEAM, TODAY).milestone.paceCounts
+    const counts = () => inputsScreenView(openStorage()).milestone.paceCounts
 
     expect(edit(storage, { kind: 'setPaceCounts', counts: '6 4, 9' })).toEqual({ ok: true })
     expect(counts()).toEqual([6, 4, 9])
@@ -490,7 +494,7 @@ describe('typed counts', () => {
 
     expect(edit(storage, { kind: 'removeLastPaceCount' })).toEqual({ ok: true })
 
-    expect(inputsView(storage, TEAM, TODAY).milestone.paceCounts).toEqual([])
+    expect(inputsScreenView(storage).milestone.paceCounts).toEqual([])
   })
 
   test('switching between the range and typed counts keeps both across a restart, and the forecast uses the one chosen', () => {
@@ -502,12 +506,12 @@ describe('typed counts', () => {
     expect(edit(storage, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
     storage = openStorage()
     expect(view(storage)).toMatchObject({ pace: { source: 'counts', counts: [10, 10] }, dates: [50, 70, 85, 95].map((percent) => ({ percent, date: '2026-09-08' })) })
-    expect(inputsView(storage, TEAM, TODAY).milestone).toMatchObject({ paceMode: 'counts', paceRange: { low: 5, high: 5 } })
+    expect(inputsScreenView(storage).milestone).toMatchObject({ paceMode: 'counts', paceRange: { low: 5, high: 5 } })
 
     expect(edit(storage, { kind: 'setPaceMode', paceMode: 'range' })).toEqual({ ok: true })
     storage = openStorage()
     expect(view(storage)).toMatchObject({ pace: { source: 'range', low: 5, high: 5 }, dates: [50, 70, 85, 95].map((percent) => ({ percent, date: '2026-09-15' })) })
-    expect(inputsView(storage, TEAM, TODAY).milestone).toMatchObject({ paceMode: 'range', paceCounts: [10, 10] })
+    expect(inputsScreenView(storage).milestone).toMatchObject({ paceMode: 'range', paceCounts: [10, 10] })
   })
 
   test('typed counts of 0 throughout give no date, and a warning on the pace', () => {
@@ -543,7 +547,7 @@ describe('typed counts', () => {
     expect(edit(storage, change)).toEqual({ ok: false, error })
 
     expect(view(storage)).toEqual(before)
-    expect(inputsView(storage, TEAM, TODAY).milestone.paceCounts).toEqual([6, 4, 9])
+    expect(inputsScreenView(storage).milestone.paceCounts).toEqual([6, 4, 9])
   })
 
   test.each([
@@ -639,6 +643,52 @@ describe('before there is a forecast', () => {
   })
 })
 
+describe('the typed counts the settings ask for', () => {
+  /** Settings needing 3 typed counts to forecast and 5 to be reliable, not the default 2 and 8. */
+  const settings = { ...DEFAULT_SETTINGS, typedCounts: { forForecast: 3, reliable: 5 } }
+
+  /** The milestone forecast from `counts`, typed counts in use. */
+  function onCounts(counts: string): Storage {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
+    expect(edit(storage, { kind: 'setPaceCounts', counts })).toEqual({ ok: true })
+    expect(edit(storage, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
+    return storage
+  }
+
+  test('with 2 typed counts, too few for the settings, there is no forecast, and the Inputs screen says so beside the pace', () => {
+    const storage = onCounts('6, 4')
+
+    const note = {
+      input: 'pace',
+      message: 'Typed counts: 2 weeks entered. The forecast needs at least 3. Add another count, or switch pace to the range.',
+    }
+    expect(view(storage, settings)).toEqual({ kind: 'problems', name: 'Checkout v2', problems: [note] })
+    expect(inputsScreenView(storage, settings).milestone.notes).toEqual([note])
+  })
+
+  test('with 4 typed counts, the forecast warns it needs 5 to be reliable, and the Inputs screen says so beside the pace', () => {
+    const storage = onCounts('6, 4, 9, 7')
+
+    expect(view(storage, settings)).toMatchObject({
+      kind: 'forecast',
+      warnings: [{ input: 'pace', message: 'Typed counts: 4 weeks entered. The forecast needs 5 to be reliable.' }],
+    })
+    expect(inputsScreenView(storage, settings).milestone.notes).toEqual([{ input: 'pace', message: '4 of 5 needed for reliable results' }])
+  })
+
+  test('with 5 typed counts, nothing warns about the typed counts', () => {
+    const storage = onCounts('6, 4, 9, 7, 5')
+
+    expect(view(storage, settings)).toMatchObject({ kind: 'forecast', warnings: [] })
+    expect(inputsScreenView(storage, settings).milestone.notes).toEqual([])
+  })
+
+  test('the Inputs screen gives the numbers the settings ask for, before anything is entered', () => {
+    expect(inputsScreenView(newTeam(), settings).milestone.typedCountsNeeded).toEqual({ forForecast: 3, reliable: 5 })
+  })
+})
+
 describe('refused edits change nothing and say why', () => {
   const milestone = { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-09-01', ticketsRemaining: '10' } as const
 
@@ -689,7 +739,7 @@ describe('refused edits change nothing and say why', () => {
 
 describe('the milestone on the Inputs screen', () => {
   function inputs(storage: Storage) {
-    return inputsView(storage, TEAM, TODAY).milestone
+    return inputsScreenView(storage).milestone
   }
 
   test('before anything is entered, the start date is pre-filled with today', () => {
@@ -702,6 +752,7 @@ describe('the milestone on the Inputs screen', () => {
       paceRange: undefined,
       paceCounts: [],
       paceMode: 'range',
+      typedCountsNeeded: { forForecast: 2, reliable: 8 },
       notes: [],
     })
   })
@@ -740,6 +791,7 @@ describe('the milestone on the Inputs screen', () => {
       paceRange: { low: 0, high: 0 },
       paceCounts: [],
       paceMode: 'range',
+      typedCountsNeeded: { forForecast: 2, reliable: 8 },
       notes: [{ input: 'pace', message: 'At 0 tickets a week, the work never finishes.' }],
     })
   })
@@ -756,7 +808,7 @@ describe('the milestone on the Inputs screen', () => {
 
 describe('the milestone\'s ambiguity', () => {
   function ambiguity(storage: Storage) {
-    return inputsView(storage, TEAM, TODAY).milestone.ambiguity
+    return inputsScreenView(storage).milestone.ambiguity
   }
 
   test('an untouched milestone is of medium ambiguity, and its forecast says it grew by the medium range', () => {
@@ -843,7 +895,7 @@ describe('growth on the Inputs screen', () => {
     high: typed('1.5', '3'),
   })
   function growth(storage: Storage) {
-    return inputsView(storage, TEAM, TODAY).growth.ranges
+    return inputsScreenView(storage).growth.ranges
   }
 
   test('starts at low 1–1.5×, medium 1–2× and high 1.5–3×', () => {

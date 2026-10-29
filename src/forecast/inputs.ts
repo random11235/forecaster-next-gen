@@ -1,5 +1,6 @@
 import type { Storage } from '../storage/storage.js'
 import type { EditResult } from './editResult.js'
+import type { ForecastSettings } from './settings.js'
 import { editGrowth, growthView, type GrowthEdit, type GrowthView } from './growth.js'
 import { editMilestoneInputs, milestoneInputsView, type MilestoneInputsEdit, type MilestoneInputsView } from './milestoneInputs.js'
 
@@ -13,10 +14,10 @@ export interface InputsView {
   growth: GrowthView
 }
 
-/** Seam B: the Inputs screen for the team on `today`, the start date's default. */
-export function inputsView(storage: Storage, teamId: string, today: string): InputsView {
+/** Seam B: the Inputs screen for the team, its notes judged against `settings`, on `today`, the start date's default. */
+export function inputsView(storage: Storage, teamId: string, settings: ForecastSettings, today: string): InputsView {
   return {
-    milestone: milestoneInputsView(storage, teamId, today),
+    milestone: milestoneInputsView(storage, teamId, settings, today),
     growth: growthView(storage, teamId),
   }
 }

@@ -2,15 +2,7 @@ import { periodEndDate, simulateCase, ENGINE_VERSION, type ForecastResult, type 
 import type { Ambiguity, GrowthRange } from '../model/ambiguity.js'
 import type { Storage } from '../storage/storage.js'
 import { milestoneGrowth } from './growth.js'
-import {
-  inputProblems,
-  inputWarnings,
-  isForecastable,
-  paceInUse,
-  type ForecastableInputs,
-  type InputNote,
-  type PaceInUse,
-} from './milestoneInputs.js'
+import { assessMilestone, type ForecastableInputs, type InputNote, type PaceInUse } from './milestoneAssessment.js'
 import type { ForecastSettings } from './settings.js'
 
 /** The confidence level the headline states. */
@@ -64,11 +56,12 @@ export type MilestoneForecastView =
 
 /** Seam B: the Milestone forecast screen for the team's milestone, forecast from its start date, on `today`. */
 export function milestoneForecastView(storage: Storage, teamId: string, settings: ForecastSettings, today: string): MilestoneForecastView {
-  const inputs = storage.milestoneInputs(teamId)
-  if (!inputs) return { kind: 'empty' }
-  if (!isForecastable(inputs)) return { kind: 'problems', name: inputs.name, problems: inputProblems(inputs) }
+  const saved = storage.milestoneInputs(teamId)
+  if (!saved) return { kind: 'empty' }
+  const assessment = assessMilestone(saved, settings, today)
+  if (!assessment.forecastable) return { kind: 'problems', name: saved.name, problems: assessment.problems }
 
-  const pace = paceInUse(inputs)!
+  const { inputs, pace } = assessment
   const growth = milestoneGrowth(storage, inputs)
   const simulationCase = milestoneCase(inputs, pace, growth, settings)
   const result = simulateCase(simulationCase)
@@ -84,7 +77,7 @@ export function milestoneForecastView(storage: Storage, teamId: string, settings
     cadenceDays: inputs.cadenceDays,
     pace,
     ambiguity: { level: inputs.ambiguity, ...growth },
-    warnings: inputWarnings(inputs, today),
+    warnings: assessment.warnings.map(({ input, message }) => ({ input, message })),
     finishGraph: finishGraph(result, simulationCase),
   }
 }

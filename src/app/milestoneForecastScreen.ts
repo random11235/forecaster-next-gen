@@ -1,6 +1,6 @@
 import { periodName } from '../forecast/cadence.js'
 import { counted } from '../forecast/counted.js'
-import type { InputNote } from '../forecast/milestoneInputs.js'
+import type { InputNote } from '../forecast/milestoneAssessment.js'
 import type { FinishBar, ForecastDate, MilestoneForecastView } from '../forecast/milestoneForecastView.js'
 import { escapeHtml, formatDate, htmlPage, type PageHeader } from './html.js'
 import { INPUT_LABELS } from './inputsScreen.js'

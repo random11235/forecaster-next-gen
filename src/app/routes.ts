@@ -49,8 +49,9 @@ export interface AppContext {
 /** The Milestone forecast screen at `/` and the Inputs screen at `/inputs`; not found for everything else. */
 export function route(request: Request, { storage, today }: AppContext): Reply {
   const team = storage.teams()[0]
+  const settings = DEFAULT_SETTINGS
   if (request.method === 'GET' && request.path === '/') {
-    const view: MilestoneForecastView = team ? milestoneForecastView(storage, team.id, DEFAULT_SETTINGS, today()) : { kind: 'empty' }
+    const view: MilestoneForecastView = team ? milestoneForecastView(storage, team.id, settings, today()) : { kind: 'empty' }
     return { kind: 'html', status: 200, html: renderMilestoneForecastScreen(view) }
   }
   if (!team) return { kind: 'notFound' }
@@ -68,7 +69,7 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
       growthForm?: GrowthForm
     } = {},
   ): Reply => {
-    const view = inputsView(storage, team.id, today())
+    const view = inputsView(storage, team.id, settings, today())
     return {
       kind: 'html',
       status,

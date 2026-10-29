@@ -3,13 +3,10 @@ import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
 import { PACE_MODES, type MilestoneInputs, type PaceMode } from '../model/milestoneInputs.js'
 import type { Storage } from '../storage/storage.js'
 import { periodName } from './cadence.js'
-import { daysBetween, isCalendarDate } from './calendarDate.js'
-import { counted } from './counted.js'
+import { isCalendarDate } from './calendarDate.js'
 import { refuse, type EditResult, type Refusal } from './editResult.js'
-import { DEFAULT_SETTINGS } from './settings.js'
-
-/** How many typed counts the pace needs; not yet editable, so the defaults. */
-const TYPED_COUNTS = DEFAULT_SETTINGS.typedCounts
+import { assessMilestone, type InputNote, type MilestoneAssessment } from './milestoneAssessment.js'
+import type { ForecastSettings } from './settings.js'
 
 /** Far above any real team's pace in one period; keeps typos like 1000000 out of the forecast. */
 export const MAX_TICKETS_PER_PERIOD = 1000
@@ -38,15 +35,6 @@ export type MilestoneInputsEdit =
   /** Which pace the forecast uses, `range` or `counts`; both are kept. */
   | { kind: 'setPaceMode'; paceMode: string }
 
-/** An input of the milestone on the Inputs screen. */
-export type MilestoneInput = 'name' | 'startDate' | 'ticketsRemaining' | 'pace'
-
-/** Something the EM should know about one input: shown beside it on Inputs, and on the forecast. */
-export interface InputNote {
-  input: MilestoneInput
-  message: string
-}
-
 /** The milestone as the Inputs screen shows it, with the start date pre-filled with today until one is entered. */
 export interface MilestoneInputsView {
   name: string
@@ -61,14 +49,17 @@ export interface MilestoneInputsView {
   paceCounts: number[]
   /** Which pace the forecast uses. */
   paceMode: PaceMode
+  /** How many typed counts the settings need: at least `forForecast` for a forecast, and `reliable` to be reliable. */
+  typedCountsNeeded: ForecastSettings['typedCounts']
   /** What stops a forecast, then the warnings, each beside its input; none before anything is entered. */
   notes: InputNote[]
 }
 
 /** The milestone's inputs as the Inputs screen shows them: blank, but for the start date, until the EM enters one. */
-export function milestoneInputsView(storage: Storage, teamId: string, today: string): MilestoneInputsView {
+export function milestoneInputsView(storage: Storage, teamId: string, settings: ForecastSettings, today: string): MilestoneInputsView {
   const saved = storage.milestoneInputs(teamId)
   const inputs = saved ?? newMilestone(teamId)
+  const assessment = saved && assessMilestone(saved, settings, today)
   return {
     name: inputs.name,
     startDate: inputs.startDate ?? today,
@@ -78,110 +69,15 @@ export function milestoneInputsView(storage: Storage, teamId: string, today: str
     paceRange: inputs.paceRange,
     paceCounts: inputs.paceCounts,
     paceMode: inputs.paceMode,
-    notes: saved
-      ? [
-          ...inputProblems(saved),
-          ...warnings(saved, today).map(({ input, message, beside }) => ({ input, message: beside ?? message })),
-        ]
-      : [],
+    typedCountsNeeded: settings.typedCounts,
+    notes: assessment ? notesBeside(assessment) : [],
   }
 }
 
-/**
- * What the EM must enter before the milestone can be forecast: typed counts enough to forecast from, if they're in use,
- * and the inputs only a milestone kept from before the MVP lacks.
- */
-export function inputProblems(inputs: MilestoneInputs): InputNote[] {
-  return [
-    ...(inputs.startDate === undefined ? [{ input: 'startDate', message: 'No start date is saved yet.' } as const] : []),
-    ...(inputs.ticketsRemaining === undefined
-      ? [{ input: 'ticketsRemaining', message: 'Enter how many tickets are left.' } as const]
-      : []),
-    ...(inputs.paceMode === 'range' && inputs.paceRange === undefined
-      ? [{ input: 'pace', message: 'Enter a pace range.' } as const]
-      : []),
-    ...typedCountsShort(inputs),
-  ]
-}
-
-/** A milestone with every input its forecast needs. */
-export type ForecastableInputs = MilestoneInputs & { startDate: string; ticketsRemaining: number }
-
-/** Whether the milestone can be forecast: whether nothing stops it, by the same test as `inputProblems`. */
-export function isForecastable(inputs: MilestoneInputs): inputs is ForecastableInputs {
-  return inputProblems(inputs).length === 0
-}
-
-/** Why the typed counts in use are too few to forecast from, if they are: one count isn't a pace. */
-function typedCountsShort(inputs: MilestoneInputs): InputNote[] {
-  if (inputs.paceMode !== 'counts' || inputs.paceCounts.length >= TYPED_COUNTS.forForecast) return []
-  return [
-    {
-      input: 'pace',
-      message: `${typedCountsEntered(inputs)} The forecast needs at least ${TYPED_COUNTS.forForecast}. Add another count, or switch pace to the range.`,
-    },
-  ]
-}
-
-/** How many typed counts there are, in the milestone's periods: "Typed counts: 4 weeks entered." */
-function typedCountsEntered(inputs: MilestoneInputs): string {
-  return `Typed counts: ${counted(inputs.paceCounts.length, periodName(inputs.cadenceDays))} entered.`
-}
-
-/** The pace the forecast uses: the range, or the typed counts, whichever the EM chose. */
-export type PaceInUse = ({ source: 'range' } & ThroughputRange) | { source: 'counts'; counts: number[] }
-
-/** The pace the milestone's forecast uses, or undefined until the chosen one is entered. */
-export function paceInUse(inputs: MilestoneInputs): PaceInUse | undefined {
-  if (inputs.paceMode === 'counts') return { source: 'counts', counts: inputs.paceCounts }
-  return inputs.paceRange && { source: 'range', ...inputs.paceRange }
-}
-
-/** A warning as the forecast words it, and as the Inputs screen words it beside its input, if that differs. */
-interface Warning extends InputNote {
-  beside?: string
-}
-
-/** Inputs that can be forecast but give a forecast the EM should question, on `today`. */
-export function inputWarnings(inputs: MilestoneInputs, today: string): InputNote[] {
-  return warnings(inputs, today).map(({ input, message }) => ({ input, message }))
-}
-
-function warnings(inputs: MilestoneInputs, today: string): Warning[] {
-  return [...startDateWarnings(inputs, today), ...paceWarnings(inputs), ...typedCountsWarnings(inputs)]
-}
-
-/** Typed counts enough to forecast from, but too few for a range the EM can rely on. */
-function typedCountsWarnings(inputs: MilestoneInputs): Warning[] {
-  const entered = inputs.paceCounts.length
-  if (inputs.paceMode !== 'counts' || entered < TYPED_COUNTS.forForecast || entered >= TYPED_COUNTS.reliable) return []
-  return [
-    {
-      input: 'pace',
-      message: `${typedCountsEntered(inputs)} The forecast needs ${TYPED_COUNTS.reliable} to be reliable.`,
-      beside: `${entered} of ${TYPED_COUNTS.reliable} needed for reliable results`,
-    },
-  ]
-}
-
-/** A start date before today forecasts "had we started then", from today's tickets remaining. */
-function startDateWarnings(inputs: MilestoneInputs, today: string): InputNote[] {
-  if (inputs.startDate === undefined) return []
-  const daysBefore = daysBetween(inputs.startDate, today)
-  if (daysBefore <= 0) return []
-  return [{ input: 'startDate', message: `Start date is ${counted(daysBefore, 'day')} before today; tickets remaining are still today's count.` }]
-}
-
-function paceWarnings(inputs: MilestoneInputs): InputNote[] {
-  const workLeft = (inputs.ticketsRemaining ?? 0) > 0
-  const pace = paceInUse(inputs)
-  // with no counts typed yet, the too-few-counts problem says what to do
-  const zeroPace =
-    pace?.source === 'counts' ? pace.counts.length > 0 && pace.counts.every((count) => count === 0) : pace?.high === 0
-  if (workLeft && zeroPace) {
-    return [{ input: 'pace', message: `At 0 tickets a ${periodName(inputs.cadenceDays)}, the work never finishes.` }]
-  }
-  return []
+/** What stops a forecast, then the warnings, each worded as it reads beside its input. */
+function notesBeside(assessment: MilestoneAssessment): InputNote[] {
+  const problems = assessment.forecastable ? [] : assessment.problems
+  return [...problems, ...assessment.warnings.map(({ input, beside }) => ({ input, message: beside }))]
 }
 
 /** Seam B, through `editInputs`: saves the EM's edit to the milestone. A refused edit changes nothing and says why. */
