@@ -1,7 +1,7 @@
 import { periodEndDate, simulateCase, ENGINE_VERSION, type ForecastResult, type SimulationCase } from '../engine/index.js'
-import type { GrowthRange } from '../model/ambiguity.js'
+import type { Ambiguity, GrowthRange } from '../model/ambiguity.js'
 import type { Storage } from '../storage/storage.js'
-import { savedRanges } from './growth.js'
+import { milestoneGrowth } from './growth.js'
 import { inputProblems, inputWarnings, isForecastable, type ForecastableInputs, type InputNote } from './milestoneInputs.js'
 import type { ForecastSettings } from './settings.js'
 
@@ -13,6 +13,8 @@ export interface ForecastDate {
   percent: number
   /** ISO calendar date, `YYYY-MM-DD`, or null: later than the horizon date. */
   date: string | null
+  /** The date is before today: a past start date can give a finish that has already gone by. */
+  alreadyPast: boolean
 }
 
 /** One period's bar on the finish graph. Shares are fractions of all trials, from 0 to 1. */
@@ -44,18 +46,20 @@ export type MilestoneForecastView =
       /** Days in one of the team's periods, which the pace is per. */
       cadenceDays: number
       pace: { source: 'range'; low: number; high: number }
+      /** The milestone's ambiguity level and the growth range it used. */
+      ambiguity: { level: Ambiguity } & GrowthRange
       warnings: InputNote[]
       /** When the trials finish: one bar per period, from the start date to the last finish within the horizon. */
       finishGraph: FinishBar[]
     }
 
-/** Seam B: the Milestone forecast screen for the team's milestone, forecast from its start date. */
-export function milestoneForecastView(storage: Storage, teamId: string, settings: ForecastSettings): MilestoneForecastView {
+/** Seam B: the Milestone forecast screen for the team's milestone, forecast from its start date, on `today`. */
+export function milestoneForecastView(storage: Storage, teamId: string, settings: ForecastSettings, today: string): MilestoneForecastView {
   const inputs = storage.milestoneInputs(teamId)
   if (!inputs) return { kind: 'empty' }
   if (!isForecastable(inputs)) return { kind: 'problems', name: inputs.name, problems: inputProblems(inputs) }
 
-  const growth = savedRanges(storage, teamId).medium
+  const growth = milestoneGrowth(storage, inputs)
   const simulationCase = milestoneCase(inputs, growth, settings)
   const result = simulateCase(simulationCase)
   const { periodDays, maxPeriods, percentiles } = simulationCase
@@ -65,17 +69,23 @@ export function milestoneForecastView(storage: Storage, teamId: string, settings
     ticketsRemaining: inputs.ticketsRemaining,
     startDate: inputs.startDate,
     headlinePercent: HEADLINE_PERCENT,
-    dates: percentiles.map((percent) => ({ percent, date: result.percentileDates[percent] ?? null })),
+    dates: percentiles.map((percent) => forecastDate(percent, result.percentileDates[percent] ?? null, today)),
     horizonDate: periodEndDate(inputs.startDate, periodDays, maxPeriods),
     cadenceDays: inputs.cadenceDays,
     pace: { source: 'range', ...inputs.paceRange },
-    warnings: inputWarnings(inputs),
+    ambiguity: { level: inputs.ambiguity, ...growth },
+    warnings: inputWarnings(inputs, today),
     finishGraph: finishGraph(result, simulationCase),
   }
 }
 
+function forecastDate(percent: number, date: string | null, today: string): ForecastDate {
+  // ISO calendar dates order as strings do
+  return { percent, date, alreadyPast: date !== null && date < today }
+}
+
 /**
- * The milestone as one scope entry of the tickets remaining, none done, growing by the medium range, in periods of
+ * The milestone as one scope entry of the tickets remaining, none done, growing by its ambiguity's range, in periods of
  * its cadence. With 0 tickets the engine would draw a size, so the size range is pinned to 0 and the forecast finishes
  * on the start date.
  */

@@ -222,6 +222,25 @@ describe('Inputs screen', () => {
   })
 })
 
+describe('Inputs screen: a start date in the past', () => {
+  test('notes beside the start date how many days before today it is', async () => {
+    await startOnPreMvpData()
+
+    const html = await page('/inputs')
+
+    expect(html).toMatch(
+      /name="startDate"[^>]*><\/label>\s*<p class="warning">⚠ Start date is 53 days before today; tickets remaining are still today&#39;s count.<\/p>\s*<label>Tickets remaining/,
+    )
+  })
+
+  test('shows no note for a start date of today', async () => {
+    await startOnPreMvpData()
+    await submitMilestone('Checkout v2', '2026-10-24', '40')
+
+    expect(text(await page('/inputs'))).not.toContain('before today')
+  })
+})
+
 describe('Inputs screen: cadence', () => {
   test('offers the cadence length in days, 7 for an untouched milestone', async () => {
     await startOnPreMvpData()
@@ -277,6 +296,48 @@ function growthForm(overrides: Record<string, string> = {}): [string, string][] 
   const fields = { 'low-low': '1', 'low-high': '1.5', 'medium-low': '1', 'medium-high': '2', 'high-low': '1.5', 'high-high': '3', ...overrides }
   return Object.entries(fields)
 }
+
+describe('Inputs screen: ambiguity', () => {
+  test('offers low, medium and high with their ranges, medium chosen, even where an epic was high before the MVP', async () => {
+    await startOnPreMvpData()
+
+    const html = await page('/inputs')
+
+    expect(html).toMatch(/<input type="radio" name="ambiguity" value="low"(?![^>]*checked)[^>]*>/)
+    expect(html).toMatch(/<input type="radio" name="ambiguity" value="medium"[^>]*checked/)
+    expect(html).toMatch(/<input type="radio" name="ambiguity" value="high"(?![^>]*checked)[^>]*>/)
+    expect(text(html)).toContain('Low 1–1.5×')
+    expect(text(html)).toContain('Medium 1–2×')
+    expect(text(html)).toContain('High 1.5–3×')
+  })
+
+  test('choosing high shows it chosen, and the forecast says it used high ambiguity and finishes later', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+    const before = text(await page('/'))
+    expect(before).toContain('Ambiguity: medium, growing 1–2×')
+
+    const response = await post('/inputs/ambiguity', [['ambiguity', 'high']])
+
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('/')
+    expect(await page('/inputs')).toMatch(/<input type="radio" name="ambiguity" value="high"[^>]*checked/)
+    const after = text(await page('/'))
+    expect(after).toContain('Ambiguity: high, growing 1.5–3×')
+    expect(Date.parse(dateAt(after, 85))).toBeGreaterThan(Date.parse(dateAt(before, 85)))
+  })
+
+  test('refuses a level that is not offered, saying why', async () => {
+    await startOnPreMvpData()
+
+    const response = await post('/inputs/ambiguity', [['ambiguity', 'extreme']])
+
+    expect(response.status).toBe(400)
+    const html = await response.text()
+    expect(text(html)).toContain('Choose low, medium or high ambiguity.')
+    expect(html).toMatch(/<input type="radio" name="ambiguity" value="medium"[^>]*checked/)
+  })
+})
 
 describe('Inputs screen: growth', () => {
   test('shows the default ranges', async () => {
@@ -423,6 +484,28 @@ describe('Milestone forecast screen', () => {
     await submitPace('0', '0')
 
     expect(await page('/')).not.toContain('<figure class="finish-graph"')
+  })
+
+  test('states a past start date once, and marks finish dates before today as already past', async () => {
+    await startOnPreMvpData()
+    await submitMilestone('Checkout v2', '2026-03-02', '40')
+    await submitPace('4', '8')
+
+    const screen = text(await page('/'))
+
+    expect(screen).toContain('⚠ Start date is 236 days before today; tickets remaining are still today&#39;s count.')
+    expect(screen).not.toContain('Start date: Start date')
+    expect(screen).toMatch(/Starting 2 Mar 2026: 85% sure of finishing by \d{1,2} [A-Z][a-z]{2} 2026 \(already past\)/)
+    for (const percent of [50, 70, 85, 95]) {
+      expect(screen).toMatch(new RegExp(`${percent}% sure by \\d{1,2} [A-Z][a-z]{2} 2026 \\(already past\\)`))
+    }
+  })
+
+  test('does not mark finish dates on or after today', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+
+    expect(text(await page('/'))).not.toContain('already past')
   })
 
   test("forecasts data from before the MVP from its MVP fields, adding no team and showing none of its epics on either screen", async () => {

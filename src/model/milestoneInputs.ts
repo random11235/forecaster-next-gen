@@ -15,7 +15,7 @@ export interface MilestoneInputs {
   startDate: string | undefined
   /** Whole tickets left today; undefined only for a milestone kept from before the MVP. */
   ticketsRemaining: number | undefined
-  /** Unused until the EM can choose one level for the whole milestone (#88): the forecast grows it by the medium range. */
+  /** One level for the whole milestone, medium until the EM chooses: the forecast grows it by that level's range. */
   ambiguity: Ambiguity
   /** Days in one of the team's periods: 7 is a week, anything else a sprint. */
   cadenceDays: number
