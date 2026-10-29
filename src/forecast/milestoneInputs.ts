@@ -80,7 +80,7 @@ function notesBeside(assessment: MilestoneAssessment): InputNote[] {
   return [...problems, ...assessment.warnings.map(({ input, beside }) => ({ input, message: beside }))]
 }
 
-/** Seam B, through `editInputs`: saves the EM's edit to the milestone. A refused edit changes nothing and says why. */
+/** Seam B, through `submitInputs`: saves the EM's edit to the milestone. A refused edit changes nothing and says why. */
 export function editMilestoneInputs(storage: Storage, teamId: string, edit: MilestoneInputsEdit): EditResult {
   const saved = storage.milestoneInputs(teamId)
   if (edit.kind === 'setMilestone') return save(storage, withMilestone(saved ?? newMilestone(teamId), edit))

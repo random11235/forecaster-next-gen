@@ -1,29 +1,8 @@
-import { editInputs, inputsView, type InputsEdit } from '../forecast/inputs.js'
+import { inputsView, submitInputs, type NextScreen } from '../forecast/inputs.js'
 import { milestoneForecastView, type MilestoneForecastView } from '../forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS } from '../forecast/settings.js'
 import type { Storage } from '../storage/storage.js'
-import {
-  parseAmbiguity,
-  parseAddCount,
-  parseCadenceForm,
-  parseGrowthForm,
-  parseMilestoneForm,
-  parsePaceCounts,
-  parsePaceForm,
-  parsePaceMode,
-  renderInputsScreen,
-  savedCadenceForm,
-  savedGrowthForm,
-  savedMilestoneForm,
-  savedPaceCountsForm,
-  savedPaceForm,
-  type CadenceForm,
-  type ChoiceForm,
-  type GrowthForm,
-  type MilestoneForm,
-  type PaceCountsForm,
-  type PaceForm,
-} from './inputsScreen.js'
+import { INPUTS_FORMS, renderInputsScreen } from './inputsScreen.js'
 import { renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
 
 /** A request as the routes see it: the server has already read the form body. */
@@ -55,81 +34,16 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
     return { kind: 'html', status: 200, html: renderMilestoneForecastScreen(view) }
   }
   if (!team) return { kind: 'notFound' }
-  const form = request.form ?? new URLSearchParams()
-  // a saved POST redirects, so only a GET or a refused edit reads the Inputs view
-  const inputsScreen = (
-    status: number,
-    refused: {
-      milestoneForm?: MilestoneForm
-      cadenceForm?: CadenceForm
-      paceForm?: PaceForm
-      paceModeForm?: ChoiceForm
-      paceCountsForm?: PaceCountsForm
-      ambiguityForm?: ChoiceForm
-      growthForm?: GrowthForm
-    } = {},
-  ): Reply => {
-    const view = inputsView(storage, team.id, settings, today())
-    return {
-      kind: 'html',
-      status,
-      html: renderInputsScreen({
-        milestone: view.milestone,
-        milestoneForm: refused.milestoneForm ?? savedMilestoneForm(view.milestone),
-        cadenceForm: refused.cadenceForm ?? savedCadenceForm(view.milestone),
-        paceForm: refused.paceForm ?? savedPaceForm(view.milestone),
-        paceModeForm: refused.paceModeForm ?? {},
-        paceCountsForm: refused.paceCountsForm ?? savedPaceCountsForm(view.milestone),
-        ambiguityForm: refused.ambiguityForm ?? {},
-        growth: refused.growthForm ?? savedGrowthForm(view.growth),
-        ranges: view.growth.ranges,
-      }),
-    }
+  if (request.method === 'GET' && request.path === '/inputs') {
+    return { kind: 'html', status: 200, html: renderInputsScreen(inputsView(storage, team.id, settings, today())) }
   }
-  /** Saves the edit and redirects, or shows the Inputs screen again with the refusal. */
-  const edit = (change: InputsEdit, location: string, refused: (error: string) => Parameters<typeof inputsScreen>[1]): Reply => {
-    const saved = editInputs(storage, team.id, change)
-    return saved.ok ? { kind: 'redirect', location } : inputsScreen(400, refused(saved.error))
-  }
-
-  /** The typed counts as saved, for a refusal that keeps the list but not what was typed elsewhere. */
-  const savedCounts = (): PaceCountsForm => savedPaceCountsForm({ paceCounts: storage.milestoneInputs(team.id)?.paceCounts ?? [] })
-
-  if (request.method === 'GET' && request.path === '/inputs') return inputsScreen(200)
-  if (request.method === 'POST' && request.path === '/inputs/milestone') {
-    const typed = parseMilestoneForm(form)
-    return edit({ kind: 'setMilestone', ...typed }, '/inputs', (error) => ({ milestoneForm: { ...typed, error } }))
-  }
-  if (request.method === 'POST' && request.path === '/inputs/cadence') {
-    const typed = parseCadenceForm(form)
-    return edit({ kind: 'setCadence', ...typed }, '/inputs', (error) => ({ cadenceForm: { ...typed, error } }))
-  }
-  if (request.method === 'POST' && request.path === '/inputs/pace') {
-    const typed = parsePaceForm(form)
-    return edit({ kind: 'setPaceRange', ...typed }, '/', (error) => ({ paceForm: { ...typed, error } }))
-  }
-  if (request.method === 'POST' && request.path === '/inputs/pace-mode') {
-    const paceMode = parsePaceMode(form)
-    return edit({ kind: 'setPaceMode', paceMode }, '/', (error) => ({ paceModeForm: { error } }))
-  }
-  if (request.method === 'POST' && request.path === '/inputs/pace-counts') {
-    const counts = parsePaceCounts(form)
-    return edit({ kind: 'setPaceCounts', counts }, '/inputs', (error) => ({ paceCountsForm: { counts, count: '', error } }))
-  }
-  if (request.method === 'POST' && request.path === '/inputs/pace-counts/add') {
-    const count = parseAddCount(form)
-    return edit({ kind: 'addPaceCount', count }, '/inputs', (error) => ({ paceCountsForm: { ...savedCounts(), count, error } }))
-  }
-  if (request.method === 'POST' && request.path === '/inputs/pace-counts/remove-last') {
-    return edit({ kind: 'removeLastPaceCount' }, '/inputs', (error) => ({ paceCountsForm: { ...savedCounts(), error } }))
-  }
-  if (request.method === 'POST' && request.path === '/inputs/ambiguity') {
-    const level = parseAmbiguity(form)
-    return edit({ kind: 'setAmbiguity', level }, '/', (error) => ({ ambiguityForm: { error } }))
-  }
-  if (request.method === 'POST' && request.path === '/inputs/growth') {
-    const typed = parseGrowthForm(form)
-    return edit({ kind: 'setAmbiguityRanges', ...typed.ranges }, '/inputs', (error) => ({ growthForm: { ...typed, error } }))
-  }
-  return { kind: 'notFound' }
+  const readForm = request.method === 'POST' ? INPUTS_FORMS.get(request.path) : undefined
+  if (!readForm) return { kind: 'notFound' }
+  const submitted = submitInputs(storage, team.id, settings, today(), readForm(request.form ?? new URLSearchParams()))
+  return submitted.saved
+    ? { kind: 'redirect', location: SCREEN_PATHS[submitted.next] }
+    : { kind: 'html', status: 400, html: renderInputsScreen(submitted.screen) }
 }
+
+/** Where each screen is served. */
+const SCREEN_PATHS: Record<NextScreen, string> = { forecast: '/', inputs: '/inputs' }

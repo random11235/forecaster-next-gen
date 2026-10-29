@@ -56,7 +56,7 @@ src/
     index.ts              # exports simulateCase, periodEndDate and the types only
 
   forecast/               # the only module that knows both stored data and the engine
-    inputs.ts             # Seam B: stored data → the Inputs screen's view; its edits, by the files behind it
+    inputs.ts             # Seam B: stored data → the Inputs screen's view; a submitted form saved (and where next) or refused (and the screen to show again)
     milestoneInputs.ts    # behind inputs.ts: the milestone's view and edits
     milestoneAssessment.ts  # behind both views: the milestone's inputs against the settings and today: the pace in use, what stops a forecast, the warnings
     growth.ts             # behind inputs.ts: the ambiguity ranges view and edit; the milestone's growth range
@@ -68,7 +68,7 @@ src/
     editResult.ts         # an edit saved, or refused saying why
 
   storage/                # interface and its v1 SQLite file, with the schema's migrations
-  app/                    # local server (localhost only), screens, `npm start` entry point
+  app/                    # local server (localhost only), screens, `npm start` entry point; each screen's HTML, and reading the fields of the forms it posts
 
 test/
   app/                    # the screens, launch, and the launch smoke test: start the app, check the screen is served
@@ -94,7 +94,7 @@ test/
 
 **Test seams.** There are two, as set in the spec:
 - **Seam A** is `simulateCase`, tested with fixed seeds ([`engine.md`](engine.md)).
-- **Seam B** is `forecast/`: stored facts, settings and the ledger go in, and the screens' views come out: `milestoneForecastView` for the Milestone forecast screen, and `inputsView` with `editInputs` for the Inputs screen. Both views take the same `ForecastSettings` and judge the milestone by one assessment (`assessMilestone`), so the typed counts a forecast needs, the notes beside the inputs and the Inputs screen's hint all come from those settings. In v1, team facts is part of it and tests may call `teamFacts` directly; the MVP has no team facts. Its logic is in [`forecast-model.md`](forecast-model.md).
+- **Seam B** is `forecast/`: stored facts, settings and the ledger go in, and the screens' views come out: `milestoneForecastView` for the Milestone forecast screen, and `inputsView` with `submitInputs` for the Inputs screen. `submitInputs` takes a form as typed (`InputsEdit`) and either saves it, saying which screen comes next, or refuses it, returning the Inputs view to show again: that form as typed, the rest as saved, and the refusal on the form it belongs to; so refused re-display is tested here, without the server. Reading a form's fields from the request body stays in `app/`, beside the HTML that names them. Both views take the same `ForecastSettings` and judge the milestone by one assessment (`assessMilestone`), so the typed counts a forecast needs, the notes beside the inputs and the Inputs screen's hint all come from those settings. In v1, team facts is part of it and tests may call `teamFacts` directly; the MVP has no team facts. Its logic is in [`forecast-model.md`](forecast-model.md).
 
 Warning text and provenance are tested at Seam B, not Seam A. These cases moved from the engine tests. Each is owed, in `test/forecast/`, by the ticket that adds its warning or diagnostic. Since the MVP, only the first two can arise: the last four name epics, commits or measured pace, which return after it.
 - the horizon warning when fewer trials finish than the highest reported percentile, with the floored percentage and the horizon date, and none when enough finish;
