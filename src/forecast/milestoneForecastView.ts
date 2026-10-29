@@ -7,7 +7,6 @@ import {
   inputWarnings,
   isForecastable,
   paceInUse,
-  typedCountsShort,
   type ForecastableInputs,
   type InputNote,
   type PaceInUse,
@@ -40,10 +39,8 @@ export interface FinishBar {
 export type MilestoneForecastView =
   /** Nothing entered yet: the screen sends the EM to Inputs. */
   | { kind: 'empty' }
-  /** Inputs that can't be forecast, each naming what to fix. */
+  /** Inputs that can't be forecast, each naming what to fix: one missing, or too few typed counts. */
   | { kind: 'problems'; name: string; problems: InputNote[] }
-  /** Too few typed counts to forecast from, saying how many there are and what to do. */
-  | { kind: 'needsPace'; name: string; note: InputNote }
   | {
       kind: 'forecast'
       name: string
@@ -70,8 +67,6 @@ export function milestoneForecastView(storage: Storage, teamId: string, settings
   const inputs = storage.milestoneInputs(teamId)
   if (!inputs) return { kind: 'empty' }
   if (!isForecastable(inputs)) return { kind: 'problems', name: inputs.name, problems: inputProblems(inputs) }
-  const short = typedCountsShort(inputs)
-  if (short) return { kind: 'needsPace', name: inputs.name, note: short }
 
   const pace = paceInUse(inputs)!
   const growth = milestoneGrowth(storage, inputs)
