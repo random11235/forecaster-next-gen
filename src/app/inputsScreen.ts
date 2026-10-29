@@ -6,9 +6,7 @@ import {
   type MilestoneInputsView,
 } from '../forecast/milestoneInputs.js'
 import { ambiguityName, MAX_GROWTH, type GrowthView, type TypedRange } from '../forecast/growth.js'
-import type { WorkflowEdit, WorkflowSettingsView } from '../forecast/workflowSettings.js'
 import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
-import { STATUS_CATEGORIES, STATUS_CATEGORY_NAMES, type StatusCategory } from '../model/workflow.js'
 import { escapeHtml, htmlPage } from './html.js'
 
 /** Each input of the milestone by its label on this screen, which notes about it are named by everywhere. */
@@ -54,7 +52,6 @@ export function savedGrowthForm({ ranges }: GrowthView): GrowthForm {
   return { ranges: { low: typed(ranges.low), medium: typed(ranges.medium), high: typed(ranges.high) } }
 }
 
-
 /** The milestone form as typed, and why it was refused, if it was. */
 export interface MilestoneForm {
   name: string
@@ -75,61 +72,6 @@ export function parseMilestoneForm(body: URLSearchParams): MilestoneForm {
 /** The milestone form filled with what is saved, the start date pre-filled with today until one is. */
 export function savedMilestoneForm(view: MilestoneInputsView): MilestoneForm {
   return { name: view.name, startDate: view.startDate, ticketsRemaining: view.ticketsRemaining === undefined ? '' : String(view.ticketsRemaining) }
-}
-
-/** The workflow settings form as typed: a category for each status by name, and the rest as text. */
-export interface WorkflowForm {
-  /** Each status's category as chosen, by status name; blank when none was chosen. */
-  categories: Record<string, string>
-  startedStatus: string
-  /** Blank for none. */
-  commitLabel: string
-  /** Comma-separated lists. */
-  blockedStatuses: string
-  blockedLabels: string
-}
-
-const STATUS_FIELD = 'status:'
-const LIST_SEPARATOR = ', '
-
-/** Reads the submitted workflow settings form; the rules they must meet are checked when they are saved. */
-export function parseWorkflowForm(body: URLSearchParams): { form: WorkflowForm; edit: WorkflowEdit } {
-  const categories: Record<string, string> = {}
-  for (const [field, value] of body) if (field.startsWith(STATUS_FIELD)) categories[field.slice(STATUS_FIELD.length)] = value
-  const text = (field: keyof WorkflowForm): string => body.get(field) ?? ''
-  const form: WorkflowForm = {
-    categories,
-    startedStatus: text('startedStatus'),
-    commitLabel: text('commitLabel'),
-    blockedStatuses: text('blockedStatuses'),
-    blockedLabels: text('blockedLabels'),
-  }
-  const list = (typed: string): string[] => typed.split(',')
-  const edit: WorkflowEdit = {
-    categories,
-    startedStatus: form.startedStatus,
-    commitLabel: form.commitLabel,
-    blockedRule: { statuses: list(form.blockedStatuses), labels: list(form.blockedLabels) },
-  }
-  return { form, edit }
-}
-
-/** The workflow settings form filled with the team's saved settings. */
-export function savedWorkflowForm({ statuses, startedStatus, commitLabel, blockedRule }: WorkflowSettingsView): WorkflowForm {
-  return {
-    categories: Object.fromEntries(statuses.map(({ status, category }) => [status, category ?? ''])),
-    startedStatus,
-    commitLabel: commitLabel ?? '',
-    blockedStatuses: blockedRule.statuses.join(LIST_SEPARATOR),
-    blockedLabels: blockedRule.labels.join(LIST_SEPARATOR),
-  }
-}
-
-/** The workflow section: the statuses to map, in order, and the form as saved or as typed when refused. */
-export interface WorkflowScreen {
-  statuses: string[]
-  form: WorkflowForm
-  error?: string
 }
 
 /** What the Inputs screen shows. */
@@ -244,60 +186,6 @@ ${rows}
             </tbody>
           </table>
           <div class="actions"><button type="submit">Save ranges</button></div>
-        </form>`,
-  )
-}
-
-/** The category's name as an option label: "Not started". */
-function categoryLabel(category: StatusCategory): string {
-  const name = STATUS_CATEGORY_NAMES[category]
-  return name.charAt(0).toUpperCase() + name.slice(1)
-}
-
-function workflowSection({ statuses, form, error }: WorkflowScreen): Section {
-  const rows = statuses
-    .map((status) => {
-      const chosen = form.categories[status] ?? ''
-      const options = [
-        `<option value=""${chosen === '' ? ' selected' : ''}>Choose…</option>`,
-        ...STATUS_CATEGORIES.map(
-          (category) => `<option value="${category}"${chosen === category ? ' selected' : ''}>${categoryLabel(category)}</option>`,
-        ),
-      ].join('')
-      return `              <tr>
-                <td>${escapeHtml(status)}</td>
-                <td><select name="${STATUS_FIELD}${escapeHtml(status)}" aria-label="What ${escapeHtml(status)} means">${options}</select></td>
-              </tr>`
-    })
-    .join('\n')
-  const startedOptions = statuses
-    .map(
-      (status) =>
-        `<option value="${escapeHtml(status)}"${form.startedStatus === status ? ' selected' : ''}>${escapeHtml(status)}</option>`,
-    )
-    .join('')
-  const textField = (name: Exclude<keyof WorkflowForm, 'categories'>, label: string, hint: string): string =>
-    `            <label class="field">${label} <input type="text" name="${name}" value="${escapeHtml(form[name])}"> <span class="note">${hint}</span></label>`
-  return inputSection(
-    'Workflow',
-    'Workflow',
-    'How the team’s board works: what each status means to the forecast, and what commits or blocks an epic.',
-    `        <form method="post" action="/inputs/workflow">${errorLine(error)}
-          <table class="workflow">
-            <thead>
-              <tr><th>Board status</th><th>Means</th></tr>
-            </thead>
-            <tbody>
-${rows}
-            </tbody>
-          </table>
-          <div class="settings">
-            <label class="field">Cycle time starts at <select name="startedStatus">${startedOptions}</select> <span class="note">A status that means started.</span></label>
-${textField('commitLabel', 'Commit label', 'Optional. Applying it to an epic commits the epic.')}
-${textField('blockedStatuses', 'Blocked statuses', 'Comma-separated statuses that mark an epic as blocked.')}
-${textField('blockedLabels', 'Blocked labels or flags', 'Comma-separated labels that mark an epic as blocked.')}
-          </div>
-          <div class="actions"><button type="submit" class="primary">Save workflow</button></div>
         </form>`,
   )
 }

@@ -1,8 +1,9 @@
 import { periodEndDate, simulateCase, ENGINE_VERSION, type SimulationCase } from '../engine/index.js'
 import type { GrowthRange } from '../model/ambiguity.js'
 import type { Storage } from '../storage/storage.js'
+import { savedRanges } from './growth.js'
 import { inputProblems, inputWarnings, isForecastable, type ForecastableInputs, type InputNote } from './milestoneInputs.js'
-import { DEFAULT_AMBIGUITY_RANGES, type ForecastSettings } from './settings.js'
+import type { ForecastSettings } from './settings.js'
 
 /** The confidence level the headline states. */
 export const HEADLINE_PERCENT = 85
@@ -40,7 +41,7 @@ export function milestoneForecastView(storage: Storage, teamId: string, settings
   if (!inputs) return { kind: 'empty' }
   if (!isForecastable(inputs)) return { kind: 'problems', name: inputs.name, problems: inputProblems(inputs) }
 
-  const growth = (storage.ambiguityRanges(teamId) ?? DEFAULT_AMBIGUITY_RANGES).medium
+  const growth = savedRanges(storage, teamId).medium
   const simulationCase = milestoneCase(inputs, growth, settings)
   const result = simulateCase(simulationCase)
   const { periodDays, maxPeriods, percentiles } = simulationCase

@@ -1,13 +1,9 @@
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
-import type { Ambiguity, AmbiguityRanges, EpicAmbiguity } from '../model/ambiguity.js'
-import type { EpicCommit } from '../model/epicCommit.js'
-import type { Milestone } from '../model/milestone.js'
+import type { Ambiguity, AmbiguityRanges } from '../model/ambiguity.js'
 import type { MilestoneInputs, PaceMode } from '../model/milestoneInputs.js'
 import type { Team } from '../model/team.js'
-import type { StatusMapping } from '../model/workflow.js'
-import type { Facts, WorkItem, WorkItemEvent } from '../model/workItem.js'
 import type { Storage } from './storage.js'
 
 /**
@@ -74,8 +70,8 @@ CREATE TABLE IF NOT EXISTS pace_settings (
   FOREIGN KEY (team_id, milestone_id) REFERENCES milestones(team_id, id)
 );
 `,
-  // 2: each team's workflow settings (#18). Teams already stored get the sample board's workflow, as in
-  // `defaultWorkflowSettings`. Lists are JSON arrays, as work_items.labels is.
+  // 2: each team's workflow settings (#18). Teams already stored get the sample board's workflow.
+  // Lists are JSON arrays, as work_items.labels is.
   `
 CREATE TABLE workflow_settings (
   team_id TEXT PRIMARY KEY REFERENCES teams(id),
@@ -131,7 +127,7 @@ CREATE TABLE epic_ambiguities (
 `,
   // 6: when the Forecaster was installed for each team (#22): nothing finished before it counts towards measured pace.
   // Teams already stored count from this upgrade, so no older pace is used; the sample team from when its canned
-  // epics were created, as `SAMPLE_DATA` has it.
+  // epics were created, as the sample data had it.
   `
 ALTER TABLE teams ADD COLUMN installed_at TEXT;
 UPDATE teams SET installed_at = CASE source
@@ -186,30 +182,6 @@ export function openSqliteStorage(file: string): Storage {
   const upsertTeam = db.prepare(`
     INSERT INTO teams (id, name, source, source_ref, installed_at) VALUES (?, ?, ?, ?, ?)
     ON CONFLICT (id) DO UPDATE SET name = excluded.name, source = excluded.source, source_ref = excluded.source_ref`)
-  const upsertItem = db.prepare(`
-    INSERT INTO work_items (id, team_id, source_key, type, title, parent_id, labels, created_at, started_at, done_at, cancelled_at, last_synced_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT (team_id, id) DO UPDATE SET
-      source_key = excluded.source_key, type = excluded.type, title = excluded.title,
-      parent_id = excluded.parent_id, labels = excluded.labels, created_at = excluded.created_at,
-      started_at = excluded.started_at, done_at = excluded.done_at, cancelled_at = excluded.cancelled_at,
-      last_synced_at = excluded.last_synced_at`)
-  const insertEvent = db.prepare(`
-    INSERT INTO work_item_events (team_id, item_id, at, kind, from_value, to_value)
-    VALUES (?, ?, ?, ?, ?, ?)`)
-  const upsertMilestone = db.prepare(`
-    INSERT INTO milestones (id, team_id, name, committed_date) VALUES (?, ?, ?, ?)
-    ON CONFLICT (team_id, id) DO UPDATE SET name = excluded.name, committed_date = excluded.committed_date`)
-  const deleteMilestoneEpics = db.prepare('DELETE FROM milestone_epics WHERE team_id = ? AND milestone_id = ?')
-  const insertMilestoneEpic = db.prepare(
-    'INSERT INTO milestone_epics (team_id, milestone_id, rank, epic_id) VALUES (?, ?, ?, ?)',
-  )
-  const upsertPaceSetting = db.prepare(`
-    INSERT INTO pace_settings (team_id, milestone_id, mode, low, high) VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT (team_id, milestone_id) DO UPDATE SET mode = excluded.mode, low = excluded.low, high = excluded.high`)
-  const selectPaceSetting = db.prepare(
-    'SELECT team_id, milestone_id, mode, low, high FROM pace_settings WHERE team_id = ? AND milestone_id = ?',
-  )
   const upsertMilestoneInputs = db.prepare(`
     INSERT INTO milestone_inputs
       (team_id, name, start_date, tickets_remaining, ambiguity, cadence_days, pace_mode, pace_low, pace_high, pace_counts)
@@ -219,32 +191,14 @@ export function openSqliteStorage(file: string): Storage {
       ambiguity = excluded.ambiguity, cadence_days = excluded.cadence_days, pace_mode = excluded.pace_mode,
       pace_low = excluded.pace_low, pace_high = excluded.pace_high, pace_counts = excluded.pace_counts`)
   const selectMilestoneInputs = db.prepare('SELECT * FROM milestone_inputs WHERE team_id = ?')
-  const upsertWorkflowSettings = db.prepare(`
-    INSERT INTO workflow_settings (team_id, statuses, started_status, commit_label, blocked_statuses, blocked_labels)
-    VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT (team_id) DO UPDATE SET
-      statuses = excluded.statuses, started_status = excluded.started_status, commit_label = excluded.commit_label,
-      blocked_statuses = excluded.blocked_statuses, blocked_labels = excluded.blocked_labels`)
-  const selectWorkflowSettings = db.prepare('SELECT * FROM workflow_settings WHERE team_id = ?')
-  const upsertEpicCommit = db.prepare(`
-    INSERT INTO epic_commits (team_id, epic_id, committed_at, child_count_at_commit) VALUES (?, ?, ?, ?)
-    ON CONFLICT (team_id, epic_id) DO UPDATE SET
-      committed_at = excluded.committed_at, child_count_at_commit = excluded.child_count_at_commit`)
-  const selectEpicCommits = db.prepare('SELECT * FROM epic_commits WHERE team_id = ? ORDER BY rowid')
+  // medium_measured is left as it is: nothing reads it since measured growth went with the MVP (#84)
   const upsertAmbiguityRanges = db.prepare(`
     INSERT INTO ambiguity_ranges (team_id, low_low, low_high, medium_low, medium_high, high_low, high_high, medium_measured)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 0)
     ON CONFLICT (team_id) DO UPDATE SET
       low_low = excluded.low_low, low_high = excluded.low_high, medium_low = excluded.medium_low,
-      medium_high = excluded.medium_high, high_low = excluded.high_low, high_high = excluded.high_high,
-      medium_measured = excluded.medium_measured`)
+      medium_high = excluded.medium_high, high_low = excluded.high_low, high_high = excluded.high_high`)
   const selectAmbiguityRanges = db.prepare('SELECT * FROM ambiguity_ranges WHERE team_id = ?')
-  const upsertEpicAmbiguity = db.prepare(`
-    INSERT INTO epic_ambiguities (team_id, milestone_id, epic_id, ambiguity) VALUES (?, ?, ?, ?)
-    ON CONFLICT (team_id, milestone_id, epic_id) DO UPDATE SET ambiguity = excluded.ambiguity`)
-  const selectEpicAmbiguities = db.prepare(
-    'SELECT * FROM epic_ambiguities WHERE team_id = ? AND milestone_id = ? ORDER BY rowid',
-  )
 
   return {
     isEmpty() {
@@ -266,84 +220,6 @@ export function openSqliteStorage(file: string): Storage {
           sourceRef: String(row.source_ref),
           installedAt: String(row.installed_at),
         }))
-    },
-
-    addFacts(teamId, facts) {
-      transaction(() => {
-        for (const item of facts.workItems) {
-          if (item.teamId !== teamId) throw new Error(`Work item ${item.id} belongs to team ${item.teamId}, not ${teamId}.`)
-          upsertItem.run(
-            item.id,
-            teamId,
-            item.sourceKey,
-            item.type,
-            item.title ?? null,
-            item.parentId ?? null,
-            JSON.stringify(item.labels),
-            item.createdAt,
-            item.startedAt ?? null,
-            item.doneAt ?? null,
-            item.cancelledAt ?? null,
-            item.lastSyncedAt,
-          )
-        }
-        for (const event of facts.events) {
-          insertEvent.run(teamId, event.itemId, event.at, event.kind, event.from ?? null, event.to ?? null)
-        }
-      })
-    },
-
-    facts(teamId) {
-      const workItems = db
-        .prepare('SELECT * FROM work_items WHERE team_id = ? ORDER BY rowid')
-        .all(teamId)
-        .map(toWorkItem)
-      const events = db
-        .prepare('SELECT * FROM work_item_events WHERE team_id = ? ORDER BY rowid')
-        .all(teamId)
-        .map(toEvent)
-      return { workItems, events }
-    },
-
-    saveMilestone(milestone) {
-      transaction(() => {
-        upsertMilestone.run(milestone.id, milestone.teamId, milestone.name, milestone.committedDate)
-        deleteMilestoneEpics.run(milestone.teamId, milestone.id)
-        milestone.epicIds.forEach((epicId, rank) =>
-          insertMilestoneEpic.run(milestone.teamId, milestone.id, rank, epicId),
-        )
-      })
-    },
-
-    milestones(teamId) {
-      const epics = db.prepare('SELECT epic_id FROM milestone_epics WHERE team_id = ? AND milestone_id = ? ORDER BY rank')
-      return db
-        .prepare('SELECT id, team_id, name, committed_date FROM milestones WHERE team_id = ? ORDER BY rowid')
-        .all(teamId)
-        .map(
-          (row: Row): Milestone => ({
-            id: String(row.id),
-            teamId: String(row.team_id),
-            name: String(row.name),
-            committedDate: String(row.committed_date),
-            epicIds: epics.all(teamId, String(row.id)).map((epic: Row) => String(epic.epic_id)),
-          }),
-        )
-    },
-
-    savePaceSetting(setting) {
-      upsertPaceSetting.run(setting.teamId, setting.milestoneId, setting.mode, setting.manual?.low ?? null, setting.manual?.high ?? null)
-    },
-
-    paceSetting(teamId, milestoneId) {
-      const row = selectPaceSetting.get(teamId, milestoneId)
-      if (row === undefined) return undefined
-      return {
-        teamId: String(row.team_id),
-        milestoneId: String(row.milestone_id),
-        mode: row.mode === 'measured' ? 'measured' : 'manual',
-        manual: row.low === null ? undefined : { low: Number(row.low), high: Number(row.high) },
-      }
     },
 
     saveMilestoneInputs(inputs) {
@@ -377,45 +253,6 @@ export function openSqliteStorage(file: string): Storage {
       } satisfies MilestoneInputs
     },
 
-    saveWorkflowSettings(settings) {
-      upsertWorkflowSettings.run(
-        settings.teamId,
-        JSON.stringify(settings.statuses),
-        settings.startedStatus,
-        settings.commitLabel ?? null,
-        JSON.stringify(settings.blockedRule.statuses),
-        JSON.stringify(settings.blockedRule.labels),
-      )
-    },
-
-    workflowSettings(teamId) {
-      const row = selectWorkflowSettings.get(teamId)
-      if (row === undefined) return undefined
-      const list = (value: SQLInputValue | undefined): string[] => JSON.parse(String(value)) as string[]
-      return {
-        teamId: String(row.team_id),
-        statuses: JSON.parse(String(row.statuses)) as StatusMapping[],
-        startedStatus: String(row.started_status),
-        ...optional('commitLabel', row.commit_label),
-        blockedRule: { statuses: list(row.blocked_statuses), labels: list(row.blocked_labels) },
-      }
-    },
-
-    saveEpicCommit(commit) {
-      upsertEpicCommit.run(commit.teamId, commit.epicId, commit.committedAt, commit.baseline)
-    },
-
-    epicCommits(teamId) {
-      return selectEpicCommits.all(teamId).map(
-        (row: Row): EpicCommit => ({
-          teamId: String(row.team_id),
-          epicId: String(row.epic_id),
-          committedAt: String(row.committed_at),
-          baseline: Number(row.child_count_at_commit),
-        }),
-      )
-    },
-
     saveAmbiguityRanges(ranges) {
       upsertAmbiguityRanges.run(
         ranges.teamId,
@@ -425,7 +262,6 @@ export function openSqliteStorage(file: string): Storage {
         ranges.medium.high,
         ranges.high.low,
         ranges.high.high,
-        ranges.mediumMeasured ? 1 : 0,
       )
     },
 
@@ -438,23 +274,7 @@ export function openSqliteStorage(file: string): Storage {
         low: range('low'),
         medium: range('medium'),
         high: range('high'),
-        mediumMeasured: Number(row.medium_measured) === 1,
       } satisfies AmbiguityRanges
-    },
-
-    saveEpicAmbiguity(setting) {
-      upsertEpicAmbiguity.run(setting.teamId, setting.milestoneId, setting.epicId, setting.ambiguity)
-    },
-
-    epicAmbiguities(teamId, milestoneId) {
-      return selectEpicAmbiguities.all(teamId, milestoneId).map(
-        (row: Row): EpicAmbiguity => ({
-          teamId: String(row.team_id),
-          milestoneId: String(row.milestone_id),
-          epicId: String(row.epic_id),
-          ambiguity: String(row.ambiguity) as Ambiguity,
-        }),
-      )
     },
 
     close() {
@@ -479,36 +299,4 @@ function migrate(db: DatabaseSync, file: string, transaction: (work: () => void)
       db.exec(`PRAGMA user_version = ${next + 1}`)
     })
   }
-}
-
-function toWorkItem(row: Row): WorkItem {
-  return {
-    id: String(row.id),
-    teamId: String(row.team_id),
-    sourceKey: String(row.source_key),
-    type: String(row.type),
-    ...optional('title', row.title),
-    ...optional('parentId', row.parent_id),
-    labels: JSON.parse(String(row.labels)) as string[],
-    createdAt: String(row.created_at),
-    ...optional('startedAt', row.started_at),
-    ...optional('doneAt', row.done_at),
-    ...optional('cancelledAt', row.cancelled_at),
-    lastSyncedAt: String(row.last_synced_at),
-  }
-}
-
-function toEvent(row: Row): WorkItemEvent {
-  return {
-    itemId: String(row.item_id),
-    at: String(row.at),
-    kind: String(row.kind) as WorkItemEvent['kind'],
-    ...optional('from', row.from_value),
-    ...optional('to', row.to_value),
-  }
-}
-
-/** A column that may be NULL, as an optional property: present only when it has a value. */
-function optional<K extends string>(key: K, value: SQLInputValue | undefined): { [P in K]?: string } {
-  return value === null || value === undefined ? {} : ({ [key]: String(value) } as { [P in K]: string })
 }

@@ -38,11 +38,9 @@ export interface AppContext {
 
 /** The Milestone forecast screen at `/` and the Inputs screen at `/inputs`; not found for everything else. */
 export function route(request: Request, { storage, today }: AppContext): Reply {
-  // the settings aren't editable yet; both screens read the same ones
-  const settings = DEFAULT_SETTINGS
   const team = storage.teams()[0]
   if (request.method === 'GET' && request.path === '/') {
-    const view: MilestoneForecastView = team ? milestoneForecastView(storage, team.id, settings) : { kind: 'empty' }
+    const view: MilestoneForecastView = team ? milestoneForecastView(storage, team.id, DEFAULT_SETTINGS) : { kind: 'empty' }
     return { kind: 'html', status: 200, html: renderMilestoneForecastScreen(view) }
   }
   if (!team) return { kind: 'notFound' }
@@ -56,21 +54,21 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
       growthForm?: GrowthForm
     } = {},
   ): Reply => {
-    const view = inputsView(storage, team.id, settings, today())
+    const view = inputsView(storage, team.id, today())
     return {
       kind: 'html',
       status,
       html: renderInputsScreen({
-        milestone: view.forecastInputs,
-        milestoneForm: refused.milestoneForm ?? savedMilestoneForm(view.forecastInputs),
-        paceForm: refused.paceForm ?? savedPaceForm(view.forecastInputs),
+        milestone: view.milestone,
+        milestoneForm: refused.milestoneForm ?? savedMilestoneForm(view.milestone),
+        paceForm: refused.paceForm ?? savedPaceForm(view.milestone),
         growth: refused.growthForm ?? savedGrowthForm(view.growth),
       }),
     }
   }
   /** Saves the edit and redirects, or shows the Inputs screen again with the refusal. */
   const edit = (change: InputsEdit, location: string, refused: (error: string) => Parameters<typeof inputsScreen>[1]): Reply => {
-    const saved = editInputs(storage, team.id, change, settings, today())
+    const saved = editInputs(storage, team.id, change)
     return saved.ok ? { kind: 'redirect', location } : inputsScreen(400, refused(saved.error))
   }
 
