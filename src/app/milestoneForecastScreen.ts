@@ -56,6 +56,7 @@ function renderForecast(view: Forecast): string {
 ${dates}
       </ul>
       <p class="note">Pace: ${view.pace.low}–${view.pace.high} tickets per ${periodName(view.cadenceDays)} (range)</p>
+      <p class="note">Ambiguity: ${view.ambiguity.level}, growing ${view.ambiguity.low}–${view.ambiguity.high}×</p>
     </section>`
 }
 

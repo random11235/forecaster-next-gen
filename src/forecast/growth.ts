@@ -1,5 +1,6 @@
 import type { GrowthRange } from '../engine/index.js'
 import { AMBIGUITIES, type Ambiguity, type AmbiguityRanges } from '../model/ambiguity.js'
+import type { MilestoneInputs } from '../model/milestoneInputs.js'
 import type { Storage } from '../storage/storage.js'
 import { refuse, type EditResult } from './editResult.js'
 import { DEFAULT_AMBIGUITY_RANGES } from './settings.js'
@@ -35,6 +36,14 @@ export function growthView(storage: Storage, teamId: string): GrowthView {
 /** The team's ambiguity ranges as the EM saved them, or the defaults until they do. */
 export function savedRanges(storage: Storage, teamId: string): Omit<AmbiguityRanges, 'teamId'> {
   return storage.ambiguityRanges(teamId) ?? DEFAULT_AMBIGUITY_RANGES
+}
+
+/**
+ * The milestone's growth: the team's range for its ambiguity level. The only place ambiguity becomes growth, so
+ * per-epic growth or split rates can replace it here; the engine keeps the grown total at or above the tickets remaining.
+ */
+export function milestoneGrowth(storage: Storage, inputs: MilestoneInputs): GrowthRange {
+  return savedRanges(storage, inputs.teamId)[inputs.ambiguity]
 }
 
 /** Seam B, through `editInputs`: saves the EM's ambiguity ranges. A refused edit changes nothing and says why. */

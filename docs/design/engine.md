@@ -2,7 +2,7 @@
 
 Design date: 2026-10-14. Updated 2026-10-18 with the design grill decisions (Q1–Q31). Status: draft for v1. The v1 spec is [issue #6](https://github.com/random11235/forecaster-next-gen/issues/6).
 
-The MVP ([#84](https://github.com/random11235/forecaster-next-gen/issues/84)) leaves the engine unchanged. It builds the case in `forecast/milestoneForecastView.ts` as one scope entry, the milestone's tickets remaining with none done, grown by the medium range, with the EM's pace range as throughput.
+The MVP ([#84](https://github.com/random11235/forecaster-next-gen/issues/84)) leaves the engine unchanged. It builds the case in `forecast/milestoneForecastView.ts` as one scope entry, the milestone's tickets remaining with none done, grown by the range of its ambiguity, with the EM's pace range as throughput.
 
 This covers `engine/` (Seam A): the contract `simulateCase(SimulationCase) → ForecastResult`, how one trial runs, the swappable samplers, and the facts it reports when data is thin. The engine's place in the system and its dependency rules are in [`architecture.md`](architecture.md); the data and settings `forecast/` builds the case from are in [`forecast-model.md`](forecast-model.md).
 

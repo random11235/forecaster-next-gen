@@ -297,6 +297,48 @@ function growthForm(overrides: Record<string, string> = {}): [string, string][] 
   return Object.entries(fields)
 }
 
+describe('Inputs screen: ambiguity', () => {
+  test('offers low, medium and high with their ranges, medium chosen, even where an epic was high before the MVP', async () => {
+    await startOnPreMvpData()
+
+    const html = await page('/inputs')
+
+    expect(html).toMatch(/<input type="radio" name="ambiguity" value="low"(?![^>]*checked)[^>]*>/)
+    expect(html).toMatch(/<input type="radio" name="ambiguity" value="medium"[^>]*checked/)
+    expect(html).toMatch(/<input type="radio" name="ambiguity" value="high"(?![^>]*checked)[^>]*>/)
+    expect(text(html)).toContain('Low 1–1.5×')
+    expect(text(html)).toContain('Medium 1–2×')
+    expect(text(html)).toContain('High 1.5–3×')
+  })
+
+  test('choosing high shows it chosen, and the forecast says it used high ambiguity and finishes later', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+    const before = text(await page('/'))
+    expect(before).toContain('Ambiguity: medium, growing 1–2×')
+
+    const response = await post('/inputs/ambiguity', [['ambiguity', 'high']])
+
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('/')
+    expect(await page('/inputs')).toMatch(/<input type="radio" name="ambiguity" value="high"[^>]*checked/)
+    const after = text(await page('/'))
+    expect(after).toContain('Ambiguity: high, growing 1.5–3×')
+    expect(Date.parse(dateAt(after, 85))).toBeGreaterThan(Date.parse(dateAt(before, 85)))
+  })
+
+  test('refuses a level that is not offered, saying why', async () => {
+    await startOnPreMvpData()
+
+    const response = await post('/inputs/ambiguity', [['ambiguity', 'extreme']])
+
+    expect(response.status).toBe(400)
+    const html = await response.text()
+    expect(text(html)).toContain('Choose low, medium or high ambiguity.')
+    expect(html).toMatch(/<input type="radio" name="ambiguity" value="medium"[^>]*checked/)
+  })
+})
+
 describe('Inputs screen: growth', () => {
   test('shows the default ranges', async () => {
     await startOnPreMvpData()

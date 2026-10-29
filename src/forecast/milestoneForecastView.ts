@@ -1,7 +1,7 @@
 import { periodEndDate, simulateCase, ENGINE_VERSION, type SimulationCase } from '../engine/index.js'
-import type { GrowthRange } from '../model/ambiguity.js'
+import type { Ambiguity, GrowthRange } from '../model/ambiguity.js'
 import type { Storage } from '../storage/storage.js'
-import { savedRanges } from './growth.js'
+import { milestoneGrowth } from './growth.js'
 import { inputProblems, inputWarnings, isForecastable, type ForecastableInputs, type InputNote } from './milestoneInputs.js'
 import type { ForecastSettings } from './settings.js'
 
@@ -36,6 +36,8 @@ export type MilestoneForecastView =
       /** Days in one of the team's periods, which the pace is per. */
       cadenceDays: number
       pace: { source: 'range'; low: number; high: number }
+      /** The milestone's ambiguity level and the growth range it used. */
+      ambiguity: { level: Ambiguity } & GrowthRange
       warnings: InputNote[]
     }
 
@@ -45,7 +47,7 @@ export function milestoneForecastView(storage: Storage, teamId: string, settings
   if (!inputs) return { kind: 'empty' }
   if (!isForecastable(inputs)) return { kind: 'problems', name: inputs.name, problems: inputProblems(inputs) }
 
-  const growth = savedRanges(storage, teamId).medium
+  const growth = milestoneGrowth(storage, inputs)
   const simulationCase = milestoneCase(inputs, growth, settings)
   const result = simulateCase(simulationCase)
   const { periodDays, maxPeriods, percentiles } = simulationCase
@@ -59,6 +61,7 @@ export function milestoneForecastView(storage: Storage, teamId: string, settings
     horizonDate: periodEndDate(inputs.startDate, periodDays, maxPeriods),
     cadenceDays: inputs.cadenceDays,
     pace: { source: 'range', ...inputs.paceRange },
+    ambiguity: { level: inputs.ambiguity, ...growth },
     warnings: inputWarnings(inputs, today),
   }
 }
@@ -69,7 +72,7 @@ function forecastDate(percent: number, date: string | null, today: string): Fore
 }
 
 /**
- * The milestone as one scope entry of the tickets remaining, none done, growing by the medium range, in periods of
+ * The milestone as one scope entry of the tickets remaining, none done, growing by its ambiguity's range, in periods of
  * its cadence. With 0 tickets the engine would draw a size, so the size range is pinned to 0 and the forecast finishes
  * on the start date.
  */

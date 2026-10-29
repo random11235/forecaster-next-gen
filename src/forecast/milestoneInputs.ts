@@ -1,4 +1,5 @@
 import type { ThroughputRange } from '../engine/index.js'
+import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
 import type { MilestoneInputs } from '../model/milestoneInputs.js'
 import type { Storage } from '../storage/storage.js'
 import { periodName } from './cadence.js'
@@ -20,6 +21,8 @@ export type MilestoneInputsEdit =
   | { kind: 'setMilestone'; name: string; startDate: string; ticketsRemaining: string }
   /** Whole tickets per period, low ≤ high. */
   | { kind: 'setPaceRange'; low: string; high: string }
+  /** One level for the whole milestone: `low`, `medium` or `high`. */
+  | { kind: 'setAmbiguity'; level: string }
   /** Whole days in one of the team's periods, 1 or more. */
   | { kind: 'setCadence'; cadenceDays: string }
 
@@ -37,6 +40,8 @@ export interface MilestoneInputsView {
   name: string
   startDate: string
   ticketsRemaining: number | undefined
+  /** How well the work is understood: medium until the EM chooses. */
+  ambiguity: Ambiguity
   /** Days in one of the team's periods, which pace is entered in. */
   cadenceDays: number
   paceRange: ThroughputRange | undefined
@@ -52,6 +57,7 @@ export function milestoneInputsView(storage: Storage, teamId: string, today: str
     name: inputs.name,
     startDate: inputs.startDate ?? today,
     ticketsRemaining: inputs.ticketsRemaining,
+    ambiguity: inputs.ambiguity,
     cadenceDays: inputs.cadenceDays,
     paceRange: inputs.paceRange,
     notes: saved ? [...inputProblems(saved), ...inputWarnings(saved, today)] : [],
@@ -126,6 +132,13 @@ export function editMilestoneInputs(storage: Storage, teamId: string, edit: Mile
       }
       if (low > high) return refuse('The low end must not be above the high end.')
       storage.saveMilestoneInputs({ ...saved, paceRange: { low, high } })
+      return { ok: true }
+    }
+    case 'setAmbiguity': {
+      if (!saved) return refuse('Enter the milestone first.')
+      const level = AMBIGUITIES.find((ambiguity) => ambiguity === edit.level)
+      if (level === undefined) return refuse('Choose low, medium or high ambiguity.')
+      storage.saveMilestoneInputs({ ...saved, ambiguity: level })
       return { ok: true }
     }
     case 'setCadence': {
