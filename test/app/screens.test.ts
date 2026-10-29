@@ -1,15 +1,52 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, test } from 'vitest'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
+import type { MilestoneInputs } from '../../src/model/milestoneInputs.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
-import { loadSampleDataIfEmpty } from '../../src/sample/loadSampleData.js'
-import { SAMPLE_DATA } from '../../src/sample/sampleData.js'
-import { countingFactReads } from '../storage/countingFactReads.js'
 
-// The screens through the local server, as the EM's browser sees them, on the canned sample data. The app no longer
-// loads it; it stands in for a data file from before the MVP: epics, commits and workflow settings beside the
-// milestone's MVP fields.
+// The screens through the local server, as the EM's browser sees them, on a data file from before the MVP: beside the
+// milestone's MVP fields, it holds the tables earlier releases wrote (epics, commits, workflow settings, adopted
+// measured pace and growth), which the MVP no longer reads.
 
+const TEAM = 'PAY'
+const CREATED = '2026-08-31T09:00:00Z'
+
+/** Rows an earlier release left in the file: what the screens must not show. */
+const PRE_MVP_ROWS = `
+INSERT INTO work_items (team_id, id, source_key, type, title, parent_id, labels, created_at, started_at, done_at, cancelled_at, last_synced_at) VALUES
+  ('${TEAM}', 'PAY-1', 'PAY-1', 'epic', 'Card vaulting', NULL, '["committed"]', '${CREATED}', NULL, NULL, NULL, '${CREATED}'),
+  ('${TEAM}', 'PAY-2', 'PAY-2', 'epic', 'Refunds', NULL, '[]', '${CREATED}', NULL, NULL, NULL, '${CREATED}'),
+  ('${TEAM}', 'PAY-11', 'PAY-11', 'story', NULL, 'PAY-1', '[]', '${CREATED}', NULL, NULL, NULL, '${CREATED}');
+INSERT INTO milestones (team_id, id, name, committed_date) VALUES ('${TEAM}', 'M1', 'Checkout v2', '2026-12-18');
+INSERT INTO milestone_epics (team_id, milestone_id, rank, epic_id) VALUES ('${TEAM}', 'M1', 0, 'PAY-1'), ('${TEAM}', 'M1', 1, 'PAY-2');
+INSERT INTO pace_settings (team_id, milestone_id, mode, low, high) VALUES ('${TEAM}', 'M1', 'measured', 2, 9);
+INSERT INTO workflow_settings (team_id, statuses, started_status, commit_label, blocked_statuses, blocked_labels) VALUES
+  ('${TEAM}', '[{"status":"To Do","category":"notStarted"},{"status":"In Progress","category":"started"},{"status":"Done","category":"done"}]',
+   'In Progress', 'committed', '[]', '["blocked"]');
+INSERT INTO epic_commits (team_id, epic_id, committed_at, child_count_at_commit) VALUES ('${TEAM}', 'PAY-2', '2026-09-07T10:00:00Z', 1);
+INSERT INTO epic_ambiguities (team_id, milestone_id, epic_id, ambiguity) VALUES ('${TEAM}', 'M1', 'PAY-1', 'high');
+INSERT INTO ambiguity_ranges (team_id, low_low, low_high, medium_low, medium_high, high_low, high_high, medium_measured) VALUES
+  ('${TEAM}', 1, 1.5, 1, 2, 1.5, 3, 1);
+`
+
+/** The milestone as the EM entered it after the upgrade: its name, start date and tickets remaining, but no pace yet. */
+const CHECKOUT: MilestoneInputs = {
+  teamId: TEAM,
+  name: 'Checkout v2',
+  startDate: '2026-09-01',
+  ticketsRemaining: 40,
+  ambiguity: 'medium',
+  cadenceDays: 7,
+  paceMode: 'range',
+  paceRange: undefined,
+  paceCounts: [],
+}
+
+let dir: string | undefined
 let app: RunningApp | undefined
 let storage: Storage | undefined
 
@@ -18,17 +55,27 @@ afterEach(async () => {
   app = undefined
   storage?.close()
   storage = undefined
+  if (dir) rmSync(dir, { recursive: true, force: true })
+  dir = undefined
 })
 
-/**
- * Starts the app on the sample data, on 24 Oct 2026 unless `today` says otherwise. On 24 Oct the sample milestone has
- * 7 weeks of finished tickets; from 31 Oct, 8.
- */
-async function startOnSampleData(today = '2026-10-24'): Promise<RunningApp> {
-  storage = openSqliteStorage(':memory:')
-  loadSampleDataIfEmpty(storage)
-  app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage, today: () => today })
+/** Starts the app on 24 Oct 2026 on a data file holding the team, and its milestone unless `milestone` is false. */
+async function startOnPreMvpData({ milestone = true } = {}): Promise<RunningApp> {
+  dir = mkdtempSync(join(tmpdir(), 'forecaster-screens-'))
+  const file = join(dir, 'forecaster.db')
+  storage = openSqliteStorage(file)
+  storage.saveTeam({ id: TEAM, name: 'Payments', source: 'jira', sourceRef: TEAM, installedAt: CREATED })
+  const earlierRelease = new DatabaseSync(file)
+  earlierRelease.exec(PRE_MVP_ROWS)
+  earlierRelease.close()
+  if (milestone) storage.saveMilestoneInputs(CHECKOUT)
+  app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage, today: () => '2026-10-24' })
   return app
+}
+
+/** Starts the app on the team with no milestone entered yet. */
+function startWithNoMilestone(): Promise<RunningApp> {
+  return startOnPreMvpData({ milestone: false })
 }
 
 async function page(path: string): Promise<string> {
@@ -41,25 +88,6 @@ function text(html: string): string {
     .replace(/<style[\s\S]*?<\/style>/g, '')
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
-}
-
-/** Starts the app on the sample data, counting reads of the team's facts from launch on. */
-async function startCountingFactReads(): Promise<() => number> {
-  storage = openSqliteStorage(':memory:')
-  loadSampleDataIfEmpty(storage)
-  const counting = countingFactReads(storage)
-  app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage: counting.storage, today: () => '2026-10-24' })
-  const atLaunch = counting.reads()
-  return () => counting.reads() - atLaunch
-}
-
-/** Starts the app on the sample team and its tickets, with no milestone entered yet. */
-async function startWithNoMilestone(): Promise<RunningApp> {
-  storage = openSqliteStorage(':memory:')
-  storage.saveTeam(SAMPLE_DATA.team)
-  storage.addFacts(SAMPLE_DATA.team.id, SAMPLE_DATA.facts)
-  app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage, today: () => '2026-10-24' })
-  return app
 }
 
 /** Posts a form as the browser does, without following the redirect. */
@@ -88,16 +116,8 @@ function dateAt(screen: string, percent: number): string {
 }
 
 describe('Inputs screen', () => {
-  test("reads the team's facts from storage once", async () => {
-    const reads = await startCountingFactReads()
-
-    await page('/inputs')
-
-    expect(reads()).toBe(1)
-  })
-
   test('asks for the milestone name, start date and tickets remaining, and pace as a low–high range per week', async () => {
-    await startOnSampleData()
+    await startOnPreMvpData()
 
     const html = await page('/inputs')
 
@@ -110,7 +130,7 @@ describe('Inputs screen', () => {
   })
 
   test('offers no committed date, no epics and no measured pace', async () => {
-    await startOnSampleData()
+    await startOnPreMvpData()
 
     const html = await page('/inputs')
 
@@ -129,7 +149,7 @@ describe('Inputs screen', () => {
   })
 
   test('shows no absence input', async () => {
-    await startOnSampleData()
+    await startOnPreMvpData()
 
     expect((await page('/inputs')).toLowerCase()).not.toMatch(/absence|capacity/)
   })
@@ -147,7 +167,7 @@ describe('Inputs screen', () => {
   })
 
   test('saving a pace range goes to the Milestone forecast screen, and the Inputs screen shows the saved range', async () => {
-    await startOnSampleData()
+    await startOnPreMvpData()
 
     const response = await submitPace('3', '6')
 
@@ -163,7 +183,7 @@ describe('Inputs screen', () => {
     [['Checkout v2', '2026-09-01', '-1'], 'Enter tickets remaining as a whole number, 0 or more.'],
     [['Checkout v2', '2026-09-01', '2.5'], 'Enter tickets remaining as a whole number, 0 or more.'],
   ])('refuses the milestone %j, saying why, keeping what was typed and changing nothing', async ([name, startDate, tickets], error) => {
-    await startOnSampleData()
+    await startOnPreMvpData()
 
     const response = await submitMilestone(name!, startDate!, tickets!)
 
@@ -176,7 +196,7 @@ describe('Inputs screen', () => {
   })
 
   test('refuses a pace the rules forbid, saying why and keeping what was typed', async () => {
-    await startOnSampleData()
+    await startOnPreMvpData()
 
     const response = await submitPace(' 6 ', '3')
 
@@ -188,7 +208,7 @@ describe('Inputs screen', () => {
   })
 
   test('shows a warning beside the input it is about', async () => {
-    await startOnSampleData()
+    await startOnPreMvpData()
     await submitPace('0', '0')
 
     const html = await page('/inputs')
@@ -199,7 +219,7 @@ describe('Inputs screen', () => {
 
 describe('Inputs screen: workflow', () => {
   test('offers no workflow settings, even with a workflow saved before the MVP', async () => {
-    await startOnSampleData()
+    await startOnPreMvpData()
 
     const html = await page('/inputs')
 
@@ -209,32 +229,6 @@ describe('Inputs screen: workflow', () => {
   })
 })
 
-/** Adds `count` finished epics to the sample team, each committed in the tool at 10 tickets and done at 15 (1.5×). */
-function addFinishedEpics(count: number): void {
-  const at = '2026-06-01T09:00:00Z'
-  for (let i = 1; i <= count; i++) {
-    const id = `DONE-${i}`
-    const item = (itemId: string, type: string, parentId?: string) => ({
-      id: itemId,
-      teamId: 'sample-team',
-      sourceKey: itemId,
-      type,
-      labels: [],
-      createdAt: at,
-      lastSyncedAt: at,
-      ...(parentId !== undefined && { parentId }),
-    })
-    storage!.addFacts('sample-team', {
-      workItems: [item(id, 'epic'), ...Array.from({ length: 15 }, (_, n) => item(`${id}-${n}`, 'story', id))],
-      events: [
-        { itemId: id, at, kind: 'status', to: 'To Do' },
-        { itemId: id, at: '2026-08-01T09:00:00Z', kind: 'status', from: 'To Do', to: 'Done' },
-      ],
-    })
-    storage!.saveEpicCommit({ teamId: 'sample-team', epicId: id, committedAt: at, baseline: 10 })
-  }
-}
-
 /** The ambiguity ranges form, with the defaults unless overridden. */
 function growthForm(overrides: Record<string, string> = {}): [string, string][] {
   const fields = { 'low-low': '1', 'low-high': '1.5', 'medium-low': '1', 'medium-high': '2', 'high-low': '1.5', 'high-high': '3', ...overrides }
@@ -243,7 +237,7 @@ function growthForm(overrides: Record<string, string> = {}): [string, string][] 
 
 describe('Inputs screen: growth', () => {
   test('shows the default ranges', async () => {
-    await startOnSampleData()
+    await startOnPreMvpData()
 
     const html = await page('/inputs')
     for (const [field, value] of Object.entries(Object.fromEntries(growthForm()))) {
@@ -252,7 +246,7 @@ describe('Inputs screen: growth', () => {
   })
 
   test('saved ranges show on the Inputs screen, and the medium range moves the forecast', async () => {
-    await startOnSampleData()
+    await startOnPreMvpData()
     await submitPace('4', '8')
     const before = dateAt(text(await page('/')), 85)
 
@@ -264,7 +258,7 @@ describe('Inputs screen: growth', () => {
   })
 
   test('refused ranges say why and keep what was typed', async () => {
-    await startOnSampleData()
+    await startOnPreMvpData()
 
     const response = await post('/inputs/growth', growthForm({ 'high-low': '4' }))
 
@@ -274,9 +268,8 @@ describe('Inputs screen: growth', () => {
     expect(html).toMatch(/name="high-low"[^>]*value="4"/)
   })
 
-  test('offers no measured growth, even with 7 growth samples: the milestone grows by the medium range', async () => {
-    await startOnSampleData()
-    addFinishedEpics(7)
+  test('offers no measured growth, even where it was adopted before the MVP', async () => {
+    await startOnPreMvpData()
 
     const html = await page('/inputs')
 
@@ -296,7 +289,7 @@ describe('Milestone forecast screen', () => {
   })
 
   test('before pace is entered, lists what to fix on the Inputs screen, naming the input', async () => {
-    await startOnSampleData()
+    await startOnPreMvpData()
 
     const html = await page('/')
 
@@ -306,7 +299,7 @@ describe('Milestone forecast screen', () => {
   })
 
   test('headlines the 85% date from the start date, with the name and tickets remaining above it', async () => {
-    await startOnSampleData()
+    await startOnPreMvpData()
     await submitPace('4', '8')
 
     const screen = text(await page('/'))
@@ -316,7 +309,7 @@ describe('Milestone forecast screen', () => {
   })
 
   test('shows the finish dates at 50%, 70%, 85% and 95% and the pace range they come from', async () => {
-    await startOnSampleData()
+    await startOnPreMvpData()
     await submitPace('4', '8')
 
     const screen = text(await page('/'))
@@ -329,7 +322,7 @@ describe('Milestone forecast screen', () => {
   })
 
   test('headlines an 85% date beyond the horizon as not sure by the horizon date, and each date as later than it', async () => {
-    await startOnSampleData()
+    await startOnPreMvpData()
     await submitPace('0', '0')
 
     const screen = text(await page('/'))
@@ -340,18 +333,18 @@ describe('Milestone forecast screen', () => {
   })
 
   test("forecasts data from before the MVP from its MVP fields, adding no team and showing none of its epics on either screen", async () => {
-    await startOnSampleData()
+    await startOnPreMvpData()
     await submitPace('4', '8')
 
     const screens = [text(await page('/')), text(await page('/inputs'))]
 
     expect(screens[0]).toContain('Starting 1 Sep 2026: 85% sure of finishing by 1 Dec 2026')
-    for (const screen of screens) expect(screen).not.toMatch(/Card vaulting|Refunds|Receipts redesign|PAY-\d|epic|commit/i)
-    expect(storage!.teams().map((team) => team.id)).toEqual(['sample-team'])
+    for (const screen of screens) expect(screen).not.toMatch(/Card vaulting|Refunds|PAY-\d|epic|commit/i)
+    expect(storage!.teams().map((team) => team.id)).toEqual([TEAM])
   })
 
   test('shows no epics, no committed date and no input', async () => {
-    await startOnSampleData()
+    await startOnPreMvpData()
     await submitPace('4', '8')
 
     const html = await page('/')

@@ -41,11 +41,11 @@ function newTeam(): Storage {
 
 /** Sets the team's medium growth range: the growth every milestone has until it can choose its ambiguity. */
 function mediumGrowth(storage: Storage, medium: GrowthRange): void {
-  storage.saveAmbiguityRanges({ teamId: TEAM, low: { low: 1, high: 1.5 }, medium, high: { low: 1.5, high: 3 }, mediumMeasured: false })
+  storage.saveAmbiguityRanges({ teamId: TEAM, low: { low: 1, high: 1.5 }, medium, high: { low: 1.5, high: 3 } })
 }
 
 function edit(storage: Storage, change: InputsEdit) {
-  return editInputs(storage, TEAM, change, DEFAULT_SETTINGS, TODAY)
+  return editInputs(storage, TEAM, change)
 }
 
 /** The EM enters the milestone and a pace range, as the Inputs screen does. */
@@ -243,7 +243,7 @@ describe('refused edits change nothing and say why', () => {
 
 describe('the milestone on the Inputs screen', () => {
   function inputs(storage: Storage) {
-    return inputsView(storage, TEAM, DEFAULT_SETTINGS, TODAY).forecastInputs
+    return inputsView(storage, TEAM, TODAY).milestone
   }
 
   test('before anything is entered, the start date is pre-filled with today', () => {
@@ -282,5 +282,51 @@ describe('the milestone on the Inputs screen', () => {
       paceRange: { low: 0, high: 0 },
       notes: [{ input: 'pace', message: 'At 0 tickets a week, the work never finishes.' }],
     })
+  })
+})
+
+describe('growth on the Inputs screen', () => {
+  const typed = (low: string, high: string) => ({ low, high })
+  /** The ambiguity ranges as typed: the defaults for low and high, and `medium`. */
+  const ranges = (medium: { low: string; high: string }): InputsEdit => ({
+    kind: 'setAmbiguityRanges',
+    low: typed('1', '1.5'),
+    medium,
+    high: typed('1.5', '3'),
+  })
+  function growth(storage: Storage) {
+    return inputsView(storage, TEAM, TODAY).growth.ranges
+  }
+
+  test('starts at low 1–1.5×, medium 1–2× and high 1.5–3×', () => {
+    expect(growth(newTeam())).toEqual({
+      low: { low: 1, high: 1.5 },
+      medium: { low: 1, high: 2 },
+      high: { low: 1.5, high: 3 },
+    })
+  })
+
+  test('the EM edits the ranges, and the milestone grows by the medium one: 10 tickets at exactly 5 a week, growing 1×, finish in 2 weeks', () => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '5', high: '5' })
+
+    expect(edit(storage, ranges(typed(' 1 ', '1')))).toEqual({ ok: true })
+
+    expect(growth(storage).medium).toEqual({ low: 1, high: 1 })
+    expect(view(storage)).toMatchObject({ dates: [50, 70, 85, 95].map((percent) => ({ percent, date: '2026-09-15' })) })
+  })
+
+  test.each([
+    [typed('', '2'), 'Enter each range as two numbers, such as 1 to 1.5.'],
+    [typed('one', '2'), 'Enter each range as two numbers, such as 1 to 1.5.'],
+    [typed('0', '2'), 'Enter growth above 0 and at most 10 times.'],
+    [typed('1', '11'), 'Enter growth above 0 and at most 10 times.'],
+    [typed('2', '1.5'), 'The low end must not be above the high end.'],
+  ])('refuses a medium range typed %o, saying why and saving nothing', (medium, error) => {
+    const storage = newTeam()
+
+    expect(edit(storage, ranges(medium))).toEqual({ ok: false, error })
+
+    expect(growth(storage).medium).toEqual({ low: 1, high: 2 })
   })
 })

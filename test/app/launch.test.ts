@@ -4,7 +4,7 @@ import { defaultTeam, startAppAndOpenBrowser, type RunningApp } from '../../src/
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
 
-/** Before any ticket the tests finish, so installation leaves out none of them. */
+/** When the Forecaster was installed for the team the tests store. */
 const INSTALLED = '2026-01-01T00:00:00Z'
 
 let app: RunningApp | undefined
