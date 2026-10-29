@@ -279,6 +279,101 @@ describe('Inputs screen: cadence', () => {
   })
 })
 
+/** Submits the Inputs screen's typed counts list as the browser does. */
+function submitCounts(counts: string): Promise<Response> {
+  return post('/inputs/pace-counts', [['counts', counts]])
+}
+
+/** Chooses which pace the forecast uses, as the browser does. */
+function choosePace(paceMode: string): Promise<Response> {
+  return post('/inputs/pace-mode', [['paceMode', paceMode]])
+}
+
+describe('Inputs screen: typed counts', () => {
+  test('offers pace as a range or as typed counts, the range chosen for an untouched milestone, and says typed counts need 2 for a forecast', async () => {
+    await startOnPreMvpData()
+
+    const html = await page('/inputs')
+
+    expect(html).toMatch(/<input type="radio" name="paceMode" value="range" checked/)
+    expect(html).toMatch(/<input type="radio" name="paceMode" value="counts"(?! checked)/)
+    expect(html).toMatch(/<input type="text" name="counts" value=""/)
+    expect(text(html)).toContain('Typed counts need at least 2 for a forecast.')
+  })
+
+  test('saving typed counts keeps them on the Inputs screen, oldest first', async () => {
+    await startOnPreMvpData()
+
+    const response = await submitCounts('6 4,9')
+
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('/inputs')
+    expect(await page('/inputs')).toMatch(/name="counts" value="6, 4, 9"/)
+  })
+
+  test('adding a count puts it last, and removing the last takes it off again', async () => {
+    await startOnPreMvpData()
+    await submitCounts('6, 4, 9')
+
+    expect((await post('/inputs/pace-counts/add', [['count', '7']])).status).toBe(303)
+    expect(await page('/inputs')).toMatch(/name="counts" value="6, 4, 9, 7"/)
+
+    expect((await post('/inputs/pace-counts/remove-last', [])).status).toBe(303)
+    expect(await page('/inputs')).toMatch(/name="counts" value="6, 4, 9"/)
+  })
+
+  test('refuses typed counts that are not whole numbers, saying why, keeping what was typed and changing nothing', async () => {
+    await startOnPreMvpData()
+    await submitCounts('6, 4')
+
+    const response = await submitCounts('6, -1')
+
+    expect(response.status).toBe(400)
+    const html = await response.text()
+    expect(text(html)).toContain('Enter typed counts as whole numbers of tickets, 0 or more.')
+    expect(html).toMatch(/name="counts" value="6, -1"/)
+    expect(await page('/inputs')).toMatch(/name="counts" value="6, 4"/)
+  })
+
+  test('refuses a count to add that is not a whole number, saying why and keeping what was typed', async () => {
+    await startOnPreMvpData()
+    await submitCounts('6, 4')
+
+    const response = await post('/inputs/pace-counts/add', [['count', '2.5']])
+
+    expect(response.status).toBe(400)
+    const html = await response.text()
+    expect(text(html)).toContain('Enter typed counts as whole numbers of tickets, 0 or more.')
+    expect(html).toMatch(/name="count" [^>]*value="2.5"/)
+    expect(await page('/inputs')).toMatch(/name="counts" value="6, 4"/)
+  })
+
+  test('choosing typed counts goes to the forecast, keeps the range, and shows typed counts chosen', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+    await submitCounts('6, 4, 9')
+
+    const response = await choosePace('counts')
+
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('/')
+    const html = await page('/inputs')
+    expect(html).toMatch(/<input type="radio" name="paceMode" value="counts" checked/)
+    expect(html).toMatch(/name="low"[^>]*value="4"/)
+  })
+
+  test('with 1 typed count in use, notes beside the typed counts that the forecast needs at least 2', async () => {
+    await startOnPreMvpData()
+    await submitCounts('6')
+
+    await choosePace('counts')
+
+    expect(await page('/inputs')).toMatch(
+      /name="counts"[^>]*>[\s\S]*?<p class="warning">⚠ Typed counts: 1 week entered. The forecast needs at least 2. Add another count, or switch pace to the range.<\/p>/,
+    )
+  })
+})
+
 describe('Inputs screen: workflow', () => {
   test('offers no workflow settings, even with a workflow saved before the MVP', async () => {
     await startOnPreMvpData()
@@ -436,6 +531,39 @@ describe('Milestone forecast screen', () => {
     expect(screen).toContain('Pace: 4–8 tickets per sprint (range)')
     expect(screen).not.toContain('per week')
     expect(Date.parse(dateAt(screen, 85))).toBeGreaterThan(Date.parse(weekly))
+  })
+
+  test('states the typed counts the forecast used, in weeks', async () => {
+    await startOnPreMvpData()
+    await submitCounts('6, 4, 9, 7, 5, 8')
+
+    await choosePace('counts')
+
+    expect(text(await page('/'))).toContain('Pace: typed counts, 6 weeks')
+  })
+
+  test('at a 14-day cadence, states the typed counts the forecast used in sprints', async () => {
+    await startOnPreMvpData()
+    await submitCadence('14')
+    await submitCounts('6, 4, 9, 7, 5, 8')
+
+    await choosePace('counts')
+
+    const screen = text(await page('/'))
+    expect(screen).toContain('Pace: typed counts, 6 sprints')
+    expect(screen).not.toContain('week')
+  })
+
+  test('with 1 typed count in use, shows no forecast, saying exactly why and pointing to the Inputs screen', async () => {
+    await startOnPreMvpData()
+    await submitCounts('6')
+
+    await choosePace('counts')
+
+    const html = await page('/')
+    expect(text(html)).toContain('Typed counts: 1 week entered. The forecast needs at least 2. Add another count, or switch pace to the range.')
+    expect(text(html)).not.toContain('sure')
+    expect(html).toContain('href="/inputs"')
   })
 
   test('headlines an 85% date beyond the horizon as not sure by the horizon date, and each date as later than it', async () => {

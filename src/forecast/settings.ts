@@ -24,3 +24,8 @@ export const DEFAULT_AMBIGUITY_RANGES: Omit<AmbiguityRanges, 'teamId'> = {
   medium: { low: 1, high: 2 },
   high: { low: 1.5, high: 3 },
 }
+
+/** How many typed counts of past periods the pace needs: fewer than `forForecast` give no forecast. */
+export const TYPED_COUNTS = {
+  forForecast: 2,
+}

@@ -4,6 +4,8 @@ import type { Ambiguity } from './ambiguity.js'
 /** Which pace the forecast uses: the EM's low–high range, or their typed counts of past periods. */
 export type PaceMode = 'range' | 'counts'
 
+export const PACE_MODES: readonly PaceMode[] = ['range', 'counts']
+
 /**
  * The milestone as the EM enters it on the Inputs screen, one per team. Every field the MVP forecasts from is here,
  * with its default, so later inputs need no schema change.

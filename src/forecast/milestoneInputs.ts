@@ -1,11 +1,12 @@
 import type { ThroughputRange } from '../engine/index.js'
 import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
-import type { MilestoneInputs } from '../model/milestoneInputs.js'
+import { PACE_MODES, type MilestoneInputs, type PaceMode } from '../model/milestoneInputs.js'
 import type { Storage } from '../storage/storage.js'
 import { periodName } from './cadence.js'
 import { daysBetween, isCalendarDate } from './calendarDate.js'
 import { counted } from './counted.js'
 import { refuse, type EditResult } from './editResult.js'
+import { TYPED_COUNTS } from './settings.js'
 
 /** Far above any real team's pace in one period; keeps typos like 1000000 out of the forecast. */
 export const MAX_TICKETS_PER_WEEK = 1000
@@ -25,6 +26,14 @@ export type MilestoneInputsEdit =
   | { kind: 'setAmbiguity'; level: string }
   /** Whole days in one of the team's periods, 1 or more. */
   | { kind: 'setCadence'; cadenceDays: string }
+  /** The typed counts as a list: whole tickets done in each past period, oldest first, apart by commas or spaces. */
+  | { kind: 'setPaceCounts'; counts: string }
+  /** One more typed count, the newest: whole tickets done in the period just past. */
+  | { kind: 'addPaceCount'; count: string }
+  /** Drops the newest typed count, if there is one. */
+  | { kind: 'removeLastPaceCount' }
+  /** Which pace the forecast uses, `range` or `counts`; both are kept. */
+  | { kind: 'setPaceMode'; paceMode: string }
 
 /** An input of the milestone on the Inputs screen. */
 export type MilestoneInput = 'name' | 'startDate' | 'ticketsRemaining' | 'pace'
@@ -45,6 +54,10 @@ export interface MilestoneInputsView {
   /** Days in one of the team's periods, which pace is entered in. */
   cadenceDays: number
   paceRange: ThroughputRange | undefined
+  /** Tickets done in past periods, oldest first. */
+  paceCounts: number[]
+  /** Which pace the forecast uses. */
+  paceMode: PaceMode
   /** What stops a forecast, then the warnings, each beside its input; none before anything is entered. */
   notes: InputNote[]
 }
@@ -60,7 +73,9 @@ export function milestoneInputsView(storage: Storage, teamId: string, today: str
     ambiguity: inputs.ambiguity,
     cadenceDays: inputs.cadenceDays,
     paceRange: inputs.paceRange,
-    notes: saved ? [...inputProblems(saved), ...inputWarnings(saved, today)] : [],
+    paceCounts: inputs.paceCounts,
+    paceMode: inputs.paceMode,
+    notes: saved ? [...inputProblems(saved), ...typedCountsNotes(saved), ...inputWarnings(saved, today)] : [],
   }
 }
 
@@ -71,16 +86,45 @@ export function inputProblems(inputs: MilestoneInputs): InputNote[] {
     ...(inputs.ticketsRemaining === undefined
       ? [{ input: 'ticketsRemaining', message: 'Enter how many tickets are left.' } as const]
       : []),
-    ...(inputs.paceRange === undefined ? [{ input: 'pace', message: 'Enter a pace range.' } as const] : []),
+    ...(inputs.paceMode === 'range' && inputs.paceRange === undefined
+      ? [{ input: 'pace', message: 'Enter a pace range.' } as const]
+      : []),
   ]
 }
 
 /** A milestone with every input its forecast needs. */
-export type ForecastableInputs = MilestoneInputs & { startDate: string; ticketsRemaining: number; paceRange: ThroughputRange }
+export type ForecastableInputs = MilestoneInputs & { startDate: string; ticketsRemaining: number }
 
 /** Whether the milestone can be forecast: whether nothing stops it, by the same test as `inputProblems`. */
 export function isForecastable(inputs: MilestoneInputs): inputs is ForecastableInputs {
   return inputProblems(inputs).length === 0
+}
+
+/**
+ * Why the typed counts in use are too few to forecast from, or undefined if they aren't in use or are enough: one
+ * count isn't a pace.
+ */
+export function typedCountsShort(inputs: MilestoneInputs): InputNote | undefined {
+  if (inputs.paceMode !== 'counts' || inputs.paceCounts.length >= TYPED_COUNTS.forForecast) return undefined
+  const entered = counted(inputs.paceCounts.length, periodName(inputs.cadenceDays))
+  return {
+    input: 'pace',
+    message: `Typed counts: ${entered} entered. The forecast needs at least ${TYPED_COUNTS.forForecast}. Add another count, or switch pace to the range.`,
+  }
+}
+
+function typedCountsNotes(inputs: MilestoneInputs): InputNote[] {
+  const short = typedCountsShort(inputs)
+  return short ? [short] : []
+}
+
+/** The pace the forecast uses: the range, or the typed counts, whichever the EM chose. */
+export type PaceInUse = ({ source: 'range' } & ThroughputRange) | { source: 'counts'; counts: number[] }
+
+/** The pace the milestone's forecast uses, or undefined until the chosen one is entered. */
+export function paceInUse(inputs: MilestoneInputs): PaceInUse | undefined {
+  if (inputs.paceMode === 'counts') return { source: 'counts', counts: inputs.paceCounts }
+  return inputs.paceRange && { source: 'range', ...inputs.paceRange }
 }
 
 /** Inputs that can be forecast but give a forecast the EM should question, on `today`. */
@@ -98,7 +142,9 @@ function startDateWarnings(inputs: MilestoneInputs, today: string): InputNote[] 
 
 function paceWarnings(inputs: MilestoneInputs): InputNote[] {
   const workLeft = (inputs.ticketsRemaining ?? 0) > 0
-  if (workLeft && inputs.paceRange?.high === 0) {
+  const pace = paceInUse(inputs)
+  const zeroPace = pace?.source === 'counts' ? pace.counts.every((count) => count === 0) : pace?.high === 0
+  if (workLeft && zeroPace) {
     return [{ input: 'pace', message: `At 0 tickets a ${periodName(inputs.cadenceDays)}, the work never finishes.` }]
   }
   return []
@@ -139,6 +185,31 @@ export function editMilestoneInputs(storage: Storage, teamId: string, edit: Mile
       const level = AMBIGUITIES.find((ambiguity) => ambiguity === edit.level)
       if (level === undefined) return refuse('Choose low, medium or high ambiguity.')
       storage.saveMilestoneInputs({ ...saved, ambiguity: level })
+      return { ok: true }
+    }
+    case 'setPaceCounts':
+    case 'addPaceCount': {
+      if (!saved) return refuse('Enter the milestone first.')
+      const typed = edit.kind === 'addPaceCount' ? [edit.count] : edit.counts.split(/[\s,]+/).filter((count) => count !== '')
+      const counts = typed.map(wholeNumber)
+      if (!counts.every((count) => count !== undefined)) return refuse('Enter typed counts as whole numbers of tickets, 0 or more.')
+      if (counts.some((count) => count > MAX_TICKETS_PER_WEEK)) {
+        return refuse(`Enter at most ${MAX_TICKETS_PER_WEEK} tickets per ${periodName(saved.cadenceDays)}.`)
+      }
+      const paceCounts = edit.kind === 'addPaceCount' ? [...saved.paceCounts, ...counts] : counts
+      storage.saveMilestoneInputs({ ...saved, paceCounts })
+      return { ok: true }
+    }
+    case 'removeLastPaceCount': {
+      if (!saved) return refuse('Enter the milestone first.')
+      storage.saveMilestoneInputs({ ...saved, paceCounts: saved.paceCounts.slice(0, -1) })
+      return { ok: true }
+    }
+    case 'setPaceMode': {
+      if (!saved) return refuse('Enter the milestone first.')
+      const paceMode = PACE_MODES.find((mode) => mode === edit.paceMode)
+      if (paceMode === undefined) return refuse('Choose the range or typed counts.')
+      storage.saveMilestoneInputs({ ...saved, paceMode })
       return { ok: true }
     }
     case 'setCadence': {

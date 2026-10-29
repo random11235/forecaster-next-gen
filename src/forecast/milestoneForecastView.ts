@@ -2,7 +2,16 @@ import { periodEndDate, simulateCase, ENGINE_VERSION, type ForecastResult, type 
 import type { Ambiguity, GrowthRange } from '../model/ambiguity.js'
 import type { Storage } from '../storage/storage.js'
 import { milestoneGrowth } from './growth.js'
-import { inputProblems, inputWarnings, isForecastable, type ForecastableInputs, type InputNote } from './milestoneInputs.js'
+import {
+  inputProblems,
+  inputWarnings,
+  isForecastable,
+  paceInUse,
+  typedCountsShort,
+  type ForecastableInputs,
+  type InputNote,
+  type PaceInUse,
+} from './milestoneInputs.js'
 import type { ForecastSettings } from './settings.js'
 
 /** The confidence level the headline states. */
@@ -33,6 +42,8 @@ export type MilestoneForecastView =
   | { kind: 'empty' }
   /** Inputs that can't be forecast, each naming what to fix. */
   | { kind: 'problems'; name: string; problems: InputNote[] }
+  /** Too few typed counts to forecast from, saying how many there are and what to do. */
+  | { kind: 'needsPace'; name: string; note: InputNote }
   | {
       kind: 'forecast'
       name: string
@@ -45,7 +56,8 @@ export type MilestoneForecastView =
       horizonDate: string
       /** Days in one of the team's periods, which the pace is per. */
       cadenceDays: number
-      pace: { source: 'range'; low: number; high: number }
+      /** The pace the dates come from. */
+      pace: PaceInUse
       /** The milestone's ambiguity level and the growth range it used. */
       ambiguity: { level: Ambiguity } & GrowthRange
       warnings: InputNote[]
@@ -58,9 +70,12 @@ export function milestoneForecastView(storage: Storage, teamId: string, settings
   const inputs = storage.milestoneInputs(teamId)
   if (!inputs) return { kind: 'empty' }
   if (!isForecastable(inputs)) return { kind: 'problems', name: inputs.name, problems: inputProblems(inputs) }
+  const short = typedCountsShort(inputs)
+  if (short) return { kind: 'needsPace', name: inputs.name, note: short }
 
+  const pace = paceInUse(inputs)!
   const growth = milestoneGrowth(storage, inputs)
-  const simulationCase = milestoneCase(inputs, growth, settings)
+  const simulationCase = milestoneCase(inputs, pace, growth, settings)
   const result = simulateCase(simulationCase)
   const { periodDays, maxPeriods, percentiles } = simulationCase
   return {
@@ -72,7 +87,7 @@ export function milestoneForecastView(storage: Storage, teamId: string, settings
     dates: percentiles.map((percent) => forecastDate(percent, result.percentileDates[percent] ?? null, today)),
     horizonDate: periodEndDate(inputs.startDate, periodDays, maxPeriods),
     cadenceDays: inputs.cadenceDays,
-    pace: { source: 'range', ...inputs.paceRange },
+    pace,
     ambiguity: { level: inputs.ambiguity, ...growth },
     warnings: inputWarnings(inputs, today),
     finishGraph: finishGraph(result, simulationCase),
@@ -89,8 +104,8 @@ function forecastDate(percent: number, date: string | null, today: string): Fore
  * its cadence. With 0 tickets the engine would draw a size, so the size range is pinned to 0 and the forecast finishes
  * on the start date.
  */
-function milestoneCase(inputs: ForecastableInputs, growth: GrowthRange, settings: ForecastSettings): SimulationCase {
-  const { startDate, ticketsRemaining, paceRange } = inputs
+function milestoneCase(inputs: ForecastableInputs, pace: PaceInUse, growth: GrowthRange, settings: ForecastSettings): SimulationCase {
+  const { startDate, ticketsRemaining } = inputs
   return {
     engineVersion: ENGINE_VERSION,
     seed: settings.seed,
@@ -110,7 +125,8 @@ function milestoneCase(inputs: ForecastableInputs, growth: GrowthRange, settings
         growth,
       },
     ],
-    throughputSamples: paceRange,
+    // typed counts are drawn by the Bayesian bootstrap (ADR-0001), a range uniformly
+    throughputSamples: pace.source === 'counts' ? pace.counts : { low: pace.low, high: pace.high },
     epicSizeSamples: { low: 0, high: 0 },
     percentiles: settings.percentiles,
   }
