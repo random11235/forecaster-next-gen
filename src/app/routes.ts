@@ -45,7 +45,7 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
   const settings = DEFAULT_SETTINGS
   const team = storage.teams()[0]
   if (request.method === 'GET' && request.path === '/') {
-    const view: MilestoneForecastView = team ? milestoneForecastView(storage, team.id, { today: today(), settings }) : { kind: 'empty' }
+    const view: MilestoneForecastView = team ? milestoneForecastView(storage, team.id, settings) : { kind: 'empty' }
     return { kind: 'html', status: 200, html: renderMilestoneForecastScreen(view) }
   }
   if (!team) return { kind: 'notFound' }

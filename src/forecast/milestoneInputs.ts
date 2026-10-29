@@ -51,7 +51,7 @@ export function milestoneInputsView(storage: Storage, teamId: string, today: str
 /** What the EM must enter before the milestone can be forecast; only a milestone kept from before the MVP lacks any. */
 export function inputProblems(inputs: MilestoneInputs): InputNote[] {
   return [
-    ...(inputs.startDate === undefined ? [{ input: 'startDate', message: 'Enter the date work starts.' } as const] : []),
+    ...(inputs.startDate === undefined ? [{ input: 'startDate', message: 'No start date is saved yet.' } as const] : []),
     ...(inputs.ticketsRemaining === undefined
       ? [{ input: 'ticketsRemaining', message: 'Enter how many tickets are left.' } as const]
       : []),

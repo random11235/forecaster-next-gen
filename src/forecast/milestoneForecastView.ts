@@ -34,20 +34,14 @@ export type MilestoneForecastView =
       warnings: InputNote[]
     }
 
-export interface ViewOptions {
-  /** ISO calendar date the screen is shown on. */
-  today: string
-  settings: ForecastSettings
-}
-
 /** Seam B: the Milestone forecast screen for the team's milestone, forecast from its start date. */
-export function milestoneForecastView(storage: Storage, teamId: string, options: ViewOptions): MilestoneForecastView {
+export function milestoneForecastView(storage: Storage, teamId: string, settings: ForecastSettings): MilestoneForecastView {
   const inputs = storage.milestoneInputs(teamId)
   if (!inputs) return { kind: 'empty' }
   if (!isForecastable(inputs)) return { kind: 'problems', name: inputs.name, problems: inputProblems(inputs) }
 
   const growth = (storage.ambiguityRanges(teamId) ?? DEFAULT_AMBIGUITY_RANGES).medium
-  const simulationCase = milestoneCase(inputs, growth, options.settings)
+  const simulationCase = milestoneCase(inputs, growth, settings)
   const result = simulateCase(simulationCase)
   const { periodDays, maxPeriods, percentiles } = simulationCase
   return {

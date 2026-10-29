@@ -28,4 +28,4 @@ _Avoid_: split rate, scope creep
 
 **Start date** (of a milestone): the day the EM says work on the milestone starts, which the forecast counts from instead of today. Pre-filled with today's local date, and it may be in the past. Stored as `start_date`.
 
-**Tickets remaining** (of a milestone): the whole tickets the EM says are left to do, 0 or more. The forecast grows them by the milestone's ambiguity, then works through them at the EM's pace. Stored as `tickets_remaining`.
+**Tickets remaining** (of a milestone): the whole tickets the EM says are left to do, 0 or more. The forecast grows them by the team's medium growth range, then works through them at the EM's pace. Stored as `tickets_remaining`.

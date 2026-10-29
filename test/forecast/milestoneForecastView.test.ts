@@ -71,7 +71,7 @@ const DATES_FROM_15_SEP = [
 ]
 
 function view(storage: Storage) {
-  return milestoneForecastView(storage, TEAM, { today: TODAY, settings: DEFAULT_SETTINGS })
+  return milestoneForecastView(storage, TEAM, DEFAULT_SETTINGS)
 }
 
 describe('the forecast from what the EM enters', () => {
@@ -191,7 +191,7 @@ describe('before there is a forecast', () => {
       kind: 'problems',
       name: 'Checkout v2',
       problems: [
-        { input: 'startDate', message: 'Enter the date work starts.' },
+        { input: 'startDate', message: 'No start date is saved yet.' },
         { input: 'ticketsRemaining', message: 'Enter how many tickets are left.' },
         { input: 'pace', message: 'Enter a pace range.' },
       ],
@@ -248,6 +248,26 @@ describe('the milestone on the Inputs screen', () => {
 
   test('before anything is entered, the start date is pre-filled with today', () => {
     expect(inputs(newTeam())).toEqual({ name: '', startDate: TODAY, ticketsRemaining: undefined, paceRange: undefined, notes: [] })
+  })
+
+  test('a milestone kept from before the MVP shows today pre-filled, noting that no start date is saved yet', () => {
+    const storage = newTeam()
+    storage.saveMilestoneInputs({
+      teamId: TEAM,
+      name: 'Checkout v2',
+      startDate: undefined,
+      ticketsRemaining: 10,
+      ambiguity: 'medium',
+      cadenceDays: 7,
+      paceMode: 'range',
+      paceRange: { low: 4, high: 8 },
+      paceCounts: [],
+    })
+
+    expect(inputs(storage)).toMatchObject({
+      startDate: TODAY,
+      notes: [{ input: 'startDate', message: 'No start date is saved yet.' }],
+    })
   })
 
   test('shows what was entered, with each warning beside its input', () => {
