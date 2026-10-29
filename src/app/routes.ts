@@ -92,7 +92,7 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
   }
 
   /** The typed counts as saved, for a refusal that keeps the list but not what was typed elsewhere. */
-  const savedCounts = (): PaceCountsForm => savedPaceCountsForm(inputsView(storage, team.id, today()).milestone)
+  const savedCounts = (): PaceCountsForm => savedPaceCountsForm({ paceCounts: storage.milestoneInputs(team.id)?.paceCounts ?? [] })
 
   if (request.method === 'GET' && request.path === '/inputs') return inputsScreen(200)
   if (request.method === 'POST' && request.path === '/inputs/milestone') {
