@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import { editInputs, inputsView } from '../../src/forecast/inputs.js'
-import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
+import { epicForecastView } from '../../src/forecast/epicForecastView.js'
 import { DEFAULT_SETTINGS, type ForecastSettings } from '../../src/forecast/settings.js'
 import type { Facts, WorkItem } from '../../src/model/workItem.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
@@ -53,7 +53,7 @@ function enterManualPace(storage: Storage, low: string, high: string): void {
 }
 
 function forecastOf(storage: Storage, settings: ForecastSettings = DEFAULT_SETTINGS) {
-  const view = milestoneForecastView(storage, TEAM, { today: TODAY, settings })
+  const view = epicForecastView(storage, TEAM, { today: TODAY, settings })
   if (view.kind !== 'milestone') throw new Error('expected a milestone')
   return view.forecast
 }

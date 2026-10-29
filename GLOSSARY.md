@@ -25,3 +25,7 @@ _Avoid_: split rate, scope creep
 **Installation** (of a team): when the Forecaster was set up for the team. Nothing the team finished before it is used automatically, so pace never quietly draws on another team, KTLO load or way of working. Stored as `installed_at`.
 
 **Measured pace**: the forecast drawing a milestone's pace from its own weeks of finished tickets (only those under its epics, and only in whole weeks since installation, from the first week one was finished) instead of the EM's manual range, once the EM switches to it. When it is offered, paused and resumed: [Pace](docs/design/forecast-model.md#pace).
+
+**Start date** (of a milestone): the day the EM says work on the milestone starts, which the forecast counts from instead of today. Pre-filled with today's local date, and it may be in the past. Stored as `start_date`.
+
+**Tickets remaining** (of a milestone): the whole tickets the EM says are left to do, 0 or more. The forecast grows them by the team's medium growth range, then works through them at the EM's pace. Stored as `tickets_remaining`.

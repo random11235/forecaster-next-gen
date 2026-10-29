@@ -1,6 +1,7 @@
 import type { AmbiguityRanges, EpicAmbiguity } from '../model/ambiguity.js'
 import type { EpicCommit } from '../model/epicCommit.js'
 import type { Milestone } from '../model/milestone.js'
+import type { MilestoneInputs } from '../model/milestoneInputs.js'
 import type { PaceSetting } from '../model/paceSetting.js'
 import type { Team } from '../model/team.js'
 import type { WorkflowSettings } from '../model/workflow.js'
@@ -20,6 +21,10 @@ export interface Storage {
   saveMilestone(milestone: Milestone): void
   /** The team's milestones, in the order they were first saved. */
   milestones(teamId: string): Milestone[]
+  /** Adds the milestone's inputs as the EM entered them, or replaces the team's. */
+  saveMilestoneInputs(inputs: MilestoneInputs): void
+  /** The team's milestone inputs, if the EM has entered them. */
+  milestoneInputs(teamId: string): MilestoneInputs | undefined
   /** Adds the milestone's pace setting, or replaces the one it has. */
   savePaceSetting(setting: PaceSetting): void
   /** The milestone's pace setting, if the EM has entered one. */
