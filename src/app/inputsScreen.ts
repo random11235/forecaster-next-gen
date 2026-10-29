@@ -1,4 +1,6 @@
+import { periodName, type PeriodName } from '../forecast/cadence.js'
 import {
+  MAX_CADENCE_DAYS,
   MAX_TICKETS_PER_WEEK,
   MAX_TICKETS_REMAINING,
   type MilestoneInput,
@@ -32,6 +34,22 @@ export function parsePaceForm(body: URLSearchParams): PaceForm {
 /** The pace form filled with the saved range, or empty. */
 export function savedPaceForm(view: MilestoneInputsView): PaceForm {
   return view.paceRange ? { low: String(view.paceRange.low), high: String(view.paceRange.high) } : { low: '', high: '' }
+}
+
+/** The cadence form as typed, and why it was refused, if it was. */
+export interface CadenceForm {
+  cadenceDays: string
+  error?: string
+}
+
+/** Reads the submitted cadence form; the rules it must meet are checked when it is saved. */
+export function parseCadenceForm(body: URLSearchParams): CadenceForm {
+  return { cadenceDays: body.get('cadenceDays')?.trim() ?? '' }
+}
+
+/** The cadence form filled with the saved cadence, 7 days until the EM sets one. */
+export function savedCadenceForm(view: MilestoneInputsView): CadenceForm {
+  return { cadenceDays: String(view.cadenceDays) }
 }
 
 /** The ambiguity ranges form as typed: each level's low and high, and why they were refused, if they were. */
@@ -89,6 +107,8 @@ export interface InputsScreen {
   milestone: MilestoneInputsView
   /** The milestone form, as saved or as typed when refused. */
   milestoneForm: MilestoneForm
+  /** The cadence form, as saved or as typed when refused. */
+  cadenceForm: CadenceForm
   /** The pace form, as saved or as typed when refused. */
   paceForm: PaceForm
   /** The milestone's ambiguity level, with why a level was refused, if it was. */
@@ -104,7 +124,8 @@ export function renderInputsScreen(screen: InputsScreen): string {
   const { milestone } = screen
   const sections = [
     milestoneSection(screen.milestoneForm, milestone.notes),
-    paceSection(screen.paceForm, milestone.notes),
+    cadenceSection(screen.cadenceForm),
+    paceSection(screen.paceForm, milestone.notes, periodName(milestone.cadenceDays)),
     ambiguitySection(milestone.ambiguity, screen.ranges, screen.ambiguityForm),
     growthSection(screen.growth),
   ]
@@ -161,17 +182,32 @@ function errorLine(error: string | undefined): string {
   return error ? `\n          <p class="error" role="alert">${escapeHtml(error)}</p>` : ''
 }
 
-function paceSection(form: PaceForm, notes: readonly InputNote[]): Section {
+function cadenceSection(form: CadenceForm): Section {
+  return inputSection(
+    'Cadence',
+    'Cadence',
+    'How many days the team’s sprint lasts. Pace is entered per sprint, and 7 days counts as a week.',
+    `        <form method="post" action="/inputs/cadence">${errorLine(form.error)}
+          <div class="pace">
+            <label>Cadence length <input type="number" name="cadenceDays" min="1" max="${MAX_CADENCE_DAYS}" step="1" value="${escapeHtml(form.cadenceDays)}" required></label>
+            <span class="unit">days</span>
+          </div>
+          <div class="actions"><button type="submit">Save cadence</button></div>
+        </form>`,
+  )
+}
+
+function paceSection(form: PaceForm, notes: readonly InputNote[], period: PeriodName): Section {
   return inputSection(
     INPUT_LABELS.pace,
     INPUT_LABELS.pace,
-    'How many tickets the team finishes in a week, from a slow week to a good one.',
+    `How many tickets the team finishes in a ${period}, from a slow ${period} to a good one.`,
     `        <form method="post" action="/inputs/pace">${errorLine(form.error)}
           <div class="pace">
             <label>Low <input type="number" name="low" min="0" max="${MAX_TICKETS_PER_WEEK}" step="1" value="${escapeHtml(form.low)}" required></label>
             <span class="to">to</span>
             <label>High <input type="number" name="high" min="0" max="${MAX_TICKETS_PER_WEEK}" step="1" value="${escapeHtml(form.high)}" required></label>
-            <span class="unit">tickets per week</span>
+            <span class="unit">tickets per ${period}</span>
           </div>${notesFor('pace', notes)}
           <div class="actions"><button type="submit" class="primary">Save and forecast</button></div>
         </form>`,
