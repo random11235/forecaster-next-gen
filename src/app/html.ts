@@ -1,4 +1,3 @@
-import type { CommitView } from '../forecast/milestoneEpics.js'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -54,11 +53,6 @@ ${main}
 </body>
 </html>
 `
-}
-
-/** A committed epic's commit, the same on every screen: `Committed at 14 items`, or `Committed by label at 14 items`. */
-export function commitText(commit: CommitView): string {
-  return `Committed ${commit.source === 'label' ? 'by label ' : ''}at ${commit.baseline} items`
 }
 
 const STYLE = `

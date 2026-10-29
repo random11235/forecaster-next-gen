@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'vitest'
-import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
+import { epicForecastView } from '../../src/forecast/epicForecastView.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import { teamFacts } from '../../src/forecast/teamFacts.js'
 import { editInputs, inputsView } from '../../src/forecast/inputs.js'
@@ -88,7 +88,7 @@ function weeksOfFinishedTickets(storage: Storage): number | undefined {
 }
 
 function forecastView(storage: Storage) {
-  const view = milestoneForecastView(storage, TEAM, { today: TODAY, settings: DEFAULT_SETTINGS })
+  const view = epicForecastView(storage, TEAM, { today: TODAY, settings: DEFAULT_SETTINGS })
   if (view.kind !== 'milestone') throw new Error('expected a milestone')
   return view
 }

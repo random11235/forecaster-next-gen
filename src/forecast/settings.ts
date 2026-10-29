@@ -21,7 +21,7 @@ export interface ForecastSettings {
 
 export const DEFAULT_SETTINGS: ForecastSettings = {
   trials: 10_000,
-  percentiles: [50, 85, 95],
+  percentiles: [50, 70, 85, 95],
   periodDays: 7,
   maxPeriods: 156,
   seed: 1,
