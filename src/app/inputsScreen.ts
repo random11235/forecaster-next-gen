@@ -8,7 +8,9 @@ import {
   type MilestoneInputsView,
 } from '../forecast/milestoneInputs.js'
 import { ambiguityName, MAX_GROWTH, type GrowthView, type TypedRange } from '../forecast/growth.js'
+import { TYPED_COUNTS } from '../forecast/settings.js'
 import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
+import type { PaceMode } from '../model/milestoneInputs.js'
 import { escapeHtml, htmlPage } from './html.js'
 
 /** Each input of the milestone by its label on this screen, which notes about it are named by everywhere. */
@@ -34,6 +36,40 @@ export function parsePaceForm(body: URLSearchParams): PaceForm {
 /** The pace form filled with the saved range, or empty. */
 export function savedPaceForm(view: MilestoneInputsView): PaceForm {
   return view.paceRange ? { low: String(view.paceRange.low), high: String(view.paceRange.high) } : { low: '', high: '' }
+}
+
+/** The typed counts forms as typed: the list, the count to add, and why either was refused, if it was. */
+export interface PaceCountsForm {
+  /** The list, oldest first, apart by commas. */
+  counts: string
+  /** The newest count, to add after the rest. */
+  count: string
+  error?: string
+}
+
+/** Reads the submitted typed counts list; the rules it must meet are checked when it is saved. */
+export function parsePaceCountsForm(body: URLSearchParams): string {
+  return body.get('counts')?.trim() ?? ''
+}
+
+/** Reads the submitted count to add; the rules it must meet are checked when it is saved. */
+export function parseAddCountForm(body: URLSearchParams): string {
+  return body.get('count')?.trim() ?? ''
+}
+
+/** The typed counts forms filled with the saved counts, oldest first, and nothing to add. */
+export function savedPaceCountsForm(view: MilestoneInputsView): PaceCountsForm {
+  return { counts: view.paceCounts.join(', '), count: '' }
+}
+
+/** The pace choice form: the choice is saved or shown as saved, so only why it was refused, if it was. */
+export interface PaceModeForm {
+  error?: string
+}
+
+/** Reads the submitted pace choice; whether it is one is checked when it is saved. */
+export function parsePaceModeForm(body: URLSearchParams): string {
+  return body.get('paceMode') ?? ''
 }
 
 /** The cadence form as typed, and why it was refused, if it was. */
@@ -111,6 +147,10 @@ export interface InputsScreen {
   cadenceForm: CadenceForm
   /** The pace form, as saved or as typed when refused. */
   paceForm: PaceForm
+  /** Which pace the forecast uses, with why a choice was refused, if it was. */
+  paceModeForm: PaceModeForm
+  /** The typed counts forms, as saved or as typed when refused. */
+  paceCountsForm: PaceCountsForm
   /** The milestone's ambiguity level, with why a level was refused, if it was. */
   ambiguityForm: AmbiguityForm
   /** The ambiguity ranges form, as saved or as typed when refused. */
@@ -125,7 +165,7 @@ export function renderInputsScreen(screen: InputsScreen): string {
   const sections = [
     milestoneSection(screen.milestoneForm, milestone.notes),
     cadenceSection(screen.cadenceForm),
-    paceSection(screen.paceForm, milestone.notes, periodName(milestone.cadenceDays)),
+    paceSection(screen, periodName(milestone.cadenceDays)),
     ambiguitySection(milestone.ambiguity, screen.ranges, screen.ambiguityForm),
     growthSection(screen.growth),
   ]
@@ -197,20 +237,57 @@ function cadenceSection(form: CadenceForm): Section {
   )
 }
 
-function paceSection(form: PaceForm, notes: readonly InputNote[], period: PeriodName): Section {
+const PACE_MODE_NAMES: Record<PaceMode, string> = { range: 'Range', counts: 'Typed counts' }
+
+/** The pace: which one the forecast uses, the range, and the typed counts, the notes beside the one in use. */
+function paceSection(screen: InputsScreen, period: PeriodName): Section {
+  const { paceMode, notes } = screen.milestone
+  const notesIfUsed = (mode: PaceMode): string => (mode === paceMode ? notesFor('pace', notes) : '')
+  const modes = (['range', 'counts'] as const)
+    .map(
+      (mode) =>
+        `            <label><input type="radio" name="paceMode" value="${mode}"${mode === paceMode ? ' checked' : ''} required> ${PACE_MODE_NAMES[mode]}</label>`,
+    )
+    .join('\n')
+  const { paceForm: range, paceCountsForm: counts } = screen
   return inputSection(
     INPUT_LABELS.pace,
     INPUT_LABELS.pace,
-    `How many tickets the team finishes in a ${period}, from a slow ${period} to a good one.`,
-    `        <form method="post" action="/inputs/pace">${errorLine(form.error)}
+    `How many tickets the team finishes in a ${period}: a range from a slow ${period} to a good one, or typed counts of past ${period}s. Typed counts need at least ${TYPED_COUNTS.forForecast} for a forecast.`,
+    `        <form method="post" action="/inputs/pace-mode">${errorLine(screen.paceModeForm.error)}
+          <fieldset class="levels" aria-label="Pace the forecast uses">
+${modes}
+          </fieldset>
+          <div class="actions"><button type="submit" class="primary">Use this pace</button></div>
+        </form>
+        <form method="post" action="/inputs/pace">${errorLine(range.error)}
+          <h3>${PACE_MODE_NAMES.range}</h3>
           <div class="pace">
-            <label>Low <input type="number" name="low" min="0" max="${MAX_TICKETS_PER_WEEK}" step="1" value="${escapeHtml(form.low)}" required></label>
+            <label>Low <input type="number" name="low" min="0" max="${MAX_TICKETS_PER_WEEK}" step="1" value="${escapeHtml(range.low)}" required></label>
             <span class="to">to</span>
-            <label>High <input type="number" name="high" min="0" max="${MAX_TICKETS_PER_WEEK}" step="1" value="${escapeHtml(form.high)}" required></label>
+            <label>High <input type="number" name="high" min="0" max="${MAX_TICKETS_PER_WEEK}" step="1" value="${escapeHtml(range.high)}" required></label>
             <span class="unit">tickets per ${period}</span>
-          </div>${notesFor('pace', notes)}
+          </div>${notesIfUsed('range')}
           <div class="actions"><button type="submit" class="primary">Save and forecast</button></div>
-        </form>`,
+        </form>
+        <form method="post" action="/inputs/pace-counts">${errorLine(counts.error)}
+          <h3>${PACE_MODE_NAMES.counts}</h3>
+          <div class="fields">
+            <label class="wide">Tickets done each ${period}, oldest first <input type="text" name="counts" value="${escapeHtml(counts.counts)}" inputmode="numeric" placeholder="6, 4, 9"></label>
+          </div>${notesIfUsed('counts')}
+          <div class="actions"><button type="submit">Save counts</button></div>
+        </form>
+        <div class="counts">
+          <form method="post" action="/inputs/pace-counts/add">
+            <div class="fields">
+              <label>Newest ${period} <input type="number" name="count" min="0" max="${MAX_TICKETS_PER_WEEK}" step="1" value="${escapeHtml(counts.count)}" required></label>
+              <button type="submit">Add count</button>
+            </div>
+          </form>
+          <form method="post" action="/inputs/pace-counts/remove-last">
+            <button type="submit">Remove last</button>
+          </form>
+        </div>`,
   )
 }
 

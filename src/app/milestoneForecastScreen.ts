@@ -14,6 +14,8 @@ export function renderMilestoneForecastScreen(view: MilestoneForecastView): stri
       return htmlPage('Milestone forecast', '/', EMPTY_STATE_HEADER, '')
     case 'problems':
       return htmlPage('Milestone forecast', '/', problemsHeader(view.name), renderNotes('What to fix', view.problems))
+    case 'needsPace':
+      return htmlPage('Milestone forecast', '/', problemsHeader(view.name), renderNotes('What to fix', [view.note]))
     case 'forecast':
       return htmlPage('Milestone forecast', '/', forecastHeader(view), `${renderForecast(view)}${renderNotes('Warnings', view.warnings)}`)
   }
@@ -55,7 +57,7 @@ function renderForecast(view: Forecast): string {
       <ul class="dates">
 ${dates}
       </ul>
-      <p class="note">Pace: ${view.pace.low}–${view.pace.high} tickets per ${periodName(view.cadenceDays)} (range)</p>
+      <p class="note">Pace: ${paceUsed(view)}</p>
       <p class="note">Ambiguity: ${view.ambiguity.level}, growing ${view.ambiguity.low}–${view.ambiguity.high}×</p>
     </section>${renderFinishGraph(view)}`
 }
@@ -101,6 +103,12 @@ ${columns}
         <figcaption class="note">Share of trials finishing each ${periodName(view.cadenceDays)}, from the start date. The ${view.headlinePercent}% date is the headline.</figcaption>
       </figure>
     </section>`
+}
+
+/** The pace the dates come from: "4–8 tickets per week (range)", or "typed counts, 6 sprints". */
+function paceUsed({ pace, cadenceDays }: Forecast): string {
+  const period = periodName(cadenceDays)
+  return pace.source === 'counts' ? `typed counts, ${counted(pace.counts.length, period)}` : `${pace.low}–${pace.high} tickets per ${period} (range)`
 }
 
 /** `part` as a percentage of `whole`, to 2 decimal places. */

@@ -392,6 +392,142 @@ describe('the cadence', () => {
   })
 })
 
+describe('typed counts', () => {
+  test('10 tickets from counts of exactly 5 a week, with no growth, finish 2 weeks after the start date, and the forecast says the pace it used', () => {
+    const storage = newTeam()
+    mediumGrowth(storage, { low: 1, high: 1 })
+    expect(edit(storage, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-09-01', ticketsRemaining: '10' })).toEqual({ ok: true })
+
+    expect(edit(storage, { kind: 'setPaceCounts', counts: '5, 5, 5' })).toEqual({ ok: true })
+    expect(edit(storage, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
+
+    expect(view(storage)).toMatchObject({
+      kind: 'forecast',
+      dates: [50, 70, 85, 95].map((percent) => ({ percent, date: '2026-09-15' })),
+      pace: { source: 'counts', counts: [5, 5, 5] },
+      warnings: [],
+    })
+  })
+
+  test('with 1 typed count there is no forecast, and the note saying why sits beside the pace too', () => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
+    expect(edit(storage, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
+
+    expect(edit(storage, { kind: 'setPaceCounts', counts: '6' })).toEqual({ ok: true })
+
+    const note = {
+      input: 'pace',
+      message: 'Typed counts: 1 week entered. The forecast needs at least 2. Add another count, or switch pace to the range.',
+    }
+    expect(view(storage)).toEqual({ kind: 'needsPace', name: 'Checkout v2', note })
+    expect(inputsView(storage, TEAM, TODAY).milestone.notes).toEqual([note])
+  })
+
+  test('the EM adds a count, removes the last one, and edits the list, oldest first, and the counts are kept across a restart', () => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
+    const counts = () => inputsView(openStorage(), TEAM, TODAY).milestone.paceCounts
+
+    expect(edit(storage, { kind: 'setPaceCounts', counts: '6 4, 9' })).toEqual({ ok: true })
+    expect(counts()).toEqual([6, 4, 9])
+
+    expect(edit(openStorage(), { kind: 'addPaceCount', count: ' 7 ' })).toEqual({ ok: true })
+    expect(counts()).toEqual([6, 4, 9, 7])
+
+    expect(edit(openStorage(), { kind: 'removeLastPaceCount' })).toEqual({ ok: true })
+    expect(counts()).toEqual([6, 4, 9])
+  })
+
+  test('removing the last count from none changes nothing', () => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
+
+    expect(edit(storage, { kind: 'removeLastPaceCount' })).toEqual({ ok: true })
+
+    expect(inputsView(storage, TEAM, TODAY).milestone.paceCounts).toEqual([])
+  })
+
+  test('switching between the range and typed counts keeps both across a restart, and the forecast uses the one chosen', () => {
+    let storage = newTeam()
+    mediumGrowth(storage, { low: 1, high: 1 })
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '5', high: '5' })
+    expect(edit(storage, { kind: 'setPaceCounts', counts: '10, 10' })).toEqual({ ok: true })
+
+    expect(edit(storage, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
+    storage = openStorage()
+    expect(view(storage)).toMatchObject({ pace: { source: 'counts', counts: [10, 10] }, dates: [50, 70, 85, 95].map((percent) => ({ percent, date: '2026-09-08' })) })
+    expect(inputsView(storage, TEAM, TODAY).milestone).toMatchObject({ paceMode: 'counts', paceRange: { low: 5, high: 5 } })
+
+    expect(edit(storage, { kind: 'setPaceMode', paceMode: 'range' })).toEqual({ ok: true })
+    storage = openStorage()
+    expect(view(storage)).toMatchObject({ pace: { source: 'range', low: 5, high: 5 }, dates: [50, 70, 85, 95].map((percent) => ({ percent, date: '2026-09-15' })) })
+    expect(inputsView(storage, TEAM, TODAY).milestone).toMatchObject({ paceMode: 'range', paceCounts: [10, 10] })
+  })
+
+  test('typed counts of 0 throughout give no date, and a warning on the pace', () => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
+    expect(edit(storage, { kind: 'setPaceCounts', counts: '0, 0, 0' })).toEqual({ ok: true })
+
+    expect(edit(storage, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
+
+    expect(view(storage)).toMatchObject({
+      dates: [50, 70, 85, 95].map((percent) => ({ percent, date: null })),
+      warnings: [{ input: 'pace', message: 'At 0 tickets a week, the work never finishes.' }],
+    })
+  })
+
+  test.each([
+    [{ kind: 'setPaceCounts', counts: '6, -1' }, 'Enter typed counts as whole numbers of tickets, 0 or more.'],
+    [{ kind: 'setPaceCounts', counts: '6, 2.5' }, 'Enter typed counts as whole numbers of tickets, 0 or more.'],
+    [{ kind: 'setPaceCounts', counts: 'six' }, 'Enter typed counts as whole numbers of tickets, 0 or more.'],
+    [{ kind: 'setPaceCounts', counts: '6, 1001' }, 'Enter at most 1000 tickets per week.'],
+    [{ kind: 'addPaceCount', count: '' }, 'Enter typed counts as whole numbers of tickets, 0 or more.'],
+    [{ kind: 'addPaceCount', count: '-3' }, 'Enter typed counts as whole numbers of tickets, 0 or more.'],
+    [{ kind: 'addPaceCount', count: '4 5' }, 'Enter typed counts as whole numbers of tickets, 0 or more.'],
+    [{ kind: 'addPaceCount', count: '1001' }, 'Enter at most 1000 tickets per week.'],
+    [{ kind: 'setPaceMode', paceMode: 'measured' }, 'Choose the range or typed counts.'],
+  ] satisfies [InputsEdit, string][])('refuses %j, saying why and changing nothing', (change, error) => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
+    expect(edit(storage, { kind: 'setPaceCounts', counts: '6, 4, 9' })).toEqual({ ok: true })
+    expect(edit(storage, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
+    const before = view(storage)
+
+    expect(edit(storage, change)).toEqual({ ok: false, error })
+
+    expect(view(storage)).toEqual(before)
+    expect(inputsView(storage, TEAM, TODAY).milestone.paceCounts).toEqual([6, 4, 9])
+  })
+
+  test.each([
+    { kind: 'setPaceCounts', counts: '6, 4' },
+    { kind: 'addPaceCount', count: '6' },
+    { kind: 'removeLastPaceCount' },
+    { kind: 'setPaceMode', paceMode: 'counts' },
+  ] satisfies InputsEdit[])('%j needs the milestone first', (change) => {
+    const storage = newTeam()
+
+    expect(edit(storage, change)).toEqual({ ok: false, error: 'Enter the milestone first.' })
+
+    expect(view(storage)).toEqual({ kind: 'empty' })
+  })
+
+  test('with no typed counts at a 14-day cadence, the note counts sprints', () => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
+    expect(edit(storage, { kind: 'setCadence', cadenceDays: '14' })).toEqual({ ok: true })
+
+    expect(edit(storage, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
+
+    expect(view(storage)).toMatchObject({
+      kind: 'needsPace',
+      note: { message: 'Typed counts: 0 sprints entered. The forecast needs at least 2. Add another count, or switch pace to the range.' },
+    })
+  })
+})
+
 describe('before there is a forecast', () => {
   test('with nothing entered, the screen is empty', () => {
     expect(view(newTeam())).toEqual({ kind: 'empty' })
@@ -492,6 +628,8 @@ describe('the milestone on the Inputs screen', () => {
       cadenceDays: 7,
       ambiguity: 'medium',
       paceRange: undefined,
+      paceCounts: [],
+      paceMode: 'range',
       notes: [],
     })
   })
@@ -528,6 +666,8 @@ describe('the milestone on the Inputs screen', () => {
       cadenceDays: 7,
       ambiguity: 'medium',
       paceRange: { low: 0, high: 0 },
+      paceCounts: [],
+      paceMode: 'range',
       notes: [{ input: 'pace', message: 'At 0 tickets a week, the work never finishes.' }],
     })
   })

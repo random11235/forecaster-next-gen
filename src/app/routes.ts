@@ -4,20 +4,26 @@ import { DEFAULT_SETTINGS } from '../forecast/settings.js'
 import type { Storage } from '../storage/storage.js'
 import {
   parseAmbiguityForm,
+  parseAddCountForm,
   parseCadenceForm,
   parseGrowthForm,
   parseMilestoneForm,
+  parsePaceCountsForm,
   parsePaceForm,
+  parsePaceModeForm,
   renderInputsScreen,
   savedCadenceForm,
   savedGrowthForm,
   savedMilestoneForm,
+  savedPaceCountsForm,
   savedPaceForm,
   type AmbiguityForm,
   type CadenceForm,
   type GrowthForm,
   type MilestoneForm,
+  type PaceCountsForm,
   type PaceForm,
+  type PaceModeForm,
 } from './inputsScreen.js'
 import { renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
 
@@ -57,6 +63,8 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
       milestoneForm?: MilestoneForm
       cadenceForm?: CadenceForm
       paceForm?: PaceForm
+      paceModeForm?: PaceModeForm
+      paceCountsForm?: PaceCountsForm
       ambiguityForm?: AmbiguityForm
       growthForm?: GrowthForm
     } = {},
@@ -70,6 +78,8 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
         milestoneForm: refused.milestoneForm ?? savedMilestoneForm(view.milestone),
         cadenceForm: refused.cadenceForm ?? savedCadenceForm(view.milestone),
         paceForm: refused.paceForm ?? savedPaceForm(view.milestone),
+        paceModeForm: refused.paceModeForm ?? {},
+        paceCountsForm: refused.paceCountsForm ?? savedPaceCountsForm(view.milestone),
         ambiguityForm: refused.ambiguityForm ?? {},
         growth: refused.growthForm ?? savedGrowthForm(view.growth),
         ranges: view.growth.ranges,
@@ -81,6 +91,9 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
     const saved = editInputs(storage, team.id, change)
     return saved.ok ? { kind: 'redirect', location } : inputsScreen(400, refused(saved.error))
   }
+
+  /** The typed counts as saved, for a refusal that keeps the list but not what was typed elsewhere. */
+  const savedCounts = (): PaceCountsForm => savedPaceCountsForm(inputsView(storage, team.id, today()).milestone)
 
   if (request.method === 'GET' && request.path === '/inputs') return inputsScreen(200)
   if (request.method === 'POST' && request.path === '/inputs/milestone') {
@@ -94,6 +107,21 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
   if (request.method === 'POST' && request.path === '/inputs/pace') {
     const typed = parsePaceForm(form)
     return edit({ kind: 'setPaceRange', ...typed }, '/', (error) => ({ paceForm: { ...typed, error } }))
+  }
+  if (request.method === 'POST' && request.path === '/inputs/pace-mode') {
+    const paceMode = parsePaceModeForm(form)
+    return edit({ kind: 'setPaceMode', paceMode }, '/', (error) => ({ paceModeForm: { error } }))
+  }
+  if (request.method === 'POST' && request.path === '/inputs/pace-counts') {
+    const counts = parsePaceCountsForm(form)
+    return edit({ kind: 'setPaceCounts', counts }, '/inputs', (error) => ({ paceCountsForm: { counts, count: '', error } }))
+  }
+  if (request.method === 'POST' && request.path === '/inputs/pace-counts/add') {
+    const count = parseAddCountForm(form)
+    return edit({ kind: 'addPaceCount', count }, '/inputs', (error) => ({ paceCountsForm: { ...savedCounts(), count, error } }))
+  }
+  if (request.method === 'POST' && request.path === '/inputs/pace-counts/remove-last') {
+    return edit({ kind: 'removeLastPaceCount' }, '/inputs', (error) => ({ paceCountsForm: { ...savedCounts(), error } }))
   }
   if (request.method === 'POST' && request.path === '/inputs/ambiguity') {
     const level = parseAmbiguityForm(form)
