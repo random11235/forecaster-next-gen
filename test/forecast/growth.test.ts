@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import { editInputs, inputsView, type InputsEdit } from '../../src/forecast/inputs.js'
-import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
+import { epicForecastView } from '../../src/forecast/epicForecastView.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import { defaultWorkflowSettings } from '../../src/model/workflow.js'
 import type { WorkItem, WorkItemEvent } from '../../src/model/workItem.js'
@@ -87,7 +87,7 @@ function edit(storage: Storage, change: InputsEdit): void {
 }
 
 function view(storage: Storage) {
-  const shown = milestoneForecastView(storage, TEAM, { today: TODAY, settings: DEFAULT_SETTINGS })
+  const shown = epicForecastView(storage, TEAM, { today: TODAY, settings: DEFAULT_SETTINGS })
   if (shown.kind !== 'milestone') throw new Error('expected a milestone')
   return shown
 }
@@ -320,7 +320,7 @@ describe('measured growth', () => {
 
     expect(inputsView(storage, TEAM, settings, TODAY).growth.suggestion).toMatchObject({ low: 1, high: 3 })
     expect(editInputs(storage, TEAM, { kind: 'useMeasuredMedium' }, settings, TODAY)).toEqual({ ok: true })
-    const shown = milestoneForecastView(storage, TEAM, { today: TODAY, settings })
+    const shown = epicForecastView(storage, TEAM, { today: TODAY, settings })
     expect(shown.kind === 'milestone' && shown.epics[0]!.growthSource).toBe('samples')
   })
 

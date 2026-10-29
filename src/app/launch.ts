@@ -13,7 +13,7 @@ export interface LaunchOptions {
   openBrowser: (url: string) => void
   /** Where the app keeps its data. On first launch, when it is empty, the sample data is loaded into it. */
   storage: Storage
-  /** Today's ISO calendar date, the day forecasts start from; the system clock unless given. */
+  /** Today's ISO calendar date, the start date's default; the system clock's local date unless given. */
   today?: () => string
 }
 
@@ -26,8 +26,7 @@ export interface RunningApp {
 export async function startAppAndOpenBrowser(options: LaunchOptions): Promise<RunningApp> {
   const context: AppContext = {
     storage: options.storage,
-    today: options.today ?? (() => new Date().toISOString().slice(0, 10)),
-    now: () => new Date().toISOString(),
+    today: options.today ?? (() => localCalendarDate(new Date())),
   }
   loadSampleDataIfEmpty(context.storage)
   const server = createServer((request, response) => {
@@ -57,6 +56,12 @@ export async function startAppAndOpenBrowser(options: LaunchOptions): Promise<Ru
         server.closeAllConnections()
       }),
   }
+}
+
+/** `at` as the EM's calendar date, `YYYY-MM-DD`, in the machine's time zone: not UTC's, which can be a day off. */
+function localCalendarDate(at: Date): string {
+  const two = (value: number): string => String(value).padStart(2, '0')
+  return `${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())}`
 }
 
 /** Hands the request to the routes and writes their reply. */

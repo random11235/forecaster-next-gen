@@ -1,17 +1,15 @@
-import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, test } from 'vitest'
+import { editInputs, inputsView, type InputsEdit } from '../../src/forecast/inputs.js'
 import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
-import { loadSampleDataIfEmpty } from '../../src/sample/loadSampleData.js'
+import type { GrowthRange } from '../../src/model/ambiguity.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
-import type { Facts } from '../../src/model/workItem.js'
 
-/** Before any ticket the tests finish, so installation leaves out none of them. */
-const INSTALLED = '2026-01-01T00:00:00Z'
-
+const TEAM = 'ACME'
 const TODAY = '2026-10-24'
 
 let dir: string
@@ -27,148 +25,242 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true })
 })
 
-/** Closes the app's storage and opens the same file again, as a restart does. */
-function restart(): Storage {
-  storage?.close()
-  return openStorage()
-}
-
-/** A team connected to Jira, as the EM's own teams are. */
-function saveJiraTeam(storage: Storage, teamId: string): void {
-  storage.saveTeam({ id: teamId, name: teamId, source: 'jira', sourceRef: teamId, installedAt: INSTALLED })
-}
-
-/** A team of the EM's own, with one epic of `children` tickets and a milestone holding it. */
-function saveOwnTeam(storage: Storage, teamId: string, children: number): void {
-  const at = '2026-10-01T09:00:00Z'
-  const item = (id: string, type: string, parentId?: string) => ({
-    id,
-    teamId,
-    sourceKey: id,
-    type,
-    ...(parentId !== undefined && { parentId }),
-    labels: [],
-    createdAt: at,
-    lastSyncedAt: at,
-  })
-  const facts: Facts = {
-    workItems: [
-      { ...item(`${teamId}-E`, 'epic'), title: `${teamId} epic` },
-      ...Array.from({ length: children }, (_, i) => item(`${teamId}-${i}`, 'story', `${teamId}-E`)),
-    ],
-    events: [{ itemId: `${teamId}-0`, at, kind: 'parent', to: `${teamId}-E` }],
-  }
-  saveJiraTeam(storage, teamId)
-  storage.addFacts(teamId, facts)
-  storage.saveMilestone({
-    id: `${teamId}-M`,
-    teamId,
-    name: `${teamId} milestone`,
-    committedDate: '2027-01-29',
-    epicIds: [`${teamId}-E`],
-  })
-}
-
 /** Opens the SQLite file the app would use, in a fresh directory per test. */
 function openStorage(): Storage {
+  storage?.close()
   storage = openSqliteStorage(join(dir, 'forecaster.db'))
   return storage
 }
 
-describe('milestone forecast view on sample data', () => {
-  test('on first launch, lists the sample milestone with each epic’s current count, commit and status, and warns of the uncommitted one in progress', () => {
-    const storage = openStorage()
+/** A team with nothing entered yet. */
+function newTeam(): Storage {
+  const storage = openStorage()
+  storage.saveTeam({ id: TEAM, name: 'Acme', source: 'jira', sourceRef: TEAM, installedAt: '2026-01-01T00:00:00Z' })
+  return storage
+}
 
-    loadSampleDataIfEmpty(storage)
+/** Sets the team's medium growth range: the growth every milestone has until it can choose its ambiguity. */
+function mediumGrowth(storage: Storage, medium: GrowthRange): void {
+  storage.saveAmbiguityRanges({ teamId: TEAM, low: { low: 1, high: 1.5 }, medium, high: { low: 1.5, high: 3 }, mediumMeasured: false })
+}
 
-    expect(milestoneForecastView(storage, storage.teams()[0]!.id, { today: TODAY, settings: DEFAULT_SETTINGS })).toEqual({
-      kind: 'milestone',
+function edit(storage: Storage, change: InputsEdit) {
+  return editInputs(storage, TEAM, change, DEFAULT_SETTINGS, TODAY)
+}
+
+/** The EM enters the milestone and a pace range, as the Inputs screen does. */
+function enter(storage: Storage, milestone: { startDate: string; ticketsRemaining: string }, pace: { low: string; high: string }): void {
+  expect(edit(storage, { kind: 'setMilestone', name: 'Checkout v2', ...milestone })).toEqual({ ok: true })
+  expect(edit(storage, { kind: 'setPaceRange', ...pace })).toEqual({ ok: true })
+}
+
+/** 100 tickets at 4–8 a week, growing 1–2×, from 1 Sep 2026: the engine's dates for the fixed seed. */
+const DATES_FROM_1_SEP = [
+  { percent: 50, date: '2027-03-02' },
+  { percent: 70, date: '2027-03-23' },
+  { percent: 85, date: '2027-04-06' },
+  { percent: 95, date: '2027-04-20' },
+]
+
+/** The same forecast started two weeks later: every date two weeks later. */
+const DATES_FROM_15_SEP = [
+  { percent: 50, date: '2027-03-16' },
+  { percent: 70, date: '2027-04-06' },
+  { percent: 85, date: '2027-04-20' },
+  { percent: 95, date: '2027-05-04' },
+]
+
+function view(storage: Storage) {
+  return milestoneForecastView(storage, TEAM, { today: TODAY, settings: DEFAULT_SETTINGS })
+}
+
+describe('the forecast from what the EM enters', () => {
+  test('starts on the start date: 10 tickets at exactly 5 a week, with no growth, finish 2 weeks after it', () => {
+    const storage = newTeam()
+    mediumGrowth(storage, { low: 1, high: 1 })
+
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '5', high: '5' })
+
+    expect(view(storage)).toEqual({
+      kind: 'forecast',
       name: 'Checkout v2',
-      committedDate: '2026-12-18',
-      forecast: { kind: 'needsPace', message: 'Only 7 weeks of finished tickets. Measured pace needs 8.' },
-      warnings: ["Refunds is in progress but isn't committed"],
-      epics: [
-        {
-          epicId: 'PAY-1',
-          key: 'PAY-1',
-          name: 'Card vaulting',
-          currentCount: 6,
-          doneCount: 4,
-          commit: { baseline: 5, source: 'label', labelRemoved: false },
-          inProgress: true,
-          finished: false,
-          blocked: false,
-          labelCommitReset: false, ambiguity: 'medium', growthSource: 'ambiguity', growthBasis: 'Medium ambiguity: grows 1–2×',
-        },
-        { epicId: 'PAY-2', key: 'PAY-2', name: 'Refunds', currentCount: 14, doneCount: 2, commit: undefined, inProgress: true, finished: false, blocked: false, labelCommitReset: false, ambiguity: 'medium', growthSource: 'ambiguity', growthBasis: 'Medium ambiguity: grows 1–2×' },
-        { epicId: 'PAY-3', key: 'PAY-3', name: 'Receipts redesign', currentCount: 3, doneCount: 0, commit: undefined, inProgress: false, finished: false, blocked: true, labelCommitReset: false, ambiguity: 'medium', growthSource: 'ambiguity', growthBasis: 'Medium ambiguity: grows 1–2×' },
+      ticketsRemaining: 10,
+      startDate: '2026-09-01',
+      headlinePercent: 85,
+      dates: [
+        { percent: 50, date: '2026-09-15' },
+        { percent: 70, date: '2026-09-15' },
+        { percent: 85, date: '2026-09-15' },
+        { percent: 95, date: '2026-09-15' },
+      ],
+      horizonDate: '2029-08-28',
+      pace: { source: 'range', low: 5, high: 5 },
+      warnings: [],
+    })
+  })
+
+  test('100 tickets at 4–8 a week, growing by the default medium range, from the fixed seed', () => {
+    const storage = newTeam()
+
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
+
+    expect(view(storage)).toMatchObject({
+      kind: 'forecast',
+      dates: DATES_FROM_1_SEP,
+      pace: { source: 'range', low: 4, high: 8 },
+    })
+  })
+
+  test('moving the start date moves every date by the same gap', () => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
+
+    expect(edit(storage, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-09-15', ticketsRemaining: '100' })).toEqual({ ok: true })
+
+    expect(view(storage)).toMatchObject({ startDate: '2026-09-15', dates: DATES_FROM_15_SEP })
+  })
+
+  test('the same inputs always give the same forecast', () => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
+
+    expect(view(storage)).toEqual(view(storage))
+  })
+
+  test('300 tickets at 1.5 a week take 200 weeks: every confidence level is beyond the 156-week horizon, so has no date, and the horizon date is given to show "later than"', () => {
+    const storage = newTeam()
+    mediumGrowth(storage, { low: 1, high: 1 })
+
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '300' }, { low: '0', high: '3' })
+
+    expect(view(storage)).toMatchObject({
+      dates: [50, 70, 85, 95].map((percent) => ({ percent, date: null })),
+      horizonDate: '2029-08-28',
+    })
+  })
+
+  test('zero pace gives no date at all, and a warning on the pace', () => {
+    const storage = newTeam()
+
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '0', high: '0' })
+
+    expect(view(storage)).toMatchObject({
+      dates: [50, 70, 85, 95].map((percent) => ({ percent, date: null })),
+      warnings: [{ input: 'pace', message: 'At 0 tickets a week, the work never finishes.' }],
+    })
+  })
+
+  test('0 tickets remaining finishes on the start date', () => {
+    const storage = newTeam()
+
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '0' }, { low: '0', high: '0' })
+
+    expect(view(storage)).toMatchObject({
+      dates: [50, 70, 85, 95].map((percent) => ({ percent, date: '2026-09-01' })),
+      warnings: [],
+    })
+  })
+
+  test('inputs are kept across a restart', () => {
+    enter(newTeam(), { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
+
+    expect(view(openStorage())).toMatchObject({ name: 'Checkout v2', startDate: '2026-09-01', dates: DATES_FROM_1_SEP })
+  })
+})
+
+describe('before there is a forecast', () => {
+  test('with nothing entered, the screen is empty', () => {
+    expect(view(newTeam())).toEqual({ kind: 'empty' })
+  })
+
+  test('a milestone kept from before the MVP lists what to enter, each naming its input', () => {
+    const storage = newTeam()
+    storage.saveMilestoneInputs({
+      teamId: TEAM,
+      name: 'Checkout v2',
+      startDate: undefined,
+      ticketsRemaining: undefined,
+      ambiguity: 'medium',
+      cadenceDays: 7,
+      paceMode: 'range',
+      paceRange: undefined,
+      paceCounts: [],
+    })
+
+    expect(view(storage)).toEqual({
+      kind: 'problems',
+      name: 'Checkout v2',
+      problems: [
+        { input: 'startDate', message: 'Enter the date work starts.' },
+        { input: 'ticketsRemaining', message: 'Enter how many tickets are left.' },
+        { input: 'pace', message: 'Enter a pace range.' },
       ],
     })
   })
 
-  test('sample data is not loaded when data is already stored, and stored data survives a restart', () => {
-    saveOwnTeam(openStorage(), 'ACME', 2)
+  test('a milestone without a pace yet asks for one', () => {
+    const storage = newTeam()
 
-    const reopened = restart()
-    loadSampleDataIfEmpty(reopened)
+    expect(edit(storage, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-09-01', ticketsRemaining: '10' })).toEqual({ ok: true })
 
-    expect(reopened.teams().map((team) => team.id)).toEqual(['ACME'])
-    expect(milestoneForecastView(reopened, 'ACME', { today: TODAY, settings: DEFAULT_SETTINGS })).toEqual({
-      kind: 'milestone',
-      name: 'ACME milestone',
-      committedDate: '2027-01-29',
-      forecast: { kind: 'needsPace', message: 'No finished tickets yet. Measured pace needs 8 weeks of them.' },
-      warnings: [],
-      epics: [{ epicId: 'ACME-E', key: 'ACME-E', name: 'ACME epic', currentCount: 2, doneCount: 0, commit: undefined, inProgress: false, finished: false, blocked: false, labelCommitReset: false, ambiguity: 'medium', growthSource: 'ambiguity', growthBasis: 'Medium ambiguity: grows 1–2×' }],
-    })
+    expect(view(storage)).toMatchObject({ kind: 'problems', problems: [{ input: 'pace', message: 'Enter a pace range.' }] })
+  })
+})
+
+describe('refused edits change nothing and say why', () => {
+  const milestone = { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-09-01', ticketsRemaining: '10' } as const
+
+  test.each([
+    [{ ...milestone, name: '  ' }, 'Give the milestone a name.'],
+    [{ ...milestone, startDate: '' }, 'Enter the start date as a calendar date.'],
+    [{ ...milestone, startDate: '2026-02-30' }, 'Enter the start date as a calendar date.'],
+    [{ ...milestone, ticketsRemaining: '' }, 'Enter tickets remaining as a whole number, 0 or more.'],
+    [{ ...milestone, ticketsRemaining: '-1' }, 'Enter tickets remaining as a whole number, 0 or more.'],
+    [{ ...milestone, ticketsRemaining: '2.5' }, 'Enter tickets remaining as a whole number, 0 or more.'],
+    [{ ...milestone, ticketsRemaining: '100001' }, 'Enter at most 100000 tickets remaining.'],
+    [{ kind: 'setPaceRange', low: '8', high: '4' }, 'The low end must not be above the high end.'],
+    [{ kind: 'setPaceRange', low: '1.5', high: '4' }, 'Enter whole numbers of tickets, 0 or more.'],
+    [{ kind: 'setPaceRange', low: '', high: '4' }, 'Enter whole numbers of tickets, 0 or more.'],
+    [{ kind: 'setPaceRange', low: '4', high: '1001' }, 'Enter at most 1000 tickets per week.'],
+  ] satisfies [InputsEdit, string][])('%j: %s', (change, error) => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
+    const before = view(storage)
+
+    expect(edit(storage, change)).toEqual({ ok: false, error })
+
+    expect(view(storage)).toEqual(before)
   })
 
-  test('an entered pace range survives a restart', () => {
-    saveOwnTeam(openStorage(), 'ACME', 2)
-    storage!.savePaceSetting({ teamId: 'ACME', milestoneId: 'ACME-M', mode: 'manual', manual: { low: 3, high: 5 } })
+  test('a pace range needs the milestone first', () => {
+    const storage = newTeam()
 
-    const reopened = restart()
+    expect(edit(storage, { kind: 'setPaceRange', low: '4', high: '8' })).toEqual({ ok: false, error: 'Enter the milestone first.' })
 
-    expect(milestoneForecastView(reopened, 'ACME', { today: TODAY, settings: DEFAULT_SETTINGS })).toMatchObject({
-      forecast: { kind: 'forecast', pace: { source: 'manual', low: 3, high: 5 } },
-    })
+    expect(view(storage)).toEqual({ kind: 'empty' })
+  })
+})
+
+describe('the milestone on the Inputs screen', () => {
+  function inputs(storage: Storage) {
+    return inputsView(storage, TEAM, DEFAULT_SETTINGS, TODAY).forecastInputs
+  }
+
+  test('before anything is entered, the start date is pre-filled with today', () => {
+    expect(inputs(newTeam())).toEqual({ name: '', startDate: TODAY, ticketsRemaining: undefined, paceRange: undefined, notes: [] })
   })
 
-  test("each team sees only its own milestone and tickets", () => {
-    const storage = openStorage()
-    saveOwnTeam(storage, 'ACME', 2)
-    saveOwnTeam(storage, 'BETA', 5)
+  test('shows what was entered, with each warning beside its input', () => {
+    const storage = newTeam()
 
-    expect(milestoneForecastView(storage, 'BETA', { today: TODAY, settings: DEFAULT_SETTINGS })).toEqual({
-      kind: 'milestone',
-      name: 'BETA milestone',
-      committedDate: '2027-01-29',
-      forecast: { kind: 'needsPace', message: 'No finished tickets yet. Measured pace needs 8 weeks of them.' },
-      warnings: [],
-      epics: [{ epicId: 'BETA-E', key: 'BETA-E', name: 'BETA epic', currentCount: 5, doneCount: 0, commit: undefined, inProgress: false, finished: false, blocked: false, labelCommitReset: false, ambiguity: 'medium', growthSource: 'ambiguity', growthBasis: 'Medium ambiguity: grows 1–2×' }],
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '0', high: '0' })
+
+    expect(inputs(storage)).toEqual({
+      name: 'Checkout v2',
+      startDate: '2026-09-01',
+      ticketsRemaining: 10,
+      paceRange: { low: 0, high: 0 },
+      notes: [{ input: 'pace', message: 'At 0 tickets a week, the work never finishes.' }],
     })
-  })
-
-  test('teams may use the same IDs without overwriting each other', () => {
-    const storage = openStorage()
-    saveOwnTeam(storage, 'ACME', 2)
-    saveJiraTeam(storage, 'BETA')
-    storage.addFacts('BETA', {
-      workItems: [{ id: 'ACME-E', teamId: 'BETA', sourceKey: 'ACME-E', type: 'epic', labels: [], createdAt: '2026-10-01T09:00:00Z', lastSyncedAt: '2026-10-01T09:00:00Z' }],
-      events: [],
-    })
-    storage.saveMilestone({ id: 'ACME-M', teamId: 'BETA', name: 'Other', committedDate: '2027-03-01', epicIds: ['ACME-E'] })
-
-    expect(milestoneForecastView(storage, 'ACME', { today: TODAY, settings: DEFAULT_SETTINGS })).toMatchObject({
-      name: 'ACME milestone',
-      epics: [{ name: 'ACME epic', currentCount: 2 }],
-    })
-  })
-
-  test('a team with no milestone shows the empty state', () => {
-    const storage = openStorage()
-    saveJiraTeam(storage, 'ACME')
-
-    expect(milestoneForecastView(storage, 'ACME', { today: TODAY, settings: DEFAULT_SETTINGS })).toEqual({ kind: 'noMilestone' })
   })
 })

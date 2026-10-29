@@ -1,4 +1,5 @@
 import type { Milestone } from '../model/milestone.js'
+import type { MilestoneInputs } from '../model/milestoneInputs.js'
 import type { Team } from '../model/team.js'
 import { defaultWorkflowSettings, type WorkflowSettings } from '../model/workflow.js'
 import type { Facts, WorkItem, WorkItemEvent } from '../model/workItem.js'
@@ -8,6 +9,8 @@ export interface SampleData {
   team: Team
   facts: Facts
   milestone: Milestone
+  /** The same milestone as the MVP forecasts it, from when its epics were created; the EM enters its pace. */
+  milestoneInputs: MilestoneInputs
   /** The sample board's workflow: To Do, In Progress, Done and Cancelled, with `committed` as its commit label. */
   workflow: WorkflowSettings
 }
@@ -133,6 +136,17 @@ export const SAMPLE_DATA: SampleData = {
     name: 'Checkout v2',
     committedDate: '2026-12-18',
     epicIds: ['PAY-1', 'PAY-2', 'PAY-3'],
+  },
+  milestoneInputs: {
+    teamId: TEAM_ID,
+    name: 'Checkout v2',
+    startDate: '2026-09-01',
+    ticketsRemaining: 40,
+    ambiguity: 'medium',
+    cadenceDays: 7,
+    paceMode: 'range',
+    paceRange: undefined,
+    paceCounts: [],
   },
   workflow: { ...defaultWorkflowSettings(TEAM_ID), commitLabel: 'committed' },
 }

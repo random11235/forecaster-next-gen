@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, test } from 'vitest'
-import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
-import { DEFAULT_SETTINGS, type ForecastSettings } from '../../src/forecast/settings.js'
+import { epicForecastView } from '../../src/forecast/epicForecastView.js'
+import { DEFAULT_SETTINGS as MVP_SETTINGS, type ForecastSettings } from '../../src/forecast/settings.js'
 import type { Facts, WorkItem } from '../../src/model/workItem.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
+
+/** The epic-era forecast, as it was written: at 50%, 85% and 95%. It goes with the epic code (#87). */
+const DEFAULT_SETTINGS = { ...MVP_SETTINGS, percentiles: [50, 85, 95] }
 
 /** Before any ticket the tests finish, so installation leaves out none of them. */
 const INSTALLED = '2026-01-01T00:00:00Z'
@@ -75,7 +78,7 @@ function doneInWeeks(counts: number[]): string[] {
 }
 
 function forecastOf(storage: Storage, settings: ForecastSettings = DEFAULT_SETTINGS) {
-  const view = milestoneForecastView(storage, TEAM, { today: TODAY, settings })
+  const view = epicForecastView(storage, TEAM, { today: TODAY, settings })
   if (view.kind !== 'milestone') throw new Error('expected a milestone')
   return view.forecast
 }
