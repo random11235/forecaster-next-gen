@@ -8,9 +8,9 @@ Give a ticket with a visible change the acceptance criterion `- [ ] Demo: screen
 
 ## Capturing
 
-1. Build the app and start it without opening a browser:
-   `npm run build && PORT=5199 FORECASTER_NO_BROWSER=1 node dist/app/main.js &`
-2. Bring the screen into the state to show, using the canned sample data.
+1. Build the app and start it on a new, empty data file, without opening a browser:
+   `npm run build && PORT=5199 FORECASTER_NO_BROWSER=1 FORECASTER_DATA_FILE="$(mktemp -d)/demo.db" node dist/app/main.js &`
+2. Bring the screen into the state to show by entering its inputs as the EM would: the app starts empty, with no sample data. Post the Inputs screen's forms (for example `curl -d name=Launch -d startDate=2026-11-02 -d ticketsRemaining=30 http://127.0.0.1:5199/inputs/milestone`, then `curl -d low=5 -d high=10 http://127.0.0.1:5199/inputs/pace`), or type them in a browser.
 3. Screenshot it with headless Chrome, giving the Geist web fonts time to load (without `--virtual-time-budget`, Chrome can shoot the page in the narrower system font):
    `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless --hide-scrollbars --window-size=1280,800 --virtual-time-budget=5000 --screenshot=docs/demos/<issue>-<screen>-<state>.png <url>`
    A state that a URL alone can't reach (it needs clicks or typing) is captured with a browser automation tool instead.
