@@ -159,7 +159,7 @@ export function renderInputsScreen(screen: InputsScreen): string {
   const { milestone } = screen
   const sections = [
     milestoneSection(screen.milestoneForm, milestone.notes),
-    cadenceSection(screen.cadenceForm),
+    cadenceSection(screen.cadenceForm, milestone.cadenceDays),
     paceSection(screen, periodName(milestone.cadenceDays)),
     ambiguitySection(milestone.ambiguity, screen.ranges, screen.ambiguityForm),
     growthSection(screen.growth),
@@ -177,7 +177,7 @@ type Section = (number: number) => string
 
 /** A numbered section: its name and hint in the label column, `body` beside them. */
 function inputSection(label: string, name: string, hint: string, body: string): Section {
-  return (number) => `    <section class="input" aria-label="${label}">
+  return (number) => `    <section class="input" id="${label.toLowerCase()}" aria-label="${label}">
       <div class="label">
         <span class="number">${String(number).padStart(2, '0')}</span>
         <h2>${name}</h2>
@@ -194,7 +194,7 @@ function milestoneSection(form: MilestoneForm, notes: readonly InputNote[]): Sec
     'Milestone',
     'Milestone',
     'Name the milestone, the date work on it starts, and how many tickets are left.',
-    `        <form method="post" action="/inputs/milestone">${errorLine(form.error)}
+    `        <form method="post" action="/inputs/milestone#milestone">${errorLine(form.error)}
           <div class="fields">
             <label class="wide">${INPUT_LABELS.name} <input type="text" name="name" value="${escapeHtml(form.name)}" required></label>${notesFor('name', notes)}
             <label>${INPUT_LABELS.startDate} <input type="date" name="startDate" value="${escapeHtml(form.startDate)}" required></label>${notesFor('startDate', notes)}
@@ -217,12 +217,12 @@ function errorLine(error: string | undefined): string {
   return error ? `\n          <p class="error" role="alert">${escapeHtml(error)}</p>` : ''
 }
 
-function cadenceSection(form: CadenceForm): Section {
+function cadenceSection(form: CadenceForm, savedDays: number): Section {
   return inputSection(
     'Cadence',
     'Cadence',
-    'How many days the team’s sprint lasts. Pace is entered per sprint, and 7 days counts as a week.',
-    `        <form method="post" action="/inputs/cadence">${errorLine(form.error)}
+    cadenceHint(savedDays),
+    `        <form method="post" action="/inputs/cadence#cadence">${errorLine(form.error)}
           <div class="pace">
             <label>Cadence length <input type="number" name="cadenceDays" min="1" max="${MAX_CADENCE_DAYS}" step="1" value="${escapeHtml(form.cadenceDays)}" required></label>
             <span class="unit">days</span>
@@ -230,6 +230,14 @@ function cadenceSection(form: CadenceForm): Section {
           <div class="actions"><button type="submit">Save cadence</button></div>
         </form>`,
   )
+}
+
+/** What the saved cadence makes a period, which pace is entered per, and what the other lengths make it. */
+function cadenceHint(savedDays: number): string {
+  const lasts = 'How many days one of the team’s periods lasts.'
+  return periodName(savedDays) === 'week'
+    ? `${lasts} At 7 days a period is a week, so pace is entered per week; any other length makes it a sprint.`
+    : `${lasts} At ${savedDays} days a period is a sprint, so pace is entered per sprint; 7 days makes it a week.`
 }
 
 const PACE_MODE_NAMES: Record<PaceMode, string> = { range: 'Range', counts: 'Typed counts' }
@@ -244,11 +252,11 @@ function paceSection(screen: InputsScreen, period: PeriodName): Section {
     INPUT_LABELS.pace,
     INPUT_LABELS.pace,
     `How many tickets the team finishes in a ${period}: a range from a slow ${period} to a good one, or typed counts of past ${period}s. Typed counts need at least ${typedCounts.forForecast} for a forecast, and ${typedCounts.reliable} to be reliable.`,
-    `        <form method="post" action="/inputs/pace-mode">${errorLine(screen.paceModeForm.error)}
+    `        <form method="post" action="/inputs/pace-mode#pace">${errorLine(screen.paceModeForm.error)}
 ${radios('paceMode', 'Pace the forecast uses', ['range', 'counts'], paceMode, (mode) => PACE_MODE_NAMES[mode])}
           <div class="actions"><button type="submit" class="primary">Use this pace</button></div>
         </form>
-        <form method="post" action="/inputs/pace">${errorLine(range.error)}
+        <form method="post" action="/inputs/pace#pace-range" id="pace-range">${errorLine(range.error)}
           <h3>${PACE_MODE_NAMES.range}</h3>
           <div class="pace">
             <label>Low <input type="number" name="low" min="0" max="${MAX_TICKETS_PER_PERIOD}" step="1" value="${escapeHtml(range.low)}" required></label>
@@ -258,7 +266,7 @@ ${radios('paceMode', 'Pace the forecast uses', ['range', 'counts'], paceMode, (m
           </div>${notesIfUsed('range')}
           <div class="actions"><button type="submit" class="primary">Save and forecast</button></div>
         </form>
-        <form method="post" action="/inputs/pace-counts">${errorLine(counts.error)}
+        <form method="post" action="/inputs/pace-counts#pace-counts" id="pace-counts">${errorLine(counts.error)}
           <h3>${PACE_MODE_NAMES.counts}</h3>
           <div class="fields">
             <label class="wide">Tickets done each ${period}, oldest first <input type="text" name="counts" value="${escapeHtml(counts.counts)}" inputmode="numeric" placeholder="6, 4, 9"></label>
@@ -266,13 +274,13 @@ ${radios('paceMode', 'Pace the forecast uses', ['range', 'counts'], paceMode, (m
           <div class="actions"><button type="submit">Save counts</button></div>
         </form>
         <div class="counts">
-          <form method="post" action="/inputs/pace-counts/add">
+          <form method="post" action="/inputs/pace-counts/add#pace-counts">
             <div class="fields">
               <label>Newest ${period} <input type="number" name="count" min="0" max="${MAX_TICKETS_PER_PERIOD}" step="1" value="${escapeHtml(counts.count)}" required></label>
               <button type="submit">Add count</button>
             </div>
           </form>
-          <form method="post" action="/inputs/pace-counts/remove-last">
+          <form method="post" action="/inputs/pace-counts/remove-last#pace-counts">
             <button type="submit">Remove last</button>
           </form>
         </div>`,
@@ -296,7 +304,7 @@ function ambiguitySection(chosen: Ambiguity, ranges: GrowthView['ranges'], form:
     'Ambiguity',
     'Ambiguity',
     'How well the milestone’s work is understood. The less it is, the more the work may grow, by the ranges below.',
-    `        <form method="post" action="/inputs/ambiguity">${errorLine(form.error)}
+    `        <form method="post" action="/inputs/ambiguity#ambiguity">${errorLine(form.error)}
 ${radios('ambiguity', 'Ambiguity of the milestone', AMBIGUITIES, chosen, level)}
           <div class="actions"><button type="submit" class="primary">Save and forecast</button></div>
         </form>`,
@@ -316,7 +324,7 @@ function growthSection(form: GrowthForm): Section {
     'Growth',
     'Growth',
     'How much the work may grow at each ambiguity level. The milestone grows by the range of its own level.',
-    `        <form method="post" action="/inputs/growth">${errorLine(form.error)}
+    `        <form method="post" action="/inputs/growth#growth">${errorLine(form.error)}
           <table class="growth">
             <thead>
               <tr><th>Ambiguity</th><th>Grows by</th></tr>

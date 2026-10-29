@@ -13,9 +13,9 @@ export function renderMilestoneForecastScreen(view: MilestoneForecastView): stri
     case 'empty':
       return htmlPage('Milestone forecast', '/', EMPTY_STATE_HEADER, '')
     case 'problems':
-      return htmlPage('Milestone forecast', '/', problemsHeader(view.name), renderNotes('What to fix', view.problems))
+      return htmlPage('Milestone forecast', '/', problemsHeader(view.name, view.problems.length), renderNotes('What to fix', view.problems))
     case 'forecast':
-      return htmlPage('Milestone forecast', '/', forecastHeader(view), `${renderForecast(view)}${renderNotes('Warnings', view.warnings)}`)
+      return htmlPage('Milestone forecast', '/', forecastHeader(view), `${renderNotes('Warnings', view.warnings)}${renderForecast(view)}`)
   }
 }
 
@@ -24,10 +24,10 @@ const EMPTY_STATE_HEADER: PageHeader = {
   lede: 'Enter the milestone, its start date, tickets remaining and pace on the <a href="/inputs">Inputs screen</a> to see its forecast here.',
 }
 
-function problemsHeader(name: string): PageHeader {
+function problemsHeader(name: string, problems: number): PageHeader {
   return {
     ...(name !== '' && { context: escapeHtml(name) }),
-    heading: 'Fix these on the <a href="/inputs">Inputs screen</a> to see a forecast.',
+    heading: `Fix ${problems === 1 ? 'this' : 'these'} on the <a href="/inputs">Inputs screen</a> to see a forecast.`,
   }
 }
 
@@ -63,11 +63,12 @@ ${dates}
 /**
  * When the trials finish: a bar per period, its height the share of trials finishing then, with a marker at each
  * confidence date and the headline's stressed. Each bar carries its date and shares, and shows them as text on hover or
- * keyboard focus. Markers sit on their own rows, in percent order, so their labels never overlap.
+ * keyboard focus. A marker per distinct date sits on its own row, its label clear of the other markers (`finishMarkers`).
  */
 function renderFinishGraph(view: Forecast): string {
   const bars = view.finishGraph
-  if (bars.length === 0) return ''
+  // with no trial finishing, or all on the start date (0 tickets), there is nothing to graph
+  if (bars.length <= 1) return ''
   const tallest = Math.max(...bars.map(({ share }) => share))
   const columns = bars
     .map(
@@ -75,16 +76,11 @@ function renderFinishGraph(view: Forecast): string {
         `          <div class="bar${edge(percentOf(at + 0.5, bars.length))}" tabindex="0" data-date="${bar.date}" data-share="${bar.share}" data-finished-by="${bar.finishedBy}"><span class="fill" style="height: ${percentOf(bar.share, tallest)}%"></span><span class="tip">${barText(bar, view.cadenceDays)}</span></div>`,
     )
     .join('\n')
-  const markers = view.dates
-    .flatMap(({ percent, date }, row) => {
-      const at = bars.findIndex((bar) => bar.date === date)
-      if (at < 0) return []
-      const left = percentOf(at + 0.5, bars.length)
-      const stressed = percent === view.headlinePercent ? ' headline' : ''
-      const side = left > 70 ? ' end' : ''
-      return [
-        `          <div class="marker${stressed}${side}" style="left: ${left}%; top: ${row * 22}px"><span class="mark${stressed}">${percent}% <span class="date">${formatDate(date!)}</span></span></div>`,
-      ]
+  const markers = finishMarkers(view)
+    .map(({ percents, date, left, row, runsLeft }) => {
+      const stressed = percents.includes(view.headlinePercent) ? ' headline' : ''
+      const side = runsLeft ? ' end' : ''
+      return `          <div class="marker${stressed}${side}" style="left: ${left}%; top: ${row * 22}px"><span class="mark${stressed}">${percents.map((percent) => `${percent}%`).join(' · ')} <span class="date">${formatDate(date)}</span></span></div>`
     })
     .join('\n')
   return `
@@ -101,6 +97,47 @@ ${columns}
         <figcaption class="note">Share of trials finishing each ${periodName(view.cadenceDays)}, from the start date. The ${view.headlinePercent}% date is the headline.</figcaption>
       </figure>
     </section>`
+}
+
+/** A marker on the finish graph: a date the forecast gives, with every percent that shares it. */
+interface FinishMarker {
+  percents: number[]
+  date: string
+  /** How far across the graph its line stands, in %. */
+  left: number
+  /** Its label's row above the bars, 0 at the top; its line runs from there down through the rows below. */
+  row: number
+  /** Whether its label runs left of its line, rather than right. */
+  runsLeft: boolean
+}
+
+/**
+ * A label's width as a share of the graph, in % per character, at its 12px type on the graph's widest (about 920px). An
+ * estimate: the server can't measure text, so it errs wide.
+ */
+const LABEL_WIDTH_PER_CHAR = 0.8
+
+/**
+ * The finish graph's markers, one per distinct date, each labelled with all the percents that finish by it. A marker's
+ * line runs down through the rows below its label, so each label runs away from the lines above it: labels run right
+ * with the earliest date on the top row, or, when one would run off the right edge, left with the latest date on top.
+ * Should neither fit every label, those that fit run right above those that run left.
+ */
+function finishMarkers(view: Forecast): FinishMarker[] {
+  const bars = view.finishGraph
+  const byDate = new Map<string, number[]>()
+  for (const { percent, date } of view.dates) {
+    if (date !== null && bars.some((bar) => bar.date === date)) byDate.set(date, [...(byDate.get(date) ?? []), percent])
+  }
+  const placed = [...byDate].map(([date, percents]) => {
+    const left = percentOf(bars.findIndex((bar) => bar.date === date) + 0.5, bars.length)
+    const width = (percents.map((percent) => `${percent}%`).join(' · ').length + 1 + formatDate(date).length) * LABEL_WIDTH_PER_CHAR
+    return { percents, date, left, fitsRight: left + width <= 100, fitsLeft: left - width >= 0 }
+  })
+  const allLeft = !placed.every(({ fitsRight }) => fitsRight) && placed.every(({ fitsLeft }) => fitsLeft)
+  const runsRight = placed.filter(({ fitsRight }) => fitsRight && !allLeft)
+  const runsLeft = placed.filter((marker) => !runsRight.includes(marker)).reverse()
+  return [...runsRight, ...runsLeft].map(({ percents, date, left }, row) => ({ percents, date, left, row, runsLeft: row >= runsRight.length }))
 }
 
 /** The pace the dates come from: "4–8 tickets per week (range)", or "typed counts, 6 sprints". */
