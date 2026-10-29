@@ -427,7 +427,7 @@ describe('typed counts', () => {
     expect(edit(storage, { kind: 'setPaceCounts', counts: '6' })).toEqual({ ok: true })
 
     const note = {
-      input: 'pace',
+      input: 'typedCounts',
       message: 'Typed counts: 1 week entered. The forecast needs at least 2. Add another count, or switch pace to the range.',
     }
     expect(view(storage)).toEqual({ kind: 'problems', name: 'Checkout v2', problems: [note] })
@@ -447,9 +447,9 @@ describe('typed counts', () => {
 
     expect(view(storage)).toMatchObject({
       kind: 'forecast',
-      warnings: [{ input: 'pace', message: `Typed counts: ${entered} weeks entered. The forecast needs 8 to be reliable.` }],
+      warnings: [{ input: 'typedCounts', message: `Typed counts: ${entered} weeks entered. The forecast needs 8 to be reliable.` }],
     })
-    expect(inputsScreenView(storage).milestone.notes).toEqual([{ input: 'pace', message: `${entered} of 8 needed for reliable results` }])
+    expect(inputsScreenView(storage).milestone.notes).toEqual([{ input: 'typedCounts', message: `${entered} of 8 needed for reliable results` }])
   })
 
   test('at a 14-day cadence, the reliability warning counts sprints', () => {
@@ -461,7 +461,7 @@ describe('typed counts', () => {
     expect(edit(storage, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
 
     expect(view(storage)).toMatchObject({
-      warnings: [{ input: 'pace', message: 'Typed counts: 4 sprints entered. The forecast needs 8 to be reliable.' }],
+      warnings: [{ input: 'typedCounts', message: 'Typed counts: 4 sprints entered. The forecast needs 8 to be reliable.' }],
     })
   })
 
@@ -633,7 +633,7 @@ describe('before there is a forecast', () => {
       problems: [
         { input: 'startDate', message: 'No start date is saved yet.' },
         {
-          input: 'pace',
+          input: 'typedCounts',
           message: 'Typed counts: 1 week entered. The forecast needs at least 2. Add another count, or switch pace to the range.',
         },
       ],
@@ -666,7 +666,7 @@ describe('the typed counts the settings ask for', () => {
     const storage = onCounts('6, 4')
 
     const note = {
-      input: 'pace',
+      input: 'typedCounts',
       message: 'Typed counts: 2 weeks entered. The forecast needs at least 3. Add another count, or switch pace to the range.',
     }
     expect(view(storage, settings)).toEqual({ kind: 'problems', name: 'Checkout v2', problems: [note] })
@@ -678,9 +678,9 @@ describe('the typed counts the settings ask for', () => {
 
     expect(view(storage, settings)).toMatchObject({
       kind: 'forecast',
-      warnings: [{ input: 'pace', message: 'Typed counts: 4 weeks entered. The forecast needs 5 to be reliable.' }],
+      warnings: [{ input: 'typedCounts', message: 'Typed counts: 4 weeks entered. The forecast needs 5 to be reliable.' }],
     })
-    expect(inputsScreenView(storage, settings).milestone.notes).toEqual([{ input: 'pace', message: '4 of 5 needed for reliable results' }])
+    expect(inputsScreenView(storage, settings).milestone.notes).toEqual([{ input: 'typedCounts', message: '4 of 5 needed for reliable results' }])
   })
 
   test('with 5 typed counts, nothing warns about the typed counts', () => {
