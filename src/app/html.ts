@@ -160,6 +160,7 @@ const STYLE = `
     section.input h3 { margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
     .counts { display: flex; align-items: end; gap: 12px; }
     .counts .fields { flex-wrap: nowrap; }
+    .counts button { white-space: nowrap; }
     fieldset.levels .range { font-family: var(--mono); font-size: 13px; color: var(--muted); }
     table.growth { border-collapse: collapse; }
     table.growth th { padding: 0 24px 6px 0; text-align: left; font-size: 12px; font-weight: 500; color: var(--faint); }
