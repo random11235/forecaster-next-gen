@@ -17,12 +17,12 @@ export interface PageHeader {
   lede?: string
 }
 
-/** The app's icon: a finish graph in small, its bars on the ink with the 85% marker, inline so no file is served. */
+/** The app's icon: a finish graph in small, its bars on the forecast's green with the 85% marker, inline so no file is served. */
 const FAVICON = `data:image/svg+xml,${encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1C1B18"/>' +
-    '<g fill="#9DB6BB"><rect x="4" y="21" width="4.5" height="6"/><rect x="9" y="12" width="4.5" height="15"/>' +
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#2F6B3F"/>' +
+    '<g fill="#F7F5F0"><rect x="4" y="21" width="4.5" height="6"/><rect x="9" y="12" width="4.5" height="15"/>' +
     '<rect x="14" y="9" width="4.5" height="18"/><rect x="19" y="14" width="4.5" height="13"/><rect x="24" y="22" width="4.5" height="5"/></g>' +
-    '<rect x="22.5" y="4" width="2" height="23" fill="#F7F5F0"/></svg>',
+    '<rect x="22.5" y="4" width="2" height="23" fill="#1C1B18"/></svg>',
 )}`
 
 /**
