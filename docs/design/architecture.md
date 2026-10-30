@@ -67,14 +67,14 @@ src/
     counted.ts            # a count with its words: "1 ticket", "40 tickets"
     editResult.ts         # an edit saved, or refused saying why
 
-  storage/                # interface and its v1 SQLite file, with the schema's migrations
-  app/                    # local server (localhost only), screens, `npm start` entry point; each screen's HTML, and reading the fields of the forms it posts
+  storage/                # interface and its v1 SQLite file, with the schema's migrations; the web build's browser storage
+  app/                    # local server (localhost only), screens, `npm start` entry point; each screen's HTML, and reading the fields of the forms it posts; the web build's app and page script (`webApp.ts`, `webMain.ts`)
 
 test/
-  app/                    # the screens, launch, and the launch smoke test: start the app, check the screen is served
+  app/                    # the screens, launch, and the launch smoke test: start the app, check the screen is served; the web build's app and its smoke test
   engine/                 # Seam A: fixed seeds, plus a performance benchmark
   forecast/               # Seam B: stored inputs + settings → the screens' views
-  storage/                # the schema's migrations
+  storage/                # the schema's migrations; the Storage contract, run against SQLite and browser storage
 ```
 
 **Dependency rules:**
@@ -108,9 +108,11 @@ Connectors are tested through Seam B by replaying recorded API responses, with n
 
 `test/app/` holds the launch smoke test. It is not a forecasting seam: it builds the app, runs the built `npm start` entry point (`dist/app/main.js`) with `FORECASTER_NO_BROWSER=1` so no browser opens and a temporary `FORECASTER_DATA_FILE`, and checks that the Milestone forecast screen is served in its empty state, with no sample data. It also checks that a bad `PORT` is refused.
 
+The web build (#114) is tested the same way, with no seam of its own: `webApp.test.ts` asks its app for screens as its page does, and the web build smoke test runs `npm run build:web` and checks the one page it writes opens on the empty state with its script inline. Its page script (`webMain.ts`), which wires links, forms and the Inputs screen's saves to that app in the browser, is checked by the ticket's demo, not by tests.
+
 The one exception is the PRNG: `engine/random.ts` is checked against output vectors from the authors' reference C code for xoshiro128**, because a port must reproduce its exact stream and Seam A can't show that.
 
-`test/storage/` holds the schema migration tests. They are not a forecasting seam either: they write a data file as an earlier release left it, open it through `openSqliteStorage`, and check what reads back. A ticket that changes the schema appends a step to `MIGRATIONS` in `src/storage/sqliteStorage.ts` (never editing a released one) and adds a test there that opens a file from the version before.
+`test/storage/` holds the Storage contract, one suite run against both the SQLite file and the web build's browser storage, and the schema migration tests. The migration tests are not a forecasting seam either: they write a data file as an earlier release left it, open it through `openSqliteStorage`, and check what reads back. A ticket that changes the schema appends a step to `MIGRATIONS` in `src/storage/sqliteStorage.ts` (never editing a released one) and adds a test there that opens a file from the version before.
 
 ---
 

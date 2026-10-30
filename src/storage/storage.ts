@@ -3,9 +3,10 @@ import type { MilestoneInputs } from '../model/milestoneInputs.js'
 import type { Team } from '../model/team.js'
 
 /**
- * Where the Forecaster keeps its data, organised by team. v1: one local SQLite file (`openSqliteStorage`). Its schema
- * also keeps the tables earlier releases wrote (facts, epic-based milestones, pace and workflow settings, epic commits
- * and levels), which nothing reads since the MVP (#84).
+ * Where the Forecaster keeps its data, organised by team. v1: one local SQLite file (`openSqliteStorage`); the web build
+ * keeps it in the EM's browser (`openWebStorage`, #114). The SQLite schema also keeps the tables earlier releases
+ * wrote (facts, epic-based milestones, pace and workflow settings, epic commits and levels), which nothing reads since
+ * the MVP (#84).
  */
 export interface Storage {
   /** True when nothing has been stored yet: the first launch. */
