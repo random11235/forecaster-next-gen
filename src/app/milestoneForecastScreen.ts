@@ -11,11 +11,11 @@ type Forecast = Extract<MilestoneForecastView, { kind: 'forecast' }>
 export function renderMilestoneForecastScreen(view: MilestoneForecastView): string {
   switch (view.kind) {
     case 'empty':
-      return htmlPage('Milestone forecast', '/', EMPTY_STATE_HEADER, '')
+      return htmlPage('/', EMPTY_STATE_HEADER, '')
     case 'problems':
-      return htmlPage('Milestone forecast', '/', problemsHeader(view.name, view.problems.length), renderNotes('What to fix', view.problems))
+      return htmlPage('/', problemsHeader(view.name, view.problems.length), renderNotes('What to fix', view.problems))
     case 'forecast':
-      return htmlPage('Milestone forecast', '/', forecastHeader(view), `${renderNotes('Warnings', view.warnings)}${renderForecast(view)}`)
+      return htmlPage('/', forecastHeader(view), `${renderNotes('Warnings', view.warnings)}${renderForecast(view)}`)
   }
 }
 
@@ -61,9 +61,10 @@ ${dates}
 }
 
 /**
- * When the trials finish: a bar per period, its height the share of trials finishing then, with a marker at each
- * confidence date and the headline's stressed. Each bar carries its date and shares, and shows them as text on hover or
- * keyboard focus. A marker per distinct date sits on its own row, its label clear of the other markers (`finishMarkers`).
+ * When the simulations finish: a bar per period, its height the share of simulations (trials) finishing then, with a
+ * marker at each confidence date and the headline's stressed. Each bar carries its date and shares, and shows them as
+ * text on hover or keyboard focus. A marker per distinct date sits on its own row, its label clear of the other markers
+ * (`finishMarkers`).
  */
 function renderFinishGraph(view: Forecast): string {
   const bars = view.finishGraph
@@ -85,8 +86,8 @@ function renderFinishGraph(view: Forecast): string {
     .join('\n')
   return `
     <section class="brief" aria-label="Finish graph">
-      <div class="heading"><h2>When the trials finish</h2></div>
-      <figure class="finish-graph" aria-label="When the trials finish, by ${periodName(view.cadenceDays)}">
+      <div class="heading"><h2>When the simulations finish</h2></div>
+      <figure class="finish-graph" aria-label="When the simulations finish, by ${periodName(view.cadenceDays)}">
         <div class="plot">
 ${markers}
           <div class="bars">
@@ -94,7 +95,7 @@ ${columns}
           </div>
         </div>
         <div class="axis"><span>${formatDate(bars[0]!.date)}</span><span>${formatDate(bars.at(-1)!.date)}</span></div>
-        <figcaption class="note">Share of trials finishing each ${periodName(view.cadenceDays)}, from the start date. The ${view.headlinePercent}% date is the headline.</figcaption>
+        <figcaption class="note">Share of simulations finishing each ${periodName(view.cadenceDays)}, from the start date. The ${view.headlinePercent}% date is the headline.</figcaption>
       </figure>
     </section>`
 }
