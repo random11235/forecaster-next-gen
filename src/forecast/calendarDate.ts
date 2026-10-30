@@ -4,3 +4,9 @@ export function isCalendarDate(value: string): boolean {
   const day = new Date(`${value}T00:00:00Z`)
   return !Number.isNaN(day.getTime()) && day.toISOString().slice(0, 10) === value
 }
+
+/** Whole days from calendar date `from` to `to`, both `YYYY-MM-DD`: negative when `to` is earlier. */
+export function daysBetween(from: string, to: string): number {
+  const MS_PER_DAY = 86_400_000
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / MS_PER_DAY)
+}

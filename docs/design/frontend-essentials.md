@@ -2,6 +2,8 @@
 
 Design date: 2026-10-14. Updated 2026-10-18 with the design grill decisions (Q1–Q31). Status: agreed in planning; not built. The v1 spec is [issue #6](https://github.com/random11235/forecaster-next-gen/issues/6).
 
+**The MVP overrides the screens below.** The MVP ([#84](https://github.com/random11235/forecaster-next-gen/issues/84)) has the same two screens, cut down: the Milestone forecast shows the milestone's finish dates at 50/70/85/95% from its start date, the pace in use (its range, or its typed counts), a graph of when the trials finish by period of the team's cadence with those dates marked ([#94](https://github.com/random11235/forecaster-next-gen/issues/94), reversing the histogram's removal below) and the warnings on what was typed; Inputs takes the milestone's name, start date and tickets remaining, the cadence, the pace (a range or typed counts, and which the forecast uses), the milestone's ambiguity level, and the editable ambiguity ranges. The epic table, commits, measured pace, the growth sample count, workflow settings and team changes follow it.
+
 This is the minimal front-end for the Forecaster, reduced from a first prototype after review. It follows the architecture in [`../research/EM_usecase-arch.excalidraw`](../research/EM_usecase-arch.excalidraw) and the method recommended in [`../research/forecasting-approaches.md`](../research/forecasting-approaches.md). The engine is described in [`engine.md`](engine.md), and the rest of the system in [`architecture.md`](architecture.md).
 
 v1's scope (single team, local, SQLite) is in the architecture's [v1 assumptions](architecture.md#v1-assumptions). The app is started with one command and opened in the browser. The first usable version runs on canned data, before any connector exists.
@@ -88,7 +90,7 @@ All figures above are sample data.
 |---|---|
 | Suggested option ("drop X to raise the chance to 84%") | Implies LLM integration, which is not in the architecture. |
 | Scenario comparison | Not essential for a first version; can return later as a `simulateCase` run. |
-| Histogram of finish weeks, full percentile table | The chance by the committed date and the 85% date answer the question. |
+| Full percentile table | The 50%, 70%, 85% and 95% dates answer the question. |
 | Changes-since-last-forecast breakdown | Replaced by the gap trend. |
 | Throughput scaling assumption (linear / diminishing / manual) | Not data-driven and reduces transparency. Replaced by decisions 6 and 7. |
 | Per-person allocation grid | Too fine-grained; absences are entered as a short list. |

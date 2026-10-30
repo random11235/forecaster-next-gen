@@ -1,19 +1,8 @@
-import { editInputs, inputsView, type InputsEdit } from '../forecast/inputs.js'
+import { inputsView, submitInputs, type NextScreen } from '../forecast/inputs.js'
 import { milestoneForecastView, type MilestoneForecastView } from '../forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS } from '../forecast/settings.js'
 import type { Storage } from '../storage/storage.js'
-import {
-  parseGrowthForm,
-  parseMilestoneForm,
-  parsePaceForm,
-  renderInputsScreen,
-  savedGrowthForm,
-  savedMilestoneForm,
-  savedPaceForm,
-  type GrowthForm,
-  type MilestoneForm,
-  type PaceForm,
-} from './inputsScreen.js'
+import { INPUTS_FORMS, renderInputsScreen } from './inputsScreen.js'
 import { renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
 
 /** A request as the routes see it: the server has already read the form body. */
@@ -32,60 +21,29 @@ export type Reply =
 
 export interface AppContext {
   storage: Storage
-  /** Today's ISO calendar date: the start date's default. */
+  /** Today's ISO calendar date: the start date's default, and what marks dates as past. */
   today: () => string
 }
 
 /** The Milestone forecast screen at `/` and the Inputs screen at `/inputs`; not found for everything else. */
 export function route(request: Request, { storage, today }: AppContext): Reply {
-  // the settings aren't editable yet; both screens read the same ones
-  const settings = DEFAULT_SETTINGS
   const team = storage.teams()[0]
+  const settings = DEFAULT_SETTINGS
   if (request.method === 'GET' && request.path === '/') {
-    const view: MilestoneForecastView = team ? milestoneForecastView(storage, team.id, settings) : { kind: 'empty' }
+    const view: MilestoneForecastView = team ? milestoneForecastView(storage, team.id, settings, today()) : { kind: 'empty' }
     return { kind: 'html', status: 200, html: renderMilestoneForecastScreen(view) }
   }
   if (!team) return { kind: 'notFound' }
-  const form = request.form ?? new URLSearchParams()
-  // a saved POST redirects, so only a GET or a refused edit reads the Inputs view
-  const inputsScreen = (
-    status: number,
-    refused: {
-      milestoneForm?: MilestoneForm
-      paceForm?: PaceForm
-      growthForm?: GrowthForm
-    } = {},
-  ): Reply => {
-    const view = inputsView(storage, team.id, settings, today())
-    return {
-      kind: 'html',
-      status,
-      html: renderInputsScreen({
-        milestone: view.forecastInputs,
-        milestoneForm: refused.milestoneForm ?? savedMilestoneForm(view.forecastInputs),
-        paceForm: refused.paceForm ?? savedPaceForm(view.forecastInputs),
-        growth: refused.growthForm ?? savedGrowthForm(view.growth),
-      }),
-    }
+  if (request.method === 'GET' && request.path === '/inputs') {
+    return { kind: 'html', status: 200, html: renderInputsScreen(inputsView(storage, team.id, settings, today())) }
   }
-  /** Saves the edit and redirects, or shows the Inputs screen again with the refusal. */
-  const edit = (change: InputsEdit, location: string, refused: (error: string) => Parameters<typeof inputsScreen>[1]): Reply => {
-    const saved = editInputs(storage, team.id, change, settings, today())
-    return saved.ok ? { kind: 'redirect', location } : inputsScreen(400, refused(saved.error))
-  }
-
-  if (request.method === 'GET' && request.path === '/inputs') return inputsScreen(200)
-  if (request.method === 'POST' && request.path === '/inputs/milestone') {
-    const typed = parseMilestoneForm(form)
-    return edit({ kind: 'setMilestone', ...typed }, '/inputs', (error) => ({ milestoneForm: { ...typed, error } }))
-  }
-  if (request.method === 'POST' && request.path === '/inputs/pace') {
-    const typed = parsePaceForm(form)
-    return edit({ kind: 'setPaceRange', ...typed }, '/', (error) => ({ paceForm: { ...typed, error } }))
-  }
-  if (request.method === 'POST' && request.path === '/inputs/growth') {
-    const typed = parseGrowthForm(form)
-    return edit({ kind: 'setAmbiguityRanges', ...typed.ranges }, '/inputs', (error) => ({ growthForm: { ...typed, error } }))
-  }
-  return { kind: 'notFound' }
+  const readForm = request.method === 'POST' ? INPUTS_FORMS.get(request.path) : undefined
+  if (!readForm) return { kind: 'notFound' }
+  const submitted = submitInputs(storage, team.id, settings, today(), readForm(request.form ?? new URLSearchParams()))
+  return submitted.saved
+    ? { kind: 'redirect', location: SCREEN_PATHS[submitted.next] }
+    : { kind: 'html', status: 400, html: renderInputsScreen(submitted.screen) }
 }
+
+/** Where each screen is served. */
+const SCREEN_PATHS: Record<NextScreen, string> = { forecast: '/', inputs: '/inputs' }

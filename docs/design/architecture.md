@@ -6,6 +6,8 @@ This covers the Forecaster as a whole: v1's assumptions, the principles every mo
 
 This builds on the recommendations in [`../research/forecasting-approaches.md`](../research/forecasting-approaches.md) ("Implications for a new tool") and the stores in [`../research/EM_usecase-arch.excalidraw`](../research/EM_usecase-arch.excalidraw).
 
+**The MVP overrides parts of this.** The MVP ([#84](https://github.com/random11235/forecaster-next-gen/issues/84)) forecasts one milestone per team from what the EM types in: a start date, the tickets remaining and a pace (a range, or typed counts) per period of the team's cadence, grown by the range of its ambiguity. It has no epics, commits, pull-backs, blocked epics, per-epic ambiguity, team facts, workflow settings, measured pace, measured growth or sample data, and #87 deleted the code for them. Where this doc describes them, it is the v1 design they follow on from, not the code as it stands; each such place says so. The tables earlier releases wrote for them are kept in the data file, unread.
+
 The engine is built and tested in isolation first (build order: engine → app on canned data → Jira → GitHub → capacity). The app design ([`frontend-essentials.md`](frontend-essentials.md)) need not match it until the app is built.
 
 ---
@@ -41,56 +43,38 @@ The data model is designed so that each of these can be relaxed later without re
 
 ## Folder structure
 
+The tree is `src/` as it stands in the MVP. v1 adds `samples/` (Layer 2: commits, throughput, growth and epic-size samples derived from `model/`), `ledger/` (Layer 5), `secrets/` and `connectors/`, and the epic-era files #87 deleted (work items, workflow settings, epic commits, team facts, measured pace and growth); [`forecast-model.md`](forecast-model.md) describes them.
+
 ```
 src/
-  model/                  # Layer 1: ingested entity types, no logic
+  model/                  # Layer 1: record types, no logic
     team.ts
-    workItem.ts           # WorkItem, WorkItemEvent, Facts
-    milestone.ts          # Milestone: defined by the EM, not ingested
-    workflow.ts           # WorkflowSettings: the EM's status mapping, commit label, blocked rule
-    epicCommit.ts         # EpicCommit: the EM's commit of an epic and its baseline
-    ambiguity.ts          # Ambiguity, AmbiguityRanges and each epic's level: set by the EM
-
-  samples/                # Layer 2: pure derivations from model/
-    commits.ts            # commits that stand: in the tool or by the commit label, after pull-back resets
-    throughput.ts         # WorkItems → daily ThroughputSample[] since installation (milestone epics only)
-    finishedEpics.ts      # commits that stand + work items → the committed epics now done, with baseline and final count
-    growth.ts             # commits + final counts → GrowthSample[]
-    epicSize.ts           # finished epics → EpicSizeSample[]
-    cycleTime.ts          # started → done; spread and ageing
+    milestoneInputs.ts    # MilestoneInputs: what the EM types in for the team's milestone; PaceMode
+    ambiguity.ts          # Ambiguity and AmbiguityRanges: set by the EM
 
   engine/                 # pure: no I/O, no DB, no clock; see src/engine/ for its files
     index.ts              # exports simulateCase, periodEndDate and the types only
 
   forecast/               # the only module that knows both stored data and the engine
-    teamFacts.ts          # team facts: stored facts and the commits that stand, read under the team's WorkflowSettings, once per call
-    milestoneEpics.ts     # a milestone's epics as they stand: items now, commit, in progress, blocked; the baseline growth applies to
-    inputs.ts             # Seam B: stored data → the Inputs screen's view; its edits (milestone, workflow, pace) and their rules
-    milestoneDefinition.ts  # behind inputs.ts: the milestone's view and edits, including committing an epic
-    workflowSettings.ts   # behind inputs.ts: the workflow settings view and edit
-    growth.ts             # behind inputs.ts: ambiguity ranges and levels, measured growth; each epic's growth and its source
-    pace.ts               # behind inputs.ts: weekly pace since installation, the measured-pace gate and switch; the pace a forecast uses
-    buildCase.ts          # the pace applied, ambiguity ranges, provisional baselines, limits
+    inputs.ts             # Seam B: stored data → the Inputs screen's view; a submitted form saved (and where next) or refused (and the screen to show again)
+    milestoneInputs.ts    # behind inputs.ts: the milestone's view and edits
+    milestoneAssessment.ts  # behind both views: the milestone's inputs against the settings and today: the pace in use, what stops a forecast, the warnings
+    growth.ts             # behind inputs.ts: the ambiguity ranges view and edit; the milestone's growth range
+    milestoneForecastView.ts  # Seam B: stored data → the Milestone forecast screen's view, through the engine
     settings.ts           # ForecastSettings and AmbiguityRanges defaults
-    suggestions.ts        # suggested pace range, measured medium range, switch offers
-    diagnostics.ts        # sample counts, pace variation text, warnings (e.g. in progress but not committed), provenance (ThroughputScope, GrowthSource)
-    milestoneForecastView.ts  # Seam B: stored data → the Milestone forecast screen's view
+    cadence.ts            # what the screens call a period: a week or a sprint
+    calendarDate.ts       # ISO calendar dates: checking and counting days between
+    counted.ts            # a count with its words: "1 ticket", "40 tickets"
+    editResult.ts         # an edit saved, or refused saying why
 
-  ledger/                 # Layer 5
-    forecastLog.ts
-    outcomes.ts           # record actuals; compute PIT and hit rates
-
-  secrets/                # credential storage interface; v1: OS keychain
-  connectors/             # jira/ (first), github/ (second) → model/ types; read-only
-  storage/                # interfaces; v1: SQLite file
-  sample/                 # canned sample data; no longer loaded, kept for the screens tests until #87
-  app/                    # local server (localhost only), screens, `npm start` entry point
+  storage/                # interface and its v1 SQLite file, with the schema's migrations
+  app/                    # local server (localhost only), screens, `npm start` entry point; each screen's HTML, and reading the fields of the forms it posts
 
 test/
-  app/                    # launch smoke test: start the app, check the screen is served
+  app/                    # the screens, launch, and the launch smoke test: start the app, check the screen is served
   engine/                 # Seam A: fixed seeds, plus a performance benchmark
-  forecast/               # Seam B: facts + settings + ledger → milestone forecast view
-  fixtures/               # canned histories and recorded Jira/GitHub responses (.json)
+  forecast/               # Seam B: stored inputs + settings → the screens' views
+  storage/                # the schema's migrations
 ```
 
 **Dependency rules:**
@@ -99,7 +83,7 @@ test/
 - `forecast/` is the only module that depends on both stored data and `engine/`.
 - `ledger/` depends only on `engine/types.ts`.
 - `app/` reaches forecasts through `forecast/`, never `engine/` directly.
-- Forecast code reads facts only through team facts (`teamFacts`), never `storage.facts`, so a forecast always sees the EM's status mapping. Storage, the sample loader and storage tests may still read raw facts.
+- Forecast code reads facts only through team facts (`teamFacts`), never `storage.facts`, so a forecast always sees the EM's status mapping. Storage and storage tests may still read raw facts. (The MVP reads no facts: it has neither, until connectors return.)
 - `connectors/`, `storage/` and `secrets/` sit at the edges behind interfaces, so v1 can run from canned data and the same code can be hosted later.
 
 **File types:**
@@ -110,9 +94,9 @@ test/
 
 **Test seams.** There are two, as set in the spec:
 - **Seam A** is `simulateCase`, tested with fixed seeds ([`engine.md`](engine.md)).
-- **Seam B** is `forecast/`: stored facts, settings and the ledger go in, and the screens' views come out: `milestoneForecastView` for the Milestone forecast screen, and `inputsView` with `editInputs` for the Inputs screen. Team facts is part of it: tests may call `teamFacts` directly. Its logic is in [`forecast-model.md`](forecast-model.md).
+- **Seam B** is `forecast/`: stored facts, settings and the ledger go in, and the screens' views come out: `milestoneForecastView` for the Milestone forecast screen, and `inputsView` with `submitInputs` for the Inputs screen. `submitInputs` takes a form as typed (`InputsEdit`) and either saves it, saying which screen comes next, or refuses it, returning the Inputs view to show again: that form as typed, the rest as saved, and the refusal on the form it belongs to; so refused re-display is tested here, without the server. Reading a form's fields from the request body stays in `app/`, beside the HTML that names them. Both views take the same `ForecastSettings` and judge the milestone by one assessment (`assessMilestone`), so the typed counts a forecast needs, the notes beside the inputs and the Inputs screen's hint all come from those settings. In v1, team facts is part of it and tests may call `teamFacts` directly; the MVP has no team facts. Its logic is in [`forecast-model.md`](forecast-model.md).
 
-Warning text and provenance are tested at Seam B, not Seam A. These cases moved from the engine tests. Each is owed, in `test/forecast/`, by the ticket that adds its warning or diagnostic:
+Warning text and provenance are tested at Seam B, not Seam A. These cases moved from the engine tests. Each is owed, in `test/forecast/`, by the ticket that adds its warning or diagnostic. Since the MVP, only the first two can arise: the last four name epics, commits or measured pace, which return after it.
 - the horizon warning when fewer trials finish than the highest reported percentile, with the floored percentage and the horizon date, and none when enough finish;
 - the long-forecast warning above `warnAboveWeeks` weeks, none at or below it, its ticket figure for 'when' and 'howMany', a median beyond the horizon counting as over, the threshold coming from `ForecastSettings`, and weeks (not periods) keeping their meaning when `periodDays` changes;
 - the growth source of each epic in rank order: samples, ambiguity range, or epic size for a null or 0 `baseCount`;
