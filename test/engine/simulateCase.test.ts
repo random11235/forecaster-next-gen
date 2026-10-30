@@ -288,6 +288,40 @@ describe('simulateCase: epics with no children', () => {
   })
 })
 
+describe('simulateCase: finish counts', () => {
+  test('counts the trials finishing in each period, from period 0 to the last finish', () => {
+    const result = simulateCase(whenCase())
+
+    // 10 tickets at 2 a period: every trial finishes in period 5
+    expect(result.finishCounts).toEqual([0, 0, 0, 0, 0, 1_000])
+  })
+
+  test('the slowest period holds only the trials that finish in it, not a whole percent', () => {
+    // Each period finishes all 10 tickets with probability 2/3, so a trial finishes in period k
+    // with probability (1/3)^(k−1) × 2/3: about 6,667 in period 1, 2,222 in period 2, and a handful in the last.
+    const result = simulateCase(whenCase({ trials: 10_000, throughputSamples: [0, 10, 10] }))
+    const counts = result.finishCounts
+
+    expect(counts.reduce((sum, count) => sum + count, 0)).toBe(10_000)
+    expect(counts[1]! / 10_000).toBeCloseTo(2 / 3, 1)
+    expect(counts[2]! / 10_000).toBeCloseTo(2 / 9, 1)
+    expect(counts.at(-1)).toBeGreaterThan(0)
+    expect(counts.at(-1)).toBeLessThan(10)
+  })
+
+  test('leave out the trials beyond the horizon, so they sum to the finished trials', () => {
+    const result = simulateCase(whenCase({ trials: 10_000, maxPeriods: 2, throughputSamples: [0, 10, 10] }))
+
+    expect(result.finishCounts).toHaveLength(3)
+    expect(result.finishCounts.reduce((sum, count) => sum + count, 0)).toBe(Math.round(result.finishedFraction * 10_000))
+  })
+
+  test("are empty when no trial finishes, and for 'how many'", () => {
+    expect(simulateCase(whenCase({ throughputSamples: [0, 0] })).finishCounts).toEqual([])
+    expect(simulateCase(whenCase({ question: { kind: 'howMany', byDate: '2026-03-02' } })).finishCounts).toEqual([])
+  })
+})
+
 describe('simulateCase: trials hitting the horizon', () => {
   test('counts the trials that hit maxPeriods without finishing', () => {
     // Each period finishes all 10 tickets with probability 1/2; with a 3-period horizon,

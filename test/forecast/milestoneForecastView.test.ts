@@ -207,6 +207,17 @@ describe('the finish graph', () => {
     expect(finishGraph.at(-1)!.share).toBeGreaterThan(0)
   })
 
+  test('each bar is the share of trials finishing that week, so the slowest week holds a few trials, not a whole percent', () => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
+
+    const { finishGraph } = graph(storage)
+    const firstFinish = finishGraph.findIndex(({ share }) => share > 0)
+
+    expect(finishGraph.at(-1)!.share).toBeLessThan(0.01)
+    expect(finishGraph.slice(firstFinish).every(({ share }) => share > 0)).toBe(true)
+  })
+
   test('each confidence date falls on the first bar by which that share of trials has finished', () => {
     const storage = newTeam()
     enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })

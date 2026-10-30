@@ -38,6 +38,7 @@ ForecastResult {
   caseHash,
   quantiles: (number | null)[101],     // 'when': finish period at p0..p100; null = beyond the horizon
                                        // 'howMany': items done by byDate at p0..p100
+  finishCounts: number[],              // 'when': trials finishing in each period, 0 to the last finish; empty for 'howMany'
   finishedFraction,                    // 'when': share of trials that finished within maxPeriods
   percentileDates: Record<number, string | null>,   // keyed by the case's percentiles; 'when' only, ISO YYYY-MM-DD; null = beyond the horizon
   percentileCounts: Record<number, number>,         // keyed by the case's percentiles; 'howMany' only; see below
