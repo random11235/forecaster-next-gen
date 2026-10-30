@@ -1,7 +1,9 @@
+import { howItWorksView } from '../forecast/howItWorksView.js'
 import { inputsView, submitInputs, type NextScreen } from '../forecast/inputs.js'
 import { milestoneForecastView, type MilestoneForecastView } from '../forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS } from '../forecast/settings.js'
 import type { Storage } from '../storage/storage.js'
+import { renderHowItWorksScreen } from './howItWorksScreen.js'
 import { INPUTS_FORMS, renderInputsScreen } from './inputsScreen.js'
 import { renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
 
@@ -27,13 +29,16 @@ export interface AppContext {
   today: () => string
 }
 
-/** The Milestone forecast screen at `/` and the Inputs screen at `/inputs`; not found for everything else. */
+/** The Milestone forecast screen at `/`, the Inputs screen at `/inputs` and How it works at `/how-it-works`; not found for everything else. */
 export function route(request: Request, { storage, today }: AppContext): Reply {
   const team = storage.teams()[0]
   const settings = DEFAULT_SETTINGS
   if (request.method === 'GET' && request.path === '/') {
     const view: MilestoneForecastView = team ? milestoneForecastView(storage, team.id, settings, today()) : { kind: 'empty' }
     return { kind: 'html', status: 200, html: renderMilestoneForecastScreen(view) }
+  }
+  if (request.method === 'GET' && request.path === '/how-it-works') {
+    return { kind: 'html', status: 200, html: renderHowItWorksScreen(howItWorksView(settings)) }
   }
   if (!team) return { kind: 'notFound' }
   const inputsScreen = (): Reply => ({ kind: 'html', status: 200, html: renderInputsScreen(inputsView(storage, team.id, settings, today())) })
