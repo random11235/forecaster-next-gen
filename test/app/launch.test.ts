@@ -47,7 +47,7 @@ describe('one-command launch', () => {
     const home = await (await fetch(app.url)).text()
 
     expect(home).toContain('Launch · 30 tickets remaining')
-    expect(home).toMatch(/Starting 2 Nov 2026: 85% sure of finishing by/)
+    expect(home).toMatch(/Starting 2 Nov 2026: 85% confident of finishing by/)
   })
 
   test('first launch creates the default team, installed at launch, and launching again adds no other', async () => {
