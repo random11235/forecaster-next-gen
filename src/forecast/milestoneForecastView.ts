@@ -1,8 +1,9 @@
-import { periodEndDate, simulateCase, ENGINE_VERSION, type SimulationCase } from '../engine/index.js'
-import type { GrowthRange } from '../model/ambiguity.js'
+import { periodEndDate, simulateCase, ENGINE_VERSION, type ForecastResult, type SimulationCase } from '../engine/index.js'
+import type { Ambiguity, GrowthRange } from '../model/ambiguity.js'
 import type { Storage } from '../storage/storage.js'
-import { inputProblems, inputWarnings, isForecastable, type ForecastableInputs, type InputNote } from './milestoneInputs.js'
-import { DEFAULT_AMBIGUITY_RANGES, type ForecastSettings } from './settings.js'
+import { milestoneGrowth } from './growth.js'
+import { assessMilestone, type ForecastableInputs, type InputNote, type PaceInUse } from './milestoneAssessment.js'
+import type { ForecastSettings } from './settings.js'
 
 /** The confidence level the headline states. */
 export const HEADLINE_PERCENT = 85
@@ -12,13 +13,25 @@ export interface ForecastDate {
   percent: number
   /** ISO calendar date, `YYYY-MM-DD`, or null: later than the horizon date. */
   date: string | null
+  /** The date is before today: a past start date can give a finish that has already gone by. */
+  alreadyPast: boolean
+}
+
+/** One period's bar on the finish graph. Shares are fractions of all trials, from 0 to 1. */
+export interface FinishBar {
+  /** ISO calendar date the period ends: the start date for the first bar, which counts trials with nothing to do. */
+  date: string
+  /** The share of trials that finish in this period. */
+  share: number
+  /** The share of trials finished by the end of this period. */
+  finishedBy: number
 }
 
 /** What the Milestone forecast screen shows. */
 export type MilestoneForecastView =
   /** Nothing entered yet: the screen sends the EM to Inputs. */
   | { kind: 'empty' }
-  /** Inputs that can't be forecast, each naming what to fix. */
+  /** Inputs that can't be forecast, each naming what to fix: one missing, or too few typed counts. */
   | { kind: 'problems'; name: string; problems: InputNote[] }
   | {
       kind: 'forecast'
@@ -30,18 +43,27 @@ export type MilestoneForecastView =
       dates: ForecastDate[]
       /** The last date the forecast reaches; a null date is "later than" this. */
       horizonDate: string
-      pace: { source: 'range'; low: number; high: number }
+      /** Days in one of the team's periods, which the pace is per. */
+      cadenceDays: number
+      /** The pace the dates come from. */
+      pace: PaceInUse
+      /** The milestone's ambiguity level and the growth range it used. */
+      ambiguity: { level: Ambiguity } & GrowthRange
       warnings: InputNote[]
+      /** When the trials finish: one bar per period, from the start date to the last finish within the horizon. */
+      finishGraph: FinishBar[]
     }
 
-/** Seam B: the Milestone forecast screen for the team's milestone, forecast from its start date. */
-export function milestoneForecastView(storage: Storage, teamId: string, settings: ForecastSettings): MilestoneForecastView {
-  const inputs = storage.milestoneInputs(teamId)
-  if (!inputs) return { kind: 'empty' }
-  if (!isForecastable(inputs)) return { kind: 'problems', name: inputs.name, problems: inputProblems(inputs) }
+/** Seam B: the Milestone forecast screen for the team's milestone, forecast from its start date, on `today`. */
+export function milestoneForecastView(storage: Storage, teamId: string, settings: ForecastSettings, today: string): MilestoneForecastView {
+  const saved = storage.milestoneInputs(teamId)
+  if (!saved) return { kind: 'empty' }
+  const assessment = assessMilestone(saved, settings, today)
+  if (!assessment.forecastable) return { kind: 'problems', name: saved.name, problems: assessment.problems }
 
-  const growth = (storage.ambiguityRanges(teamId) ?? DEFAULT_AMBIGUITY_RANGES).medium
-  const simulationCase = milestoneCase(inputs, growth, settings)
+  const { inputs, pace } = assessment
+  const growth = milestoneGrowth(storage, inputs)
+  const simulationCase = milestoneCase(inputs, pace, growth, settings)
   const result = simulateCase(simulationCase)
   const { periodDays, maxPeriods, percentiles } = simulationCase
   return {
@@ -50,19 +72,28 @@ export function milestoneForecastView(storage: Storage, teamId: string, settings
     ticketsRemaining: inputs.ticketsRemaining,
     startDate: inputs.startDate,
     headlinePercent: HEADLINE_PERCENT,
-    dates: percentiles.map((percent) => ({ percent, date: result.percentileDates[percent] ?? null })),
+    dates: percentiles.map((percent) => forecastDate(percent, result.percentileDates[percent] ?? null, today)),
     horizonDate: periodEndDate(inputs.startDate, periodDays, maxPeriods),
-    pace: { source: 'range', ...inputs.paceRange },
-    warnings: inputWarnings(inputs),
+    cadenceDays: inputs.cadenceDays,
+    pace,
+    ambiguity: { level: inputs.ambiguity, ...growth },
+    warnings: assessment.warnings.map(({ input, message }) => ({ input, message })),
+    finishGraph: finishGraph(result, simulationCase),
   }
 }
 
+function forecastDate(percent: number, date: string | null, today: string): ForecastDate {
+  // ISO calendar dates order as strings do
+  return { percent, date, alreadyPast: date !== null && date < today }
+}
+
 /**
- * The milestone as one scope entry of the tickets remaining, none done, growing by the medium range. With 0 tickets
- * the engine would draw a size, so the size range is pinned to 0 and the forecast finishes on the start date.
+ * The milestone as one scope entry of the tickets remaining, none done, growing by its ambiguity's range, in periods of
+ * its cadence. With 0 tickets the engine would draw a size, so the size range is pinned to 0 and the forecast finishes
+ * on the start date.
  */
-function milestoneCase(inputs: ForecastableInputs, growth: GrowthRange, settings: ForecastSettings): SimulationCase {
-  const { startDate, ticketsRemaining, paceRange } = inputs
+function milestoneCase(inputs: ForecastableInputs, pace: PaceInUse, growth: GrowthRange, settings: ForecastSettings): SimulationCase {
+  const { startDate, ticketsRemaining } = inputs
   return {
     engineVersion: ENGINE_VERSION,
     seed: settings.seed,
@@ -70,7 +101,7 @@ function milestoneCase(inputs: ForecastableInputs, growth: GrowthRange, settings
     maxPeriods: settings.maxPeriods,
     question: { kind: 'when' },
     startDate,
-    periodDays: settings.periodDays,
+    periodDays: inputs.cadenceDays,
     scope: [
       {
         // The engine names each scope entry by its epic; the milestone is the team's only one
@@ -82,8 +113,35 @@ function milestoneCase(inputs: ForecastableInputs, growth: GrowthRange, settings
         growth,
       },
     ],
-    throughputSamples: paceRange,
+    // typed counts are drawn by the Bayesian bootstrap (ADR-0001), a range uniformly
+    throughputSamples: pace.source === 'counts' ? pace.counts : { low: pace.low, high: pace.high },
     epicSizeSamples: { low: 0, high: 0 },
     percentiles: settings.percentiles,
   }
+}
+
+/**
+ * The finish graph from the result's 101 quantiles. Quantile p is the period by which p% of trials have finished, so
+ * the share finished by a period is the highest p whose quantile is no later than it, to the nearest whole percent
+ * below. The last bar takes the exact finished fraction, so the shares sum to it.
+ */
+function finishGraph(result: ForecastResult, { startDate, periodDays }: SimulationCase): FinishBar[] {
+  // Quantiles rise with p, and those beyond the horizon (null) come last
+  const finishPeriods = result.quantiles.filter((period) => period !== null)
+  const lastPeriod = finishPeriods.at(-1)
+  if (lastPeriod === undefined) return []
+  const bars: FinishBar[] = []
+  let finishedBefore = 0
+  for (let period = 0; period <= lastPeriod; period++) {
+    const percentBy = Math.max(finishPeriods.filter((finish) => finish <= period).length - 1, 0)
+    const finishedBy = period === lastPeriod ? result.finishedFraction : percentBy / 100
+    bars.push({ date: periodEndDate(startDate, periodDays, period), share: withoutFloatError(finishedBy - finishedBefore), finishedBy })
+    finishedBefore = finishedBy
+  }
+  return bars
+}
+
+/** Rounds to 9 decimal places, so a share of 0.07 − 0.05 reads 0.02. */
+function withoutFloatError(value: number): number {
+  return Math.round(value * 1e9) / 1e9
 }

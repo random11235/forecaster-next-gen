@@ -58,8 +58,8 @@ ${main}
 const STYLE = `
     :root {
       --page: #F7F5F0; --ink: #1C1B18; --text-2: #3F3C35; --muted: #5E5A52; --faint: #8C877C;
-      --hairline: #E2DDD2; --border: #D6D0C3; --dashed: #A8A194; --sidebar: #EFEBE3; --active: #E4DFD4;
-      --link: #1F5F6B; --link-hover: #123F47; --risk: #B5482A; --good: #2F6B3F;
+      --hairline: #E2DDD2; --border: #D6D0C3; --sidebar: #EFEBE3; --active: #E4DFD4;
+      --link: #1F5F6B; --link-hover: #123F47; --bar: #9DB6BB; --risk: #B5482A; --good: #2F6B3F;
       --mono: 'Geist Mono', ui-monospace, monospace;
     }
     * { box-sizing: border-box; }
@@ -69,7 +69,7 @@ const STYLE = `
     }
     a { color: var(--link); }
     a:hover { color: var(--link-hover); }
-    button, input, select { font: inherit; color: inherit; }
+    button, input { font: inherit; color: inherit; }
 
     nav {
       background: var(--sidebar); border-right: 1px solid var(--hairline); padding: 24px 14px;
@@ -87,6 +87,7 @@ const STYLE = `
     h1 { margin: 0; font-size: 40px; line-height: 1.15; font-weight: 600; letter-spacing: -0.03em; max-width: 820px; text-wrap: pretty; }
     .risk { color: var(--risk); }
     .good { color: var(--good); }
+    .past { color: var(--risk); }
     .lede { font-size: 16px; line-height: 1.5; color: var(--text-2); max-width: 680px; }
     p.note { margin: 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
     p.error { margin: 0; color: var(--risk); font-weight: 600; }
@@ -104,19 +105,32 @@ const STYLE = `
     ul.dates li { display: flex; gap: 8px; align-items: baseline; padding: 12px 0; border-bottom: 1px solid var(--hairline); font-size: 15px; }
     ul.dates .percent { font-family: var(--mono); font-weight: 600; min-width: 3.5em; }
     ul.dates .date { font-family: var(--mono); font-weight: 600; }
-    table.epics { border-collapse: collapse; width: 100%; counter-reset: rank; }
-    table.epics th {
-      padding: 10px 16px 6px 0; text-align: left; font-size: 12px; font-weight: 500; color: var(--faint);
+
+    /* Milestone forecast: the finish graph. Markers stand on rows above the bars and run down through them. */
+    figure.finish-graph { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+    .finish-graph .plot { position: relative; padding-top: 92px; }
+    .finish-graph .bars { height: 160px; display: flex; align-items: flex-end; border-bottom: 1px solid var(--ink); }
+    .finish-graph .bar { position: relative; flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; padding: 0 1px; min-width: 0; }
+    .finish-graph .fill { width: 100%; background: var(--bar); border-radius: 2px 2px 0 0; }
+    .finish-graph .bar:hover .fill, .finish-graph .bar:focus-visible .fill { background: var(--ink); }
+    .finish-graph .bar:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+    /* A bar's hover text: hidden by opacity, not display, so a screen reader still reads it with the bar. Bars near
+       either edge open it inwards. */
+    .finish-graph .tip {
+      position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); z-index: 1;
+      white-space: nowrap; font-size: 12px; line-height: 16px; color: var(--ink); background: var(--page);
+      border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; opacity: 0; pointer-events: none;
     }
-    table.epics td { padding: 13px 16px 13px 0; border-bottom: 1px solid var(--hairline); }
-    table.epics tbody td:first-child { font-weight: 600; }
-    table.epics tbody td:first-child::before {
-      counter-increment: rank; content: counter(rank); display: inline-block; width: 28px;
-      font-family: var(--mono); font-weight: 400; color: var(--faint);
-    }
-    table.epics thead th:first-child { padding-left: 28px; }
-    table.epics .number { text-align: right; font-family: var(--mono); }
-    table.epics .status { font-size: 13px; color: var(--muted); }
+    .finish-graph .bar.start .tip { left: 0; transform: none; }
+    .finish-graph .bar.end .tip { left: auto; right: 0; transform: none; }
+    .finish-graph .bar:hover .tip, .finish-graph .bar:focus-visible .tip { opacity: 1; }
+    .finish-graph .marker { position: absolute; bottom: 0; border-left: 1px dashed var(--faint); }
+    .finish-graph .marker.headline { border-left: 2px solid var(--ink); }
+    .finish-graph .mark { position: absolute; top: 0; left: 6px; white-space: nowrap; font-size: 12px; line-height: 16px; color: var(--muted); }
+    .finish-graph .marker.end .mark { left: auto; right: 6px; }
+    .finish-graph .mark .date { font-family: var(--mono); }
+    .finish-graph .mark.headline { color: var(--ink); font-weight: 600; }
+    .finish-graph .axis { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 12px; color: var(--muted); }
 
     /* Inputs: numbered sections, a label column beside the form. */
     section.input {
@@ -130,59 +144,41 @@ const STYLE = `
     section.input > .body { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
     section.input form { margin: 0; display: flex; flex-direction: column; gap: 16px; }
     .fields { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; }
-    .fields label, label.field { flex: 1 1 200px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); }
+    .fields label { flex: 1 1 200px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); }
     .fields label.wide { flex-grow: 2; }
     input[type=text], input[type=date], input[type=number] {
       font-size: 15px; color: var(--ink); background: transparent;
       border: 0; border-bottom: 1px solid var(--ink); border-radius: 0; padding: 6px 0;
     }
     input[type=date], input[type=number] { font-family: var(--mono); }
-    input:focus, select:focus, button:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
-    select { font-size: 13px; background: transparent; border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; }
+    input:focus, button:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
     button {
       min-height: 34px; padding: 0 12px; border-radius: 6px; font-size: 13px; cursor: pointer;
       border: 1px solid var(--border); background: transparent;
     }
-    button:disabled { color: var(--faint); border-color: var(--hairline); cursor: default; }
-    button.dashed { border-style: dashed; border-color: var(--dashed); }
     .actions { display: flex; justify-content: flex-end; }
     button.primary { min-height: 42px; padding: 0 20px; border: 0; background: var(--ink); color: var(--page); font-size: 14px; font-weight: 600; }
-    .rows { display: flex; flex-direction: column; }
-    .row { display: grid; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--hairline); }
-    ol.epics { list-style: none; margin: 0; padding: 0; counter-reset: rank; }
-    ol.epics form { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto auto 210px; flex-direction: row; gap: 8px 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--hairline); }
-    ol.epics form::before { counter-increment: rank; content: counter(rank); font-family: var(--mono); color: var(--faint); }
-    ol.epics .name { font-weight: 600; }
-    /* The epic's ambiguity sits on a second line, under its name. */
-    ol.epics .ambiguity { grid-column: 2 / 5; grid-row: 2; display: flex; gap: 8px; align-items: center; }
-    /* The last column holds Commit or the commit's text, at one width so every row's buttons line up. */
-    ol.epics form > :last-child { justify-self: end; }
-    ol.epics .note { font-size: 13px; color: var(--muted); white-space: nowrap; }
-    ol.epics .key, .epic-choice .key { font-family: var(--mono); font-size: 12px; color: var(--faint); font-weight: 400; }
-    section.input form.add { flex-direction: row; align-items: center; gap: 10px; }
-    fieldset { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; }
-    legend { padding: 0 0 8px; font-size: 12px; color: var(--muted); }
-    label.epic { display: grid; grid-template-columns: 60px minmax(0, 1fr); gap: 16px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--hairline); }
-    label.epic input { text-align: center; }
     .pace { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; }
     .pace label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
     .pace input[type=number] { font-size: 32px; width: 72px; text-align: center; padding: 2px 0; }
     .pace .to { font-size: 24px; color: var(--faint); padding-bottom: 6px; }
     .pace .unit { color: var(--text-2); padding-bottom: 10px; }
-    table.workflow { border-collapse: collapse; width: 100%; }
-    table.workflow th { padding: 0 12px 6px 0; text-align: left; font-size: 12px; font-weight: 500; color: var(--faint); }
-    table.workflow td { padding: 8px 12px 8px 0; border-bottom: 1px solid var(--hairline); }
-    table.workflow td:first-child { width: 184px; font-family: var(--mono); font-size: 13px; }
-    table.workflow td:first-child::after { content: '→'; float: right; color: var(--faint); font-family: 'Geist', system-ui, sans-serif; }
+    fieldset.levels { margin: 0; padding: 0; border: 0; display: flex; flex-wrap: wrap; gap: 12px; }
+    fieldset.levels label {
+      display: flex; align-items: baseline; gap: 8px; padding: 10px 14px; cursor: pointer;
+      border: 1px solid var(--border); border-radius: 6px; font-size: 15px;
+    }
+    fieldset.levels label:has(input:checked) { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+    section.input h3 { margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+    .counts { display: flex; align-items: end; gap: 12px; }
+    .counts .fields { flex-wrap: nowrap; }
+    .counts button { white-space: nowrap; }
+    fieldset.levels .range { font-family: var(--mono); font-size: 13px; color: var(--muted); }
     table.growth { border-collapse: collapse; }
     table.growth th { padding: 0 24px 6px 0; text-align: left; font-size: 12px; font-weight: 500; color: var(--faint); }
     table.growth td { padding: 6px 24px 6px 0; }
     table.growth input[type=number] { width: 64px; text-align: center; }
     table.growth .to, table.growth .unit { padding: 0 8px; font-size: 13px; color: var(--muted); }
-    section.input form.suggestion { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
-    form.suggestion p { margin: 0; font-size: 14px; }
-    .settings { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px 24px; }
-    .settings .note { font-size: 12px; line-height: 1.4; color: var(--faint); }
 
     @media (max-width: 760px) {
       body { grid-template-columns: minmax(0, 1fr); }

@@ -1,92 +1,109 @@
+import type { Ambiguity } from '../model/ambiguity.js'
 import type { Storage } from '../storage/storage.js'
-import { refuse, type EditResult } from './editResult.js'
-import { editGrowth, growthView, teamGrowth, type GrowthEdit, type GrowthView } from './growth.js'
-import { editPace, paceOf, type PaceEdit, type PaceView } from './pace.js'
-import { editMilestoneInputs, MAX_TICKETS_PER_WEEK, milestoneInputsView, type MilestoneInputsEdit, type MilestoneInputsView } from './milestoneInputs.js'
-import { editMilestone, milestoneDefinitionView, teamMilestone, type MilestoneDefinitionView, type MilestoneEdit } from './milestoneDefinition.js'
+import type { EditResult } from './editResult.js'
+import { editGrowth, growthView, type GrowthEdit, type GrowthView, type TypedRange } from './growth.js'
+import { editMilestoneInputs, milestoneInputsView, type MilestoneInputsEdit, type MilestoneInputsView } from './milestoneInputs.js'
 import type { ForecastSettings } from './settings.js'
-import { teamFacts } from './teamFacts.js'
-import { editWorkflowSettings, workflowSettingsView, type WorkflowEdit, type WorkflowSettingsView } from './workflowSettings.js'
 
-export { MAX_TICKETS_PER_WEEK } from './milestoneInputs.js'
+/** A form the EM submits on the Inputs screen, as typed: to the milestone and its pace, or to the team's ambiguity ranges. */
+export type InputsEdit = MilestoneInputsEdit | GrowthEdit
 
-/** A change the EM makes on the Inputs screen: to the milestone, the team's workflow settings, or the milestone's pace. */
-export type InputsEdit =
-  | MilestoneInputsEdit
-  | MilestoneEdit
-  | GrowthEdit
-  | PaceEdit
-  | ({ kind: 'editWorkflow' } & WorkflowEdit)
-  /** The milestone's manual pace as typed: whole tickets per week, low ≤ high. */
-  | { kind: 'setPace'; low: string; high: string }
+/** A form on the Inputs screen, which a refusal is shown on. The typed counts' list, add and remove share one. */
+export type InputsForm = 'milestone' | 'cadence' | 'paceMode' | 'paceRange' | 'paceCounts' | 'ambiguity' | 'growth'
+
+/** What the forms with typed fields show: as saved, or as typed when refused. The choices show what is saved. */
+export interface TypedForms {
+  milestone: { name: string; startDate: string; ticketsRemaining: string }
+  cadence: { cadenceDays: string }
+  paceRange: TypedRange
+  /** The list, oldest first, apart by commas, and the newest count to add after it. */
+  paceCounts: { counts: string; count: string }
+  growth: Record<Ambiguity, TypedRange>
+}
+
+/** Why a submitted form was refused, and which form says so. */
+export interface FormRefusal {
+  form: InputsForm
+  error: string
+}
 
 /** What the Inputs screen shows. */
 export interface InputsView {
   /** The milestone the forecast starts from, as entered so far. */
-  forecastInputs: MilestoneInputsView
-  milestone: MilestoneDefinitionView
-  /** The milestone's pace: the manual range, and measured pace once there are enough weeks; undefined with no milestone. */
-  pace: PaceView | undefined
-  workflow: WorkflowSettingsView
+  milestone: MilestoneInputsView
   growth: GrowthView
+  forms: TypedForms
+  /** Why the form just submitted was refused; none until one is. */
+  refusal?: FormRefusal
+}
+
+/** Where the EM goes once a form is saved: back to the Inputs screen, or on to the Milestone forecast screen. */
+export type NextScreen = 'inputs' | 'forecast'
+
+/** A submitted form saved, and where to go next; or refused, with the Inputs screen to show again. */
+export type Submitted = { saved: true; next: NextScreen } | { saved: false; screen: InputsView & { refusal: FormRefusal } }
+
+/** Seam B: the Inputs screen for the team, its notes judged against `settings`, on `today`, the start date's default. */
+export function inputsView(storage: Storage, teamId: string, settings: ForecastSettings, today: string): InputsView {
+  const milestone = milestoneInputsView(storage, teamId, settings, today)
+  const growth = growthView(storage, teamId)
+  return { milestone, growth, forms: savedForms(milestone, growth) }
 }
 
 /**
- * Seam B: the Inputs screen for the team on `today`, reading its facts from storage once. The settings are the
- * forecast's, so both screens agree on thresholds such as `minGrowthSamples` and `minMeasuredPaceWeeks`.
+ * Seam B: saves a form the EM submitted on the Inputs screen. Refused, nothing changes, and the screen shows the form
+ * again as typed, saying why, beside the rest as saved.
  */
-export function inputsView(storage: Storage, teamId: string, settings: ForecastSettings, today: string): InputsView {
-  const team = teamFacts(storage, teamId)
-  return {
-    forecastInputs: milestoneInputsView(storage, teamId, today),
-    milestone: milestoneDefinitionView(storage, teamId, team),
-    pace: paceOf(storage, teamId, team, settings, today),
-    workflow: workflowSettingsView(team),
-    growth: growthView(teamGrowth(storage, teamId, team), settings),
-  }
+export function submitInputs(storage: Storage, teamId: string, settings: ForecastSettings, today: string, edit: InputsEdit): Submitted {
+  const { form, next, typed } = submission(edit)
+  const result: EditResult = edit.kind === 'setAmbiguityRanges' ? editGrowth(storage, teamId, edit) : editMilestoneInputs(storage, teamId, edit)
+  if (result.ok) return { saved: true, next }
+  const screen = inputsView(storage, teamId, settings, today)
+  return { saved: false, screen: { ...screen, forms: { ...screen.forms, ...typed(screen.forms) }, refusal: { form, error: result.error } } }
 }
 
-/** Seam B: applies the EM's edit from the Inputs screen and saves it. A refused edit changes nothing and says why. */
-export function editInputs(
-  storage: Storage,
-  teamId: string,
-  edit: InputsEdit,
-  settings: ForecastSettings,
-  today: string,
-): EditResult {
+/** A submitted form: which it is, where a saved one goes, and what a refused one shows again over the saved forms. */
+interface Submission {
+  form: InputsForm
+  next: NextScreen
+  typed: (saved: TypedForms) => Partial<TypedForms>
+}
+
+function submission(edit: InputsEdit): Submission {
+  const asSaved = () => ({})
   switch (edit.kind) {
-    case 'setMilestone':
-    case 'setPaceRange':
-      return editMilestoneInputs(storage, teamId, edit)
-    case 'setPace':
-      return setPace(storage, teamId, edit)
-    case 'useMeasuredPace':
-    case 'useManualPace':
-      return editPace(storage, teamId, edit, settings, today)
-    case 'editWorkflow': {
-      const { kind: _kind, ...settings } = edit
-      return editWorkflowSettings(storage, teamId, settings)
+    case 'setMilestone': {
+      const { name, startDate, ticketsRemaining } = edit
+      return { form: 'milestone', next: 'inputs', typed: () => ({ milestone: { name, startDate, ticketsRemaining } }) }
     }
-    case 'setEpicAmbiguity':
+    case 'setCadence':
+      return { form: 'cadence', next: 'inputs', typed: () => ({ cadence: { cadenceDays: edit.cadenceDays } }) }
+    case 'setPaceRange':
+      return { form: 'paceRange', next: 'forecast', typed: () => ({ paceRange: { low: edit.low, high: edit.high } }) }
+    case 'setPaceMode':
+      return { form: 'paceMode', next: 'forecast', typed: asSaved }
+    case 'setPaceCounts':
+      return { form: 'paceCounts', next: 'inputs', typed: () => ({ paceCounts: { counts: edit.counts, count: '' } }) }
+    case 'addPaceCount':
+      return { form: 'paceCounts', next: 'inputs', typed: (saved) => ({ paceCounts: { ...saved.paceCounts, count: edit.count } }) }
+    case 'removeLastPaceCount':
+      return { form: 'paceCounts', next: 'inputs', typed: asSaved }
+    case 'setAmbiguity':
+      return { form: 'ambiguity', next: 'forecast', typed: asSaved }
     case 'setAmbiguityRanges':
-    case 'useMeasuredMedium':
-    case 'useMediumRange':
-      return editGrowth(storage, teamId, edit, settings)
-    default:
-      return editMilestone(storage, teamId, edit)
+      return { form: 'growth', next: 'inputs', typed: () => ({ growth: { low: edit.low, medium: edit.medium, high: edit.high } }) }
   }
 }
 
-function setPace(storage: Storage, teamId: string, typed: { low: string; high: string }): EditResult {
-  const milestone = teamMilestone(storage, teamId)
-  if (!milestone) return refuse('Define the milestone first.')
-  const [low, high] = [typed.low.trim(), typed.high.trim()]
-  if (!/^\d+$/.test(low) || !/^\d+$/.test(high)) return refuse('Enter whole numbers of tickets, 0 or more.')
-  const range = { low: Number(low), high: Number(high) }
-  if (range.high > MAX_TICKETS_PER_WEEK) return refuse(`Enter at most ${MAX_TICKETS_PER_WEEK} tickets per week.`)
-  if (range.low > range.high) return refuse('The low end must not be above the high end.')
-  // the EM's choice of measured pace stands: the range is used while measured pace is paused
-  const mode = storage.paceSetting(teamId, milestone.id)?.mode ?? 'manual'
-  storage.savePaceSetting({ teamId, milestoneId: milestone.id, mode, manual: range })
-  return { ok: true }
+/** Each form filled with what is saved: the start date pre-filled with today until one is, blanks for what isn't. */
+function savedForms(milestone: MilestoneInputsView, { ranges }: GrowthView): TypedForms {
+  const typed = ({ low, high }: { low: number; high: number }): TypedRange => ({ low: String(low), high: String(high) })
+  const { paceRange, ticketsRemaining } = milestone
+  return {
+    milestone: { name: milestone.name, startDate: milestone.startDate, ticketsRemaining: ticketsRemaining === undefined ? '' : String(ticketsRemaining) },
+    cadence: { cadenceDays: String(milestone.cadenceDays) },
+    paceRange: paceRange ? typed(paceRange) : { low: '', high: '' },
+    paceCounts: { counts: milestone.paceCounts.join(', '), count: '' },
+    growth: { low: typed(ranges.low), medium: typed(ranges.medium), high: typed(ranges.high) },
+  }
 }
