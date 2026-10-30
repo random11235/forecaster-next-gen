@@ -889,3 +889,14 @@ describe('How it works screen', () => {
     expect(screen).toMatch(/met in \d+% of simulations/)
   })
 })
+
+describe('Every screen', () => {
+  test('links the favicon in its head, inline as an SVG', async () => {
+    await startOnPreMvpData()
+
+    for (const path of ['/', '/inputs']) {
+      const head = (await page(path)).match(/<head>[\s\S]*?<\/head>/)![0]
+      expect(head).toMatch(/<link rel="icon" type="image\/svg\+xml" href="data:image\/svg\+xml,[^"]*%3Csvg[^"]*">/)
+    }
+  })
+})
