@@ -150,7 +150,12 @@ function paceUsed({ pace, cadenceDays }: Forecast): string {
 /** A bar's hover text, such as "1 Dec 2026: 92% chance of completing by the end of this week, 13% of simulations are completed within." */
 function barText({ date, share, finishedBy }: FinishBar, cadenceDays: number): string {
   const period = periodName(cadenceDays)
-  return `${formatDate(date)}: ${Math.round(finishedBy * 100)}% chance of completing by the end of this ${period}, ${Math.round(share * 100)}% of simulations are completed within.`
+  return `${formatDate(date)}: ${Math.round(finishedBy * 100)}% chance of completing by the end of this ${period}, ${percentText(share)} of simulations are completed within.`
+}
+
+/** A share as a whole percent, or "under 1%" for a share that rounds to 0 but holds some simulations. */
+function percentText(share: number): string {
+  return share > 0 && share < 0.005 ? 'under 1%' : `${Math.round(share * 100)}%`
 }
 
 /** Bars near either edge of the graph, at `left`% across it, open their hover text inwards so it stays on the page. */
