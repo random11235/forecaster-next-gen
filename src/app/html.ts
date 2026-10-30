@@ -118,7 +118,7 @@ const STYLE = `
        either edge open it inwards. */
     .finish-graph .tip {
       position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); z-index: 1;
-      white-space: nowrap; font-size: 12px; line-height: 16px; color: var(--ink); background: var(--page);
+      width: max-content; max-width: min(640px, calc(100vw - 32px)); font-size: 12px; line-height: 16px; color: var(--ink); background: var(--page);
       border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; opacity: 0; pointer-events: none;
     }
     .finish-graph .bar.start .tip { left: 0; transform: none; }
