@@ -120,28 +120,11 @@ function milestoneCase(inputs: ForecastableInputs, pace: PaceInUse, growth: Grow
   }
 }
 
-/**
- * The finish graph from the result's 101 quantiles. Quantile p is the period by which p% of trials have finished, so
- * the share finished by a period is the highest p whose quantile is no later than it, to the nearest whole percent
- * below. The last bar takes the exact finished fraction, so the shares sum to it.
- */
-export function finishGraph(result: ForecastResult, { startDate, periodDays }: SimulationCase): FinishBar[] {
-  // Quantiles rise with p, and those beyond the horizon (null) come last
-  const finishPeriods = result.quantiles.filter((period) => period !== null)
-  const lastPeriod = finishPeriods.at(-1)
-  if (lastPeriod === undefined) return []
-  const bars: FinishBar[] = []
+/** The finish graph: for each period from the start to the last finish, the share of trials finishing in it and by it. */
+export function finishGraph(result: ForecastResult, { startDate, periodDays, trials }: SimulationCase): FinishBar[] {
   let finishedBefore = 0
-  for (let period = 0; period <= lastPeriod; period++) {
-    const percentBy = Math.max(finishPeriods.filter((finish) => finish <= period).length - 1, 0)
-    const finishedBy = period === lastPeriod ? result.finishedFraction : percentBy / 100
-    bars.push({ date: periodEndDate(startDate, periodDays, period), share: withoutFloatError(finishedBy - finishedBefore), finishedBy })
-    finishedBefore = finishedBy
-  }
-  return bars
-}
-
-/** Rounds to 9 decimal places, so a share of 0.07 − 0.05 reads 0.02. */
-function withoutFloatError(value: number): number {
-  return Math.round(value * 1e9) / 1e9
+  return result.finishCounts.map((count, period) => {
+    finishedBefore += count
+    return { date: periodEndDate(startDate, periodDays, period), share: count / trials, finishedBy: finishedBefore / trials }
+  })
 }
