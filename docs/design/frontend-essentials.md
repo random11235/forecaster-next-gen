@@ -71,6 +71,8 @@ Per-epic pace is information only and never feeds the forecast.
 
 Architecture: split rate estimator, `splitRatesSet/Get`, `settingsSet/Get`, `milestonesSet/Get`.
 
+Each input saves as the EM changes it, with no save buttons ([#100](https://github.com/random11235/forecaster-next-gen/issues/100)): a small inline script posts the changed form, swaps in the screen's sections from the reply and notes "Saved" beside the section; a refusal shows its reason in its own section, keeping what was typed. Without the script the buttons show and each form posts as before. Typed counts are edited as one list.
+
 | Section | Shows | Source |
 |---|---|---|
 | Milestones | Name, committed date, epics in rank order; commit / uncommit each epic; ambiguity per epic | EM |

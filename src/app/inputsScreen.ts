@@ -6,6 +6,7 @@ import type { InputsEdit, InputsForm, InputsView, TypedForms } from '../forecast
 import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
 import type { PaceMode } from '../model/milestoneInputs.js'
 import { escapeHtml, htmlPage } from './html.js'
+import { INPUTS_SCRIPT } from './inputsScript.js'
 
 /** Each input of the milestone by its label on this screen, which notes about it are named by everywhere. */
 export const INPUT_LABELS: Record<MilestoneInput, string> = {
@@ -62,7 +63,7 @@ export function renderInputsScreen(screen: InputsView): string {
     heading: 'Inputs',
     lede: 'What drives the forecast: the milestone, the team’s pace, and how work grows.',
   }
-  return htmlPage('Inputs', '/inputs', header, sections.map((section, index) => section(index + 1)).join('\n'))
+  return htmlPage('Inputs', '/inputs', header, sections.map((section, index) => section(index + 1)).join('\n'), INPUTS_SCRIPT)
 }
 
 /** A section of the Inputs screen, given its number on the screen. */
