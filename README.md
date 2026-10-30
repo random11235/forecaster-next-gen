@@ -24,7 +24,7 @@ To use another port: `PORT=5181 npm start`. `PORT=0` picks a free port.
 
 ## Data
 
-Everything is kept in one local SQLite file, `data/forecaster.db` (git-ignored). On first launch, with no data yet, it is filled with canned sample data, so you can see how the Forecaster works before connecting Jira. To keep the file elsewhere: `FORECASTER_DATA_FILE=/path/to/forecaster.db npm start`. Delete the file to start again from the sample data.
+Everything is kept in one local SQLite file, `data/forecaster.db` (git-ignored). On first launch, with no data yet, the Forecaster opens empty and asks for your milestone on the Inputs screen. To keep the file elsewhere: `FORECASTER_DATA_FILE=/path/to/forecaster.db npm start`. Delete the file to start again from empty.
 
 ## Development
 
