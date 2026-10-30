@@ -400,6 +400,40 @@ describe('Inputs screen: typed counts', () => {
   })
 })
 
+/** Posts a form as the Inputs screen's script does when a field changes: it asks to stay on the Inputs screen. */
+function saveInPlace(path: string, fields: [string, string][]): Promise<Response> {
+  return fetch(new URL(path, app!.url), {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded', 'forecaster-save': 'in-place' },
+    body: new URLSearchParams(fields).toString(),
+    redirect: 'manual',
+  })
+}
+
+describe('Inputs screen: saving as inputs change', () => {
+  test('choosing typed counts saves it and answers with the Inputs screen showing it chosen, not the forecast', async () => {
+    await startOnPreMvpData()
+    await submitCounts('6, 4, 9')
+
+    const response = await saveInPlace('/inputs/pace-mode', [['paceMode', 'counts']])
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toMatch(/<input type="radio" name="paceMode" value="counts" checked/)
+    expect(await page('/inputs')).toMatch(/<input type="radio" name="paceMode" value="counts" checked/)
+  })
+
+  test('the Inputs screen carries its own script, which saves in place; the forecast carries none', async () => {
+    await startOnPreMvpData()
+
+    const scripts = [...(await page('/inputs')).matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)]
+
+    expect(scripts).toHaveLength(1)
+    expect(scripts[0]![1]).toBe('')
+    expect(scripts[0]![2]).toContain("'forecaster-save': 'in-place'")
+    expect(await page('/')).not.toContain('<script')
+  })
+})
+
 describe('Inputs screen: workflow', () => {
   test('offers no workflow settings, even with a workflow saved before the MVP', async () => {
     await startOnPreMvpData()
