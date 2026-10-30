@@ -83,8 +83,12 @@ async function serve(request: IncomingMessage, response: ServerResponse, context
   const method = request.method ?? 'GET'
   const path = new URL(request.url ?? '/', `http://${HOST}`).pathname
   const form = method === 'POST' ? new URLSearchParams(await readBody(request)) : undefined
-  send(response, route({ method, path, ...(form && { form }) }, context))
+  const saveInPlace = request.headers[SAVE_HEADER] === 'in-place'
+  send(response, route({ method, path, ...(form && { form }), ...(saveInPlace && { saveInPlace }) }, context))
 }
+
+/** Sent `in-place` by the Inputs screen's script, which saves each input as it changes and stays on the screen. */
+const SAVE_HEADER = 'forecaster-save'
 
 /** Form posts are a few bytes; anything over this is refused rather than buffered. */
 const MAX_BODY_BYTES = 10_000
