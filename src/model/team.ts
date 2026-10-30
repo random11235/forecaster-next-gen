@@ -2,8 +2,12 @@
 export interface Team {
   id: string
   name: string
-  /** Where the team's facts come from; `'sample'` is the canned data loaded on first launch. */
-  source: 'sample' | 'jira' | 'github'
+  /**
+   * Where the team's facts come from: `'manual'` when the EM enters them by hand, with no connector, as for the team
+   * added on first launch; `'sample'` for the canned data earlier releases loaded on first launch; otherwise the
+   * connector that reads them.
+   */
+  source: 'manual' | 'sample' | 'jira' | 'github'
   /** The board or repository the facts are read from. */
   sourceRef: string
   /**

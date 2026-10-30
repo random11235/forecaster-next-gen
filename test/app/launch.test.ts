@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import { networkInterfaces } from 'node:os'
-import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
+import { defaultTeam, startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
 
@@ -26,12 +26,42 @@ afterEach(async () => {
 })
 
 describe('one-command launch', () => {
-  test('on first launch, serves the Milestone forecast screen on the sample data', async () => {
+  test('on first launch, opens on the empty state with no sample data, and the Inputs screen is there to enter the milestone', async () => {
     app = await startOnFreePort()
 
-    const html = await (await fetch(app.url)).text()
+    const home = await (await fetch(app.url)).text()
+    const inputs = await fetch(new URL('/inputs', app.url))
 
-    expect(html).toContain('Checkout v2')
+    expect(home).toContain('No milestone defined yet')
+    expect(home).not.toContain('Checkout v2')
+    expect(inputs.status).toBe(200)
+  })
+
+  test('on first launch, the EM can enter a milestone and its pace on the Inputs screen and see it forecast', async () => {
+    app = await startOnFreePort()
+    const post = (path: string, fields: Record<string, string>): Promise<Response> =>
+      fetch(new URL(path, app!.url), { method: 'POST', body: new URLSearchParams(fields), redirect: 'manual' })
+
+    await post('/inputs/milestone', { name: 'Launch', startDate: '2026-11-02', ticketsRemaining: '30' })
+    await post('/inputs/pace', { low: '5', high: '10' })
+    const home = await (await fetch(app.url)).text()
+
+    expect(home).toContain('Launch · 30 tickets remaining')
+    expect(home).toMatch(/Starting 2 Nov 2026: 85% sure of finishing by/)
+  })
+
+  test('first launch creates the default team, installed at launch, and launching again adds no other', async () => {
+    const storage = openSqliteStorage(':memory:')
+    const before = Date.now()
+    app = await startOnFreePort(storage)
+    await app.close()
+
+    app = await startOnFreePort(storage)
+
+    const [team] = storage.teams()
+    expect(storage.teams()).toEqual([defaultTeam(team!.installedAt)])
+    expect(Date.parse(team!.installedAt)).toBeGreaterThanOrEqual(before)
+    expect(Date.parse(team!.installedAt)).toBeLessThanOrEqual(Date.now())
   })
 
   test('serves the Milestone forecast screen in its empty state when no milestone is defined', async () => {

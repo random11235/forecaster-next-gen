@@ -3,6 +3,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
+import { editInputs } from '../../src/forecast/inputs.js'
+import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
+import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import type { WorkItem } from '../../src/model/workItem.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
@@ -377,6 +380,27 @@ INSERT INTO milestones VALUES ('ACME', 'M2', 'Later', '2027-03-01');
       ...left,
       ...defaults,
       paceRange: undefined,
+    })
+  })
+
+  test('is forecast from its MVP fields once its start date and tickets are entered: its name and pace, not its epics', () => {
+    const storage = open(writeFile('v6.db', VERSION_6_SCHEMA, 6))
+
+    const entered = editInputs(
+      storage,
+      TEAM,
+      { kind: 'setMilestone', name: 'Launch', startDate: '2026-09-01', ticketsRemaining: '20' },
+      DEFAULT_SETTINGS,
+      '2026-10-24',
+    )
+
+    expect(entered).toEqual({ ok: true })
+    expect(milestoneForecastView(storage, TEAM, DEFAULT_SETTINGS)).toMatchObject({
+      kind: 'forecast',
+      name: 'Launch',
+      ticketsRemaining: 20,
+      startDate: '2026-09-01',
+      pace: { source: 'range', low: 3, high: 7 },
     })
   })
 

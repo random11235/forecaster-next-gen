@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { loadSampleDataIfEmpty } from '../sample/loadSampleData.js'
+import type { Team } from '../model/team.js'
 import type { Storage } from '../storage/storage.js'
 import { route, type AppContext, type Reply } from './routes.js'
 
@@ -11,7 +11,7 @@ export interface LaunchOptions {
   /** 0 picks a free port. */
   port: number
   openBrowser: (url: string) => void
-  /** Where the app keeps its data. On first launch, when it is empty, the sample data is loaded into it. */
+  /** Where the app keeps its data. On first launch, when it is empty, the default team is added to it. */
   storage: Storage
   /** Today's ISO calendar date, the start date's default; the system clock's local date unless given. */
   today?: () => string
@@ -28,7 +28,7 @@ export async function startAppAndOpenBrowser(options: LaunchOptions): Promise<Ru
     storage: options.storage,
     today: options.today ?? (() => localCalendarDate(new Date())),
   }
-  loadSampleDataIfEmpty(context.storage)
+  addDefaultTeamIfEmpty(context.storage)
   const server = createServer((request, response) => {
     serve(request, response, context).catch((error: unknown) => {
       response.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' })
@@ -56,6 +56,20 @@ export async function startAppAndOpenBrowser(options: LaunchOptions): Promise<Ru
         server.closeAllConnections()
       }),
   }
+}
+
+/**
+ * The one team everything is stored under, added on first launch and installed at `installedAt`. The MVP has no team
+ * screen, so the EM never sees it: its facts are the ones the EM types in, read from no board or repository.
+ */
+export function defaultTeam(installedAt: string): Team {
+  return { id: 'team', name: 'My team', source: 'manual', sourceRef: '', installedAt }
+}
+
+/** On first launch (nothing stored yet), adds the default team, installed now. Otherwise does nothing. */
+function addDefaultTeamIfEmpty(storage: Storage): void {
+  if (!storage.isEmpty()) return
+  storage.saveTeam(defaultTeam(new Date().toISOString()))
 }
 
 /** `at` as the EM's calendar date, `YYYY-MM-DD`, in the machine's time zone: not UTC's, which can be a day off. */

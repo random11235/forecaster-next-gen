@@ -11,7 +11,7 @@ This covers the data behind `samples/` and `forecast/` (Seam B's logic): the fac
 ### Layer 1: observed facts (ingested)
 
 ```ts
-Team          { id, name, source: 'sample'|'jira'|'github', sourceRef }
+Team          { id, name, source: 'manual'|'sample'|'jira'|'github', sourceRef, installedAt }
 
 WorkflowSettings { teamId,            // set by the EM; one per team
                 statuses: { status, category: 'notStarted'|'started'|'done'|'cancelled' }[],
