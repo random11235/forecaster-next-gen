@@ -18,9 +18,9 @@ export interface PageHeader {
 
 /**
  * A whole screen: the shared head and sidebar around `main`, in the 1b "Weekly brief" look
- * (`docs/design/redesign-1b/`). `title` names the screen in the browser tab.
+ * (`docs/design/redesign-1b/`). `title` names the screen in the browser tab; `script`, if given, is inlined at the end.
  */
-export function htmlPage(title: string, path: ScreenPath, header: PageHeader, main: string): string {
+export function htmlPage(title: string, path: ScreenPath, header: PageHeader, main: string, script?: string): string {
   const links = SCREENS.map(
     (screen) => `      <a href="${screen.path}"${screen.path === path ? ' aria-current="page"' : ''}>${screen.name}</a>`,
   ).join('\n')
@@ -49,7 +49,7 @@ ${links}
       <h1>${header.heading}</h1>${lede}
     </header>
 ${main}
-  </main>
+  </main>${script ? `\n  <script>${script}</script>` : ''}
 </body>
 </html>
 `
@@ -179,6 +179,9 @@ const STYLE = `
     table.growth td { padding: 6px 24px 6px 0; }
     table.growth input[type=number] { width: 64px; text-align: center; }
     table.growth .to, table.growth .unit { padding: 0 8px; font-size: 13px; color: var(--muted); }
+    .saves-as-changed section.input .actions, .saves-as-changed section.input .counts { display: none; }
+    section.input > .label p.saved { color: var(--good); font-weight: 600; }
+    section.input > .label p.error { font-size: 13px; color: var(--risk); }
 
     @media (max-width: 760px) {
       body { grid-template-columns: minmax(0, 1fr); }
