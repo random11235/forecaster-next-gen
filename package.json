@@ -6,10 +6,14 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "coverage:usage": "node scripts/usageCoverage.ts",
     "start": "npm run build && node dist/app/main.js"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
+    "@vitest/coverage-v8": "^5.0.5",
+    "c8": "^12.0.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
   }

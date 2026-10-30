@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Tests, with test coverage
+        run: |
+          set -o pipefail
+          npm run test:coverage | tee test-coverage.txt
+      - name: Usage coverage
+        run: |
+          set -o pipefail
+          npm run coverage:usage | tee usage-coverage.txt
+      - name: Coverage summary
+        if: always()
+        run: |
+          for report in "Test coverage:test-coverage.txt" "Usage coverage (the running app, walked):usage-coverage.txt"; do
+            title=${report%%:*}; file=${report#*:}
+            [ -f "$file" ] || continue
+            { echo "### $title"; echo '```'; sed -n '/^-*|/,$p' "$file"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-reports
+          path: |
+            coverage/
+            coverage-usage/
