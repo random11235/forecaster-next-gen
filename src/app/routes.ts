@@ -36,16 +36,13 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
     return { kind: 'html', status: 200, html: renderMilestoneForecastScreen(view) }
   }
   if (!team) return { kind: 'notFound' }
-  if (request.method === 'GET' && request.path === '/inputs') {
-    return { kind: 'html', status: 200, html: renderInputsScreen(inputsView(storage, team.id, settings, today())) }
-  }
+  const inputsScreen = (): Reply => ({ kind: 'html', status: 200, html: renderInputsScreen(inputsView(storage, team.id, settings, today())) })
+  if (request.method === 'GET' && request.path === '/inputs') return inputsScreen()
   const readForm = request.method === 'POST' ? INPUTS_FORMS.get(request.path) : undefined
   if (!readForm) return { kind: 'notFound' }
   const submitted = submitInputs(storage, team.id, settings, today(), readForm(request.form ?? new URLSearchParams()))
   if (!submitted.saved) return { kind: 'html', status: 400, html: renderInputsScreen(submitted.screen) }
-  return request.saveInPlace
-    ? { kind: 'html', status: 200, html: renderInputsScreen(inputsView(storage, team.id, settings, today())) }
-    : { kind: 'redirect', location: SCREEN_PATHS[submitted.next] }
+  return request.saveInPlace ? inputsScreen() : { kind: 'redirect', location: SCREEN_PATHS[submitted.next] }
 }
 
 /** Where each screen is served. */

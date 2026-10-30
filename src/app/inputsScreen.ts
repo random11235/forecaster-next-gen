@@ -63,7 +63,7 @@ export function renderInputsScreen(screen: InputsView): string {
     heading: 'Inputs',
     lede: 'What drives the forecast: the milestone, the team’s pace, and how work grows.',
   }
-  return htmlPage('Inputs', '/inputs', header, sections.map((section, index) => section(index + 1)).join('\n'), INPUTS_SCRIPT)
+  return htmlPage('/inputs', header, sections.map((section, index) => section(index + 1)).join('\n'), INPUTS_SCRIPT)
 }
 
 /** A section of the Inputs screen, given its number on the screen. */

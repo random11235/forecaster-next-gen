@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, test } from 'vitest'
+import { SAVE_IN_PLACE } from '../../src/app/inputsScript.js'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
 import type { MilestoneInputs } from '../../src/model/milestoneInputs.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
@@ -404,7 +405,7 @@ describe('Inputs screen: typed counts', () => {
 function saveInPlace(path: string, fields: [string, string][]): Promise<Response> {
   return fetch(new URL(path, app!.url), {
     method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded', 'forecaster-save': 'in-place' },
+    headers: { 'content-type': 'application/x-www-form-urlencoded', [SAVE_IN_PLACE.header]: SAVE_IN_PLACE.value },
     body: new URLSearchParams(fields).toString(),
     redirect: 'manual',
   })
@@ -429,7 +430,7 @@ describe('Inputs screen: saving as inputs change', () => {
 
     expect(scripts).toHaveLength(1)
     expect(scripts[0]![1]).toBe('')
-    expect(scripts[0]![2]).toContain("'forecaster-save': 'in-place'")
+    expect(scripts[0]![2]).toContain(`'${SAVE_IN_PLACE.header}': '${SAVE_IN_PLACE.value}'`)
     expect(await page('/')).not.toContain('<script')
   })
 })
@@ -687,14 +688,14 @@ describe('Milestone forecast screen', () => {
     expect(screen).toContain('Pace: At 0 tickets a week, the work never finishes.')
   })
 
-  test('graphs when the trials finish, a bar per week, marking the 50%, 70%, 85% and 95% dates and stressing the 85% one', async () => {
+  test('graphs when the simulations finish, a bar per week, marking the 50%, 70%, 85% and 95% dates and stressing the 85% one', async () => {
     await startOnPreMvpData()
     await submitPace('4', '8')
 
     const html = await page('/')
     const graph = html.match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
 
-    expect(graph).toContain('aria-label="When the trials finish, by week"')
+    expect(graph).toContain('aria-label="When the simulations finish, by week"')
     expect(graph.match(/class="bar[ "]/g)!.length).toBeGreaterThan(10)
     expect(text(graph)).toContain('50% 10 Nov 2026')
     expect(text(graph)).toContain('70% 24 Nov 2026')
@@ -750,15 +751,15 @@ describe('Milestone forecast screen', () => {
     expect(text(bar)).toContain('1 Dec 2026: 92% chance of completing by the end of this week, 13% of simulations are completed within.')
   })
 
-  test('at a 14-day cadence, graphs when the trials finish by sprint', async () => {
+  test('at a 14-day cadence, graphs when the simulations finish by sprint', async () => {
     await startOnPreMvpData()
     await submitPace('4', '8')
     await submitCadence('14')
 
     const graph = (await page('/')).match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
 
-    expect(graph).toContain('aria-label="When the trials finish, by sprint"')
-    expect(text(graph)).toContain('Share of trials finishing each sprint')
+    expect(graph).toContain('aria-label="When the simulations finish, by sprint"')
+    expect(text(graph)).toContain('Share of simulations finishing each sprint')
     expect(text(graph)).toMatch(/\d+% chance of completing by the end of this sprint, \d+% of simulations are completed within\./)
   })
 
@@ -810,7 +811,7 @@ describe('Milestone forecast screen', () => {
     for (const at of warnings) {
       expect(at).toBeGreaterThan(screen.indexOf('85% sure of finishing by'))
       expect(at).toBeLessThan(screen.indexOf('When it could finish'))
-      expect(at).toBeLessThan(screen.indexOf('When the trials finish'))
+      expect(at).toBeLessThan(screen.indexOf('When the simulations finish'))
     }
   })
 
