@@ -507,6 +507,14 @@ describe('Inputs screen: growth', () => {
     expect(text(html)).not.toContain('baseline')
   })
 
+  test('explains how a range grows the work: each simulation picks one growth from it, before pace is applied', async () => {
+    await startOnPreMvpData()
+
+    expect(text(await page('/inputs'))).toContain(
+      'Each simulation picks one growth from the range, every value in it equally likely, and multiplies the tickets remaining by it before working through them at the team’s pace. A wider range spreads the finish dates out.',
+    )
+  })
+
   test('saved ranges show on the Inputs screen, and the medium range moves the forecast', async () => {
     await startOnPreMvpData()
     await submitPace('4', '8')

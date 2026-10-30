@@ -216,7 +216,7 @@ function growthSection(form: TypedForms['growth'], error: string | undefined): S
   return inputSection(
     'Growth',
     'Growth',
-    'How much the work may grow at each ambiguity level. The milestone grows by the range of its own level.',
+    'How much the work may grow at each ambiguity level. The milestone grows by the range of its own level. Each simulation picks one growth from the range, every value in it equally likely, and multiplies the tickets remaining by it before working through them at the team’s pace. A wider range spreads the finish dates out.',
     `        <form method="post" action="/inputs/growth#growth">${errorLine(error)}
           <table class="growth">
             <thead>
