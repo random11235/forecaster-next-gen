@@ -756,7 +756,17 @@ describe('Milestone forecast screen', () => {
     const bar = graph.match(/<div class="bar[^"]*"[^>]*data-date="2026-12-01"[\s\S]*?<\/div>/)![0]
 
     expect(bar).toContain('tabindex="0"')
-    expect(text(bar)).toContain('1 Dec 2026: 92% chance of completing by the end of this week, 13% of simulations are completed within.')
+    expect(text(bar)).toContain('1 Dec 2026: 92% chance of completing by the end of this week, 12% of simulations are completed within.')
+  })
+
+  test('a bar holding fewer than 1 in 200 simulations says under 1%, not 0%', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+
+    const graph = (await page('/')).match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
+    const bars = graph.match(/<div class="bar[^"]*"[^>]*data-date="[^"]*"[\s\S]*?<\/div>/g)!
+
+    expect(text(bars.at(-1)!)).toContain('under 1% of simulations are completed within.')
   })
 
   test('at a 14-day cadence, graphs when the simulations finish by sprint', async () => {

@@ -55,6 +55,8 @@ export interface ForecastResult {
   caseHash: string
   /** 'when': finish period at p0..p100, null meaning beyond the horizon. 'howMany': items done by `byDate`. */
   quantiles: (number | null)[]
+  /** 'when' only: the trials finishing in each period, from period 0 to the last finish within `maxPeriods`. */
+  finishCounts: number[]
   /** Share of trials that finished within `maxPeriods`; 1 for 'howMany', whose trials always run to `byDate`. */
   finishedFraction: number
   /** 'when' only: ISO calendar dates, null meaning beyond the horizon. */

@@ -7,7 +7,7 @@ import { assertValidCase } from './validate.js'
 /** Marks a trial that hit `maxPeriods` without finishing; sorts after every real period. */
 const BEYOND_HORIZON = Number.POSITIVE_INFINITY
 
-type QuestionResult = Pick<ForecastResult, 'quantiles' | 'finishedFraction' | 'percentileDates' | 'percentileCounts' | 'perEpic'> & {
+type QuestionResult = Pick<ForecastResult, 'quantiles' | 'finishCounts' | 'finishedFraction' | 'percentileDates' | 'percentileCounts' | 'perEpic'> & {
   trialsHittingHorizon: number
   span: ForecastSpan
 }
@@ -113,6 +113,7 @@ function simulateWhen(simulationCase: SimulationCase, ranked: readonly ScopeEntr
 
   return {
     quantiles,
+    finishCounts: countFinishes(finishPeriods),
     finishedFraction: finishedTrials / trials,
     percentileDates,
     percentileCounts: {},
@@ -147,6 +148,17 @@ function skipFinished(remaining: Float64Array, from: number): number {
   return i
 }
 
+/** The trials finishing in each period, from period 0 to the last finish; trials beyond the horizon are left out. */
+function countFinishes(finishPeriods: Float64Array): number[] {
+  const counts: number[] = []
+  for (const period of finishPeriods) {
+    if (period === BEYOND_HORIZON) continue
+    while (counts.length <= period) counts.push(0)
+    counts[period]!++
+  }
+  return counts
+}
+
 /** 101 quantiles of finish periods, null where a quantile lands beyond the horizon. Sorts in place. */
 function finishQuantiles(finishPeriods: Float64Array): (number | null)[] {
   finishPeriods.sort()
@@ -174,6 +186,7 @@ function simulateHowMany(simulationCase: SimulationCase, byDate: string, random:
 
   return {
     quantiles,
+    finishCounts: [],
     finishedFraction: 1,
     percentileDates: {},
     percentileCounts,
