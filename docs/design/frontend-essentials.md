@@ -33,7 +33,7 @@ Thresholds and default ranges below (growth samples, pace weeks, stale weeks, fi
 | 6 | Pace | Counts only tickets under this milestone's epics, so KTLO and unrelated work show up as slower pace rather than inflating it. Starts as a manual low–high range per week. Older data may pre-fill it, labelled as a suggestion. Nothing from before installation is used automatically. Once the milestone has `minMeasuredPaceWeeks` of its own throughput, measured pace is shown beside the manual range with an offer to switch. |
 | 7 | Team change | The EM records the date. The measured window restarts, the EM is prompted to review the manual range, and pace is flagged stale until `staleWeeksAfterTeamChange` of new data exist. |
 | 8 | Capacity | Fixed in v1 until the last step of the build order, when absences are entered as a share of capacity per week. Until then the absence input is hidden. |
-| 9 | Track record | One line on the forecast screen, under the pace lines: how often past "85% sure" dates were met. Shown only once `minResolvedMilestones` milestones have finished; before that, nothing is shown in its place. |
+| 9 | Track record | One line on the forecast screen, under the pace lines: how often past "85% confident" dates were met. Shown only once `minResolvedMilestones` milestones have finished; before that, nothing is shown in its place. |
 | 10 | Cycle time | From the status mapped as "started" to done. A wide spread or ageing tickets raise a warning that ticket-size discipline has slipped. |
 
 ---
@@ -48,11 +48,11 @@ Architecture: `displayDashboard`, `latestForecast`, `update` (forces cache refre
 Checkout v2 · committed 18 Dec                 Jira data as of 13 Oct 07:10 [Refresh]
 ─────────────────────────────────────────────────────────────────────────────
  Gap to committed date
-   67% chance by 18 Dec · 85% sure by 1 Jan (14 days after committed)
+   67% chance by 18 Dec · 85% confident by 1 Jan (14 days after committed)
 
  How the gap has moved (one point per weekly forecast)
    Chance by 18 Dec   82% ─ 80% ─ 74% ─ 67%
-   85% sure by        12 Dec · 15 Dec · 25 Dec · 1 Jan
+   85% confident by   12 Dec · 15 Dec · 25 Dec · 1 Jan
                       15 Sep   22 Sep   6 Oct    13 Oct
 
  Pace: manual range 6–10 per week (measured pace available in 3 weeks)

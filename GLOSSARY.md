@@ -11,7 +11,7 @@ The [MVP](https://github.com/random11235/forecaster-next-gen/issues/84) forecast
 **Pull-back**: an epic moving from a status mapped to started back to one mapped to not started. It resets the epic's commit: the epic is uncommitted until it is committed again. A [blocked epic](docs/design/forecast-model.md#blocked-epics) moving into or out of a status of the blocked rule, or to not started while it carries a label of the rule, is not one. The rules, including a commit label left on through one: [Pull-backs](docs/design/forecast-model.md#pull-backs).
 
 **Ambiguity** (of a milestone): how well the EM judges a milestone's work is understood, as one level for the whole milestone: low, medium or high; medium until the EM says otherwise. Each level has a range of growth the EM can edit (defaults: low 1–1.5×, medium 1–2×, high 1.5–3×), which the forecast draws the milestone's growth from; the ticket total never drops below the tickets remaining. Before the MVP, ambiguity was an epic's, and per-epic growth may return ([#6](https://github.com/random11235/forecaster-next-gen/issues/6)).
-_Avoid_: uncertainty, confidence (the forecast's "85% sure" is its confidence)
+_Avoid_: uncertainty, confidence (the forecast's "85% confident" is its confidence)
 
 **Growth** (of an epic): how many times its baseline an epic ends up, from its children when it was done divided by its baseline. 10 children at commit and 15 when done is 1.5×. Where each epic's growth comes from: [Growth](docs/design/forecast-model.md#growth). *Follows the MVP: nothing reads it since #84.*
 _Avoid_: split rate, scope creep
