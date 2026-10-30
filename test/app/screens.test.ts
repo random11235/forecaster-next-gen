@@ -118,7 +118,7 @@ function submitCadence(cadenceDays: string): Promise<Response> {
 
 /** The date the forecast list gives at `percent`. */
 function dateAt(screen: string, percent: number): string {
-  return screen.match(new RegExp(`${percent}% sure by (\\d{1,2} [A-Z][a-z]{2} 20\\d\\d)`))![1]!
+  return screen.match(new RegExp(`${percent}% confident by (\\d{1,2} [A-Z][a-z]{2} 20\\d\\d)`))![1]!
 }
 
 describe('Inputs screen', () => {
@@ -593,7 +593,7 @@ describe('Milestone forecast screen', () => {
     const screen = text(await page('/'))
 
     expect(screen).toContain('Checkout v2 · 40 tickets remaining')
-    expect(screen).toContain('Starting 1 Sep 2026: 85% sure of finishing by 1 Dec 2026')
+    expect(screen).toContain('Starting 1 Sep 2026: 85% confident of finishing by 1 Dec 2026')
   })
 
   test('shows the finish dates at 50%, 70%, 85% and 95% and the pace range they come from', async () => {
@@ -602,10 +602,10 @@ describe('Milestone forecast screen', () => {
 
     const screen = text(await page('/'))
 
-    expect(screen).toContain('50% sure by 10 Nov 2026')
-    expect(screen).toContain('70% sure by 24 Nov 2026')
-    expect(screen).toContain('85% sure by 1 Dec 2026')
-    expect(screen).toContain('95% sure by 8 Dec 2026')
+    expect(screen).toContain('50% confident by 10 Nov 2026')
+    expect(screen).toContain('70% confident by 24 Nov 2026')
+    expect(screen).toContain('85% confident by 1 Dec 2026')
+    expect(screen).toContain('95% confident by 8 Dec 2026')
     expect(screen).toContain('Pace: 4–8 tickets per week (range)')
   })
 
@@ -650,7 +650,7 @@ describe('Milestone forecast screen', () => {
     await choosePace('counts')
 
     const screen = text(await page('/'))
-    expect(screen).toContain('sure')
+    expect(screen).toContain('confident')
     expect(screen).toContain('⚠ Typed counts: 4 weeks entered. The forecast needs 8 to be reliable.')
     expect(screen).not.toContain('Pace: Typed counts')
   })
@@ -673,18 +673,18 @@ describe('Milestone forecast screen', () => {
 
     const html = await page('/')
     expect(text(html)).toContain('Typed counts: 1 week entered. The forecast needs at least 2. Add another count, or switch pace to the range.')
-    expect(text(html)).not.toContain('sure')
+    expect(text(html)).not.toContain('confident')
     expect(html).toContain('href="/inputs"')
   })
 
-  test('headlines an 85% date beyond the horizon as not sure by the horizon date, and each date as later than it', async () => {
+  test('headlines an 85% date beyond the horizon as not confident by the horizon date, and each date as later than it', async () => {
     await startOnPreMvpData()
     await submitPace('0', '0')
 
     const screen = text(await page('/'))
 
-    expect(screen).toContain('Starting 1 Sep 2026: not 85% sure of finishing by 28 Aug 2029')
-    for (const percent of [50, 70, 85, 95]) expect(screen).toContain(`${percent}% sure: later than 28 Aug 2029`)
+    expect(screen).toContain('Starting 1 Sep 2026: not 85% confident of finishing by 28 Aug 2029')
+    for (const percent of [50, 70, 85, 95]) expect(screen).toContain(`${percent}% confident: later than 28 Aug 2029`)
     expect(screen).toContain('Pace: At 0 tickets a week, the work never finishes.')
   })
 
@@ -780,7 +780,7 @@ describe('Milestone forecast screen', () => {
 
     const html = await page('/')
 
-    expect(text(html)).toContain('Starting 1 Dec 2026: 85% sure of finishing by 1 Dec 2026')
+    expect(text(html)).toContain('Starting 1 Dec 2026: 85% confident of finishing by 1 Dec 2026')
     expect(html).not.toContain('<figure class="finish-graph"')
   })
 
@@ -793,9 +793,9 @@ describe('Milestone forecast screen', () => {
 
     expect(screen).toContain('⚠ Start date is 236 days before today; tickets remaining are still today&#39;s count.')
     expect(screen).not.toContain('Start date: Start date')
-    expect(screen).toMatch(/Starting 2 Mar 2026: 85% sure of finishing by \d{1,2} [A-Z][a-z]{2} 2026 \(already past\)/)
+    expect(screen).toMatch(/Starting 2 Mar 2026: 85% confident of finishing by \d{1,2} [A-Z][a-z]{2} 2026 \(already past\)/)
     for (const percent of [50, 70, 85, 95]) {
-      expect(screen).toMatch(new RegExp(`${percent}% sure by \\d{1,2} [A-Z][a-z]{2} 2026 \\(already past\\)`))
+      expect(screen).toMatch(new RegExp(`${percent}% confident by \\d{1,2} [A-Z][a-z]{2} 2026 \\(already past\\)`))
     }
   })
 
@@ -809,7 +809,7 @@ describe('Milestone forecast screen', () => {
 
     const warnings = [screen.indexOf('⚠ Start date is'), screen.indexOf('⚠ Typed counts: 4 weeks entered.')]
     for (const at of warnings) {
-      expect(at).toBeGreaterThan(screen.indexOf('85% sure of finishing by'))
+      expect(at).toBeGreaterThan(screen.indexOf('85% confident of finishing by'))
       expect(at).toBeLessThan(screen.indexOf('When it could finish'))
       expect(at).toBeLessThan(screen.indexOf('When the simulations finish'))
     }
@@ -828,7 +828,7 @@ describe('Milestone forecast screen', () => {
 
     const screens = [text(await page('/')), text(await page('/inputs'))]
 
-    expect(screens[0]).toContain('Starting 1 Sep 2026: 85% sure of finishing by 1 Dec 2026')
+    expect(screens[0]).toContain('Starting 1 Sep 2026: 85% confident of finishing by 1 Dec 2026')
     for (const screen of screens) expect(screen).not.toMatch(/Card vaulting|Refunds|PAY-\d|epic|commit/i)
     expect(storage!.teams().map((team) => team.id)).toEqual([TEAM])
   })

@@ -31,23 +31,23 @@ function problemsHeader(name: string, problems: number): PageHeader {
   }
 }
 
-/** The headline answers the screen's question: from the start date, when the milestone is 85% sure to finish. */
+/** The headline answers the screen's question: from the start date, the date it is 85% confident of finishing by. */
 function forecastHeader(view: Forecast): PageHeader {
   const context = `${escapeHtml(view.name)} · ${counted(view.ticketsRemaining, 'ticket')} remaining`
   const starting = `Starting ${formatDate(view.startDate)}`
-  const sure = view.dates.find(({ percent }) => percent === view.headlinePercent)
-  if (!sure || sure.date === null) {
-    return { context, heading: `${starting}: not ${view.headlinePercent}% sure of finishing by <span class="risk">${formatDate(view.horizonDate)}</span>` }
+  const headline = view.dates.find(({ percent }) => percent === view.headlinePercent)
+  if (!headline || headline.date === null) {
+    return { context, heading: `${starting}: not ${view.headlinePercent}% confident of finishing by <span class="risk">${formatDate(view.horizonDate)}</span>` }
   }
-  return { context, heading: `${starting}: ${view.headlinePercent}% sure of finishing by <span class="${sure.alreadyPast ? 'risk' : 'good'}">${formatDate(sure.date)}</span>${pastMark(sure)}` }
+  return { context, heading: `${starting}: ${view.headlinePercent}% confident of finishing by <span class="${headline.alreadyPast ? 'risk' : 'good'}">${formatDate(headline.date)}</span>${pastMark(headline)}` }
 }
 
 function renderForecast(view: Forecast): string {
   const dates = view.dates
     .map(({ percent, date, alreadyPast }) =>
       date === null
-        ? `          <li><span class="percent">${percent}%</span> sure: later than <span class="date">${formatDate(view.horizonDate)}</span></li>`
-        : `          <li><span class="percent">${percent}%</span> sure by <span class="date">${formatDate(date)}</span>${pastMark({ alreadyPast })}</li>`,
+        ? `          <li><span class="percent">${percent}%</span> confident: later than <span class="date">${formatDate(view.horizonDate)}</span></li>`
+        : `          <li><span class="percent">${percent}%</span> confident by <span class="date">${formatDate(date)}</span>${pastMark({ alreadyPast })}</li>`,
     )
     .join('\n')
   return `    <section class="brief" aria-label="Forecast">
