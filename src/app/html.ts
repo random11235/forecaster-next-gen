@@ -18,9 +18,10 @@ export interface PageHeader {
 
 /**
  * A whole screen: the shared head and sidebar around `main`, in the 1b "Weekly brief" look
- * (`docs/design/redesign-1b/`). `title` names the screen in the browser tab; `script`, if given, is inlined at the end.
+ * (`docs/design/redesign-1b/`). The browser tab shows the screen's name; `script`, if given, is inlined at the end.
  */
-export function htmlPage(title: string, path: ScreenPath, header: PageHeader, main: string, script?: string): string {
+export function htmlPage(path: ScreenPath, header: PageHeader, main: string, script?: string): string {
+  const title = SCREENS.find((screen) => screen.path === path)!.name
   const links = SCREENS.map(
     (screen) => `      <a href="${screen.path}"${screen.path === path ? ' aria-current="page"' : ''}>${screen.name}</a>`,
   ).join('\n')

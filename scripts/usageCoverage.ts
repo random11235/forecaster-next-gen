@@ -20,10 +20,11 @@ const milestone = (startDate: string, ticketsRemaining: string, name = 'Checkout
   post: '/inputs/milestone',
   form: { name, startDate, ticketsRemaining },
 })
-const growth = (lowHigh: string) => {
-  const [low = '', high = ''] = lowHigh.split('-')
-  return { post: '/inputs/growth', form: { 'low-low': '1', 'low-high': '1.5', 'medium-low': low, 'medium-high': high, 'high-low': '1.5', 'high-high': '3' } }
-}
+/** The growth form, with `low`–`high` as the medium range. */
+const growth = (low: string, high: string) => ({
+  post: '/inputs/growth',
+  form: { 'low-low': '1', 'low-high': '1.5', 'medium-low': low, 'medium-high': high, 'high-low': '1.5', 'high-high': '3' },
+})
 const screens: Step[] = [{ get: '/' }, { get: '/inputs' }]
 
 /** The walk: each case the screens and forms can reach, the screens looked at after each change. */
@@ -52,10 +53,10 @@ const WALK: Step[] = [
   // ambiguity and its ranges
   { post: '/inputs/ambiguity', form: { ambiguity: 'huge' } },
   { post: '/inputs/ambiguity', form: { ambiguity: 'high' } },
-  growth('a-2'),
-  growth('0-2'),
-  growth('3-2'),
-  growth('1-2.5'),
+  growth('a', '2'),
+  growth('0', '2'),
+  growth('3', '2'),
+  growth('1', '2.5'),
   ...screens,
   // typed counts: none, one, a few, enough, refused, all zero
   { post: '/inputs/pace-mode', form: { paceMode: 'sideways' } },

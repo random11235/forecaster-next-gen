@@ -9,6 +9,9 @@
  *
  * Without it the screen works as before: the buttons are in the markup, and this hides them.
  */
+/** The header the script sends with each save, asking for the Inputs screen back rather than a redirect. */
+export const SAVE_IN_PLACE = { header: 'forecaster-save', value: 'in-place' } as const
+
 export const INPUTS_SCRIPT = `
 (() => {
   document.documentElement.classList.add('saves-as-changed')
@@ -83,7 +86,7 @@ export const INPUTS_SCRIPT = `
     try {
       const response = await fetch(form.getAttribute('action').split('#')[0], {
         method: 'POST',
-        headers: { 'content-type': 'application/x-www-form-urlencoded', 'forecaster-save': 'in-place' },
+        headers: { 'content-type': 'application/x-www-form-urlencoded', '${SAVE_IN_PLACE.header}': '${SAVE_IN_PLACE.value}' },
         body,
       })
       const reply = new DOMParser().parseFromString(await response.text(), 'text/html')

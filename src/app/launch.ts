@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import type { AddressInfo } from 'node:net'
 import type { Team } from '../model/team.js'
 import type { Storage } from '../storage/storage.js'
+import { SAVE_IN_PLACE } from './inputsScript.js'
 import { route, type AppContext, type Reply } from './routes.js'
 
 /** Localhost only: the Forecaster is a local, single-user tool and is never reachable from the network. */
@@ -83,12 +84,9 @@ async function serve(request: IncomingMessage, response: ServerResponse, context
   const method = request.method ?? 'GET'
   const path = new URL(request.url ?? '/', `http://${HOST}`).pathname
   const form = method === 'POST' ? new URLSearchParams(await readBody(request)) : undefined
-  const saveInPlace = request.headers[SAVE_HEADER] === 'in-place'
+  const saveInPlace = request.headers[SAVE_IN_PLACE.header] === SAVE_IN_PLACE.value
   send(response, route({ method, path, ...(form && { form }), ...(saveInPlace && { saveInPlace }) }, context))
 }
-
-/** Sent `in-place` by the Inputs screen's script, which saves each input as it changes and stays on the screen. */
-const SAVE_HEADER = 'forecaster-save'
 
 /** Form posts are a few bytes; anything over this is refused rather than buffered. */
 const MAX_BODY_BYTES = 10_000
