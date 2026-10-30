@@ -146,9 +146,10 @@ function paceUsed({ pace, cadenceDays }: Forecast): string {
   return pace.source === 'counts' ? `typed counts, ${counted(pace.counts.length, period)}` : `${pace.low}–${pace.high} tickets per ${period} (range)`
 }
 
-/** A bar's hover text, such as "1 Dec 2026: 13% of trials finish this week, 92% by then". */
+/** A bar's hover text, such as "1 Dec 2026: 92% chance of completing by the end of this week, 13% of simulations are completed within." */
 function barText({ date, share, finishedBy }: FinishBar, cadenceDays: number): string {
-  return `${formatDate(date)}: ${Math.round(share * 100)}% of trials finish this ${periodName(cadenceDays)}, ${Math.round(finishedBy * 100)}% by then`
+  const period = periodName(cadenceDays)
+  return `${formatDate(date)}: ${Math.round(finishedBy * 100)}% chance of completing by the end of this ${period}, ${Math.round(share * 100)}% of simulations are completed within.`
 }
 
 /** Bars near either edge of the graph, at `left`% across it, open their hover text inwards so it stays on the page. */

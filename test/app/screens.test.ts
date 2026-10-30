@@ -705,7 +705,7 @@ describe('Milestone forecast screen', () => {
     }
   })
 
-  test('each bar of the finish graph shows its date, its share of trials and the share finished by then, on hover or keyboard focus', async () => {
+  test('each bar of the finish graph shows its date, the chance of completing by the end of its week and the share of simulations completed within it, on hover or keyboard focus', async () => {
     await startOnPreMvpData()
     await submitPace('4', '8')
 
@@ -713,7 +713,7 @@ describe('Milestone forecast screen', () => {
     const bar = graph.match(/<div class="bar[^"]*"[^>]*data-date="2026-12-01"[\s\S]*?<\/div>/)![0]
 
     expect(bar).toContain('tabindex="0"')
-    expect(text(bar)).toContain('1 Dec 2026: 13% of trials finish this week, 92% by then')
+    expect(text(bar)).toContain('1 Dec 2026: 92% chance of completing by the end of this week, 13% of simulations are completed within.')
   })
 
   test('at a 14-day cadence, graphs when the trials finish by sprint', async () => {
@@ -725,7 +725,7 @@ describe('Milestone forecast screen', () => {
 
     expect(graph).toContain('aria-label="When the trials finish, by sprint"')
     expect(text(graph)).toContain('Share of trials finishing each sprint')
-    expect(text(graph)).toMatch(/of trials finish this sprint, \d+% by then/)
+    expect(text(graph)).toMatch(/\d+% chance of completing by the end of this sprint, \d+% of simulations are completed within\./)
   })
 
   test('draws no graph when no trial finishes, nor before there is a forecast', async () => {
