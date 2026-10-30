@@ -2,6 +2,7 @@ import { howItWorksView } from '../forecast/howItWorksView.js'
 import { inputsView, submitInputs, type NextScreen } from '../forecast/inputs.js'
 import { milestoneForecastView, type MilestoneForecastView } from '../forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS } from '../forecast/settings.js'
+import type { Team } from '../model/team.js'
 import type { Storage } from '../storage/storage.js'
 import { renderHowItWorksScreen } from './howItWorksScreen.js'
 import { INPUTS_FORMS, renderInputsScreen } from './inputsScreen.js'
@@ -27,6 +28,32 @@ export interface AppContext {
   storage: Storage
   /** Today's ISO calendar date: the start date's default, and what marks dates as past. */
   today: () => string
+}
+
+/** The context the routes run in, on `storage`; today is the system clock's local date unless given. */
+export function appContext(storage: Storage, today?: () => string): AppContext {
+  addDefaultTeamIfEmpty(storage)
+  return { storage, today: today ?? (() => localCalendarDate(new Date())) }
+}
+
+/**
+ * The one team everything is stored under, added on first launch and installed at `installedAt`. The MVP has no team
+ * screen, so the EM never sees it: its facts are the ones the EM types in, read from no board or repository.
+ */
+export function defaultTeam(installedAt: string): Team {
+  return { id: 'team', name: 'My team', source: 'manual', sourceRef: '', installedAt }
+}
+
+/** On first launch (nothing stored yet), adds the default team, installed now. Otherwise does nothing. */
+function addDefaultTeamIfEmpty(storage: Storage): void {
+  if (!storage.isEmpty()) return
+  storage.saveTeam(defaultTeam(new Date().toISOString()))
+}
+
+/** `at` as the EM's calendar date, `YYYY-MM-DD`, in the machine's time zone: not UTC's, which can be a day off. */
+function localCalendarDate(at: Date): string {
+  const two = (value: number): string => String(value).padStart(2, '0')
+  return `${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())}`
 }
 
 /** The Milestone forecast screen at `/`, the Inputs screen at `/inputs` and How it works at `/how-it-works`; not found for everything else. */

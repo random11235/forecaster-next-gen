@@ -8,12 +8,14 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "coverage:usage": "node scripts/usageCoverage.ts",
-    "start": "npm run build && node dist/app/main.js"
+    "start": "npm run build && node dist/app/main.js",
+    "build:web": "npm run build && node scripts/buildWeb.ts"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
     "@vitest/coverage-v8": "^5.0.5",
     "c8": "^12.0.0",
+    "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
   }
