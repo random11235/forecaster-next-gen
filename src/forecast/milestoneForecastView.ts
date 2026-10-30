@@ -125,7 +125,7 @@ function milestoneCase(inputs: ForecastableInputs, pace: PaceInUse, growth: Grow
  * the share finished by a period is the highest p whose quantile is no later than it, to the nearest whole percent
  * below. The last bar takes the exact finished fraction, so the shares sum to it.
  */
-function finishGraph(result: ForecastResult, { startDate, periodDays }: SimulationCase): FinishBar[] {
+export function finishGraph(result: ForecastResult, { startDate, periodDays }: SimulationCase): FinishBar[] {
   // Quantiles rise with p, and those beyond the horizon (null) come last
   const finishPeriods = result.quantiles.filter((period) => period !== null)
   const lastPeriod = finishPeriods.at(-1)
