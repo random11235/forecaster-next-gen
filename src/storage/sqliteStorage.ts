@@ -156,6 +156,12 @@ FROM milestones m
 LEFT JOIN pace_settings p ON p.team_id = m.team_id AND p.milestone_id = m.id
 WHERE m.rowid = (SELECT MIN(first.rowid) FROM milestones first WHERE first.team_id = m.team_id);
 `,
+  // 8: the cadence the pace was entered in (#115), so changing the cadence warns. A pace already stored counts as
+  // entered in the cadence it has now, so upgrading warns of nothing.
+  `
+ALTER TABLE milestone_inputs ADD COLUMN pace_cadence_days INTEGER;
+UPDATE milestone_inputs SET pace_cadence_days = cadence_days WHERE pace_low IS NOT NULL OR pace_counts <> '[]';
+`,
 ]
 
 type Row = Record<string, SQLInputValue>
@@ -184,12 +190,14 @@ export function openSqliteStorage(file: string): Storage {
     ON CONFLICT (id) DO UPDATE SET name = excluded.name, source = excluded.source, source_ref = excluded.source_ref`)
   const upsertMilestoneInputs = db.prepare(`
     INSERT INTO milestone_inputs
-      (team_id, name, start_date, tickets_remaining, ambiguity, cadence_days, pace_mode, pace_low, pace_high, pace_counts)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (team_id, name, start_date, tickets_remaining, ambiguity, cadence_days, pace_mode, pace_low, pace_high, pace_counts,
+       pace_cadence_days)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (team_id) DO UPDATE SET
       name = excluded.name, start_date = excluded.start_date, tickets_remaining = excluded.tickets_remaining,
       ambiguity = excluded.ambiguity, cadence_days = excluded.cadence_days, pace_mode = excluded.pace_mode,
-      pace_low = excluded.pace_low, pace_high = excluded.pace_high, pace_counts = excluded.pace_counts`)
+      pace_low = excluded.pace_low, pace_high = excluded.pace_high, pace_counts = excluded.pace_counts,
+      pace_cadence_days = excluded.pace_cadence_days`)
   const selectMilestoneInputs = db.prepare('SELECT * FROM milestone_inputs WHERE team_id = ?')
   // medium_measured is left as it is: nothing reads it since measured growth went with the MVP (#84)
   const upsertAmbiguityRanges = db.prepare(`
@@ -234,6 +242,7 @@ export function openSqliteStorage(file: string): Storage {
         inputs.paceRange?.low ?? null,
         inputs.paceRange?.high ?? null,
         JSON.stringify(inputs.paceCounts),
+        inputs.paceCadenceDays ?? null,
       )
     },
 
@@ -250,6 +259,7 @@ export function openSqliteStorage(file: string): Storage {
         paceMode: String(row.pace_mode) as PaceMode,
         paceRange: row.pace_low === null ? undefined : { low: Number(row.pace_low), high: Number(row.pace_high) },
         paceCounts: JSON.parse(String(row.pace_counts)) as number[],
+        paceCadenceDays: row.pace_cadence_days === null ? undefined : Number(row.pace_cadence_days),
       } satisfies MilestoneInputs
     },
 

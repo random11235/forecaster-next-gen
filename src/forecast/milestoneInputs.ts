@@ -115,7 +115,7 @@ function edited(saved: MilestoneInputs, edit: Exclude<MilestoneInputsEdit, { kin
       if (low === undefined || high === undefined) return refuse('Enter whole numbers of tickets, 0 or more.')
       if (high > MAX_TICKETS_PER_PERIOD) return refuseAbovePerPeriodCap(saved)
       if (low > high) return refuse('The low end must not be above the high end.')
-      return { ...saved, paceRange: { low, high } }
+      return { ...saved, paceRange: { low, high }, paceCadenceDays: saved.cadenceDays }
     }
     case 'setAmbiguity': {
       const level = AMBIGUITIES.find((ambiguity) => ambiguity === edit.level)
@@ -128,7 +128,8 @@ function edited(saved: MilestoneInputs, edit: Exclude<MilestoneInputsEdit, { kin
       const counts = typed.map(wholeNumber)
       if (!counts.every((count) => count !== undefined)) return refuse('Enter typed counts as whole numbers of tickets, 0 or more.')
       if (counts.some((count) => count > MAX_TICKETS_PER_PERIOD)) return refuseAbovePerPeriodCap(saved)
-      return { ...saved, paceCounts: edit.kind === 'addPaceCount' ? [...saved.paceCounts, ...counts] : counts }
+      const paceCounts = edit.kind === 'addPaceCount' ? [...saved.paceCounts, ...counts] : counts
+      return { ...saved, paceCounts, paceCadenceDays: saved.cadenceDays }
     }
     case 'removeLastPaceCount':
       return { ...saved, paceCounts: saved.paceCounts.slice(0, -1) }
@@ -163,6 +164,7 @@ function newMilestone(teamId: string): MilestoneInputs {
     paceMode: 'range',
     paceRange: undefined,
     paceCounts: [],
+    paceCadenceDays: undefined,
   }
 }
 
