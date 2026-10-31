@@ -37,7 +37,7 @@ export type MilestoneAssessment =
 /** Seam B, behind both views: assesses the milestone's inputs against `settings` on `today`. */
 export function assessMilestone(inputs: MilestoneInputs, settings: ForecastSettings, today: string): MilestoneAssessment {
   const { typedCounts } = settings
-  const warnings = [...startDateWarnings(inputs, today), ...paceWarnings(inputs), ...typedCountsWarnings(inputs, typedCounts)]
+  const warnings = [...startDateWarnings(inputs, today), ...paceWarnings(inputs), ...paceCadenceWarnings(inputs), ...typedCountsWarnings(inputs, typedCounts)]
   const pace = paceInUse(inputs)
   const problems = [
     ...(inputs.startDate === undefined ? [{ input: 'startDate', message: 'No start date is saved yet.' } as const] : []),
@@ -107,6 +107,15 @@ function paceWarnings(inputs: MilestoneInputs): Warning[] {
     pace?.source === 'counts' ? pace.counts.length > 0 && pace.counts.every((count) => count === 0) : pace?.high === 0
   if (workLeft && zeroPace) return [worded('pace', `At 0 tickets a ${periodName(inputs.cadenceDays)}, the work never finishes.`)]
   return []
+}
+
+/** A pace entered in another cadence: changing the cadence keeps its numbers, so 4–8 a week becomes 4–8 a sprint. */
+function paceCadenceWarnings({ cadenceDays, paceCadenceDays, paceRange, paceCounts }: MilestoneInputs): Warning[] {
+  const paceEntered = paceRange !== undefined || paceCounts.length > 0
+  if (!paceEntered || paceCadenceDays === undefined || paceCadenceDays === cadenceDays) return []
+  const entered = periodName(paceCadenceDays) === 'week' ? 'week' : `${paceCadenceDays}-day sprint`
+  const detail = `per ${entered}; the cadence is now ${counted(cadenceDays, 'day')}. Check the numbers are per ${periodName(cadenceDays)}.`
+  return [{ input: 'pace', message: `Pace: entered ${detail}`, beside: `Entered ${detail}` }]
 }
 
 /** A warning worded the same on the forecast and beside its input. */

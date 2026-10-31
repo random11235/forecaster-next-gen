@@ -376,6 +376,21 @@ describe('the cadence', () => {
     forecast.dates.forEach(({ date }, index) => expect(date! > DATES_FROM_1_SEP[index]!.date).toBe(true))
   })
 
+  test('changing the cadence after the pace is entered warns that the pace was entered per week, beside the pace and on the forecast', () => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
+
+    expect(edit(storage, { kind: 'setCadence', cadenceDays: '14' })).toEqual({ ok: true })
+
+    expect(view(storage)).toMatchObject({
+      kind: 'forecast',
+      warnings: [{ input: 'pace', message: 'Pace: entered per week; the cadence is now 14 days. Check the numbers are per sprint.' }],
+    })
+    expect(inputsScreenView(storage).milestone.notes).toEqual([
+      { input: 'pace', message: 'Entered per week; the cadence is now 14 days. Check the numbers are per sprint.' },
+    ])
+  })
+
   test('a forecast at the untouched cadence is in 7-day periods', () => {
     const storage = newTeam()
 
@@ -386,9 +401,10 @@ describe('the cadence', () => {
 
   test('at a 14-day cadence, zero pace warns of 0 tickets a sprint, beside the pace and on the forecast', () => {
     const storage = newTeam()
-    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '0', high: '0' })
-
+    expect(edit(storage, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-09-01', ticketsRemaining: '10' })).toEqual({ ok: true })
     expect(edit(storage, { kind: 'setCadence', cadenceDays: '14' })).toEqual({ ok: true })
+
+    expect(edit(storage, { kind: 'setPaceRange', low: '0', high: '0' })).toEqual({ ok: true })
 
     const warning = { input: 'pace', message: 'At 0 tickets a sprint, the work never finishes.' }
     expect(view(storage)).toMatchObject({ warnings: [warning] })
@@ -410,6 +426,82 @@ describe('the cadence', () => {
 
     expect(inputsScreenView(openStorage()).milestone.cadenceDays).toBe(14)
     expect(view(openStorage())).toMatchObject({ cadenceDays: 14, horizonDate: '2032-08-24' })
+  })
+})
+
+describe('a pace entered for a different cadence', () => {
+  const PER_WEEK = 'Pace: entered per week; the cadence is now 14 days. Check the numbers are per sprint.'
+
+  /** 100 tickets at 4–8 a week, entered at the untouched cadence, which then changes to 14 days. */
+  function enteredWeeklyThenSprints(): Storage {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
+    expect(edit(storage, { kind: 'setCadence', cadenceDays: '14' })).toEqual({ ok: true })
+    expect(view(storage)).toMatchObject({ warnings: [{ input: 'pace', message: PER_WEEK }] })
+    return storage
+  }
+
+  test.each<[string, InputsEdit]>([
+    ['the pace range', { kind: 'setPaceRange', low: '8', high: '16' }],
+    ['the typed counts', { kind: 'setPaceCounts', counts: '9, 12' }],
+    ['a typed count added', { kind: 'addPaceCount', count: '9' }],
+    ['the cadence changed back to 7 days', { kind: 'setCadence', cadenceDays: '7' }],
+  ])('editing %s clears the warning', (_, change) => {
+    const storage = enteredWeeklyThenSprints()
+
+    expect(edit(storage, change)).toEqual({ ok: true })
+
+    expect(view(storage)).toMatchObject({ warnings: [] })
+    expect(inputsScreenView(storage).milestone.notes).toEqual([])
+  })
+
+  test('choosing the other pace, or removing the last typed count, keeps the warning', () => {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
+    expect(edit(storage, { kind: 'setPaceCounts', counts: '6, 4, 9, 7, 5, 8, 6, 7' })).toEqual({ ok: true })
+    expect(edit(storage, { kind: 'setCadence', cadenceDays: '14' })).toEqual({ ok: true })
+
+    expect(edit(storage, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
+    expect(edit(storage, { kind: 'removeLastPaceCount' })).toEqual({ ok: true })
+
+    expect(view(storage)).toMatchObject({ warnings: expect.arrayContaining([{ input: 'pace', message: PER_WEEK }]) })
+  })
+
+  test('changing the cadence before any pace is entered gives no warning', () => {
+    const storage = newTeam()
+    expect(edit(storage, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-09-01', ticketsRemaining: '100' })).toEqual({ ok: true })
+
+    expect(edit(storage, { kind: 'setCadence', cadenceDays: '14' })).toEqual({ ok: true })
+
+    expect(inputsScreenView(storage).milestone.notes).toEqual([{ input: 'pace', message: 'Enter a pace range.' }])
+  })
+
+  test('from one sprint length to another, names both lengths', () => {
+    const storage = enteredWeeklyThenSprints()
+    expect(edit(storage, { kind: 'setPaceRange', low: '8', high: '16' })).toEqual({ ok: true })
+
+    expect(edit(storage, { kind: 'setCadence', cadenceDays: '10' })).toEqual({ ok: true })
+
+    expect(view(storage)).toMatchObject({
+      warnings: [{ input: 'pace', message: 'Pace: entered per 14-day sprint; the cadence is now 10 days. Check the numbers are per sprint.' }],
+    })
+  })
+
+  test('from a sprint to a week, asks for the numbers per week', () => {
+    const storage = enteredWeeklyThenSprints()
+    expect(edit(storage, { kind: 'setPaceRange', low: '8', high: '16' })).toEqual({ ok: true })
+
+    expect(edit(storage, { kind: 'setCadence', cadenceDays: '7' })).toEqual({ ok: true })
+
+    expect(inputsScreenView(storage).milestone.notes).toEqual([
+      { input: 'pace', message: 'Entered per 14-day sprint; the cadence is now 7 days. Check the numbers are per week.' },
+    ])
+  })
+
+  test('the warning is kept across a restart', () => {
+    enteredWeeklyThenSprints()
+
+    expect(view(openStorage())).toMatchObject({ warnings: [{ input: 'pace', message: PER_WEEK }] })
   })
 })
 
@@ -611,6 +703,7 @@ describe('before there is a forecast', () => {
       paceMode: 'range',
       paceRange: undefined,
       paceCounts: [],
+      paceCadenceDays: undefined,
     })
 
     expect(view(storage)).toEqual({
@@ -636,6 +729,7 @@ describe('before there is a forecast', () => {
       paceMode: 'counts',
       paceRange: undefined,
       paceCounts: [6],
+      paceCadenceDays: undefined,
     })
 
     expect(view(storage)).toEqual({
@@ -786,6 +880,7 @@ describe('the milestone on the Inputs screen', () => {
       paceMode: 'range',
       paceRange: { low: 4, high: 8 },
       paceCounts: [],
+      paceCadenceDays: undefined,
     })
 
     expect(inputs(storage)).toMatchObject({
