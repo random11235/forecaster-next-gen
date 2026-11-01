@@ -512,23 +512,22 @@ describe('typed counts', () => {
     })
   })
 
-  test('with 1 typed count there is no forecast, and the note saying why sits beside the pace too', () => {
+  test('with 3 typed counts there is no forecast, and the note saying why sits beside the pace too', () => {
     const storage = newTeam()
     enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
     expect(edit(storage, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
 
-    expect(edit(storage, { kind: 'setPaceCounts', counts: '6' })).toEqual({ ok: true })
+    expect(edit(storage, { kind: 'setPaceCounts', counts: '6, 4, 9' })).toEqual({ ok: true })
 
     const note = {
       input: 'typedCounts',
-      message: 'Typed counts: 1 week entered. The forecast needs at least 2. Add another count, or switch pace to the range.',
+      message: 'Typed counts: 3 weeks entered. The forecast needs at least 4. Add another count, or switch pace to the range.',
     }
     expect(view(storage)).toEqual({ kind: 'problems', name: 'Checkout v2', problems: [note] })
     expect(inputsScreenView(storage).milestone.notes).toEqual([note])
   })
 
   test.each([
-    ['2, 3', 2],
     ['6, 4, 9, 7', 4],
     ['6, 4, 9, 7, 5, 8, 6', 7],
   ])('with typed counts %s in use, the forecast warns it needs 8 to be reliable, and the Inputs screen says so beside the pace', (counts, entered) => {
@@ -600,17 +599,17 @@ describe('typed counts', () => {
     let storage = newTeam()
     mediumGrowth(storage, { low: 1, high: 1 })
     enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '5', high: '5' })
-    expect(edit(storage, { kind: 'setPaceCounts', counts: '10, 10' })).toEqual({ ok: true })
+    expect(edit(storage, { kind: 'setPaceCounts', counts: '10, 10, 10, 10' })).toEqual({ ok: true })
 
     expect(edit(storage, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
     storage = openStorage()
-    expect(view(storage)).toMatchObject({ pace: { source: 'counts', counts: [10, 10] }, dates: [50, 70, 85, 95].map((percent) => ({ percent, date: '2026-09-08' })) })
+    expect(view(storage)).toMatchObject({ pace: { source: 'counts', counts: [10, 10, 10, 10] }, dates: [50, 70, 85, 95].map((percent) => ({ percent, date: '2026-09-08' })) })
     expect(inputsScreenView(storage).milestone).toMatchObject({ paceMode: 'counts', paceRange: { low: 5, high: 5 } })
 
     expect(edit(storage, { kind: 'setPaceMode', paceMode: 'range' })).toEqual({ ok: true })
     storage = openStorage()
     expect(view(storage)).toMatchObject({ pace: { source: 'range', low: 5, high: 5 }, dates: [50, 70, 85, 95].map((percent) => ({ percent, date: '2026-09-15' })) })
-    expect(inputsScreenView(storage).milestone).toMatchObject({ paceMode: 'range', paceCounts: [10, 10] })
+    expect(inputsScreenView(storage).milestone).toMatchObject({ paceMode: 'range', paceCounts: [10, 10, 10, 10] })
   })
 
   test('typed counts of 0 throughout give no date, and a warning on the pace', () => {
@@ -671,7 +670,7 @@ describe('typed counts', () => {
 
     expect(view(storage)).toMatchObject({
       kind: 'problems',
-      problems: [{ message: 'Typed counts: 0 sprints entered. The forecast needs at least 2. Add another count, or switch pace to the range.' }],
+      problems: [{ message: 'Typed counts: 0 sprints entered. The forecast needs at least 4. Add another count, or switch pace to the range.' }],
     })
   })
 })
@@ -729,7 +728,7 @@ describe('before there is a forecast', () => {
         { input: 'startDate', message: 'No start date is saved yet.' },
         {
           input: 'typedCounts',
-          message: 'Typed counts: 1 week entered. The forecast needs at least 2. Add another count, or switch pace to the range.',
+          message: 'Typed counts: 1 week entered. The forecast needs at least 4. Add another count, or switch pace to the range.',
         },
       ],
     })
@@ -853,7 +852,7 @@ describe('the milestone on the Inputs screen', () => {
       paceRange: undefined,
       paceCounts: [],
       paceMode: 'range',
-      typedCountsNeeded: { forForecast: 2, reliable: 8 },
+      typedCountsNeeded: { forForecast: 4, reliable: 8 },
       notes: [],
     })
   })
@@ -893,7 +892,7 @@ describe('the milestone on the Inputs screen', () => {
       paceRange: { low: 0, high: 0 },
       paceCounts: [],
       paceMode: 'range',
-      typedCountsNeeded: { forForecast: 2, reliable: 8 },
+      typedCountsNeeded: { forForecast: 4, reliable: 8 },
       notes: [{ input: 'pace', message: 'At 0 tickets a week, the work never finishes.' }],
     })
   })
