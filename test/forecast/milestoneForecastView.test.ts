@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { inputsView, submitInputs, type InputsEdit } from '../../src/forecast/inputs.js'
 import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
+import { ENGINE_VERSION, simulateCase } from '../../src/engine/index.js'
 import type { GrowthRange } from '../../src/model/ambiguity.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
@@ -1260,17 +1261,30 @@ describe('the pace trend beside typed counts', () => {
 
     expect(view(storage)).toMatchObject({
       kind: 'forecast',
-      dates: DATES_FROM_2_4_6_8,
+      dates: datesFromEngineFor2468(),
       warnings: [{ input: 'typedCounts', message: 'Typed counts: 4 weeks entered. The forecast needs 8 to be reliable.' }],
     })
     expect(inputsScreenView(storage).milestone.notes).toEqual([{ input: 'typedCounts', message: '4 of 8 needed for reliable results' }])
   })
 })
 
-/** 30 tickets from typed counts of 2, 4, 6, 8, growing 1–2×, from 1 Sep 2026: the engine's dates for the fixed seed. */
-const DATES_FROM_2_4_6_8 = [
-  { percent: 50, date: '2026-11-03' },
-  { percent: 70, date: '2026-11-17' },
-  { percent: 85, date: '2026-11-24' },
-  { percent: 95, date: '2026-12-01' },
-]
+/**
+ * 30 tickets from typed counts of 2, 4, 6, 8, growing 1–2×, weekly from 1 Sep 2026, simulated by the engine directly,
+ * with no pace trend anywhere in the path: the dates the forecast gave before the trend existed.
+ */
+function datesFromEngineFor2468() {
+  const result = simulateCase({
+    engineVersion: ENGINE_VERSION,
+    seed: DEFAULT_SETTINGS.seed,
+    trials: DEFAULT_SETTINGS.trials,
+    maxPeriods: DEFAULT_SETTINGS.maxPeriods,
+    question: { kind: 'when' },
+    startDate: '2026-09-01',
+    periodDays: 7,
+    scope: [{ epicId: TEAM, rank: 1, baseCount: 30, currentCount: 30, doneCount: 0, growth: { low: 1, high: 2 } }],
+    throughputSamples: [2, 4, 6, 8],
+    epicSizeSamples: { low: 0, high: 0 },
+    percentiles: DEFAULT_SETTINGS.percentiles,
+  })
+  return DEFAULT_SETTINGS.percentiles.map((percent) => ({ percent, date: result.percentileDates[percent] }))
+}
