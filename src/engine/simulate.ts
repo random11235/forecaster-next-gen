@@ -1,6 +1,6 @@
 import { periodEndDate, wholePeriodsUntil } from './dates.js'
 import { hashJson } from './hash.js'
-import { bayesianBootstrap, createRandom, drawFrom, drawWholeNumberIn, type Random } from './random.js'
+import { bayesianBootstrap, createRandom, drawFrom, drawWholeNumberIn, type PaceSampler, type Random, uniformWholeNumbers } from './random.js'
 import type { ForecastResult, ForecastSpan, GrowthRange, NumberRange, ScopeEntry, SimulationCase } from './types.js'
 import { assertValidCase } from './validate.js'
 
@@ -204,10 +204,8 @@ function simulateHowMany(simulationCase: SimulationCase, byDate: string, random:
  * One period's throughput: from measured or typed counts, a Bayesian bootstrap draw whose weights are fresh
  * for each trial (ADR-0001); from a manual range, a whole number drawn uniformly from it.
  */
-function paceSampler(random: Random, source: readonly number[] | NumberRange): { newTrial(): void; draw(): number } {
-  if (isRange(source)) return { newTrial() {}, draw: () => drawWholeNumberIn(random, source.low, source.high) }
-  const sampler = bayesianBootstrap(random, source)
-  return { newTrial: sampler.reweight, draw: sampler.draw }
+function paceSampler(random: Random, source: readonly number[] | NumberRange): PaceSampler {
+  return isRange(source) ? uniformWholeNumbers(random, source.low, source.high) : bayesianBootstrap(random, source)
 }
 
 /**
