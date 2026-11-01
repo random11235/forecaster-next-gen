@@ -16,7 +16,7 @@ export function renderMilestoneForecastScreen(view: MilestoneForecastView): stri
     case 'problems':
       return htmlPage('/', problemsHeader(view.name, view.problems.length), renderNotes('What to fix', view.problems))
     case 'forecast':
-      return htmlPage('/', forecastHeader(view), `${renderNotes('Warnings', view.warnings)}${renderTrend(view)}${renderForecast(view)}`)
+      return htmlPage('/', forecastHeader(view), `${renderNotes('Warnings', view.warnings)}${renderPaceTrend(view.paceTrend, periodName(view.cadenceDays), '    ')}${renderForecast(view)}`)
   }
 }
 
@@ -173,14 +173,6 @@ function percentOf(part: number, whole: number): number {
 /** A forecast date before today is marked, so a past start date's finish can't be read as one still to come. */
 function pastMark({ alreadyPast }: Pick<ForecastDate, 'alreadyPast'>): string {
   return alreadyPast ? ' <span class="past">(already past)</span>' : ''
-}
-
-/** The pace trend beside the typed counts in use, placed as warnings are; nothing with the range or too few counts. */
-function renderTrend(view: Forecast): string {
-  if (!view.paceTrend) return ''
-  return `
-    <section class="brief" aria-label="Pace trend">${renderPaceTrend(view.paceTrend, periodName(view.cadenceDays), '      ')}
-    </section>`
 }
 
 /** Notes about the inputs, each naming its input by its label on the Inputs screen, unless the note already does. */

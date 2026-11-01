@@ -1261,7 +1261,7 @@ describe('the pace trend beside typed counts', () => {
 
     expect(view(storage)).toMatchObject({
       kind: 'forecast',
-      dates: datesFromEngineFor2468(),
+      dates: engineDatesForTypedCounts([2, 4, 6, 8]),
       warnings: [{ input: 'typedCounts', message: 'Typed counts: 4 weeks entered. The forecast needs 8 to be reliable.' }],
     })
     expect(inputsScreenView(storage).milestone.notes).toEqual([{ input: 'typedCounts', message: '4 of 8 needed for reliable results' }])
@@ -1269,10 +1269,10 @@ describe('the pace trend beside typed counts', () => {
 })
 
 /**
- * 30 tickets from typed counts of 2, 4, 6, 8, growing 1–2×, weekly from 1 Sep 2026, simulated by the engine directly,
+ * 30 tickets from the typed counts, growing 1–2×, weekly from 1 Sep 2026, simulated by the engine directly,
  * with no pace trend anywhere in the path: the dates the forecast gave before the trend existed.
  */
-function datesFromEngineFor2468() {
+function engineDatesForTypedCounts(counts: number[]) {
   const result = simulateCase({
     engineVersion: ENGINE_VERSION,
     seed: DEFAULT_SETTINGS.seed,
@@ -1282,7 +1282,7 @@ function datesFromEngineFor2468() {
     startDate: '2026-09-01',
     periodDays: 7,
     scope: [{ epicId: TEAM, rank: 1, baseCount: 30, currentCount: 30, doneCount: 0, growth: { low: 1, high: 2 } }],
-    throughputSamples: [2, 4, 6, 8],
+    throughputSamples: counts,
     epicSizeSamples: { low: 0, high: 0 },
     percentiles: DEFAULT_SETTINGS.percentiles,
   })
