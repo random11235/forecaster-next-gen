@@ -2,7 +2,7 @@
 
 Design date: 2026-10-14. Updated 2026-10-18 with the design grill decisions (Q1–Q31). Status: draft for v1. The v1 spec is [issue #6](https://github.com/random11235/forecaster-next-gen/issues/6).
 
-The MVP ([#84](https://github.com/random11235/forecaster-next-gen/issues/84)) leaves the engine unchanged. It builds the case in `forecast/milestoneForecastView.ts` as one scope entry, the milestone's tickets remaining with none done, grown by the range of its ambiguity, with the EM's pace as throughput: typed counts go through the Bayesian bootstrap ([ADR-0001](../adr/0001-bayesian-bootstrap-pace-sampler.md)), a pace range is drawn uniformly.
+The MVP ([#84](https://github.com/random11235/forecaster-next-gen/issues/84)) changes one thing in the engine: typed counts are drawn by the Bayesian bootstrap ([ADR-0001](../adr/0001-bayesian-bootstrap-pace-sampler.md), [#121](https://github.com/random11235/forecaster-next-gen/issues/121)), which bumped `ENGINE_VERSION` to `'2'`. It builds the case in `forecast/milestoneForecastView.ts` as one scope entry, the milestone's tickets remaining with none done, grown by the range of its ambiguity, with the EM's pace as throughput: typed counts go through the Bayesian bootstrap ([ADR-0001](../adr/0001-bayesian-bootstrap-pace-sampler.md)), a pace range is drawn uniformly.
 
 This covers `engine/` (Seam A): the contract `simulateCase(SimulationCase) → ForecastResult`, how one trial runs, the swappable samplers, and the facts it reports when data is thin. The engine's place in the system and its dependency rules are in [`architecture.md`](architecture.md); the data and settings `forecast/` builds the case from are in [`forecast-model.md`](forecast-model.md).
 
@@ -28,7 +28,7 @@ SimulationCase {
   }>,
 
   throughputSamples: number[] | { low, high },  // measured done counts per period (whole numbers), or the EM's manual range
-  throughputSampler: { kind: 'bayesianBootstrap' },  // how measured samples are drawn; see "Swappable samplers"
+  throughputSampler: { kind: 'bayesianBootstrap' },  // not built yet; how measured samples are drawn, see "Swappable samplers"
   epicSizeSamples:   number[] | { low, high },  // only used for epics with no children
   percentiles: number[],               // from ForecastSettings.percentiles, default [50, 70, 85, 95];
                                        // whole numbers 0 to 100, at least one, no repeats, any order
@@ -75,7 +75,7 @@ An **uncommitted epic** has no baseline yet. `forecast/buildCase.ts` passes its 
 1. **Correlated growth.** Draw one uniform `u` in [0, 1) for the trial. For each epic, its growth ratio is the `u`-quantile of its own `growth` distribution: the empirical quantile of the samples, or `low + u × (high − low)` for a range. Set its total to `baseCount × ratio`, rounded to 9 decimal places to clear float error (100 × 1.1 is 110.00000000000001) while keeping real fractions, or draw one epic size (independently) if `baseCount` is null or 0. Floor the total at `currentCount`. Remaining work is `max(total − doneCount, 0)`.
    - A milestone's epics tend to over-run together (same team, same planning habits), so one shared `u` per trial keeps the range from coming out falsely narrow. Each epic still keeps its own range.
    - **Do not average several draws.** Averaging narrows the distribution and hides the tail ([research §1.1](../research/forecasting-approaches.md#11-the-users-prior-tool-random11235forecaster)).
-2. **Pace.** Each period, draw one throughput value: from measured samples, a draw by the case's `throughputSampler` (in v1, the Bayesian bootstrap; see "Swappable samplers"); from a manual range, a whole number drawn uniformly from `[low, high]`. Subtract it from the remaining work, taking epics in rank order.
+2. **Pace.** Each period, draw one throughput value: from measured or typed samples, a Bayesian bootstrap draw (later, by the case's `throughputSampler`; see "Swappable samplers"); from a manual range, a whole number drawn uniformly from `[low, high]`. Subtract it from the remaining work, taking epics in rank order.
 3. Record the period in which each epic finishes, and the period in which all of them finish.
 4. Stop at `maxPeriods`. A trial that hasn't finished by then is recorded as "beyond the horizon", which also guards against all-zero throughput looping forever.
 
@@ -95,6 +95,8 @@ Collect the trial results and compute 101 quantiles overall and per epic.
 Collect the totals and compute 101 quantiles. Confidence runs the other way from 'when': "85% sure" means at least this many items get done in 85% of trials, which is the **15th** percentile of the totals. So `percentileCounts[p] = quantiles[100 − p]`. `percentileDates` and `perEpic` are empty for this question.
 
 ### Swappable samplers
+
+**Not built yet: this follows the MVP, as the rest of [#45](https://github.com/random11235/forecaster-next-gen/issues/45).** The MVP draws typed counts by the Bayesian bootstrap directly in `simulate.ts` (through `random.ts`'s `PaceSampler`), with no `throughputSampler` in the case, no `makeThroughputSampler` and no `engine/samplers/`.
 
 v1 draws measured throughput by Bayesian bootstrap ([ADR-0001](../adr/0001-bayesian-bootstrap-pace-sampler.md)): each trial weights the observed periods at random, and each draw returns one observed period's count by those weights. The plain `bootstrap` (every period equally likely) stays available as a sampler kind. Both return only observed counts, so they keep the empirical shape and tail, unlike the triangular draw they replace ([research §1.1](../research/forecasting-approaches.md#11-the-users-prior-tool-random11235forecaster)). Other ways of drawing (interpolated empirical, smoothed bootstrap, parametric fits, block or recency-weighted bootstrap) are worth testing later, so the draw sits behind one seam:
 
