@@ -143,6 +143,12 @@ const STYLE = `
     .finish-graph .mark.headline { color: var(--ink); font-weight: 600; }
     .finish-graph .axis { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 12px; color: var(--muted); }
 
+    /* The pace trend: the typed counts as small bars, and the straight line fitted through them. */
+    figure.pace-trend { margin: 0; display: flex; flex-direction: column; gap: 6px; max-width: 320px; }
+    .pace-trend svg { width: 100%; height: 64px; overflow: visible; border-bottom: 1px solid var(--ink); }
+    .pace-trend .trend-bars rect { fill: var(--bar); }
+    .pace-trend .trend-line line { stroke: var(--ink); stroke-width: 2px; vector-effect: non-scaling-stroke; stroke-linecap: round; }
+
     /* Inputs: numbered sections, a label column beside the form. */
     section.input {
       display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 32px;
