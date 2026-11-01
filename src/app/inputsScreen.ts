@@ -7,6 +7,7 @@ import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
 import type { PaceMode } from '../model/milestoneInputs.js'
 import { escapeHtml, htmlPage } from './html.js'
 import { INPUTS_SCRIPT } from './inputsScript.js'
+import { renderPaceTrend } from './paceTrendGraph.js'
 
 /** Each input of the milestone by its label on this screen, which notes about it are named by everywhere. */
 export const INPUT_LABELS: Record<MilestoneInput, string> = {
@@ -138,7 +139,7 @@ const PACE_MODE_NAMES: Record<PaceMode, string> = { range: 'Range', counts: INPU
 
 /** The pace: which one the forecast uses, the range, and the typed counts, the notes beside the one in use. */
 function paceSection(screen: InputsView, error: (form: InputsForm) => string | undefined, period: PeriodName): Section {
-  const { paceMode, notes, typedCountsNeeded: typedCounts } = screen.milestone
+  const { paceMode, notes, typedCountsNeeded: typedCounts, paceTrend } = screen.milestone
   const notesIfUsed = (mode: PaceMode): string => (mode === paceMode ? notesFor('pace', notes) + notesFor('typedCounts', notes) : '')
   const { paceRange: range, paceCounts: counts } = screen.forms
   return inputSection(
@@ -163,7 +164,7 @@ ${radios('paceMode', 'Pace the forecast uses', ['range', 'counts'], paceMode, (m
           <h3>${PACE_MODE_NAMES.counts}</h3>
           <div class="fields">
             <label class="wide">Tickets done each ${period}, oldest first <input type="text" name="counts" value="${escapeHtml(counts.counts)}" inputmode="numeric" placeholder="6, 4, 9"></label>
-          </div>${notesIfUsed('counts')}
+          </div>${notesIfUsed('counts')}${renderPaceTrend(paceTrend, period, '          ')}
           <div class="actions"><button type="submit">Save counts</button></div>
         </form>
         <div class="counts">
