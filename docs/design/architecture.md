@@ -1,6 +1,6 @@
 # Architecture: design
 
-Design date: 2026-10-14. Updated 2026-10-18 with the design grill decisions (Q1–Q31). Status: draft for v1. The v1 spec is [issue #6](https://github.com/random11235/forecaster-next-gen/issues/6).
+Design date: 2026-10-14. Updated 2026-10-18 with the design grill decisions (Q1–Q31). Status: draft for v1. The v1 spec is [issue #84](https://github.com/random11235/forecaster-next-gen/issues/84); this design was written for [issue #6](https://github.com/random11235/forecaster-next-gen/issues/6), which now covers what follows it.
 
 This covers the Forecaster as a whole: v1's assumptions, the principles every module follows, the folder structure and its dependency rules, the test seams, the language choice, security, and what is deferred beyond v1. Read it first. The engine (Seam A) is in [`engine.md`](engine.md), the data, samples and settings behind `forecast/` (Seam B) in [`forecast-model.md`](forecast-model.md), and the screens in [`frontend-essentials.md`](frontend-essentials.md).
 
@@ -14,7 +14,7 @@ The engine is built and tested in isolation first (build order: engine → app o
 
 ## v1 assumptions
 
-- **Single team, run locally.** The tool is a local web app started with one command, holding its data in a local SQLite file. There is no aggregator and no access control in v1.
+- **Single team, run locally.** v1 ships two builds of the same app. The local server is a web app started with one command, holding its data in a local SQLite file. The browser build (#114) is one self-contained page with no server, published for testers on GitHub Pages (#57), holding each viewer's data in their own browser. There is no aggregator and no access control in v1: neither build shares data between people.
 - **Capacity is fixed** for the whole forecast, until the capacity calendar (see [Deferred](#deferred-beyond-v1)).
 - **No risks or added-scope events** are modelled.
 - **One reference class per team.** Growth and epic-size samples are pooled per team. The EM expresses how well each epic is understood through its ambiguity level (see [Settings](forecast-model.md#layer-3-settings)), not through separate reference classes.
