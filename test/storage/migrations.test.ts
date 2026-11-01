@@ -448,7 +448,7 @@ INSERT INTO milestone_inputs (team_id, name, cadence_days) VALUES ('sample-team'
     submitInputs(storage, TEAM, DEFAULT_SETTINGS, '2026-09-01', { kind: 'setCadence', cadenceDays: '7' })
 
     expect(milestoneForecastView(storage, TEAM, DEFAULT_SETTINGS, '2026-09-01')).toMatchObject({
-      warnings: [{ input: 'pace', message: 'Pace: entered per 14-day sprint; the cadence is now 7 days. Check the numbers are per week.' }],
+      warnings: [{ input: 'pace', message: 'Pace: cadence length has changed. Please verify that the per period numbers are aligned.' }],
     })
   })
 })

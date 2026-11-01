@@ -376,7 +376,7 @@ describe('the cadence', () => {
     forecast.dates.forEach(({ date }, index) => expect(date! > DATES_FROM_1_SEP[index]!.date).toBe(true))
   })
 
-  test('changing the cadence after the pace is entered warns that the pace was entered per week, beside the pace and on the forecast', () => {
+  test('changing the cadence after the pace is entered warns that the cadence length has changed, beside the pace and on the forecast', () => {
     const storage = newTeam()
     enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
 
@@ -384,10 +384,10 @@ describe('the cadence', () => {
 
     expect(view(storage)).toMatchObject({
       kind: 'forecast',
-      warnings: [{ input: 'pace', message: 'Pace: entered per week; the cadence is now 14 days. Check the numbers are per sprint.' }],
+      warnings: [{ input: 'pace', message: 'Pace: cadence length has changed. Please verify that the per period numbers are aligned.' }],
     })
     expect(inputsScreenView(storage).milestone.notes).toEqual([
-      { input: 'pace', message: 'Entered per week; the cadence is now 14 days. Check the numbers are per sprint.' },
+      { input: 'pace', message: 'Cadence length has changed. Please verify that the per period numbers are aligned.' },
     ])
   })
 
@@ -430,14 +430,14 @@ describe('the cadence', () => {
 })
 
 describe('a pace entered for a different cadence', () => {
-  const PER_WEEK = 'Pace: entered per week; the cadence is now 14 days. Check the numbers are per sprint.'
+  const CADENCE_CHANGED = 'Pace: cadence length has changed. Please verify that the per period numbers are aligned.'
 
   /** 100 tickets at 4–8 a week, entered at the untouched cadence, which then changes to 14 days. */
   function enteredWeeklyThenSprints(): Storage {
     const storage = newTeam()
     enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
     expect(edit(storage, { kind: 'setCadence', cadenceDays: '14' })).toEqual({ ok: true })
-    expect(view(storage)).toMatchObject({ warnings: [{ input: 'pace', message: PER_WEEK }] })
+    expect(view(storage)).toMatchObject({ warnings: [{ input: 'pace', message: CADENCE_CHANGED }] })
     return storage
   }
 
@@ -464,7 +464,7 @@ describe('a pace entered for a different cadence', () => {
     expect(edit(storage, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
     expect(edit(storage, { kind: 'removeLastPaceCount' })).toEqual({ ok: true })
 
-    expect(view(storage)).toMatchObject({ warnings: expect.arrayContaining([{ input: 'pace', message: PER_WEEK }]) })
+    expect(view(storage)).toMatchObject({ warnings: expect.arrayContaining([{ input: 'pace', message: CADENCE_CHANGED }]) })
   })
 
   test('changing the cadence before any pace is entered gives no warning', () => {
@@ -476,32 +476,22 @@ describe('a pace entered for a different cadence', () => {
     expect(inputsScreenView(storage).milestone.notes).toEqual([{ input: 'pace', message: 'Enter a pace range.' }])
   })
 
-  test('from one sprint length to another, names both lengths', () => {
+  test('from one sprint length to another, warns again', () => {
     const storage = enteredWeeklyThenSprints()
     expect(edit(storage, { kind: 'setPaceRange', low: '8', high: '16' })).toEqual({ ok: true })
 
     expect(edit(storage, { kind: 'setCadence', cadenceDays: '10' })).toEqual({ ok: true })
 
-    expect(view(storage)).toMatchObject({
-      warnings: [{ input: 'pace', message: 'Pace: entered per 14-day sprint; the cadence is now 10 days. Check the numbers are per sprint.' }],
-    })
-  })
-
-  test('from a sprint to a week, asks for the numbers per week', () => {
-    const storage = enteredWeeklyThenSprints()
-    expect(edit(storage, { kind: 'setPaceRange', low: '8', high: '16' })).toEqual({ ok: true })
-
-    expect(edit(storage, { kind: 'setCadence', cadenceDays: '7' })).toEqual({ ok: true })
-
+    expect(view(storage)).toMatchObject({ warnings: [{ input: 'pace', message: CADENCE_CHANGED }] })
     expect(inputsScreenView(storage).milestone.notes).toEqual([
-      { input: 'pace', message: 'Entered per 14-day sprint; the cadence is now 7 days. Check the numbers are per week.' },
+      { input: 'pace', message: 'Cadence length has changed. Please verify that the per period numbers are aligned.' },
     ])
   })
 
   test('the warning is kept across a restart', () => {
     enteredWeeklyThenSprints()
 
-    expect(view(openStorage())).toMatchObject({ warnings: [{ input: 'pace', message: PER_WEEK }] })
+    expect(view(openStorage())).toMatchObject({ warnings: [{ input: 'pace', message: CADENCE_CHANGED }] })
   })
 })
 
