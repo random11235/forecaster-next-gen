@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import { networkInterfaces } from 'node:os'
-import { defaultTeam, startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
+import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
+import { defaultTeam } from '../../src/app/routes.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
 

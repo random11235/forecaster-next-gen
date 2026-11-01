@@ -28,6 +28,10 @@ To use another port: `PORT=5181 npm start`. `PORT=0` picks a free port.
 
 Everything is kept in one local SQLite file, `data/forecaster.db` (git-ignored). On first launch, with no data yet, the Forecaster opens empty and asks for your milestone on the Inputs screen. To keep the file elsewhere: `FORECASTER_DATA_FILE=/path/to/forecaster.db npm start`. Delete the file to start again from empty.
 
+## Sharing
+
+`npm run build:web` writes the whole app as one self-contained page, `dist/web/forecaster.html`, to publish as a claude.ai artifact or on any static host. It runs with no server: each person who opens it gets their own Forecaster, empty at first, with their inputs kept in their own browser. A browser that blocks site data, such as a private window, keeps them only until the page closes.
+
 ## Development
 
 - `npm test` runs the tests. The launch smoke test builds the app and runs it with `FORECASTER_NO_BROWSER=1`, which stops it opening a browser, and its data in a temporary `FORECASTER_DATA_FILE`.
