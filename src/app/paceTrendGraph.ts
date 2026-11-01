@@ -1,7 +1,7 @@
 import type { PaceTrend } from '../forecast/paceTrend.js'
 import type { PeriodName } from '../forecast/cadence.js'
 
-/** The graph's drawing size in SVG units; it scales to its box. */
+/** The graph's drawing size in SVG units: it stretches to its box's width and is drawn this many pixels high. */
 const WIDTH = 240
 const HEIGHT = 64
 
@@ -25,8 +25,8 @@ export function renderPaceTrend(trend: PaceTrend | undefined, period: PeriodName
   const label = `Pace trend: typed counts of ${counts.join(', ')}, oldest first, with a straight line fitted through them from ${tickets(start)} to ${tickets(end)} tickets a ${period}.`
   return `
 ${indent}<figure class="pace-trend" role="img" aria-label="${label}">
-${indent}  <svg viewBox="0 0 ${WIDTH} ${HEIGHT}" preserveAspectRatio="none" aria-hidden="true"><g class="trend-bars">${bars}</g><g class="trend-line">${line}</g></svg>
-${indent}  <figcaption class="note">Trend: ${tickets(start)} → ${tickets(end)} tickets a ${period}, a straight line through ${counts.length} ${period}s, oldest first.</figcaption>
+${indent}  <svg viewBox="0 0 ${WIDTH} ${HEIGHT}" height="${HEIGHT}" preserveAspectRatio="none" aria-hidden="true"><g class="trend-bars">${bars}</g><g class="trend-line">${line}</g></svg>
+${indent}  <figcaption>Trend: ${tickets(start)} → ${tickets(end)} tickets a ${period}, a straight line through ${counts.length} ${period}s, oldest first.</figcaption>
 ${indent}</figure>`
 }
 

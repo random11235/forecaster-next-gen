@@ -53,16 +53,27 @@ export function drawWholeNumberIn(random: Random, low: number, high: number): nu
   return low + Math.floor(random() * (high - low + 1))
 }
 
+/** Draws one period's throughput at a time; call `newTrial` at the start of each trial, before its draws. */
+export interface PaceSampler {
+  newTrial(): void
+  draw(): number
+}
+
+/** Whole numbers drawn uniformly from [low, high], both ends included; a new trial changes nothing. */
+export function uniformWholeNumbers(random: Random, low: number, high: number): PaceSampler {
+  return { newTrial() {}, draw: () => drawWholeNumberIn(random, low, high) }
+}
+
 /**
- * The Bayesian bootstrap (ADR-0001): `reweight` gives every sample a fresh random weight, and `draw` picks
- * samples in proportion to those weights until the next `reweight`. Call `reweight` once per trial, so some
- * trials lean on the faster samples and some on the slower ones. Reuses its arrays, so neither call allocates.
+ * The Bayesian bootstrap (ADR-0001): `newTrial` gives every sample a fresh random weight, and `draw` picks
+ * samples in proportion to those weights until the next `newTrial`. So some trials lean on the faster samples
+ * and some on the slower ones. Reuses its arrays, so neither call allocates.
  */
-export function bayesianBootstrap(random: Random, samples: readonly number[]): { reweight(): void; draw(): number } {
+export function bayesianBootstrap(random: Random, samples: readonly number[]): PaceSampler {
   const cumulative = new Float64Array(samples.length)
   const last = samples.length - 1
   return {
-    reweight() {
+    newTrial() {
       let total = 0
       for (let i = 0; i < samples.length; i++) {
         // Exponential weights, normalised, are the flat Dirichlet the Bayesian bootstrap draws from
