@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { simulateCase, type SimulationCase } from '../../src/engine/index.js'
+import { ENGINE_VERSION, simulateCase, type SimulationCase } from '../../src/engine/index.js'
 import { createRandom, type Random } from '../../src/engine/random.js'
 
 // Steady teams, as in docs/research/pace-stability/ ("Short history makes every range too narrow"):
@@ -37,7 +37,7 @@ function actualWeeks(random: Random): number {
 
 function forecastFromTypedCounts(counts: number[], seed: number): SimulationCase {
   return {
-    engineVersion: '1',
+    engineVersion: ENGINE_VERSION,
     seed,
     trials: TRIALS,
     maxPeriods: MAX_WEEKS,
