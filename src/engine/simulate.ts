@@ -1,6 +1,6 @@
 import { periodEndDate, wholePeriodsUntil } from './dates.js'
 import { hashJson } from './hash.js'
-import { createRandom, drawFrom, drawWholeNumberIn, type Random } from './random.js'
+import { bayesianBootstrap, createRandom, drawFrom, drawWholeNumberIn, type Random } from './random.js'
 import type { ForecastResult, ForecastSpan, GrowthRange, NumberRange, ScopeEntry, SimulationCase } from './types.js'
 import { assertValidCase } from './validate.js'
 
@@ -55,6 +55,7 @@ function relativeStandardError(samples: readonly number[]): number {
 function simulateWhen(simulationCase: SimulationCase, ranked: readonly ScopeEntry[], random: Random): QuestionResult {
   const { trials, maxPeriods, throughputSamples, epicSizeSamples } = simulationCase
   const growthAt = ranked.map((epic) => growthRatioAt(epic.growth))
+  const pace = paceSampler(random, throughputSamples)
   const remaining = new Float64Array(ranked.length)
   const epicFinishPeriods = ranked.map(() => new Float64Array(trials))
   const finishPeriods = new Float64Array(trials)
@@ -62,6 +63,7 @@ function simulateWhen(simulationCase: SimulationCase, ranked: readonly ScopeEntr
   let finishedTrials = 0
 
   for (let trial = 0; trial < trials; trial++) {
+    pace.newTrial()
     // One draw for the whole trial: a milestone's epics tend to over-run together
     const u = random()
     for (let i = 0; i < ranked.length; i++) {
@@ -80,7 +82,7 @@ function simulateWhen(simulationCase: SimulationCase, ranked: readonly ScopeEntr
     let period = 0
     while (next < ranked.length && period < maxPeriods) {
       period++
-      let throughput = drawCount(random, throughputSamples)
+      let throughput = pace.draw()
       while (throughput > 0 && next < ranked.length) {
         const burned = Math.min(throughput, remaining[next]!)
         remaining[next]! -= burned
@@ -172,10 +174,12 @@ function simulateHowMany(simulationCase: SimulationCase, byDate: string, random:
   const { trials, startDate, periodDays, throughputSamples } = simulationCase
   const periods = wholePeriodsUntil(startDate, periodDays, byDate)
   const doneCounts = new Float64Array(trials)
+  const pace = paceSampler(random, throughputSamples)
 
   for (let trial = 0; trial < trials; trial++) {
+    pace.newTrial()
     let done = 0
-    for (let period = 0; period < periods; period++) done += drawCount(random, throughputSamples)
+    for (let period = 0; period < periods; period++) done += pace.draw()
     doneCounts[trial] = done
   }
 
@@ -197,8 +201,18 @@ function simulateHowMany(simulationCase: SimulationCase, byDate: string, random:
 }
 
 /**
- * A ticket count: a bootstrap draw from samples, or a whole number from the range.
- * Draws one period's throughput, and an empty epic's size (independent of the trial's shared growth quantile).
+ * One period's throughput: from measured or typed counts, a Bayesian bootstrap draw whose weights are fresh
+ * for each trial (ADR-0001); from a manual range, a whole number drawn uniformly from it.
+ */
+function paceSampler(random: Random, source: readonly number[] | NumberRange): { newTrial(): void; draw(): number } {
+  if (isRange(source)) return { newTrial() {}, draw: () => drawWholeNumberIn(random, source.low, source.high) }
+  const sampler = bayesianBootstrap(random, source)
+  return { newTrial: sampler.reweight, draw: sampler.draw }
+}
+
+/**
+ * An empty epic's size: a plain bootstrap draw from samples, or a whole number from the range
+ * (independent of the trial's shared growth quantile).
  */
 function drawCount(random: Random, source: readonly number[] | NumberRange): number {
   return isRange(source) ? drawWholeNumberIn(random, source.low, source.high) : drawFrom(random, source)

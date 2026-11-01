@@ -52,3 +52,35 @@ export function drawFrom(random: Random, samples: readonly number[]): number {
 export function drawWholeNumberIn(random: Random, low: number, high: number): number {
   return low + Math.floor(random() * (high - low + 1))
 }
+
+/**
+ * The Bayesian bootstrap (ADR-0001): `reweight` gives every sample a fresh random weight, and `draw` picks
+ * samples in proportion to those weights until the next `reweight`. Call `reweight` once per trial, so some
+ * trials lean on the faster samples and some on the slower ones. Reuses its arrays, so neither call allocates.
+ */
+export function bayesianBootstrap(random: Random, samples: readonly number[]): { reweight(): void; draw(): number } {
+  const cumulative = new Float64Array(samples.length)
+  const last = samples.length - 1
+  return {
+    reweight() {
+      let total = 0
+      for (let i = 0; i < samples.length; i++) {
+        // Exponential weights, normalised, are the flat Dirichlet the Bayesian bootstrap draws from
+        total -= Math.log(1 - random())
+        cumulative[i] = total
+      }
+    },
+    draw() {
+      const target = random() * cumulative[last]!
+      // the first sample whose cumulative weight passes the target
+      let low = 0
+      let high = last
+      while (low < high) {
+        const mid = (low + high) >>> 1
+        if (cumulative[mid]! > target) high = mid
+        else low = mid + 1
+      }
+      return samples[low]!
+    },
+  }
+}
