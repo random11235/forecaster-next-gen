@@ -1,9 +1,8 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import type { Team } from '../model/team.js'
 import type { Storage } from '../storage/storage.js'
 import { SAVE_IN_PLACE } from './inputsScript.js'
-import { route, type AppContext, type Reply } from './routes.js'
+import { appContext, route, type AppContext, type Reply } from './routes.js'
 
 /** Localhost only: the Forecaster is a local, single-user tool and is never reachable from the network. */
 const HOST = '127.0.0.1'
@@ -25,11 +24,7 @@ export interface RunningApp {
 
 /** Starts the local server and opens the browser on the Milestone forecast screen. */
 export async function startAppAndOpenBrowser(options: LaunchOptions): Promise<RunningApp> {
-  const context: AppContext = {
-    storage: options.storage,
-    today: options.today ?? (() => localCalendarDate(new Date())),
-  }
-  addDefaultTeamIfEmpty(context.storage)
+  const context = appContext(options.storage, options.today)
   const server = createServer((request, response) => {
     serve(request, response, context).catch((error: unknown) => {
       response.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' })
@@ -57,26 +52,6 @@ export async function startAppAndOpenBrowser(options: LaunchOptions): Promise<Ru
         server.closeAllConnections()
       }),
   }
-}
-
-/**
- * The one team everything is stored under, added on first launch and installed at `installedAt`. The MVP has no team
- * screen, so the EM never sees it: its facts are the ones the EM types in, read from no board or repository.
- */
-export function defaultTeam(installedAt: string): Team {
-  return { id: 'team', name: 'My team', source: 'manual', sourceRef: '', installedAt }
-}
-
-/** On first launch (nothing stored yet), adds the default team, installed now. Otherwise does nothing. */
-function addDefaultTeamIfEmpty(storage: Storage): void {
-  if (!storage.isEmpty()) return
-  storage.saveTeam(defaultTeam(new Date().toISOString()))
-}
-
-/** `at` as the EM's calendar date, `YYYY-MM-DD`, in the machine's time zone: not UTC's, which can be a day off. */
-function localCalendarDate(at: Date): string {
-  const two = (value: number): string => String(value).padStart(2, '0')
-  return `${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())}`
 }
 
 /** Hands the request to the routes and writes their reply. */
