@@ -627,7 +627,7 @@ describe('Milestone forecast screen', () => {
 
     const screen = text(await page('/'))
     expect(screen).toContain('Pace: 4–8 tickets per sprint (range)')
-    expect(screen).toContain('Pace: entered per week; the cadence is now 14 days. Check the numbers are per sprint.')
+    expect(screen).toContain('Pace: cadence length has changed. Please verify that the per period numbers are aligned.')
     expect(screen).not.toContain('tickets per week')
     expect(Date.parse(dateAt(screen, 85))).toBeGreaterThan(Date.parse(weekly))
   })

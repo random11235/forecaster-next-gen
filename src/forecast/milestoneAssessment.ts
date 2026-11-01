@@ -113,9 +113,8 @@ function paceWarnings(inputs: MilestoneInputs): Warning[] {
 function paceCadenceWarnings({ cadenceDays, paceCadenceDays, paceRange, paceCounts }: MilestoneInputs): Warning[] {
   const paceEntered = paceRange !== undefined || paceCounts.length > 0
   if (!paceEntered || paceCadenceDays === undefined || paceCadenceDays === cadenceDays) return []
-  const entered = periodName(paceCadenceDays) === 'week' ? 'week' : `${paceCadenceDays}-day sprint`
-  const detail = `per ${entered}; the cadence is now ${counted(cadenceDays, 'day')}. Check the numbers are per ${periodName(cadenceDays)}.`
-  return [{ input: 'pace', message: `Pace: entered ${detail}`, beside: `Entered ${detail}` }]
+  const check = 'Please verify that the per period numbers are aligned.'
+  return [{ input: 'pace', message: `Pace: cadence length has changed. ${check}`, beside: `Cadence length has changed. ${check}` }]
 }
 
 /** A warning worded the same on the forecast and beside its input. */
