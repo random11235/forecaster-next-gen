@@ -23,6 +23,7 @@ const LAUNCH: MilestoneInputs = {
   paceMode: 'counts',
   paceRange: { low: 5, high: 10 },
   paceCounts: [4, 7, 6],
+  paceCadenceDays: 14,
 }
 
 const RANGES: AmbiguityRanges = {

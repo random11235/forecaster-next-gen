@@ -21,7 +21,7 @@ export const DEFAULT_SETTINGS: ForecastSettings = {
   percentiles: [50, 70, 85, 95],
   maxPeriods: 156,
   seed: 1,
-  typedCounts: { forForecast: 2, reliable: 8 },
+  typedCounts: { forForecast: 4, reliable: 8 },
 }
 
 /** Each ambiguity level's growth range until the EM edits them; medium is the default level. */

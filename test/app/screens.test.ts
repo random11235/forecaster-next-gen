@@ -309,7 +309,7 @@ function choosePace(paceMode: string): Promise<Response> {
 }
 
 describe('Inputs screen: typed counts', () => {
-  test('offers pace as a range or as typed counts, the range chosen for an untouched milestone, and says typed counts need 2 for a forecast and 8 to be reliable', async () => {
+  test('offers pace as a range or as typed counts, the range chosen for an untouched milestone, and says typed counts need 4 for a forecast and 8 to be reliable', async () => {
     await startOnPreMvpData()
 
     const html = await page('/inputs')
@@ -317,7 +317,7 @@ describe('Inputs screen: typed counts', () => {
     expect(html).toMatch(/<input type="radio" name="paceMode" value="range" checked/)
     expect(html).toMatch(/<input type="radio" name="paceMode" value="counts"(?! checked)/)
     expect(html).toMatch(/<input type="text" name="counts" value=""/)
-    expect(text(html)).toContain('Typed counts need at least 2 for a forecast, and 8 to be reliable.')
+    expect(text(html)).toContain('Typed counts need at least 4 for a forecast, and 8 to be reliable.')
   })
 
   test('saving typed counts keeps them on the Inputs screen, oldest first', async () => {
@@ -381,14 +381,14 @@ describe('Inputs screen: typed counts', () => {
     expect(html).toMatch(/name="low"[^>]*value="4"/)
   })
 
-  test('with 1 typed count in use, notes beside the typed counts that the forecast needs at least 2', async () => {
+  test('with 3 typed counts in use, notes beside the typed counts that the forecast needs at least 4', async () => {
     await startOnPreMvpData()
-    await submitCounts('6')
+    await submitCounts('6, 4, 9')
 
     await choosePace('counts')
 
     expect(await page('/inputs')).toMatch(
-      /name="counts"[^>]*>[\s\S]*?<p class="warning">⚠ Typed counts: 1 week entered. The forecast needs at least 2. Add another count, or switch pace to the range.<\/p>/,
+      /name="counts"[^>]*>[\s\S]*?<p class="warning">⚠ Typed counts: 3 weeks entered. The forecast needs at least 4. Add another count, or switch pace to the range.<\/p>/,
     )
   })
 
@@ -675,14 +675,14 @@ describe('Milestone forecast screen', () => {
     expect(text(await page('/inputs'))).not.toContain('needed for reliable results')
   })
 
-  test('with 1 typed count in use, shows no forecast, saying exactly why and pointing to the Inputs screen', async () => {
+  test('with 3 typed counts in use, shows no forecast, saying exactly why and pointing to the Inputs screen', async () => {
     await startOnPreMvpData()
-    await submitCounts('6')
+    await submitCounts('6, 4, 9')
 
     await choosePace('counts')
 
     const html = await page('/')
-    expect(text(html)).toContain('Typed counts: 1 week entered. The forecast needs at least 2. Add another count, or switch pace to the range.')
+    expect(text(html)).toContain('Typed counts: 3 weeks entered. The forecast needs at least 4. Add another count, or switch pace to the range.')
     expect(text(html)).not.toContain('confident')
     expect(html).toContain('href="/inputs"')
   })
