@@ -4,7 +4,7 @@ Design date: 2026-10-14. Updated 2026-10-18 with the design grill decisions (Q1â
 
 This covers the data behind `samples/` and `forecast/` (Seam B's logic): the facts ingested, the samples derived from them, the EM's settings and the calibration ledger, with the rules for committing, pull-backs and growth.
 
-**The MVP overrides most of this.** The MVP ([#84](https://github.com/random11235/forecaster-next-gen/issues/84)) ingests no facts and derives no samples: the EM types a milestone's start date, tickets remaining and a pace (a range, or typed counts) per period of the team's cadence, and the forecast grows the tickets by the range of the milestone's one ambiguity level. Committing, pull-backs, blocked epics, the uncommitted-but-active warning, per-epic ambiguity, team facts, workflow settings, measured pace and measured growth follow it, and their code was deleted in #87; the tables that held them stay in the data file, unread. Of Layer 3, the MVP keeps `trials`, `percentiles`, `maxPeriods` and the editable `AmbiguityRanges`, plus a fixed `seed` and `typedCounts`, how many typed counts the pace needs to forecast and to be reliable; `periodDays` gives way to the milestone's cadence ([#90](https://github.com/random11235/forecaster-next-gen/issues/90)). Each section below that the MVP sets aside says so.
+**The MVP overrides most of this.** The MVP ([#84](https://github.com/random11235/forecaster-next-gen/issues/84)) ingests no facts and derives no samples: the EM types a milestone's start date, tickets remaining and a pace (a range, or typed counts) per period of the team's cadence, and the forecast grows the tickets by the range of the milestone's one ambiguity level. Committing, pull-backs, blocked epics, the uncommitted-but-active warning, per-epic ambiguity, team facts, workflow settings, measured pace and measured growth follow it, and their code was deleted in #87; the tables that held them stay in the data file, unread. Of Layer 3, the MVP keeps `trials`, `percentiles`, `maxPeriods` and the editable `AmbiguityRanges`, plus a fixed `seed` and `typedCounts`, how many typed counts the pace needs to forecast (4: with 2 or 3 the dates jump as counts are added, [#116](https://github.com/random11235/forecaster-next-gen/issues/116)) and to be reliable (8); `periodDays` gives way to the milestone's cadence ([#90](https://github.com/random11235/forecaster-next-gen/issues/90)). Each section below that the MVP sets aside says so.
 
 It depends on the layers, folders and dependency rules in [`architecture.md`](architecture.md), and feeds the engine described in [`engine.md`](engine.md). Its terms are defined in [`GLOSSARY.md`](../../GLOSSARY.md).
 
@@ -99,7 +99,7 @@ ForecastSettings { teamId, trials /* 10_000 */,
                    periodDays /* 7 */,
                    maxPeriods /* horizon cap in periods, e.g. 156 when periodDays is 7 */,
                    warnAboveWeeks /* 26, provisional: tune from the calibration ledger */,
-                   typedCounts: { forForecast /* 2 */, reliable /* 8 */ } /* MVP: typed counts the pace needs */ }
+                   typedCounts: { forForecast /* 4 */, reliable /* 8 */ } /* MVP: typed counts the pace needs */ }
 
 PaceSetting      { teamId, milestoneId, mode: 'manual'|'measured',
                    manualLow, manualHigh,           // tickets per period; kept when mode is 'measured'
