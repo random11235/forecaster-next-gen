@@ -6,6 +6,7 @@ import { periodName } from './cadence.js'
 import { isCalendarDate } from './calendarDate.js'
 import { refuse, type EditResult, type Refusal } from './editResult.js'
 import { assessMilestone, type InputNote, type MilestoneAssessment } from './milestoneAssessment.js'
+import { paceTrend, type PaceTrend } from './paceTrend.js'
 import type { ForecastSettings } from './settings.js'
 
 /** Far above any real team's pace in one period; keeps typos like 1000000 out of the forecast. */
@@ -53,6 +54,8 @@ export interface MilestoneInputsView {
   typedCountsNeeded: ForecastSettings['typedCounts']
   /** What stops a forecast, then the warnings, each beside its input; none before anything is entered. */
   notes: InputNote[]
+  /** The typed counts in use and their fitted line, shown beside them; none with the range or too few counts. */
+  paceTrend: PaceTrend | undefined
 }
 
 /** The milestone's inputs as the Inputs screen shows them: blank, but for the start date, until the EM enters one. */
@@ -71,6 +74,7 @@ export function milestoneInputsView(storage: Storage, teamId: string, settings: 
     paceMode: inputs.paceMode,
     typedCountsNeeded: settings.typedCounts,
     notes: assessment ? notesBeside(assessment) : [],
+    paceTrend: paceTrend(inputs, settings),
   }
 }
 
