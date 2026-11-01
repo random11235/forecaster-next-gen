@@ -45,6 +45,7 @@ const CHECKOUT: MilestoneInputs = {
   paceMode: 'range',
   paceRange: undefined,
   paceCounts: [],
+  paceCadenceDays: undefined,
 }
 
 let dir: string | undefined
@@ -280,7 +281,7 @@ describe('Inputs screen: cadence', () => {
     expect(html).toMatch(/name="cadenceDays"[^>]*value="14"/)
     expect(text(html)).toContain('tickets per sprint')
     expect(text(html)).toContain('At 14 days a period is a sprint, so pace is entered per sprint; 7 days makes it a week.')
-    expect(text(html)).not.toContain('per week')
+    expect(text(html)).not.toContain('tickets per week')
     expect(text(html)).toContain('At 0 tickets a sprint, the work never finishes.')
   })
 
@@ -626,7 +627,8 @@ describe('Milestone forecast screen', () => {
 
     const screen = text(await page('/'))
     expect(screen).toContain('Pace: 4–8 tickets per sprint (range)')
-    expect(screen).not.toContain('per week')
+    expect(screen).toContain('Pace: cadence length has changed. Please verify that the per period numbers are aligned.')
+    expect(screen).not.toContain('tickets per week')
     expect(Date.parse(dateAt(screen, 85))).toBeGreaterThan(Date.parse(weekly))
   })
 

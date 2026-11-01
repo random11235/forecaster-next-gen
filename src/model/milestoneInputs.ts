@@ -26,4 +26,6 @@ export interface MilestoneInputs {
   paceRange: ThroughputRange | undefined
   /** Tickets done in past periods, oldest first. */
   paceCounts: number[]
+  /** The cadence the pace range or typed counts were last entered in; undefined until either is. */
+  paceCadenceDays: number | undefined
 }
