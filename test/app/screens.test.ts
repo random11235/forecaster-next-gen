@@ -901,4 +901,18 @@ describe('Every screen', () => {
       expect(head).toMatch(/<link rel="icon" type="image\/svg\+xml" href="data:image\/svg\+xml,[^"]*%3Csvg[^"]*">/)
     }
   })
+
+  test('has its fonts, Geist and Geist Mono, inline in its head, so it loads nothing from outside', async () => {
+    await startOnPreMvpData()
+
+    for (const path of ['/', '/inputs', '/how-it-works']) {
+      const screen = await page(path)
+      const head = screen.match(/<head>[\s\S]*?<\/head>/)![0]
+      for (const family of ['Geist', 'Geist Mono']) {
+        expect(head).toMatch(new RegExp(`@font-face \\{ font-family: '${family}'; src: url\\(data:font/woff2;base64,[A-Za-z0-9+/=]+\\)`))
+      }
+      expect(screen).not.toMatch(/(?:href=|src=|url\()["']?(?:https?:)?\/\//)
+      expect(screen).not.toMatch(/@import/)
+    }
+  })
 })

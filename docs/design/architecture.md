@@ -14,7 +14,7 @@ The engine is built and tested in isolation first (build order: engine → app o
 
 ## v1 assumptions
 
-- **Single team, run locally.** v1 ships two builds of the same app. The local server is a web app started with one command, holding its data in a local SQLite file. The browser build (#114) is one self-contained page with no server, published for testers on GitHub Pages (#57), holding each viewer's data in their own browser. There is no aggregator and no access control in v1: neither build shares data between people.
+- **Single team, run locally.** v1 ships two builds of the same app. The local server is a web app started with one command, holding its data in a local SQLite file. The browser build (#114) is one self-contained file with no server, shared with testers by sending them the file (#57), holding each viewer's data in their own browser. There is no aggregator and no access control in v1: neither build shares data between people.
 - **Capacity is fixed** for the whole forecast, until the capacity calendar (see [Deferred](#deferred-beyond-v1)).
 - **No risks or added-scope events** are modelled.
 - **One reference class per team.** Growth and epic-size samples are pooled per team. The EM expresses how well each epic is understood through its ambiguity level (see [Settings](forecast-model.md#layer-3-settings)), not through separate reference classes.
