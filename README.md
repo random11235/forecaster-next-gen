@@ -30,9 +30,9 @@ Everything is kept in one local SQLite file, `data/forecaster.db` (git-ignored).
 
 ## Sharing
 
-`npm run build:web` writes the whole app as one self-contained page, `dist/web/forecaster.html`, to publish as a claude.ai artifact or on any static host. It runs with no server: each person who opens it gets their own Forecaster, empty at first, with their inputs kept in their own browser. A browser that blocks site data, such as a private window, keeps them only until the page closes.
+`npm run build:web` writes the whole app as one self-contained file, `dist/web/forecaster.html` (about 210 KB). To share the Forecaster, send that file by email, chat or a shared drive: nothing is hosted. A tester opens it in their browser, with no clone or install. It runs with no server and loads nothing from outside, fonts included, so it works offline. Each person who opens it gets their own Forecaster, empty at first, with their inputs kept in their own browser. A browser that blocks site data, such as a private window, keeps them only until the page closes.
 
-Testers open the published browser build at <https://random11235.github.io/forecaster-next-gen/>, with no clone or install. The [Publish browser build](.github/workflows/publish-web.yml) workflow publishes it to GitHub Pages on each push to `main` (or by hand from the Actions tab): it runs `npm run build:web` and serves `dist/web/forecaster.html` as the site's `index.html`. The repo's Pages source must be set to **GitHub Actions** (Settings → Pages) for it to deploy. The page holds no private data, so it needs no access control: see the review on [#57](https://github.com/random11235/forecaster-next-gen/issues/57).
+The file holds no private data: see the review on [#57](https://github.com/random11235/forecaster-next-gen/issues/57).
 
 ## Development
 

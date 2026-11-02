@@ -1,5 +1,6 @@
+import { FONT_FACES } from './fonts.js'
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const MONTHS =['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 /** The screens in the sidebar, by path. */
 const SCREENS = [
@@ -43,9 +44,7 @@ export function htmlPage(path: ScreenPath, header: PageHeader, main: string, scr
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)} · Forecaster</title>
   <link rel="icon" type="image/svg+xml" href="${FAVICON}">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+  <style id="fonts">${FONT_FACES}</style>
   <style>${STYLE}</style>
 </head>
 <body>
