@@ -11,6 +11,8 @@ const TICKETS_REMAINING = 60
 /** Enough trials for a stable P10 and P90 per forecast, few enough to keep the test to a few seconds. */
 const TRIALS = 1000
 const MAX_WEEKS = 200
+/** Under 1s alone, but CI runs it with coverage on a slower runner, past vitest's 5s default. */
+const TIMEOUT_MS = 30_000
 
 /** One week's count from a steady team: Poisson with mean 6 (Knuth's method). */
 function steadyWeek(random: Random): number {
@@ -79,4 +81,4 @@ test('forecast ranges from 10 typed counts of a steady team miss the actual fini
 
   expect(missRate, guard).toBeGreaterThanOrEqual(0.12)
   expect(missRate, guard).toBeLessThanOrEqual(0.24)
-})
+}, TIMEOUT_MS)
