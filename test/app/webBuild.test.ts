@@ -21,12 +21,15 @@ describe('web build smoke test', () => {
     expect(html).not.toContain('Checkout v2')
   })
 
-  test('has its script inline, in one piece, and loads nothing from outside but its fonts', () => {
+  test('has its script and fonts inline, the script in one piece, and loads nothing from outside', () => {
     expect(html).not.toMatch(/<script[^>]*\ssrc=/)
     // inside a script, only `</script` ends it: the screens' own `<script>` templates in the bundle are left alone
     expect(html.match(/<\/script/gi)).toHaveLength(1)
     expect(html.indexOf('<script>')).toBeLessThan(html.indexOf('</script>'))
-    const outside = [...html.matchAll(/(?:href|src)="(https?:[^"]+)"/g)].map(([, url]) => new URL(url!).host)
-    expect(new Set(outside)).toEqual(new Set(['fonts.googleapis.com', 'fonts.gstatic.com']))
+    expect(html).toContain("@font-face { font-family: 'Geist'; src: url(data:font/woff2;base64,")
+    expect(html).toContain("@font-face { font-family: 'Geist Mono'; src: url(data:font/woff2;base64,")
+    // the script names the SVG namespace, `http://www.w3.org/2000/svg`, which loads nothing
+    expect(html).not.toMatch(/(?:href=|src=|url\()["']?(?:https?:)?\/\//)
+    expect(html).not.toMatch(/@import/)
   })
 })

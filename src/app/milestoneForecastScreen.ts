@@ -4,6 +4,7 @@ import type { InputNote } from '../forecast/milestoneAssessment.js'
 import type { FinishBar, ForecastDate, MilestoneForecastView } from '../forecast/milestoneForecastView.js'
 import { escapeHtml, formatDate, htmlPage, type PageHeader } from './html.js'
 import { INPUT_LABELS } from './inputsScreen.js'
+import { renderPaceTrend } from './paceTrendGraph.js'
 
 type Forecast = Extract<MilestoneForecastView, { kind: 'forecast' }>
 
@@ -15,7 +16,7 @@ export function renderMilestoneForecastScreen(view: MilestoneForecastView): stri
     case 'problems':
       return htmlPage('/', problemsHeader(view.name, view.problems.length), renderNotes('What to fix', view.problems))
     case 'forecast':
-      return htmlPage('/', forecastHeader(view), `${renderNotes('Warnings', view.warnings)}${renderForecast(view)}`)
+      return htmlPage('/', forecastHeader(view), `${renderNotes('Warnings', view.warnings)}${renderPaceTrend(view.paceTrend, periodName(view.cadenceDays), '    ')}${renderForecast(view)}`)
   }
 }
 

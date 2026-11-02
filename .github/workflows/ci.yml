@@ -19,7 +19,10 @@ jobs:
       - name: Tests, with test coverage
         run: |
           set -o pipefail
-          npm run test:coverage | tee test-coverage.txt
+          npm run test:coverage -- --exclude test/engine/benchmark.test.ts | tee test-coverage.txt
+      # timed apart from coverage, whose instrumentation slows the engine several times over
+      - name: Benchmark
+        run: npx vitest run test/engine/benchmark.test.ts
       - name: Usage coverage
         run: |
           set -o pipefail

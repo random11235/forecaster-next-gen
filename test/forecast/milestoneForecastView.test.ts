@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { inputsView, submitInputs, type InputsEdit } from '../../src/forecast/inputs.js'
 import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
+import { ENGINE_VERSION, simulateCase } from '../../src/engine/index.js'
 import type { GrowthRange } from '../../src/model/ambiguity.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
@@ -1197,3 +1198,93 @@ describe('a submitted form', () => {
     })
   })
 })
+
+describe('the pace trend beside typed counts', () => {
+  /** The milestone with these typed counts entered, and the pace set to typed counts. */
+  function withCounts(counts: string): Storage {
+    const storage = newTeam()
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '30' }, { low: '4', high: '8' })
+    expect(edit(storage, { kind: 'setPaceCounts', counts })).toEqual({ ok: true })
+    expect(edit(storage, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
+    return storage
+  }
+
+  test('counts of 2, 4, 6, 8 give a line from 2 to 8, on the forecast and beside the typed counts', () => {
+    const storage = withCounts('2, 4, 6, 8')
+
+    const trend = { counts: [2, 4, 6, 8], start: 2, end: 8 }
+    expect(view(storage)).toMatchObject({ kind: 'forecast', paceTrend: trend })
+    expect(inputsScreenView(storage).milestone.paceTrend).toEqual(trend)
+  })
+
+  test('falling counts of 8, 6, 4, 2 give a line from 8 down to 2', () => {
+    const storage = withCounts('8, 6, 4, 2')
+
+    expect(inputsScreenView(storage).milestone.paceTrend).toEqual({ counts: [8, 6, 4, 2], start: 8, end: 2 })
+  })
+
+  test('counts off the line are fitted by least squares: 6, 4, 9, 7 give a line from 5.3 to 7.7', () => {
+    const storage = withCounts('6, 4, 9, 7')
+
+    const trend = inputsScreenView(storage).milestone.paceTrend
+    expect(trend?.counts).toEqual([6, 4, 9, 7])
+    expect(trend?.start).toBeCloseTo(5.3, 9)
+    expect(trend?.end).toBeCloseTo(7.7, 9)
+  })
+
+  test('with 3 typed counts, fewer than a forecast needs, there is no trend', () => {
+    const storage = withCounts('2, 4, 6')
+
+    expect(view(storage)).toMatchObject({ kind: 'problems' })
+    expect(inputsScreenView(storage).milestone.paceTrend).toBeUndefined()
+  })
+
+  test('the trend starts at the count a forecast needs, from the settings', () => {
+    const storage = withCounts('2, 4, 6')
+    const settings = { ...DEFAULT_SETTINGS, typedCounts: { forForecast: 3, reliable: 8 } }
+
+    expect(view(storage, settings)).toMatchObject({ kind: 'forecast', paceTrend: { counts: [2, 4, 6], start: 2, end: 6 } })
+    expect(inputsScreenView(storage, settings).milestone.paceTrend).toEqual({ counts: [2, 4, 6], start: 2, end: 6 })
+  })
+
+  test('with the range in use beside 4 typed counts, there is no trend', () => {
+    const storage = withCounts('2, 4, 6, 8')
+
+    expect(edit(storage, { kind: 'setPaceMode', paceMode: 'range' })).toEqual({ ok: true })
+
+    expect(view(storage)).toMatchObject({ kind: 'forecast', paceTrend: undefined })
+    expect(inputsScreenView(storage).milestone.paceTrend).toBeUndefined()
+  })
+
+  test('the trend changes nothing in the forecast: rising counts of 2, 4, 6, 8 forecast the dates they did before it, with no note', () => {
+    const storage = withCounts('2, 4, 6, 8')
+
+    expect(view(storage)).toMatchObject({
+      kind: 'forecast',
+      dates: engineDatesForTypedCounts([2, 4, 6, 8]),
+      warnings: [{ input: 'typedCounts', message: 'Typed counts: 4 weeks entered. The forecast needs 8 to be reliable.' }],
+    })
+    expect(inputsScreenView(storage).milestone.notes).toEqual([{ input: 'typedCounts', message: '4 of 8 needed for reliable results' }])
+  })
+})
+
+/**
+ * 30 tickets from the typed counts, growing 1–2×, weekly from 1 Sep 2026, simulated by the engine directly,
+ * with no pace trend anywhere in the path: the dates the forecast gave before the trend existed.
+ */
+function engineDatesForTypedCounts(counts: number[]) {
+  const result = simulateCase({
+    engineVersion: ENGINE_VERSION,
+    seed: DEFAULT_SETTINGS.seed,
+    trials: DEFAULT_SETTINGS.trials,
+    maxPeriods: DEFAULT_SETTINGS.maxPeriods,
+    question: { kind: 'when' },
+    startDate: '2026-09-01',
+    periodDays: 7,
+    scope: [{ epicId: TEAM, rank: 1, baseCount: 30, currentCount: 30, doneCount: 0, growth: { low: 1, high: 2 } }],
+    throughputSamples: counts,
+    epicSizeSamples: { low: 0, high: 0 },
+    percentiles: DEFAULT_SETTINGS.percentiles,
+  })
+  return DEFAULT_SETTINGS.percentiles.map((percent) => ({ percent, date: result.percentileDates[percent] }))
+}
