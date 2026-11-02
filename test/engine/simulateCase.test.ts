@@ -76,9 +76,11 @@ describe("simulateCase: 'when' for one committed epic", () => {
     expect(result.percentileDates[95]).toBe('2026-01-05')
   })
 
-  test('each period draws one throughput value, with replacement, from the measured samples', () => {
-    // One ticket left; each period finishes it with probability 1/2, so the finish
-    // period is geometric: P(≤1) = 0.5, P(≤2) = 0.75, P(≤3) = 0.875.
+  test('each period draws one throughput value from the measured samples, by weights fresh for each trial', () => {
+    // One ticket left. The Bayesian bootstrap (ADR-0001) weights the samples afresh for each trial, so a trial
+    // finishes the ticket each period with its own chance p, spread uniformly over 0 to 1:
+    // P(≤k) = k / (k + 1), so P(≤1) = 1/2, P(≤2) = 2/3, P(≤3) = 3/4, P(≤5) = 5/6, P(≤6) = 6/7.
+    // The plain bootstrap (p = 1/2 in every trial) would give 1, 2, 2 and 3.
     const result = simulateCase(
       whenCase({
         trials: 10_000,
@@ -89,7 +91,8 @@ describe("simulateCase: 'when' for one committed epic", () => {
 
     expect(result.quantiles[40]).toBe(1)
     expect(result.quantiles[60]).toBe(2)
-    expect(result.quantiles[80]).toBe(3)
+    expect(result.quantiles[70]).toBe(3)
+    expect(result.quantiles[85]).toBe(6)
   })
 
   test("the growth ratio is drawn from the epic's growth samples", () => {
@@ -127,17 +130,18 @@ describe("simulateCase: 'when' for one committed epic", () => {
   })
 
   test('trials that miss the horizon sort after every finishing trial and give null quantiles', () => {
-    // Each period finishes all 10 tickets with probability 2/3; with a 2-period horizon,
-    // P(finish in 1) = 2/3, P(finish by 2) = 8/9, P(beyond the horizon) = 1/9.
+    // Each period finishes all 10 tickets with a chance p of its own per trial, weighted 2p from 0 to 1
+    // (two of the three samples finish it), so P(not by k) = 2 / ((k + 1)(k + 2)); with a 2-period horizon,
+    // P(finish in 1) = 2/3, P(finish by 2) = 5/6, P(beyond the horizon) = 1/6.
     const result = simulateCase(
       whenCase({ trials: 10_000, maxPeriods: 2, throughputSamples: [0, 10, 10] }),
     )
 
-    expect(result.finishedFraction).toBeCloseTo(8 / 9, 1)
+    expect(result.finishedFraction).toBeCloseTo(5 / 6, 1)
     expect(result.quantiles[60]).toBe(1)
     expect(result.quantiles[80]).toBe(2)
-    expect(result.quantiles.slice(92)).toEqual(Array(9).fill(null))
-    expect(result.percentileDates).toEqual({ 50: '2026-01-12', 70: '2026-01-19', 85: '2026-01-19', 95: null })
+    expect(result.quantiles.slice(85)).toEqual(Array(16).fill(null))
+    expect(result.percentileDates).toEqual({ 50: '2026-01-12', 70: '2026-01-19', 85: null, 95: null })
   })
 
   test('all-zero throughput stops at the horizon with nothing finished', () => {
@@ -297,14 +301,15 @@ describe('simulateCase: finish counts', () => {
   })
 
   test('the slowest period holds only the trials that finish in it, not a whole percent', () => {
-    // Each period finishes all 10 tickets with probability 2/3, so a trial finishes in period k
-    // with probability (1/3)^(k−1) × 2/3: about 6,667 in period 1, 2,222 in period 2, and a handful in the last.
-    const result = simulateCase(whenCase({ trials: 10_000, throughputSamples: [0, 10, 10] }))
+    // Each period finishes all 10 tickets with a chance p of its own per trial, weighted 2p from 0 to 1,
+    // so P(not by k) = 2 / ((k + 1)(k + 2)): about 6,667 in period 1, 1,667 in period 2, and a handful in the last.
+    // The tail is long, so the horizon is far enough out that every trial finishes within it.
+    const result = simulateCase(whenCase({ trials: 10_000, maxPeriods: 10_000, throughputSamples: [0, 10, 10] }))
     const counts = result.finishCounts
 
     expect(counts.reduce((sum, count) => sum + count, 0)).toBe(10_000)
     expect(counts[1]! / 10_000).toBeCloseTo(2 / 3, 1)
-    expect(counts[2]! / 10_000).toBeCloseTo(2 / 9, 1)
+    expect(counts[2]! / 10_000).toBeCloseTo(1 / 6, 1)
     expect(counts.at(-1)).toBeGreaterThan(0)
     expect(counts.at(-1)).toBeLessThan(10)
   })
@@ -324,12 +329,12 @@ describe('simulateCase: finish counts', () => {
 
 describe('simulateCase: trials hitting the horizon', () => {
   test('counts the trials that hit maxPeriods without finishing', () => {
-    // Each period finishes all 10 tickets with probability 1/2; with a 3-period horizon,
-    // 1/8 of trials never finish: about 1,250 of 10,000
+    // Each period finishes all 10 tickets with a chance p of its own per trial, uniform from 0 to 1;
+    // with a 3-period horizon, P(never finishing) = 1/4: about 2,500 of 10,000
     const result = simulateCase(whenCase({ trials: 10_000, maxPeriods: 3, throughputSamples: [0, 10] }))
 
-    expect(result.diagnostics.trialsHittingHorizon).toBeGreaterThan(1_100)
-    expect(result.diagnostics.trialsHittingHorizon).toBeLessThan(1_400)
+    expect(result.diagnostics.trialsHittingHorizon).toBeGreaterThan(2_300)
+    expect(result.diagnostics.trialsHittingHorizon).toBeLessThan(2_700)
     expect(result.diagnostics.trialsHittingHorizon).toBe(Math.round((1 - result.finishedFraction) * 10_000))
   })
 
@@ -476,22 +481,22 @@ describe("simulateCase: 'how many by date'", () => {
 
 describe('simulateCase: requested percentiles', () => {
   test("'when' reports a date for each percentile the case asks for", () => {
-    // One ticket left, finished each period with probability 1/2: the finish period is geometric,
-    // P(≤1) = 0.5, P(≤2) = 0.75, P(≤3) = 0.875, P(≤4) = 0.9375, P(≤5) = 0.96875
+    // One ticket left, finished each period with a chance p of its own per trial, uniform from 0 to 1:
+    // P(≤k) = k / (k + 1), so P(≤1) = 1/2, P(≤2) = 2/3, P(≤3) = 3/4, P(≤5) = 5/6, P(≤6) = 6/7
     const result = simulateCase(
       whenCase({
         trials: 10_000,
         scope: [epic({ baseCount: 1, currentCount: 1 })],
         throughputSamples: [0, 1],
-        percentiles: [95, 40, 70, 85],
+        percentiles: [85, 40, 70, 60],
       }),
     )
 
     expect(result.percentileDates).toEqual({
       40: '2026-01-12',
-      70: '2026-01-19',
-      85: '2026-01-26',
-      95: '2026-02-09',
+      60: '2026-01-19',
+      70: '2026-01-26',
+      85: '2026-02-16',
     })
   })
 

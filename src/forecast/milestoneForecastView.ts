@@ -3,6 +3,7 @@ import type { Ambiguity, GrowthRange } from '../model/ambiguity.js'
 import type { Storage } from '../storage/storage.js'
 import { milestoneGrowth } from './growth.js'
 import { assessMilestone, type ForecastableInputs, type InputNote, type PaceInUse } from './milestoneAssessment.js'
+import { paceTrend, type PaceTrend } from './paceTrend.js'
 import type { ForecastSettings } from './settings.js'
 
 /** The confidence level the headline states. */
@@ -52,6 +53,8 @@ export type MilestoneForecastView =
       warnings: InputNote[]
       /** When the trials finish: one bar per period, from the start date to the last finish within the horizon. */
       finishGraph: FinishBar[]
+      /** The typed counts in use and their fitted line, shown as warnings are; none with the range. */
+      paceTrend: PaceTrend | undefined
     }
 
 /** Seam B: the Milestone forecast screen for the team's milestone, forecast from its start date, on `today`. */
@@ -79,6 +82,7 @@ export function milestoneForecastView(storage: Storage, teamId: string, settings
     ambiguity: { level: inputs.ambiguity, ...growth },
     warnings: assessment.warnings.map(({ input, message }) => ({ input, message })),
     finishGraph: finishGraph(result, simulationCase),
+    paceTrend: paceTrend(inputs, settings),
   }
 }
 

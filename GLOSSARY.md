@@ -36,4 +36,7 @@ _Avoid_: split rate, scope creep
 
 **Typed counts** (of a milestone): the whole tickets the team finished in each of its past periods, 0 or more each, oldest first, as the EM types them. The EM chooses whether the forecast's pace comes from the pace range or the typed counts; both are kept whichever is chosen. The forecast draws each period's pace from the typed counts (a Bayesian bootstrap, [ADR-0001](docs/adr/0001-bayesian-bootstrap-pace-sampler.md)), needs at least 4 to forecast, and 8 for the forecast to be reliable: with fewer, it warns. Stored as `pace_counts`, the choice as `pace_mode`.
 
+**Pace trend** (of a milestone): the typed counts drawn as small bars, oldest first, with the straight line that fits them best, shown beside typed counts once there are enough to forecast and pace is set to them. It is for the EM to read the slope and judge the risk: it says nothing about it, and the forecast doesn't use it ([#120](https://github.com/random11235/forecaster-next-gen/issues/120)). Not the trend of forecast dates over time, which needs the forecast ledger.
+_Avoid_: trend line, pace slope
+
 **Trial**: one run of a forecast: the milestone's tickets remaining, grown by a growth drawn from its ambiguity's range, worked through at a pace drawn period by period until they're done or the horizon is reached. A forecast runs 10,000 and reads its dates from when they finish. The screens call trials simulations, as an EM would; the engine and its docs say trial, and use simulation for the whole run of trials.

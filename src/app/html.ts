@@ -1,5 +1,6 @@
+import { FONT_FACES } from './fonts.js'
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const MONTHS =['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 /** The screens in the sidebar, by path. */
 const SCREENS = [
@@ -43,9 +44,7 @@ export function htmlPage(path: ScreenPath, header: PageHeader, main: string, scr
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)} · Forecaster</title>
   <link rel="icon" type="image/svg+xml" href="${FAVICON}">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+  <style id="fonts">${FONT_FACES}</style>
   <style>${STYLE}</style>
 </head>
 <body>
@@ -142,6 +141,14 @@ const STYLE = `
     .finish-graph .mark .date { font-family: var(--mono); }
     .finish-graph .mark.headline { color: var(--ink); font-weight: 600; }
     .finish-graph .axis { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+
+    /* The pace trend: the typed counts as small bars, and the straight line fitted through them. */
+    figure.pace-trend { margin: 0; display: flex; flex-direction: column; gap: 6px; max-width: 320px; }
+    .pace-trend svg { width: 100%; overflow: visible; border-bottom: 1px solid var(--ink); }
+    .pace-trend .trend-bars rect { fill: var(--bar); }
+    .pace-trend .trend-line line { stroke: var(--ink); stroke-width: 2px; vector-effect: non-scaling-stroke; stroke-linecap: round; }
+    /* A plain caption, not a note: it says what the graph shows, with no verdict. */
+    .pace-trend figcaption { font-size: 13px; line-height: 1.45; color: var(--text-2); }
 
     /* Inputs: numbered sections, a label column beside the form. */
     section.input {
