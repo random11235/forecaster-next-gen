@@ -39,6 +39,9 @@ _Avoid_: split rate, scope creep
 **Finished** (of a ticket): done in the team's tracker, whatever the reason: closed on GitHub, or in a Done-category status on Jira. Cancelled and duplicate tickets count as finished, and a reopened ticket counts only at its last finish. Only tickets with no children of their own are counted: never parents, epics, subtasks or pull requests. *Connected forecasting, not built yet ([#133](https://github.com/random11235/forecaster-next-gen/issues/133)).*
 _Avoid_: completed, resolved
 
+**Connection** (of a team): the one tracker the team's tickets are read from, GitHub or Jira, and the one repo or Jira project in it that every milestone query and comparable-work query is confined to. A team has at most one, and it only reads: nothing is written back to the tracker. *Connected forecasting, not built yet ([#134](https://github.com/random11235/forecaster-next-gen/issues/134)).*
+_Avoid_: integration, sync, account
+
 **Milestone query**: the query, in the connected tracker's own language (a GitHub search, or JQL on Jira), that picks out a milestone's tickets within the one repo or Jira project the team connected. The milestone is whatever it matches now: a ticket moved in counts, a ticket moved out stops counting, and values the EM already accepted stay until the EM accepts new ones. The EM picks a GitHub milestone or Jira fix version to write it, or writes it by hand. *Connected forecasting, not built yet ([#132](https://github.com/random11235/forecaster-next-gen/issues/132)).*
 _Avoid_: selector, filter, scope
 
