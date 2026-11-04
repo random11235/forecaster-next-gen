@@ -368,8 +368,8 @@ function provTag(field) {
   const s = status(field), v = state[field]
   if (s === 'measured') return tag('measured', '● Measured · GitHub ' + v.at)
   if (s === 'newRead' || s === 'kept') return tag('measured', '● Measured · GitHub ' + v.at)
-  if (s === 'hand' || s === 'handNewRead') return tag('hand', '✎ Edited by hand')
-  return tag('typed', 'Typed')
+  if (s === 'hand' || s === 'handNewRead') return tag('hand', '✎ By hand')
+  return tag('hand', '✎ By hand')
 }
 function cellsHtml(cells, measuredFlags) {
   return '<div class="cells">' + cells.map((c) =>
@@ -433,7 +433,7 @@ function variantA() {
   const counts = editing.counts ? countsEditor()
     : (c.cells ? cellsHtml(c.cells, c.origin === 'hand') + '<div class="prov">' + provTag('counts') + '<span>' + c.cells.length + ' weeks, ' + span(c.cells) + '</span>' + revertA('counts') + '<button class="linkish" onclick="editing.counts=true;render()">Edit by hand</button></div>' + (c.origin === 'measured' && status('counts') !== 'newRead' ? quietNote(c.cells) : '')
       : '<p class="note">No typed counts yet.</p>') + proposalA('counts')
-  const strip = '<div class="strip"><span class="where">On the Milestone forecast</span><span class="context">Checkout v2 · ' + t.value + ' tickets remaining ' + provTag('tickets') + '</span><span class="head">Starting 4 Nov 2026: 85% confident of finishing by ' + standIn() + '</span><span class="note">Pace: ' + paceWords() + ' ' + (state.mode === 'counts' ? provTag('counts') : tag('typed', 'Typed')) + '</span>' +
+  const strip = '<div class="strip"><span class="where">On the Milestone forecast</span><span class="context">Checkout v2 · ' + t.value + ' tickets remaining ' + provTag('tickets') + '</span><span class="head">Starting 4 Nov 2026: 85% confident of finishing by ' + standIn() + '</span><span class="note">Pace: ' + paceWords() + ' ' + (state.mode === 'counts' ? provTag('counts') : '') + '</span>' +
     (pending().length ? '<span class="note">' + tag('new', 'New from GitHub') + ' ' + pending().length + ' value' + (pending().length > 1 ? 's' : '') + ' differ from what the forecast uses. <a href="#pace">Review on Inputs</a></span>' : '') + '</div>'
   return strip + section(1, 'Milestone', 'Tickets remaining, measured from the milestone query.', tickets) +
     '<div id="pace">' + section(2, 'Pace', 'Typed counts measured from comparable work: the 8 most recent whole weeks, quiet ones as 0.', modeRadios() + '<h3>Typed counts</h3>' + counts) + '</div>'
@@ -454,7 +454,7 @@ function variantB() {
     '<table class="review"><thead><tr><th>Value</th><th>Forecast uses</th><th>GitHub reads</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></section>'
   const banner = n ? '<div class="banner"><span>GitHub reads ' + n + ' value' + (n > 1 ? 's' : '') + ' differently from what this forecast uses.</span><a href="#review">Review</a></div>' : ''
   const strip = '<div class="strip"><span class="where">On the Milestone forecast</span>' + banner + '<span class="context">Checkout v2 · ' + state.tickets.value + ' tickets remaining</span><span class="head">Starting 4 Nov 2026: 85% confident of finishing by ' + standIn() + '</span><span class="note">Pace: ' + paceWords() + '</span></div>'
-  const word = (f) => { const s = status(f); return s === 'measured' || s === 'newRead' || s === 'kept' ? 'measured' : s.startsWith('hand') ? 'by hand' : 'typed' }
+  const word = (f) => { const s = status(f); return s === 'measured' || s === 'newRead' || s === 'kept' ? 'measured' : 'by hand' }
   const tickets = '<div class="fields"><label>Tickets remaining · ' + word('tickets') + ' <input type="number" value="' + state.tickets.value + '" onchange="editTickets(Number(this.value))"></label></div>'
   const counts = '<div class="fields"><label class="wide">Typed counts · ' + word('counts') + ' <input type="text" value="' + esc(state.counts.cells ? nums(state.counts.cells) : '') + '" placeholder="6, 4, 9" onchange="editCountsList(this.value)"></label></div>'
   return strip + '<div id="review">' + panel + '</div>' + section(1, 'Milestone', 'Type over any value to edit it by hand.', tickets) + section(2, 'Pace', 'Typed counts, oldest first.', modeRadios() + counts)
@@ -464,7 +464,7 @@ function variantB() {
 function variantC() {
   const t = state.tickets, ts = status('tickets')
   const tRow = '<table class="ledger"><thead><tr><th></th><th>GitHub reads · ' + tracker.at + '</th><th>Forecast uses</th><th></th></tr></thead><tbody><tr><td>Tickets remaining</td><td class="gh">' + tracker.tickets + '</td><td class="uses"><input type="number" value="' + t.value + '" onchange="editTickets(Number(this.value))"></td><td>' +
-    (t.value === tracker.tickets ? tag('measured', '● same') : '<button class="copy" onclick="accept(\'tickets\')">← use ' + tracker.tickets + '</button> ' + (ts.startsWith('hand') ? tag('hand', '✎ by hand') : ts === 'typed' || ts === 'proposed' ? tag('typed', 'typed') : tag('measured', 'from ' + t.at)) + (['proposed', 'newRead', 'handNewRead'].includes(ts) ? ' ' + tag('new', 'new read') : '')) + '</td></tr></tbody></table>'
+    (t.value === tracker.tickets ? tag('measured', '● same') : '<button class="copy" onclick="accept(\'tickets\')">← use ' + tracker.tickets + '</button> ' + (ts.startsWith('hand') ? tag('hand', '✎ by hand') : ts === 'typed' || ts === 'proposed' ? tag('hand', '✎ by hand') : tag('measured', 'from ' + t.at)) + (['proposed', 'newRead', 'handNewRead'].includes(ts) ? ' ' + tag('new', 'new read') : '')) + '</td></tr></tbody></table>'
   const accepted = state.counts.cells || []
   const weeks = [...new Set([...tracker.cells.map((c) => c.week), ...accepted.map((c) => c.week).filter(Boolean)])].sort()
   const rows = weeks.map((w) => {
@@ -484,7 +484,7 @@ function variantC() {
     (key(accepted) !== key(tracker.cells) ? '<button class="copy" onclick="accept(\'counts\')">← use all of GitHub’s</button>' : '') + '</td></tr></tfoot></table>' + quietNote(tracker.cells)
   const diffs = pending().length
   const strip = '<div class="strip"><span class="where">On the Milestone forecast</span><span class="context">Checkout v2 · ' + t.value + ' tickets remaining</span><span class="head">Starting 4 Nov 2026: 85% confident of finishing by ' + standIn() + '</span><span class="note">Pace: ' + paceWords() + '</span><span class="note">Inputs: ' +
-    (ts === 'measured' ? 'tickets from GitHub' : ts.startsWith('hand') ? 'tickets by hand' : 'tickets ' + (ts === 'typed' || ts === 'proposed' ? 'typed' : 'from an older read')) + ' · ' +
+    (ts === 'measured' ? 'tickets from GitHub' : ts.startsWith('hand') ? 'tickets by hand' : 'tickets ' + (ts === 'typed' || ts === 'proposed' ? 'by hand' : 'from an older read')) + ' · ' +
     (state.counts.cells ? (state.counts.cells.filter((c) => c.measured === c.n).length + ' of ' + state.counts.cells.length + ' weeks from GitHub') : 'no counts') + (diffs ? ' · <a href="#ledger">' + diffs + ' differ from today’s read</a>' : '') + '</span></div>'
   return strip + section(1, 'Milestone', 'GitHub’s reading beside the value the forecast uses.', tRow) + '<div id="ledger">' + section(2, 'Pace', 'Week by week: what GitHub counts, and what the forecast uses. Type over a week to edit it, or leave it out.', modeRadios() + cTable) + '</div>'
 }
