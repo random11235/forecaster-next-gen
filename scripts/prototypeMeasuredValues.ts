@@ -421,10 +421,15 @@ function variantD() {
   let pace
   if (following('counts')) {
     // defaulting to GitHub: the whole pace is one line; everything else is behind Change
-    pace = '<div class="dline">' + graph(c.cells, false) + '<span>GitHub\'s last 8 weeks</span><span class="dmark">follows each read, ' + tracker.at + '</span>' + quietWords(c.cells) + wasLine('counts') +
+    pace = '<div class="dline"><span>GitHub\'s last 8 weeks: <b>' + nums(c.cells) + '</b></span><span class="dmark">follows each read, ' + tracker.at + '</span>' + quietWords(c.cells) + wasLine('counts') +
       '<details class="dother inline"' + (editing['change-counts'] ? ' open' : '') + ' ontoggle="editing[\'change-counts\']=this.open"><summary>Change</summary>' +
-      '<div class="dmark">' + span(c.cells) + '</div>' + quietNote(c.cells) + stopFollow('counts') +
+      '<div class="dmark">' + span(c.cells) + '</div>' + cellsHtml(c.cells) + quietNote(c.cells) + stopFollow('counts') +
       '<div class="row"><button onclick="state.follow.counts=false;setMode(\'range\')">Use the range instead (' + state.range.low + '–' + state.range.high + ')</button></div></details></div>'
+  } else if (state.mode === 'counts' && status('counts') === 'measured' && !editing.counts) {
+    pace = '<div class="dline"><span>GitHub\'s last 8 weeks: <b>' + nums(c.cells) + '</b></span><span class="dchip same">● GitHub ' + c.at + '</span>' + quietWords(c.cells) +
+      '<details class="dother inline"' + (editing['weeks'] ? ' open' : '') + ' ontoggle="editing.weeks=this.open"><summary>Show weeks</summary>' + cellsHtml(c.cells) + quietNote(c.cells) +
+      '<div class="row"><button onclick="editing.counts=true;render()">Edit by hand</button><button onclick="setFollow(\'counts\', true)">Always follow GitHub</button></div></details>' +
+      '<details class="dother inline"' + (editing['other'] ? ' open' : '') + ' ontoggle="editing.other=this.open"><summary>Range · ' + state.range.low + '–' + state.range.high + ' a week · not in use</summary>' + rangeInline + '<div class="row"><button onclick="setMode(\'range\')">Use the range</button></div></details></div>'
   } else if (state.mode === 'range') {
     pace = '<h3>Range</h3>' + rangeInline +
       '<details class="dother"' + (editing['other'] ? ' open' : '') + ' ontoggle="editing.other=this.open"><summary>Typed counts · ' + (c.cells ? nums(c.cells) : 'none yet') + ' · not in use ' + (c.cells ? '' : chip('counts')) + '</summary>' + countsBlock + '<div class="row"><button onclick="setMode(\'counts\')">Use typed counts</button></div></details>'
