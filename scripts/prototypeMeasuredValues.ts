@@ -91,7 +91,11 @@ const STYLE = `
     .dseg button.on { background: var(--ink); color: var(--page); }
     details.dread { flex-basis: 100%; font-size: 13px; }
     details.dread > summary { cursor: pointer; color: var(--ink); }
-    details.dread.stopped > summary b, details.dread.changing > summary b { color: var(--risk); }
+    details.dread.changing > summary b { color: var(--risk); }
+    .cell .linkish { font-size: 10px; padding: 0; }
+    .cell.skipped { opacity: .55; border-style: dashed; }
+    .cell.skipped .n { font-family: var(--mono); font-size: 18px; text-decoration: line-through; color: var(--faint); }
+    .dgraph .col.skipped .bar { background: var(--hairline); }
     details.dread p { margin: 6px 0 0; max-width: 62ch; color: var(--muted); line-height: 1.5; }
     details.dread .row { display: flex; gap: 8px; margin-top: 8px; }
     .switcher { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 10; display: flex; gap: 10px; align-items: center;
@@ -115,9 +119,21 @@ const WEEKS = ['2026-08-31','2026-09-07','2026-09-14','2026-09-21','2026-09-28',
 const zip = (weeks, ns) => weeks.map((week, i) => ({ week, n: ns[i] }))
 // Two reads of GitHub: last week's, and today's. Comparable work ended in w/c 5 Oct; the team has been on KTLO since.
 const READS = {
-  previous: { at: '28 Oct 09:05', tickets: 34, cells: zip(WEEKS.slice(0, 8), [5, 6, 8, 5, 7, 6, 0, 0]) },
-  current: { at: '4 Nov 09:12', tickets: 38, cells: zip(WEEKS.slice(1), [6, 8, 5, 7, 6, 0, 0, 0]) },
+  previous: { at: '28 Oct 09:05', tickets: 34, cells: zip(WEEKS.slice(0, 8), [5, 6, 8, 5, 7, 6, 0, 0]), last: '2026-10-19' },
+  current: { at: '4 Nov 09:12', tickets: 38, cells: zip(WEEKS.slice(1), [6, 8, 5, 7, 6, 0, 0, 0]), last: '2026-10-26' },
 }
+// GitHub can read further back than 8 weeks, so a skipped week is replaced by the one before the window.
+const HISTORY = zip(['2026-07-06','2026-07-13','2026-07-20','2026-07-27','2026-08-03','2026-08-10','2026-08-17','2026-08-24'], [5, 7, 4, 6, 5, 8, 6, 5])
+  .concat(zip(WEEKS, [5, 6, 8, 5, 7, 6, 0, 0, 0]))
+// the 8 most recent whole weeks GitHub has up to a read, leaving out the weeks the EM skipped (with the skipped ones
+// inside that span, for showing)
+function ghWindow(read, skip) {
+  const upto = HISTORY.filter((c) => c.week <= read.last), out = []
+  let counted = 0
+  for (let i = upto.length - 1; i >= 0 && counted < 8; i--) { const sk = skip.includes(upto[i].week); out.unshift({ ...upto[i], skipped: sk }); if (!sk) counted++ }
+  return out
+}
+const ghCells = (read, skip) => measuredCells(ghWindow(read, skip).filter((c) => !c.skipped))
 const key = (cells) => cells ? JSON.stringify(cells.map(({ week, n }) => [week, n])) : null
 const measuredCells = (cells) => cells.map(({ week, n }) => ({ week, n, measured: n }))
 
@@ -138,6 +154,10 @@ const SCENARIOS = {
     mode: 'counts', range: { low: 4, high: 8 }, follow: { tickets: true, counts: true },
     tickets: { value: 34, origin: 'measured', at: READS.previous.at, seen: 34, own: { value: 30 } },
     counts: { cells: measuredCells(READS.previous.cells), origin: 'measured', at: READS.previous.at, seen: key(READS.previous.cells) } }) },
+  skipped: { name: 'Following GitHub, quiet weeks skipped', make: () => ({
+    mode: 'counts', range: { low: 4, high: 8 }, follow: { tickets: true, counts: true }, skip: ['2026-10-12', '2026-10-19'],
+    tickets: { value: 34, origin: 'measured', at: READS.previous.at, seen: 34 },
+    counts: { cells: ghCells(READS.previous, ['2026-10-12', '2026-10-19']), origin: 'measured', at: READS.previous.at, seen: key(READS.previous.cells) } }) },
   handNew: { name: 'Edited by hand, then a new read', make: () => ({
     mode: 'counts', range: { low: 4, high: 8 },
     tickets: { value: 40, origin: 'hand', seen: 34 },
@@ -390,12 +410,12 @@ function paceRead(cells) {
   if (cells.length < 6) return { kind: 'none', name: 'No pattern yet', short: cells.length + ' weeks is too few to tell', body: '' }
   const ns = cells.map((c) => c.n), run = quietRun(cells), before = ns.slice(0, ns.length - run)
   if (run >= 2 && avg(before) > 0) {
-    const lo = Math.min(...before), hi = Math.max(...before), from = cells[cells.length - run].week
-    return { kind: 'stopped', name: 'Stopped ' + run + ' weeks ago', short: 'the ' + before.length + ' weeks before: ' + lo + '–' + hi + ' a week',
-      body: 'Nothing finished since ' + wk(from) + '. Before that the team finished ' + lo + '–' + hi + ' a week. Pace stepped to 0, as when a team moves onto other work.' +
-        '<br>With all 8 weeks the forecast says <b>' + dateFor(ns) + '</b>. From the ' + before.length + ' weeks before, <b>' + dateFor(before) + '</b>.' +
-        '<br>If the team is coming back to this milestone, the weeks before are the better guide. If it stays on other work, no date holds until it returns.',
-      action: { label: 'Use the ' + before.length + ' weeks before as typed counts', run: 'useBefore(' + before.length + ')' } }
+    const lo = Math.min(...before), hi = Math.max(...before), quiet = cells.slice(cells.length - run).map((c) => c.week)
+    const canSkip = quiet.every(Boolean), alt = canSkip ? ghCells(tracker, [...skips(), ...quiet]).map((c) => c.n) : before
+    return { kind: 'quietEnd', name: run + ' quiet weeks at the end', short: 'nothing finished since ' + wk(quiet[0] || cells[cells.length - run].week || '') + ', after ' + lo + '–' + hi + ' a week',
+      body: 'Counting these weeks, the forecast says <b>' + dateFor(ns) + '</b>. Skipping them, so the window reaches back ' + run + ' weeks, it says <b>' + dateFor(alt) + '</b>.' +
+        '<br>Skip them if they say nothing about the pace ahead: a holiday, or the team on other work for a spell. Keep them if this is how the work will go from now.',
+      action: canSkip ? { label: 'Skip these ' + run + ' weeks', run: 'setSkip([' + quiet.map((w) => "'" + w + "'").join(',') + '], true)' } : null }
   }
   const med = [...ns].sort((a, b) => a - b)[ns.length >> 1], iMax = ns.indexOf(Math.max(...ns)), rest = ns.filter((_, i) => i !== iMax)
   if ((ns[iMax] - med) / Math.max(1, Math.sqrt(med)) > 4 && sdv(rest) ** 2 / Math.max(1e-9, avg(rest)) < 2)
@@ -410,11 +430,6 @@ function paceRead(cells) {
       body: 'Work lands in batches. Quiet weeks are real pace, so keep them; the range is wide and honest. Smaller items, or closing tickets when done, would tighten it.' }
   return { kind: 'none', name: 'No pattern yet', short: cells.length + ' weeks is too few to tell', body: '' }
 }
-function useBefore(k) { act('use the ' + k + ' weeks before the quiet run', () => {
-  state.follow = { ...(state.follow || {}), counts: false }
-  state.counts = { cells: state.counts.cells.slice(0, k).map((c) => ({ ...c })), origin: 'hand', seen: key(tracker.cells) }
-  state.mode = 'counts'
-}) }
 function readHtml(cells, id, withAction) {
   const r = paceRead(cells)
   if (!r) return ''
@@ -436,29 +451,50 @@ function setFollow(field, on) { const own = ownOf(field); act((on ? 'follow GitH
   editing['open-' + field] = false; editing['change-' + field] = false
   if (on) {
     if (field === 'tickets') state.tickets = { value: tracker.tickets, origin: 'measured', at: tracker.at, seen: tracker.tickets }
-    else { state.counts = { cells: measuredCells(tracker.cells), origin: 'measured', at: tracker.at, seen: key(tracker.cells) }; state.mode = 'counts' }
+    else { state.counts = { cells: ghCells(tracker, skips()), origin: 'measured', at: tracker.at, seen: key(tracker.cells) }; state.mode = 'counts' }
     state[field].own = own
   }
 }) }
 // while following, a new read updates the value with no question asked; the value it replaced shows faintly
 function followReads() {
   for (const f of ['tickets', 'counts']) {
-    if (!(state.follow || {})[f] || acceptedVal(f) === trackerVal(f)) continue
+    if (!(state.follow || {})[f] || acceptedVal(f) === (f === 'counts' ? key(ghCells(tracker, skips())) : trackerVal(f))) continue
     const was = f === 'tickets' ? { text: String(state.tickets.value), at: state.tickets.at } : { text: nums(state.counts.cells), at: state.counts.at }
     const own = state[f].own
-    state[f] = f === 'tickets' ? { value: tracker.tickets, origin: 'measured', at: tracker.at, seen: tracker.tickets } : { cells: measuredCells(tracker.cells), origin: 'measured', at: tracker.at, seen: key(tracker.cells) }
-    state[f].own = own; state[f].was = was
+    state[f] = f === 'tickets' ? { value: tracker.tickets, origin: 'measured', at: tracker.at, seen: tracker.tickets } : { cells: ghCells(tracker, skips()), origin: 'measured', at: tracker.at, seen: key(tracker.cells) }
+    state[f].own = own; if (!state.skipping) state[f].was = was
     log.push('new read followed: ' + f)
   }
 }
 const following = (f) => !!(state.follow || {})[f]
+// skipped weeks belong to the milestone and outlast reads: a holiday stays skipped when next week's read arrives
+const skips = () => state.skip || []
+function setSkip(weeks, on) { act((on ? 'skip ' : 'count again ') + weeks.map(wk).join(', '), () => {
+  state.skip = on ? [...new Set([...skips(), ...weeks])].sort() : skips().filter((w) => !weeks.includes(w))
+  const was = state.counts.was
+  state.counts = { cells: ghCells(tracker, state.skip), origin: 'measured', at: tracker.at, seen: key(tracker.cells), own: state.counts.own, was }
+}) }
+function skipLine() {
+  const sk = ghWindow(tracker, skips()).filter((c) => c.skipped)
+  if (!sk.length) return ''
+  return '<span class="dmark">' + sk.length + ' skipped (' + sk.map((c) => wk(c.week).replace('w/c ', '')).join(', ') + '), reaching back to ' + wk(state.counts.cells[0].week) + ' <button class="linkish" onclick="setSkip(' + esc(JSON.stringify(sk.map((c) => c.week))).replace(/"/g, '&quot;') + ', false)">count them again</button></span>'
+}
+// GitHub's weeks as blocks: type into one to switch the pace to typed counts; skip one to leave it out and stay on GitHub
+function ghBlocks() {
+  let i = -1
+  return '<div class="cells">' + ghWindow(tracker, skips()).map((c) => {
+    if (c.skipped) return '<span class="cell skipped"><span class="n">' + c.n + '</span><span class="w">' + wk(c.week).replace('w/c ', '') + '</span><button class="linkish" onclick="setSkip([\'' + c.week + '\'], false)">count</button></span>'
+    i++
+    return '<span class="cell' + (c.n === 0 ? ' quiet' : '') + '"><input class="n" type="number" min="0" value="' + c.n + '" onchange="editAt(' + i + ', Number(this.value))"><span class="w">' + wk(c.week).replace('w/c ', '') + '</span><button class="linkish" onclick="setSkip([\'' + c.week + '\'], true)">skip</button></span>'
+  }).join('') + '</div>'
+}
 function wasLine(f) { const w = state[f].was; return w ? '<span class="dmark">was ' + esc(w.text) + ' on ' + w.at + '</span>' : '' }
 function graph(cells, big) {
   if (!cells) return ''
   const h = big ? 44 : 28
   const top = Math.max(1, ...cells.map((c) => c.n))
   return '<span class="dgraph" style="height:' + (h + 16) + 'px">' + cells.map((c) =>
-    '<span class="col" title="' + wk(c.week || '') + ': ' + c.n + '"><span class="bar' + (c.n === 0 ? ' zero' : '') + '" style="height:' + (c.n ? Math.round(c.n / top * h) : 2) + 'px"></span><span class="v">' + c.n + '</span></span>').join('') + '</span>'
+    '<span class="col' + (c.skipped ? ' skipped' : '') + '" title="' + wk(c.week || '') + ': ' + c.n + (c.skipped ? ', skipped' : '') + '"><span class="bar' + (c.n === 0 ? ' zero' : '') + '" style="height:' + (c.skipped ? 2 : c.n ? Math.round(c.n / top * h) : 2) + 'px"></span><span class="v">' + (c.skipped ? '–' : c.n) + '</span></span>').join('') + '</span>'
 }
 function quietWords(cells) {
   const q = cells ? cells.filter((c) => c.n === 0).length : 0
@@ -514,9 +550,9 @@ function variantD() {
   const src = paceSource()
   let pace = seg([['github', 'GitHub'], ['typed', 'Typed counts'], ['range', 'Range']], src, 'setPaceSource')
   if (src === 'github') {
-    pace += '<div class="dline">' + graph(c.cells, false) + '<span>last 8 weeks</span><span class="dmark">read ' + tracker.at + '</span>' + wasLine('counts') + readHtml(c.cells, 'gh', true) +
+    pace += '<div class="dline">' + graph(ghWindow(tracker, skips()), false) + '<span>last 8 weeks</span><span class="dmark">read ' + tracker.at + '</span>' + wasLine('counts') + skipLine() + readHtml(c.cells, 'gh', true) +
       '<details class="dother inline"' + (editing['change-counts'] ? ' open' : '') + ' ontoggle="editing[\'change-counts\']=this.open"><summary>Show weeks</summary>' +
-      '<div class="dmark">' + span(c.cells) + ' · type into a week to change it; the pace then follows your typed counts</div>' + editableCells(c.cells) + '</details></div>'
+      '<div class="dmark">' + span(c.cells) + ' · skip a week that says nothing about the pace ahead (a holiday, say), and the next one back counts instead; type into a week to change it, and the pace follows your typed counts</div>' + ghBlocks() + '</details></div>'
   } else if (src === 'typed') {
     pace += editing.counts || !c.cells ? countsEditor()
       : editableCells(c.cells) + readHtml(c.cells, 'typed', false) + '<div class="prov">' + c.cells.length + ' weeks' + (c.cells[0].week ? ', ' + span(c.cells) : '') + ' ' + chip('counts') + '</div>'
@@ -524,7 +560,8 @@ function variantD() {
     pace += rangeInline
   }
   const n = pending().filter((f) => !following(f) && (f === 'tickets' || src === 'typed')).length
-  const words = src === 'github' ? 'GitHub\'s last 8 weeks' : paceWords()
+  const nSkip = ghWindow(tracker, skips()).filter((x) => x.skipped).length
+  const words = src === 'github' ? 'GitHub\'s last 8 weeks' + (nSkip ? ', ' + nSkip + ' skipped' : '') : paceWords()
   const strip = '<div class="strip"><span class="where">On the Milestone forecast</span><span class="context">Checkout v2 · ' + t.value + ' tickets remaining</span><span class="head">Starting 4 Nov 2026: 85% confident of finishing by ' + standIn() + '</span><span class="note">Pace: ' + words + '</span>' +
     '<span class="note">GitHub read ' + tracker.at + (n ? ' · <a href="#d-inputs"><span class="dot"></span>' + n + ' new reading' + (n > 1 ? 's' : '') + '</a>' : '') + '</span></div>'
   return strip + '<div id="d-inputs">' + section(1, 'Milestone', 'Tickets remaining, from GitHub or typed.', tickets) + section(2, 'Pace', 'From GitHub, your typed counts, or a range. The others are kept.', pace) + '</div>'
