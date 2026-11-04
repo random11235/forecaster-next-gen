@@ -57,6 +57,20 @@ const STYLE = `
     table.ledger tr.out td.uses input { opacity: .4; }
     table.ledger tfoot td { font-weight: 600; border-bottom: 0; }
     .copy { min-height: 26px; padding: 0 8px; font-size: 12px; }
+    details.dchip { display: inline-block; position: relative; vertical-align: middle; }
+    details.dchip > summary, span.dchip { list-style: none; cursor: pointer; font-size: 12px; color: var(--muted); border: 1px solid var(--hairline); border-radius: 999px; padding: 1px 8px; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+    span.dchip.same { cursor: default; color: #1F5F6B; border-color: transparent; }
+    details.dchip > summary::-webkit-details-marker { display: none; }
+    details.dchip[open] > summary { border-color: var(--ink); color: var(--ink); }
+    .dpanel { position: absolute; z-index: 5; top: calc(100% + 6px); right: 0; width: min(560px, 80vw); background: var(--page); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; font-size: 13px; color: var(--ink); white-space: normal; }
+    .dpanel .row { display: flex; gap: 8px; }
+    .dpanel button.primary { min-height: 32px; padding: 0 14px; font-size: 13px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--risk); display: inline-block; }
+    .dmark { font-size: 12px; color: var(--faint); }
+    details.dother { border-top: 1px solid var(--hairline); padding-top: 8px; display: flex; flex-direction: column; gap: 10px; }
+    details.dother > summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+    details.dother[open] { display: flex; flex-direction: column; gap: 12px; }
+    details.dother .row { display: flex; gap: 8px; margin-top: 10px; }
     .switcher { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 10; display: flex; gap: 10px; align-items: center;
       background: #111; color: #fff; padding: 8px 12px; border-radius: 999px; box-shadow: 0 6px 20px rgba(0,0,0,.3); font-size: 13px; }
     .switcher button { color: #fff; border-color: #444; min-height: 28px; }
@@ -106,7 +120,7 @@ const SCENARIOS = {
     tickets: { value: 40, origin: 'hand', seen: 38 },
     counts: { cells: measuredCells(READS.current.cells).slice(0, 5), origin: 'hand', seen: key(READS.current.cells) } }) },
 }
-const VARIANTS = { A: 'Marked in place', B: 'Review panel', C: 'Side-by-side ledger' }
+const VARIANTS = { A: 'Marked in place', B: 'Review panel', C: 'Side-by-side ledger', D: 'Quiet, on demand' }
 
 const params = new URLSearchParams(location.search)
 let variant = VARIANTS[params.get('variant')] ? params.get('variant') : 'A'
@@ -321,6 +335,53 @@ function variantC() {
   return strip + section(1, 'Milestone', 'GitHub’s reading beside the value the forecast uses.', tRow) + '<div id="ledger">' + section(2, 'Pace', 'Week by week: what GitHub counts, and what the forecast uses. Type over a week to edit it, or leave it out.', modeRadios() + rangeBlock() + '<h3>Typed counts</h3>' + countsInUse() + cTable) + '</div>'
 }
 
+
+// ---- Variant D: quiet by default. Only what the forecast uses is on screen; GitHub's reading waits behind a small
+// chip, with a dot only when a read is new since the EM last looked. The pace not in use folds to one line.
+function lookAt(field, open) {
+  editing['open-' + field] = open
+  if (open && state[field].seen !== trackerVal(field)) { state[field].seen = trackerVal(field); log.push('looked at GitHub\'s ' + field) }
+  render()
+}
+function chip(field) {
+  if (acceptedVal(field) === trackerVal(field)) return '<span class="dchip same" title="Same as GitHub, read ' + tracker.at + '">● GitHub</span>'
+  const fresh = state[field].seen !== trackerVal(field)
+  const theirs = field === 'tickets' ? tracker.tickets : nums(tracker.cells)
+  const body = field === 'tickets'
+    ? '<div>GitHub reads <b>' + tracker.tickets + '</b> tickets remaining, read ' + tracker.at + '.</div>'
+    : '<div>GitHub reads these 8 weeks, ' + span(tracker.cells) + ', read ' + tracker.at + ':</div>' + cellsHtml(tracker.cells) + quietNote(tracker.cells)
+  const own = ownLine(field) ? '<div class="prov">' + ownLine(field) + '</div>' : ''
+  return '<details class="dchip"' + (editing['open-' + field] ? ' open' : '') + ' ontoggle="if (this.open !== !!editing[\'open-' + field + '\']) lookAt(\'' + field + '\', this.open)">' +
+    '<summary>' + (fresh ? '<span class="dot"></span>' : '') + 'GitHub ' + (field === 'tickets' ? theirs : 'reads differently') + '</summary>' +
+    '<div class="dpanel">' + body + own + '<div class="row"><button class="primary" onclick="editing[\'open-' + field + '\']=false;accept(\'' + field + '\')">' + (field === 'tickets' ? 'Use ' + theirs : 'Take these counts') + '</button><button onclick="lookAt(\'' + field + '\', false)">Close</button></div></div></details>'
+}
+function variantD() {
+  const t = state.tickets
+  const mark = (field) => { const s = status(field); return s === 'measured' ? '' : s.startsWith('hand') || s === 'typed' || s === 'proposed' ? ' <span class="dmark">by hand</span>' : ' <span class="dmark">from ' + state[field].at + '</span>' }
+  const tickets = '<div class="pace"><label>Tickets remaining <input type="number" value="' + t.value + '" onchange="editTickets(Number(this.value))"></label><span class="unit">' + mark('tickets').trim() + ' ' + chip('tickets') + (ownLine('tickets') && !editing['open-tickets'] ? '' : '') + '</span></div>'
+  const c = state.counts
+  const countsBody = c.cells ? cellsHtml(c.cells, c.origin === 'hand') : '<p class="note">No typed counts yet.</p>'
+  const countsLine = '<div class="prov">' + (c.cells ? c.cells.length + ' weeks' + (c.cells[0] && c.cells[0].week ? ', ' + span(c.cells) : '') : '') + mark('counts') + ' ' + chip('counts') + ' <button class="linkish" onclick="editing.counts=true;render()">Edit</button></div>'
+  const rangeInline = '<div class="pace"><label>Low <input type="number" id="r-lo" value="' + state.range.low + '" onchange="setRange(Number(this.value),Number(document.getElementById(\'r-hi\').value))"></label><span class="to">to</span><label>High <input type="number" id="r-hi" value="' + state.range.high + '" onchange="setRange(Number(document.getElementById(\'r-lo\').value),Number(this.value))"></label><span class="unit">tickets per week</span></div>'
+  const countsBlock = editing.counts ? countsEditor() : countsBody + countsLine
+  const pace = state.mode === 'range'
+    ? '<h3>Range</h3>' + rangeInline +
+      '<details class="dother"' + (editing['other'] ? ' open' : '') + ' ontoggle="editing.other=this.open"><summary>Typed counts · ' + (c.cells ? nums(c.cells) : 'none yet') + ' · not in use</summary>' + countsBlock + '<div class="row"><button onclick="setMode(\'counts\')">Use typed counts</button></div></details>' +
+      (c.cells || status('counts') === 'proposed' ? '' : '')
+    : '<h3>Typed counts</h3>' + countsBlock + quietNoteIfUsed() +
+      '<details class="dother"' + (editing['other'] ? ' open' : '') + ' ontoggle="editing.other=this.open"><summary>Range · ' + state.range.low + '–' + state.range.high + ' a week · not in use</summary>' + rangeInline + '<div class="row"><button onclick="setMode(\'range\')">Use the range</button></div></details>'
+  const n = pending().length
+  const strip = '<div class="strip"><span class="where">On the Milestone forecast</span><span class="context">Checkout v2 · ' + t.value + ' tickets remaining</span><span class="head">Starting 4 Nov 2026: 85% confident of finishing by ' + standIn() + '</span><span class="note">Pace: ' + paceWords() + '</span>' +
+    '<span class="note">GitHub read ' + tracker.at + (n ? ' · <a href="#d-inputs"><span class="dot"></span>' + n + ' new reading' + (n > 1 ? 's' : '') + '</a>' : '') + '</span></div>'
+  return strip + '<div id="d-inputs">' + section(1, 'Milestone', 'Tickets remaining.', tickets) + section(2, 'Pace', 'The pace the forecast uses. The other one is kept, folded below.', pace) + '</div>'
+}
+function quietNoteIfUsed() {
+  const cs = state.counts.cells
+  if (!cs || !cs[0].week || !cs.some((x) => x.n === 0)) return ''
+  const q = cs.filter((x) => x.n === 0).length
+  return '<details class="dother" style="border:0;padding:0"><summary>' + q + ' quiet week' + (q > 1 ? 's' : '') + ', counted as 0</summary>' + quietNote(cs) + '</details>'
+}
+
 // ---- switcher and render ----
 function go(v, s) {
   variant = v; if (s && s !== scenario) { scenario = s; state = SCENARIOS[s].make(); editing = {}; log.length = 0 }
@@ -329,7 +390,7 @@ function go(v, s) {
 }
 function cycle(d) { const ks = Object.keys(VARIANTS); go(ks[(ks.indexOf(variant) + d + ks.length) % ks.length]) }
 function render() {
-  document.getElementById('proto').innerHTML = ({ A: variantA, B: variantB, C: variantC })[variant]()
+  document.getElementById('proto').innerHTML = ({ A: variantA, B: variantB, C: variantC, D: variantD })[variant]()
   document.getElementById('state').textContent = JSON.stringify({ variant, scenario, status: { tickets: status('tickets'), counts: status('counts') }, tracker: { at: tracker.at, tickets: tracker.tickets, counts: nums(tracker.cells) }, stored: { ...state, counts: { ...state.counts, cells: state.counts.cells && state.counts.cells.map((c) => (c.week || 'no week') + ': ' + c.n + (c.measured === null ? ' (hand)' : c.measured !== c.n ? ' (hand, measured ' + c.measured + ')' : '')) } }, actions: log }, null, 1)
   document.getElementById('switcher').innerHTML = '<button onclick="cycle(-1)">←</button><b>' + variant + ' (' + VARIANTS[variant] + ')</b><button onclick="cycle(1)">→</button>' +
     '<select onchange="go(variant,this.value)">' + Object.entries(SCENARIOS).map(([k, s]) => '<option value="' + k + '"' + (k === scenario ? ' selected' : '') + '>' + s.name + '</option>').join('') + '</select>' +
