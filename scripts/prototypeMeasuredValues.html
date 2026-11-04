@@ -613,7 +613,7 @@ function paceRead(cells) {
     return { kind: 'quietEnd', name: run + ' quiet weeks at the end', short: 'nothing finished since ' + wk(quiet[0] || cells[cells.length - run].week || '') + ', after ' + lo + '–' + hi + ' a week',
       body: 'Counting these weeks, the forecast says <b>' + dateFor(ns) + '</b>. Skipping them, so the window reaches back ' + run + ' weeks, it says <b>' + dateFor(alt) + '</b>.' +
         '<br>Skip them if they say nothing about the pace ahead: a holiday, or the team on other work for a spell. Keep them if this is how the work will go from now.',
-      action: canSkip ? { label: 'Skip these ' + run + ' weeks', run: 'setSkip([' + quiet.map((w) => "'" + w + "'").join(',') + '], true)' } : null }
+      opensWeeks: canSkip }
   }
   const med = [...ns].sort((a, b) => a - b)[ns.length >> 1], iMax = ns.indexOf(Math.max(...ns)), rest = ns.filter((_, i) => i !== iMax)
   if ((ns[iMax] - med) / Math.max(1, Math.sqrt(med)) > 4 && sdv(rest) ** 2 / Math.max(1e-9, avg(rest)) < 2)
@@ -632,8 +632,8 @@ function readHtml(cells, id, withAction) {
   const r = paceRead(cells)
   if (!r) return ''
   if (r.kind === 'none') return '<span class="dmark">' + r.name + ' · ' + r.short + '</span>'
-  return '<details class="dread ' + r.kind + '"' + (editing['read-' + id] ? ' open' : '') + ' ontoggle="editing[\'read-' + id + '\']=this.open"><summary><b>' + r.name + '</b> · ' + r.short + '</summary>' +
-    '<p>' + r.body + '</p>' + (withAction && r.action ? '<div class="row"><button onclick="' + r.action.run + '">' + r.action.label + '</button></div>' : '') + '</details>'
+  return '<details class="dread ' + r.kind + '"' + (editing['read-' + id] ? ' open' : '') + ' ontoggle="editing[\'read-' + id + '\']=this.open' + (withAction && r.opensWeeks ? ';if(editing[\'change-counts\']!==this.open){editing[\'change-counts\']=this.open;render()}' : '') + '"><summary><b>' + r.name + '</b> · ' + r.short + '</summary>' +
+    '<p>' + r.body + '</p></details>'
 }
 
 // ---- Variant D: quiet by default. Only what the forecast uses is on screen; GitHub's reading waits behind a small
