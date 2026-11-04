@@ -80,20 +80,14 @@ const STYLE = `
     .hist .b .u { background: transparent; border: 1px dashed var(--muted); border-bottom: 0; }
     .hist { position: relative; height: 150px; }
     .histwrap { display: flex; flex-direction: column; }
-    .mrow { position: relative; height: 22px; }
-    .mrow.top { margin-bottom: 2px; }
-    .mtag { position: absolute; white-space: nowrap; font-size: 12px; font-family: var(--mono); padding: 0 6px; line-height: 18px; border-radius: 3px; }
-    .mtag.l { transform: translateX(-100%); border-top-right-radius: 0; } .mtag.r { border-top-left-radius: 0; }
-    .mtag.with { background: var(--ink); color: var(--page); border: 1.5px solid var(--ink); }
-    .mtag.usual { background: var(--page); color: var(--ink); border: 1.5px dashed var(--ink); }
-    .mline { position: absolute; bottom: 0; pointer-events: none; transform: translateX(-50%); }
-    .mline.with { top: -46px; width: 3px; background: var(--ink); box-shadow: 0 0 0 1.5px var(--page); }
-    .mline.usual { top: -22px; width: 0; border-left: 2.5px dashed var(--ink); filter: drop-shadow(0 0 1px var(--page)) drop-shadow(0 0 1px var(--page)); }
-    .hist .b .u { border: 1.5px dashed var(--text-2) !important; border-bottom: 0 !important; }
-    .hist .b.lo { background: #F4E4DC; } .hist .b.hi { background: #E3EEE6; }
-    .caprow { display: flex; gap: 2px; margin-top: 3px; }
-    .caprow span { flex: 1; text-align: center; font-size: 11px; font-family: var(--mono); line-height: 20px; border-radius: 2px; }
-    .caprow .lo { background: #F4E4DC; color: var(--risk); font-weight: 600; } .caprow .hi { background: #E3EEE6; color: var(--good); font-weight: 600; }
+    .mrow { position: relative; height: 24px; }
+    .mtag { position: absolute; transform: translateX(-50%); white-space: nowrap; font-size: 12px; font-family: var(--mono); padding: 1px 6px; border-radius: 3px; }
+    .mrow.top .mtag { bottom: 2px; background: var(--ink); color: var(--page); }
+    .mrow.bot .mtag { top: 4px; border: 1px dashed var(--muted); color: var(--muted); background: var(--page); }
+    .mline { position: absolute; top: -2px; bottom: 0; width: 0; pointer-events: none; }
+    .mline.with { border-left: 2px solid var(--ink); }
+    .mline.usual { border-left: 2px dashed var(--muted); top: 0; bottom: -6px; }
+    .hist .b.capd { background: repeating-linear-gradient(135deg, transparent 0 4px, #F2E6DE 4px 6px); }
     .key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 3px; }
     .side { border-left: 1px solid var(--hairline); padding-left: 20px; display: flex; flex-direction: column; gap: 12px; }
     .side h3 { margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
@@ -319,16 +313,12 @@ function variantC() {
   const cnt = (r) => { const c = new Array(hi - lo + 1).fill(0); for (const f of r.finish) if (f <= hi) c[f - lo]++; return c }
   const cw = cnt(W), cu = cnt(U), mx = Math.max(...cw, ...cu)
   const n = hi - lo + 1, at = (k) => ((k - lo + 0.5) / n * 100).toFixed(2) + '%'
-  const capK = (k) => capOfWeek(add(START, 7 * k)), cls = (c) => c < 1 - 1e-9 ? 'lo' : c > 1 + 1e-9 ? 'hi' : ''
-  // The 50% label hangs left of its line and the 85% label right, so they can't collide when the weeks are close.
-  const tag = (p, k, r) => '<span class="mtag ' + r + (p === '50%' ? ' l' : ' r') + '" style="left:' + at(k) + '">' + p + ' · ' + dm(endOf(k)) + '</span>'
-  const hist = '<div class="histwrap"><div class="mrow top">' + tag('50%', W.q50, 'with') + tag('85%', W.q85, 'with') + '</div>' +
-    '<div class="mrow">' + tag('50%', U.q50, 'usual') + tag('85%', U.q85, 'usual') + '</div>' +
-    '<div class="hist">' + cw.map((v, i) => '<div class="b ' + cls(capK(lo + i)) + '" title="Week of ' + dm(add(START, 7 * (lo + i))) + ': capacity ' + Math.round(capK(lo + i) * 100) + '%"><span class="w" style="height:' + v / mx * 100 + '%"></span><span class="u" style="height:' + cu[i] / mx * 100 + '%"></span></div>').join('') +
-    [[U.q50, 'usual'], [U.q85, 'usual'], [W.q50, 'with'], [W.q85, 'with']].map(([k, r]) => '<div class="mline ' + r + '" style="left:' + at(k) + '"></div>').join('') + '</div>' +
-    '<div class="caprow">' + cw.map((_, i) => { const c = capK(lo + i); return '<span class="' + cls(c) + '">' + (cls(c) ? Math.round(c * 100) + '%' : '') + '</span>' }).join('') + '</div></div>' +
+  const hist = '<div class="histwrap"><div class="mrow top">' + [['50%', W.q50], ['85%', W.q85]].map(([p, k]) => '<span class="mtag with" style="left:' + at(k) + '">' + p + ' · ' + dm(endOf(k)) + '</span>').join('') + '</div>' +
+    '<div class="hist">' + cw.map((v, i) => '<div class="b' + (capOfWeek(add(START, 7 * (lo + i))) < 1 - 1e-9 ? ' capd' : '') + '" title="Week of ' + dm(add(START, 7 * (lo + i))) + '"><span class="w" style="height:' + v / mx * 100 + '%"></span><span class="u" style="height:' + cu[i] / mx * 100 + '%"></span></div>').join('') +
+    [['50%', W.q50, 'with'], ['85%', W.q85, 'with'], ['50%', U.q50, 'usual'], ['85%', U.q85, 'usual']].map(([p, k, r]) => '<div class="mline ' + r + (p === '85%' ? ' p85' : '') + '" style="left:' + at(k) + '"></div>').join('') + '</div>' +
+    '<div class="mrow bot">' + [['50%', U.q50], ['85%', U.q85]].map(([p, k]) => '<span class="mtag usual" style="left:' + at(k) + '">' + p + ' · ' + dm(endOf(k)) + '</span>').join('') + '</div></div>' +
     '<div class="row" style="justify-content:space-between"><span class="faint">' + dm(add(START, 7 * lo)) + '</span><span class="faint">' + dm(add(START, 7 * hi)) + '</span></div>' +
-    '<p class="faint"><span class="key" style="background:var(--ink)"></span>with capacity: bars <span class="key" style="background:var(--bar)"></span>, solid lines · <span class="key" style="border:1.5px dashed var(--ink)"></span>at usual capacity: outlined bars, dashed lines · <span class="key" style="background:#F4E4DC"></span>the row under the graph: the team’s capacity that week, where it isn’t 100%</p>'
+    '<p class="faint"><span class="key" style="background:var(--bar)"></span>with capacity, <span class="key" style="background:var(--ink)"></span>its 50% and 85% dates above · <span class="key" style="border:1px dashed var(--muted)"></span>at usual capacity, its dates below · <span class="key" style="background:repeating-linear-gradient(135deg, transparent 0 3px, #E8D3C6 3px 5px)"></span>weeks below 100%</p>'
   const editForm = (e) => {
     const past = isPast(e)
     return '<div class="pop" style="gap:8px">' + (past ? '<span class="faint">' + e.pct + '% ' + span(e) + ' · past, so only the note can change</span>' :
