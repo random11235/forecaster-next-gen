@@ -62,6 +62,15 @@ const STYLE = `
     .wizard li.done::before { content: '✓ '; color: var(--good); }
     .wizard li.on { background: var(--active); color: var(--ink); font-weight: 600; }
     .wizard h2 { margin: 0; font-size: 20px; }
+    .wizard .actions { gap: 10px; align-items: center; margin-top: 6px; }
+    .wizard .actions .linkish { margin-right: auto; }
+    .wizard li.done:hover { background: var(--active); }
+    .qmode { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+    .qmode .qline { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+    .sumgrid { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: 8px 16px; align-items: baseline; border: 1px solid var(--hairline); border-radius: 8px; padding: 12px 16px; font-size: 14px; background: #fff; margin-bottom: 18px; }
+    .sumgrid .qline { overflow-wrap: anywhere; }
+    .sumgrid .hdr { grid-column: 1 / -1; display: flex; gap: 10px; align-items: center; padding-bottom: 8px; border-bottom: 1px solid var(--hairline); }
+    .sumgrid .hdr .end { margin-left: auto; display: flex; gap: 12px; align-items: center; }
     .choice { display: flex; gap: 12px; align-items: center; justify-content: space-between; border: 1px solid var(--hairline); border-radius: 8px; padding: 10px 14px; cursor: pointer; max-width: 640px; }
     .choice:has(input:checked) { border-color: var(--ink); background: var(--page); }
     .choice .nm { font-weight: 600; }
@@ -330,7 +339,7 @@ function liveQuery(which, q) { clearTimeout(liveTimer); liveTimer = setTimeout((
 function section(n, name, hint, body) {
   return '<section class="input"><div class="label"><span class="number">' + String(n).padStart(2, '0') + '</span><h2>' + name + '</h2><p>' + hint + '</p></div><div class="body"><div class="col">' + body + '</div></div></section>'
 }
-function connectForm(compact) {
+function connectForm(compact, aside) {
   const d = state.draft, j = d.tracker === 'jira'
   const err = { noToken: 'Paste a token to connect.', unauthorised: (j ? 'Jira' : 'GitHub') + ' refused the token. Check it hasn’t expired' + (j ? '' : ', and that it has Issues: read') + '.', notFound: (j ? 'Jira can’t find that project' : 'GitHub can’t see ' + esc(d.where || 'that repo')) + ' with this token. Check the name, and that the token covers it.' }[state.connError]
   return '<div class="col">' + seg([['github', 'GitHub'], ['jira', 'Jira']], d.tracker, 'setDraftTracker') +
@@ -340,7 +349,7 @@ function connectForm(compact) {
     '<label class="wide">' + (j ? 'API token' : 'Token') + ' <input type="text" value="' + esc(d.token) + '" placeholder="' + (j ? 'from id.atlassian.com, scoped to read Jira work' : 'fine-grained, Issues: read on this repo only') + '" oninput="setDraft(\'token\', this.value)" style="font-family:var(--mono)"></label></div>' +
     (compact ? '' : '<span class="dmark">Read-only: nothing is ever written to ' + (j ? 'Jira' : 'GitHub') + '. The token stays on this computer.</span>') +
     (err ? '<div class="flag bad">' + err + '</div>' : '') +
-    '<div class="actions"><button class="primary" onclick="connect()">Connect</button>' + (ui.changeConn ? ' <button onclick="ui.changeConn=false;render()">Cancel</button>' : '') + '</div></div>'
+    '<div class="actions">' + (aside || '') + '<button class="primary" onclick="connect()">Connect</button>' + (ui.changeConn ? ' <button onclick="ui.changeConn=false;render()">Cancel</button>' : '') + '</div></div>'
 }
 function setDraftTracker(t) { state.draft.tracker = t; state.draft.where = ''; state.connError = null; render() }
 function connLine() {
@@ -393,40 +402,52 @@ function variantA() {
 
 // ---- B: setup steps, then a summary line on the Inputs screen ----
 function variantB() {
+  const counts = (r) => r && r.ok ? (r.open !== undefined && r === state.reads.mq ? r.open + ' open · ' : '') + r.finished + ' finished in 8 weeks' : ''
   if (state.setupDone && !ui.reopen) {
-    const c = combined()
-    const sum1 = '<div class="summary"><span class="ok-dot"></span>' + trackerName() + ' · <b style="font-family:var(--mono);font-weight:500">' + esc(where()) + '</b><span class="qline">' + esc(state.mq) + '</span>' + (state.cq ? '<span class="dmark">+ comparable</span><span class="qline">' + esc(state.cq) + '</span>' : '') + '<span class="dmark">read ' + READ_AT + '</span><button class="linkish" onclick="ui.reopen=true;state.step=2;render()">Change</button></div>' + flag('mq') + (state.cq ? flag('cq') : '')
+    const what = (w) => { const ids = picks(w); return ids ? '<span title="' + esc(state[w]) + '">' + ids.map((id) => esc(choiceName(tr(), id)) + ' <span class="dmark">' + kindOf(id) + '</span>').join(', ') + '</span>' : '<span class="qline">' + esc(state[w]) + '</span>' }
+    const bad = (w) => { const r = state.reads[w]; return r && (!r.ok || r.incomplete || !r.total) ? flag(w) : '' }
+    const sum1 = '<div class="sumgrid"><div class="hdr"><span class="ok-dot"></span>' + trackerName() + ' · <b style="font-family:var(--mono);font-weight:500">' + esc(where()) + '</b><span class="end"><span class="dmark">read ' + READ_AT + '</span><button class="linkish" onclick="ui.reopen=true;state.step=2;render()">Change</button></span></div>' +
+      '<span class="muted">Milestone</span>' + what('mq') + '<span class="dmark">' + counts(state.reads.mq) + '</span>' +
+      '<span class="muted">Comparable</span>' + (state.cq ? what('cq') + '<span class="dmark">' + counts(state.reads.cq) + '</span>' : '<span class="dmark">none</span><span></span>') + '</div>' + bad('mq') + bad('cq')
     return sum1 + section(1, 'Milestone', 'Name, start date and tickets remaining.', '<div class="fields"><label class="wide">Milestone name <input type="text" value="' + esc(state.inputs.name) + '"></label><label>Start date <input type="date" value="' + state.inputs.start + '"></label></div>' + ticketsBlock()) +
       section(2, 'Pace', 'From ' + trackerName() + ', your typed counts, or a range.', paceBlock())
   }
+  if (ui.skipped) return '<div class="summary"><span class="muted">No tracker connected.</span><button class="linkish" onclick="ui.skipped=false;render()">Connect a tracker</button></div>' + section(1, 'Milestone', 'Name, start date and tickets remaining.', ticketsBlock()) + section(2, 'Pace', 'Your typed counts, or a range.', paceBlock())
   const steps = ['Connect', 'Milestone', 'Comparable work', 'Check']
   const nav = '<ol>' + steps.map((s, i) => '<li class="' + (i + 1 === state.step ? 'on' : i + 1 < state.step ? 'done' : '') + '"' + (i + 1 < state.step ? ' onclick="goStep(' + (i + 1) + ')"' : '') + '>' + (i + 1) + '. ' + s + '</li>').join('') + '</ol>'
-  let body = ''
-  if (state.step === 1) body = '<h2>Connect a tracker</h2><p class="muted">The milestone’s tickets and the team’s finished work are read from one GitHub repo or Jira project.</p>' + connectForm() + '<button class="linkish" onclick="ui.skipped=true;render()" style="align-self:flex-start">Skip: type the inputs instead</button>'
-  if (state.step === 2) {
-    const p = pickedName()
-    body = '<h2>Which tickets are the milestone?</h2><p class="muted">Connected to ' + esc(where()) + '. Find and add one or more: several epics, say, or a ' + (tr() === 'jira' ? 'fix version' : 'label') + '.</p>' +
-      (p && !ui.editMq ? finder('mq') +
-        '<button class="linkish" style="align-self:flex-start" onclick="ui.editMq=true;render()">Write the query yourself</button>' : qbox('mq')) +
-      (state.mq ? '<span class="qline">' + esc(scopeText() + ' ' + state.mq) + '</span>' : '') + flag('mq') +
-      '<div class="actions"><button class="primary"' + (inUse('mq') ? '' : ' disabled') + ' onclick="goStep(3)">Next</button></div>'
+  const cancel = ui.reopen ? '<button onclick="ui.reopen=false;render()">Cancel</button>' : ''
+  const back = (n) => '<button onclick="goStep(' + n + ')">Back</button>'
+  // find-and-add, or the query by hand; either way you can switch to the other
+  const chooser = (which) => {
+    const byHand = ui['edit' + which] || picks(which) === null, k = '\'edit' + which + '\''
+    const toQuery = '<button class="linkish" onclick="ui[' + k + ']=true;render()">' + (state[which] ? 'Edit as a query' : 'Write a query instead') + '</button>'
+    const toFind = picks(which) === null
+      ? '<button class="linkish" onclick="act(\'clear the query\', () => { state.' + which + '=\'\'; delete state.reads.' + which + '; ui[' + k + ']=false })">Back to finding (clears this query)</button>'
+      : '<button class="linkish" onclick="ui[' + k + ']=false;render()">Back to finding</button>'
+    return byHand
+      ? qbox(which) + '<div class="qmode"><span class="dmark">Press Enter to read it.</span>' + toFind + '</div>' + flag(which)
+      : finder(which) + '<div class="qmode">' + (state[which] ? '<span class="qline">' + esc(state[which]) + '</span>' : '') + toQuery + '</div>' + flag(which)
   }
+  let body = ''
+  if (state.step === 1) body = '<h2>Connect a tracker</h2><p class="muted">The milestone’s tickets and the team’s finished work are read from one GitHub repo or Jira project.</p>' +
+    connectForm(false, '<button class="linkish" onclick="ui.skipped=true;render()">Skip: type the inputs instead</button>')
+  if (state.step === 2) body = '<h2>Which tickets are the milestone?</h2><p class="muted">Find and add one or more from ' + esc(where()) + ': several epics, say, or a ' + (tr() === 'jira' ? 'fix version' : 'label') + '.</p>' +
+    chooser('mq') + '<div class="actions">' + cancel + '<button class="primary"' + (inUse('mq') ? '' : ' disabled') + ' onclick="goStep(3)">Next</button></div>'
   if (state.step === 3) {
-    const names = comparablePicked(), p = pickedName(), c = combined()
-    body = '<h2>Is there finished work like this milestone’s?</h2><p class="muted">Its finished tickets count in the pace alongside the milestone’s own, which helps when the milestone is new. Skip this to use only the milestone’s own.</p>' +
-      (cqIsPicker() && !ui.editCq ? finder('cq') + (state.cq ? '<span class="qline">' + esc(state.cq) + '</span>' : '') + '<button class="linkish" onclick="ui.editCq=true;render()" style="align-self:flex-start">Write the query yourself</button>' : qbox('cq')) + flag('cq') +
-      '<div class="row">' + graph(c, true) + '<span class="muted">pace: ' + c.own + ' from the milestone' + (c.finished - c.own ? ' + ' + (c.finished - c.own) + ' comparable' : '') + '</span></div>' +
-      '<div class="actions"><button class="primary" onclick="goStep(4)">Next</button><button onclick="state.cq=\'\';delete state.reads.cq;goStep(4)">Skip</button></div>'
+    const c = combined()
+    body = '<h2>Is there finished work like this milestone’s?</h2><p class="muted">Its finished tickets count in the pace alongside the milestone’s own, which helps when the milestone is new.</p>' +
+      chooser('cq') +
+      '<div class="row" style="margin-top:6px">' + graph(c, true) + '<span class="muted">Pace: ' + c.own + ' finished from the milestone' + (c.finished - c.own ? ' + ' + (c.finished - c.own) + ' comparable' : '') + '</span></div>' +
+      '<div class="actions">' + cancel + back(2) + '<button class="primary" onclick="goStep(4)">' + (state.cq.trim() ? 'Next' : 'Skip') + '</button></div>'
   }
   if (state.step === 4) {
     const c = combined(), i = state.inputs
-    body = '<h2>Check what it gives</h2><p class="muted">Each value follows ' + trackerName() + ' from now on, updating on each read. Choose Typed to keep yours instead.</p>' +
+    body = '<h2>Check what it gives</h2><p class="muted">Each value follows ' + trackerName() + ', updating on each read. Choose Typed or Range to keep yours.</p>' +
       '<table class="check"><tr><th></th><th>Yours now</th><th>From ' + trackerName() + '</th><th>Use</th></tr>' +
       '<tr><td>Tickets remaining</td><td>' + i.tickets + '</td><td>' + c.open + '</td><td>' + seg([['github', trackerName()], ['typed', 'Typed']], i.ticketsSrc, 'setTicketsSrc') + '</td></tr>' +
       '<tr><td>Pace</td><td>' + i.range[0] + '–' + i.range[1] + ' a week</td><td>' + graph(c, true) + '</td><td>' + seg([['github', trackerName()], ['range', 'Range']], i.paceSrc === 'typed' ? 'range' : i.paceSrc, 'setPaceSrc') + '</td></tr></table>' +
-      '<div class="actions"><button class="primary" onclick="act(\'finish setup\', () => { state.setupDone = true; ui.reopen = false })">Use these</button></div>'
+      '<div class="actions">' + cancel + back(3) + '<button class="primary" onclick="act(\'finish setup\', () => { state.setupDone = true; ui.reopen = false })">Use these</button></div>'
   }
-  if (ui.skipped) return '<div class="summary"><span class="muted">No tracker connected.</span><button class="linkish" onclick="ui.skipped=false;render()">Connect a tracker</button></div>' + section(1, 'Milestone', 'Name, start date and tickets remaining.', ticketsBlock()) + section(2, 'Pace', 'Your typed counts, or a range.', paceBlock())
   return '<div class="wizard">' + nav + '<div class="col">' + body + '</div></div>'
 }
 
