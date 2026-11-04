@@ -1,0 +1,324 @@
+// PROTOTYPE, throwaway: never merge. Wayfinder ticket "How the milestone screen marks measured values and proposals"
+// (https://github.com/random11235/forecaster-next-gen/issues/129).
+//
+// Three variants of the Inputs screen's Milestone and Pace sections (plus a strip of the Milestone forecast screen),
+// switchable via `?variant=A|B|C`, showing values proposed from a connected tracker: measured, edited by hand, and a
+// new read that differs from what the EM accepted. `?scenario=` picks the canned starting state. All state is in
+// memory; reload to reset. Run: `npm run prototype:measured` (builds, writes dist/prototype/measured-values.html, opens it).
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { spawn } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
+
+const { htmlPage }: typeof import('../src/app/html.js') = await import(new URL('../dist/app/html.js', import.meta.url).href)
+
+const out = new URL('../dist/prototype/measured-values.html', import.meta.url)
+
+const STYLE = `
+  <style>
+    .proto-banner { font-size: 12px; color: var(--risk); font-family: var(--mono); }
+    .strip { border: 1px dashed var(--border); border-radius: 8px; padding: 16px 20px; display: flex; flex-direction: column; gap: 8px; }
+    .strip .where { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); }
+    .strip .head { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+    .tag { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+      padding: 1px 6px; border-radius: 4px; vertical-align: middle; white-space: nowrap; }
+    .tag.measured { background: #DDE8EA; color: #1F5F6B; }
+    .tag.hand { background: #F1E4D0; color: #7A4A12; }
+    .tag.typed { background: var(--active); color: var(--text-2); }
+    .tag.new { background: #F6DDD4; color: var(--risk); }
+    .prov { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+    .linkish { border: 0; background: none; padding: 0; min-height: 0; color: var(--link); text-decoration: underline; cursor: pointer; font-size: 12px; }
+    .proposal { border-left: 3px solid var(--risk); background: #FBF1EC; padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+    .proposal .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .proposal button.primary { min-height: 32px; padding: 0 14px; font-size: 13px; }
+    .cells { display: flex; gap: 4px; flex-wrap: wrap; }
+    .cell { min-width: 56px; padding: 6px 4px 4px; border: 1px solid var(--hairline); border-radius: 4px; text-align: center; display: flex; flex-direction: column; gap: 2px; }
+    .cell .n { font-family: var(--mono); font-size: 18px; font-weight: 600; }
+    .cell .w { font-size: 10px; color: var(--faint); white-space: nowrap; }
+    .cell.quiet { background: repeating-linear-gradient(135deg, transparent 0 5px, var(--hairline) 5px 6px); }
+    .cell.quiet .n { color: var(--faint); }
+    .cell.handcell { border-color: #C9A66B; }
+    .quietnote { font-size: 12px; color: var(--muted); line-height: 1.45; max-width: 620px; }
+    table.review { border-collapse: collapse; width: 100%; font-size: 13px; }
+    table.review th { text-align: left; font-size: 11px; font-weight: 600; color: var(--faint); text-transform: uppercase; letter-spacing: 0.06em; padding: 0 12px 8px 0; border-bottom: 1px solid var(--ink); }
+    table.review td { padding: 10px 12px 10px 0; border-bottom: 1px solid var(--hairline); vertical-align: top; }
+    table.review td.num { font-family: var(--mono); }
+    table.review tr.differs td { background: #FBF1EC; }
+    .minibars { display: inline-flex; gap: 2px; align-items: flex-end; height: 28px; vertical-align: middle; margin-right: 6px; }
+    .minibars span { width: 7px; background: var(--bar); border-radius: 1px 1px 0 0; }
+    .minibars span.zero { height: 2px !important; background: var(--risk); }
+    .banner { display: flex; justify-content: space-between; gap: 12px; align-items: center; background: #FBF1EC; border: 1px solid #EBC9BB; border-radius: 6px; padding: 8px 12px; font-size: 13px; }
+    table.ledger { border-collapse: collapse; font-size: 13px; }
+    table.ledger th { text-align: left; font-size: 11px; font-weight: 600; color: var(--faint); padding: 0 16px 6px 0; border-bottom: 1px solid var(--ink); white-space: nowrap; }
+    table.ledger td { padding: 6px 16px 6px 0; border-bottom: 1px solid var(--hairline); white-space: nowrap; }
+    table.ledger td.gh { font-family: var(--mono); color: #1F5F6B; }
+    table.ledger td.uses input { width: 56px; font-size: 15px; text-align: center; }
+    table.ledger tr.quiet td.gh { background: repeating-linear-gradient(135deg, transparent 0 5px, var(--hairline) 5px 6px); }
+    table.ledger tr.out td { color: var(--faint); text-decoration: line-through; }
+    table.ledger tr.out td.uses input { opacity: .4; }
+    table.ledger tfoot td { font-weight: 600; border-bottom: 0; }
+    .copy { min-height: 26px; padding: 0 8px; font-size: 12px; }
+    .switcher { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 10; display: flex; gap: 10px; align-items: center;
+      background: #111; color: #fff; padding: 8px 12px; border-radius: 999px; box-shadow: 0 6px 20px rgba(0,0,0,.3); font-size: 13px; }
+    .switcher button { color: #fff; border-color: #444; min-height: 28px; }
+    .switcher select { font: inherit; background: #222; color: #fff; border: 1px solid #444; border-radius: 6px; padding: 3px 6px; }
+    details.state { font-size: 12px; margin-bottom: 70px; }
+    details.state pre { background: var(--sidebar); padding: 12px; border-radius: 6px; overflow: auto; font-family: var(--mono); font-size: 11px; }
+  </style>`
+
+const MAIN = `${STYLE}
+    <p class="proto-banner">PROTOTYPE · canned data · nothing is saved · reload resets</p>
+    <div id="proto"></div>
+    <details class="state" open><summary>State (what would be stored)</summary><pre id="state"></pre></details>
+    <div class="switcher" id="switcher"></div>`
+
+const SCRIPT = String.raw`
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+const wk = (iso) => { const [, m, d] = iso.split('-').map(Number); return 'w/c ' + d + ' ' + MONTHS[m - 1] }
+const WEEKS = ['2026-08-31','2026-09-07','2026-09-14','2026-09-21','2026-09-28','2026-10-05','2026-10-12','2026-10-19','2026-10-26']
+const zip = (weeks, ns) => weeks.map((week, i) => ({ week, n: ns[i] }))
+// Two reads of GitHub: last week's, and today's. Comparable work ended in w/c 5 Oct; the team has been on KTLO since.
+const READS = {
+  previous: { at: '28 Oct 09:05', tickets: 34, cells: zip(WEEKS.slice(0, 8), [5, 6, 8, 5, 7, 6, 0, 0]) },
+  current: { at: '4 Nov 09:12', tickets: 38, cells: zip(WEEKS.slice(1), [6, 8, 5, 7, 6, 0, 0, 0]) },
+}
+const key = (cells) => cells ? JSON.stringify(cells.map(({ week, n }) => [week, n])) : null
+const measuredCells = (cells) => cells.map(({ week, n }) => ({ week, n, measured: n }))
+
+const SCENARIOS = {
+  first: { name: 'First read after connecting', make: () => ({
+    mode: 'range', range: { low: 4, high: 8 },
+    tickets: { value: 30, origin: 'typed', seen: null },
+    counts: { cells: null, origin: 'typed', seen: null } }) },
+  inStep: { name: 'Accepted, in step with GitHub', make: () => ({
+    mode: 'counts', range: { low: 4, high: 8 },
+    tickets: { value: 38, origin: 'measured', at: READS.current.at, seen: 38 },
+    counts: { cells: measuredCells(READS.current.cells), origin: 'measured', at: READS.current.at, seen: key(READS.current.cells) } }) },
+  newRead: { name: 'New read differs from accepted', make: () => ({
+    mode: 'counts', range: { low: 4, high: 8 },
+    tickets: { value: 34, origin: 'measured', at: READS.previous.at, seen: 34 },
+    counts: { cells: measuredCells(READS.previous.cells), origin: 'measured', at: READS.previous.at, seen: key(READS.previous.cells) } }) },
+  handNew: { name: 'Edited by hand, then a new read', make: () => ({
+    mode: 'counts', range: { low: 4, high: 8 },
+    tickets: { value: 40, origin: 'hand', seen: 34 },
+    counts: { cells: measuredCells(READS.previous.cells).slice(0, 6), origin: 'hand', seen: key(READS.previous.cells) } }) },
+  handInStep: { name: 'Edited by hand, no new read', make: () => ({
+    mode: 'counts', range: { low: 4, high: 8 },
+    tickets: { value: 40, origin: 'hand', seen: 38 },
+    counts: { cells: measuredCells(READS.current.cells).slice(0, 5), origin: 'hand', seen: key(READS.current.cells) } }) },
+}
+const VARIANTS = { A: 'Marked in place', B: 'Review panel', C: 'Side-by-side ledger' }
+
+const params = new URLSearchParams(location.search)
+let variant = VARIANTS[params.get('variant')] ? params.get('variant') : 'A'
+let scenario = SCENARIOS[params.get('scenario')] ? params.get('scenario') : 'newRead'
+const tracker = READS.current
+let state = SCENARIOS[scenario].make()
+let editing = {}
+const log = []
+
+// ---- derived status of a value against the tracker's current read ----
+function trackerVal(field) { return field === 'tickets' ? tracker.tickets : key(tracker.cells) }
+function acceptedVal(field) { return field === 'tickets' ? state.tickets.value : key(state.counts.cells) }
+function status(field) {
+  const v = state[field], tv = trackerVal(field), fresh = v.seen !== tv
+  if (v.origin === 'typed' || acceptedVal(field) === null) return fresh ? 'proposed' : 'typed'
+  if (v.origin === 'measured') return acceptedVal(field) === tv ? 'measured' : fresh ? 'newRead' : 'kept'
+  return fresh ? 'handNewRead' : 'hand'
+}
+const pending = () => ['tickets', 'counts'].filter((f) => ['proposed', 'newRead', 'handNewRead'].includes(status(f)))
+
+// ---- actions ----
+function act(name, fn) { fn(); log.push(name); render() }
+function accept(field) { act('accept ' + field, () => {
+  if (field === 'tickets') state.tickets = { value: tracker.tickets, origin: 'measured', at: tracker.at, seen: tracker.tickets }
+  else { state.counts = { cells: measuredCells(tracker.cells), origin: 'measured', at: tracker.at, seen: key(tracker.cells) }; state.mode = 'counts' }
+}) }
+function keep(field) { act('keep mine: ' + field, () => { state[field].seen = trackerVal(field) }) }
+function editTickets(n) { act('edit tickets by hand', () => {
+  state.tickets = n === tracker.tickets ? { value: n, origin: 'measured', at: tracker.at, seen: n } : { value: n, origin: 'hand', seen: tracker.tickets }
+  editing.tickets = false }) }
+function editCountsList(text) { act('edit counts by hand (list)', () => {
+  const ns = text.split(/[ ,]+/).filter(Boolean).map(Number)
+  state.counts = { cells: ns.map((n) => ({ week: null, n, measured: null })), origin: 'hand', seen: key(tracker.cells) }
+  editing.counts = false }) }
+function editCell(week, n) { act('edit ' + wk(week) + ' by hand', () => {
+  const cells = (state.counts.cells || []).map((c) => c.week === week ? { ...c, n } : c)
+  if (!cells.some((c) => c.week === week)) { cells.push({ week, n, measured: null }); cells.sort((a, b) => a.week < b.week ? -1 : 1) }
+  const allMeasured = cells.every((c) => c.n === c.measured) && key(cells) === key(tracker.cells)
+  state.counts = { cells, origin: allMeasured ? 'measured' : 'hand', at: tracker.at, seen: key(tracker.cells) } }) }
+function leaveOut(week, out) { act((out ? 'leave out ' : 'put back ') + wk(week), () => {
+  const t = tracker.cells.find((c) => c.week === week)
+  let cells = (state.counts.cells || []).filter((c) => c.week !== week)
+  if (!out && t) { cells.push({ week, n: t.n, measured: t.n }); cells.sort((a, b) => a.week < b.week ? -1 : 1) }
+  state.counts = { ...state.counts, cells, origin: key(cells) === key(tracker.cells) ? 'measured' : 'hand', seen: key(tracker.cells) } }) }
+function setMode(mode) { act('pace mode ' + mode, () => { state.mode = mode }) }
+
+// ---- shared bits ----
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => '&#' + c.charCodeAt(0) + ';')
+const nums = (cells) => cells ? cells.map((c) => c.n).join(', ') : '–'
+const span = (cells) => cells && cells.length && cells[0].week ? wk(cells[0].week) + ' – ' + wk(cells[cells.length - 1].week) : 'no weeks attached'
+function quietRun(cells) { let k = 0; for (let i = cells.length - 1; i >= 0 && cells[i].n === 0; i--) k++; return k }
+function quietNote(cells) {
+  const q = cells.filter((c) => c.n === 0).length
+  if (!q) return ''
+  const run = quietRun(cells)
+  const tail = run ? ' The last ' + run + ' are in a row (' + wk(cells[cells.length - run].week) + ' on): no milestone or comparable work finished since, so the team was likely on other work.' : ''
+  return '<p class="quietnote">' + q + ' of ' + cells.length + ' weeks are quiet: they count as 0 and slow the pace.' + tail + ' If those weeks don’t say how fast the milestone will go, edit the counts by hand.</p>'
+}
+function tag(kind, text) { return '<span class="tag ' + kind + '">' + text + '</span>' }
+function provTag(field) {
+  const s = status(field), v = state[field]
+  if (s === 'measured') return tag('measured', '● Measured · GitHub ' + v.at)
+  if (s === 'newRead' || s === 'kept') return tag('measured', '● Measured · GitHub ' + v.at)
+  if (s === 'hand' || s === 'handNewRead') return tag('hand', '✎ Edited by hand')
+  return tag('typed', 'Typed')
+}
+function cellsHtml(cells, measuredFlags) {
+  return '<div class="cells">' + cells.map((c) =>
+    '<div class="cell' + (c.n === 0 ? ' quiet' : '') + (measuredFlags && c.measured !== null && c.n !== c.measured || measuredFlags && c.measured === null ? ' handcell' : '') + '"><span class="n">' + c.n + '</span><span class="w">' + (c.week ? wk(c.week).replace('w/c ', '') : '—') + (c.n === 0 ? ' · quiet' : '') + '</span></div>').join('') + '</div>'
+}
+function minibars(cells) {
+  if (!cells) return '–'
+  const top = Math.max(1, ...cells.map((c) => c.n))
+  return '<span class="minibars">' + cells.map((c) => '<span class="' + (c.n === 0 ? 'zero' : '') + '" style="height:' + Math.round(c.n / top * 28) + 'px"></span>').join('') + '</span>'
+}
+// a stand-in, not the real forecast: just so changes visibly move a date
+function standIn() {
+  const ns = state.mode === 'counts' && state.counts.cells ? state.counts.cells.map((c) => c.n) : [state.range.low, state.range.high]
+  const mean = ns.reduce((a, b) => a + b, 0) / Math.max(1, ns.length)
+  if (!mean) return 'no date'
+  const d = new Date(2026, 10, 4 + Math.ceil(state.tickets.value * 1.5 / mean) * 7)
+  return d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear()
+}
+function paceWords() {
+  return state.mode === 'counts' && state.counts.cells ? 'typed counts ' + nums(state.counts.cells) + ' a week' : 'range ' + state.range.low + '–' + state.range.high + ' a week'
+}
+function section(n, name, hint, body) {
+  return '<section class="input"><div class="label"><span class="number">0' + n + '</span><h2>' + name + '</h2><p>' + hint + '</p></div><div class="body">' + body + '</div></section>'
+}
+function modeRadios() {
+  return '<fieldset class="levels">' + ['range', 'counts'].map((m) => '<label><input type="radio" name="mode" value="' + m + '"' + (state.mode === m ? ' checked' : '') + ' onchange="setMode(\'' + m + '\')"> ' + (m === 'range' ? 'Range' : 'Typed counts') + '</label>').join('') + '</fieldset>'
+}
+function ticketsEditor() {
+  return '<div class="pace"><label>Tickets remaining <input type="number" id="t-in" value="' + state.tickets.value + '"></label><button onclick="editTickets(Number(document.getElementById(\'t-in\').value))">Save</button><button onclick="editing.tickets=false;render()">Cancel</button></div>'
+}
+function countsEditor() {
+  return '<div class="fields"><label class="wide">Tickets done each week, oldest first <input type="text" id="c-in" value="' + esc(nums(state.counts.cells || tracker.cells)) + '"></label></div><div class="row" style="display:flex;gap:8px"><button onclick="editCountsList(document.getElementById(\'c-in\').value)">Save counts</button><button onclick="editing.counts=false;render()">Cancel</button></div>'
+}
+
+// ---- Variant A: each value marked where it sits; a new read appears under the value it would change ----
+function proposalA(field) {
+  const s = status(field)
+  if (!['proposed', 'newRead', 'handNewRead'].includes(s)) return ''
+  const mine = field === 'tickets' ? state.tickets.value : nums(state.counts.cells)
+  const theirs = field === 'tickets' ? tracker.tickets : nums(tracker.cells)
+  const head = s === 'proposed' ? 'GitHub proposes' : 'GitHub now reads'
+  const was = s === 'newRead' ? ' (you accepted ' + mine + ' from the read on ' + state[field].at + ')' : s === 'handNewRead' ? ' (you edited it to ' + mine + ' by hand)' : ''
+  const body = field === 'tickets'
+    ? '<div><b>' + head + ' ' + theirs + '</b> tickets remaining, read ' + tracker.at + was + '.</div>'
+    : '<div><b>' + head + ' these 8 weeks</b>, ' + span(tracker.cells) + ', read ' + tracker.at + was + ':</div>' + cellsHtml(tracker.cells) + quietNote(tracker.cells)
+  const keepLabel = s === 'proposed' ? (field === 'tickets' ? 'Keep ' + mine : 'Not now') : 'Keep ' + (field === 'tickets' ? mine : 'mine')
+  return '<div class="proposal">' + body + '<div class="row"><button class="primary" onclick="accept(\'' + field + '\')">Use ' + (field === 'tickets' ? theirs : 'these counts') + '</button><button onclick="keep(\'' + field + '\')">' + keepLabel + '</button></div></div>'
+}
+function revertA(field) {
+  const s = status(field)
+  if (s === 'hand') return '<span>GitHub reads ' + (field === 'tickets' ? tracker.tickets : nums(tracker.cells)) + '</span><button class="linkish" onclick="accept(\'' + field + '\')">Revert to measured</button>'
+  if (s === 'kept') return '<span>GitHub now reads ' + (field === 'tickets' ? tracker.tickets : nums(tracker.cells)) + '</span><button class="linkish" onclick="accept(\'' + field + '\')">Use it</button>'
+  return ''
+}
+function variantA() {
+  const t = state.tickets
+  const tickets = editing.tickets ? ticketsEditor()
+    : '<div class="pace"><span style="font-family:var(--mono);font-size:32px;font-weight:600">' + t.value + '</span><span class="unit">tickets remaining</span></div>' +
+      '<div class="prov">' + provTag('tickets') + revertA('tickets') + '<button class="linkish" onclick="editing.tickets=true;render()">Edit by hand</button></div>' + proposalA('tickets')
+  const c = state.counts
+  const counts = editing.counts ? countsEditor()
+    : (c.cells ? cellsHtml(c.cells, c.origin === 'hand') + '<div class="prov">' + provTag('counts') + '<span>' + c.cells.length + ' weeks, ' + span(c.cells) + '</span>' + revertA('counts') + '<button class="linkish" onclick="editing.counts=true;render()">Edit by hand</button></div>' + (c.origin === 'measured' && status('counts') !== 'newRead' ? quietNote(c.cells) : '')
+      : '<p class="note">No typed counts yet.</p>') + proposalA('counts')
+  const strip = '<div class="strip"><span class="where">On the Milestone forecast</span><span class="context">Checkout v2 · ' + t.value + ' tickets remaining ' + provTag('tickets') + '</span><span class="head">Starting 4 Nov 2026: 85% confident of finishing by ' + standIn() + '</span><span class="note">Pace: ' + paceWords() + ' ' + (state.mode === 'counts' ? provTag('counts') : tag('typed', 'Typed')) + '</span>' +
+    (pending().length ? '<span class="note">' + tag('new', 'New from GitHub') + ' ' + pending().length + ' value' + (pending().length > 1 ? 's' : '') + ' differ from what the forecast uses. <a href="#pace">Review on Inputs</a></span>' : '') + '</div>'
+  return strip + section(1, 'Milestone', 'Tickets remaining, measured from the milestone query.', tickets) +
+    '<div id="pace">' + section(2, 'Pace', 'Typed counts measured from comparable work: the 8 most recent whole weeks, quiet ones as 0.', modeRadios() + '<h3>Typed counts</h3>' + counts) + '</div>'
+}
+
+// ---- Variant B: one review panel lists every value GitHub reads differently; the fields stay plain ----
+function variantB() {
+  const rows = ['tickets', 'counts'].map((f) => {
+    const s = status(f), differs = ['proposed', 'newRead', 'handNewRead'].includes(s)
+    const uses = f === 'tickets' ? '<span class="num">' + state.tickets.value + '</span>' : minibars(state.counts.cells) + nums(state.counts.cells)
+    const gh = f === 'tickets' ? '<span class="num">' + tracker.tickets + '</span>' : minibars(tracker.cells) + nums(tracker.cells) + (tracker.cells.some((c) => c.n === 0) ? '<br><span class="quietnote">' + tracker.cells.filter((c) => c.n === 0).length + ' quiet weeks (0), the last ' + quietRun(tracker.cells) + ' in a row</span>' : '')
+    const action = differs ? '<button class="primary" style="min-height:30px;padding:0 12px;font-size:12px" onclick="accept(\'' + f + '\')">Use GitHub’s</button> <button class="copy" onclick="keep(\'' + f + '\')">Keep mine</button>'
+      : s === 'measured' ? '<span class="quietnote">Same</span>' : '<button class="linkish" onclick="accept(\'' + f + '\')">Use GitHub’s</button>'
+    return '<tr class="' + (differs ? 'differs' : '') + '"><td>' + (f === 'tickets' ? 'Tickets remaining' : 'Typed counts<br><span class="quietnote">' + span(tracker.cells) + '</span>') + '</td><td>' + uses + '<br>' + provTag(f) + '</td><td>' + gh + '</td><td>' + action + '</td></tr>'
+  }).join('')
+  const n = pending().length
+  const panel = '<section class="brief"><div class="heading"><h2>From GitHub · read ' + tracker.at + '</h2>' + (n ? '<button class="copy" onclick="act(\'accept all\',()=>{});accept(\'tickets\');accept(\'counts\')">Use all GitHub’s values</button>' : '<span class="quietnote">Everything matches</span>') + '</div>' +
+    '<table class="review"><thead><tr><th>Value</th><th>Forecast uses</th><th>GitHub reads</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></section>'
+  const banner = n ? '<div class="banner"><span>GitHub reads ' + n + ' value' + (n > 1 ? 's' : '') + ' differently from what this forecast uses.</span><a href="#review">Review</a></div>' : ''
+  const strip = '<div class="strip"><span class="where">On the Milestone forecast</span>' + banner + '<span class="context">Checkout v2 · ' + state.tickets.value + ' tickets remaining</span><span class="head">Starting 4 Nov 2026: 85% confident of finishing by ' + standIn() + '</span><span class="note">Pace: ' + paceWords() + '</span></div>'
+  const word = (f) => { const s = status(f); return s === 'measured' || s === 'newRead' || s === 'kept' ? 'measured' : s.startsWith('hand') ? 'by hand' : 'typed' }
+  const tickets = '<div class="fields"><label>Tickets remaining · ' + word('tickets') + ' <input type="number" value="' + state.tickets.value + '" onchange="editTickets(Number(this.value))"></label></div>'
+  const counts = '<div class="fields"><label class="wide">Typed counts · ' + word('counts') + ' <input type="text" value="' + esc(state.counts.cells ? nums(state.counts.cells) : '') + '" placeholder="6, 4, 9" onchange="editCountsList(this.value)"></label></div>'
+  return strip + '<div id="review">' + panel + '</div>' + section(1, 'Milestone', 'Type over any value to edit it by hand.', tickets) + section(2, 'Pace', 'Typed counts, oldest first.', modeRadios() + counts)
+}
+
+// ---- Variant C: GitHub's column beside the forecast's, week by week; each cell carries its own origin ----
+function variantC() {
+  const t = state.tickets, ts = status('tickets')
+  const tRow = '<table class="ledger"><thead><tr><th></th><th>GitHub reads · ' + tracker.at + '</th><th>Forecast uses</th><th></th></tr></thead><tbody><tr><td>Tickets remaining</td><td class="gh">' + tracker.tickets + '</td><td class="uses"><input type="number" value="' + t.value + '" onchange="editTickets(Number(this.value))"></td><td>' +
+    (t.value === tracker.tickets ? tag('measured', '● same') : '<button class="copy" onclick="accept(\'tickets\')">← use ' + tracker.tickets + '</button> ' + (ts.startsWith('hand') ? tag('hand', '✎ by hand') : ts === 'typed' || ts === 'proposed' ? tag('typed', 'typed') : tag('measured', 'from ' + t.at)) + (['proposed', 'newRead', 'handNewRead'].includes(ts) ? ' ' + tag('new', 'new read') : '')) + '</td></tr></tbody></table>'
+  const accepted = state.counts.cells || []
+  const weeks = [...new Set([...tracker.cells.map((c) => c.week), ...accepted.map((c) => c.week).filter(Boolean)])].sort()
+  const rows = weeks.map((w) => {
+    const g = tracker.cells.find((c) => c.week === w), a = accepted.find((c) => c.week === w)
+    const out = g && !a && accepted.length > 0 && w < accepted[accepted.length - 1].week
+    let mark = ''
+    if (!g) mark = '<span class="quietnote">older than GitHub’s 8 weeks</span> <button class="copy" onclick="leaveOut(\'' + w + '\',true)">drop</button>'
+    else if (!a) mark = state.counts.cells === null ? tag('new', 'proposed') : '<button class="copy" onclick="leaveOut(\'' + w + '\',false)">' + (accepted.length && w > accepted[accepted.length - 1].week ? '← add new week' : 'put back') + '</button>'
+    else if (a.n !== g.n) mark = '<button class="copy" onclick="editCell(\'' + w + '\',' + g.n + ')">← use ' + g.n + '</button> ' + tag(a.measured === a.n ? 'measured' : 'hand', a.measured === a.n ? 'older read' : '✎ by hand')
+    else mark = tag('measured', '●') + (g.n === 0 ? ' <span class="quietnote">quiet: nothing comparable finished</span>' : '') + ' <button class="linkish" onclick="leaveOut(\'' + w + '\',true)">leave out</button>'
+    return '<tr class="' + (g && g.n === 0 ? 'quiet ' : '') + (out ? 'out' : '') + '"><td>' + wk(w) + '</td><td class="gh">' + (g ? g.n : '') + '</td><td class="uses">' + (a ? '<input type="number" value="' + a.n + '" onchange="editCell(\'' + w + '\',Number(this.value))">' : '–') + '</td><td>' + mark + '</td></tr>'
+  }).join('')
+  const unweeked = accepted.filter((c) => !c.week)
+  const mean = (cs) => cs.length ? (cs.reduce((s, c) => s + c.n, 0) / cs.length).toFixed(1) : '–'
+  const cTable = (unweeked.length ? '<p class="quietnote">The forecast uses counts typed as a list (' + nums(unweeked) + '), with no weeks attached. <button class="copy" onclick="accept(\'counts\')">Replace with GitHub’s weeks</button></p>' : '') +
+    '<table class="ledger"><thead><tr><th>Week</th><th>GitHub reads</th><th>Forecast uses</th><th></th></tr></thead><tbody>' + (unweeked.length ? '' : rows) + '</tbody><tfoot><tr><td>Average</td><td class="gh">' + mean(tracker.cells) + '</td><td>' + mean(accepted) + '</td><td>' +
+    (key(accepted) !== key(tracker.cells) ? '<button class="copy" onclick="accept(\'counts\')">← use all of GitHub’s</button>' : '') + '</td></tr></tfoot></table>' + quietNote(tracker.cells)
+  const diffs = pending().length
+  const strip = '<div class="strip"><span class="where">On the Milestone forecast</span><span class="context">Checkout v2 · ' + t.value + ' tickets remaining</span><span class="head">Starting 4 Nov 2026: 85% confident of finishing by ' + standIn() + '</span><span class="note">Pace: ' + paceWords() + '</span><span class="note">Inputs: ' +
+    (ts === 'measured' ? 'tickets from GitHub' : ts.startsWith('hand') ? 'tickets by hand' : 'tickets ' + (ts === 'typed' || ts === 'proposed' ? 'typed' : 'from an older read')) + ' · ' +
+    (state.counts.cells ? (state.counts.cells.filter((c) => c.measured === c.n).length + ' of ' + state.counts.cells.length + ' weeks from GitHub') : 'no counts') + (diffs ? ' · <a href="#ledger">' + diffs + ' differ from today’s read</a>' : '') + '</span></div>'
+  return strip + section(1, 'Milestone', 'GitHub’s reading beside the value the forecast uses.', tRow) + '<div id="ledger">' + section(2, 'Pace', 'Week by week: what GitHub counts, and what the forecast uses. Type over a week to edit it, or leave it out.', modeRadios() + cTable) + '</div>'
+}
+
+// ---- switcher and render ----
+function go(v, s) {
+  variant = v; if (s && s !== scenario) { scenario = s; state = SCENARIOS[s].make(); editing = {}; log.length = 0 }
+  const p = new URLSearchParams(location.search); p.set('variant', variant); p.set('scenario', scenario)
+  history.replaceState(null, '', '?' + p); render()
+}
+function cycle(d) { const ks = Object.keys(VARIANTS); go(ks[(ks.indexOf(variant) + d + ks.length) % ks.length]) }
+function render() {
+  document.getElementById('proto').innerHTML = ({ A: variantA, B: variantB, C: variantC })[variant]()
+  document.getElementById('state').textContent = JSON.stringify({ variant, scenario, status: { tickets: status('tickets'), counts: status('counts') }, tracker: { at: tracker.at, tickets: tracker.tickets, counts: nums(tracker.cells) }, stored: { ...state, counts: { ...state.counts, cells: state.counts.cells && state.counts.cells.map((c) => (c.week || 'no week') + ': ' + c.n + (c.measured === null ? ' (hand)' : c.measured !== c.n ? ' (hand, measured ' + c.measured + ')' : '')) } }, actions: log }, null, 1)
+  document.getElementById('switcher').innerHTML = '<button onclick="cycle(-1)">←</button><b>' + variant + ' (' + VARIANTS[variant] + ')</b><button onclick="cycle(1)">→</button>' +
+    '<select onchange="go(variant,this.value)">' + Object.entries(SCENARIOS).map(([k, s]) => '<option value="' + k + '"' + (k === scenario ? ' selected' : '') + '>' + s.name + '</option>').join('') + '</select>' +
+    '<button onclick="state=SCENARIOS[scenario].make();editing={};log.length=0;render()">Reset</button>'
+}
+document.addEventListener('keydown', (e) => {
+  if (e.target.closest('input, textarea, select, [contenteditable]')) return
+  if (e.key === 'ArrowLeft') cycle(-1); if (e.key === 'ArrowRight') cycle(1)
+})
+go(variant)
+`
+
+const header = {
+  context: 'Checkout v2 · GitHub shop-team/shop · milestone:"Checkout v2"',
+  heading: 'Inputs',
+  lede: 'Prototype for “How the milestone screen marks measured values and proposals”. Flip variants with ← → and pick a scenario in the bar below.',
+}
+mkdirSync(new URL('.', out), { recursive: true })
+writeFileSync(out, htmlPage('/inputs', header, MAIN, SCRIPT))
+const file = fileURLToPath(out)
+console.log(`Prototype written to ${file}`)
+if (!process.env.NO_OPEN) spawn('open', [file], { stdio: 'ignore', detached: true }).unref()
