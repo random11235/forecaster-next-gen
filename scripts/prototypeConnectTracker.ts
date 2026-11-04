@@ -308,7 +308,7 @@ function paceBlock(extra) {
 // ---- A: a Tracker section at the top of the Inputs screen ----
 function variantA() {
   const conn = !state.conn || ui.changeConn ? connectForm() : connLine()
-  const s1 = section(1, 'Tracker', 'Connect one GitHub repo or Jira project, to fill tickets remaining and pace from it. Optional: everything can still be typed.', conn)
+  const s1 = section(1, 'Tracker', 'Connect one GitHub repo or Jira project, to fill tickets remaining and pace from it.', conn)
   let ms = '<div class="fields"><label class="wide">Milestone name <input type="text" value="' + esc(state.inputs.name) + '"></label><label>Start date <input type="date" value="' + state.inputs.start + '"></label></div>'
   if (state.conn) {
     const p = pickedName()
@@ -343,7 +343,7 @@ function variantB() {
   const steps = ['Connect', 'Milestone', 'Comparable work', 'Check']
   const nav = '<ol>' + steps.map((s, i) => '<li class="' + (i + 1 === state.step ? 'on' : i + 1 < state.step ? 'done' : '') + '"' + (i + 1 < state.step ? ' onclick="goStep(' + (i + 1) + ')"' : '') + '>' + (i + 1) + '. ' + s + '</li>').join('') + '</ol>'
   let body = ''
-  if (state.step === 1) body = '<h2>Connect a tracker</h2><p class="muted">The milestone’s tickets and the team’s finished work are read from one GitHub repo or Jira project. You can skip this and type everything.</p>' + connectForm() + '<button class="linkish" onclick="ui.skipped=true;render()" style="align-self:flex-start">Skip: type the inputs instead</button>'
+  if (state.step === 1) body = '<h2>Connect a tracker</h2><p class="muted">The milestone’s tickets and the team’s finished work are read from one GitHub repo or Jira project.</p>' + connectForm() + '<button class="linkish" onclick="ui.skipped=true;render()" style="align-self:flex-start">Skip: type the inputs instead</button>'
   if (state.step === 2) {
     const p = pickedName()
     body = '<h2>Which tickets are the milestone?</h2><p class="muted">Connected to ' + esc(where()) + '. Pick a ' + (tr() === 'jira' ? 'fix version' : 'milestone') + ', or write a query.</p>' +
@@ -375,7 +375,7 @@ function variantB() {
 function variantC() {
   const top = state.conn && !ui.changeConn
     ? '<div class="cbar">' + connLine() + '<span class="dmark">Queries read as you type</span></div>'
-    : '<div class="cbar"><b>Connect a tracker</b><span class="dmark">or keep typing the inputs on the Inputs screen</span></div>' + connectForm(true)
+    : '<div class="cbar"><b>Connect a tracker</b></div>' + connectForm(true)
   if (!state.conn || ui.changeConn) return top
   const menu = (which) => '<details class="menu"><summary>' + (which === 'mq' ? 'Pick ▾' : 'Add ▾') + '</summary><div class="list"><span class="hd">' + (tr() === 'jira' ? 'Fix versions' : 'Milestones') + '</span>' +
     CHOICES.map((n) => '<button onclick="' + (which === 'mq' ? 'pick(\'' + n + '\')' : 'addTerm(choiceQuery(tr(), \'' + n + '\'))') + '">' + esc(n) + '</button>').join('') +
