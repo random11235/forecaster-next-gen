@@ -417,7 +417,7 @@ function variantD() {
     : '<div class="pace"><label>Tickets remaining <input type="number" value="' + t.value + '" onchange="editTickets(Number(this.value))"></label><span class="unit">' + mark('tickets').trim() + ' ' + chip('tickets') + '</span></div>'
   const rangeInline = '<div class="pace"><label>Low <input type="number" id="r-lo" value="' + state.range.low + '" onchange="setRange(Number(this.value),Number(document.getElementById(\'r-hi\').value))"></label><span class="to">to</span><label>High <input type="number" id="r-hi" value="' + state.range.high + '" onchange="setRange(Number(document.getElementById(\'r-lo\').value),Number(this.value))"></label><span class="unit">tickets per week</span></div>'
   const countsLine = '<div class="prov">' + (c.cells ? c.cells.length + ' weeks' + (c.cells[0] && c.cells[0].week ? ', ' + span(c.cells) : '') : '') + mark('counts') + ' ' + chip('counts') + ' <button class="linkish" onclick="editing.counts=true;render()">Edit</button></div>'
-  const countsBlock = editing.counts ? countsEditor() : (c.cells ? '<div>' + graph(c.cells, true) + '</div>' + (state.mode === 'counts' ? quietNoteIfUsed() : '') : '<p class="note">No typed counts yet.</p>') + countsLine
+  const countsBlock = editing.counts ? countsEditor() : (c.cells ? cellsHtml(c.cells, c.origin === 'hand') + (state.mode === 'counts' ? quietNoteIfUsed() : '') : '<p class="note">No typed counts yet.</p>') + countsLine
   let pace
   if (following('counts')) {
     // defaulting to GitHub: the whole pace is one line; everything else is behind Change
