@@ -413,8 +413,7 @@ function paceRead(cells) {
     const lo = Math.min(...before), hi = Math.max(...before), quiet = cells.slice(cells.length - run).map((c) => c.week)
     const canSkip = quiet.every(Boolean), alt = canSkip ? ghCells(tracker, [...skips(), ...quiet]).map((c) => c.n) : before
     return { kind: 'quietEnd', name: run + ' quiet weeks at the end', short: 'nothing finished since ' + wk(quiet[0] || cells[cells.length - run].week || '') + ', after ' + lo + '–' + hi + ' a week',
-      body: 'Counting these weeks, the forecast says <b>' + dateFor(ns) + '</b>. Skipping them, so the window reaches back ' + run + ' weeks, it says <b>' + dateFor(alt) + '</b>.' +
-        '<br>Skip them if they say nothing about the pace ahead: a holiday, or the team on other work for a spell. Keep them if this is how the work will go from now.',
+      body: 'Counting these weeks, the forecast says <b>' + dateFor(ns) + '</b>. Skipping them, so the window reaches back ' + run + ' weeks, it says <b>' + dateFor(alt) + '</b>.',
       opensWeeks: canSkip }
   }
   const med = [...ns].sort((a, b) => a - b)[ns.length >> 1], iMax = ns.indexOf(Math.max(...ns)), rest = ns.filter((_, i) => i !== iMax)
