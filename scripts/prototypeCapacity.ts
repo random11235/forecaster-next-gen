@@ -78,6 +78,15 @@ const STYLE = `
     .hist .b span { flex: 1; border-radius: 1px 1px 0 0; }
     .hist .b .w { background: var(--bar); }
     .hist .b .u { background: transparent; border: 1px dashed var(--muted); border-bottom: 0; }
+    .hist { position: relative; height: 150px; }
+    .histwrap { display: flex; flex-direction: column; }
+    .mrow { position: relative; height: 24px; }
+    .mtag { position: absolute; transform: translateX(-50%); white-space: nowrap; font-size: 12px; font-family: var(--mono); padding: 1px 6px; border-radius: 3px; }
+    .mrow.top .mtag { bottom: 2px; background: var(--ink); color: var(--page); }
+    .mrow.bot .mtag { top: 4px; border: 1px dashed var(--muted); color: var(--muted); background: var(--page); }
+    .mline { position: absolute; top: -2px; bottom: 0; width: 0; pointer-events: none; }
+    .mline.with { border-left: 2px solid var(--ink); }
+    .mline.usual { border-left: 2px dashed var(--muted); top: 0; bottom: -6px; }
     .hist .b.capd { background: repeating-linear-gradient(135deg, transparent 0 4px, #F2E6DE 4px 6px); }
     .key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 3px; }
     .side { border-left: 1px solid var(--hairline); padding-left: 20px; display: flex; flex-direction: column; gap: 12px; }
@@ -145,7 +154,7 @@ const params = new URLSearchParams(location.search)
 let variant = VARIANTS[params.get('variant')] ? params.get('variant') : 'A'
 let scenario = SCENARIOS[params.get('scenario')] ? params.get('scenario') : 'holidays'
 let state = SCENARIOS[scenario].make()
-let ui = { sel: null }
+let ui = { sel: null, edit: Number(params.get('edit')) || null }
 let nextId = 100
 const log = []
 
@@ -189,15 +198,32 @@ const shift = (a, b) => { const d = b - a; return d === 0 ? 'no change' : d > 0 
 let W, U // with capacity, at usual capacity
 
 // ---- actions ----
+function checkEntry(from, to, pct, onward) {
+  if (!from) return 'Pick the date it starts.'
+  if (!onward && to < from) return 'The end date is before the start.'
+  if (!Number.isInteger(pct) || pct < 0) return 'Capacity is a whole percentage, 0 or more.'
+  if (pct > 1000) return 'Capacity above 1000% can’t be forecast. For a team that much bigger, use a pace range or comparable work from the bigger team.'
+  return null
+}
 function addEntry(from, to, pct, note, onward) {
-  pct = Number(pct)
-  if (!from) return flash('Pick the date it starts.')
-  if (!onward && !to) to = from
-  if (!onward && to < from) return flash('The end date is before the start.')
-  if (!Number.isInteger(pct) || pct < 0) return flash('Capacity is a whole percentage, 0 or more.')
-  if (pct > 1000) return flash('Capacity above 1000% can’t be forecast. For a team that much bigger, use a pace range or comparable work from the bigger team.')
+  pct = Number(pct); if (!onward && !to) to = from
+  const bad = checkEntry(from, to, pct, onward); if (bad) return flash(bad)
   state.entries.push({ id: nextId++, from, to: onward ? null : to, pct, note: note || '' })
   state.entries.sort((a, b) => a.from.localeCompare(b.from)); log.push('add ' + pct + '% ' + from + (onward ? ' onward' : '..' + to)); ui.msg = null; render()
+}
+// Editing keeps what it was before, dated, so a later period review can see how capacity was revised.
+function startEdit(id) { ui.edit = id; ui.msg = null; render() }
+function saveEdit(id) {
+  const e = state.entries.find((x) => x.id === id), v = (n) => document.getElementById('e' + n)
+  const past = isPast(e)
+  const next = past ? { from: e.from, to: e.to, pct: e.pct, note: v('note').value }
+    : { from: v('from').value, to: v('onward').checked ? null : (v('to').value || v('from').value), pct: Number(v('pct').value), note: v('note').value }
+  if (!past) { const bad = checkEntry(next.from, next.to ?? next.from, next.pct, next.to === null); if (bad) return flash(bad) }
+  const was = { from: e.from, to: e.to, pct: e.pct, note: e.note }
+  if (JSON.stringify(was) === JSON.stringify(next)) { ui.edit = null; return render() }
+  e.revisions = [...(e.revisions || []), { ...was, changedOn: TODAY }]
+  Object.assign(e, next); state.entries.sort((a, b) => a.from.localeCompare(b.from))
+  log.push('edit ' + id); ui.edit = null; ui.msg = null; render()
 }
 function removeEntry(id) { state.entries = state.entries.filter((e) => e.id !== id); log.push('remove ' + id); render() }
 function endEntry(id) { const e = state.entries.find((x) => x.id === id); e.to = add(TODAY, -1); log.push('end ' + id + ' by hand'); render() }
@@ -286,17 +312,32 @@ function variantC() {
   const lo = Math.min(W.finish[0], U.finish[0]), hi = Math.max(W.q95, U.q95) + 1
   const cnt = (r) => { const c = new Array(hi - lo + 1).fill(0); for (const f of r.finish) if (f <= hi) c[f - lo]++; return c }
   const cw = cnt(W), cu = cnt(U), mx = Math.max(...cw, ...cu)
-  const hist = '<div class="hist">' + cw.map((v, i) => '<div class="b' + (capOfWeek(add(START, 7 * (lo + i))) < 1 - 1e-9 ? ' capd' : '') + '" title="Week of ' + dm(add(START, 7 * (lo + i))) + '"><span class="w" style="height:' + v / mx * 100 + '%"></span><span class="u" style="height:' + cu[i] / mx * 100 + '%"></span></div>').join('') + '</div>' +
+  const n = hi - lo + 1, at = (k) => ((k - lo + 0.5) / n * 100).toFixed(2) + '%'
+  const hist = '<div class="histwrap"><div class="mrow top">' + [['50%', W.q50], ['85%', W.q85]].map(([p, k]) => '<span class="mtag with" style="left:' + at(k) + '">' + p + ' · ' + dm(endOf(k)) + '</span>').join('') + '</div>' +
+    '<div class="hist">' + cw.map((v, i) => '<div class="b' + (capOfWeek(add(START, 7 * (lo + i))) < 1 - 1e-9 ? ' capd' : '') + '" title="Week of ' + dm(add(START, 7 * (lo + i))) + '"><span class="w" style="height:' + v / mx * 100 + '%"></span><span class="u" style="height:' + cu[i] / mx * 100 + '%"></span></div>').join('') +
+    [['50%', W.q50, 'with'], ['85%', W.q85, 'with'], ['50%', U.q50, 'usual'], ['85%', U.q85, 'usual']].map(([p, k, r]) => '<div class="mline ' + r + (p === '85%' ? ' p85' : '') + '" style="left:' + at(k) + '"></div>').join('') + '</div>' +
+    '<div class="mrow bot">' + [['50%', U.q50], ['85%', U.q85]].map(([p, k]) => '<span class="mtag usual" style="left:' + at(k) + '">' + p + ' · ' + dm(endOf(k)) + '</span>').join('') + '</div></div>' +
     '<div class="row" style="justify-content:space-between"><span class="faint">' + dm(add(START, 7 * lo)) + '</span><span class="faint">' + dm(add(START, 7 * hi)) + '</span></div>' +
-    '<p class="faint"><span class="key" style="background:var(--bar)"></span>with capacity · <span class="key" style="border:1px dashed var(--muted)"></span>at usual capacity · <span class="key" style="background:repeating-linear-gradient(135deg, transparent 0 3px, #E8D3C6 3px 5px)"></span>weeks below 100%</p>'
-  const lines = state.entries.filter((e) => !isPast(e)).map((e) => '<div class="sline"><span><b>' + e.pct + '%</b> ' + span(e) + (e.note ? ' <span class="faint">' + esc(e.note) + '</span>' : '') + '</span><button class="linkish" onclick="removeEntry(' + e.id + ')">Remove</button></div>').join('') || '<p class="muted">Every week is at 100%.</p>'
+    '<p class="faint"><span class="key" style="background:var(--bar)"></span>with capacity, <span class="key" style="background:var(--ink)"></span>its 50% and 85% dates above · <span class="key" style="border:1px dashed var(--muted)"></span>at usual capacity, its dates below · <span class="key" style="background:repeating-linear-gradient(135deg, transparent 0 3px, #E8D3C6 3px 5px)"></span>weeks below 100%</p>'
+  const editForm = (e) => {
+    const past = isPast(e)
+    return '<div class="pop" style="gap:8px">' + (past ? '<span class="faint">' + e.pct + '% ' + span(e) + ' · past, so only the note can change</span>' :
+      '<div class="sentence">At <input type="number" id="epct" min="0" max="1000" step="1" value="' + e.pct + '">% from <input type="date" id="efrom" value="' + e.from + '"> to <input type="date" id="eto" value="' + (e.to || '') + '"' + (e.to === null ? ' disabled' : '') + '> <label style="font-size:13px"><input type="checkbox" id="eonward"' + (e.to === null ? ' checked' : '') + ' onchange="document.getElementById(\'eto\').disabled=this.checked"> or onward</label></div>') +
+      '<label class="faint" style="display:flex;flex-direction:column;gap:2px">Note <input type="text" id="enote" value="' + esc(e.note) + '"></label>' +
+      '<div class="row"><button class="primary" onclick="saveEdit(' + e.id + ')">Save</button><button class="linkish" onclick="ui.edit=null;render()">Cancel</button></div>' +
+      (e.revisions ? '<span class="faint">Changed ' + e.revisions.length + '× · earlier versions kept for the period review</span>' : '') + '</div>'
+  }
+  const lineC = (e, past) => ui.edit === e.id ? editForm(e) :
+    '<div class="sline"><span><b>' + e.pct + '%</b> ' + span(e) + (e.newUsual ? ' · new usual from ' + dm(e.newUsual) : '') + (e.note ? ' <span class="faint">' + esc(e.note) + '</span>' : '') + (e.revisions ? ' <span class="tag" title="' + esc(e.revisions.map((r) => r.changedOn + ': was ' + r.pct + '% ' + r.from + '..' + (r.to || 'onward') + ' ' + r.note).join('\n')) + '">edited</span>' : '') + '</span>' +
+    '<span class="row" style="gap:10px;flex-wrap:nowrap"><button class="linkish" onclick="startEdit(' + e.id + ')">Edit</button>' + (past ? '' : '<button class="linkish" onclick="removeEntry(' + e.id + ')">Remove</button>') + '</span></div>'
+  const lines = state.entries.filter((e) => !isPast(e)).map((e) => lineC(e, false)).join('') || '<p class="muted">Every week is at 100%.</p>'
   const sentence = '<div class="sentence">The team is at <input type="number" id="cpct" min="0" max="1000" step="1" value="50">% from <input type="date" id="cfrom" value="2026-12-21"> to <input type="date" id="cto" value="2027-01-01"> <label style="font-size:13px"><input type="checkbox" id="conward" onchange="document.getElementById(\'cto\').disabled=this.checked"> or onward</label>, for <input type="text" id="cnote" placeholder="leave, an incident…">. <button onclick="readAdd(\'c\')">Add</button></div>'
   const head = W.q85 === U.q85 ? '' : '<p class="muted">Capacity moves the 85% date ' + shift(U.q85, W.q85) + '.</p>'
   return '<div class="row" style="justify-content:space-between">' + modeSwitch() + '<span class="faint">Shown as the Milestone forecast screen</span></div>' +
     '<div class="fc"><div class="col" style="gap:18px"><p class="bighead">Starting ' + dmy(START) + ': 85% confident of finishing by <span style="color:var(--good)">' + dm(endOf(W.q85)) + '</span></p>' + head +
     '<section class="brief"><div class="heading"><h2>When it could finish</h2></div><table class="pc"><thead><tr><th></th><th>With capacity</th><th>At usual capacity</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></section>' +
     '<section class="brief"><div class="heading"><h2>When the simulations finish</h2></div>' + hist + '</section></div>' +
-    '<aside class="side"><h3>Capacity</h3>' + usualLine() + lines + flags() + sentence + assumeLine() + pastBlock((l) => l.map((e) => '<div class="sline"><span>' + e.pct + '% ' + span(e) + (e.newUsual ? ' · new usual from ' + dm(e.newUsual) : '') + '</span></div>').join('')) + '</aside></div>'
+    '<aside class="side"><h3>Capacity</h3>' + usualLine() + lines + flags() + sentence + assumeLine() + pastBlock((l) => l.map((e) => lineC(e, true)).join('')) + '</aside></div>'
 }
 
 // ---- switcher and render ----
