@@ -394,6 +394,7 @@ function rangeBlock() {
 function keep(field) { act('keep mine: ' + field, () => { state[field].seen = trackerVal(field); editing['show-' + field] = false }) }
 function show(field) { act('show GitHub\'s ' + field, () => { editing['show-' + field] = true }) }
 function editTickets(n) { act('edit tickets by hand', () => {
+  if ((state.follow || {}).tickets && n !== tracker.tickets) state.follow.tickets = false
   state.tickets = n === tracker.tickets ? { value: n, origin: 'measured', at: tracker.at, seen: n } : { value: n, origin: 'hand', seen: tracker.tickets }
   editing.tickets = false }) }
 function editCountsList(text) { act('edit counts by hand (list)', () => {
@@ -612,10 +613,10 @@ function variantD() {
   followReads()
   const t = state.tickets, c = state.counts
   const mark = (field) => { const s = status(field); return s === 'measured' ? '' : s.startsWith('hand') || s === 'typed' || s === 'proposed' ? ' <span class="dmark">by hand</span>' : ' <span class="dmark">from ' + state[field].at + '</span>' }
-  const stopFollow = (f) => '<div class="row"><button onclick="setFollow(\'' + f + '\', false)">Stop following, keep ' + (f === 'tickets' ? state.tickets.value : 'these counts') + ' fixed</button>' + (state[f].own ? '<button onclick="state.follow.' + f + '=false;switchBack(\'' + f + '\')">Switch back to yours (' + esc(f === 'tickets' ? state[f].own.value : nums(state[f].own.cells)) + ')</button>' : '') + '</div>'
+  const stopFollow = (f) => '<div class="row">' + (state[f].own ? '<button onclick="state.follow.' + f + '=false;switchBack(\'' + f + '\')">Switch back to yours (' + esc(f === 'tickets' ? state[f].own.value : nums(state[f].own.cells)) + ')</button>' : '') + '</div>'
   const tickets = following('tickets')
     ? '<div class="dline"><span class="dbig">' + t.value + '</span><span class="dmark">tickets remaining · follows GitHub, read ' + tracker.at + '</span>' + wasLine('tickets') +
-      '<details class="dother inline"' + (editing['change-tickets'] ? ' open' : '') + ' ontoggle="editing[\'change-tickets\']=this.open"><summary>Change</summary>' + stopFollow('tickets') + '</details></div>'
+      '<details class="dother inline"' + (editing['change-tickets'] ? ' open' : '') + ' ontoggle="editing[\'change-tickets\']=this.open"><summary>Change</summary><div class="pace"><label>Tickets remaining <input type="number" value="' + t.value + '" onchange="editTickets(Number(this.value))"></label><span class="unit dmark">typing a number stops following</span></div>' + stopFollow('tickets') + '</details></div>'
     : '<div class="pace"><label>Tickets remaining <input type="number" value="' + t.value + '" onchange="editTickets(Number(this.value))"></label><span class="unit">' + mark('tickets').trim() + ' ' + chip('tickets') + '</span></div>'
   const rangeInline = '<div class="pace"><label>Low <input type="number" id="r-lo" value="' + state.range.low + '" onchange="setRange(Number(this.value),Number(document.getElementById(\'r-hi\').value))"></label><span class="to">to</span><label>High <input type="number" id="r-hi" value="' + state.range.high + '" onchange="setRange(Number(document.getElementById(\'r-lo\').value),Number(this.value))"></label><span class="unit">tickets per week</span></div>'
   const countsLine = '<div class="prov">' + (c.cells ? c.cells.length + ' weeks' + (c.cells[0] && c.cells[0].week ? ', ' + span(c.cells) : '') : '') + mark('counts') + ' ' + chip('counts') + (c.cells ? '' : ' <button class="linkish" onclick="editing.counts=true;render()">Type counts</button>') + '</div>'
