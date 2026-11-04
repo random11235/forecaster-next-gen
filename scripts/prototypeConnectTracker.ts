@@ -46,6 +46,12 @@ const STYLE = `
     .conn { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 14px; }
     .conn b { font-family: var(--mono); font-weight: 500; }
     .ok-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); display: inline-block; }
+    .chip { display: inline-flex; gap: 6px; align-items: center; border: 1px solid var(--border); border-radius: 999px; padding: 2px 4px 2px 10px; font-size: 13px; background: #fff; }
+    .chip .x { border: 0; background: none; min-height: 0; padding: 0 6px; font-size: 15px; line-height: 1; color: var(--muted); cursor: pointer; }
+    input.find { font-size: 14px; padding: 7px 10px; }
+    .found { display: flex; flex-direction: column; }
+    .found button { text-align: left; border: 0; background: none; min-height: 30px; font-size: 13px; padding: 0 8px; border-radius: 4px; }
+    .found button:hover { background: var(--active); }
     .checks { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
     .checks label { display: flex; gap: 8px; align-items: center; }
     /* B: setup steps */
@@ -107,6 +113,10 @@ const GROUPS = [
 ]
 const MILESTONES = ['Checkout v2', 'Search revamp', 'Q3 polish', 'Payments v1']
 const EPICS = { 41: 'Checkout v2', 57: 'Search revamp', 63: 'Payments v1' } // GitHub: parent issues with sub-issues; Jira: epic issues
+// ...and many more epics with nothing in the window, as a big project would have
+;['Checkout analytics', 'Checkout A/B tests', 'Guest checkout', 'Saved cards', 'Search filters', 'Search ranking', 'Search suggestions', 'Payments retries', 'Refunds', 'Gift cards',
+  'Wishlist', 'Order history', 'Returns portal', 'Delivery slots', 'Address book', 'Promo codes', 'Loyalty points', 'Mobile web nav', 'Accessibility audit', 'Cookie banner',
+  'Checkout v1 sunset', 'Basket redesign', 'Search infra upgrade', 'Payments PCI review'].forEach((t, i) => { EPICS[100 + i * 7] = t })
 const LABELS = ['checkout', 'search', 'ktlo', 'bug', 'payments']
 // milestoneChoices(): ids 'm:<milestone or fix version>', 'e:<epic number>', 'l:<label>', grouped for the picker
 const CHOICES = MILESTONES.map((n) => 'm:' + n).concat(Object.keys(EPICS).map((n) => 'e:' + n), LABELS.map((l) => 'l:' + l))
@@ -255,7 +265,19 @@ function picks(which) {
 function comparablePicked() { return picks('cq') || [] }
 const cqIsPicker = () => !!picks('cq')
 const grouped = (skip, item) => choiceGroups(tr()).map(([g, ids]) => '<span class="dmark" style="margin-top:6px">' + g + '</span>' + ids.filter((n) => !(skip || []).includes(n)).map(item).join('')).join('')
-const countWords = (n) => { const r = read(tr(), choiceQuery(tr(), n)); return r.incomplete ? 'over 1,000 tickets' : r.total ? r.open + ' open · ' + r.finished + ' finished in 8 weeks' : 'no tickets' }
+const kindOf = (id) => id[0] === 'e' ? 'epic' : id[0] === 'l' ? 'label' : tr() === 'jira' ? 'fix version' : 'milestone'
+function finder(which) {
+  const ids = picks(which) || []
+  return '<div class="col" style="gap:6px;max-width:560px">' + (ids.length ? '<div class="row">' + ids.map((id) => '<span class="chip">' + esc(choiceName(tr(), id)) + ' <span class="dmark">' + kindOf(id) + '</span><button class="x" aria-label="Remove" onclick="togglePick(\'' + which + '\', \'' + id + '\', false)">×</button></span>').join('') + '</div>' : '') +
+    '<input type="text" class="find" placeholder="Find ' + (tr() === 'jira' ? 'a fix version, epic or label' : 'an epic, label or milestone') + '…" oninput="findChoices(\'' + which + '\', this.value)" aria-label="Find for ' + which + '">' +
+    '<div class="found" id="found-' + which + '"></div></div>'
+}
+// asks the tracker for up to 8 matching names as you type (canned here); nothing is read for a choice until it's picked
+function findChoices(which, text, append) {
+  const t = text.trim().toLowerCase(), taken = (picks(which) || []).concat(which === 'cq' ? picks('mq') || [] : [])
+  const hits = t ? CHOICES.filter((id) => !taken.includes(id) && choiceName(tr(), id).toLowerCase().includes(t)).slice(0, 8) : []
+  document.getElementById('found-' + which).innerHTML = !t ? '' : hits.length ? hits.map((id) => '<button onclick="' + (append ? 'addTerm(choiceQuery(tr(), \'' + id + '\'), \'' + which + '\')' : 'togglePick(\'' + which + '\', \'' + id + '\', true)') + '">' + esc(choiceName(tr(), id)) + ' <span class="dmark">' + kindOf(id) + '</span></button>').join('') : '<span class="dmark">No epic, label or ' + (tr() === 'jira' ? 'fix version' : 'milestone') + ' matches “' + esc(text) + '”</span>'
+}
 function setSrc(k, v) { act(k + ' → ' + v, () => { state.inputs[k] = v }) }
 function goStep(n) { act('step ' + n, () => { state.step = n }) }
 
@@ -351,13 +373,9 @@ function variantA() {
   let ms = '<div class="fields"><label class="wide">Milestone name <input type="text" value="' + esc(state.inputs.name) + '"></label><label>Start date <input type="date" value="' + state.inputs.start + '"></label></div>'
   if (state.conn) {
     const p = pickedName()
-    const box = '<div class="checks" style="max-height:220px;overflow:auto;border:1px solid var(--hairline);border-radius:6px;padding:4px 10px 8px;max-width:520px">' +
-      grouped(null, (n) => '<label><input type="checkbox"' + ((p || []).includes(n) ? ' checked' : '') + ' onchange="togglePick(\'mq\', \'' + n + '\', this.checked)"> ' + esc(choiceName(tr(), n)) + ' <span class="dmark">' + countWords(n) + '</span></label>') + '</div>'
-    ms += '<div class="col"><span class="muted">Tickets from: tick one or more</span>' + (p && !ui.editMq ? box : '') +
-      (state.mq || ui.editMq || !p ? (ui.editMq || !p || (state.reads.mq && !state.reads.mq.ok)
-        ? qbox('mq') + (p ? '' : '<button class="linkish" style="align-self:flex-start" onclick="state.mq=\'\';ui.editMq=false;delete state.reads.mq;render()">Back to the list</button>')
-        : '<div class="row"><span class="qline">' + esc(scopeText() + ' ' + state.mq) + '</span><button class="linkish" onclick="ui.editMq=true;render()">Edit query</button></div>') + flag('mq')
-        : '<button class="linkish" style="align-self:flex-start" onclick="ui.editMq=true;render()">Write the query yourself</button>') + '</div>'
+    ms += '<div class="col"><span class="muted">Tickets from</span>' + (p && !ui.editMq
+      ? finder('mq') + (state.mq ? '<div class="row"><span class="qline">' + esc(scopeText() + ' ' + state.mq) + '</span><button class="linkish" onclick="ui.editMq=true;render()">Edit query</button></div>' : '<button class="linkish" style="align-self:flex-start" onclick="ui.editMq=true;render()">Write the query yourself</button>')
+      : qbox('mq') + '<button class="linkish" style="align-self:flex-start" onclick="' + (p ? 'ui.editMq=false;render()' : 'state.mq=\'\';ui.editMq=false;delete state.reads.mq;render()') + '">Back to finding</button>') + flag('mq') + '</div>'
   }
   ms += ticketsBlock()
   const s2 = section(2, 'Milestone', state.conn ? 'Pick the milestone in ' + trackerName() + ', or write your own query.' : 'Name the milestone, the date work on it starts, and how many tickets are left.', ms)
@@ -365,7 +383,7 @@ function variantA() {
   if (state.conn && combined() && state.inputs.paceSrc === 'github') {
     const names = comparablePicked(), p = pickedName()
     cmp = ui.openCmp || state.cq ? '<details class="col" open style="border-top:1px solid var(--hairline);padding-top:10px"><summary class="muted">Comparable work: finished tickets like this milestone’s, counted in the pace too</summary>' +
-      (cqIsPicker() && !ui.editCq ? '<div class="checks">' + grouped(p, (n) => '<label><input type="checkbox"' + (names.includes(n) ? ' checked' : '') + ' onchange="toggleComparable(\'' + n + '\', this.checked)"> ' + esc(choiceName(tr(), n)) + '</label>') + '</div><button class="linkish" onclick="ui.editCq=true;render()" style="align-self:flex-start">Write the query yourself</button>' + (state.cq ? '<span class="qline">' + esc(state.cq) + '</span>' : '')
+      (cqIsPicker() && !ui.editCq ? finder('cq') + '<button class="linkish" onclick="ui.editCq=true;render()" style="align-self:flex-start">Write the query yourself</button>' + (state.cq ? '<span class="qline">' + esc(state.cq) + '</span>' : '')
         : qbox('cq')) + flag('cq') + '</details>'
       : '<button class="linkish" style="align-self:flex-start" onclick="ui.openCmp=true;render()">+ Also count comparable work</button><span class="dmark">With none, the pace is this milestone’s own finished tickets.</span>'
   }
@@ -387,8 +405,8 @@ function variantB() {
   if (state.step === 1) body = '<h2>Connect a tracker</h2><p class="muted">The milestone’s tickets and the team’s finished work are read from one GitHub repo or Jira project.</p>' + connectForm() + '<button class="linkish" onclick="ui.skipped=true;render()" style="align-self:flex-start">Skip: type the inputs instead</button>'
   if (state.step === 2) {
     const p = pickedName()
-    body = '<h2>Which tickets are the milestone?</h2><p class="muted">Connected to ' + esc(where()) + '. Tick one or more: several epics, say, or a ' + (tr() === 'jira' ? 'fix version' : 'label') + '.</p>' +
-      (p && !ui.editMq ? grouped(null, (n) => '<label class="choice"><span class="row"><input type="checkbox"' + (p.includes(n) ? ' checked' : '') + ' onchange="togglePick(\'mq\', \'' + n + '\', this.checked)"><span class="nm">' + esc(choiceName(tr(), n)) + '</span></span><span class="dmark">' + countWords(n) + '</span></label>') +
+    body = '<h2>Which tickets are the milestone?</h2><p class="muted">Connected to ' + esc(where()) + '. Find and add one or more: several epics, say, or a ' + (tr() === 'jira' ? 'fix version' : 'label') + '.</p>' +
+      (p && !ui.editMq ? finder('mq') +
         '<button class="linkish" style="align-self:flex-start" onclick="ui.editMq=true;render()">Write the query yourself</button>' : qbox('mq')) +
       (state.mq ? '<span class="qline">' + esc(scopeText() + ' ' + state.mq) + '</span>' : '') + flag('mq') +
       '<div class="actions"><button class="primary"' + (inUse('mq') ? '' : ' disabled') + ' onclick="goStep(3)">Next</button></div>'
@@ -396,7 +414,7 @@ function variantB() {
   if (state.step === 3) {
     const names = comparablePicked(), p = pickedName(), c = combined()
     body = '<h2>Is there finished work like this milestone’s?</h2><p class="muted">Its finished tickets count in the pace alongside the milestone’s own, which helps when the milestone is new. Skip this to use only the milestone’s own.</p>' +
-      (cqIsPicker() && !ui.editCq ? '<div class="checks">' + grouped(p, (n) => { const r = read(tr(), choiceQuery(tr(), n)); return '<label><input type="checkbox"' + (names.includes(n) ? ' checked' : '') + ' onchange="toggleComparable(\'' + n + '\', this.checked)"> ' + esc(choiceName(tr(), n)) + ' <span class="dmark">' + (r.incomplete ? 'over 1,000 tickets' : r.finished + ' finished in 8 weeks') + '</span></label>' }) + '</div><button class="linkish" onclick="ui.editCq=true;render()" style="align-self:flex-start">Write the query yourself</button>' : qbox('cq')) + flag('cq') +
+      (cqIsPicker() && !ui.editCq ? finder('cq') + (state.cq ? '<span class="qline">' + esc(state.cq) + '</span>' : '') + '<button class="linkish" onclick="ui.editCq=true;render()" style="align-self:flex-start">Write the query yourself</button>' : qbox('cq')) + flag('cq') +
       '<div class="row">' + graph(c, true) + '<span class="muted">pace: ' + c.own + ' from the milestone' + (c.finished - c.own ? ' + ' + (c.finished - c.own) + ' comparable' : '') + '</span></div>' +
       '<div class="actions"><button class="primary" onclick="goStep(4)">Next</button><button onclick="state.cq=\'\';delete state.reads.cq;goStep(4)">Skip</button></div>'
   }
@@ -418,7 +436,7 @@ function variantC() {
     ? '<div class="cbar">' + connLine() + '<span class="dmark">Queries read as you type</span></div>'
     : '<div class="cbar"><b>Connect a tracker</b></div>' + connectForm(true)
   if (!state.conn || ui.changeConn) return top
-  const menu = (which) => '<details class="menu"><summary>' + 'Add ▾' + '</summary><div class="list">' + choiceGroups(tr()).map(([g, ids]) => '<span class="hd">' + g + '</span>' + ids.map((n) => '<button onclick="' + 'addTerm(choiceQuery(tr(), \'' + n + '\'), \'' + which + '\')' + '">' + esc(choiceName(tr(), n)) + '</button>').join('')).join('') + '</div></details>'
+  const menu = (which) => '<details class="menu"><summary>Add ▾</summary><div class="list" style="min-width:300px"><input type="text" class="find" placeholder="Find…" oninput="findChoices(\'' + which + '\', this.value, true)" aria-label="Find for ' + which + '"><div class="found" id="found-' + which + '"></div></div></details>'
   const row = (which, title, hint) => '<div class="qrow"><div class="col"><h3>' + title + '</h3><span class="dmark">' + hint + '</span><div class="row" style="flex-wrap:nowrap">' + qbox(which, true) + menu(which) + '</div><div id="flag-' + which + '">' + flag(which) + '</div></div><div id="res-' + which + '">' + resCard(which, state.reads[which]) + '</div></div>'
   const c = combined()
   const gives = c ? '<div class="gives"><div class="col" style="gap:2px"><span class="dmark">Tickets remaining</span><span class="dbig">' + c.open + '</span></div><div class="col" style="gap:4px"><span class="dmark">Pace · last 8 weeks · ' + c.own + ' milestone' + (c.finished - c.own ? ' + ' + (c.finished - c.own) + ' comparable' : '') + '</span>' + graph(c, true) + '</div><span class="muted" style="max-width:260px">These follow ' + trackerName() + ' on the Inputs screen, where either can be switched to Typed.</span></div>' : ''
