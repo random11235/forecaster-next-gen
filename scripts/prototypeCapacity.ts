@@ -87,7 +87,7 @@ const STYLE = `
     .mline { position: absolute; top: -2px; bottom: 0; width: 0; pointer-events: none; }
     .mline.with { border-left: 2px solid var(--ink); }
     .mline.usual { border-left: 2px dashed var(--muted); top: 0; bottom: -6px; }
-    .hist .b.capd { background: repeating-linear-gradient(135deg, transparent 0 4px, #F2E6DE 4px 6px); }
+    .hist .b.capd { background: repeating-linear-gradient(135deg, transparent 0 4px, rgba(181,72,42,.32) 4px 7px); }
     .key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 3px; }
     .side { border-left: 1px solid var(--hairline); padding-left: 20px; display: flex; flex-direction: column; gap: 12px; }
     .side h3 { margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
@@ -318,7 +318,7 @@ function variantC() {
     [['50%', W.q50, 'with'], ['85%', W.q85, 'with'], ['50%', U.q50, 'usual'], ['85%', U.q85, 'usual']].map(([p, k, r]) => '<div class="mline ' + r + (p === '85%' ? ' p85' : '') + '" style="left:' + at(k) + '"></div>').join('') + '</div>' +
     '<div class="mrow bot">' + [['50%', U.q50], ['85%', U.q85]].map(([p, k]) => '<span class="mtag usual" style="left:' + at(k) + '">' + p + ' · ' + dm(endOf(k)) + '</span>').join('') + '</div></div>' +
     '<div class="row" style="justify-content:space-between"><span class="faint">' + dm(add(START, 7 * lo)) + '</span><span class="faint">' + dm(add(START, 7 * hi)) + '</span></div>' +
-    '<p class="faint"><span class="key" style="background:var(--bar)"></span>with capacity, <span class="key" style="background:var(--ink)"></span>its 50% and 85% dates above · <span class="key" style="border:1px dashed var(--muted)"></span>at usual capacity, its dates below · <span class="key" style="background:repeating-linear-gradient(135deg, transparent 0 3px, #E8D3C6 3px 5px)"></span>weeks below 100%</p>'
+    '<p class="faint"><span class="key" style="background:var(--bar)"></span>with capacity, <span class="key" style="background:var(--ink)"></span>its 50% and 85% dates above · <span class="key" style="border:1px dashed var(--muted)"></span>at usual capacity, its dates below · <span class="key" style="background:repeating-linear-gradient(135deg, transparent 0 3px, rgba(181,72,42,.45) 3px 5px)"></span>weeks below 100%</p>'
   const editForm = (e) => {
     const past = isPast(e)
     return '<div class="pop" style="gap:8px">' + (past ? '<span class="faint">' + e.pct + '% ' + span(e) + ' · past, so only the note can change</span>' :
