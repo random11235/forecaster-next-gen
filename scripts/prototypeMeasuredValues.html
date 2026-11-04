@@ -331,7 +331,8 @@ function accept(field) { act('accept ' + field, () => {
   if (field === 'tickets') state.tickets = { value: tracker.tickets, origin: 'measured', at: tracker.at, seen: tracker.tickets }
   else { state.counts = { cells: measuredCells(tracker.cells), origin: 'measured', at: tracker.at, seen: key(tracker.cells) }; state.mode = 'counts' }
 }) }
-function keep(field) { act('keep mine: ' + field, () => { state[field].seen = trackerVal(field) }) }
+function keep(field) { act('keep mine: ' + field, () => { state[field].seen = trackerVal(field); editing['show-' + field] = false }) }
+function show(field) { act('show GitHub\'s ' + field, () => { editing['show-' + field] = true }) }
 function editTickets(n) { act('edit tickets by hand', () => {
   state.tickets = n === tracker.tickets ? { value: n, origin: 'measured', at: tracker.at, seen: n } : { value: n, origin: 'hand', seen: tracker.tickets }
   editing.tickets = false }) }
@@ -407,22 +408,23 @@ function countsEditor() {
 // ---- Variant A: each value marked where it sits; a new read appears under the value it would change ----
 function proposalA(field) {
   const s = status(field)
-  if (!['proposed', 'newRead', 'handNewRead'].includes(s)) return ''
+  const reopened = editing['show-' + field] && acceptedVal(field) !== trackerVal(field)
+  if (!reopened && !['proposed', 'newRead', 'handNewRead'].includes(s)) return ''
   const mine = field === 'tickets' ? state.tickets.value : nums(state.counts.cells)
   const theirs = field === 'tickets' ? tracker.tickets : nums(tracker.cells)
-  const head = s === 'proposed' ? 'GitHub proposes' : 'GitHub now reads'
+  const head = reopened ? 'GitHub reads' : s === 'proposed' ? 'GitHub proposes' : 'GitHub now reads'
   const was = s === 'newRead' ? ' (you accepted ' + mine + ' from the read on ' + state[field].at + ')' : s === 'handNewRead' ? ' (you edited it to ' + mine + ' by hand)' : ''
   const body = field === 'tickets'
     ? '<div><b>' + head + ' ' + theirs + '</b> tickets remaining, read ' + tracker.at + was + '.</div>'
     : '<div><b>' + head + ' these 8 weeks</b>, ' + span(tracker.cells) + ', read ' + tracker.at + was + ':</div>' + cellsHtml(tracker.cells) + quietNote(tracker.cells)
-  const keepLabel = s === 'proposed' ? (field === 'tickets' ? 'Keep ' + mine : 'Not now') : 'Keep ' + (field === 'tickets' ? mine : 'mine')
+  const keepLabel = reopened ? 'Hide' : s === 'proposed' ? (field === 'tickets' ? 'Keep ' + mine : 'Not now') : 'Keep ' + (field === 'tickets' ? mine : 'mine')
   return '<div class="proposal">' + body + '<div class="row"><button class="primary" onclick="accept(\'' + field + '\')">Use ' + (field === 'tickets' ? theirs : 'these counts') + '</button><button onclick="keep(\'' + field + '\')">' + keepLabel + '</button></div></div>'
 }
 function revertA(field) {
   const s = status(field)
-  if (s === 'hand') return '<span>GitHub reads ' + (field === 'tickets' ? tracker.tickets : nums(tracker.cells)) + '</span><button class="linkish" onclick="accept(\'' + field + '\')">Revert to measured</button>'
-  if (s === 'kept') return '<span>GitHub now reads ' + (field === 'tickets' ? tracker.tickets : nums(tracker.cells)) + '</span><button class="linkish" onclick="accept(\'' + field + '\')">Use it</button>'
-  return ''
+  if (!['hand', 'kept', 'typed'].includes(s) || editing['show-' + field] || acceptedVal(field) === trackerVal(field)) return ''
+  return '<span>GitHub reads ' + (field === 'tickets' ? tracker.tickets : nums(tracker.cells)) + '</span><button class="linkish" onclick="show(\'' + field + '\')">Show</button>' +
+    (s === 'hand' ? '<button class="linkish" onclick="accept(\'' + field + '\')">Revert to measured</button>' : '')
 }
 function variantA() {
   const t = state.tickets
@@ -432,7 +434,7 @@ function variantA() {
   const c = state.counts
   const counts = editing.counts ? countsEditor()
     : (c.cells ? cellsHtml(c.cells, c.origin === 'hand') + '<div class="prov">' + provTag('counts') + '<span>' + c.cells.length + ' weeks, ' + span(c.cells) + '</span>' + revertA('counts') + '<button class="linkish" onclick="editing.counts=true;render()">Edit by hand</button></div>' + (c.origin === 'measured' && status('counts') !== 'newRead' ? quietNote(c.cells) : '')
-      : '<p class="note">No typed counts yet.</p>') + proposalA('counts')
+      : '<p class="note">No typed counts yet.</p><div class="prov">' + revertA('counts') + '</div>') + proposalA('counts')
   const strip = '<div class="strip"><span class="where">On the Milestone forecast</span><span class="context">Checkout v2 · ' + t.value + ' tickets remaining ' + provTag('tickets') + '</span><span class="head">Starting 4 Nov 2026: 85% confident of finishing by ' + standIn() + '</span><span class="note">Pace: ' + paceWords() + ' ' + (state.mode === 'counts' ? provTag('counts') : '') + '</span>' +
     (pending().length ? '<span class="note">' + tag('new', 'New from GitHub') + ' ' + pending().length + ' value' + (pending().length > 1 ? 's' : '') + ' differ from what the forecast uses. <a href="#pace">Review on Inputs</a></span>' : '') + '</div>'
   return strip + section(1, 'Milestone', 'Tickets remaining, measured from the milestone query.', tickets) +
