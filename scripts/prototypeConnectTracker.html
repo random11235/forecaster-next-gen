@@ -346,10 +346,11 @@ function parse(tr, q) {
         return { fail: 'invalid', msg: 'Field \'' + f + '\' does not exist or you do not have permission to view it.' }
       }
       const m = /^(-?)([a-z-]+):(.*)$/.exec(tok)
-      if (!m) return { fail: 'invalid', msg: 'Free text ("' + tok + '") searches titles, which this tool doesn\'t read. Use qualifiers such as milestone: or label:.' , ours: true }
+      if (!m) return { fail: 'invalid', msg: tok + ' is free text, which searches titles. This tool reads only qualifiers, such as label:, milestone: or parent-issue:.', ours: true }
       const [, neg, k, raw] = m, v = unq(raw), not = neg === '-'
+      if (!v) return { fail: 'invalid', msg: 'The ' + k + ': qualifier needs a value.' }
       if (['repo', 'org', 'user'].includes(k)) { if (k === 'repo' && v === REPO) continue; return { fail: 'outOfScope', msg: k + ':' + v } }
-      if (k === 'milestone') { if (!v) return { fail: 'invalid', msg: 'The milestone: qualifier needs a value.' }; preds.push((g) => (g.ms === v) !== not); continue }
+      if (k === 'milestone') { preds.push((g) => (g.ms === v) !== not); continue }
       if (k === 'parent-issue') { const [rp, num] = v.split('#'); if (rp !== REPO) return { fail: 'outOfScope', msg: k + ':' + v }; preds.push((g) => (g.epic === Number(num)) !== not); continue }
       if (k === 'label') { preds.push((g) => g.labels.includes(v) !== not); continue }
       if (k === 'no' && v === 'milestone') { preds.push((g) => !g.ms); continue }
@@ -467,14 +468,15 @@ function combined() {
   return { ...measure(set), open: m.open, own: m.finished, incomplete: m.incomplete || !!(c && c.incomplete) }
 }
 const trackerName = () => tr() === 'jira' ? 'Jira' : 'GitHub'
-function flag(which) {
-  const r = state.reads[which]; if (!r) return ''
+function flag(which, r = state.reads[which], preview) {
+  if (!r) return ''
   const T = trackerName(), what = which === 'mq' ? 'tickets remaining and pace' : 'pace'
-  const stale = state.lastGood[which] ? ' Still using the last query that worked (<span class="qline">' + esc(state.lastGood[which].q) + '</span>) for ' + what + '.' : ' Nothing is read until it’s fixed.'
+  const stale = preview ? '' : state.lastGood[which] ? ' Still using the last query that worked (<span class="qline">' + esc(state.lastGood[which].q) + '</span>) for ' + what + '.' : ' Nothing is read until it’s fixed.'
   if (!r.ok && r.fail === 'outOfScope') return '<div class="flag bad"><b>' + esc(r.msg) + '</b> reaches outside ' + where() + '. This connection reads one ' + (tr() === 'jira' ? 'project' : 'repo') + '; to read another, change the connection.' + stale + '</div>'
   if (!r.ok) return '<div class="flag bad">' + (r.ours ? '' : T + ' says: ') + esc(r.msg) + stale + '</div>'
   if (r.incomplete) return '<div class="flag warn">Matches more than 1,000 tickets, the most ' + T + ' returns, so the counts are incomplete. Narrow the query.</div>'
   if (!r.set.length || r.total === 0) return '<div class="flag warn">Matches no tickets' + (which === 'mq' ? ', so tickets remaining is 0' : '') + '. Check the query.</div>'
+  if (preview) return '<div class="flag ok">' + (which === 'mq' ? r.open + ' open · ' : '') + r.finished + ' finished in the last 8 weeks · press Enter to use this query</div>'
   return '<div class="flag ok">' + (which === 'mq' ? r.open + ' open · ' : '') + r.finished + ' finished in the last 8 weeks</div>'
 }
 function graph(c, two) {
@@ -486,9 +488,19 @@ function graph(c, two) {
   }).join('') + '</span>'
 }
 function seg(opts, on, fn) { return '<span class="dseg">' + opts.map(([v, l]) => '<button class="' + (v === on ? 'on' : '') + '" onclick="' + fn + '(\'' + v + '\')">' + l + '</button>').join('') + '</span>' }
-const qbox = (which, live) => '<div class="qbox"><span class="scope">' + scopeText() + '</span><input value="' + esc(state[which]) + '" placeholder="' + (which === 'cq' ? (tr() === 'jira' ? 'fixVersion = &quot;Q3 polish&quot; OR labels = checkout' : 'milestone:&quot;Q3 polish&quot; OR label:checkout') : '') + '" ' + (live ? 'oninput="liveQuery(\'' + which + '\', this.value)"' : 'onchange="setQuery(\'' + which + '\', this.value)"') + ' aria-label="' + (which === 'mq' ? 'Milestone query' : 'Comparable-work query') + '"></div>'
+const qbox = (which, live) => '<div class="qbox"><span class="scope">' + scopeText() + '</span><input value="' + esc(state[which]) + '" placeholder="' + (which === 'cq' ? (tr() === 'jira' ? 'fixVersion = &quot;Q3 polish&quot; OR labels = checkout' : 'milestone:&quot;Q3 polish&quot; OR label:checkout') : '') + '" ' + (live ? 'oninput="liveQuery(\'' + which + '\', this.value)" ' : '') + 'onchange="setQuery(\'' + which + '\', this.value)"' + ' aria-label="' + (which === 'mq' ? 'Milestone query' : 'Comparable-work query') + '"></div>'
 let liveTimer = null
-function liveQuery(which, q) { clearTimeout(liveTimer); liveTimer = setTimeout(() => { const el = document.activeElement; setQuery(which, q); const again = document.querySelector('[aria-label="' + el.getAttribute('aria-label') + '"]'); if (again) { again.focus(); again.setSelectionRange(q.length, q.length) } }, 450) }
+function resCard(which, r) {
+  if (!r) return '<div class="res"><span class="dmark">' + (which === 'cq' ? 'Optional. With none, the pace is the milestone’s own finished tickets.' : 'Pick from Add, or type a query.') + '</span></div>'
+  if (!r.ok) return '<div class="res"><span class="n" style="color:var(--risk)">–</span><span class="dmark">not read</span></div>'
+  return '<div class="res"><span><span class="n">' + r.open + '</span> open</span><span>' + r.finished + ' finished in 8 weeks</span>' + graph({ wk: r.wk }, false) + '</div>'
+}
+// a preview read while typing: shown beside the box, but the query in use changes only on Enter or leaving the box
+function liveQuery(which, q) { clearTimeout(liveTimer); liveTimer = setTimeout(() => {
+  const r = q.trim() || which === 'mq' ? read(state.conn.tracker, q) : null
+  document.getElementById('res-' + which).innerHTML = resCard(which, r)
+  document.getElementById('flag-' + which).innerHTML = r ? flag(which, r, true) : ''
+}, 450) }
 
 function section(n, name, hint, body) {
   return '<section class="input"><div class="label"><span class="number">' + String(n).padStart(2, '0') + '</span><h2>' + name + '</h2><p>' + hint + '</p></div><div class="body"><div class="col">' + body + '</div></div></section>'
@@ -604,10 +616,7 @@ function variantC() {
     : '<div class="cbar"><b>Connect a tracker</b></div>' + connectForm(true)
   if (!state.conn || ui.changeConn) return top
   const menu = (which) => '<details class="menu"><summary>' + 'Add ▾' + '</summary><div class="list">' + choiceGroups(tr()).map(([g, ids]) => '<span class="hd">' + g + '</span>' + ids.map((n) => '<button onclick="' + 'addTerm(choiceQuery(tr(), \'' + n + '\'), \'' + which + '\')' + '">' + esc(choiceName(tr(), n)) + '</button>').join('')).join('') + '</div></details>'
-  const resCard = (which) => { const r = state.reads[which]; if (!r) return '<div class="res"><span class="dmark">' + (which === 'cq' ? 'Optional. With none, the pace is the milestone’s own finished tickets.' : 'Pick a milestone or type a query.') + '</span></div>'
-    if (!r.ok) return '<div class="res"><span class="n" style="color:var(--risk)">–</span><span class="dmark">not read</span></div>'
-    return '<div class="res"><span><span class="n">' + r.open + '</span> open</span><span>' + r.finished + ' finished in 8 weeks</span>' + graph({ wk: r.wk }, false) + '</div>' }
-  const row = (which, title, hint) => '<div class="qrow"><div class="col"><h3>' + title + '</h3><span class="dmark">' + hint + '</span><div class="row" style="flex-wrap:nowrap">' + qbox(which, true) + menu(which) + '</div>' + flag(which) + '</div>' + resCard(which) + '</div>'
+  const row = (which, title, hint) => '<div class="qrow"><div class="col"><h3>' + title + '</h3><span class="dmark">' + hint + '</span><div class="row" style="flex-wrap:nowrap">' + qbox(which, true) + menu(which) + '</div><div id="flag-' + which + '">' + flag(which) + '</div></div><div id="res-' + which + '">' + resCard(which, state.reads[which]) + '</div></div>'
   const c = combined()
   const gives = c ? '<div class="gives"><div class="col" style="gap:2px"><span class="dmark">Tickets remaining</span><span class="dbig">' + c.open + '</span></div><div class="col" style="gap:4px"><span class="dmark">Pace · last 8 weeks · ' + c.own + ' milestone' + (c.finished - c.own ? ' + ' + (c.finished - c.own) + ' comparable' : '') + '</span>' + graph(c, true) + '</div><span class="muted" style="max-width:260px">These follow ' + trackerName() + ' on the Inputs screen, where either can be switched to Typed.</span></div>' : ''
   return top + row('mq', 'The milestone’s tickets', 'Open ones are tickets remaining; finished ones count in the pace.') + row('cq', 'Comparable work', 'Finished tickets like the milestone’s, also counted in the pace.') + gives
