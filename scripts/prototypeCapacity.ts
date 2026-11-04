@@ -87,6 +87,10 @@ const STYLE = `
     .mline { position: absolute; top: -2px; bottom: 0; width: 0; pointer-events: none; }
     .mline.with { border-left: 2px solid var(--ink); }
     .mline.usual { border-left: 2px dashed var(--muted); top: 0; bottom: -6px; }
+    .hist .b.one { position: relative; }
+    .hist .b.one .w { flex: 1; }
+    .hist .b .w.adj { background: repeating-linear-gradient(135deg, var(--bar) 0 4px, #B5482A 4px 7px); }
+    .hist .b .tick { position: absolute; left: -1px; right: -1px; border-top: 2px dashed var(--ink); pointer-events: none; }
     .hist .b.capd { background: repeating-linear-gradient(135deg, transparent 0 4px, rgba(181,72,42,.32) 4px 7px); }
     .key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 3px; }
     .side { border-left: 1px solid var(--hairline); padding-left: 20px; display: flex; flex-direction: column; gap: 12px; }
@@ -357,11 +361,12 @@ function variantC() {
   const cw = cnt(A), cu = cnt(U), mx = Math.max(...cw, ...(cmp ? cu : [0]))
   const n = hi - lo + 1, at = (k) => ((k - lo + 0.5) / n * 100).toFixed(2) + '%'
   const hist = '<div class="histwrap"><div class="mrow top">' + [['50%', A.q50], ['85%', A.q85]].map(([p, k]) => '<span class="mtag with" style="left:' + at(k) + '">' + p + ' · ' + dm(endOf(k)) + '</span>').join('') + '</div>' +
-    '<div class="hist">' + cw.map((v, i) => '<div class="b' + (cmp && capOfWeek(add(START, 7 * (lo + i))) < 1 - 1e-9 ? ' capd' : '') + '" title="Week of ' + dm(add(START, 7 * (lo + i))) + '"><span class="w" style="height:' + v / mx * 100 + '%"></span>' + (cmp ? '<span class="u" style="height:' + cu[i] / mx * 100 + '%"></span>' : '') + '</div>').join('') +
+    '<div class="hist">' + cw.map((v, i) => { const wk = add(START, 7 * (lo + i)), c = capOfWeek(wk), adj = cmp && Math.abs(c - 1) > 1e-9
+      return '<div class="b one" title="Week of ' + dm(wk) + ': ' + v + ' simulations finish' + (cmp ? ' with capacity, ' + cu[i] + ' at usual' + (adj ? '; capacity ' + Math.round(c * 100) + '% this week' : '') : '') + '"><span class="w' + (adj ? ' adj' : '') + '" style="height:' + v / mx * 100 + '%"></span>' + (cmp && cu[i] ? '<span class="tick" style="bottom:' + cu[i] / mx * 100 + '%"></span>' : '') + '</div>' }).join('') +
     [['50%', A.q50, 'with'], ['85%', A.q85, 'with']].concat(cmp ? [['50%', U.q50, 'usual'], ['85%', U.q85, 'usual']] : []).map(([p, k, r]) => '<div class="mline ' + r + '" style="left:' + at(k) + '"></div>').join('') + '</div>' +
     (cmp ? '<div class="mrow bot">' + [['50%', U.q50], ['85%', U.q85]].map(([p, k]) => '<span class="mtag usual" style="left:' + at(k) + '">' + p + ' · ' + dm(endOf(k)) + '</span>').join('') + '</div>' : '') + '</div>' +
     '<div class="row" style="justify-content:space-between"><span class="faint">' + dm(add(START, 7 * lo)) + '</span><span class="faint">' + dm(add(START, 7 * hi)) + '</span></div>' +
-    (cmp ? '<p class="faint"><span class="key" style="background:var(--bar)"></span>with capacity, <span class="key" style="background:var(--ink)"></span>its 50% and 85% dates above · <span class="key" style="border:1px dashed var(--muted)"></span>at usual capacity, its dates below · <span class="key" style="background:repeating-linear-gradient(135deg, transparent 0 3px, rgba(181,72,42,.45) 3px 5px)"></span>weeks below 100%</p>' : '')
+    (cmp ? '<p class="faint"><span class="key" style="background:var(--bar)"></span>with capacity, its 50% and 85% dates above · <span class="key" style="background:repeating-linear-gradient(135deg, var(--bar) 0 3px, #B5482A 3px 5px)"></span>weeks capacity adjusts · <span class="key" style="border-top:2px dashed var(--ink);height:0;width:12px;vertical-align:3px"></span> at usual capacity, its dates below</p>' : '')
   const editForm = (e) => {
     const past = isPast(e)
     return '<div class="pop" style="gap:8px">' + (past ? '<span class="faint">' + e.pct + '% ' + span(e) + ' · past, so only the note can change</span>' :
