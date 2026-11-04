@@ -89,6 +89,11 @@ const STYLE = `
     .dseg button { border: 0; border-radius: 0; background: transparent; min-height: 28px; padding: 0 12px; font-size: 13px; color: var(--muted); }
     .dseg button + button { border-left: 1px solid var(--hairline); }
     .dseg button.on { background: var(--ink); color: var(--page); }
+    details.dread { flex-basis: 100%; font-size: 13px; }
+    details.dread > summary { cursor: pointer; color: var(--ink); }
+    details.dread.stopped > summary b, details.dread.changing > summary b { color: var(--risk); }
+    details.dread p { margin: 6px 0 0; max-width: 62ch; color: var(--muted); line-height: 1.5; }
+    details.dread .row { display: flex; gap: 8px; margin-top: 8px; }
     .switcher { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 10; display: flex; gap: 10px; align-items: center;
       background: #111; color: #fff; padding: 8px 12px; border-radius: 999px; box-shadow: 0 6px 20px rgba(0,0,0,.3); font-size: 13px; }
     .switcher button { color: #fff; border-color: #444; min-height: 28px; }
@@ -359,6 +364,65 @@ function variantC() {
 }
 
 
+// ---- what the weeks show: the pace-stability patterns (docs/research/pace-stability), read from these counts ----
+// Rules follow research/pace-stability/classify.mjs; actions follow research/pace-pattern-actions.md.
+// A run of quiet weeks at the end comes first: it is a step to 0 (a "team change"), the most specific reading.
+const avg = (a) => a.reduce((x, y) => x + y, 0) / Math.max(1, a.length)
+const sdv = (a) => { const m = avg(a); return Math.sqrt(a.reduce((x, y) => x + (y - m) ** 2, 0) / Math.max(1, a.length - 1)) }
+function mkP(a) {
+  const n = a.length; let S = 0
+  for (let i = 0; i < n - 1; i++) for (let j = i + 1; j < n; j++) S += Math.sign(a[j] - a[i])
+  const ties = new Map(); for (const x of a) ties.set(x, (ties.get(x) || 0) + 1)
+  let tt = 0; for (const t of ties.values()) tt += t * (t - 1) * (2 * t + 5)
+  const v = (n * (n - 1) * (2 * n + 5) - tt) / 18; if (v <= 0) return 1
+  const z = S === 0 ? 0 : (S - Math.sign(S)) / Math.sqrt(v), t = 1 / (1 + 0.3275911 * Math.abs(z) / Math.SQRT2)
+  const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-z * z / 2)
+  return 2 * (1 - 0.5 * (1 + y))
+}
+function lag1v(a) { const m = avg(a); let num = 0, den = 0; for (let i = 0; i < a.length; i++) { den += (a[i] - m) ** 2; if (i) num += (a[i] - m) * (a[i - 1] - m) } return den ? num / den : 0 }
+function dateFor(ns) {
+  const m = avg(ns); if (!m) return 'no date'
+  const d = new Date(2026, 10, 4 + Math.ceil(state.tickets.value * 1.5 / m) * 7)
+  return d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear()
+}
+function paceRead(cells) {
+  if (!cells) return null
+  if (cells.length < 6) return { kind: 'none', name: 'No pattern yet', short: cells.length + ' weeks is too few to tell', body: '' }
+  const ns = cells.map((c) => c.n), run = quietRun(cells), before = ns.slice(0, ns.length - run)
+  if (run >= 2 && avg(before) > 0) {
+    const lo = Math.min(...before), hi = Math.max(...before), from = cells[cells.length - run].week
+    return { kind: 'stopped', name: 'Stopped ' + run + ' weeks ago', short: 'the ' + before.length + ' weeks before: ' + lo + '–' + hi + ' a week',
+      body: 'Nothing finished since ' + wk(from) + '. Before that the team finished ' + lo + '–' + hi + ' a week. Pace stepped to 0, as when a team moves onto other work.' +
+        '<br>With all 8 weeks the forecast says <b>' + dateFor(ns) + '</b>. From the ' + before.length + ' weeks before, <b>' + dateFor(before) + '</b>.' +
+        '<br>If the team is coming back to this milestone, the weeks before are the better guide. If it stays on other work, no date holds until it returns.',
+      action: { label: 'Use the ' + before.length + ' weeks before as typed counts', run: 'useBefore(' + before.length + ')' } }
+  }
+  const med = [...ns].sort((a, b) => a - b)[ns.length >> 1], iMax = ns.indexOf(Math.max(...ns)), rest = ns.filter((_, i) => i !== iMax)
+  if ((ns[iMax] - med) / Math.max(1, Math.sqrt(med)) > 4 && sdv(rest) ** 2 / Math.max(1e-9, avg(rest)) < 2)
+    return { kind: 'odd', name: 'One odd week', short: wk(cells[iMax].week) + ' finished ' + ns[iMax],
+      body: wk(cells[iMax].week) + ' finished ' + ns[iMax] + ', far more than usual. Check it isn’t a bulk close or a clean-up before leaving it out.' }
+  if (mkP(ns) < 0.05 || lag1v(ns) > 0.3)
+    return { kind: 'changing', name: 'Pace changing', short: 'treat the range with care',
+      body: 'Recent weeks differ from earlier ones, so the range may be too narrow. If you know why (people joining or leaving, different work), a shorter window may suit.' }
+  const zeros = ns.filter((n) => n === 0).length
+  if (sdv(ns) ** 2 / Math.max(1e-9, avg(ns)) > 2)
+    return { kind: 'lumpy', name: 'Lumpy', short: zeros ? zeros + ' quiet week' + (zeros > 1 ? 's' : '') + ' among busy ones' : 'weeks vary a lot',
+      body: 'Work lands in batches. Quiet weeks are real pace, so keep them; the range is wide and honest. Smaller items, or closing tickets when done, would tighten it.' }
+  return { kind: 'none', name: 'No pattern yet', short: cells.length + ' weeks is too few to tell', body: '' }
+}
+function useBefore(k) { act('use the ' + k + ' weeks before the quiet run', () => {
+  state.follow = { ...(state.follow || {}), counts: false }
+  state.counts = { cells: state.counts.cells.slice(0, k).map((c) => ({ ...c })), origin: 'hand', seen: key(tracker.cells) }
+  state.mode = 'counts'
+}) }
+function readHtml(cells, id, withAction) {
+  const r = paceRead(cells)
+  if (!r) return ''
+  if (r.kind === 'none') return '<span class="dmark">' + r.name + ' · ' + r.short + '</span>'
+  return '<details class="dread ' + r.kind + '"' + (editing['read-' + id] ? ' open' : '') + ' ontoggle="editing[\'read-' + id + '\']=this.open"><summary><b>' + r.name + '</b> · ' + r.short + '</summary>' +
+    '<p>' + r.body + '</p>' + (withAction && r.action ? '<div class="row"><button onclick="' + r.action.run + '">' + r.action.label + '</button></div>' : '') + '</details>'
+}
+
 // ---- Variant D: quiet by default. Only what the forecast uses is on screen; GitHub's reading waits behind a small
 // chip, with a dot only when a read is new since the EM last looked. The pace not in use folds to one line.
 // "Follow GitHub" is the habitual default made once: each read updates the value, and the pace folds to one line.
@@ -409,7 +473,7 @@ function chip(field) {
   const fresh = state[field].seen !== trackerVal(field)
   const body = field === 'tickets'
     ? '<div>GitHub reads <b>' + tracker.tickets + '</b> tickets remaining, read ' + tracker.at + '.</div>'
-    : '<div>GitHub reads these 8 weeks, ' + span(tracker.cells) + ', read ' + tracker.at + ':</div><div>' + graph(tracker.cells, true) + '</div>' + quietNote(tracker.cells)
+    : '<div>GitHub reads these 8 weeks, ' + span(tracker.cells) + ', read ' + tracker.at + ':</div><div>' + graph(tracker.cells, true) + '</div>' + readHtml(tracker.cells, 'chip', false)
   const own = ownLine(field) ? '<div class="prov">' + ownLine(field) + '</div>' : ''
   return '<details class="dchip"' + (editing['open-' + field] ? ' open' : '') + ' ontoggle="if (this.open !== !!editing[\'open-' + field + '\']) lookAt(\'' + field + '\', this.open)">' +
     '<summary>' + (fresh ? '<span class="dot"></span>' : '') + 'GitHub ' + (field === 'tickets' ? tracker.tickets : 'reads differently') + '</summary>' +
@@ -450,12 +514,12 @@ function variantD() {
   const src = paceSource()
   let pace = seg([['github', 'GitHub'], ['typed', 'Typed counts'], ['range', 'Range']], src, 'setPaceSource')
   if (src === 'github') {
-    pace += '<div class="dline">' + graph(c.cells, false) + '<span>last 8 weeks</span><span class="dmark">read ' + tracker.at + '</span>' + quietWords(c.cells) + wasLine('counts') +
+    pace += '<div class="dline">' + graph(c.cells, false) + '<span>last 8 weeks</span><span class="dmark">read ' + tracker.at + '</span>' + wasLine('counts') + readHtml(c.cells, 'gh', true) +
       '<details class="dother inline"' + (editing['change-counts'] ? ' open' : '') + ' ontoggle="editing[\'change-counts\']=this.open"><summary>Show weeks</summary>' +
-      '<div class="dmark">' + span(c.cells) + ' · type into a week to change it; the pace then follows your typed counts</div>' + editableCells(c.cells) + quietNote(c.cells) + '</details></div>'
+      '<div class="dmark">' + span(c.cells) + ' · type into a week to change it; the pace then follows your typed counts</div>' + editableCells(c.cells) + '</details></div>'
   } else if (src === 'typed') {
     pace += editing.counts || !c.cells ? countsEditor()
-      : editableCells(c.cells) + quietNoteIfUsed() + '<div class="prov">' + c.cells.length + ' weeks' + (c.cells[0].week ? ', ' + span(c.cells) : '') + ' ' + chip('counts') + '</div>'
+      : editableCells(c.cells) + readHtml(c.cells, 'typed', false) + '<div class="prov">' + c.cells.length + ' weeks' + (c.cells[0].week ? ', ' + span(c.cells) : '') + ' ' + chip('counts') + '</div>'
   } else {
     pace += rangeInline
   }
