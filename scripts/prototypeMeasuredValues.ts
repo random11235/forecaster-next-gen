@@ -85,6 +85,10 @@ const STYLE = `
     .dquiet { font-size: 12px; color: var(--risk); }
     .dfollow { border-top: 1px solid var(--hairline); padding-top: 8px; display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
     details.dother.inline { border: 0; padding: 0; flex-basis: 100%; }
+    .dseg { display: inline-flex; border: 1px solid var(--hairline); border-radius: 6px; overflow: hidden; align-self: flex-start; }
+    .dseg button { border: 0; border-radius: 0; background: transparent; min-height: 28px; padding: 0 12px; font-size: 13px; color: var(--muted); }
+    .dseg button + button { border-left: 1px solid var(--hairline); }
+    .dseg button.on { background: var(--ink); color: var(--page); }
     .switcher { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 10; display: flex; gap: 10px; align-items: center;
       background: #111; color: #fff; padding: 8px 12px; border-radius: 999px; box-shadow: 0 6px 20px rgba(0,0,0,.3); font-size: 13px; }
     .switcher button { color: #fff; border-color: #444; min-height: 28px; }
@@ -409,51 +413,64 @@ function chip(field) {
   const own = ownLine(field) ? '<div class="prov">' + ownLine(field) + '</div>' : ''
   return '<details class="dchip"' + (editing['open-' + field] ? ' open' : '') + ' ontoggle="if (this.open !== !!editing[\'open-' + field + '\']) lookAt(\'' + field + '\', this.open)">' +
     '<summary>' + (fresh ? '<span class="dot"></span>' : '') + 'GitHub ' + (field === 'tickets' ? tracker.tickets : 'reads differently') + '</summary>' +
-    '<div class="dpanel">' + body + own + '<div class="row"><button class="primary" onclick="editing[\'open-' + field + '\']=false;accept(\'' + field + '\')">' + (field === 'tickets' ? 'Use ' + tracker.tickets : 'Take these counts') + '</button><button onclick="lookAt(\'' + field + '\', false)">Close</button></div>' +
-    '<div class="dfollow"><button class="linkish" onclick="setFollow(\'' + field + '\', true)">Follow GitHub</button><span class="dmark">' + (field === 'counts' ? 'each read updates the counts and the forecast uses them' : 'each read updates tickets remaining') + '; your own stays to switch back to</span></div></div></details>'
+    '<div class="dpanel">' + body + own + '<div class="row"><button class="primary" onclick="setFollow(\'' + field + '\', true)">Follow GitHub</button><button onclick="lookAt(\'' + field + '\', false)">Close</button></div>' +
+    '</div></details>'
+}
+// D has no fixed copy of GitHub's values: each value follows GitHub or follows what the EM typed; pace may also be the range
+function settleD() {
+  for (const f of ['tickets', 'counts']) {
+    if (f === 'counts' && state.mode !== 'counts') continue
+    if (state[f].origin === 'measured' && !following(f)) state.follow = { ...(state.follow || {}), [f]: true }
+  }
+}
+function paceSource() { return following('counts') ? 'github' : state.mode === 'range' ? 'range' : 'typed' }
+function setPaceSource(src) {
+  if (src === paceSource()) return
+  if (src === 'github') return setFollow('counts', true)
+  if (src === 'typed') { if (!state.counts.cells) { editing.counts = true; state.follow = { ...(state.follow || {}), counts: false }; return act('pace from typed counts', () => { state.mode = 'counts' }) } return followTyped() }
+  act('pace from the range', () => { state.follow = { ...(state.follow || {}), counts: false }; state.mode = 'range' })
+}
+function ticketsTyped(n) { act('tickets typed', () => {
+  const own = state.tickets.origin === 'measured' && state.tickets.own
+  state.follow = { ...(state.follow || {}), tickets: false }
+  state.tickets = { value: n !== undefined ? n : own ? own.value : state.tickets.value, origin: 'hand', seen: tracker.tickets }
+}) }
+function seg(options, current, fn) {
+  return '<div class="dseg">' + options.map(([v, label]) => '<button class="' + (v === current ? 'on' : '') + '" onclick="' + fn + '(\'' + v + '\')">' + label + '</button>').join('') + '</div>'
 }
 function variantD() {
-  followReads()
+  settleD(); followReads()
   const t = state.tickets, c = state.counts
-  const mark = (field) => { const s = status(field); return s === 'measured' ? '' : s.startsWith('hand') || s === 'typed' || s === 'proposed' ? ' <span class="dmark">by hand</span>' : ' <span class="dmark">from ' + state[field].at + '</span>' }
-  const stopFollow = (f) => '<div class="row">' + (state[f].own ? '<button onclick="state.follow.' + f + '=false;switchBack(\'' + f + '\')">Switch back to yours (' + esc(f === 'tickets' ? state[f].own.value : nums(state[f].own.cells)) + ')</button>' : '') + '</div>'
-  const tickets = following('tickets')
-    ? '<div class="dline"><span class="dbig">' + t.value + '</span><span class="dmark">tickets remaining · follows GitHub, read ' + tracker.at + '</span>' + wasLine('tickets') +
-      '<details class="dother inline"' + (editing['change-tickets'] ? ' open' : '') + ' ontoggle="editing[\'change-tickets\']=this.open"><summary>Change</summary><div class="pace"><label>Tickets remaining <input type="number" value="' + t.value + '" onchange="editTickets(Number(this.value))"></label><span class="unit dmark">typing a number stops following</span></div>' + stopFollow('tickets') + '</details></div>'
-    : '<div class="pace"><label>Tickets remaining <input type="number" value="' + t.value + '" onchange="editTickets(Number(this.value))"></label><span class="unit">' + mark('tickets').trim() + ' ' + chip('tickets') + '</span></div>'
+  const tSrc = following('tickets') ? 'github' : 'typed'
+  const tickets = seg([['github', 'GitHub'], ['typed', 'Typed']], tSrc, 'setTicketsSource') +
+    (tSrc === 'github'
+      ? '<div class="dline"><span class="dbig">' + t.value + '</span><span class="dmark">tickets remaining · GitHub, read ' + tracker.at + '</span>' + wasLine('tickets') + '</div>'
+      : '<div class="pace"><label>Tickets remaining <input type="number" value="' + t.value + '" onchange="ticketsTyped(Number(this.value))"></label><span class="unit">' + chip('tickets') + '</span></div>')
   const rangeInline = '<div class="pace"><label>Low <input type="number" id="r-lo" value="' + state.range.low + '" onchange="setRange(Number(this.value),Number(document.getElementById(\'r-hi\').value))"></label><span class="to">to</span><label>High <input type="number" id="r-hi" value="' + state.range.high + '" onchange="setRange(Number(document.getElementById(\'r-lo\').value),Number(this.value))"></label><span class="unit">tickets per week</span></div>'
-  const countsLine = '<div class="prov">' + (c.cells ? c.cells.length + ' weeks' + (c.cells[0] && c.cells[0].week ? ', ' + span(c.cells) : '') : '') + mark('counts') + ' ' + chip('counts') + (c.cells ? '' : ' <button class="linkish" onclick="editing.counts=true;render()">Type counts</button>') + '</div>' + (c.cells && state.mode === 'counts' && c.origin === 'hand' ? '<div class="row" style="display:flex;gap:8px"><button onclick="setFollow(\'counts\', true)">Follow GitHub</button></div>' : '')
-  const countsBlock = editing.counts ? countsEditor() : (c.cells ? editableCells(c.cells) + (state.mode === 'counts' ? quietNoteIfUsed() : '') : '<p class="note">No typed counts yet.</p>') + countsLine
-  let pace
-  if (following('counts')) {
-    // defaulting to GitHub: the whole pace is one line; everything else is behind Change
-    pace = '<div class="dline">' + graph(c.cells, false) + '<span>GitHub\'s last 8 weeks</span><span class="dmark">follows each read, ' + tracker.at + '</span>' + quietWords(c.cells) + wasLine('counts') +
-      '<details class="dother inline"' + (editing['change-counts'] ? ' open' : '') + ' ontoggle="editing[\'change-counts\']=this.open"><summary>Change</summary>' +
-      '<div class="dmark">' + span(c.cells) + ' · type into a week to change it; that stops following</div>' + editableCells(c.cells) + quietNote(c.cells) + '<div class="row">' + followTypedBtn() + '</div>' +
-      '<div class="row"><button onclick="state.follow.counts=false;setMode(\'range\')">Use the range instead (' + state.range.low + '–' + state.range.high + ')</button></div></details></div>'
-  } else if (state.mode === 'counts' && status('counts') === 'measured' && !editing.counts) {
-    pace = '<div class="dline">' + graph(c.cells, false) + '<span>GitHub\'s last 8 weeks</span><span class="dchip same">● GitHub ' + c.at + '</span>' + quietWords(c.cells) +
-      '<details class="dother inline"' + (editing['weeks'] ? ' open' : '') + ' ontoggle="editing.weeks=this.open"><summary>Show weeks</summary>' + editableCells(c.cells) + quietNote(c.cells) +
-      '<div class="row"><button onclick="setFollow(\'counts\', true)">Follow GitHub</button>' + followTypedBtn() + '</div></details>' +
-      '<details class="dother inline"' + (editing['other'] ? ' open' : '') + ' ontoggle="editing.other=this.open"><summary>Range · ' + state.range.low + '–' + state.range.high + ' a week · not in use</summary>' + rangeInline + '<div class="row"><button onclick="setMode(\'range\')">Use the range</button></div></details></div>'
-  } else if (state.mode === 'range') {
-    pace = '<h3>Range</h3>' + rangeInline +
-      '<details class="dother"' + (editing['other'] ? ' open' : '') + ' ontoggle="editing.other=this.open"><summary>Typed counts · ' + (c.cells ? nums(c.cells) : 'none yet') + ' · not in use ' + (c.cells ? '' : chip('counts')) + '</summary>' + countsBlock + '<div class="row"><button onclick="setMode(\'counts\')">Use typed counts</button></div></details>'
+  const src = paceSource()
+  let pace = seg([['github', 'GitHub'], ['typed', 'Typed counts'], ['range', 'Range']], src, 'setPaceSource')
+  if (src === 'github') {
+    pace += '<div class="dline">' + graph(c.cells, false) + '<span>last 8 weeks</span><span class="dmark">read ' + tracker.at + '</span>' + quietWords(c.cells) + wasLine('counts') +
+      '<details class="dother inline"' + (editing['change-counts'] ? ' open' : '') + ' ontoggle="editing[\'change-counts\']=this.open"><summary>Show weeks</summary>' +
+      '<div class="dmark">' + span(c.cells) + ' · type into a week to change it; the pace then follows your typed counts</div>' + editableCells(c.cells) + quietNote(c.cells) + '</details></div>'
+  } else if (src === 'typed') {
+    pace += editing.counts || !c.cells ? countsEditor()
+      : editableCells(c.cells) + quietNoteIfUsed() + '<div class="prov">' + c.cells.length + ' weeks' + (c.cells[0].week ? ', ' + span(c.cells) : '') + ' ' + chip('counts') + '</div>'
   } else {
-    pace = '<h3>Typed counts</h3>' + countsBlock +
-      '<details class="dother"' + (editing['other'] ? ' open' : '') + ' ontoggle="editing.other=this.open"><summary>Range · ' + state.range.low + '–' + state.range.high + ' a week · not in use</summary>' + rangeInline + '<div class="row"><button onclick="setMode(\'range\')">Use the range</button></div></details>'
+    pace += rangeInline
   }
-  const n = pending().filter((f) => !following(f)).length
-  const strip = '<div class="strip"><span class="where">On the Milestone forecast</span><span class="context">Checkout v2 · ' + t.value + ' tickets remaining</span><span class="head">Starting 4 Nov 2026: 85% confident of finishing by ' + standIn() + '</span><span class="note">Pace: ' + (following('counts') ? 'GitHub\'s last 8 weeks' : paceWords()) + '</span>' +
+  const n = pending().filter((f) => !following(f) && (f === 'tickets' || src === 'typed')).length
+  const words = src === 'github' ? 'GitHub\'s last 8 weeks' : paceWords()
+  const strip = '<div class="strip"><span class="where">On the Milestone forecast</span><span class="context">Checkout v2 · ' + t.value + ' tickets remaining</span><span class="head">Starting 4 Nov 2026: 85% confident of finishing by ' + standIn() + '</span><span class="note">Pace: ' + words + '</span>' +
     '<span class="note">GitHub read ' + tracker.at + (n ? ' · <a href="#d-inputs"><span class="dot"></span>' + n + ' new reading' + (n > 1 ? 's' : '') + '</a>' : '') + '</span></div>'
-  return strip + '<div id="d-inputs">' + section(1, 'Milestone', 'Tickets remaining.', tickets) + section(2, 'Pace', following('counts') ? 'Follows GitHub. Change it any time.' : 'The pace the forecast uses. The other one is kept, folded below.', pace) + '</div>'
+  return strip + '<div id="d-inputs">' + section(1, 'Milestone', 'Tickets remaining, from GitHub or typed.', tickets) + section(2, 'Pace', 'From GitHub, your typed counts, or a range. The others are kept.', pace) + '</div>'
 }
+function setTicketsSource(src) { if (src === (following('tickets') ? 'github' : 'typed')) return; src === 'github' ? setFollow('tickets', true) : ticketsTyped() }
 function editAt(i, n) { act('edit week ' + (i + 1) + ' by hand', () => {
   if ((state.follow || {}).counts) state.follow.counts = false
   const own = ownOf('counts')
   const cells = state.counts.cells.map((c, j) => j === i ? { ...c, n } : c)
-  const same = key(cells) === key(tracker.cells)
-  state.counts = { cells, origin: same ? 'measured' : 'hand', at: tracker.at, seen: key(tracker.cells), own: same ? own : undefined }
+  state.counts = { cells, origin: 'hand', seen: key(tracker.cells) }; state.mode = 'counts'
   editing.weeks = false; editing['change-counts'] = false
 }) }
 function editableCells(cells) {
