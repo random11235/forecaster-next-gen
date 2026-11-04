@@ -94,14 +94,19 @@ const STYLE = `
     .phead { display: flex; gap: 10px; justify-content: space-between; font-size: 12px; color: var(--muted); }
     .phead a { font-size: 12px; }
     .pcs { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; }
-    .pc { display: flex; flex-direction: column; align-items: center; gap: 1px; border-radius: 3px; padding: 2px 0; }
-    .pc.lst { background: repeating-linear-gradient(135deg, transparent 0 4px, rgba(181,72,42,.32) 4px 7px); }
-    .pc .n { font-family: var(--mono); font-size: 11px; color: var(--ink); }
-    .pc .pw { height: 44px; width: 14px; display: flex; flex-direction: column; justify-content: flex-end; }
-    .pc .pb { background: var(--bar); border-radius: 2px 2px 0 0; }
-    .pc .d { font-size: 9px; color: var(--faint); white-space: nowrap; }
+    .pcol { display: flex; flex-direction: column; align-items: center; gap: 1px; border-radius: 3px; padding: 2px 0; }
+    .pcol.lst { background: repeating-linear-gradient(135deg, transparent 0 4px, rgba(181,72,42,.32) 4px 7px); }
+    .pcol .n { font-family: var(--mono); font-size: 11px; color: var(--ink); }
+    .pcol .pw { height: 44px; width: 14px; display: flex; flex-direction: column; justify-content: flex-end; }
+    .pcol .pb { background: var(--bar); border-radius: 2px 2px 0 0; }
+    .pcol .d { font-size: 9px; color: var(--faint); white-space: nowrap; }
     .sh { font-family: var(--mono); font-size: 10px; color: var(--page); background: var(--risk); border-radius: 3px; padding: 0 3px; min-height: 14px; }
-    .pc .sh:empty { background: none; }
+    .pcol .sh:empty { background: none; }
+    details.cap { border-top: 1px solid var(--hairline); padding-top: 12px; }
+    details.cap summary { cursor: pointer; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; list-style: none; }
+    details.cap summary::before { content: '▸'; color: var(--muted); font-size: 11px; }
+    details.cap[open] summary::before { content: '▾'; }
+    details.cap .ctitle { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
     .side h3 { margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
     .sentence { font-size: 14px; line-height: 2.2; }
     .sentence input { padding: 2px 6px !important; font-size: 13px !important; }
@@ -262,17 +267,17 @@ const usualLine = () => state.mode === 'counts'
 const assumeLine = () => '<p class="assume">Capacity scales pace in proportion: a 60% week draws 60% of a usual week’s pace. Weekends don’t count; overlapping entries multiply. A counted week after a lasting change is taken as already showing it.</p>'
 function paceStrip() {
   const edit = ' <a href="#" onclick="return false" title="Pace is typed on Inputs">Edit on Inputs</a>'
-  if (state.mode === 'range') return '<div class="pace"><div class="phead"><span>Pace: a range</span>' + edit + '</div><p class="muted" style="margin:0">' + state.range[0] + '–' + state.range[1] + ' tickets a week, from a slow week to a good one. No counted weeks, so a lasting change is yours to end.</p></div>'
+  if (state.mode === 'range') return '<div class="pace"><div class="phead"><span>A range</span>' + edit + '</div><p class="muted" style="margin:0">' + state.range[0] + '–' + state.range[1] + ' tickets a week, from a slow week to a good one. No counted weeks, so a lasting change is yours to end.</p></div>'
   const mx = Math.max(...COUNTS)
   const cols = COUNTS.map((c, i) => {
     const wk = COUNT_WEEKS[i], ls = lastingIn(wk), sh = shortIn(wk)
-    return '<div class="pc' + (ls < 1 - 1e-9 || ls > 1 + 1e-9 ? ' lst' : '') + '" title="Week of ' + dm(wk) + ': ' + c + ' finished' + (Math.abs(ls - 1) > 1e-9 ? ', already at ' + Math.round(ls * 100) + '% (lasting change)' : '') + (sh < 1 - 1e-9 ? ', ' + Math.round(sh * 100) + '% that week (short entry, not undone)' : '') + '">' +
+    return '<div class="pcol' + (ls < 1 - 1e-9 || ls > 1 + 1e-9 ? ' lst' : '') + '" title="Week of ' + dm(wk) + ': ' + c + ' finished' + (Math.abs(ls - 1) > 1e-9 ? ', already at ' + Math.round(ls * 100) + '% (lasting change)' : '') + (sh < 1 - 1e-9 ? ', ' + Math.round(sh * 100) + '% that week (short entry, not undone)' : '') + '">' +
       '<span class="sh">' + (Math.abs(sh - 1) > 1e-9 ? Math.round(sh * 100) + '%' : '') + '</span><span class="n">' + c + '</span>' +
       '<div class="pw"><div class="pb" style="height:' + c / mx * 100 + '%"></div></div><span class="d">' + dm(wk) + '</span></div>'
   }).join('')
   const notes = lasting().map((e) => weeksAfter(e) ? '<span class="faint"><span class="key" style="background:repeating-linear-gradient(135deg, transparent 0 3px, rgba(181,72,42,.45) 3px 5px)"></span>' + e.pct + '% ' + span(e) + ': already in ' + weeksAfter(e) + ' of 8 counts</span>' : '').join('')
   const shorts = COUNT_WEEKS.some((w) => shortIn(w) < 1 - 1e-9) ? '<span class="faint"><span class="sh" style="position:static">50%</span> a short entry that week: the count stays as typed</span>' : ''
-  return '<div class="pace"><div class="phead"><span>Pace: typed counts, the usual</span>' + edit + '</div><div class="pcs">' + cols + '</div>' + notes + shorts + '</div>'
+  return '<div class="pace"><div class="phead"><span>Typed counts, finished each week</span>' + edit + '</div><div class="pcs">' + cols + '</div>' + notes + shorts + '</div>'
 }
 const pctWords = (e) => e.pct + '%'
 const span = (e) => e.to === null ? 'from ' + dm(e.from) + ' onward' : e.from === e.to ? dm(e.from) : dm(e.from) + '–' + dm(e.to)
@@ -341,17 +346,22 @@ function variantB() {
 
 // ---- Variant C: on the Milestone forecast; the dates side by side, the finish graph both ways, capacity typed as a sentence in a side panel ----
 function variantC() {
-  const rows = [['50%', 'q50'], ['85%', 'q85'], ['95%', 'q95']].map(([p, k]) => '<tr><td>' + p + ' confident by</td><td><b>' + dm(endOf(W[k])) + '</b></td><td>' + dm(endOf(U[k])) + '</td><td>' + shift(U[k], W[k]) + '</td></tr>').join('')
-  const lo = Math.min(W.finish[0], U.finish[0]), hi = Math.max(W.q95, U.q95) + 1
+  // Pace first; capacity is an extra the EM can fold away or switch off. Folded or off, the screen is the pace forecast
+  // alone; open and on, the forecast shows what capacity changes beside it.
+  const active = state.entries.filter((e) => !isPast(e))
+  const on = state.useCapacity !== false
+  const A = on ? W : U, cmp = on && ui.capOpen && active.length > 0
+  const rows = [['50%', 'q50'], ['85%', 'q85'], ['95%', 'q95']].map(([p, k]) => '<tr><td>' + p + ' confident by</td><td><b>' + dm(endOf(A[k])) + '</b></td>' + (cmp ? '<td>' + dm(endOf(U[k])) + '</td><td>' + shift(U[k], W[k]) + '</td>' : '') + '</tr>').join('')
+  const lo = cmp ? Math.min(W.finish[0], U.finish[0]) : A.finish[0], hi = (cmp ? Math.max(W.q95, U.q95) : A.q95) + 1
   const cnt = (r) => { const c = new Array(hi - lo + 1).fill(0); for (const f of r.finish) if (f <= hi) c[f - lo]++; return c }
-  const cw = cnt(W), cu = cnt(U), mx = Math.max(...cw, ...cu)
+  const cw = cnt(A), cu = cnt(U), mx = Math.max(...cw, ...(cmp ? cu : [0]))
   const n = hi - lo + 1, at = (k) => ((k - lo + 0.5) / n * 100).toFixed(2) + '%'
-  const hist = '<div class="histwrap"><div class="mrow top">' + [['50%', W.q50], ['85%', W.q85]].map(([p, k]) => '<span class="mtag with" style="left:' + at(k) + '">' + p + ' · ' + dm(endOf(k)) + '</span>').join('') + '</div>' +
-    '<div class="hist">' + cw.map((v, i) => '<div class="b' + (capOfWeek(add(START, 7 * (lo + i))) < 1 - 1e-9 ? ' capd' : '') + '" title="Week of ' + dm(add(START, 7 * (lo + i))) + '"><span class="w" style="height:' + v / mx * 100 + '%"></span><span class="u" style="height:' + cu[i] / mx * 100 + '%"></span></div>').join('') +
-    [['50%', W.q50, 'with'], ['85%', W.q85, 'with'], ['50%', U.q50, 'usual'], ['85%', U.q85, 'usual']].map(([p, k, r]) => '<div class="mline ' + r + (p === '85%' ? ' p85' : '') + '" style="left:' + at(k) + '"></div>').join('') + '</div>' +
-    '<div class="mrow bot">' + [['50%', U.q50], ['85%', U.q85]].map(([p, k]) => '<span class="mtag usual" style="left:' + at(k) + '">' + p + ' · ' + dm(endOf(k)) + '</span>').join('') + '</div></div>' +
+  const hist = '<div class="histwrap"><div class="mrow top">' + [['50%', A.q50], ['85%', A.q85]].map(([p, k]) => '<span class="mtag with" style="left:' + at(k) + '">' + p + ' · ' + dm(endOf(k)) + '</span>').join('') + '</div>' +
+    '<div class="hist">' + cw.map((v, i) => '<div class="b' + (cmp && capOfWeek(add(START, 7 * (lo + i))) < 1 - 1e-9 ? ' capd' : '') + '" title="Week of ' + dm(add(START, 7 * (lo + i))) + '"><span class="w" style="height:' + v / mx * 100 + '%"></span>' + (cmp ? '<span class="u" style="height:' + cu[i] / mx * 100 + '%"></span>' : '') + '</div>').join('') +
+    [['50%', A.q50, 'with'], ['85%', A.q85, 'with']].concat(cmp ? [['50%', U.q50, 'usual'], ['85%', U.q85, 'usual']] : []).map(([p, k, r]) => '<div class="mline ' + r + '" style="left:' + at(k) + '"></div>').join('') + '</div>' +
+    (cmp ? '<div class="mrow bot">' + [['50%', U.q50], ['85%', U.q85]].map(([p, k]) => '<span class="mtag usual" style="left:' + at(k) + '">' + p + ' · ' + dm(endOf(k)) + '</span>').join('') + '</div>' : '') + '</div>' +
     '<div class="row" style="justify-content:space-between"><span class="faint">' + dm(add(START, 7 * lo)) + '</span><span class="faint">' + dm(add(START, 7 * hi)) + '</span></div>' +
-    '<p class="faint"><span class="key" style="background:var(--bar)"></span>with capacity, <span class="key" style="background:var(--ink)"></span>its 50% and 85% dates above · <span class="key" style="border:1px dashed var(--muted)"></span>at usual capacity, its dates below · <span class="key" style="background:repeating-linear-gradient(135deg, transparent 0 3px, rgba(181,72,42,.45) 3px 5px)"></span>weeks below 100%</p>'
+    (cmp ? '<p class="faint"><span class="key" style="background:var(--bar)"></span>with capacity, <span class="key" style="background:var(--ink)"></span>its 50% and 85% dates above · <span class="key" style="border:1px dashed var(--muted)"></span>at usual capacity, its dates below · <span class="key" style="background:repeating-linear-gradient(135deg, transparent 0 3px, rgba(181,72,42,.45) 3px 5px)"></span>weeks below 100%</p>' : '')
   const editForm = (e) => {
     const past = isPast(e)
     return '<div class="pop" style="gap:8px">' + (past ? '<span class="faint">' + e.pct + '% ' + span(e) + ' · past, so only the note can change</span>' :
@@ -365,12 +375,21 @@ function variantC() {
     '<span class="row" style="gap:10px;flex-wrap:nowrap"><button class="linkish" onclick="startEdit(' + e.id + ')">Edit</button>' + (past ? '' : '<button class="linkish" onclick="removeEntry(' + e.id + ')">Remove</button>') + '</span></div>'
   const lines = state.entries.filter((e) => !isPast(e)).map((e) => lineC(e, false)).join('') || '<p class="muted">Every week is at 100%.</p>'
   const sentence = '<div class="sentence">The team is at <input type="number" id="cpct" min="0" max="1000" step="1" value="50">% from <input type="date" id="cfrom" value="2026-12-21"> to <input type="date" id="cto" value="2027-01-01"> <label style="font-size:13px"><input type="checkbox" id="conward" onchange="document.getElementById(\'cto\').disabled=this.checked"> or onward</label>, for <input type="text" id="cnote" placeholder="leave, an incident…">. <button onclick="readAdd(\'c\')">Add</button></div>'
-  const head = W.q85 === U.q85 ? '' : '<p class="muted">Capacity moves the 85% date ' + shift(U.q85, W.q85) + '.</p>'
+  // One quiet line under the headline, only when capacity has something to say
+  const quiet = !active.length ? '' : !on ? '<p class="faint">Capacity is switched off for this forecast; its ' + active.length + ' entr' + (active.length > 1 ? 'ies are' : 'y is') + ' kept.</p>'
+    : W.q85 === U.q85 ? '<p class="faint">Includes capacity, which doesn’t move the 85% date.</p>'
+    : '<p class="faint">Includes capacity, which moves the 85% date ' + shift(U.q85, W.q85) + '.' + (ui.capOpen ? '' : ' <button class="linkish" onclick="ui.capOpen=true;render()">Show</button>') + '</p>'
+  const summary = (!active.length ? 'none, every week usual' : (on ? '' : 'off · ') + active.length + ' entr' + (active.length > 1 ? 'ies' : 'y') + (on && W.q85 !== U.q85 ? ' · 85% date ' + shift(U.q85, W.q85) : ''))
+  const capBody = '<label class="row" style="gap:6px;font-size:13px"><input type="checkbox"' + (on ? ' checked' : '') + ' onchange="state.useCapacity=this.checked;log.push(\'use capacity \' + this.checked);render()"> Use capacity in this forecast</label>' +
+    (on ? '' : '<p class="faint" style="margin:0">Off: the forecast uses pace alone. Entries are kept, and still count for other milestones.</p>') +
+    usualLine() + lines + flags() + sentence + assumeLine() + pastBlock((l) => l.map((e) => lineC(e, true)).join(''))
   return '<div class="row" style="justify-content:space-between">' + modeSwitch() + '<span class="faint">Shown as the Milestone forecast screen</span></div>' +
-    '<div class="fc"><div class="col" style="gap:18px"><p class="bighead">Starting ' + dmy(START) + ': 85% confident of finishing by <span style="color:var(--good)">' + dm(endOf(W.q85)) + '</span></p>' + head +
-    '<section class="brief"><div class="heading"><h2>When it could finish</h2></div><table class="pc"><thead><tr><th></th><th>With capacity</th><th>At usual capacity</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></section>' +
+    '<div class="fc"><div class="col" style="gap:18px"><p class="bighead">Starting ' + dmy(START) + ': 85% confident of finishing by <span style="color:var(--good)">' + dm(endOf(A.q85)) + '</span></p>' + quiet +
+    '<section class="brief"><div class="heading"><h2>When it could finish</h2></div><table class="pc">' + (cmp ? '<thead><tr><th></th><th>With capacity</th><th>At usual capacity</th><th></th></tr></thead>' : '') + '<tbody>' + rows + '</tbody></table></section>' +
     '<section class="brief"><div class="heading"><h2>When the simulations finish</h2></div>' + hist + '</section></div>' +
-    '<aside class="side"><h3>Capacity</h3>' + paceStrip() + usualLine() + lines + flags() + sentence + assumeLine() + pastBlock((l) => l.map((e) => lineC(e, true)).join('')) + '</aside></div>'
+    '<aside class="side"><h3>Pace</h3>' + paceStrip() +
+    '<details class="cap"' + (ui.capOpen ? ' open' : '') + ' ontoggle="if(ui.capOpen!==this.open){ui.capOpen=this.open;render()}"><summary><span class="ctitle">Capacity</span> <span class="faint">' + summary + '</span></summary><div class="col" style="gap:10px;margin-top:10px">' + capBody + '</div></details></aside></div>'
+
 }
 
 // ---- switcher and render ----
@@ -394,6 +413,7 @@ document.addEventListener('keydown', (e) => {
   if (e.target.closest('input, textarea, select, [contenteditable]')) return
   if (e.key === 'ArrowLeft') cycle(-1); if (e.key === 'ArrowRight') cycle(1)
 })
+ui.capOpen = params.get('cap') === 'open'
 go(variant)
 `
 
