@@ -90,6 +90,18 @@ const STYLE = `
     .hist .b.capd { background: repeating-linear-gradient(135deg, transparent 0 4px, rgba(181,72,42,.32) 4px 7px); }
     .key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 3px; }
     .side { border-left: 1px solid var(--hairline); padding-left: 20px; display: flex; flex-direction: column; gap: 12px; }
+    .pace { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--hairline); border-radius: 6px; padding: 10px 12px; background: #fff; }
+    .phead { display: flex; gap: 10px; justify-content: space-between; font-size: 12px; color: var(--muted); }
+    .phead a { font-size: 12px; }
+    .pcs { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; }
+    .pc { display: flex; flex-direction: column; align-items: center; gap: 1px; border-radius: 3px; padding: 2px 0; }
+    .pc.lst { background: repeating-linear-gradient(135deg, transparent 0 4px, rgba(181,72,42,.32) 4px 7px); }
+    .pc .n { font-family: var(--mono); font-size: 11px; color: var(--ink); }
+    .pc .pw { height: 44px; width: 14px; display: flex; flex-direction: column; justify-content: flex-end; }
+    .pc .pb { background: var(--bar); border-radius: 2px 2px 0 0; }
+    .pc .d { font-size: 9px; color: var(--faint); white-space: nowrap; }
+    .sh { font-family: var(--mono); font-size: 10px; color: var(--page); background: var(--risk); border-radius: 3px; padding: 0 3px; min-height: 14px; }
+    .pc .sh:empty { background: none; }
     .side h3 { margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
     .sentence { font-size: 14px; line-height: 2.2; }
     .sentence input { padding: 2px 6px !important; font-size: 13px !important; }
@@ -163,6 +175,10 @@ const log = []
 const capOnDay = (iso) => state.entries.filter((e) => !e.newUsual && e.from <= iso && (e.to === null || iso <= e.to)).reduce((p, e) => p * e.pct / 100, 1)
 const workDays = (weekStart) => [0, 1, 2, 3, 4].map((i) => add(weekStart, i))
 const capOfWeek = (weekStart) => workDays(weekStart).reduce((s, d) => s + capOnDay(d), 0) / 5
+// The same, counting only some entries: lasting changes (still running), or short ones (with an end date)
+const capWhere = (weekStart, keep) => workDays(weekStart).reduce((s, d) => s + state.entries.filter((e) => !e.newUsual && keep(e) && e.from <= d && (e.to === null || d <= e.to)).reduce((p, e) => p * e.pct / 100, 1), 0) / 5
+const lastingIn = (weekStart) => capWhere(weekStart, (e) => e.to === null)
+const shortIn = (weekStart) => capWhere(weekStart, (e) => e.to !== null)
 const isPast = (e) => e.newUsual || (e.to !== null && e.to < TODAY)
 const lasting = () => state.entries.filter((e) => e.to === null && !e.newUsual)
 // The new-usual proposal: with typed counts, once every counted week starts on or after the change
@@ -175,6 +191,9 @@ const HORIZON = 78, TRIALS = 3000
 function simulate(withCap) {
   const r = mulberry(139)
   const caps = Array.from({ length: HORIZON }, (_, k) => withCap ? capOfWeek(add(START, 7 * k)) : 1)
+  // A counted week that falls after a lasting change already shows it: take the change back out of that count before
+  // applying the coming week's capacity, so the change isn't counted twice. Short entries in the past aren't undone.
+  const base = COUNTS.map((_, i) => { const c = withCap ? lastingIn(COUNT_WEEKS[i]) : 1; return c > 0 ? c : 1 })
   const finish = new Array(TRIALS)
   for (let t = 0; t < TRIALS; t++) {
     let left = Math.ceil(TICKETS * (GROWTH[0] + r() * (GROWTH[1] - GROWTH[0])))
@@ -182,7 +201,7 @@ function simulate(withCap) {
     let k = 0
     for (; k < HORIZON; k++) {
       let pace
-      if (state.mode === 'counts') { let u = r() * tot, i = 0; while (i < w.length - 1 && (u -= w[i]) > 0) i++; pace = COUNTS[i] }
+      if (state.mode === 'counts') { let u = r() * tot, i = 0; while (i < w.length - 1 && (u -= w[i]) > 0) i++; pace = COUNTS[i] / base[i] }
       else pace = state.range[0] + Math.floor(r() * (state.range[1] - state.range[0] + 1))
       left -= pace * caps[k]
       if (left <= 1e-9) break
@@ -240,7 +259,21 @@ function readAdd(prefix) {
 const usualLine = () => state.mode === 'counts'
   ? '<p class="usual"><b>100%</b> = a usual week, as in your typed counts (8 weeks, ' + dm(COUNT_WEEKS[0]) + ' to ' + dm(add(COUNT_WEEKS[7], 6)) + ').</p>'
   : '<p class="usual"><b>100%</b> = a usual week, as you had in mind for the pace range ' + state.range[0] + '–' + state.range[1] + '.</p>'
-const assumeLine = () => '<p class="assume">Capacity scales pace in proportion: a 60% week draws 60% of a usual week’s pace. Weekends don’t count; overlapping entries multiply.</p>'
+const assumeLine = () => '<p class="assume">Capacity scales pace in proportion: a 60% week draws 60% of a usual week’s pace. Weekends don’t count; overlapping entries multiply. A counted week after a lasting change is taken as already showing it.</p>'
+function paceStrip() {
+  const edit = ' <a href="#" onclick="return false" title="Pace is typed on Inputs">Edit on Inputs</a>'
+  if (state.mode === 'range') return '<div class="pace"><div class="phead"><span>Pace: a range</span>' + edit + '</div><p class="muted" style="margin:0">' + state.range[0] + '–' + state.range[1] + ' tickets a week, from a slow week to a good one. No counted weeks, so a lasting change is yours to end.</p></div>'
+  const mx = Math.max(...COUNTS)
+  const cols = COUNTS.map((c, i) => {
+    const wk = COUNT_WEEKS[i], ls = lastingIn(wk), sh = shortIn(wk)
+    return '<div class="pc' + (ls < 1 - 1e-9 || ls > 1 + 1e-9 ? ' lst' : '') + '" title="Week of ' + dm(wk) + ': ' + c + ' finished' + (Math.abs(ls - 1) > 1e-9 ? ', already at ' + Math.round(ls * 100) + '% (lasting change)' : '') + (sh < 1 - 1e-9 ? ', ' + Math.round(sh * 100) + '% that week (short entry, not undone)' : '') + '">' +
+      '<span class="sh">' + (Math.abs(sh - 1) > 1e-9 ? Math.round(sh * 100) + '%' : '') + '</span><span class="n">' + c + '</span>' +
+      '<div class="pw"><div class="pb" style="height:' + c / mx * 100 + '%"></div></div><span class="d">' + dm(wk) + '</span></div>'
+  }).join('')
+  const notes = lasting().map((e) => weeksAfter(e) ? '<span class="faint"><span class="key" style="background:repeating-linear-gradient(135deg, transparent 0 3px, rgba(181,72,42,.45) 3px 5px)"></span>' + e.pct + '% ' + span(e) + ': already in ' + weeksAfter(e) + ' of 8 counts</span>' : '').join('')
+  const shorts = COUNT_WEEKS.some((w) => shortIn(w) < 1 - 1e-9) ? '<span class="faint"><span class="sh" style="position:static">50%</span> a short entry that week: the count stays as typed</span>' : ''
+  return '<div class="pace"><div class="phead"><span>Pace: typed counts, the usual</span>' + edit + '</div><div class="pcs">' + cols + '</div>' + notes + shorts + '</div>'
+}
 const pctWords = (e) => e.pct + '%'
 const span = (e) => e.to === null ? 'from ' + dm(e.from) + ' onward' : e.from === e.to ? dm(e.from) : dm(e.from) + '–' + dm(e.to)
 const modeSwitch = () => '<span class="modes"><button class="' + (state.mode === 'counts' ? 'on' : '') + '" onclick="setMode(\'counts\')">Pace: typed counts</button><button class="' + (state.mode === 'range' ? 'on' : '') + '" onclick="setMode(\'range\')">Pace: range ' + state.range.join('–') + '</button></span>'
@@ -251,7 +284,7 @@ function flags() {
   }
   for (const e of lasting()) {
     if (caughtUp(e) && !ui['kept' + e.id]) h += '<div class="flag prop"><span>All 8 counted weeks are after ' + dm(e.from) + ', so they already show the team at ' + e.pct + '%. Make it the <b>new usual</b>? The change then ends, so it isn’t counted twice.</span><button onclick="acceptNewUsual(' + e.id + ')">Make it the new usual</button><button class="linkish" onclick="keepLasting(' + e.id + ')">Keep it</button></div>'
-    else if (state.mode === 'counts' && !caughtUp(e)) h += '<p class="muted">' + e.pct + '% ' + span(e) + ': ' + weeksAfter(e) + ' of the 8 counted weeks are after the change. When all 8 are, you’ll be asked whether it’s the new usual.</p>'
+    else if (state.mode === 'counts' && !caughtUp(e)) h += '<p class="muted">' + e.pct + '% ' + span(e) + ': ' + weeksAfter(e) + ' of the 8 counted weeks are after the change and already show it, so the forecast doesn’t apply it to them again. When all 8 are, you’ll be asked whether it’s the new usual.</p>'
     else if (state.mode === 'range') h += '<p class="muted">' + e.pct + '% ' + span(e) + ': with a pace range, end this yourself once the range reflects it. <button class="linkish" onclick="endEntry(' + e.id + ')">End it today</button></p>'
   }
   return h
@@ -337,7 +370,7 @@ function variantC() {
     '<div class="fc"><div class="col" style="gap:18px"><p class="bighead">Starting ' + dmy(START) + ': 85% confident of finishing by <span style="color:var(--good)">' + dm(endOf(W.q85)) + '</span></p>' + head +
     '<section class="brief"><div class="heading"><h2>When it could finish</h2></div><table class="pc"><thead><tr><th></th><th>With capacity</th><th>At usual capacity</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></section>' +
     '<section class="brief"><div class="heading"><h2>When the simulations finish</h2></div>' + hist + '</section></div>' +
-    '<aside class="side"><h3>Capacity</h3>' + usualLine() + lines + flags() + sentence + assumeLine() + pastBlock((l) => l.map((e) => lineC(e, true)).join('')) + '</aside></div>'
+    '<aside class="side"><h3>Capacity</h3>' + paceStrip() + usualLine() + lines + flags() + sentence + assumeLine() + pastBlock((l) => l.map((e) => lineC(e, true)).join('')) + '</aside></div>'
 }
 
 // ---- switcher and render ----
