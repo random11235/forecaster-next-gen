@@ -45,6 +45,12 @@ _Avoid_: selector, filter, scope
 **Comparable work** (of a milestone): the work, like the milestone's in type, capacity and ambiguity, that the EM points at for its typed counts to be proposed from: its finished tickets in each recent period. The EM points at it with a comparable-work query, written like the milestone query, whose matches join the milestone query's. So the milestone's own finished tickets are always part of it, and with no comparable-work query they are all of it; KTLO usually isn't. *Connected forecasting, not built yet ([#133](https://github.com/random11235/forecaster-next-gen/issues/133), [#132](https://github.com/random11235/forecaster-next-gen/issues/132)).*
 _Avoid_: reference class, team throughput
 
+**Capacity** (of a period): how much of the team's usual capacity it has in a period, as a percentage: 100% is a usual period, 60% one with 2 of 5 people away, for whatever reason (leave, an incident, a priority shift). Usual means a period like those the pace comes from. The EM types capacity for the team, not the milestone, as exceptions to 100% for periods to come, or from a date onward for a lasting change; the forecast scales the pace it draws for the period in proportion. *Not built yet ([#131](https://github.com/random11235/forecaster-next-gen/issues/131)).*
+_Avoid_: headcount, availability, allocation
+
+**New usual**: a lasting capacity change that the pace has caught up with, because every period the pace comes from falls after it. The tool proposes it and the EM accepts it, ending the change so it isn't counted twice. *Not built yet ([#131](https://github.com/random11235/forecaster-next-gen/issues/131)).*
+_Avoid_: rebaseline, new normal
+
 **Pace trend** (of a milestone): the typed counts drawn as small bars, oldest first, with the straight line that fits them best, shown beside typed counts once there are enough to forecast and pace is set to them. It is for the EM to read the slope and judge the risk: it says nothing about it, and the forecast doesn't use it ([#120](https://github.com/random11235/forecaster-next-gen/issues/120)). Not the trend of forecast dates over time, which needs the forecast ledger.
 _Avoid_: trend line, pace slope
 
