@@ -69,7 +69,7 @@ const STYLE = `
     /* C: forecast-first */
     .fc { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 28px; }
     @media (max-width: 860px) { .fc { grid-template-columns: 1fr; } }
-    .bighead { font-size: 24px; line-height: 1.3; margin: 0; }
+    .bighead { font-size: 21px; line-height: 1.3; margin: 0; white-space: nowrap; }
     table.pc { border-collapse: collapse; font-size: 14px; }
     table.pc th { text-align: left; font-size: 11px; color: var(--faint); text-transform: uppercase; letter-spacing: .06em; padding: 0 20px 6px 0; font-weight: 600; }
     table.pc td { padding: 6px 20px 6px 0; border-top: 1px solid var(--hairline); font-variant-numeric: tabular-nums; }
