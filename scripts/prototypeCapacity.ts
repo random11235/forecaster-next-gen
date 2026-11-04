@@ -141,6 +141,7 @@ const STYLE = `
     .cl .pb { background: var(--bar-light); border-radius: 2px 2px 0 0; }
     .cl.adj .pb { background: repeating-linear-gradient(135deg, var(--bar-light) 0 4px, #B5482A 4px 7px); }
     .cl .ut { position: absolute; left: 0; right: 0; border-top: 2px dashed var(--ink); }
+    .cgd { margin-top: 3px; }
     .cgd span { flex: 1; font-size: 10px; color: var(--faint); white-space: nowrap; min-width: 0; overflow: visible; }
     .eff { font-size: 12px; white-space: nowrap; }
     .side h3 { margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
@@ -338,17 +339,16 @@ function weeksChart(A, on) {
   const hi = A.q95 + 1, n = hi + 1
   const cw = new Array(n).fill(0); for (const f of A.finish) if (f <= hi) cw[f]++
   const wk = Array.from({ length: n }, (_, k) => { const d = add(START, 7 * k), c = on ? capOfWeek(d) : 1; return { d, c, v: usual * c, adj: Math.abs(c - 1) > 1e-9 } })
-  const fm = Math.max(...cw), pm = Math.max(usual, ...wk.map((w) => w.v)) * 1.1
+  const fm = Math.max(...cw)
   const at = (k) => ((k + 0.5) / n * 100).toFixed(2) + '%'
   const cols = wk.map((w, k) => '<div class="cc' + (w.adj ? ' adj' : '') + '" title="Week of ' + dm(w.d) + ': ' + cw[k] + ' of ' + TRIALS + ' simulations finish · ' + (w.adj ? Math.round(w.c * 100) + '% capacity, pace about ' + w.v.toFixed(1) + ' instead of ' + usual.toFixed(1) : 'usual pace, about ' + usual.toFixed(1)) + '">' +
     (w.adj ? '<span class="cpct">' + Math.round(w.c * 100) + '%</span>' : '') + '<span class="fin" style="height:' + (cw[k] / fm * 100).toFixed(1) + '%"></span></div>').join('')
-  const lane = wk.map((w) => '<div class="cl' + (w.adj ? ' adj' : '') + '"><span class="pb" style="height:' + (w.v / pm * 100).toFixed(1) + '%"></span>' + (w.adj ? '<span class="ut" style="bottom:' + (usual / pm * 100).toFixed(1) + '%"></span>' : '') + '</div>').join('')
   const dates = wk.map((w, k) => '<span>' + (k % 2 ? '' : dm(w.d)) + '</span>').join('')
   return '<div class="cg"><div class="mrow top">' + [['50%', A.q50, '-100%'], ['85%', A.q85, '0']].map(([p, k, x]) => '<span class="mtag with" style="left:' + at(k) + ';transform:translateX(' + x + ')">' + p + ' · ' + dm(endOf(k)) + '</span>').join('') + '</div>' +
     '<div class="cgf">' + cols + [A.q50, A.q85].map((k) => '<div class="mline with" style="left:' + at(k) + '"></div>').join('') + '</div>' +
-    '<div class="cgl">' + lane + '</div><div class="cgd">' + dates + '</div></div>' +
-    '<p class="faint"><span class="key" style="background:var(--bar)"></span>simulations finishing that week · <span class="key" style="background:var(--bar-light)"></span>pace that week, a usual week of ' + usual.toFixed(1) + (!counts ? ' (mid-range)' : on && COUNT_WEEKS.some((w) => Math.abs(lastingIn(w) - 1) > 1e-9) ? ' (typed average, lasting change taken out)' : ' (typed average)') +
-    (on ? ' · <span class="key" style="background:repeating-linear-gradient(135deg, var(--bar-light) 0 3px, #B5482A 3px 5px)"></span>weeks capacity changes, usual pace dashed' : ' · capacity off') + '</p>'
+    '<div class="cgd">' + dates + '</div></div>' +
+    '<p class="faint"><span class="key" style="background:var(--bar)"></span>simulations finishing that week' +
+    (on ? ' · <span class="key" style="background:repeating-linear-gradient(135deg, transparent 0 3px, rgba(181,72,42,.5) 3px 5px)"></span>weeks capacity changes, at the % shown' : ' · capacity off') + '</p>'
 }
 function paceStrip() {
   const edit = ' <a href="#" onclick="return false" title="Pace is typed on Inputs">Edit on Inputs</a>'
