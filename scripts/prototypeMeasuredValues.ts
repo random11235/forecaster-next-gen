@@ -92,6 +92,7 @@ const STYLE = `
     details.dread { flex-basis: 100%; font-size: 13px; }
     details.dread > summary { cursor: pointer; color: var(--ink); }
     details.dread.changing > summary b { color: var(--risk); }
+    .dempty { flex-basis: 100%; color: var(--risk); font-size: 13px; margin-bottom: 6px; }
     .cell .linkish { font-size: 10px; padding: 0; }
     .cell.skipped { opacity: .55; border-style: dashed; }
     .cell.skipped .n { font-family: var(--mono); font-size: 18px; text-decoration: line-through; color: var(--faint); }
@@ -127,8 +128,9 @@ const HISTORY = zip(['2026-07-06','2026-07-13','2026-07-20','2026-07-27','2026-0
   .concat(zip(WEEKS, [5, 6, 8, 5, 7, 6, 0, 0, 0]))
 // the 8 most recent whole weeks GitHub has up to a read, leaving out the weeks the EM skipped (with the skipped ones
 // inside that span, for showing)
+let ghFrom = ''
 function ghWindow(read, skip) {
-  const upto = HISTORY.filter((c) => c.week <= read.last), out = []
+  const upto = HISTORY.filter((c) => c.week >= ghFrom && c.week <= read.last), out = []
   let counted = 0
   for (let i = upto.length - 1; i >= 0 && counted < 8; i--) { const sk = skip.includes(upto[i].week); out.unshift({ ...upto[i], skipped: sk }); if (!sk) counted++ }
   return out
@@ -158,6 +160,10 @@ const SCENARIOS = {
     mode: 'counts', range: { low: 4, high: 8 }, follow: { tickets: true, counts: true }, skip: ['2026-10-12', '2026-10-19'],
     tickets: { value: 34, origin: 'measured', at: READS.previous.at, seen: 34 },
     counts: { cells: ghCells(READS.previous, ['2026-10-12', '2026-10-19']), origin: 'measured', at: READS.previous.at, seen: key(READS.previous.cells) } }) },
+  young: { name: 'New repo, 7 weeks of history', githubFrom: '2026-09-14', make: () => ({
+    mode: 'counts', range: { low: 4, high: 8 }, follow: { tickets: true, counts: true },
+    tickets: { value: 38, origin: 'measured', at: READS.current.at, seen: 38 },
+    counts: { cells: null, origin: 'measured', at: READS.current.at, seen: null } }) },
   handNew: { name: 'Edited by hand, then a new read', make: () => ({
     mode: 'counts', range: { low: 4, high: 8 },
     tickets: { value: 40, origin: 'hand', seen: 34 },
@@ -173,7 +179,9 @@ const params = new URLSearchParams(location.search)
 let variant = VARIANTS[params.get('variant')] ? params.get('variant') : 'A'
 let scenario = SCENARIOS[params.get('scenario')] ? params.get('scenario') : 'newRead'
 const tracker = READS.current
+ghFrom = SCENARIOS[scenario].githubFrom || ''
 let state = SCENARIOS[scenario].make()
+if (state.follow && state.follow.counts && !state.counts.cells) state.counts.cells = ghCells(tracker, [])
 let editing = {}
 const log = []
 
@@ -412,8 +420,9 @@ function paceRead(cells) {
   if (run >= 2 && avg(before) > 0) {
     const lo = Math.min(...before), hi = Math.max(...before), quiet = cells.slice(cells.length - run).map((c) => c.week)
     const canSkip = quiet.every(Boolean), alt = canSkip ? ghCells(tracker, [...skips(), ...quiet]).map((c) => c.n) : before
+    const reach = alt.length === ns.length ? 'so the window reaches back ' + run + ' weeks' : 'leaving ' + alt.length + ' week' + (alt.length === 1 ? '' : 's') + ' (GitHub has nothing earlier)'
     return { kind: 'quietEnd', name: run + ' quiet weeks at the end', short: 'nothing finished since ' + wk(quiet[0] || cells[cells.length - run].week || '') + ', after ' + lo + '–' + hi + ' a week',
-      body: 'Counting these weeks, the forecast says <b>' + dateFor(ns) + '</b>. Skipping them, so the window reaches back ' + run + ' weeks, it says <b>' + dateFor(alt) + '</b>.',
+      body: 'Counting these weeks, the forecast says <b>' + dateFor(ns) + '</b>. Skipping them, ' + reach + ', it says <b>' + dateFor(alt) + '</b>.',
       opensWeeks: canSkip }
   }
   const med = [...ns].sort((a, b) => a - b)[ns.length >> 1], iMax = ns.indexOf(Math.max(...ns)), rest = ns.filter((_, i) => i !== iMax)
@@ -468,6 +477,15 @@ function followReads() {
 const following = (f) => !!(state.follow || {})[f]
 // skipped weeks belong to the milestone and outlast reads: a holiday stays skipped when next week's read arrives
 const skips = () => state.skip || []
+// fewer than 8 when GitHub has nothing earlier; under 6 is thin (pace-stability research: too few weeks to tell a pattern)
+const ghEarliest = () => HISTORY.filter((c) => c.week >= ghFrom)[0].week
+function ghCountWords() {
+  const n = ghCells(tracker, skips()).length, w = ghWindow(tracker, skips())
+  if (n === 8) return 'last 8 weeks'
+  if (!n) return 'no weeks count'
+  const short = w.length && w[0].week === ghEarliest() ? ' · GitHub has nothing before ' + wk(ghEarliest()) : ''
+  return (n === 1 ? '1 week' : n + ' weeks') + short
+}
 function setSkip(weeks, on) { act((on ? 'skip ' : 'count again ') + weeks.map(wk).join(', '), () => {
   state.skip = on ? [...new Set([...skips(), ...weeks])].sort() : skips().filter((w) => !weeks.includes(w))
   const was = state.counts.was
@@ -476,7 +494,8 @@ function setSkip(weeks, on) { act((on ? 'skip ' : 'count again ') + weeks.map(wk
 function skipLine() {
   const sk = ghWindow(tracker, skips()).filter((c) => c.skipped)
   if (!sk.length) return ''
-  return '<span class="dmark">' + sk.length + ' skipped (' + sk.map((c) => wk(c.week).replace('w/c ', '')).join(', ') + '), reaching back to ' + wk(state.counts.cells[0].week) + ' <button class="linkish" onclick="setSkip(' + esc(JSON.stringify(sk.map((c) => c.week))).replace(/"/g, '&quot;') + ', false)">count them again</button></span>'
+  const cs = ghCells(tracker, skips()), reach = !cs.length ? ', so no weeks count' : cs.length < 8 ? ', and GitHub has no earlier weeks to count instead' : ', reaching back to ' + wk(cs[0].week)
+  return '<span class="dmark">' + sk.length + ' skipped (' + sk.map((c) => wk(c.week).replace('w/c ', '')).join(', ') + ')' + reach + ' <button class="linkish" onclick="setSkip(' + esc(JSON.stringify(sk.map((c) => c.week))).replace(/"/g, '&quot;') + ', false)">count them again</button></span>'
 }
 // GitHub's weeks as blocks: type into one to switch the pace to typed counts; skip one to leave it out and stay on GitHub
 function ghBlocks() {
@@ -549,9 +568,9 @@ function variantD() {
   const src = paceSource()
   let pace = seg([['github', 'GitHub'], ['typed', 'Typed counts'], ['range', 'Range']], src, 'setPaceSource')
   if (src === 'github') {
-    pace += '<div class="dline">' + graph(ghWindow(tracker, skips()), false) + '<span>last 8 weeks</span><span class="dmark">read ' + tracker.at + '</span>' + wasLine('counts') + skipLine() + readHtml(c.cells, 'gh', true) +
+    pace += '<div class="dline">' + (c.cells.length ? '' : '<div class="dempty">Every week is skipped, so GitHub gives no pace. Count a week again, or use Typed counts or Range.</div>') + graph(ghWindow(tracker, skips()), false) + '<span>' + ghCountWords() + '</span><span class="dmark">read ' + tracker.at + '</span>' + wasLine('counts') + skipLine() + (c.cells.length ? readHtml(c.cells, 'gh', true) : '') +
       '<details class="dother inline"' + (editing['change-counts'] ? ' open' : '') + ' ontoggle="editing[\'change-counts\']=this.open"><summary>Show weeks</summary>' +
-      '<div class="dmark">' + span(c.cells) + ' · skip a week that says nothing about the pace ahead (a holiday, say), and the next one back counts instead; type into a week to change it, and the pace follows your typed counts</div>' + ghBlocks() + '</details></div>'
+      '<div class="dmark">' + span(ghWindow(tracker, skips())) + ' · skip a week that says nothing about the pace ahead (a holiday, say), and the next one back counts instead; type into a week to change it, and the pace follows your typed counts</div>' + ghBlocks() + '</details></div>'
   } else if (src === 'typed') {
     pace += editing.counts || !c.cells ? countsEditor()
       : editableCells(c.cells) + readHtml(c.cells, 'typed', false) + '<div class="prov">' + c.cells.length + ' weeks' + (c.cells[0].week ? ', ' + span(c.cells) : '') + ' ' + chip('counts') + '</div>'
@@ -560,8 +579,9 @@ function variantD() {
   }
   const n = pending().filter((f) => !following(f) && (f === 'tickets' || src === 'typed')).length
   const nSkip = ghWindow(tracker, skips()).filter((x) => x.skipped).length
-  const words = src === 'github' ? 'GitHub\'s last 8 weeks' + (nSkip ? ', ' + nSkip + ' skipped' : '') : paceWords()
-  const strip = '<div class="strip"><span class="where">On the Milestone forecast</span><span class="context">Checkout v2 · ' + t.value + ' tickets remaining</span><span class="head">Starting 4 Nov 2026: 85% confident of finishing by ' + standIn() + '</span><span class="note">Pace: ' + words + '</span>' +
+  const nCount = c.cells ? c.cells.length : 0
+  const words = src !== 'github' ? paceWords() : !nCount ? 'GitHub, every week skipped' : 'GitHub\'s last ' + (nCount === 1 ? 'week' : nCount + ' weeks') + (nSkip ? ', ' + nSkip + ' skipped' : '')
+  const strip = '<div class="strip"><span class="where">On the Milestone forecast</span><span class="context">Checkout v2 · ' + t.value + ' tickets remaining</span><span class="head">' + (standIn() === 'no date' ? 'No forecast: the pace has no weeks to count' : 'Starting 4 Nov 2026: 85% confident of finishing by ' + standIn()) + '</span><span class="note">Pace: ' + words + '</span>' +
     '<span class="note">GitHub read ' + tracker.at + (n ? ' · <a href="#d-inputs"><span class="dot"></span>' + n + ' new reading' + (n > 1 ? 's' : '') + '</a>' : '') + '</span></div>'
   return strip + '<div id="d-inputs">' + section(1, 'Milestone', 'Tickets remaining, from GitHub or typed.', tickets) + section(2, 'Pace', 'From GitHub, your typed counts, or a range. The others are kept.', pace) + '</div>'
 }
@@ -592,7 +612,7 @@ function quietNoteIfUsed() {
 
 // ---- switcher and render ----
 function go(v, s) {
-  variant = v; if (s && s !== scenario) { scenario = s; state = SCENARIOS[s].make(); editing = {}; log.length = 0 }
+  variant = v; if (s && s !== scenario) { scenario = s; ghFrom = SCENARIOS[s].githubFrom || ''; state = SCENARIOS[s].make(); if (state.follow && state.follow.counts && !state.counts.cells) state.counts.cells = ghCells(tracker, []); editing = {}; log.length = 0 }
   const p = new URLSearchParams(location.search); p.set('variant', variant); p.set('scenario', scenario)
   history.replaceState(null, '', '?' + p); render()
 }
