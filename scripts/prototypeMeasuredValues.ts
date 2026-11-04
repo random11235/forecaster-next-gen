@@ -129,10 +129,33 @@ const pending = () => ['tickets', 'counts'].filter((f) => ['proposed', 'newRead'
 
 // ---- actions ----
 function act(name, fn) { fn(); log.push(name); render() }
-function accept(field) { act('accept ' + field, () => {
+// the EM's own value (typed, or edited by hand) before GitHub's was used: kept, never overwritten
+function ownOf(field) {
+  const v = state[field]
+  if (v.origin === 'measured' || acceptedVal(field) === null) return v.own
+  return field === 'tickets' ? { value: v.value } : { cells: v.cells }
+}
+function accept(field) { const own = ownOf(field); act('accept ' + field, () => {
   if (field === 'tickets') state.tickets = { value: tracker.tickets, origin: 'measured', at: tracker.at, seen: tracker.tickets }
   else { state.counts = { cells: measuredCells(tracker.cells), origin: 'measured', at: tracker.at, seen: key(tracker.cells) }; state.mode = 'counts' }
+  state[field].own = own
 }) }
+function switchBack(field) { act('switch back to own ' + field, () => {
+  const own = state[field].own
+  state[field] = field === 'tickets' ? { value: own.value, origin: 'hand', seen: tracker.tickets } : { cells: own.cells, origin: 'hand', seen: key(tracker.cells) }
+}) }
+function setRange(low, high) { act('edit range', () => { state.range = { low, high } }) }
+// a line offering the EM's own value back, while the forecast uses GitHub's
+function ownLine(field) {
+  const own = state[field].origin === 'measured' && state[field].own
+  if (!own) return ''
+  const text = field === 'tickets' ? own.value : nums(own.cells)
+  return '<span>Yours was ' + esc(text) + '</span><button class="linkish" onclick="switchBack(\'' + field + '\')">Switch back</button>'
+}
+// the range, kept whichever pace the forecast uses
+function rangeBlock() {
+  return '<h3>Range' + (state.mode === 'range' ? '' : ' · kept, not in use') + '</h3><div class="pace"><label>Low <input type="number" id="r-lo" value="' + state.range.low + '" onchange="setRange(Number(this.value),Number(document.getElementById(\'r-hi\').value))"></label><span class="to">to</span><label>High <input type="number" id="r-hi" value="' + state.range.high + '" onchange="setRange(Number(document.getElementById(\'r-lo\').value),Number(this.value))"></label><span class="unit">tickets per week ' + tag('hand', '✎ By hand') + '</span></div>'
+}
 function keep(field) { act('keep mine: ' + field, () => { state[field].seen = trackerVal(field); editing['show-' + field] = false }) }
 function show(field) { act('show GitHub\'s ' + field, () => { editing['show-' + field] = true }) }
 function editTickets(n) { act('edit tickets by hand', () => {
@@ -232,15 +255,15 @@ function variantA() {
   const t = state.tickets
   const tickets = editing.tickets ? ticketsEditor()
     : '<div class="pace"><span style="font-family:var(--mono);font-size:32px;font-weight:600">' + t.value + '</span><span class="unit">tickets remaining</span></div>' +
-      '<div class="prov">' + provTag('tickets') + revertA('tickets') + '<button class="linkish" onclick="editing.tickets=true;render()">Edit by hand</button></div>' + proposalA('tickets')
+      '<div class="prov">' + provTag('tickets') + revertA('tickets') + ownLine('tickets') + '<button class="linkish" onclick="editing.tickets=true;render()">Edit by hand</button></div>' + proposalA('tickets')
   const c = state.counts
   const counts = editing.counts ? countsEditor()
-    : (c.cells ? cellsHtml(c.cells, c.origin === 'hand') + '<div class="prov">' + provTag('counts') + '<span>' + c.cells.length + ' weeks, ' + span(c.cells) + '</span>' + revertA('counts') + '<button class="linkish" onclick="editing.counts=true;render()">Edit by hand</button></div>' + (c.origin === 'measured' && status('counts') !== 'newRead' ? quietNote(c.cells) : '')
+    : (c.cells ? cellsHtml(c.cells, c.origin === 'hand') + '<div class="prov">' + provTag('counts') + '<span>' + c.cells.length + ' weeks, ' + span(c.cells) + '</span>' + revertA('counts') + ownLine('counts') + '<button class="linkish" onclick="editing.counts=true;render()">Edit by hand</button></div>' + (c.origin === 'measured' && status('counts') !== 'newRead' ? quietNote(c.cells) : '')
       : '<p class="note">No typed counts yet.</p><div class="prov">' + revertA('counts') + '</div>') + proposalA('counts')
   const strip = '<div class="strip"><span class="where">On the Milestone forecast</span><span class="context">Checkout v2 · ' + t.value + ' tickets remaining ' + provTag('tickets') + '</span><span class="head">Starting 4 Nov 2026: 85% confident of finishing by ' + standIn() + '</span><span class="note">Pace: ' + paceWords() + ' ' + (state.mode === 'counts' ? provTag('counts') : '') + '</span>' +
     (pending().length ? '<span class="note">' + tag('new', 'New from GitHub') + ' ' + pending().length + ' value' + (pending().length > 1 ? 's' : '') + ' differ from what the forecast uses. <a href="#pace">Review on Inputs</a></span>' : '') + '</div>'
   return strip + section(1, 'Milestone', 'Tickets remaining, measured from the milestone query.', tickets) +
-    '<div id="pace">' + section(2, 'Pace', 'Typed counts measured from comparable work: the 8 most recent whole weeks, quiet ones as 0.', modeRadios() + '<h3>Typed counts</h3>' + counts) + '</div>'
+    '<div id="pace">' + section(2, 'Pace', 'Typed counts measured from comparable work: the 8 most recent whole weeks, quiet ones as 0.', modeRadios() + rangeBlock() + '<h3>Typed counts</h3>' + counts) + '</div>'
 }
 
 // ---- Variant B: one review panel lists every value GitHub reads differently; the fields stay plain ----
@@ -251,7 +274,7 @@ function variantB() {
     const gh = f === 'tickets' ? '<span class="num">' + tracker.tickets + '</span>' : minibars(tracker.cells) + nums(tracker.cells) + (tracker.cells.some((c) => c.n === 0) ? '<br><span class="quietnote">' + tracker.cells.filter((c) => c.n === 0).length + ' quiet weeks (0), the last ' + quietRun(tracker.cells) + ' in a row</span>' : '')
     const action = differs ? '<button class="primary" style="min-height:30px;padding:0 12px;font-size:12px" onclick="accept(\'' + f + '\')">Use GitHub’s</button> <button class="copy" onclick="keep(\'' + f + '\')">Keep mine</button>'
       : s === 'measured' ? '<span class="quietnote">Same</span>' : '<button class="linkish" onclick="accept(\'' + f + '\')">Use GitHub’s</button>'
-    return '<tr class="' + (differs ? 'differs' : '') + '"><td>' + (f === 'tickets' ? 'Tickets remaining' : 'Typed counts<br><span class="quietnote">' + span(tracker.cells) + '</span>') + '</td><td>' + uses + '<br>' + provTag(f) + '</td><td>' + gh + '</td><td>' + action + '</td></tr>'
+    return '<tr class="' + (differs ? 'differs' : '') + '"><td>' + (f === 'tickets' ? 'Tickets remaining' : 'Typed counts<br><span class="quietnote">' + span(tracker.cells) + '</span>') + '</td><td>' + uses + '<br>' + provTag(f) + (ownLine(f) ? '<div class="prov">' + ownLine(f) + '</div>' : '') + '</td><td>' + gh + '</td><td>' + action + '</td></tr>'
   }).join('')
   const n = pending().length
   const panel = '<section class="brief"><div class="heading"><h2>From GitHub · read ' + tracker.at + '</h2>' + (n ? '<button class="copy" onclick="act(\'accept all\',()=>{});accept(\'tickets\');accept(\'counts\')">Use all GitHub’s values</button>' : '<span class="quietnote">Everything matches</span>') + '</div>' +
@@ -261,14 +284,14 @@ function variantB() {
   const word = (f) => { const s = status(f); return s === 'measured' || s === 'newRead' || s === 'kept' ? 'measured' : 'by hand' }
   const tickets = '<div class="fields"><label>Tickets remaining · ' + word('tickets') + ' <input type="number" value="' + state.tickets.value + '" onchange="editTickets(Number(this.value))"></label></div>'
   const counts = '<div class="fields"><label class="wide">Typed counts · ' + word('counts') + ' <input type="text" value="' + esc(state.counts.cells ? nums(state.counts.cells) : '') + '" placeholder="6, 4, 9" onchange="editCountsList(this.value)"></label></div>'
-  return strip + '<div id="review">' + panel + '</div>' + section(1, 'Milestone', 'Type over any value to edit it by hand.', tickets) + section(2, 'Pace', 'Typed counts, oldest first.', modeRadios() + counts)
+  return strip + '<div id="review">' + panel + '</div>' + section(1, 'Milestone', 'Type over any value to edit it by hand.', tickets) + section(2, 'Pace', 'A range, or typed counts oldest first. Both are kept.', modeRadios() + rangeBlock() + '<h3>Typed counts</h3>' + counts)
 }
 
 // ---- Variant C: GitHub's column beside the forecast's, week by week; each cell carries its own origin ----
 function variantC() {
   const t = state.tickets, ts = status('tickets')
   const tRow = '<table class="ledger"><thead><tr><th></th><th>GitHub reads · ' + tracker.at + '</th><th>Forecast uses</th><th></th></tr></thead><tbody><tr><td>Tickets remaining</td><td class="gh">' + tracker.tickets + '</td><td class="uses"><input type="number" value="' + t.value + '" onchange="editTickets(Number(this.value))"></td><td>' +
-    (t.value === tracker.tickets ? tag('measured', '● same') : '<button class="copy" onclick="accept(\'tickets\')">← use ' + tracker.tickets + '</button> ' + (ts.startsWith('hand') ? tag('hand', '✎ by hand') : ts === 'typed' || ts === 'proposed' ? tag('hand', '✎ by hand') : tag('measured', 'from ' + t.at)) + (['proposed', 'newRead', 'handNewRead'].includes(ts) ? ' ' + tag('new', 'new read') : '')) + '</td></tr></tbody></table>'
+    (t.value === tracker.tickets ? tag('measured', '● same') : '<button class="copy" onclick="accept(\'tickets\')">← use ' + tracker.tickets + '</button> ' + (ts.startsWith('hand') ? tag('hand', '✎ by hand') : ts === 'typed' || ts === 'proposed' ? tag('hand', '✎ by hand') : tag('measured', 'from ' + t.at)) + (['proposed', 'newRead', 'handNewRead'].includes(ts) ? ' ' + tag('new', 'new read') : '')) + '</td></tr></tbody></table>' + (ownLine('tickets') ? '<div class="prov">' + ownLine('tickets') + '</div>' : '')
   const accepted = state.counts.cells || []
   const weeks = [...new Set([...tracker.cells.map((c) => c.week), ...accepted.map((c) => c.week).filter(Boolean)])].sort()
   const rows = weeks.map((w) => {
@@ -285,12 +308,12 @@ function variantC() {
   const mean = (cs) => cs.length ? (cs.reduce((s, c) => s + c.n, 0) / cs.length).toFixed(1) : '–'
   const cTable = (unweeked.length ? '<p class="quietnote">The forecast uses counts typed as a list (' + nums(unweeked) + '), with no weeks attached. <button class="copy" onclick="accept(\'counts\')">Replace with GitHub’s weeks</button></p>' : '') +
     '<table class="ledger"><thead><tr><th>Week</th><th>GitHub reads</th><th>Forecast uses</th><th></th></tr></thead><tbody>' + (unweeked.length ? '' : rows) + '</tbody><tfoot><tr><td>Average</td><td class="gh">' + mean(tracker.cells) + '</td><td>' + mean(accepted) + '</td><td>' +
-    (key(accepted) !== key(tracker.cells) ? '<button class="copy" onclick="accept(\'counts\')">← use all of GitHub’s</button>' : '') + '</td></tr></tfoot></table>' + quietNote(tracker.cells)
+    (key(accepted) !== key(tracker.cells) ? '<button class="copy" onclick="accept(\'counts\')">← use all of GitHub’s</button>' : '') + '</td></tr></tfoot></table>' + (ownLine('counts') ? '<div class="prov">' + ownLine('counts') + '</div>' : '') + quietNote(tracker.cells)
   const diffs = pending().length
   const strip = '<div class="strip"><span class="where">On the Milestone forecast</span><span class="context">Checkout v2 · ' + t.value + ' tickets remaining</span><span class="head">Starting 4 Nov 2026: 85% confident of finishing by ' + standIn() + '</span><span class="note">Pace: ' + paceWords() + '</span><span class="note">Inputs: ' +
     (ts === 'measured' ? 'tickets from GitHub' : ts.startsWith('hand') ? 'tickets by hand' : 'tickets ' + (ts === 'typed' || ts === 'proposed' ? 'by hand' : 'from an older read')) + ' · ' +
     (state.counts.cells ? (state.counts.cells.filter((c) => c.measured === c.n).length + ' of ' + state.counts.cells.length + ' weeks from GitHub') : 'no counts') + (diffs ? ' · <a href="#ledger">' + diffs + ' differ from today’s read</a>' : '') + '</span></div>'
-  return strip + section(1, 'Milestone', 'GitHub’s reading beside the value the forecast uses.', tRow) + '<div id="ledger">' + section(2, 'Pace', 'Week by week: what GitHub counts, and what the forecast uses. Type over a week to edit it, or leave it out.', modeRadios() + cTable) + '</div>'
+  return strip + section(1, 'Milestone', 'GitHub’s reading beside the value the forecast uses.', tRow) + '<div id="ledger">' + section(2, 'Pace', 'Week by week: what GitHub counts, and what the forecast uses. Type over a week to edit it, or leave it out.', modeRadios() + rangeBlock() + '<h3>Typed counts</h3>' + cTable) + '</div>'
 }
 
 // ---- switcher and render ----
