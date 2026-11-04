@@ -129,6 +129,19 @@ const STYLE = `
     .pwk.p85 .well { box-shadow: inset 0 -2px 0 var(--ink); }
     .pwk.p85 .well::after { content: ''; position: absolute; top: -4px; bottom: 0; right: -2px; border-right: 3px solid var(--ink); }
     .pwk .d { font-size: 9px; color: var(--faint); white-space: nowrap; height: 12px; }
+    .cg { display: flex; flex-direction: column; }
+    .cgf, .cgl, .cgd { display: flex; gap: 2px; }
+    .cgf { position: relative; height: 150px; border-bottom: 1px solid var(--ink); }
+    .cc { flex: 1; position: relative; display: flex; flex-direction: column; justify-content: flex-end; min-width: 0; }
+    .cc .fin { background: var(--bar); border-radius: 2px 2px 0 0; }
+    .cc.adj, .cl.adj { background: repeating-linear-gradient(135deg, transparent 0 4px, rgba(181,72,42,.14) 4px 7px); }
+    .cpct { position: absolute; top: 2px; left: 0; right: 0; text-align: center; font-size: 10px; font-family: var(--mono); font-weight: 600; color: var(--risk); }
+    .cgl { height: 44px; margin-top: 3px; }
+    .cl { flex: 1; position: relative; display: flex; flex-direction: column; justify-content: flex-end; min-width: 0; }
+    .cl .pb { background: var(--bar-light); border-radius: 2px 2px 0 0; }
+    .cl.adj .pb { background: repeating-linear-gradient(135deg, var(--bar-light) 0 4px, #B5482A 4px 7px); }
+    .cl .ut { position: absolute; left: 0; right: 0; border-top: 2px dashed var(--ink); }
+    .cgd span { flex: 1; font-size: 10px; color: var(--faint); white-space: nowrap; min-width: 0; overflow: visible; }
     .eff { font-size: 12px; white-space: nowrap; }
     .side h3 { margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
     .sentence { font-size: 14px; line-height: 2.2; }
@@ -315,6 +328,28 @@ function paceWeeks(A, on) {
     '<p class="faint"><span class="key" style="background:var(--bar)"></span>typed counts · <span class="key" style="background:var(--bar-light)"></span>a usual week ahead (' + usual.toFixed(1) + (!counts ? ', mid-range' : on && COUNT_WEEKS.some((w) => Math.abs(lastingIn(w) - 1) > 1e-9) ? ', the typed average with the lasting change taken out' : ', the typed average') + ')' +
     (on ? ' · <span class="key" style="background:repeating-linear-gradient(135deg, var(--bar-light) 0 3px, #B5482A 3px 5px)"></span>weeks capacity changes, the usual week dashed' + (counts && COUNT_WEEKS.some((w) => Math.abs(lastingIn(w) - 1) > 1e-9) ? ' · shaded typed weeks already show a lasting change' : '') : ' · capacity off') + '</p>'
 }
+// One chart on one week axis, from the milestone start to past the 95% date. Above the axis: how many simulations
+// finish each week. Below it: the pace each week is drawn at, a usual week scaled by capacity. A week capacity changes
+// is shaded through both lanes, so the impacted weeks line up against the finish dates they push.
+function weeksChart(A, on) {
+  const counts = state.mode === 'counts'
+  const base = counts ? COUNTS.map((c, i) => { const l = on ? lastingIn(COUNT_WEEKS[i]) : 1; return c / (l > 0 ? l : 1) }) : []
+  const usual = counts ? base.reduce((a, b) => a + b, 0) / base.length : (state.range[0] + state.range[1]) / 2
+  const hi = A.q95 + 1, n = hi + 1
+  const cw = new Array(n).fill(0); for (const f of A.finish) if (f <= hi) cw[f]++
+  const wk = Array.from({ length: n }, (_, k) => { const d = add(START, 7 * k), c = on ? capOfWeek(d) : 1; return { d, c, v: usual * c, adj: Math.abs(c - 1) > 1e-9 } })
+  const fm = Math.max(...cw), pm = Math.max(usual, ...wk.map((w) => w.v)) * 1.1
+  const at = (k) => ((k + 0.5) / n * 100).toFixed(2) + '%'
+  const cols = wk.map((w, k) => '<div class="cc' + (w.adj ? ' adj' : '') + '" title="Week of ' + dm(w.d) + ': ' + cw[k] + ' of ' + TRIALS + ' simulations finish · ' + (w.adj ? Math.round(w.c * 100) + '% capacity, pace about ' + w.v.toFixed(1) + ' instead of ' + usual.toFixed(1) : 'usual pace, about ' + usual.toFixed(1)) + '">' +
+    (w.adj ? '<span class="cpct">' + Math.round(w.c * 100) + '%</span>' : '') + '<span class="fin" style="height:' + (cw[k] / fm * 100).toFixed(1) + '%"></span></div>').join('')
+  const lane = wk.map((w) => '<div class="cl' + (w.adj ? ' adj' : '') + '"><span class="pb" style="height:' + (w.v / pm * 100).toFixed(1) + '%"></span>' + (w.adj ? '<span class="ut" style="bottom:' + (usual / pm * 100).toFixed(1) + '%"></span>' : '') + '</div>').join('')
+  const dates = wk.map((w, k) => '<span>' + (k % 2 ? '' : dm(w.d)) + '</span>').join('')
+  return '<div class="cg"><div class="mrow top">' + [['50%', A.q50, '-100%'], ['85%', A.q85, '0']].map(([p, k, x]) => '<span class="mtag with" style="left:' + at(k) + ';transform:translateX(' + x + ')">' + p + ' · ' + dm(endOf(k)) + '</span>').join('') + '</div>' +
+    '<div class="cgf">' + cols + [A.q50, A.q85].map((k) => '<div class="mline with" style="left:' + at(k) + '"></div>').join('') + '</div>' +
+    '<div class="cgl">' + lane + '</div><div class="cgd">' + dates + '</div></div>' +
+    '<p class="faint"><span class="key" style="background:var(--bar)"></span>simulations finishing that week · <span class="key" style="background:var(--bar-light)"></span>pace that week, a usual week of ' + usual.toFixed(1) + (!counts ? ' (mid-range)' : on && COUNT_WEEKS.some((w) => Math.abs(lastingIn(w) - 1) > 1e-9) ? ' (typed average, lasting change taken out)' : ' (typed average)') +
+    (on ? ' · <span class="key" style="background:repeating-linear-gradient(135deg, var(--bar-light) 0 3px, #B5482A 3px 5px)"></span>weeks capacity changes, usual pace dashed' : ' · capacity off') + '</p>'
+}
 function paceStrip() {
   const edit = ' <a href="#" onclick="return false" title="Pace is typed on Inputs">Edit on Inputs</a>'
   if (state.mode === 'range') return '<div class="pace"><div class="phead"><span>A range</span>' + edit + '</div><p class="muted" style="margin:0">' + state.range[0] + '–' + state.range[1] + ' tickets a week, from a slow week to a good one. No counted weeks, so a lasting change is yours to end.</p></div>'
@@ -402,14 +437,6 @@ function variantC() {
   const on = state.useCapacity !== false
   const A = on ? W : U, cmp = on && ui.capOpen && active.length > 0
   const rows = [['50%', 'q50'], ['85%', 'q85'], ['95%', 'q95']].map(([p, k]) => '<tr><td>' + p + ' confident by</td><td><b>' + dm(endOf(A[k])) + '</b></td>' + (cmp ? '<td>' + dm(endOf(U[k])) + '</td><td>' + shift(U[k], W[k]) + '</td>' : '') + '</tr>').join('')
-  // The finish graph is the forecast's own, one series, whether capacity is open or not
-  const lo = A.finish[0], hi = A.q95 + 1
-  const cw = new Array(hi - lo + 1).fill(0); for (const f of A.finish) if (f <= hi) cw[f - lo]++
-  const mx = Math.max(...cw), n = hi - lo + 1, at = (k) => ((k - lo + 0.5) / n * 100).toFixed(2) + '%'
-  const hist = '<div class="histwrap"><div class="mrow top">' + [['50%', A.q50], ['85%', A.q85]].map(([p, k]) => '<span class="mtag with" style="left:' + at(k) + '">' + p + ' · ' + dm(endOf(k)) + '</span>').join('') + '</div>' +
-    '<div class="hist">' + cw.map((v, i) => '<div class="b one" title="Week of ' + dm(add(START, 7 * (lo + i))) + ': ' + v + ' of ' + TRIALS + ' simulations finish"><span class="w" style="height:' + v / mx * 100 + '%"></span></div>').join('') +
-    [A.q50, A.q85].map((k) => '<div class="mline with" style="left:' + at(k) + '"></div>').join('') + '</div></div>' +
-    '<div class="row" style="justify-content:space-between"><span class="faint">' + dm(add(START, 7 * lo)) + '</span><span class="faint">' + dm(add(START, 7 * hi)) + '</span></div>'
   // Each entry's own effect: the forecast again without it
   const effect = {}
   if (on && ui.capOpen) for (const e of active) { const keep = state.entries; state.entries = keep.filter((x) => x !== e); const r = simulate(true); state.entries = keep; effect[e.id] = W.q85 - r.q85 }
@@ -438,9 +465,8 @@ function variantC() {
   return '<div class="row" style="justify-content:space-between">' + modeSwitch() + '<span class="faint">Shown as the Milestone forecast screen</span></div>' +
     '<div class="fc"><div class="col" style="gap:18px"><p class="bighead">Starting ' + dmy(START) + ': 85% confident of finishing by <span style="color:var(--good)">' + dm(endOf(A.q85)) + '</span></p>' + quiet +
     '<section class="brief"><div class="heading"><h2>When it could finish</h2></div><table class="pc">' + (cmp ? '<thead><tr><th></th><th>With capacity</th><th>At usual capacity</th><th></th></tr></thead>' : '') + '<tbody>' + rows + '</tbody></table></section>' +
-    '<section class="brief"><div class="heading"><h2>Pace, week by week</h2></div>' + paceWeeks(A, on) + '</section>' +
-    '<section class="brief"><div class="heading"><h2>When the simulations finish</h2></div>' + hist + '</section></div>' +
-    '<aside class="side"><h3>Pace</h3>' + paceSummary() +
+    '<section class="brief"><div class="heading"><h2>Week by week</h2></div>' + weeksChart(A, on) + '</section></div>' +
+    '<aside class="side"><h3>Pace</h3>' + paceStrip() +
     '<details class="cap"' + (ui.capOpen ? ' open' : '') + ' ontoggle="if(ui.capOpen!==this.open){ui.capOpen=this.open;render()}"><summary><span class="ctitle">Capacity</span> <span class="faint">' + summary + '</span></summary><div class="col" style="gap:10px;margin-top:10px">' + capBody + '</div></details></aside></div>'
 
 }
