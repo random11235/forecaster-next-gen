@@ -36,6 +36,10 @@ const STYLE = `
     .cell .w { font-size: 10px; color: var(--faint); white-space: nowrap; }
     .cell.quiet { background: repeating-linear-gradient(135deg, transparent 0 5px, var(--hairline) 5px 6px); }
     .cell.quiet .n { color: var(--faint); }
+    .cell input.n { width: 48px; border: 0; background: transparent; text-align: center; color: var(--ink); padding: 0; -moz-appearance: textfield; }
+    .cell input.n::-webkit-inner-spin-button { -webkit-appearance: none; }
+    label.cell { cursor: text; }
+    label.cell:focus-within { border-color: var(--ink); }
     .cell.handcell { border-color: #C9A66B; }
     .quietnote { font-size: 12px; color: var(--muted); line-height: 1.45; max-width: 620px; }
     table.review { border-collapse: collapse; width: 100%; font-size: 13px; }
@@ -416,19 +420,19 @@ function variantD() {
       '<details class="dother inline"' + (editing['change-tickets'] ? ' open' : '') + ' ontoggle="editing[\'change-tickets\']=this.open"><summary>Change</summary>' + stopFollow('tickets') + '</details></div>'
     : '<div class="pace"><label>Tickets remaining <input type="number" value="' + t.value + '" onchange="editTickets(Number(this.value))"></label><span class="unit">' + mark('tickets').trim() + ' ' + chip('tickets') + '</span></div>'
   const rangeInline = '<div class="pace"><label>Low <input type="number" id="r-lo" value="' + state.range.low + '" onchange="setRange(Number(this.value),Number(document.getElementById(\'r-hi\').value))"></label><span class="to">to</span><label>High <input type="number" id="r-hi" value="' + state.range.high + '" onchange="setRange(Number(document.getElementById(\'r-lo\').value),Number(this.value))"></label><span class="unit">tickets per week</span></div>'
-  const countsLine = '<div class="prov">' + (c.cells ? c.cells.length + ' weeks' + (c.cells[0] && c.cells[0].week ? ', ' + span(c.cells) : '') : '') + mark('counts') + ' ' + chip('counts') + ' <button class="linkish" onclick="editing.counts=true;render()">Edit</button></div>'
-  const countsBlock = editing.counts ? countsEditor() : (c.cells ? cellsHtml(c.cells, c.origin === 'hand') + (state.mode === 'counts' ? quietNoteIfUsed() : '') : '<p class="note">No typed counts yet.</p>') + countsLine
+  const countsLine = '<div class="prov">' + (c.cells ? c.cells.length + ' weeks' + (c.cells[0] && c.cells[0].week ? ', ' + span(c.cells) : '') : '') + mark('counts') + ' ' + chip('counts') + (c.cells ? '' : ' <button class="linkish" onclick="editing.counts=true;render()">Type counts</button>') + '</div>'
+  const countsBlock = editing.counts ? countsEditor() : (c.cells ? editableCells(c.cells) + (state.mode === 'counts' ? quietNoteIfUsed() : '') : '<p class="note">No typed counts yet.</p>') + countsLine
   let pace
   if (following('counts')) {
     // defaulting to GitHub: the whole pace is one line; everything else is behind Change
     pace = '<div class="dline">' + graph(c.cells, false) + '<span>GitHub\'s last 8 weeks</span><span class="dmark">follows each read, ' + tracker.at + '</span>' + quietWords(c.cells) + wasLine('counts') +
       '<details class="dother inline"' + (editing['change-counts'] ? ' open' : '') + ' ontoggle="editing[\'change-counts\']=this.open"><summary>Change</summary>' +
-      '<div class="dmark">' + span(c.cells) + '</div>' + cellsHtml(c.cells) + quietNote(c.cells) + stopFollow('counts') +
+      '<div class="dmark">' + span(c.cells) + ' · type into a week to change it; that stops following</div>' + editableCells(c.cells) + quietNote(c.cells) + stopFollow('counts') +
       '<div class="row"><button onclick="state.follow.counts=false;setMode(\'range\')">Use the range instead (' + state.range.low + '–' + state.range.high + ')</button></div></details></div>'
   } else if (state.mode === 'counts' && status('counts') === 'measured' && !editing.counts) {
     pace = '<div class="dline">' + graph(c.cells, false) + '<span>GitHub\'s last 8 weeks</span><span class="dchip same">● GitHub ' + c.at + '</span>' + quietWords(c.cells) +
-      '<details class="dother inline"' + (editing['weeks'] ? ' open' : '') + ' ontoggle="editing.weeks=this.open"><summary>Show weeks</summary>' + cellsHtml(c.cells) + quietNote(c.cells) +
-      '<div class="row"><button onclick="editing.counts=true;render()">Edit by hand</button><button onclick="setFollow(\'counts\', true)">Always follow GitHub</button></div></details>' +
+      '<details class="dother inline"' + (editing['weeks'] ? ' open' : '') + ' ontoggle="editing.weeks=this.open"><summary>Show weeks</summary>' + editableCells(c.cells) + quietNote(c.cells) +
+      '<div class="row"><button onclick="setFollow(\'counts\', true)">Always follow GitHub</button></div></details>' +
       '<details class="dother inline"' + (editing['other'] ? ' open' : '') + ' ontoggle="editing.other=this.open"><summary>Range · ' + state.range.low + '–' + state.range.high + ' a week · not in use</summary>' + rangeInline + '<div class="row"><button onclick="setMode(\'range\')">Use the range</button></div></details></div>'
   } else if (state.mode === 'range') {
     pace = '<h3>Range</h3>' + rangeInline +
@@ -441,6 +445,18 @@ function variantD() {
   const strip = '<div class="strip"><span class="where">On the Milestone forecast</span><span class="context">Checkout v2 · ' + t.value + ' tickets remaining</span><span class="head">Starting 4 Nov 2026: 85% confident of finishing by ' + standIn() + '</span><span class="note">Pace: ' + (following('counts') ? 'GitHub\'s last 8 weeks' : paceWords()) + '</span>' +
     '<span class="note">GitHub read ' + tracker.at + (n ? ' · <a href="#d-inputs"><span class="dot"></span>' + n + ' new reading' + (n > 1 ? 's' : '') + '</a>' : '') + '</span></div>'
   return strip + '<div id="d-inputs">' + section(1, 'Milestone', 'Tickets remaining.', tickets) + section(2, 'Pace', following('counts') ? 'Follows GitHub. Change it any time.' : 'The pace the forecast uses. The other one is kept, folded below.', pace) + '</div>'
+}
+function editAt(i, n) { act('edit week ' + (i + 1) + ' by hand', () => {
+  if ((state.follow || {}).counts) state.follow.counts = false
+  const own = ownOf('counts')
+  const cells = state.counts.cells.map((c, j) => j === i ? { ...c, n } : c)
+  const same = key(cells) === key(tracker.cells)
+  state.counts = { cells, origin: same ? 'measured' : 'hand', at: tracker.at, seen: key(tracker.cells), own: same ? own : undefined }
+  editing.weeks = false; editing['change-counts'] = false
+}) }
+function editableCells(cells) {
+  return '<div class="cells">' + cells.map((c, i) =>
+    '<label class="cell' + (c.n === 0 ? ' quiet' : '') + (c.measured === null || c.measured !== undefined && c.n !== c.measured ? ' handcell' : '') + '"><input class="n" type="number" min="0" value="' + c.n + '" onchange="editAt(' + i + ', Number(this.value))"><span class="w">' + (c.week ? wk(c.week).replace('w/c ', '') : '—') + (c.n === 0 ? ' · quiet' : '') + '</span></label>').join('') + '</div>'
 }
 function quietNoteIfUsed() {
   const cs = state.counts.cells
