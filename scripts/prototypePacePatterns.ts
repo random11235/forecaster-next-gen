@@ -25,8 +25,8 @@ const STYLE = `
     .col { display: flex; flex-direction: column; gap: 8px; }
     .fc { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 28px; }
     @media (max-width: 860px) { .fc { grid-template-columns: 1fr; } }
-    .bighead { font-size: 21px; line-height: 1.3; margin: 0; }
-    .good { color: var(--good); } .later { color: var(--risk); } .sooner { color: var(--good); }
+    .bighead { font-size: clamp(20px, 2.5vw, 30px); font-weight: 600; letter-spacing: -.01em; line-height: 1.2; margin: 0; }
+    .good { color: var(--good); } .bighead .good { white-space: nowrap; } .later { color: var(--risk); } .sooner { color: var(--good); }
     table.pc { border-collapse: collapse; font-size: 14px; }
     table.pc th { text-align: left; font-size: 11px; color: var(--faint); text-transform: uppercase; letter-spacing: .06em; padding: 0 20px 6px 0; font-weight: 600; }
     table.pc td { padding: 6px 20px 6px 0; border-top: 1px solid var(--hairline); font-variant-numeric: tabular-nums; }
@@ -165,32 +165,32 @@ function reading() {
   if (run >= 2 && avg(before) > 0) {
     const quiet = cells.slice(-run)
     return { kind: 'quietEnd', name: run + ' quiet weeks at the end', short: 'nothing finished since ' + wc(quiet[0].start),
-      detail: 'Nothing has finished since ' + wc(quiet[0].start) + ', after ' + Math.min(...before) + '–' + Math.max(...before) + ' a week before. That can be a holiday, a release freeze or work stuck in review; it can also be the team moving to other work.',
-      ask: 'Were those weeks off, or is this the pace now?',
+      detail: 'Nothing has finished since ' + wc(quiet[0].start) + ', after ' + Math.min(...before) + ' to ' + Math.max(...before) + ' a week before: a break, a freeze, or a real drop in pace.',
+      ask: 'If those weeks were time off or a freeze, skip them; if this is the pace now, count them as 0.',
       alt: { out: quiet.map((c) => c.i), from: null }, altName: 'Skip the ' + run + ' quiet weeks', keepName: 'Count them as 0', weeksHi: quiet.map((c) => c.i) }
   }
   const med = [...ns].sort((a, b) => a - b)[ns.length >> 1], iMax = ns.indexOf(Math.max(...ns)), rest = ns.filter((_, i) => i !== iMax)
   if ((ns[iMax] - med) / Math.max(1, Math.sqrt(med)) > 4 && sdv(rest) ** 2 / Math.max(1e-9, avg(rest)) < 2) {
     const c = cells[iMax], cause = S.cause && S.cause.at === c.i ? S.cause.text : null
     return { kind: 'odd', name: 'One odd week', short: wc(c.start) + ' finished ' + c.n,
-      detail: wc(c.start) + ' finished ' + c.n + ', against ' + Math.min(...rest) + '–' + Math.max(...rest) + ' in the other weeks.' + (cause ? ' GitHub shows ' + cause + ': it looks like a clean-up rather than work done.' : ' GitHub shows nothing unusual about how they closed.'),
-      ask: 'Leave it out only if you know why it was different.',
+      detail: wc(c.start) + ' finished ' + c.n + ', far above the ' + Math.min(...rest) + ' to ' + Math.max(...rest) + ' of the other weeks' + (cause ? ': GitHub shows ' + cause + ', which looks like a clean-up rather than work done.' : ', and GitHub shows nothing unusual about how they closed.'),
+      ask: 'Leave it out only if you know why it was different; otherwise keep it.',
       alt: { out: [c.i], from: null }, altName: 'Leave out ' + wc(c.start), keepName: 'Keep it', weeksHi: [c.i], cause }
   }
   if (mkP(ns) < 0.05 || lag1(ns) > 0.3) {
     const cp = changePoint(), at = weeks[cp.k], after = weeks.length - cp.k, up = cp.after > cp.before
     const base = { kind: 'changing', name: 'Pace changing', short: (up ? 'higher' : 'lower') + ' since about ' + wc(at.start),
-      detail: 'Since about ' + wc(at.start) + ' the team finishes about ' + Math.round(cp.after) + ' a week, against ' + Math.round(cp.before) + ' before. Eight weeks can’t say whether that lasts: people joining or leaving, different work, or a push that won’t hold.',
-      ask: 'If you know why it changed, start the pace at the change.', changeAt: cp.k, weeksHi: weeks.slice(cp.k).map((w) => w.i) }
+      detail: 'Since about ' + wc(at.start) + ' the team finishes about ' + Math.round(cp.after) + ' a week, against ' + Math.round(cp.before) + ' before, and eight weeks can’t tell whether that will last.',
+      ask: 'If you know why it changed, such as people joining or leaving, start the pace at the change.', changeAt: cp.k, weeksHi: weeks.slice(cp.k).map((w) => w.i) }
     if (after < MIN_AFTER) return { ...base, wait: MIN_AFTER - after, short: base.short + ', ' + plural(after, 'week') + ' so far',
-      ask: 'Only ' + plural(after, 'week') + ' since the change: too few to forecast from. In ' + plural(MIN_AFTER - after, 'week') + ' the tool can offer it; until then the range stays wide.' }
+      ask: 'Wait ' + plural(MIN_AFTER - after, 'week') + ' more: ' + plural(after, 'week') + ' since the change is too few to start the pace there, so the range stays wide until then.' }
     return { ...base, alt: { out: [], from: cp.k }, altName: 'Start at ' + wc(at.start) + ' (' + plural(after, 'week') + ')', keepName: 'Keep all 8 weeks' }
   }
   const zeros = ns.filter((n) => n === 0).length
   if (sdv(ns) ** 2 / Math.max(1e-9, avg(ns)) > 2)
     return { kind: 'lumpy', name: 'Lumpy', short: zeros ? plural(zeros, 'quiet week') + ' among busy ones' : 'weeks vary a lot',
-      detail: 'Work lands in batches: ' + Math.min(...ns) + ' to ' + Math.max(...ns) + ' a week. Quiet weeks are real pace, so the forecast keeps them, and its range is wide because the pace is. There’s nothing to change in the forecast.',
-      team: 'On the team’s side, smaller items, finishing before starting, or closing tickets when they’re done would make the weeks even out.', weeksHi: cells.filter((c) => c.n === 0).map((c) => c.i) }
+      detail: 'Work finishes in batches, ' + Math.min(...ns) + ' to ' + Math.max(...ns) + ' a week, so the range is wide because the team’s pace really varies.',
+      team: 'To narrow the range, split work smaller, finish items before starting new ones, and close tickets as soon as they’re done.', weeksHi: cells.filter((c) => c.n === 0).map((c) => c.i) }
   return { kind: 'none', name: 'No pattern yet', short: '8 weeks shows nothing the forecast should change' }
 }
 
@@ -273,8 +273,8 @@ function variantA() {
       (alt ? '<div class="both">' + keep.html + alt.html + '</div><p class="faint" style="margin:0">' + R.ask + '</p><div class="row"><button onclick="useAlt()">' + R.altName + '</button></div>' : R.ask ? '<p class="faint">' + R.ask + '</p>' : '') +
       '</details>'
   }
-  return '<div class="fc"><div class="col" style="gap:18px">' + head(F) + table(F) + '</div>' +
-    '<aside class="side"><h3>Pace</h3><div class="pace"><div class="phead"><span>Finished each week · GitHub</span><a href="#" onclick="return false">Change</a></div>' + strip(R, false, false) + paceLine() + read + '</div></aside></div>'
+  return '<div class="col" style="gap:22px">' + head(F) + '<div class="fc"><div class="col" style="gap:18px">' + table(F) + '</div>' +
+    '<aside class="side"><h3>Pace</h3><div class="pace"><div class="phead"><span>Finished each week · GitHub</span><a href="#" onclick="return false">Change</a></div>' + strip(R, false, false) + paceLine() + read + '</div></aside></div></div>'
 }
 
 // ---- Variant B: the week-by-week pace is the main picture, and the pattern is drawn on it (the odd week labelled,
@@ -313,8 +313,8 @@ function variantC() {
       (R.team ? '<p>' + R.team + '</p>' : '') + '</details>' +
       (R.alt && isDefault() ? '<div class="row"><button class="linkish" onclick="dismiss()">Not now</button></div>' : '') + '</div>'
   }
-  return '<div class="fc"><div class="col" style="gap:18px">' + head(F) + card + table(F) + '</div>' +
-    '<aside class="side"><h3>Pace</h3><div class="pace"><div class="phead"><span>Finished each week · GitHub</span><a href="#" onclick="return false">Change</a></div>' + strip(R, false, false) + paceLine() + '</div></aside></div>'
+  return '<div class="col" style="gap:22px">' + head(F) + '<div class="fc"><div class="col" style="gap:18px">' + card + table(F) + '</div>' +
+    '<aside class="side"><h3>Pace</h3><div class="pace"><div class="phead"><span>Finished each week · GitHub</span><a href="#" onclick="return false">Change</a></div>' + strip(R, false, false) + paceLine() + '</div></aside></div></div>'
 }
 
 // ---- switcher and render ----
