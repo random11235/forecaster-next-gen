@@ -17,6 +17,13 @@ import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const { htmlPage }: typeof import('../src/app/html.js') = await import(new URL('../dist/app/html.js', import.meta.url).href)
+const { renderHowItWorksScreen }: typeof import('../src/app/howItWorksScreen.js') = await import(new URL('../dist/app/howItWorksScreen.js', import.meta.url).href)
+const { howItWorksView }: typeof import('../src/forecast/howItWorksView.js') = await import(new URL('../dist/forecast/howItWorksView.js', import.meta.url).href)
+const { DEFAULT_SETTINGS }: typeof import('../src/forecast/settings.js') = await import(new URL('../dist/forecast/settings.js', import.meta.url).href)
+// The app's own How it works, cut out of its page: the header, and the rest of <main>.
+const howMain = /<main>([\s\S]*)<\/main>/.exec(renderHowItWorksScreen(howItWorksView(DEFAULT_SETTINGS)))![1]!
+const howHeader = /<header>([\s\S]*?)<\/header>/.exec(howMain)![1]!
+const REAL_HOW = { header: howHeader, body: howMain.replace(/<header>[\s\S]*?<\/header>/, '') }
 
 const out = new URL('../dist/prototype/connected-forecasting.html', import.meta.url)
 
@@ -233,7 +240,8 @@ const TRACKERS = {
   fresh: 'GitHub, not set up yet',
   none: 'No tracker (typed inputs)',
 }
-const SCREENS = { forecast: 'Milestone forecast', inputs: 'Inputs', how: 'How it works' }
+const SCREENS = { forecast: 'Milestone forecast', inputs: 'Inputs', how: 'How it works', help: 'Help: trackers, capacity, patterns' }
+const REAL_HOW = __REAL_HOW__
 
 const params = new URLSearchParams(location.search)
 const pick = (o, k, d) => o[params.get(k)] ? params.get(k) : d
@@ -655,7 +663,8 @@ function inputsScreen() {
     section(2, 'Cadence', 'How long a period is, in days. Pace patterns are read at 7 days or more.', '<div class="fields"><label>Days per period <input type="number" min="1" value="' + state.cadence + '" onchange="act(\'cadence\', () => { state.cadence = Number(this.value) })"></label></div>' + (state.cadence < 7 ? '<p class="faint">Patterns are read from weeks or sprints.</p>' : '') + (state.cadence !== 7 ? '<p class="faint">(Prototype: the tracker is still read in weeks.)</p>' : '')) +
     section(3, 'Pace', 'How many tickets the team finishes a week: from ' + (state.conn ? T() + ', ' : '') + 'your typed counts, or a range. Capacity is set beside the forecast, under Pace.', paceBlock(W)) +
     section(4, 'Ambiguity', 'How well the milestone’s work is understood. The less it is, the more the work may grow.', '<fieldset class="levels">' + ['low', 'medium', 'high'].map((l) => '<label><input type="radio" name="amb"' + (state.amb === l ? ' checked' : '') + ' onchange="act(\'ambiguity ' + l + '\', () => { state.amb = \'' + l + '\' })"> ' + l[0].toUpperCase() + l.slice(1) + ' <span class="range">' + AMB[l].join('–') + '×</span></label>').join('') + '</fieldset>') +
-    section(5, 'Growth', 'How much the work may grow at each level of ambiguity.', '<p class="muted">As in the app today: Low 1–1.5×, Medium 1–2×, High 1.5–3×.</p>')
+    section(5, 'Growth', 'How much the work may grow at each ambiguity level. The milestone grows by the range of its own level. Each simulation picks one growth from the range, every value in it equally likely, and multiplies the tickets remaining by it before working through them at the team’s pace. A wider range spreads the finish dates out.',
+      '<table class="growth"><thead><tr><th>Ambiguity</th><th>Grows by</th></tr></thead><tbody>' + ['low', 'medium', 'high'].map((l) => '<tr><td>' + l[0].toUpperCase() + l.slice(1) + '</td><td>' + [0, 1].map((i) => '<input type="number" min="0" max="10" step="any" value="' + AMB[l][i] + '" style="width:70px" onchange="act(\'growth ' + l + '\', () => { AMB.' + l + '[' + i + '] = Number(this.value) })">').join(' <span class="to">to</span> ') + ' <span class="unit">× the tickets remaining</span></td></tr>').join('') + '</tbody></table>')
 }
 function setTicketsSrc(v) { act('tickets → ' + v, () => { state.tickets.src = v; if (v === 'github') state.tickets.seen = state.readNo }) }
 function setPaceSrc(v) { act('pace → ' + v, () => { state.pace.src = v; if (v === 'github') state.pace.seen = state.readNo; if (state.pace.applied) { state.pace.applied = null; state.pace.from = null } }) }
@@ -819,10 +828,13 @@ function trackerSummary() {
     '<div class="flags">' + bad('mq') + bad('cq') + '</div>'
 }
 
-// ---------- How it works (only what this spec adds) ----------
+// ---------- How it works: the app's own screen, unchanged, linking out to help on what this spec adds ----------
 function howScreen() {
+  return REAL_HOW.body + '<p class="muted" style="margin-top:28px">More on the inputs: <a href="#" onclick="go(\'help\');return false">trackers, capacity and pace patterns →</a></p>'
+}
+function helpScreen() {
   const s = (h, ps) => '<section class="brief"><div class="heading"><h2>' + h + '</h2></div>' + ps.map((p) => '<p>' + p + '</p>').join('') + '</section>'
-  return '<p class="muted">Prototype: only what the connected-forecasting spec adds. The rest of How it works is as in the app today.</p>' +
+  return '<p class="muted"><a href="#" onclick="go(\'how\');return false">← How it works</a></p>' +
     s('Where the inputs come from', ['With a tracker connected, the milestone is a query in the tracker’s own syntax, built by picking epics, labels and milestones (fix versions in Jira), or written by hand. Membership is whatever it matches now.',
       'Only leaf tickets count, and an epic includes every ticket beneath it, sub-epics too. A ticket is finished when it’s closed (GitHub) or in a Done status (Jira), cancelled included, counted at its last finish.',
       'Pace is the finished tickets of the last 8 whole weeks, the milestone’s own and any comparable work’s; a quiet week counts as 0. A week you skip is left out and the window reaches back to keep 8. Quiet weeks before the first finished ticket are left out.',
@@ -838,7 +850,8 @@ function howScreen() {
 const HEAD = {
   forecast: () => ({ ctx: state.name + ' · ' + ticketsNow() + ' tickets remaining', h1: 'Milestone forecast', lede: '' }),
   inputs: () => ({ ctx: state.name, h1: 'Inputs', lede: 'What the forecast is made from. Change any of it and the forecast updates.' }),
-  how: () => ({ ctx: '', h1: 'How it works', lede: 'How the forecast is worked out, and what it assumes.' }),
+  how: () => ({ raw: REAL_HOW.header }),
+  help: () => ({ ctx: 'Help', h1: 'Trackers, capacity and pace patterns', lede: 'What the forecast does with a connected tracker, capacity and the shape of the pace.' }),
 }
 function go(s) { screen = s; ui.reopen = false; render(); window.scrollTo(0, 0) }
 function cycle(d) { const ks = Object.keys(SCREENS); go(ks[(ks.indexOf(screen) + d + ks.length) % ks.length]) }
@@ -847,10 +860,10 @@ function newRead() { if (state.readNo < READS.length - 1) act('new read ' + READ
 function render() {
   const h = HEAD[screen]()
   const hd = document.querySelector('main header')
-  hd.innerHTML = (h.ctx ? '<p class="context">' + esc(h.ctx) + '</p>' : '') + '<h1>' + h.h1 + '</h1>' + (h.lede ? '<p class="lede">' + h.lede + '</p>' : '')
+  hd.innerHTML = h.raw || (h.ctx ? '<p class="context">' + esc(h.ctx) + '</p>' : '') + '<h1>' + h.h1 + '</h1>' + (h.lede ? '<p class="lede">' + h.lede + '</p>' : '')
   document.title = SCREENS[screen] + ' · Forecaster'
-  document.querySelectorAll('nav a[data-screen]').forEach((a) => a.toggleAttribute('aria-current', a.dataset.screen === screen))
-  document.getElementById('proto').innerHTML = screen === 'forecast' ? forecastScreen() : screen === 'inputs' ? inputsScreen() : howScreen()
+  document.querySelectorAll('nav a[data-screen]').forEach((a) => a.toggleAttribute('aria-current', a.dataset.screen === (screen === 'help' ? 'how' : screen)))
+  document.getElementById('proto').innerHTML = screen === 'forecast' ? forecastScreen() : screen === 'inputs' ? inputsScreen() : screen === 'how' ? howScreen() : helpScreen()
   document.querySelectorAll('.found').forEach((el) => findChoices(el.dataset.which, ''))
   const q = new URLSearchParams({ screen, tracker, history, capacity }); history_replace(q)
   const W = windowOf(), F = forecasts(), R = reading(W)
@@ -879,7 +892,7 @@ render()
 const header = { context: 'Checkout v2', heading: 'Milestone forecast', lede: '' }
 mkdirSync(new URL('.', out), { recursive: true })
 // The screens switch in the page: point the sidebar links at them.
-const page = htmlPage('/', header, MAIN, SCRIPT)
+const page = htmlPage('/', header, MAIN, SCRIPT.replace('__REAL_HOW__', () => JSON.stringify(REAL_HOW).replace(/<\//g, '<\\/')))
   .replace('<a href="/" aria-current="page">', '<a href="?screen=forecast" data-screen="forecast" aria-current="page">')
   .replace('<a href="/inputs">', '<a href="?screen=inputs" data-screen="inputs">')
   .replace('<a href="/how-it-works">', '<a href="?screen=how" data-screen="how">')
