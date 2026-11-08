@@ -137,5 +137,6 @@ From 10 weeks, about 40% of changing teams are called Steady.
 - `steady-check.mjs`: steady miss rate by history length, and the perfect-forecast baseline. Run `node steady-check.mjs`.
 - `widen-check.mjs`, `bayes-sideeffects.mjs`: plain vs Bayesian bootstrap, by history length and across team types.
 - `classify.mjs`: the pattern classifier test. Run `node classify.mjs`; it prints a confusion matrix as JSON.
+- `real-history.mjs`, `real-history.md`: the classifier run on the owner's real issue history from a local snapshot, and a synthetic baseline of how the call moves as periods are added. Run `node real-history.mjs <snapshot-file>` or `node real-history.mjs --synthetic`. The snapshot stays outside the repo.
 - `data/`: the datasets behind the dashboard. They were reshaped from `results.json` and `classify.mjs` output.
 - `dashboard/index.html`: the dashboard page source. It runs only inside the claude.ai Dashboard artifact runtime (`dash.onData`, design tokens), so it won't render opened directly.
