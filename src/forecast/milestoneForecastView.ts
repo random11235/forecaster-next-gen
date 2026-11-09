@@ -1,8 +1,9 @@
 import { periodEndDate, simulateCase, ENGINE_VERSION, type ForecastResult, type SimulationCase } from '../engine/index.js'
 import type { Ambiguity, GrowthRange } from '../model/ambiguity.js'
 import type { Storage } from '../storage/storage.js'
-import type { CapacityEntry } from '../model/capacity.js'
-import { capacityFactors, capacityView, type CapacityView } from './capacity.js'
+import { daysBetween } from './calendarDate.js'
+import { capacityFactors, capacityLine, capacityView, type CapacityUse, type CapacityView } from './capacity.js'
+import { periodName } from './cadence.js'
 import { milestoneGrowth } from './growth.js'
 import { assessMilestone, type ForecastableInputs, type InputNote, type PaceInUse } from './milestoneAssessment.js'
 import { paceTrend, type PaceTrend } from './paceTrend.js'
@@ -11,6 +12,9 @@ import type { ForecastSettings } from './settings.js'
 /** The confidence level the headline states. */
 export const HEADLINE_PERCENT = 85
 
+/** The confidence levels the comparison of capacity with usual capacity gives. */
+export const COMPARED_PERCENTS: readonly number[] = [50, HEADLINE_PERCENT, 95]
+
 /** The milestone's finish date at one confidence level. */
 export interface ForecastDate {
   percent: number
@@ -18,6 +22,16 @@ export interface ForecastDate {
   date: string | null
   /** The date is before today: a past start date can give a finish that has already gone by. */
   alreadyPast: boolean
+}
+
+/** One confidence level with capacity and at usual capacity, from the same draws. */
+export interface ComparedDate {
+  percent: number
+  /** ISO calendar dates, or null: later than the horizon date. */
+  withCapacity: string | null
+  atUsual: string | null
+  /** How many periods later (negative: sooner) capacity moves the date; null when either is later than the horizon. */
+  shift: number | null
 }
 
 /** One period's bar on the finish graph. Shares are fractions of all trials, from 0 to 1. */
@@ -61,6 +75,10 @@ export type MilestoneForecastView =
       paceTrend: PaceTrend | undefined
       /** The team's capacity, beside the pace; each period's pace is scaled by it. */
       capacity: CapacityView
+      /** With capacity in use, each date with capacity (as `dates` gives it) and at usual capacity; none otherwise. */
+      comparison: ComparedDate[] | undefined
+      /** The quiet line under the headline: what capacity does to its date; none when no capacity touches it. */
+      capacityLine: string | undefined
     }
 
 /** Seam B: the Milestone forecast screen for the team's milestone, forecast from its start date, on `today`. */
@@ -72,9 +90,18 @@ export function milestoneForecastView(storage: Storage, teamId: string, settings
 
   const { inputs, pace } = assessment
   const growth = milestoneGrowth(storage, inputs)
-  const simulationCase = milestoneCase(inputs, pace, growth, settings, storage.capacityEntries(teamId))
+  // with no entries, or none touching the forecast's periods, the case is the MVP's, hash and all
+  const factors = capacityFactors(storage.capacityEntries(teamId), inputs.startDate, inputs.cadenceDays, settings.maxPeriods)
+  const on = storage.capacityOn(teamId)
+  const simulationCase = milestoneCase(inputs, pace, growth, settings, on ? factors : undefined)
   const result = simulateCase(simulationCase)
   const { periodDays, maxPeriods, percentiles } = simulationCase
+  // at usual capacity from the same seed, so the two differ by capacity alone
+  const atUsual = on && factors ? simulateCase(milestoneCase(inputs, pace, growth, settings, undefined)) : undefined
+  const comparison = atUsual && COMPARED_PERCENTS.map((percent) => comparedDate(percent, result, atUsual, periodDays))
+  const headlineShift = comparison?.find(({ percent }) => percent === HEADLINE_PERCENT)?.shift ?? null
+  const use: CapacityUse = !factors ? { kind: 'unused' } : on ? { kind: 'inUse', shift: headlineShift } : { kind: 'off' }
+  const period = periodName(periodDays)
   return {
     kind: 'forecast',
     name: inputs.name,
@@ -89,8 +116,17 @@ export function milestoneForecastView(storage: Storage, teamId: string, settings
     warnings: assessment.warnings.map(({ input, message }) => ({ input, message })),
     finishGraph: finishGraph(result, simulationCase),
     paceTrend: paceTrend(inputs, settings),
-    capacity: capacityView(storage, teamId),
+    capacity: capacityView(storage, teamId, use, period),
+    comparison,
+    capacityLine: capacityLine(use, period),
   }
+}
+
+function comparedDate(percent: number, withCapacity: ForecastResult, atUsual: ForecastResult, periodDays: number): ComparedDate {
+  const dated = withCapacity.percentileDates[percent] ?? null
+  const usual = atUsual.percentileDates[percent] ?? null
+  const shift = dated === null || usual === null ? null : daysBetween(usual, dated) / periodDays
+  return { percent, withCapacity: dated, atUsual: usual, shift }
 }
 
 function forecastDate(percent: number, date: string | null, today: string): ForecastDate {
@@ -108,11 +144,9 @@ function milestoneCase(
   pace: PaceInUse,
   growth: GrowthRange,
   settings: ForecastSettings,
-  capacity: readonly CapacityEntry[],
+  factors: number[] | undefined,
 ): SimulationCase {
   const { startDate, ticketsRemaining } = inputs
-  // with no entries, or none touching the forecast's periods, the case is the MVP's, hash and all
-  const factors = capacityFactors(capacity, startDate, inputs.cadenceDays, settings.maxPeriods)
   return {
     engineVersion: ENGINE_VERSION,
     seed: settings.seed,
