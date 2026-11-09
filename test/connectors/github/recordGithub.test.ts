@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import type { Transport } from '../../../src/connectors/connector.js'
 import { githubConnector } from '../../../src/connectors/github/githubConnector.js'
-import { recordGithub } from '../../../scripts/recordGithub.js'
+import { recordGithub } from '../../../scripts/record.js'
 
 // The recording script's own logic, on a stand-in GitHub: what it keeps of each response, and what it says when the
 // recording token is refused. The live run is `npm run record:github`.

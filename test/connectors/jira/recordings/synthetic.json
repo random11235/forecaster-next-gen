@@ -1,0 +1,152 @@
+[
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://ralphhockley.atlassian.net/_edge/tenant_info"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "cloudId": "a043eb12-9488-4db5-a720-adb731f03abc"
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/project/SYN/versions"
+    },
+    "response": {
+      "status": 200,
+      "body": [
+        {
+          "id": "10000",
+          "name": "Checkout v2",
+          "released": false,
+          "archived": false
+        },
+        {
+          "id": "10001",
+          "name": "Search revamp",
+          "released": false,
+          "archived": false
+        },
+        {
+          "id": "10002",
+          "name": "Onboarding (done)",
+          "released": true,
+          "archived": false
+        }
+      ]
+    }
+  },
+  {
+    "request": {
+      "method": "POST",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10001)\",\"fields\":[\"status\",\"statuscategorychangedate\"],\"maxResults\":100}"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "issues": [
+          {
+            "id": "10137",
+            "fields": {
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "statuscategorychangedate": "2026-11-07T18:16:57.006+1100"
+            }
+          },
+          {
+            "id": "10136",
+            "fields": {
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "statuscategorychangedate": "2026-11-07T18:16:56.666+1100"
+            }
+          },
+          {
+            "id": "10135",
+            "fields": {
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "statuscategorychangedate": "2026-11-07T18:16:56.363+1100"
+            }
+          },
+          {
+            "id": "10134",
+            "fields": {
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "statuscategorychangedate": "2026-11-07T18:21:11.937+1100"
+            }
+          },
+          {
+            "id": "10133",
+            "fields": {
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "statuscategorychangedate": "2026-11-07T18:21:11.191+1100"
+            }
+          }
+        ],
+        "isLast": true
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "POST",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (labels = \\\"no-such-label\\\")\",\"fields\":[\"status\",\"statuscategorychangedate\"],\"maxResults\":100}"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "issues": [],
+        "isLast": true
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/project/SYN"
+    },
+    "response": {
+      "status": 200,
+      "body": {}
+    }
+  },
+  {
+    "request": {
+      "method": "POST",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (labels == comparable)\",\"fields\":[\"status\",\"statuscategorychangedate\"],\"maxResults\":100}"
+    },
+    "response": {
+      "status": 400,
+      "body": {
+        "errorMessages": [
+          "Error in JQL Query: Expecting either a value, list or function but got '='. You must surround '=' in quotation marks to use it as a value. (line 1, character 30)"
+        ]
+      }
+    }
+  }
+]

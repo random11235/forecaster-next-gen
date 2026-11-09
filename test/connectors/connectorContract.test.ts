@@ -2,11 +2,15 @@ import { describe, expect, test } from 'vitest'
 import type { Connector, Failure } from '../../src/connectors/connector.js'
 import type { ContractSubject } from './connectorContract.js'
 import { githubSubject } from './github/githubSubject.js'
+import { jiraSubject } from './jira/jiraSubject.js'
 
 // Seam C: what every connector does, whatever its tracker, on raw responses recorded from the synthetic trackers.
 // Later specs add their cases here. Tracker-only quirks are tested beside this, in each tracker's folder.
 
-const subjects: [string, ContractSubject][] = [['GitHub', githubSubject]]
+const subjects: [string, ContractSubject][] = [
+  ['GitHub', githubSubject],
+  ['Jira', jiraSubject],
+]
 
 describe.each(subjects)('%s connector', (_, subject) => {
   const { queries, batches } = subject

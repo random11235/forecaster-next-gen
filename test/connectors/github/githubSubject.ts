@@ -1,18 +1,18 @@
 import { githubConnector } from '../../../src/connectors/github/githubConnector.js'
 import manifest from '../../../scripts/synthetic/manifest-github.json' with { type: 'json' }
-import { GITHUB_QUERIES, GITHUB_SCENARIOS, type GithubScenario } from '../../../scripts/recordGithub.js'
+import { GITHUB_QUERIES, GITHUB_SCENARIOS, type Scenario } from '../../../scripts/record.js'
 import type { ContractSubject } from '../connectorContract.js'
 import { replayTransport, type Recording } from '../replayTransport.js'
 import refusedToken from './recordings/refusedToken.json' with { type: 'json' }
 import synthetic from './recordings/synthetic.json' with { type: 'json' }
 import unknown from './recordings/unknown.json' with { type: 'json' }
 
-// The GitHub connector as the contract suite tests it, replaying what `scripts/recordGithub.ts` recorded from
+// The GitHub connector as the contract suite tests it, replaying what `scripts/record.ts` recorded from
 // random11235/forecaster-synthetic.
 
-const RECORDINGS: Record<GithubScenario, Recording[]> = { synthetic, refusedToken, unknown }
+const RECORDINGS: Record<Scenario, Recording[]> = { synthetic, refusedToken, unknown }
 
-function replaying(scenario: GithubScenario) {
+function replaying(scenario: Scenario) {
   const { connection, token } = GITHUB_SCENARIOS[scenario]
   return githubConnector(connection, token === 'recording' ? 'replayed-token' : token, replayTransport(RECORDINGS[scenario]))
 }
