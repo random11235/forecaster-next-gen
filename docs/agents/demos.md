@@ -22,4 +22,4 @@ Give a ticket with a visible change the acceptance criterion `- [ ] Demo: screen
 The repo is private, so embed each image by commit SHA, which renders for anyone signed in to GitHub:
 `![<state>](https://github.com/random11235/forecaster-next-gen/blob/<sha>/docs/demos/<file>.png?raw=true)`
 
-Put the images under the PR's **Evidence**. Under `/implement-spec`, the implementer captures the demo and reports its paths. The orchestrator then embeds it in the integration PR and in the ticket's `merged` comment.
+Put the images under the PR's **Evidence**, as [`pull-requests.md`](pull-requests.md) sets out, including proposed screens from a prototype before they're built. Under `/implement-spec`, the implementer captures the demo and reports its paths. The orchestrator then embeds it in the integration PR and in the ticket's `merged` comment.

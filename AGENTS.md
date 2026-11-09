@@ -6,5 +6,6 @@
 - **Coding standards**: `CODING_STANDARDS.md`, when writing or reviewing code.
 - **Production code**: test-first via `/tdd`, at the seams in `docs/design/architecture.md` (Test seams).
 - **Demos**: a ticket with a visible change ships screenshots in its PR. When writing, building or reviewing one, follow `docs/agents/demos.md`.
+- **PR bodies**: when writing or updating one, follow `docs/agents/pull-requests.md` with `/pr`.
 - **Design and v1 scope**: `docs/design/README.md`, the index of the design docs.
 - **Research** (`docs/research/`): background behind design decisions. Cite it by link at the line it informs; read it only when such a link bears on your task.
