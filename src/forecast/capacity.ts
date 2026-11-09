@@ -3,7 +3,7 @@ import type { Storage } from '../storage/storage.js'
 import type { PeriodName } from './cadence.js'
 import { daysBetween, isCalendarDate } from './calendarDate.js'
 import { counted } from './counted.js'
-import { refuse, type EditResult } from './editResult.js'
+import { refuse, type EditResult, type Refusal } from './editResult.js'
 
 /** Far above any real team's growth, as the engine's own limit: keeps typos like 5000% out of the forecast. */
 export const MAX_CAPACITY_PERCENT = 1000
@@ -16,6 +16,8 @@ export type CapacityEdit =
   /** "The team is at {percent}% from {from} to {to}, or onward, for {note}." An empty `to` is the one day `from`. */
   | { kind: 'addCapacity'; percent: string; from: string; to: string; onward: boolean; note: string }
   | { kind: 'removeCapacity'; id: string }
+  /** Save on entry `id`'s edit form, the same sentence as typed. A past entry keeps all but its note. */
+  | ({ kind: 'editCapacity'; id: string } & CapacityForm)
   /** "Use capacity in this forecast": off keeps the entries, which still count for the next milestone. */
   | { kind: 'switchCapacity'; on: boolean }
 
@@ -45,22 +47,41 @@ export interface CapacityView {
   on: boolean
   /** The folded section's line: "none, every week usual", or "2 entries · 85% date 2 weeks later". */
   summary: string
-  /** The team's entries, earliest first. */
+  /** The team's entries the forecast uses, earliest first. */
   entries: CapacityEntryView[]
+  /** Entries that have ended: kept, not used by the forecast; only their note can change. Earliest first. */
+  past: CapacityEntry[]
   form: CapacityForm
   /** Why the capacity form just submitted was refused; none until one is. */
   refusal?: string
+  /** An entry's edit just refused: its form as typed, and why. */
+  editing?: { id: number; form: CapacityForm; refusal: string }
 }
 
 export const BLANK_CAPACITY_FORM: CapacityForm = { percent: '', from: '', to: '', onward: false, note: '' }
 
-/** Seam B, behind `milestoneForecastView`: the team's capacity as the section shows it, its form blank. */
-export function capacityView(storage: Storage, teamId: string, use: CapacityUse, period: PeriodName): CapacityView {
-  const entries = sorted(storage.capacityEntries(teamId)).map((entry) => {
-    const warning = bigTeamWarning(entry.percent)
-    return warning === undefined ? entry : { ...entry, warning }
-  })
-  return { on: storage.capacityOn(teamId), summary: capacitySummary(entries.length, use, period), entries, form: BLANK_CAPACITY_FORM }
+/** Seam B, behind `milestoneForecastView`: the team's capacity on `today` as the section shows it, its form blank. */
+export function capacityView(storage: Storage, teamId: string, today: string, use: CapacityUse, period: PeriodName): CapacityView {
+  const all = sorted(storage.capacityEntries(teamId))
+  const entries = all
+    .filter((entry) => !isPast(entry, today))
+    .map((entry) => {
+      const warning = bigTeamWarning(entry.percent)
+      return warning === undefined ? entry : { ...entry, warning }
+    })
+  const past = all.filter((entry) => isPast(entry, today))
+  return { on: storage.capacityOn(teamId), summary: capacitySummary(entries.length, use, period), entries, past, form: BLANK_CAPACITY_FORM }
+}
+
+/** The team's entries the forecast uses on `today`: those not past. */
+export function currentEntries(entries: readonly CapacityEntry[], today: string): CapacityEntry[] {
+  return entries.filter((entry) => !isPast(entry, today))
+}
+
+/** An entry is past once its end is before today: kept, never deleted, but no longer used by the forecast. */
+function isPast({ to }: CapacityEntry, today: string): boolean {
+  // ISO calendar dates order as strings do
+  return to !== undefined && to < today
 }
 
 function capacitySummary(entries: number, use: CapacityUse, period: PeriodName): string {
@@ -98,8 +119,11 @@ function bigTeamWarning(percent: number): string | undefined {
   return `At ${percent}%, the pace comes from a team about ${share}% this size, so it’s a weak guide. A pace range may be better.`
 }
 
-/** Seam B, through `submitInputs`: adds or removes a capacity entry, or switches capacity. A refused edit changes nothing and says why. */
-export function editCapacity(storage: Storage, teamId: string, edit: CapacityEdit): EditResult {
+/**
+ * Seam B, through `submitInputs`: adds, edits or removes a capacity entry on `today`, or switches capacity. An edit is
+ * checked as an add is, but a past entry's edit changes only its note. A refused edit changes nothing and says why.
+ */
+export function editCapacity(storage: Storage, teamId: string, today: string, edit: CapacityEdit): EditResult {
   if (edit.kind === 'switchCapacity') {
     storage.saveCapacityOn(teamId, edit.on)
     return { ok: true }
@@ -109,18 +133,34 @@ export function editCapacity(storage: Storage, teamId: string, edit: CapacityEdi
     storage.saveCapacityEntries(teamId, entries.filter(({ id }) => String(id) !== edit.id.trim()))
     return { ok: true }
   }
-  const from = edit.from.trim()
-  const to = edit.onward ? undefined : edit.to.trim() || from
+  if (edit.kind === 'addCapacity') {
+    const added = typedEntry(edit, nextId(entries), entries)
+    if (!added.ok) return added
+    storage.saveCapacityEntries(teamId, [...entries, added.entry])
+    return { ok: true }
+  }
+  const edited = entries.find(({ id }) => String(id) === edit.id.trim())
+  if (edited === undefined) return refuse('That entry is no longer there.')
+  const others = entries.filter((entry) => entry !== edited)
+  const saved = isPast(edited, today) ? { ok: true as const, entry: { ...edited, note: edit.note.trim() } } : typedEntry(edit, edited.id, others)
+  if (!saved.ok) return saved
+  storage.saveCapacityEntries(teamId, entries.map((entry) => (entry === edited ? saved.entry : entry)))
+  return { ok: true }
+}
+
+/** The entry a capacity sentence types, numbered `id`, or why it is refused beside the team's `others`. */
+function typedEntry(typed: CapacityForm, id: number, others: readonly CapacityEntry[]): { ok: true; entry: CapacityEntry } | Refusal {
+  const from = typed.from.trim()
+  const to = typed.onward ? undefined : typed.to.trim() || from
   if (!isCalendarDate(from)) return refuse('Pick the date it starts.')
   if (to !== undefined && !isCalendarDate(to)) return refuse('Pick the date it ends, or choose onward.')
   if (to !== undefined && daysBetween(from, to) < 0) return refuse('The end date is before the start.')
-  const percent = edit.percent.trim()
+  const percent = typed.percent.trim()
   if (!/^\d+$/.test(percent)) return refuse('Capacity is a whole percentage, 0 or more.')
-  const added: CapacityEntry = { id: nextId(entries), from, to, percent: Number(percent), note: edit.note.trim() }
-  if (added.percent > MAX_CAPACITY_PERCENT) return refuse(ABOVE_MAX)
-  if (highestOverlap([...entries, added]) > MAX_CAPACITY_PERCENT / 100) return refuse(`${ABOVE_MAX} Here it overlaps other entries, which multiply.`)
-  storage.saveCapacityEntries(teamId, [...entries, added])
-  return { ok: true }
+  const entry: CapacityEntry = { id, from, to, percent: Number(percent), note: typed.note.trim() }
+  if (entry.percent > MAX_CAPACITY_PERCENT) return refuse(ABOVE_MAX)
+  if (highestOverlap([...others, entry]) > MAX_CAPACITY_PERCENT / 100) return refuse(`${ABOVE_MAX} Here it overlaps other entries, which multiply.`)
+  return { ok: true, entry }
 }
 
 const ABOVE_MAX = `Capacity above ${MAX_CAPACITY_PERCENT}% can’t be forecast. For a team that much bigger, use a pace range.`

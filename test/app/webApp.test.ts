@@ -92,6 +92,19 @@ describe('web app', () => {
     expect(off.html).toContain('Offsite')
   })
 
+  test('an edited capacity entry comes back to the forecast, changed', () => {
+    const { app } = firstOpen()
+    app.show(post('/inputs/milestone', { name: 'Launch', startDate: '2026-11-02', ticketsRemaining: '30' }))
+    app.show(post('/inputs/pace', { low: '5', high: '10' }))
+    app.show(post('/capacity/add', { percent: '0', from: '2026-11-02', to: '2026-11-06', note: 'Offsite' }))
+
+    const page = app.show(post('/capacity/edit', { id: '1', percent: '50', from: '2026-11-02', to: '2026-11-06', note: 'Half offsite' }))
+
+    expect(page).toMatchObject({ path: '/', status: 200 })
+    expect(page.html).toContain('Half offsite')
+    expect(page.html).toContain('<details class="edit">')
+  })
+
   test('shows not found for anything but the screens', () => {
     const { app } = firstOpen()
 

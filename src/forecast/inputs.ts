@@ -1,6 +1,6 @@
 import type { Ambiguity } from '../model/ambiguity.js'
 import type { Storage } from '../storage/storage.js'
-import { editCapacity, type CapacityEdit, type CapacityForm } from './capacity.js'
+import { editCapacity, type CapacityEdit, type CapacityForm, type CapacityView } from './capacity.js'
 import type { EditResult } from './editResult.js'
 import { milestoneForecastView, type MilestoneForecastView } from './milestoneForecastView.js'
 import { editGrowth, growthView, type GrowthEdit, type GrowthView, type TypedRange } from './growth.js'
@@ -67,7 +67,7 @@ export function inputsView(storage: Storage, teamId: string, settings: ForecastS
  * other form is on the Inputs screen.
  */
 export function submitInputs(storage: Storage, teamId: string, settings: ForecastSettings, today: string, edit: InputsEdit): Submitted {
-  if (edit.kind === 'addCapacity' || edit.kind === 'removeCapacity' || edit.kind === 'switchCapacity') return submitCapacity(storage, teamId, settings, today, edit)
+  if (edit.kind === 'addCapacity' || edit.kind === 'editCapacity' || edit.kind === 'removeCapacity' || edit.kind === 'switchCapacity') return submitCapacity(storage, teamId, settings, today, edit)
   const { form, next, typed } = submission(edit)
   const result: EditResult = edit.kind === 'setAmbiguityRanges' ? editGrowth(storage, teamId, edit) : editMilestoneInputs(storage, teamId, edit)
   if (result.ok) return { saved: true, next }
@@ -81,12 +81,25 @@ export function submitInputs(storage: Storage, teamId: string, settings: Forecas
  * typed with why; a screen with no forecast yet has no capacity section to show it on.
  */
 function submitCapacity(storage: Storage, teamId: string, settings: ForecastSettings, today: string, edit: CapacityEdit): Submitted {
-  const result = editCapacity(storage, teamId, edit)
+  const result = editCapacity(storage, teamId, today, edit)
   if (result.ok) return { saved: true, next: 'forecast' }
   const view = milestoneForecastView(storage, teamId, settings, today)
   if (view.kind !== 'forecast') return { saved: false, screen: 'forecast', view }
-  const form: CapacityForm = edit.kind === 'addCapacity' ? { percent: edit.percent, from: edit.from, to: edit.to, onward: edit.onward, note: edit.note } : view.capacity.form
-  return { saved: false, screen: 'forecast', view: { ...view, capacity: { ...view.capacity, form, refusal: result.error } } }
+  return { saved: false, screen: 'forecast', view: { ...view, capacity: { ...view.capacity, ...refusedCapacity(edit, result.error) } } }
+}
+
+/** A refused capacity form as typed, with why: the add sentence, or the edit form of the entry it was on. */
+function refusedCapacity(edit: CapacityEdit, refusal: string): Partial<CapacityView> {
+  const typed = (form: CapacityForm): CapacityForm => ({ percent: form.percent, from: form.from, to: form.to, onward: form.onward, note: form.note })
+  switch (edit.kind) {
+    case 'addCapacity':
+      return { form: typed(edit), refusal }
+    case 'editCapacity':
+      return { editing: { id: Number(edit.id), form: typed(edit), refusal } }
+    case 'removeCapacity':
+    case 'switchCapacity':
+      return { refusal }
+  }
 }
 
 /** A submitted form: which it is, where a saved one goes, and what a refused one shows again over the saved forms. */
