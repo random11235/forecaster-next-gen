@@ -64,6 +64,19 @@ describe('web app', () => {
     expect(page).toMatchObject({ path: '/inputs', status: 400 })
   })
 
+  test('typed capacity comes back to the forecast; refused, the forecast is shown again, saying why', () => {
+    const { app } = firstOpen()
+    app.show(post('/inputs/milestone', { name: 'Launch', startDate: '2026-11-02', ticketsRemaining: '30' }))
+    app.show(post('/inputs/pace', { low: '5', high: '10' }))
+
+    expect(app.show(post('/capacity/add', { percent: '0', from: '2026-11-02', to: '2026-11-06', note: 'Offsite' }))).toMatchObject({ path: '/', status: 200 })
+    const refused = app.show(post('/capacity/add', { percent: 'half', from: '2026-11-09', to: '' }))
+
+    expect(refused).toMatchObject({ path: '/', status: 400 })
+    expect(refused.html).toContain('Capacity is a whole percentage, 0 or more.')
+    expect(refused.html).toContain('Offsite')
+  })
+
   test('shows not found for anything but the screens', () => {
     const { app } = firstOpen()
 

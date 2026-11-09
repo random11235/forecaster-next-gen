@@ -155,10 +155,13 @@ describe('Inputs screen', () => {
     expect(html).not.toContain('class="warning"')
   })
 
-  test('shows no absence input', async () => {
+  test('shows no absence or capacity input: capacity is typed beside the forecast', async () => {
     await startOnPreMvpData()
 
-    expect((await page('/inputs')).toLowerCase()).not.toMatch(/absence|capacity/)
+    const html = await page('/inputs')
+
+    expect(html.toLowerCase()).not.toMatch(/absence|\/capacity/)
+    expect(html).not.toMatch(/name="(percent|onward)"/)
   })
 
   test('saving the milestone shows it on the Inputs screen', async () => {
@@ -615,7 +618,7 @@ describe('Milestone forecast screen', () => {
     expect(screen).toContain('70% confident by 24 Nov 2026')
     expect(screen).toContain('85% confident by 1 Dec 2026')
     expect(screen).toContain('95% confident by 8 Dec 2026')
-    expect(screen).toContain('Pace: 4–8 tickets per week (range)')
+    expect(screen).toContain('Pace Change 4–8 tickets per week (range)')
   })
 
   test('at a 14-day cadence, says the pace is per sprint, and forecasts later than the same pace per week', async () => {
@@ -626,7 +629,7 @@ describe('Milestone forecast screen', () => {
     await submitCadence('14')
 
     const screen = text(await page('/'))
-    expect(screen).toContain('Pace: 4–8 tickets per sprint (range)')
+    expect(screen).toContain('Pace Change 4–8 tickets per sprint (range)')
     expect(screen).toContain('Pace: cadence length has changed. Please verify that the per period numbers are aligned.')
     expect(screen).not.toContain('tickets per week')
     expect(Date.parse(dateAt(screen, 85))).toBeGreaterThan(Date.parse(weekly))
@@ -638,7 +641,7 @@ describe('Milestone forecast screen', () => {
 
     await choosePace('counts')
 
-    expect(text(await page('/'))).toContain('Pace: typed counts, 6 weeks')
+    expect(text(await page('/'))).toContain('Pace Change typed counts, 6 weeks')
   })
 
   test('at a 14-day cadence, states the typed counts the forecast used in sprints', async () => {
@@ -649,7 +652,7 @@ describe('Milestone forecast screen', () => {
     await choosePace('counts')
 
     const screen = text(await page('/'))
-    expect(screen).toContain('Pace: typed counts, 6 sprints')
+    expect(screen).toContain('Pace Change typed counts, 6 sprints')
     expect(screen).not.toContain('week')
   })
 
@@ -853,14 +856,14 @@ describe('Milestone forecast screen', () => {
     expect(storage!.teams().map((team) => team.id)).toEqual([TEAM])
   })
 
-  test('shows no epics, no committed date and no input', async () => {
+  test('shows no epics, no committed date, and no input but the capacity sentence', async () => {
     await startOnPreMvpData()
     await submitPace('4', '8')
 
     const html = await page('/')
 
-    expect(html).not.toMatch(/<input|<table/)
-    expect(text(html).toLowerCase()).not.toMatch(/committed|absence|capacity/)
+    expect(html.replace(/<details class="capacity"[\s\S]*?<\/details>/, '')).not.toMatch(/<input|<table/)
+    expect(text(html).toLowerCase()).not.toMatch(/committed|absence/)
   })
 })
 
@@ -916,3 +919,92 @@ describe('Every screen', () => {
     }
   })
 })
+
+/** Submits the forecast screen's capacity sentence as the browser does. */
+function addCapacity(percent: string, from: string, to: string, note = '', onward = false): Promise<Response> {
+  return post('/capacity/add', [['percent', percent], ['from', from], ['to', to], ...(onward ? [['onward', 'on'] as [string, string]] : []), ['note', note]])
+}
+
+describe('Milestone forecast screen: capacity', () => {
+  test('beside the forecast, under Pace, every week is at 100% until capacity is typed, as a sentence posting to its section', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+
+    const html = await page('/')
+
+    expect(text(html)).toMatch(/Pace Change 4–8 tickets per week \(range\).*Capacity.*100% = the team’s usual week, as in the pace\. Every week is at 100%\./)
+    expect(text(html)).toContain('Weekends don’t count; overlapping entries multiply. Past counts aren’t adjusted.')
+    expect(html).toContain('<form method="post" action="/capacity/add#capacity"')
+    expect(html).toContain('id="capacity"')
+  })
+
+  test('a week off, typed, comes back to the forecast with the entry listed and the 85% date later', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+    const before = dateAt(text(await page('/')), 85)
+
+    const response = await addCapacity('0', '2026-09-07', '2026-09-11', 'Offsite')
+
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('/')
+    const screen = text(await page('/'))
+    expect(screen).toContain('0% 7 Sep 2026 to 11 Sep 2026 Offsite')
+    expect(Date.parse(dateAt(screen, 85))).toBeGreaterThan(Date.parse(before))
+  })
+
+  test('lists a one-day entry by its day and an onward one from its start', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+
+    await addCapacity('0', '2026-09-14', '', 'Holiday')
+    await addCapacity('60', '2026-10-05', '', '', true)
+
+    const screen = text(await page('/'))
+    expect(screen).toContain('0% on 14 Sep 2026 Holiday')
+    expect(screen).toContain('60% from 5 Oct 2026 onward')
+  })
+
+  test('refused, shows the forecast again with the section open, saying why, keeping what was typed', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+
+    const response = await addCapacity('50', '2026-09-14', '2026-09-07', 'Half on <leave>')
+
+    expect(response.status).toBe(400)
+    const html = await response.text()
+    expect(text(html)).toContain('The end date is before the start.')
+    expect(html).toContain('<details class="capacity" id="capacity" open>')
+    expect(html).toContain('value="Half on &#60;leave&#62;"')
+    expect(html).toContain('value="2026-09-14"')
+    expect(text(html)).toContain('Starting 1 Sep 2026: 85% confident of finishing by 1 Dec 2026')
+  })
+
+  test('an entry far above usual is warned of beside it', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+
+    await addCapacity('300', '2026-09-07', '', '', true)
+
+    expect(text(await page('/'))).toContain('At 300%, the pace comes from a team about 33% this size, so it’s a weak guide. A pace range may be better.')
+  })
+
+  test('removing an entry takes it off the forecast', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+    await addCapacity('0', '2026-09-07', '2026-09-11', 'Offsite')
+
+    const response = await post('/capacity/remove', [['id', '1']])
+
+    expect(response.headers.get('location')).toBe('/')
+    const screen = text(await page('/'))
+    expect(screen).not.toContain('Offsite')
+    expect(screen).toContain('Starting 1 Sep 2026: 85% confident of finishing by 1 Dec 2026')
+  })
+
+  test("the Inputs screen's pace says where capacity is set", async () => {
+    await startOnPreMvpData()
+
+    expect(text(await page('/inputs'))).toContain('Capacity is set beside the forecast, under Pace.')
+  })
+})
+

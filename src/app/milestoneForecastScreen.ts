@@ -1,4 +1,5 @@
-import { periodName } from '../forecast/cadence.js'
+import { MAX_CAPACITY_PERCENT, type CapacityEdit, type CapacityEntryView, type CapacityView } from '../forecast/capacity.js'
+import { periodName, type PeriodName } from '../forecast/cadence.js'
 import { counted } from '../forecast/counted.js'
 import type { InputNote } from '../forecast/milestoneAssessment.js'
 import type { FinishBar, ForecastDate, MilestoneForecastView } from '../forecast/milestoneForecastView.js'
@@ -8,6 +9,25 @@ import { renderPaceTrend } from './paceTrendGraph.js'
 
 type Forecast = Extract<MilestoneForecastView, { kind: 'forecast' }>
 
+/** Reads a submitted form's fields, by the field names this screen gives them; the rules they must meet are checked when it is saved. */
+type FormReader = (body: URLSearchParams) => CapacityEdit
+
+/** Each form this screen posts, by its action's path, and how its fields are read. */
+export const FORECAST_FORMS: ReadonlyMap<string, FormReader> = new Map<string, FormReader>([
+  [
+    '/capacity/add',
+    (body) => ({
+      kind: 'addCapacity',
+      percent: body.get('percent') ?? '',
+      from: body.get('from') ?? '',
+      to: body.get('to') ?? '',
+      onward: body.get('onward') !== null,
+      note: body.get('note') ?? '',
+    }),
+  ],
+  ['/capacity/remove', (body) => ({ kind: 'removeCapacity', id: body.get('id') ?? '' })],
+])
+
 /** The Milestone forecast screen (EM home): the milestone's forecast from its start date, what to fix, or its empty state. */
 export function renderMilestoneForecastScreen(view: MilestoneForecastView): string {
   switch (view.kind) {
@@ -16,7 +36,11 @@ export function renderMilestoneForecastScreen(view: MilestoneForecastView): stri
     case 'problems':
       return htmlPage('/', problemsHeader(view.name, view.problems.length), renderNotes('What to fix', view.problems))
     case 'forecast':
-      return htmlPage('/', forecastHeader(view), `${renderNotes('Warnings', view.warnings)}${renderPaceTrend(view.paceTrend, periodName(view.cadenceDays), '    ')}${renderForecast(view)}`)
+      return htmlPage('/', forecastHeader(view), `${renderNotes('Warnings', view.warnings)}
+    <div class="forecast-layout">
+      <div class="forecast-main">${renderForecast(view)}
+      </div>${renderPaceSide(view)}
+    </div>`)
   }
 }
 
@@ -56,7 +80,6 @@ function renderForecast(view: Forecast): string {
       <ul class="dates">
 ${dates}
       </ul>
-      <p class="note">Pace: ${paceUsed(view)}</p>
       <p class="note">Ambiguity: ${view.ambiguity.level}, growing ${view.ambiguity.low}–${view.ambiguity.high}×</p>
     </section>${renderFinishGraph(view)}`
 }
@@ -114,10 +137,10 @@ interface FinishMarker {
 }
 
 /**
- * A label's width as a share of the graph, in % per character, at its 12px type on the graph's widest (about 920px). An
- * estimate: the server can't measure text, so it errs wide.
+ * A label's width as a share of the graph, in % per character, at its 12px type on the graph's widest (about 570px,
+ * beside the pace). An estimate: the server can't measure text, so it errs wide.
  */
-const LABEL_WIDTH_PER_CHAR = 0.8
+const LABEL_WIDTH_PER_CHAR = 1.3
 
 /**
  * The finish graph's markers, one per distinct date, each labelled with all the percents that finish by it. A marker's
@@ -140,6 +163,52 @@ function finishMarkers(view: Forecast): FinishMarker[] {
   const runsRight = placed.filter(({ fitsRight }) => fitsRight && !allLeft)
   const runsLeft = placed.filter((marker) => !runsRight.includes(marker)).reverse()
   return [...runsRight, ...runsLeft].map(({ percents, date, left }, row) => ({ percents, date, left, row, runsLeft: row >= runsRight.length }))
+}
+
+/** Beside the forecast: the pace it comes from, and the team's capacity, which scales that pace each period. */
+function renderPaceSide(view: Forecast): string {
+  const period = periodName(view.cadenceDays)
+  return `
+      <aside class="side" aria-label="Pace">
+        <div class="heading"><h2>Pace</h2><a href="/inputs#pace">Change</a></div>
+        <p class="note">${paceUsed(view)}</p>${renderPaceTrend(view.paceTrend, period, '        ')}${renderCapacity(view.capacity, period)}
+      </aside>`
+}
+
+/**
+ * The team's capacity, folded under the pace: its entries, earliest first, each with any warning and a way to remove it,
+ * and a sentence to type another. Open when a sentence just typed was refused, so why shows beside it.
+ */
+function renderCapacity({ entries, form, refusal }: CapacityView, period: PeriodName): string {
+  const listed = entries.length === 0 ? `\n          <p class="note">Every ${period} is at 100%.</p>` : `\n          <ul class="capacity-entries">${entries.map(renderEntry).join('')}\n          </ul>`
+  const summary = entries.length === 0 ? `none, every ${period} usual` : counted(entries.length, 'entry').replace('entrys', 'entries')
+  const error = refusal ? `\n            <p class="error" role="alert">${escapeHtml(refusal)}</p>` : ''
+  return `
+        <details class="capacity" id="capacity"${refusal ? ' open' : ''}>
+          <summary><span class="title">Capacity</span> <span class="summary">${summary}</span></summary>
+          <p class="note"><strong>100%</strong> = the team’s usual ${period}, as in the pace.</p>${listed}
+          <form method="post" action="/capacity/add#capacity" class="sentence">${error}
+            The team is at <input type="number" name="percent" min="0" max="${MAX_CAPACITY_PERCENT}" step="1" value="${escapeHtml(form.percent)}" aria-label="Capacity, in % of usual" required>%
+            from <input type="date" name="from" value="${escapeHtml(form.from)}" aria-label="From" required>
+            to <input type="date" name="to" value="${escapeHtml(form.to)}" aria-label="To">
+            <label><input type="checkbox" name="onward"${form.onward ? ' checked' : ''}> or onward</label>,
+            for <input type="text" name="note" value="${escapeHtml(form.note)}" placeholder="leave, an incident…" aria-label="Why">.
+            <button type="submit">Add</button>
+          </form>
+          <p class="note">Capacity scales pace in proportion: a 60% ${period} draws 60% of a usual ${period}’s pace. Weekends don’t count; overlapping entries multiply. Past counts aren’t adjusted.</p>
+        </details>`
+}
+
+/** An entry as one line: "0% 7 Sep 2026 to 11 Sep 2026 Offsite", "0% on 14 Sep 2026", or "60% from 5 Oct 2026 onward". */
+function renderEntry({ id, from, to, percent, note, warning }: CapacityEntryView): string {
+  const span = to === undefined ? `from ${formatDate(from)} onward` : to === from ? `on ${formatDate(from)}` : `${formatDate(from)} to ${formatDate(to)}`
+  const why = note === '' ? '' : ` <span class="why">${escapeHtml(note)}</span>`
+  const warned = warning === undefined ? '' : `\n              <p class="warning">⚠ ${escapeHtml(warning)}</p>`
+  return `
+            <li>
+              <span><strong>${percent}%</strong> ${span}${why}</span>
+              <form method="post" action="/capacity/remove#capacity"><input type="hidden" name="id" value="${id}"><button type="submit" class="link">Remove</button></form>${warned}
+            </li>`
 }
 
 /** The pace the dates come from: "4–8 tickets per week (range)", or "typed counts, 6 sprints". */

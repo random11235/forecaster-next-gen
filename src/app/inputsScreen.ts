@@ -145,7 +145,7 @@ function paceSection(screen: InputsView, error: (form: InputsForm) => string | u
   return inputSection(
     INPUT_LABELS.pace,
     INPUT_LABELS.pace,
-    `How many tickets the team finishes in a ${period}: a range from a slow ${period} to a good one, or typed counts of past ${period}s. Typed counts need at least ${typedCounts.forForecast} for a forecast, and ${typedCounts.reliable} to be reliable.`,
+    `How many tickets the team finishes in a ${period}: a range from a slow ${period} to a good one, or typed counts of past ${period}s. Typed counts need at least ${typedCounts.forForecast} for a forecast, and ${typedCounts.reliable} to be reliable. Capacity is set beside the forecast, under Pace.`,
     `        <form method="post" action="/inputs/pace-mode#pace">${errorLine(error('paceMode'))}
 ${radios('paceMode', 'Pace the forecast uses', ['range', 'counts'], paceMode, (mode) => PACE_MODE_NAMES[mode])}
           <div class="actions"><button type="submit" class="primary">Use this pace</button></div>
