@@ -64,6 +64,80 @@ describe('web app', () => {
     expect(page).toMatchObject({ path: '/inputs', status: 400 })
   })
 
+  test('typed capacity comes back to the forecast; refused, the forecast is shown again, saying why', () => {
+    const { app } = firstOpen()
+    app.show(post('/inputs/milestone', { name: 'Launch', startDate: '2026-11-02', ticketsRemaining: '30' }))
+    app.show(post('/inputs/pace', { low: '5', high: '10' }))
+
+    expect(app.show(post('/capacity/add', { percent: '0', from: '2026-11-02', to: '2026-11-06', note: 'Offsite' }))).toMatchObject({ path: '/', status: 200 })
+    expect(app.show({ method: 'GET', path: '/' }).html).toContain('<span class="capacity">0%</span>')
+    const refused = app.show(post('/capacity/add', { percent: 'half', from: '2026-11-09', to: '' }))
+
+    expect(refused).toMatchObject({ path: '/', status: 400 })
+    expect(refused.html).toContain('Capacity is a whole percentage, 0 or more.')
+    expect(refused.html).toContain('Offsite')
+  })
+
+  test('capacity in use is compared with usual capacity, and switched off, the forecast says its entries are kept', () => {
+    const { app } = firstOpen()
+    app.show(post('/inputs/milestone', { name: 'Launch', startDate: '2026-11-02', ticketsRemaining: '30' }))
+    app.show(post('/inputs/pace', { low: '5', high: '10' }))
+    app.show(post('/capacity/add', { percent: '0', from: '2026-11-02', to: '2026-11-06', note: 'Offsite' }))
+
+    expect(app.show({ method: 'GET', path: '/' }).html).toContain('<th>With capacity</th><th>At usual capacity</th>')
+    const off = app.show(post('/capacity/switch', { on: 'false' }))
+
+    expect(off).toMatchObject({ path: '/', status: 200 })
+    expect(off.html).toContain('Capacity is switched off for this forecast; its entries are kept.')
+    expect(off.html).toContain('Offsite')
+  })
+
+  test('the Capacity section, opened, gives each entry’s effect and stays open across saves', () => {
+    const { app } = firstOpen()
+    app.show(post('/inputs/milestone', { name: 'Launch', startDate: '2026-11-02', ticketsRemaining: '30' }))
+    app.show(post('/inputs/pace', { low: '5', high: '10' }))
+    app.show(post('/capacity/add', { percent: '0', from: '2026-11-02', to: '2026-11-06', note: 'Offsite' }))
+    expect(app.show({ method: 'GET', path: '/' }).html).not.toContain('85% date +')
+
+    const opened = app.show({ method: 'GET', path: '/?capacity=open' })
+    expect(opened.html).toContain('data-toggle="/#capacity" open>')
+    expect(opened.html).toContain('85% date +1 wk')
+
+    const saved = app.show(post('/capacity/add?capacity=open', { percent: '0', from: '2026-11-30', to: '', note: 'Holiday' }))
+    expect(saved).toMatchObject({ path: '/?capacity=open', status: 200 })
+    expect(saved.html).toContain('data-toggle="/#capacity" open>')
+    expect(saved.html).toMatch(/Holiday<\/span> <span class="effect[^"]*">(no change to the 85% date|85% date \+\d wk)</)
+  })
+
+  test('an edited capacity entry comes back to the forecast, changed', () => {
+    const { app } = firstOpen()
+    app.show(post('/inputs/milestone', { name: 'Launch', startDate: '2026-11-02', ticketsRemaining: '30' }))
+    app.show(post('/inputs/pace', { low: '5', high: '10' }))
+    app.show(post('/capacity/add', { percent: '0', from: '2026-11-02', to: '2026-11-06', note: 'Offsite' }))
+
+    const page = app.show(post('/capacity/edit', { id: '1', percent: '50', from: '2026-11-02', to: '2026-11-06', note: 'Half offsite' }))
+
+    expect(page).toMatchObject({ path: '/', status: 200 })
+    expect(page.html).toContain('Half offsite')
+    expect(page.html).toContain('<details class="edit">')
+  })
+
+  test('a lasting change proposed as the new usual, once made so, is listed under Past', () => {
+    const { app } = firstOpen()
+    app.show(post('/inputs/milestone', { name: 'Launch', startDate: '2026-11-02', ticketsRemaining: '30' }))
+    // the weeks from 28 Sep to 19 Oct, the last whole one before 30 Oct's
+    app.show(post('/inputs/pace-counts', { counts: '4, 6, 5, 7' }))
+    app.show(post('/inputs/pace-mode', { paceMode: 'counts' }))
+    const added = app.show(post('/capacity/add?capacity=open', { percent: '80', from: '2026-09-28', to: '', onward: 'on', note: 'Two left' }))
+    expect(added.html).toContain('action="/capacity/new-usual?capacity=open#capacity"')
+
+    const page = app.show(post('/capacity/new-usual?capacity=open', { id: '1' }))
+
+    expect(page).toMatchObject({ path: '/?capacity=open', status: 200 })
+    expect(page.html).toContain('28 Sep 2026 to 30 Oct 2026 · new usual from 30 Oct 2026')
+    expect(page.html).not.toContain('/capacity/new-usual')
+  })
+
   test('shows not found for anything but the screens', () => {
     const { app } = firstOpen()
 

@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import type { Ambiguity, AmbiguityRanges } from '../model/ambiguity.js'
+import type { CapacityEntry } from '../model/capacity.js'
 import type { MilestoneInputs, PaceMode } from '../model/milestoneInputs.js'
 import type { Team } from '../model/team.js'
 import type { Storage } from './storage.js'
@@ -162,6 +163,30 @@ WHERE m.rowid = (SELECT MIN(first.rowid) FROM milestones first WHERE first.team_
 ALTER TABLE milestone_inputs ADD COLUMN pace_cadence_days INTEGER;
 UPDATE milestone_inputs SET pace_cadence_days = cadence_days WHERE pace_low IS NOT NULL OR pace_counts <> '[]';
 `,
+  // 9: each team's capacity entries (#164). An entry running onward has no to_date. A file from before has none.
+  `
+CREATE TABLE capacity_entries (
+  team_id TEXT NOT NULL REFERENCES teams(id),
+  id INTEGER NOT NULL,
+  from_date TEXT NOT NULL,
+  to_date TEXT,
+  percent INTEGER NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (team_id, id)
+);
+`,
+  // 10: whether each team's capacity is switched on (#165). A team with no row has it on, as every team in a file from before does.
+  `
+CREATE TABLE capacity_switch (
+  team_id TEXT PRIMARY KEY REFERENCES teams(id),
+  capacity_on INTEGER NOT NULL
+);
+`,
+  // 11: each entry's new-usual accept and kept dismissal (#169). An entry from before has neither.
+  `
+ALTER TABLE capacity_entries ADD COLUMN new_usual_on TEXT;
+ALTER TABLE capacity_entries ADD COLUMN kept INTEGER NOT NULL DEFAULT 0;
+`,
 ]
 
 type Row = Record<string, SQLInputValue>
@@ -207,6 +232,15 @@ export function openSqliteStorage(file: string): Storage {
       low_low = excluded.low_low, low_high = excluded.low_high, medium_low = excluded.medium_low,
       medium_high = excluded.medium_high, high_low = excluded.high_low, high_high = excluded.high_high`)
   const selectAmbiguityRanges = db.prepare('SELECT * FROM ambiguity_ranges WHERE team_id = ?')
+  const deleteCapacityEntries = db.prepare('DELETE FROM capacity_entries WHERE team_id = ?')
+  const insertCapacityEntry = db.prepare(
+    'INSERT INTO capacity_entries (team_id, id, from_date, to_date, percent, note, new_usual_on, kept) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+  )
+  const selectCapacityEntries = db.prepare('SELECT * FROM capacity_entries WHERE team_id = ? ORDER BY rowid')
+  const upsertCapacitySwitch = db.prepare(
+    'INSERT INTO capacity_switch (team_id, capacity_on) VALUES (?, ?) ON CONFLICT (team_id) DO UPDATE SET capacity_on = excluded.capacity_on',
+  )
+  const selectCapacitySwitch = db.prepare('SELECT capacity_on FROM capacity_switch WHERE team_id = ?')
 
   return {
     isEmpty() {
@@ -285,6 +319,39 @@ export function openSqliteStorage(file: string): Storage {
         medium: range('medium'),
         high: range('high'),
       } satisfies AmbiguityRanges
+    },
+
+    saveCapacityEntries(teamId, entries) {
+      transaction(() => {
+        deleteCapacityEntries.run(teamId)
+        for (const entry of entries) {
+          insertCapacityEntry.run(teamId, entry.id, entry.from, entry.to ?? null, entry.percent, entry.note, entry.newUsualOn ?? null, entry.kept ? 1 : 0)
+        }
+      })
+    },
+
+    capacityEntries(teamId) {
+      return selectCapacityEntries.all(teamId).map(
+        (row: Row) =>
+          ({
+            id: Number(row.id),
+            from: String(row.from_date),
+            to: row.to_date === null ? undefined : String(row.to_date),
+            percent: Number(row.percent),
+            note: String(row.note),
+            ...(row.new_usual_on !== null && { newUsualOn: String(row.new_usual_on) }),
+            ...(Number(row.kept) === 1 && { kept: true as const }),
+          }) satisfies CapacityEntry,
+      )
+    },
+
+    saveCapacityOn(teamId, on) {
+      upsertCapacitySwitch.run(teamId, on ? 1 : 0)
+    },
+
+    capacityOn(teamId) {
+      const row = selectCapacitySwitch.get(teamId)
+      return row === undefined || Number(row.capacity_on) === 1
     },
 
     close() {

@@ -559,6 +559,92 @@ describe('simulateCase: reproducibility', () => {
   })
 })
 
+describe('simulateCase: capacity', () => {
+  const stochasticCase = whenCase({
+    scope: [epic({ growth: [1, 1.4, 2, 2.6] })],
+    throughputSamples: [0, 1, 2, 3, 5],
+  })
+
+  test("no capacity gives the MVP's quantiles and caseHash", () => {
+    // Pinned from the engine before capacity existed
+    const result = simulateCase(stochasticCase)
+
+    expect(result.caseHash).toBe('6e559e34cbce3270')
+    expect([result.quantiles[50], result.quantiles[85], result.quantiles[95]]).toEqual([9, 15, 21])
+    expect(result.percentileDates).toEqual({ 50: '2026-03-09', 70: '2026-03-23', 85: '2026-04-20', 95: '2026-06-01' })
+  })
+
+  test('factors of 0.5 slow the finish', () => {
+    // 10 tickets at 2 per period: 5 periods; at half capacity, 1 per period: 10 periods
+    const result = simulateCase(whenCase({ capacity: Array(10).fill(0.5) }))
+
+    expect(result.quantiles.every((q) => q === 10)).toBe(true)
+  })
+
+  test('a factor of 0 finishes nothing in its period', () => {
+    // One ticket at 2 per period finishes in period 1; with no capacity in period 0 (the first), in period 2
+    const result = simulateCase(whenCase({ scope: [epic({ baseCount: 1, currentCount: 1 })], capacity: [0] }))
+
+    expect(result.quantiles.every((q) => q === 2)).toBe(true)
+  })
+
+  test("periods past the list's end are at 1", () => {
+    // 10 tickets: 1 + 1 in the two half periods, then 2 per period for the other 8 → 4 more periods
+    const result = simulateCase(whenCase({ capacity: [0.5, 0.5] }))
+
+    expect(result.quantiles.every((q) => q === 6)).toBe(true)
+  })
+
+  test("the scaled pace isn't rounded: the remaining tickets fall by the scaled amount", () => {
+    // 10 tickets at 2 × 0.3 = 0.6 per period: 16 periods leave 0.4, so the 17th finishes; rounding 0.6 up would take 10
+    const result = simulateCase(whenCase({ capacity: Array(20).fill(0.3) }))
+
+    expect(result.quantiles.every((q) => q === 17)).toBe(true)
+  })
+
+  test('a range pace is scaled too', () => {
+    // 10 tickets at a range of exactly 2 per period, halved: 10 periods
+    const result = simulateCase(whenCase({ throughputSamples: { low: 2, high: 2 }, capacity: Array(10).fill(0.5) }))
+
+    expect(result.quantiles.every((q) => q === 10)).toBe(true)
+  })
+
+  test("'how many by date' counts the scaled pace", () => {
+    // 4 weekly periods at 2 per period, the second at 0 and the third at 0.5: 2 + 0 + 1 + 2
+    const result = simulateCase(
+      whenCase({ question: { kind: 'howMany', byDate: '2026-02-02' }, capacity: [1, 0, 0.5] }),
+    )
+
+    expect(result.quantiles.every((q) => q === 5)).toBe(true)
+  })
+
+  test('with and without capacity, the same seed uses the same draws', () => {
+    // Capacity of 1 everywhere changes nothing but the case, so a shift in draws would show in the quantiles
+    const usual = simulateCase(stochasticCase)
+    const withCapacity = simulateCase({ ...stochasticCase, capacity: Array(156).fill(1) })
+    // Half the pace on half the work finishes each trial in the same period, but only if every draw is the same
+    const halved = simulateCase({
+      ...stochasticCase,
+      scope: [epic({ baseCount: 5, currentCount: 5, growth: [1, 1.4, 2, 2.6] })],
+      capacity: Array(156).fill(0.5),
+    })
+
+    expect(withCapacity.quantiles).toEqual(usual.quantiles)
+    expect(halved.quantiles).toEqual(usual.quantiles)
+  })
+
+  test('a factor of 10 (1000%) is accepted', () => {
+    // 10 tickets at 2 × 10 = 20 in the first period
+    const result = simulateCase(whenCase({ capacity: [10] }))
+
+    expect(result.quantiles.every((q) => q === 1)).toBe(true)
+  })
+
+  test('a case with capacity has its own caseHash', () => {
+    expect(simulateCase({ ...stochasticCase, capacity: [0.5] }).caseHash).not.toBe('6e559e34cbce3270')
+  })
+})
+
 describe('simulateCase: input limits', () => {
   test.each<[string, Partial<SimulationCase>]>([
     ['trials', { trials: 0 }],
@@ -603,6 +689,11 @@ describe('simulateCase: input limits', () => {
     ['percentiles', { percentiles: [50, 101] }],
     ['percentiles', { percentiles: [50, Number.NaN] }],
     ['percentiles', { percentiles: [85, 50, 85] }],
+    // Above 1000%, or below 0
+    ['capacity', { capacity: [1, 10.01] }],
+    ['capacity', { capacity: [-0.1] }],
+    ['capacity', { capacity: [Number.NaN] }],
+    ['capacity', { capacity: Array(10_001).fill(1) }],
   ])('rejects a case with invalid %s', (field, overrides) => {
     expect(() => simulateCase(whenCase(overrides))).toThrow(new RegExp(field))
   })
