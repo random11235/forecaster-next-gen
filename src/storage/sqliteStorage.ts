@@ -182,6 +182,11 @@ CREATE TABLE capacity_switch (
   capacity_on INTEGER NOT NULL
 );
 `,
+  // 11: each entry's new-usual accept and kept dismissal (#169). An entry from before has neither.
+  `
+ALTER TABLE capacity_entries ADD COLUMN new_usual_on TEXT;
+ALTER TABLE capacity_entries ADD COLUMN kept INTEGER NOT NULL DEFAULT 0;
+`,
 ]
 
 type Row = Record<string, SQLInputValue>
@@ -229,7 +234,7 @@ export function openSqliteStorage(file: string): Storage {
   const selectAmbiguityRanges = db.prepare('SELECT * FROM ambiguity_ranges WHERE team_id = ?')
   const deleteCapacityEntries = db.prepare('DELETE FROM capacity_entries WHERE team_id = ?')
   const insertCapacityEntry = db.prepare(
-    'INSERT INTO capacity_entries (team_id, id, from_date, to_date, percent, note) VALUES (?, ?, ?, ?, ?, ?)',
+    'INSERT INTO capacity_entries (team_id, id, from_date, to_date, percent, note, new_usual_on, kept) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
   )
   const selectCapacityEntries = db.prepare('SELECT * FROM capacity_entries WHERE team_id = ? ORDER BY rowid')
   const upsertCapacitySwitch = db.prepare(
@@ -320,7 +325,7 @@ export function openSqliteStorage(file: string): Storage {
       transaction(() => {
         deleteCapacityEntries.run(teamId)
         for (const entry of entries) {
-          insertCapacityEntry.run(teamId, entry.id, entry.from, entry.to ?? null, entry.percent, entry.note)
+          insertCapacityEntry.run(teamId, entry.id, entry.from, entry.to ?? null, entry.percent, entry.note, entry.newUsualOn ?? null, entry.kept ? 1 : 0)
         }
       })
     },
@@ -334,6 +339,8 @@ export function openSqliteStorage(file: string): Storage {
             to: row.to_date === null ? undefined : String(row.to_date),
             percent: Number(row.percent),
             note: String(row.note),
+            ...(row.new_usual_on !== null && { newUsualOn: String(row.new_usual_on) }),
+            ...(Number(row.kept) === 1 && { kept: true as const }),
           }) satisfies CapacityEntry,
       )
     },

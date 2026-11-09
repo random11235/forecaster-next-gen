@@ -1,4 +1,4 @@
-import { MAX_CAPACITY_PERCENT, shifted, type CapacityEdit, type CapacityEntryView, type CapacityForm, type CapacityView, type EntryEffect } from '../forecast/capacity.js'
+import { MAX_CAPACITY_PERCENT, shifted, type CapacityEdit, type CapacityEntryView, type CapacityForm, type CapacityView, type EntryEffect, type NewUsual } from '../forecast/capacity.js'
 import { periodName, type PeriodName } from '../forecast/cadence.js'
 import { counted } from '../forecast/counted.js'
 import type { InputNote } from '../forecast/milestoneAssessment.js'
@@ -24,6 +24,9 @@ export const FORECAST_FORMS: ReadonlyMap<string, FormReader> = new Map<string, F
   ['/capacity/edit', (body) => ({ kind: 'editCapacity', id: body.get('id') ?? '', ...sentence(body) })],
   ['/capacity/remove', (body) => ({ kind: 'removeCapacity', id: body.get('id') ?? '' })],
   ['/capacity/switch', (body) => ({ kind: 'switchCapacity', on: body.get('on') === 'true' })],
+  ['/capacity/new-usual', (body) => ({ kind: 'acceptNewUsual', id: body.get('id') ?? '' })],
+  ['/capacity/keep', (body) => ({ kind: 'keepCapacity', id: body.get('id') ?? '' })],
+  ['/capacity/end-today', (body) => ({ kind: 'endCapacityToday', id: body.get('id') ?? '' })],
 ])
 
 /** The query that shows the Milestone forecast with its Capacity section open, where each entry gives its effect. */
@@ -244,7 +247,7 @@ function renderPaceSide(view: Forecast): string {
  * toggling it goes to the screen with it so.
  */
 function renderCapacity({ on, open, summary, entries, past, form, refusal, editing }: CapacityView, period: PeriodName): string {
-  const listed = entries.length === 0 ? `\n          <p class="note">Every ${period} is at 100%.</p>` : `\n          <ul class="capacity-entries">${entries.map((entry) => renderEntry(entry, editing)).join('')}\n          </ul>`
+  const listed = entries.length === 0 ? `\n          <p class="note">Every ${period} is at 100%.</p>` : `\n          <ul class="capacity-entries">${entries.map((entry) => renderEntry(entry, editing, period)).join('')}\n          </ul>`
   const error = refusal ? `\n            <p class="error" role="alert">${escapeHtml(refusal)}</p>` : ''
   return `
         <details class="capacity" id="capacity" data-toggle="${open ? '/' : CAPACITY_OPEN_PATH}#capacity"${open ? ' open' : ''}>
@@ -274,9 +277,13 @@ function renderSwitch(on: boolean): string {
           <form method="post" action="/capacity/switch${KEEP_OPEN}#capacity"><input type="hidden" name="on" value="${!on}"><button type="submit" class="switch" role="switch" aria-checked="${on}">Use capacity in this forecast</button></form>${off}`
 }
 
-/** An entry as one line: "0% 7 Sep 2026 to 11 Sep 2026 Offsite", "0% on 14 Sep 2026", or "60% from 5 Oct 2026 onward". */
-function entryLine({ from, to, percent, note }: CapacityEntry, effect?: EntryEffect): string {
-  const span = to === undefined ? `from ${formatDate(from)} onward` : to === from ? `on ${formatDate(from)}` : `${formatDate(from)} to ${formatDate(to)}`
+/**
+ * An entry as one line: "0% 7 Sep 2026 to 11 Sep 2026 Offsite", "0% on 14 Sep 2026", "60% from 5 Oct 2026 onward", or
+ * "80% 22 Sep 2026 to 24 Oct 2026 · new usual from 24 Oct 2026".
+ */
+function entryLine({ from, to, percent, note, newUsualOn }: CapacityEntry, effect?: EntryEffect): string {
+  const dates = to === undefined ? `from ${formatDate(from)} onward` : to === from ? `on ${formatDate(from)}` : `${formatDate(from)} to ${formatDate(to)}`
+  const span = newUsualOn === undefined ? dates : `${dates} · new usual from ${formatDate(newUsualOn)}`
   const why = note === '' ? '' : ` <span class="why">${escapeHtml(note)}</span>`
   const moved = effect === undefined ? '' : ` <span class="effect${effectClass(effect.shift)}">${effect.words}</span>`
   return `<span><strong>${percent}%</strong> ${span}${why}${moved}</span>`
@@ -287,8 +294,11 @@ function effectClass(shift: number | null): string {
   return shift === null || shift === 0 ? '' : shift > 0 ? ' later' : ' sooner'
 }
 
-/** An entry the forecast uses: its line and effect, its Edit holding the sentence as saved (or as typed, refused), and Remove. */
-function renderEntry(entry: CapacityEntryView, editing: CapacityView['editing']): string {
+/**
+ * An entry the forecast uses: its line and effect, its Edit holding the sentence as saved (or as typed, refused), and
+ * Remove; then any warning, and for a lasting one, how far the pace has caught up with it.
+ */
+function renderEntry(entry: CapacityEntryView, editing: CapacityView['editing'], period: PeriodName): string {
   const refused = editing?.id === entry.id ? editing : undefined
   const form = refused?.form ?? { percent: String(entry.percent), from: entry.from, to: entry.to ?? '', onward: entry.to === undefined, note: entry.note }
   const warned = entry.warning === undefined ? '' : `\n              <p class="warning">⚠ ${escapeHtml(entry.warning)}</p>`
@@ -296,8 +306,33 @@ function renderEntry(entry: CapacityEntryView, editing: CapacityView['editing'])
             <li>
               ${entryLine(entry, entry.effect)}
               ${editFold(entry.id, refused?.refusal, `At ${sentenceFields(form)}.`)}
-              <form method="post" action="/capacity/remove${KEEP_OPEN}#capacity"><input type="hidden" name="id" value="${entry.id}"><button type="submit" class="link">Remove</button></form>${warned}
+              <form method="post" action="/capacity/remove${KEEP_OPEN}#capacity"><input type="hidden" name="id" value="${entry.id}"><button type="submit" class="link">Remove</button></form>${warned}${renderNewUsual(entry, period)}
             </li>`
+}
+
+/**
+ * A lasting entry against the pace: how many of the periods the pace comes from are after it; once all are, the
+ * proposal to make it the new usual, or keep it; with a pace range, End it today.
+ */
+function renderNewUsual({ id, from, percent, newUsual }: CapacityEntryView, period: PeriodName): string {
+  if (newUsual === undefined) return ''
+  const button = (path: string, label: string, kind = ''): string =>
+    `<form method="post" action="${path}${KEEP_OPEN}#capacity"><input type="hidden" name="id" value="${id}"><button type="submit"${kind}>${label}</button></form>`
+  switch (newUsual.kind) {
+    case 'counting':
+      return `
+              <p class="note">${newUsual.after} of the ${counted(newUsual.of, period)} the pace comes from are after the change. Past counts aren’t adjusted. When all of them are, you’ll be asked whether it’s the new usual.</p>`
+    case 'proposed':
+      return `
+              <div class="proposal">
+                <p>Every ${period} the pace comes from starts on or after ${formatDate(from)}, so it already shows the team at ${percent}%. Make it the <strong>new usual</strong>? The change then ends, so it isn’t counted twice.</p>
+                ${button('/capacity/new-usual', 'Make it the new usual')}
+                ${button('/capacity/keep', 'Keep it', ' class="link"')}
+              </div>`
+    case 'endToday':
+      return `
+              <p class="note">With a pace range, end this yourself once the range reflects it. ${button('/capacity/end-today', 'End it today', ' class="link"')}</p>`
+  }
 }
 
 /** Entries that have ended, folded: kept, not used by the forecast, each with only its note to edit and no Remove. */

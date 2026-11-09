@@ -134,6 +134,13 @@ Capacity can be switched off for the team's forecasts (on until switched, stored
 
 The EM can edit an entry's dates, percentage and note; an edit is refused for the same reasons as an add. An entry is **past** once its end is before today: it is kept, never deleted, listed under a folded "Past", and touches no factor. Only a past entry's note can be edited, so the record of what happened stays as it was.
 
+Typed counts are dated back from the current period, the one holding today in periods counted from the start date: the last count is the most recent whole period, the one before it the period before, and so on. That lets a lasting entry (one running onward) be compared with the periods the pace comes from, so it isn't counted twice once the pace already shows it: the **new usual** (see the [glossary](../../GLOSSARY.md)). For a lasting entry that has started and isn't past, with pace from typed counts:
+
+- While only some of those periods start on or after the entry's start, the entry says how many, and that the EM will be asked once all of them do.
+- Once all of them do, it is proposed as the new usual. Accepting ends it today and records the accept date (`newUsualOn`), which makes it past at once: listed under Past as "new usual from" that date, touching no factor. "Keep it" stores a dismissal (`kept`), so it isn't proposed again; editing the entry's sentence starts it afresh.
+
+With a pace range there is no proposal, since the tool doesn't guess what a range the EM typed reflects: a lasting entry that started before today offers "End it today", which ends it yesterday. An accept, a keep or an end today is refused for an entry that is no longer there or has already ended, and an accept or an end for one that hasn't started yet.
+
 #### Growth
 
 *Follows the MVP: the milestone grows by the range of its one ambiguity level, with no measured growth.* Each epic's growth range comes from its ambiguity level. Once at least `minGrowthSamples` growth samples exist, the tool suggests the measured distribution for `medium`. If the EM adopts it, epics marked medium draw from the pooled samples; low and high keep their ranges. Only medium, because the pool describes the team's typical epic, which is what medium means; low and high stay the EM's judgement. The EM can go back to the range at any time. Adopted measured growth is paused while there are fewer than `minGrowthSamples` growth samples, so medium epics grow by the range, and resumes once there are enough again.

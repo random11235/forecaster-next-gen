@@ -1,6 +1,6 @@
 import type { Ambiguity } from '../model/ambiguity.js'
 import type { Storage } from '../storage/storage.js'
-import { editCapacity, type CapacityEdit, type CapacityForm, type CapacityView } from './capacity.js'
+import { editCapacity, isCapacityEdit, type CapacityEdit, type CapacityForm, type CapacityView } from './capacity.js'
 import type { EditResult } from './editResult.js'
 import { milestoneForecastView, type ForecastViewOptions, type MilestoneForecastView } from './milestoneForecastView.js'
 import { editGrowth, growthView, type GrowthEdit, type GrowthView, type TypedRange } from './growth.js'
@@ -74,7 +74,7 @@ export function submitInputs(
   edit: InputsEdit,
   shown: ForecastViewOptions = {},
 ): Submitted {
-  if (edit.kind === 'addCapacity' || edit.kind === 'editCapacity' || edit.kind === 'removeCapacity' || edit.kind === 'switchCapacity') return submitCapacity(storage, teamId, settings, today, edit, shown)
+  if (isCapacityEdit(edit)) return submitCapacity(storage, teamId, settings, today, edit, shown)
   const { form, next, typed } = submission(edit)
   const result: EditResult = edit.kind === 'setAmbiguityRanges' ? editGrowth(storage, teamId, edit) : editMilestoneInputs(storage, teamId, edit)
   if (result.ok) return { saved: true, next }
@@ -106,6 +106,9 @@ function refusedCapacity(edit: CapacityEdit, refusal: string): Partial<CapacityV
       return { editing: { id: Number(edit.id), form: typed(edit), refusal } }
     case 'removeCapacity':
     case 'switchCapacity':
+    case 'acceptNewUsual':
+    case 'keepCapacity':
+    case 'endCapacityToday':
       return { refusal }
   }
 }
