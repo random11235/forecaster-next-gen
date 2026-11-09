@@ -5,12 +5,10 @@
 // It runs each connector's own requests, in the scenarios test/connectors/scenarios.ts names, against its synthetic
 // tracker only, seeded by scripts/synthetic/: the repo random11235/forecaster-synthetic and the Jira space SYN on
 // ralphhockley.atlassian.net. Tokens come from the macOS Keychain (`forecaster-github-recording`,
-// `forecaster-jira-recording`), and Jira's account email from the environment (`FORECASTER_JIRA_EMAIL`). Each response
+// `forecaster-jira-recording`); Jira's token belongs to the shared test account forecastertest3@gmail.com, which
+// `FORECASTER_JIRA_EMAIL` overrides. Each response
 // keeps its status and only the fields the connector reads. Credentials go in request headers, which are never
 // recorded, and are never written or printed.
-//
-// MUST CHANGE before anyone else records Jira: the site, its token and FORECASTER_JIRA_EMAIL belong to the maintainer's
-// personal Atlassian account, whose email inbox is unreachable. Move to a shared account first (see the README).
 //
 // Node runs this file directly, so the files it imports from src/ and test/ are named by their `.ts` and import nothing
 // at runtime themselves; the connectors, which do, are loaded from the build in dist/.
@@ -131,6 +129,8 @@ export function recordGithub(token: string, transport: Transport, github: Connec
 // Jira
 
 const JIRA_KEYCHAIN = 'forecaster-jira-recording'
+/** The shared test account that owns the Jira recording token; `FORECASTER_JIRA_EMAIL` overrides it. */
+const JIRA_ACCOUNT_EMAIL = 'forecastertest3@gmail.com'
 const JIRA_EMAIL_VARIABLE = 'FORECASTER_JIRA_EMAIL'
 
 const JIRA: Tracker<JiraConnection> = {
@@ -154,10 +154,10 @@ const JIRA: Tracker<JiraConnection> = {
     throw new Error(`The recording script doesn't know what the connector reads from ${url}`)
   },
   refusedMessage: [
-    `Jira refused the recording token (Keychain item "${JIRA_KEYCHAIN}") with the account email in ${JIRA_EMAIL_VARIABLE}.`,
-    'The token may have expired: Jira recording tokens last 30 days. Make a scoped API token with read:jira-work at',
-    'https://id.atlassian.com/manage-profile/security/api-tokens, for the account that can see the space SYN on',
-    'ralphhockley.atlassian.net, then store it with:',
+    `Jira refused the recording token (Keychain item "${JIRA_KEYCHAIN}") for the account ${JIRA_ACCOUNT_EMAIL}`,
+    `(or ${JIRA_EMAIL_VARIABLE}, if set). The token may have expired: Jira recording tokens last 30 days. Signed in as`,
+    'that account, make a scoped API token with read:jira-work at https://id.atlassian.com/manage-profile/security/api-tokens',
+    '(a token works only with the email of the account that made it), then store it with:',
     `  security add-generic-password -U -a "$USER" -s ${JIRA_KEYCHAIN} -w`,
     'Nothing was recorded.',
   ].join('\n'),
@@ -194,11 +194,7 @@ const TRACKERS: Record<string, () => Promise<Recorded | undefined>> = {
     return recordGithub(token, fetch, githubConnector)
   },
   jira: async () => {
-    const email = process.env[JIRA_EMAIL_VARIABLE]
-    if (!email) {
-      console.error(`Set ${JIRA_EMAIL_VARIABLE} to the email of the Atlassian account the Jira recording token belongs to.`)
-      return undefined
-    }
+    const email = process.env[JIRA_EMAIL_VARIABLE] || JIRA_ACCOUNT_EMAIL
     const token = keychain(JIRA_KEYCHAIN)
     if (token === undefined) return undefined
     const { jiraConnector } = await built<typeof import('../src/connectors/jira/jiraConnector.ts')>('connectors/jira/jiraConnector.js')
