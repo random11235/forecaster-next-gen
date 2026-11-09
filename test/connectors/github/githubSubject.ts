@@ -27,7 +27,8 @@ export const githubSubject: ContractSubject = {
     githubConnector(GITHUB_SCENARIOS.synthetic.connection, 'replayed-token', async () => {
       throw new TypeError('fetch failed')
     }),
-  queries: GITHUB_QUERIES,
+  unrecorded: () => githubConnector(GITHUB_SCENARIOS.synthetic.connection, 'replayed-token', replayTransport([])),
+  queries:GITHUB_QUERIES,
   idOf: (role) => {
     const issue = issues[role]
     if (!issue) throw new Error(`No synthetic issue has the role ${role}`)

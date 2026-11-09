@@ -14,6 +14,8 @@ export interface ContractSubject {
   unknown(): Connector
   /** With no network: its transport rejects every request, as `fetch` does offline. */
   unreachable(): Connector
+  /** On the synthetic repo or space, replaying no recordings: every request it makes is unrecorded. */
+  unrecorded(): Connector
   /** Queries in the tracker's own syntax. */
   queries: {
     /** The tickets of the open milestone "Search revamp", as its milestone choice reads them. */

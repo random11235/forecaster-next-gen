@@ -31,10 +31,10 @@ export type Failure =
   | { failure: 'outOfScope' | 'notFound' | 'unauthorised' | 'unavailable' }
 
 /** A failed call: one failure, and nothing else. */
-export type Failed = { ok: false } & Failure
+export type FailedCall = { ok: false } & Failure
 
 /** A read's tickets, flagged incomplete when the tracker didn't return them all; or one failure. Matching nothing is an empty list. */
-export type ReadResult = { ok: true; tickets: Ticket[]; incomplete: boolean } | Failed
+export type ReadResult = { ok: true; tickets: Ticket[]; incomplete: boolean } | FailedCall
 
 /**
  * Something the EM can pick a milestone's tickets by, with the query that reads them, built inside the connector
@@ -46,7 +46,7 @@ export interface Choice {
   query: string
 }
 
-export type ChoicesResult = { ok: true; choices: Choice[] } | Failed
+export type ChoicesResult = { ok: true; choices: Choice[] } | FailedCall
 
 /** How a connector reaches its tracker: `fetch`, or Seam C's replay of recorded responses. */
 export type Transport = (url: string, init?: RequestInit) => Promise<Response>
