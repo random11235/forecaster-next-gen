@@ -117,7 +117,7 @@ describe('the forecast from what the EM enters', () => {
         { date: '2026-09-15', share: 1, finishedBy: 1, capacity: 100 },
       ],
       paceTrend: undefined,
-      capacity: { on: true, summary: 'none, every week usual', entries: [], past: [], form: { percent: '', from: '', to: '', onward: false, note: '' } },
+      capacity: { on: true, open: false, summary: 'none, every week usual', entries: [], past: [], form: { percent: '', from: '', to: '', onward: false, note: '' } },
     })
   })
 

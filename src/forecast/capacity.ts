@@ -4,6 +4,7 @@ import type { PeriodName } from './cadence.js'
 import { daysBetween, isCalendarDate } from './calendarDate.js'
 import { counted } from './counted.js'
 import { refuse, type EditResult, type Refusal } from './editResult.js'
+import type { ComparedDate } from './milestoneForecastView.js'
 
 /** Far above any real team's growth, as the engine's own limit: keeps typos like 5000% out of the forecast. */
 export const MAX_CAPACITY_PERCENT = 1000
@@ -33,6 +34,18 @@ export interface CapacityForm {
 /** An entry as the capacity section lists it, with the warning beside it, if any. */
 export interface CapacityEntryView extends CapacityEntry {
   warning?: string
+  /** What this entry alone does to the 85% date; given only with the section open and capacity in use. */
+  effect?: EntryEffect
+}
+
+/**
+ * An entry's own effect on the 85% date: the shift, in periods (later when positive), between the forecast with
+ * capacity and a run without that entry, from the same draws; null when only one of the two dates is within the horizon.
+ */
+export interface EntryEffect {
+  shift: number | null
+  /** "85% date +1 wk", "85% date −2 sprints", "no change to the 85% date". */
+  words: string
 }
 
 /**
@@ -45,6 +58,8 @@ export type CapacityUse = { kind: 'unused' } | { kind: 'off' } | { kind: 'inUse'
 export interface CapacityView {
   /** Whether the forecast uses capacity; on until the EM switches it off. */
   on: boolean
+  /** Whether the section is shown open: the EM opened it, or a capacity form just submitted from it was refused. */
+  open: boolean
   /** The folded section's line: "none, every week usual", or "2 entries · 85% date 2 weeks later". */
   summary: string
   /** The team's entries the forecast uses, earliest first. */
@@ -60,17 +75,37 @@ export interface CapacityView {
 
 export const BLANK_CAPACITY_FORM: CapacityForm = { percent: '', from: '', to: '', onward: false, note: '' }
 
-/** Seam B, behind `milestoneForecastView`: the team's capacity on `today` as the section shows it, its form blank. */
-export function capacityView(storage: Storage, teamId: string, today: string, use: CapacityUse, period: PeriodName): CapacityView {
+/**
+ * Seam B, behind `milestoneForecastView`: the team's capacity on `today` as the section shows it, its form blank. With
+ * `effects` (by entry id), each entry the forecast uses gives its own effect.
+ */
+export function capacityView(
+  storage: Storage,
+  teamId: string,
+  today: string,
+  use: CapacityUse,
+  period: PeriodName,
+  { open, effects }: { open: boolean; effects?: ReadonlyMap<number, EntryEffect> },
+): CapacityView {
   const all = sorted(storage.capacityEntries(teamId))
-  const entries = all
-    .filter((entry) => !isPast(entry, today))
-    .map((entry) => {
-      const warning = bigTeamWarning(entry.percent)
-      return warning === undefined ? entry : { ...entry, warning }
-    })
+  const entries = currentEntries(all, today).map((entry) => {
+    const warning = bigTeamWarning(entry.percent)
+    const effect = effects?.get(entry.id)
+    return { ...entry, ...(warning !== undefined && { warning }), ...(effect && { effect }) }
+  })
   const past = all.filter((entry) => isPast(entry, today))
-  return { on: storage.capacityOn(teamId), summary: capacitySummary(entries.length, use, period), entries, past, form: BLANK_CAPACITY_FORM }
+  return { on: storage.capacityOn(teamId), open, summary: capacitySummary(entries.length, use, period), entries, past, form: BLANK_CAPACITY_FORM }
+}
+
+/**
+ * An entry's effect, from the 85% date compared with capacity and `atUsual` without the entry: a null date is later
+ * than the horizon.
+ */
+export function entryEffect({ withCapacity, atUsual: without, shift }: ComparedDate, period: PeriodName): EntryEffect {
+  if (withCapacity === without) return { shift: 0, words: 'no change to the 85% date' }
+  if (shift === null) return { shift, words: withCapacity === null ? '85% date later than the horizon' : '85% date within the horizon, not past it' }
+  const unit = period === 'week' ? 'wk' : Math.abs(shift) === 1 ? 'sprint' : 'sprints'
+  return { shift, words: `85% date ${shift > 0 ? '+' : '−'}${Math.abs(shift)} ${unit}` }
 }
 
 /** The team's entries the forecast uses on `today`: those not past. */
