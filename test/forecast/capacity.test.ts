@@ -144,9 +144,12 @@ describe('typing capacity', () => {
     const forecast = view(storage)
 
     expect(forecast.kind === 'forecast' && forecast.capacity).toEqual({
+      on: true,
+      summary: 'none, every week usual',
       entries: [],
       form: { percent: '', from: '', to: '', onward: false, note: '' },
     })
+    expect(forecast.kind === 'forecast' && forecast.capacityLine).toBeUndefined()
   })
 
   test('the entries are listed earliest first, an empty end being the one day it starts', () => {
@@ -191,6 +194,127 @@ describe('typing capacity', () => {
   })
 })
 
+describe('the comparison', () => {
+  test('with capacity in use, each date is given with capacity and at usual capacity, and the shift in periods between them', () => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage)
+
+    add(storage, '0', '2026-09-07', '2026-09-11', { note: 'Offsite' })
+
+    const forecast = view(storage)
+    expect(forecast.kind === 'forecast' && forecast.comparison).toEqual([
+      { percent: 50, withCapacity: '2026-09-28', atUsual: '2026-09-21', shift: 1 },
+      { percent: 85, withCapacity: '2026-09-28', atUsual: '2026-09-21', shift: 1 },
+      { percent: 95, withCapacity: '2026-09-28', atUsual: '2026-09-21', shift: 1 },
+    ])
+  })
+
+  test('both forecasts use the same draws, so capacity after every trial has finished leaves each date where it was', () => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage)
+    submit(storage, { kind: 'setPaceRange', low: '2', high: '9' })
+
+    add(storage, '120', '2027-06-01', '', { onward: true })
+
+    const forecast = view(storage)
+    const comparison = forecast.kind === 'forecast' ? forecast.comparison : undefined
+    expect(comparison?.map(({ shift }) => shift)).toEqual([0, 0, 0])
+    expect(comparison?.map(({ withCapacity }) => withCapacity)).toEqual(comparison?.map(({ atUsual }) => atUsual))
+  })
+
+  test.each([
+    ['later', '0', MONDAY, '2026-09-11', 'Includes capacity, which moves the 85% date 1 week later.', '1 entry · 85% date 1 week later'],
+    ['sooner', '200', MONDAY, '', 'Includes capacity, which moves the 85% date 1 week sooner.', '1 entry · 85% date 1 week sooner'],
+    ['not at all', '120', '2027-06-01', '', 'Includes capacity, which doesn’t move the 85% date.', '1 entry'],
+  ])('capacity moving the 85%% date %s says so under the headline and in the folded summary', (_, percent, from, to, line, summary) => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage)
+
+    add(storage, percent, from, to, { onward: to === '' })
+
+    const forecast = view(storage)
+    expect(forecast.kind === 'forecast' && forecast.capacityLine).toBe(line)
+    expect(forecast.kind === 'forecast' && forecast.capacity.summary).toBe(summary)
+  })
+
+  test('the shift is in the team’s periods: a sprint later', () => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage, { cadenceDays: '14' })
+
+    add(storage, '0', '2026-09-07', '2026-09-11')
+    add(storage, '0', '2026-09-21', '2026-09-25')
+
+    const forecast = view(storage)
+    expect(forecast.kind === 'forecast' && forecast.capacityLine).toBe('Includes capacity, which moves the 85% date 1 sprint later.')
+    expect(forecast.kind === 'forecast' && forecast.capacity.summary).toBe('2 entries · 85% date 1 sprint later')
+  })
+
+  test('with no capacity in use there is nothing to compare', () => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage)
+
+    const forecast = view(storage)
+
+    expect(forecast.kind === 'forecast' && forecast.comparison).toBeUndefined()
+  })
+})
+
+describe('the switch', () => {
+  test('capacity is on until switched off', () => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage)
+
+    const forecast = view(storage)
+
+    expect(forecast.kind === 'forecast' && forecast.capacity.on).toBe(true)
+  })
+
+  test('switched off, the forecast is as it is without capacity, the entries are kept, and the forecast screen comes next', () => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage)
+    const before = view(storage)
+    add(storage, '0', '2026-09-07', '2026-09-11', { note: 'Offsite' })
+
+    expect(submit(storage, { kind: 'switchCapacity', on: false })).toEqual({ saved: true, next: 'forecast' })
+
+    const forecast = view(storage)
+    expect(headline(storage)).toBe('2026-09-21')
+    expect(forecast.kind === 'forecast' && forecast.dates).toEqual(before.kind === 'forecast' && before.dates)
+    expect(forecast.kind === 'forecast' && forecast.finishGraph).toEqual(before.kind === 'forecast' && before.finishGraph)
+    expect(forecast.kind === 'forecast' && forecast.comparison).toBeUndefined()
+    expect(forecast.kind === 'forecast' && forecast.capacityLine).toBe('Capacity is switched off for this forecast; its entries are kept.')
+    expect(forecast.kind === 'forecast' && forecast.capacity).toMatchObject({
+      on: false,
+      summary: 'off · 1 entry',
+      entries: [{ id: 1, from: '2026-09-07', to: '2026-09-11', percent: 0, note: 'Offsite' }],
+    })
+  })
+
+  test('switched on again, capacity counts as before', () => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage)
+    add(storage, '0', '2026-09-07', '2026-09-11')
+    const before = view(storage)
+    submit(storage, { kind: 'switchCapacity', on: false })
+
+    expect(submit(storage, { kind: 'switchCapacity', on: true })).toEqual({ saved: true, next: 'forecast' })
+
+    expect(view(storage)).toEqual(before)
+    expect(headline(storage)).toBe('2026-09-28')
+  })
+
+  test('switched off with no capacity touching the forecast, there is no line under the headline', () => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage)
+
+    submit(storage, { kind: 'switchCapacity', on: false })
+
+    const forecast = view(storage)
+    expect(forecast.kind === 'forecast' && forecast.capacityLine).toBeUndefined()
+    expect(forecast.kind === 'forecast' && forecast.capacity.summary).toBe('none, every week usual')
+  })
+})
+
 describe('a refused capacity entry', () => {
   test.each([
     ['no start date', { percent: '50', from: '', to: '' }, 'Pick the date it starts.'],
@@ -215,6 +339,8 @@ describe('a refused capacity entry', () => {
     expect(!result.saved && result.screen).toBe('forecast')
     const shown = !result.saved && result.screen === 'forecast' ? result.view : undefined
     expect(shown?.kind === 'forecast' && shown.capacity).toEqual({
+      on: true,
+      summary: 'none, every week usual',
       entries: [],
       form: { ...typed, onward: false, note: 'Leave' },
       refusal,

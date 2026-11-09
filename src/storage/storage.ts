@@ -27,5 +27,9 @@ export interface Storage {
   saveCapacityEntries(teamId: string, entries: readonly CapacityEntry[]): void
   /** The team's capacity entries, in the order saved; none until the EM types one. */
   capacityEntries(teamId: string): CapacityEntry[]
+  /** Switches the team's capacity on or off for its forecasts; off keeps its entries. */
+  saveCapacityOn(teamId: string, on: boolean): void
+  /** Whether the team's forecasts use its capacity: on until switched off. */
+  capacityOn(teamId: string): boolean
   close(): void
 }

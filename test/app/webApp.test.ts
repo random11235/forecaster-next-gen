@@ -77,6 +77,20 @@ describe('web app', () => {
     expect(refused.html).toContain('Offsite')
   })
 
+  test('capacity in use is compared with usual capacity, and switched off, the forecast says its entries are kept', () => {
+    const { app } = firstOpen()
+    app.show(post('/inputs/milestone', { name: 'Launch', startDate: '2026-11-02', ticketsRemaining: '30' }))
+    app.show(post('/inputs/pace', { low: '5', high: '10' }))
+    app.show(post('/capacity/add', { percent: '0', from: '2026-11-02', to: '2026-11-06', note: 'Offsite' }))
+
+    expect(app.show({ method: 'GET', path: '/' }).html).toContain('<th>With capacity</th><th>At usual capacity</th>')
+    const off = app.show(post('/capacity/switch', { on: 'false' }))
+
+    expect(off).toMatchObject({ path: '/', status: 200 })
+    expect(off.html).toContain('Capacity is switched off for this forecast; its entries are kept.')
+    expect(off.html).toContain('Offsite')
+  })
+
   test('shows not found for anything but the screens', () => {
     const { app } = firstOpen()
 
