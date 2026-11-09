@@ -21,6 +21,27 @@ export type CapacityEdit =
   | ({ kind: 'editCapacity'; id: string } & CapacityForm)
   /** "Use capacity in this forecast": off keeps the entries, which still count for the next milestone. */
   | { kind: 'switchCapacity'; on: boolean }
+  /** "Make it the new usual": ends entry `id` today, so the pace that already shows it doesn't count it twice. */
+  | { kind: 'acceptNewUsual'; id: string }
+  /** "Keep it": entry `id` is no longer proposed as the new usual. */
+  | { kind: 'keepCapacity'; id: string }
+  /** "End it today", with a pace range: entry `id` ends yesterday. */
+  | { kind: 'endCapacityToday'; id: string }
+
+const CAPACITY_EDITS: ReadonlySet<string> = new Set<CapacityEdit['kind']>([
+  'addCapacity',
+  'removeCapacity',
+  'editCapacity',
+  'switchCapacity',
+  'acceptNewUsual',
+  'keepCapacity',
+  'endCapacityToday',
+])
+
+/** Whether a submitted form is one of the capacity forms beside the forecast. */
+export function isCapacityEdit(edit: { kind: string }): edit is CapacityEdit {
+  return CAPACITY_EDITS.has(edit.kind)
+}
 
 /** The capacity form's sentence, as saved (blank) or as typed when refused. */
 export interface CapacityForm {
@@ -36,7 +57,18 @@ export interface CapacityEntryView extends CapacityEntry {
   warning?: string
   /** What this entry alone does to the 85% date; given only with the section open and capacity in use. */
   effect?: EntryEffect
+  /** For a lasting entry that has started: how far the pace has caught up with it; none when it has an end. */
+  newUsual?: NewUsual
 }
+
+/**
+ * A lasting entry against the pace. With typed counts: `after` of the `of` periods the pace comes from start on or after
+ * it, or, once all of them do, proposed as the new usual (until kept). With a pace range: "End it today".
+ */
+export type NewUsual = { kind: 'counting'; after: number; of: number } | { kind: 'proposed' } | { kind: 'endToday' }
+
+/** The periods the pace comes from, for the new-usual rule: a range has none; typed counts, each period's first day. */
+export type PacePeriods = { source: 'range' } | { source: 'counts'; starts: string[] }
 
 /**
  * An entry's own effect on the 85% date: the shift, in periods (later when positive), between the forecast with
@@ -77,7 +109,7 @@ export const BLANK_CAPACITY_FORM: CapacityForm = { percent: '', from: '', to: ''
 
 /**
  * Seam B, behind `milestoneForecastView`: the team's capacity on `today` as the section shows it, its form blank. With
- * `effects` (by entry id), each entry the forecast uses gives its own effect.
+ * `effects` (by entry id), each entry the forecast uses gives its own effect; against `pace`, each lasting one its new-usual line.
  */
 export function capacityView(
   storage: Storage,
@@ -85,13 +117,14 @@ export function capacityView(
   today: string,
   use: CapacityUse,
   period: PeriodName,
-  { open, effects }: { open: boolean; effects?: ReadonlyMap<number, EntryEffect> },
+  { open, effects, pace }: { open: boolean; effects?: ReadonlyMap<number, EntryEffect>; pace: PacePeriods },
 ): CapacityView {
   const all = sorted(storage.capacityEntries(teamId))
   const entries = currentEntries(all, today).map((entry) => {
     const warning = bigTeamWarning(entry.percent)
     const effect = effects?.get(entry.id)
-    return { ...entry, ...(warning !== undefined && { warning }), ...(effect && { effect }) }
+    const newUsual = newUsualOf(entry, pace, today)
+    return { ...entry, ...(warning !== undefined && { warning }), ...(effect && { effect }), ...(newUsual && { newUsual }) }
   })
   const past = all.filter((entry) => isPast(entry, today))
   return { on: storage.capacityOn(teamId), open, summary: capacitySummary(entries.length, use, period), entries, past, form: BLANK_CAPACITY_FORM }
@@ -108,15 +141,37 @@ export function entryEffect({ withCapacity, atUsual: without, shift }: ComparedD
   return { shift, words: `85% date ${shift > 0 ? '+' : '−'}${Math.abs(shift)} ${unit}` }
 }
 
+/** A lasting entry that has started, against the periods the pace comes from; none for any other entry. */
+function newUsualOf(entry: CapacityEntry, pace: PacePeriods, today: string): NewUsual | undefined {
+  // ISO calendar dates order as strings do
+  if (entry.to !== undefined || entry.from > today) return undefined
+  if (pace.source === 'range') return entry.from < today ? { kind: 'endToday' } : undefined
+  const after = pace.starts.filter((start) => start >= entry.from).length
+  if (after < pace.starts.length) return { kind: 'counting', after, of: pace.starts.length }
+  return entry.kept ? undefined : { kind: 'proposed' }
+}
+
+/**
+ * The first day of each typed count's period, oldest first. They are dated back from the current period (the one
+ * holding `today`, in periods counted from the start date): the last count is the most recent whole period.
+ */
+export function typedCountStarts(counts: number, startDate: string, periodDays: number, today: string): string[] {
+  const current = Math.floor(daysBetween(startDate, today) / periodDays)
+  return Array.from({ length: counts }, (_, count) => addDays(startDate, (current - counts + count) * periodDays))
+}
+
 /** The team's entries the forecast uses on `today`: those not past. */
 export function currentEntries(entries: readonly CapacityEntry[], today: string): CapacityEntry[] {
   return entries.filter((entry) => !isPast(entry, today))
 }
 
-/** An entry is past once its end is before today: kept, never deleted, but no longer used by the forecast. */
-function isPast({ to }: CapacityEntry, today: string): boolean {
+/**
+ * An entry is past once its end is before today, or once accepted as the new usual: kept, never deleted, but no
+ * longer used by the forecast.
+ */
+function isPast({ to, newUsualOn }: CapacityEntry, today: string): boolean {
   // ISO calendar dates order as strings do
-  return to !== undefined && to < today
+  return newUsualOn !== undefined || (to !== undefined && to < today)
 }
 
 function capacitySummary(entries: number, use: CapacityUse, period: PeriodName): string {
@@ -155,8 +210,9 @@ function bigTeamWarning(percent: number): string | undefined {
 }
 
 /**
- * Seam B, through `submitInputs`: adds, edits or removes a capacity entry on `today`, or switches capacity. An edit is
- * checked as an add is, but a past entry's edit changes only its note. A refused edit changes nothing and says why.
+ * Seam B, through `submitInputs`: adds, edits or removes a capacity entry on `today`, or switches capacity; accepts an
+ * entry as the new usual, keeps it, or ends it today. An edit is checked as an add is, but a past entry's edit changes
+ * only its note. A refused edit changes nothing and says why.
  */
 export function editCapacity(storage: Storage, teamId: string, today: string, edit: CapacityEdit): EditResult {
   if (edit.kind === 'switchCapacity') {
@@ -176,11 +232,20 @@ export function editCapacity(storage: Storage, teamId: string, today: string, ed
   }
   const edited = entries.find(({ id }) => String(id) === edit.id.trim())
   if (edited === undefined) return refuse('That entry is no longer there.')
+  const save = (entry: CapacityEntry): EditResult => {
+    storage.saveCapacityEntries(teamId, entries.map((other) => (other === edited ? entry : other)))
+    return { ok: true }
+  }
+  if (edit.kind === 'acceptNewUsual' || edit.kind === 'keepCapacity' || edit.kind === 'endCapacityToday') {
+    if (isPast(edited, today)) return refuse('That entry has already ended.')
+    // ISO calendar dates order as strings do
+    if (edited.from >= today && edit.kind !== 'keepCapacity') return refuse('It hasn’t started yet, so there’s nothing to end: remove it instead.')
+    if (edit.kind === 'keepCapacity') return save({ ...edited, kept: true })
+    return save(edit.kind === 'acceptNewUsual' ? { ...edited, to: today, newUsualOn: today } : { ...edited, to: addDays(today, -1) })
+  }
   const others = entries.filter((entry) => entry !== edited)
   const saved = isPast(edited, today) ? { ok: true as const, entry: { ...edited, note: edit.note.trim() } } : typedEntry(edit, edited.id, others)
-  if (!saved.ok) return saved
-  storage.saveCapacityEntries(teamId, entries.map((entry) => (entry === edited ? saved.entry : entry)))
-  return { ok: true }
+  return saved.ok ? save(saved.entry) : saved
 }
 
 /** The entry a capacity sentence types, numbered `id`, or why it is refused beside the team's `others`. */

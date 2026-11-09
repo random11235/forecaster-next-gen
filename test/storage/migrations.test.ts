@@ -500,6 +500,30 @@ describe('a data file from schema version 9, before the capacity switch', () => 
   })
 })
 
+/** Version 10's tables: version 9's, plus the capacity switch as #165 shipped it. Kept verbatim: it is a past release. */
+const VERSION_10_SCHEMA = `${VERSION_9_SCHEMA}
+CREATE TABLE capacity_switch (
+  team_id TEXT PRIMARY KEY REFERENCES teams(id),
+  capacity_on INTEGER NOT NULL
+);
+INSERT INTO capacity_entries (team_id, id, from_date, to_date, percent, note) VALUES ('${TEAM}', 2, '2026-08-03', NULL, 80, 'Two left');
+`
+
+describe('a data file from schema version 10, before the new usual', () => {
+  test('keeps its entries, none accepted or kept, and takes an accept and a keep, which survive reopening', () => {
+    const file = writeFile('v10.db', VERSION_10_SCHEMA, 10)
+    const storage = open(file)
+    const lasting = { id: 2, from: '2026-08-03', to: undefined, percent: 80, note: 'Two left' }
+    expect(storage.capacityEntries(TEAM)).toEqual([{ id: 1, from: '2026-09-07', to: '2026-09-07', percent: 0, note: 'Holiday' }, lasting])
+
+    const accepted = { ...lasting, to: '2026-11-11', newUsualOn: '2026-11-11' }
+    const kept = { id: 3, from: '2026-10-05', to: undefined, percent: 120, note: '', kept: true as const }
+    storage.saveCapacityEntries(TEAM, [accepted, kept])
+
+    expect(open(file).capacityEntries(TEAM)).toEqual([accepted, kept])
+  })
+})
+
 describe('a data file from a newer release', () => {
   test('refuses to open, says why, and leaves the file as it was', () => {
     const file = writeFile('newer.db', 'CREATE TABLE from_the_future (id TEXT);', 999)

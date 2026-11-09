@@ -1178,3 +1178,69 @@ describe('Milestone forecast screen: editing capacity, and Past', () => {
   })
 })
 
+describe('Milestone forecast screen: new usual', () => {
+  /** Four typed counts, the weeks from 22 Sep to 13 Oct, and a lasting change from `from`. */
+  async function lastingChangeOnTypedCounts(from: string): Promise<void> {
+    await startOnPreMvpData()
+    await submitCounts('4, 6, 5, 7')
+    await choosePace('counts')
+    await addCapacity('80', from, '', 'Two left', true)
+  }
+
+  test('while only some of the weeks the pace comes from are after a lasting change, the entry says how many', async () => {
+    await lastingChangeOnTypedCounts('2026-10-01')
+
+    const html = await page('/?capacity=open')
+
+    expect(text(html)).toContain(
+      'Remove 2 of the 4 weeks the pace comes from are after the change. Past counts aren’t adjusted. When all of them are, you’ll be asked whether it’s the new usual.',
+    )
+    expect(html).not.toContain('/capacity/new-usual')
+  })
+
+  test('once all of them are, it proposes the new usual, with Make it the new usual and Keep it', async () => {
+    await lastingChangeOnTypedCounts('2026-09-22')
+
+    const html = await page('/')
+
+    expect(text(html)).toContain(
+      'Every week the pace comes from starts on or after 22 Sep 2026, so it already shows the team at 80%. Make it the new usual ? The change then ends, so it isn’t counted twice. Make it the new usual Keep it',
+    )
+    expect(html).toContain('<form method="post" action="/capacity/new-usual?capacity=open#capacity"><input type="hidden" name="id" value="1">')
+    expect(html).toContain('<form method="post" action="/capacity/keep?capacity=open#capacity"><input type="hidden" name="id" value="1">')
+  })
+
+  test('made the new usual, the change ends today and is listed under Past', async () => {
+    await lastingChangeOnTypedCounts('2026-09-22')
+
+    const response = await post('/capacity/new-usual?capacity=open', [['id', '1']])
+
+    expect(response.headers.get('location')).toBe('/?capacity=open')
+    const html = await page('/?capacity=open')
+    expect(text(html)).toContain('80% 22 Sep 2026 to 24 Oct 2026 · new usual from 24 Oct 2026 Two left')
+    expect(text(html)).toContain('Capacity none, every week usual')
+  })
+
+  test('kept, it is no longer proposed', async () => {
+    await lastingChangeOnTypedCounts('2026-09-22')
+
+    await post('/capacity/keep?capacity=open', [['id', '1']])
+
+    const html = await page('/?capacity=open')
+    expect(text(html)).toContain('80% from 22 Sep 2026 onward Two left')
+    expect(text(html)).not.toContain('new usual')
+  })
+
+  test('with a pace range, a lasting change offers End it today, which ends it yesterday', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+    await addCapacity('80', '2026-09-22', '', 'Two left', true)
+
+    const html = await page('/?capacity=open')
+
+    expect(text(html)).toContain('Remove With a pace range, end this yourself once the range reflects it. End it today')
+    expect(html).toContain('<form method="post" action="/capacity/end-today?capacity=open#capacity"><input type="hidden" name="id" value="1">')
+    await post('/capacity/end-today?capacity=open', [['id', '1']])
+    expect(text(await page('/'))).toContain('80% 22 Sep 2026 to 23 Oct 2026 Two left')
+  })
+})

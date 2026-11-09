@@ -149,6 +149,10 @@ const STYLE = `
     ul.capacity-entries li > span { flex: 1 1 0; min-width: 0; }
     ul.capacity-entries form { margin: 0; }
     ul.capacity-entries p.warning { flex-basis: 100%; font-size: 13px; }
+    ul.capacity-entries p.note, ul.capacity-entries .proposal { flex-basis: 100%; font-size: 13px; }
+    ul.capacity-entries p.note form { display: inline; }
+    ul.capacity-entries .proposal { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; border-left: 3px solid var(--link); padding: 4px 0 4px 10px; }
+    ul.capacity-entries .proposal p { flex-basis: 100%; margin: 0; }
     details.edit > summary { list-style: none; cursor: pointer; color: var(--link); text-decoration: underline; font-size: 13px; }
     details.edit > summary::-webkit-details-marker { display: none; }
     details.edit[open] { flex-basis: 100%; order: 1; border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; }
