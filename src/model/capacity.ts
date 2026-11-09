@@ -14,4 +14,8 @@ export interface CapacityEntry {
   percent: number
   /** Why, in the EM's words; empty when none was given. */
   note: string
+  /** ISO calendar date the EM accepted it as the new usual, ending it that day; undefined until they do. */
+  newUsualOn?: string
+  /** The EM chose to keep it when it was proposed as the new usual, so it is no longer proposed. */
+  kept?: true
 }

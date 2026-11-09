@@ -42,8 +42,16 @@ interface Opened {
 
 /** Browser storage as `localStorage` keeps it: strings by key. */
 const HOLIDAY: CapacityEntry = { id: 1, from: '2026-09-14', to: '2026-09-14', percent: 0, note: 'Holiday' }
-/** One entry running onward, saved before an earlier one: kept in the order saved. */
-const ENTRIES: CapacityEntry[] = [{ id: 2, from: '2026-10-05', to: undefined, percent: 60, note: '' }, HOLIDAY]
+/**
+ * One entry running onward, saved before an earlier one: kept in the order saved. With one accepted as the new usual,
+ * and one kept when proposed.
+ */
+const ENTRIES: CapacityEntry[] = [
+  { id: 2, from: '2026-10-05', to: undefined, percent: 60, note: '' },
+  HOLIDAY,
+  { id: 3, from: '2026-06-01', to: '2026-11-11', percent: 80, note: 'Two left', newUsualOn: '2026-11-11' },
+  { id: 4, from: '2026-07-06', to: undefined, percent: 120, note: '', kept: true },
+]
 
 function memoryStore(): KeyValueStore {
   const items = new Map<string, string>()

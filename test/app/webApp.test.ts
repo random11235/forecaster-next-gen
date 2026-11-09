@@ -122,6 +122,22 @@ describe('web app', () => {
     expect(page.html).toContain('<details class="edit">')
   })
 
+  test('a lasting change proposed as the new usual, once made so, is listed under Past', () => {
+    const { app } = firstOpen()
+    app.show(post('/inputs/milestone', { name: 'Launch', startDate: '2026-11-02', ticketsRemaining: '30' }))
+    // the weeks from 28 Sep to 19 Oct, the last whole one before 30 Oct's
+    app.show(post('/inputs/pace-counts', { counts: '4, 6, 5, 7' }))
+    app.show(post('/inputs/pace-mode', { paceMode: 'counts' }))
+    const added = app.show(post('/capacity/add?capacity=open', { percent: '80', from: '2026-09-28', to: '', onward: 'on', note: 'Two left' }))
+    expect(added.html).toContain('action="/capacity/new-usual?capacity=open#capacity"')
+
+    const page = app.show(post('/capacity/new-usual?capacity=open', { id: '1' }))
+
+    expect(page).toMatchObject({ path: '/?capacity=open', status: 200 })
+    expect(page.html).toContain('28 Sep 2026 to 30 Oct 2026 · new usual from 30 Oct 2026')
+    expect(page.html).not.toContain('/capacity/new-usual')
+  })
+
   test('shows not found for anything but the screens', () => {
     const { app } = firstOpen()
 
