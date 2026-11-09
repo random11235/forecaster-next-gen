@@ -42,7 +42,7 @@ The data model is designed so that each of these can be relaxed later without re
 
 ## Folder structure
 
-The tree is `src/` as it stands in the MVP. v1 adds `samples/` (Layer 2: commits, throughput, growth and epic-size samples derived from `model/`), `ledger/` (Layer 5), `secrets/` and `connectors/`, and the epic-era files #87 deleted (work items, workflow settings, epic commits, team facts, measured pace and growth); [`forecast-model.md`](forecast-model.md) describes them.
+The tree is `src/` as it stands in the MVP, with `connectors/` from [#154](https://github.com/random11235/forecaster-next-gen/issues/154). v1 adds `samples/` (Layer 2: commits, throughput, growth and epic-size samples derived from `model/`), `ledger/` (Layer 5), `secrets/`, and the epic-era files #87 deleted (work items, workflow settings, epic commits, team facts, measured pace and growth); [`forecast-model.md`](forecast-model.md) describes them.
 
 ```
 src/
@@ -66,6 +66,13 @@ src/
     counted.ts            # a count with its words: "1 ticket", "40 tickets"
     editResult.ts         # an edit saved, or refused saying why
 
+  connectors/             # what reads the team's tickets from its tracker; everything tracker-specific stays inside one
+    connector.ts          # the interface and its shared types: Connection, Ticket, Failure, ReadResult, Choice
+    canned/               # the canned connector, answering from a fixture in the connector's own shape; Seam B tests use it
+      demoFixture.json    # demo mode's synthetic fixture: made up, no real team's data
+    github/               # (to come) the GitHub connector
+    jira/                 # (to come) the Jira connector
+
   storage/                # interface and its v1 SQLite file, with the schema's migrations; the web build's browser storage
   app/                    # local server (localhost only), screens, `npm start` entry point; each screen's HTML, and reading the fields of the forms it posts; the web build's app and page script (`webApp.ts`, `webMain.ts`)
 
@@ -73,6 +80,7 @@ test/
   app/                    # the screens, launch, and the launch smoke test: start the app, check the screen is served; the web build's app and its smoke test
   engine/                 # Seam A: fixed seeds, plus a performance benchmark
   forecast/               # Seam B: stored inputs + settings → the screens' views
+  connectors/             # the canned connector; the dependency rules for connectors/
   storage/                # the schema's migrations; the Storage contract, run against SQLite and browser storage
 ```
 
@@ -84,6 +92,8 @@ test/
 - `app/` reaches forecasts through `forecast/`, never `engine/` directly.
 - Forecast code reads facts only through team facts (`teamFacts`), never `storage.facts`, so a forecast always sees the EM's status mapping. Storage and storage tests may still read raw facts. (The MVP reads no facts: it has neither, until connectors return.)
 - `connectors/`, `storage/` and `secrets/` sit at the edges behind interfaces, so v1 can run from canned data and the same code can be hosted later.
+- `connectors/` import only their shared types (`connectors/connector.ts`) and `model/`.
+- `forecast/` depends on the connector interface only, never on a concrete connector (`canned/`, `github/` or `jira/`). `app/` builds the connector and passes it in: the canned one from its synthetic fixture in demo mode (`FORECASTER_DEMO=1`), otherwise the real one for the connection. `test/connectors/dependencyRules.test.ts` checks both rules.
 
 **File types:**
 - Source is `.ts`.
@@ -103,9 +113,9 @@ Warning text and provenance are tested at Seam B, not Seam A. These cases moved 
 - the throughput source: `'measured'` for samples, `'manual'` for a range;
 - the uncommitted epics listed in rank order, and none for a scope of committed epics.
 
-Connectors are tested through Seam B by replaying recorded API responses, with no seam of their own.
+Seam B tests read tickets through the canned connector (`connectors/canned/`), which returns its fixture's tickets, an empty list for a query that matches nothing, and any failure on cue; `test/connectors/` tests it. Connectors are tested through Seam B by replaying recorded API responses, with no seam of their own.
 
-`test/app/` holds the launch smoke test. It is not a forecasting seam: it builds the app, runs the built `npm start` entry point (`dist/app/main.js`) with `FORECASTER_NO_BROWSER=1` so no browser opens and a temporary `FORECASTER_DATA_FILE`, and checks that the Milestone forecast screen is served in its empty state, with no sample data. It also checks that a bad `PORT` is refused.
+`test/app/` holds the launch smoke test. It is not a forecasting seam: it builds the app, runs the built `npm start` entry point (`dist/app/main.js`) with `FORECASTER_NO_BROWSER=1` so no browser opens and a temporary `FORECASTER_DATA_FILE`, and checks that the Milestone forecast screen is served in its empty state, with no sample data. It runs it again in demo mode (`FORECASTER_DEMO=1`), on the canned connector built from the synthetic fixture, so no token is needed, and checks the screen is served. It also checks that a bad `PORT` is refused.
 
 The web build (#114) is tested the same way, with no seam of its own: `webApp.test.ts` asks its app for screens as its page does, and the web build smoke test runs `npm run build:web` and checks the one page it writes opens on the empty state with its script inline. Its page script (`webMain.ts`), which wires links, forms and the Inputs screen's saves to that app in the browser, is checked by the ticket's demo, not by tests.
 
