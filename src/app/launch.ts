@@ -57,7 +57,8 @@ export async function startAppAndOpenBrowser(options: LaunchOptions): Promise<Ru
 /** Hands the request to the routes and writes their reply. */
 async function serve(request: IncomingMessage, response: ServerResponse, context: AppContext): Promise<void> {
   const method = request.method ?? 'GET'
-  const path = new URL(request.url ?? '/', `http://${HOST}`).pathname
+  const { pathname, search } = new URL(request.url ?? '/', `http://${HOST}`)
+  const path = pathname + search
   const form = method === 'POST' ? new URLSearchParams(await readBody(request)) : undefined
   const saveInPlace = request.headers[SAVE_IN_PLACE.header] === SAVE_IN_PLACE.value
   send(response, route({ method, path, ...(form && { form }), ...(saveInPlace && { saveInPlace }) }, context))
