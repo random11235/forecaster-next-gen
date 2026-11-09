@@ -67,7 +67,7 @@ export function inputsView(storage: Storage, teamId: string, settings: ForecastS
  * other form is on the Inputs screen.
  */
 export function submitInputs(storage: Storage, teamId: string, settings: ForecastSettings, today: string, edit: InputsEdit): Submitted {
-  if (edit.kind === 'addCapacity' || edit.kind === 'editCapacity' || edit.kind === 'removeCapacity') return submitCapacity(storage, teamId, settings, today, edit)
+  if (edit.kind === 'addCapacity' || edit.kind === 'editCapacity' || edit.kind === 'removeCapacity' || edit.kind === 'switchCapacity') return submitCapacity(storage, teamId, settings, today, edit)
   const { form, next, typed } = submission(edit)
   const result: EditResult = edit.kind === 'setAmbiguityRanges' ? editGrowth(storage, teamId, edit) : editMilestoneInputs(storage, teamId, edit)
   if (result.ok) return { saved: true, next }
@@ -97,6 +97,7 @@ function refusedCapacity(edit: CapacityEdit, refusal: string): Partial<CapacityV
     case 'editCapacity':
       return { editing: { id: Number(edit.id), form: typed(edit), refusal } }
     case 'removeCapacity':
+    case 'switchCapacity':
       return { refusal }
   }
 }
