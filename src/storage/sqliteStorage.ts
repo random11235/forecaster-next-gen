@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import type { Ambiguity, AmbiguityRanges } from '../model/ambiguity.js'
+import type { CapacityEntry } from '../model/capacity.js'
 import type { MilestoneInputs, PaceMode } from '../model/milestoneInputs.js'
 import type { Team } from '../model/team.js'
 import type { Storage } from './storage.js'
@@ -162,6 +163,18 @@ WHERE m.rowid = (SELECT MIN(first.rowid) FROM milestones first WHERE first.team_
 ALTER TABLE milestone_inputs ADD COLUMN pace_cadence_days INTEGER;
 UPDATE milestone_inputs SET pace_cadence_days = cadence_days WHERE pace_low IS NOT NULL OR pace_counts <> '[]';
 `,
+  // 9: each team's capacity entries (#164). An entry running onward has no to_date. A file from before has none.
+  `
+CREATE TABLE capacity_entries (
+  team_id TEXT NOT NULL REFERENCES teams(id),
+  id INTEGER NOT NULL,
+  from_date TEXT NOT NULL,
+  to_date TEXT,
+  percent INTEGER NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (team_id, id)
+);
+`,
 ]
 
 type Row = Record<string, SQLInputValue>
@@ -207,6 +220,11 @@ export function openSqliteStorage(file: string): Storage {
       low_low = excluded.low_low, low_high = excluded.low_high, medium_low = excluded.medium_low,
       medium_high = excluded.medium_high, high_low = excluded.high_low, high_high = excluded.high_high`)
   const selectAmbiguityRanges = db.prepare('SELECT * FROM ambiguity_ranges WHERE team_id = ?')
+  const deleteCapacityEntries = db.prepare('DELETE FROM capacity_entries WHERE team_id = ?')
+  const insertCapacityEntry = db.prepare(
+    'INSERT INTO capacity_entries (team_id, id, from_date, to_date, percent, note) VALUES (?, ?, ?, ?, ?, ?)',
+  )
+  const selectCapacityEntries = db.prepare('SELECT * FROM capacity_entries WHERE team_id = ? ORDER BY rowid')
 
   return {
     isEmpty() {
@@ -285,6 +303,28 @@ export function openSqliteStorage(file: string): Storage {
         medium: range('medium'),
         high: range('high'),
       } satisfies AmbiguityRanges
+    },
+
+    saveCapacityEntries(teamId, entries) {
+      transaction(() => {
+        deleteCapacityEntries.run(teamId)
+        for (const entry of entries) {
+          insertCapacityEntry.run(teamId, entry.id, entry.from, entry.to ?? null, entry.percent, entry.note)
+        }
+      })
+    },
+
+    capacityEntries(teamId) {
+      return selectCapacityEntries.all(teamId).map(
+        (row: Row) =>
+          ({
+            id: Number(row.id),
+            from: String(row.from_date),
+            to: row.to_date === null ? undefined : String(row.to_date),
+            percent: Number(row.percent),
+            note: String(row.note),
+          }) satisfies CapacityEntry,
+      )
     },
 
     close() {
