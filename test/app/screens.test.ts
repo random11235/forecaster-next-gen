@@ -935,7 +935,7 @@ describe('Milestone forecast screen: capacity', () => {
 
     expect(text(html)).toMatch(/Pace Change 4–8 tickets per week \(range\).*Capacity.*100% = the team’s usual week, as in the pace\. Every week is at 100%\./)
     expect(text(html)).toContain('Weekends don’t count; overlapping entries multiply. Past counts aren’t adjusted.')
-    expect(html).toContain('<form method="post" action="/capacity/add#capacity"')
+    expect(html).toContain('<form method="post" action="/capacity/add?capacity=open#capacity"')
     expect(html).toContain('id="capacity"')
   })
 
@@ -974,7 +974,7 @@ describe('Milestone forecast screen: capacity', () => {
     expect(response.status).toBe(400)
     const html = await response.text()
     expect(text(html)).toContain('The end date is before the start.')
-    expect(html).toContain('<details class="capacity" id="capacity" open>')
+    expect(html).toContain('<details class="capacity" id="capacity" data-toggle="/#capacity" open>')
     expect(html).toContain('value="Half on &#60;leave&#62;"')
     expect(html).toContain('value="2026-09-14"')
     expect(text(html)).toContain('Starting 1 Sep 2026: 85% confident of finishing by 1 Dec 2026')
@@ -1022,7 +1022,7 @@ describe('Milestone forecast screen: capacity', () => {
     await submitPace('4', '8')
     await addCapacity('0', '2026-11-16', '2026-11-20', 'Offsite')
     const withCapacity = dateAt(text(await page('/')), 85)
-    expect(await page('/')).toContain('<form method="post" action="/capacity/switch#capacity"')
+    expect(await page('/')).toContain('<form method="post" action="/capacity/switch?capacity=open#capacity"')
 
     const response = await post('/capacity/switch', [['on', 'false']])
 
@@ -1061,6 +1061,40 @@ describe('Milestone forecast screen: capacity', () => {
     expect(text(graph)).toContain('Shaded weeks: capacity changes, at the % shown.')
   })
 
+  test('folded, the section gives no entry’s effect; opening it, at its own URL, gives each entry’s effect on the 85% date', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+    await addCapacity('0', '2026-11-02', '2026-11-06', 'Offsite')
+    await addCapacity('120', '2027-06-01', '', '', true)
+    await addCapacity('50', '2026-09-07', '2026-09-11', 'Ended')
+
+    const folded = await page('/')
+    expect(folded).toContain('<details class="capacity" id="capacity" data-toggle="/?capacity=open#capacity">')
+    expect(text(folded)).not.toContain('85% date +')
+    expect(text(folded)).not.toContain('no change to the 85% date')
+
+    const open = await page('/?capacity=open')
+    expect(open).toContain('<details class="capacity" id="capacity" data-toggle="/#capacity" open>')
+    expect(text(open)).toContain('0% 2 Nov 2026 to 6 Nov 2026 Offsite 85% date +1 wk')
+    expect(text(open)).toContain('120% from 1 Jun 2027 onward no change to the 85% date')
+    // a past entry isn't used by the forecast, so has no effect to give
+    expect(text(open)).toContain('50% 7 Sep 2026 to 11 Sep 2026 Ended Edit')
+  })
+
+  test('the section stays open across saves, its effects shown, and across a refusal', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+    expect(await page('/?capacity=open')).toContain('<form method="post" action="/capacity/add?capacity=open#capacity"')
+
+    const saved = await post('/capacity/add?capacity=open', [['percent', '0'], ['from', '2026-11-02'], ['to', '2026-11-06'], ['note', 'Offsite']])
+
+    expect(saved.headers.get('location')).toBe('/?capacity=open')
+    const refused = await post('/capacity/add?capacity=open', [['percent', 'half'], ['from', '2026-09-14'], ['to', '']])
+    const html = await refused.text()
+    expect(html).toContain('<details class="capacity" id="capacity" data-toggle="/#capacity" open>')
+    expect(text(html)).toContain('Offsite 85% date +1 wk')
+  })
+
   test("the Inputs screen's pace says where capacity is set", async () => {
     await startOnPreMvpData()
 
@@ -1083,12 +1117,12 @@ describe('Milestone forecast screen: editing capacity, and Past', () => {
 
     const edit = html.match(/<details class="edit">[\s\S]*?<\/details>/)?.[0] ?? ''
     expect(text(edit).trim()).toMatch(/^Edit At % from to or onward , for \. Save Cancel$/)
-    expect(edit).toContain('<form method="post" action="/capacity/edit#capacity"')
+    expect(edit).toContain('<form method="post" action="/capacity/edit?capacity=open#capacity"')
     expect(edit).toContain('<input type="hidden" name="id" value="1">')
     expect(edit).toContain('value="0"')
     expect(edit).toContain('value="2026-11-06"')
     expect(edit).toContain('value="Offsite"')
-    expect(edit).toContain('<a href="/#capacity">Cancel</a>')
+    expect(edit).toContain('<a href="/?capacity=open#capacity">Cancel</a>')
   })
 
   test('an edit saved comes back to the forecast, the entry changed', async () => {
@@ -1111,7 +1145,7 @@ describe('Milestone forecast screen: editing capacity, and Past', () => {
 
     expect(response.status).toBe(400)
     const html = await response.text()
-    expect(html).toContain('<details class="capacity" id="capacity" open>')
+    expect(html).toContain('<details class="capacity" id="capacity" data-toggle="/#capacity" open>')
     const edit = html.match(/<details class="edit" open>[\s\S]*?<\/details>/)?.[0] ?? ''
     expect(text(edit)).toContain('The end date is before the start.')
     expect(edit).toContain('value="2026-11-13"')

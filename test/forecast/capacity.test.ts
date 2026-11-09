@@ -145,6 +145,7 @@ describe('typing capacity', () => {
 
     expect(forecast.kind === 'forecast' && forecast.capacity).toEqual({
       on: true,
+      open: false,
       summary: 'none, every week usual',
       entries: [],
       past: [],
@@ -260,6 +261,104 @@ describe('the comparison', () => {
   })
 })
 
+describe('each entry’s effect', () => {
+  /** The forecast with the Capacity section open, as the EM sees it beside the entries. */
+  function opened(storage: Storage) {
+    return milestoneForecastView(storage, TEAM, DEFAULT_SETTINGS, TODAY, { capacityOpen: true })
+  }
+
+  test('with the section open, each entry gives its own shift of the 85% date, from a run without it on the same draws', () => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage)
+    add(storage, '0', '2026-09-07', '2026-09-11', { note: 'Offsite' })
+    add(storage, '120', '2027-06-01', '', { onward: true })
+
+    const forecast = opened(storage)
+
+    expect(forecast.kind === 'forecast' && forecast.capacity.open).toBe(true)
+    expect(forecast.kind === 'forecast' && forecast.capacity.entries.map(({ note, effect }) => [note, effect])).toEqual([
+      ['Offsite', { shift: 1, words: '85% date +1 wk' }],
+      ['', { shift: 0, words: 'no change to the 85% date' }],
+    ])
+  })
+
+  test('an entry that brings the 85% date sooner says so, in the team’s periods', () => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage, { cadenceDays: '14' })
+    add(storage, '200', MONDAY, '', { onward: true })
+
+    const forecast = opened(storage)
+
+    expect(forecast.kind === 'forecast' && forecast.capacity.entries[0]?.effect).toEqual({ shift: -1, words: '85% date −1 sprint' })
+  })
+
+  test('an entry beyond the horizon, the only one, gives no change to the 85% date', () => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage)
+    add(storage, '50', '2031-01-06', '2031-01-10', { note: 'Far off' })
+
+    const forecast = opened(storage)
+
+    expect(forecast.kind === 'forecast' && forecast.capacity.entries[0]?.effect).toEqual({ shift: 0, words: 'no change to the 85% date' })
+  })
+
+  test('with the section folded, no entry gives its effect', () => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage)
+    add(storage, '0', '2026-09-07', '2026-09-11', { note: 'Offsite' })
+
+    const forecast = view(storage)
+
+    expect(forecast.kind === 'forecast' && forecast.capacity.open).toBe(false)
+    expect(forecast.kind === 'forecast' && forecast.capacity.entries.map(({ effect }) => effect)).toEqual([undefined])
+  })
+
+  test('switched off, the section open, no entry gives its effect', () => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage)
+    add(storage, '0', '2026-09-07', '2026-09-11', { note: 'Offsite' })
+    submit(storage, { kind: 'switchCapacity', on: false })
+
+    const forecast = opened(storage)
+
+    expect(forecast.kind === 'forecast' && forecast.capacity.entries.map(({ effect }) => effect)).toEqual([undefined])
+  })
+
+  test('opening the section changes nothing else on the screen', () => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage)
+    add(storage, '0', '2026-09-07', '2026-09-11', { note: 'Offsite' })
+
+    expect(withoutCapacity(opened(storage))).toEqual(withoutCapacity(view(storage)))
+  })
+
+  test('a refused entry shows the section open, with each entry’s effect when it was open', () => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage)
+    add(storage, '0', '2026-09-07', '2026-09-11', { note: 'Offsite' })
+
+    const result = submitInputs(storage, TEAM, DEFAULT_SETTINGS, TODAY, { kind: 'addCapacity', percent: 'half', from: MONDAY, to: '', onward: false, note: '' }, { capacityOpen: true })
+
+    const shown = !result.saved && result.screen === 'forecast' ? result.view : undefined
+    expect(shown?.kind === 'forecast' && shown.capacity.open).toBe(true)
+    expect(shown?.kind === 'forecast' && shown.capacity.entries[0]?.effect).toEqual({ shift: 1, words: '85% date +1 wk' })
+  })
+})
+
+describe('a refusal from the folded section', () => {
+  test('shows the section open to say why, without working out the effects', () => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage)
+    add(storage, '0', '2026-09-07', '2026-09-11', { note: 'Offsite' })
+
+    const result = add(storage, 'half', MONDAY, '')
+
+    const shown = !result.saved && result.screen === 'forecast' ? result.view : undefined
+    expect(shown?.kind === 'forecast' && shown.capacity.open).toBe(true)
+    expect(shown?.kind === 'forecast' && shown.capacity.entries[0]?.effect).toBeUndefined()
+  })
+})
+
 describe('the switch', () => {
   test('capacity is on until switched off', () => {
     const storage = openStorage()
@@ -370,6 +469,7 @@ describe('a refused capacity entry', () => {
     const shown = !result.saved && result.screen === 'forecast' ? result.view : undefined
     expect(shown?.kind === 'forecast' && shown.capacity).toEqual({
       on: true,
+      open: true,
       summary: 'none, every week usual',
       entries: [],
       past: [],
@@ -439,6 +539,7 @@ describe('editing an entry', () => {
     const shown = !result.saved && result.screen === 'forecast' ? result.view : undefined
     expect(shown?.kind === 'forecast' && shown.capacity).toEqual({
       on: true,
+      open: true,
       summary: '1 entry · 85% date 1 week later',
       entries: [{ id: 1, from: '2026-09-07', to: '2026-09-11', percent: 0, note: 'Offsite' }],
       past: [],

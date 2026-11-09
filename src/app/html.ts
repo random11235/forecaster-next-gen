@@ -137,7 +137,10 @@ const STYLE = `
     details.capacity > summary { cursor: pointer; font-size: 13px; }
     details.capacity > * + * { margin-top: 10px; }
     details.capacity .title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
-    details.capacity .summary, details.capacity .why { color: var(--faint); }
+    details.capacity .summary, details.capacity .why, details.capacity .effect { color: var(--faint); }
+    details.capacity .effect { font-size: 12px; white-space: nowrap; }
+    details.capacity .effect.later { color: var(--risk); }
+    details.capacity .effect.sooner { color: var(--good); }
     ul.capacity-entries { list-style: none; margin: 0; padding: 0; }
     ul.capacity-entries li {
       display: flex; flex-wrap: wrap; gap: 4px 8px; justify-content: space-between; align-items: baseline;

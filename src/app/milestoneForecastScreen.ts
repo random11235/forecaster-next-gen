@@ -1,4 +1,4 @@
-import { MAX_CAPACITY_PERCENT, shifted, type CapacityEdit, type CapacityEntryView, type CapacityForm, type CapacityView } from '../forecast/capacity.js'
+import { MAX_CAPACITY_PERCENT, shifted, type CapacityEdit, type CapacityEntryView, type CapacityForm, type CapacityView, type EntryEffect } from '../forecast/capacity.js'
 import { periodName, type PeriodName } from '../forecast/cadence.js'
 import { counted } from '../forecast/counted.js'
 import type { InputNote } from '../forecast/milestoneAssessment.js'
@@ -26,6 +26,33 @@ export const FORECAST_FORMS: ReadonlyMap<string, FormReader> = new Map<string, F
   ['/capacity/switch', (body) => ({ kind: 'switchCapacity', on: body.get('on') === 'true' })],
 ])
 
+/** The query that shows the Milestone forecast with its Capacity section open, where each entry gives its effect. */
+export const CAPACITY_OPEN = { name: 'capacity', value: 'open' } as const
+/** The query a capacity form carries, so the screen it goes to shows the section open again. */
+const KEEP_OPEN = `?${CAPACITY_OPEN.name}=${CAPACITY_OPEN.value}`
+export const CAPACITY_OPEN_PATH = `/${KEEP_OPEN}`
+
+/**
+ * The screen's script: opening or folding the Capacity section goes to the screen with it so, as each entry's effect
+ * is worked out only with it open. It follows a link, so the web build's page answers it as it does any other.
+ * Without it, the section still opens, with no effects shown.
+ */
+const FORECAST_SCRIPT = `
+(() => {
+  const capacity = document.getElementById('capacity')
+  if (!capacity) return
+  const shownOpen = capacity.open
+  capacity.addEventListener('toggle', () => {
+    if (capacity.open === shownOpen) return
+    const link = document.createElement('a')
+    link.href = capacity.dataset.toggle
+    link.hidden = true
+    document.body.append(link)
+    link.click()
+  })
+})()
+`
+
 /** The Milestone forecast screen (EM home): the milestone's forecast from its start date, what to fix, or its empty state. */
 export function renderMilestoneForecastScreen(view: MilestoneForecastView): string {
   switch (view.kind) {
@@ -34,11 +61,16 @@ export function renderMilestoneForecastScreen(view: MilestoneForecastView): stri
     case 'problems':
       return htmlPage('/', problemsHeader(view.name, view.problems.length), renderNotes('What to fix', view.problems))
     case 'forecast':
-      return htmlPage('/', forecastHeader(view), `${renderNotes('Warnings', view.warnings)}
+      return htmlPage(
+        '/',
+        forecastHeader(view),
+        `${renderNotes('Warnings', view.warnings)}
     <div class="forecast-layout">
       <div class="forecast-main">${renderForecast(view)}
       </div>${renderPaceSide(view)}
-    </div>`)
+    </div>`,
+        FORECAST_SCRIPT,
+      )
   }
 }
 
@@ -206,18 +238,19 @@ function renderPaceSide(view: Forecast): string {
 }
 
 /**
- * The team's capacity, folded under the pace: its entries, earliest first, each with any warning and a way to edit or
- * remove it, a sentence to type another, and the folded Past. Open when a form just submitted was refused, so why
- * shows beside it.
+ * The team's capacity, folded under the pace: its entries, earliest first, each with any warning, its effect when the
+ * section is open, and a way to edit or remove it; a sentence to type another; and the folded Past. Open when the EM
+ * opened it, or when a form just submitted from it was refused, so why shows beside it. Its forms keep it open;
+ * toggling it goes to the screen with it so.
  */
-function renderCapacity({ on, summary, entries, past, form, refusal, editing }: CapacityView, period: PeriodName): string {
+function renderCapacity({ on, open, summary, entries, past, form, refusal, editing }: CapacityView, period: PeriodName): string {
   const listed = entries.length === 0 ? `\n          <p class="note">Every ${period} is at 100%.</p>` : `\n          <ul class="capacity-entries">${entries.map((entry) => renderEntry(entry, editing)).join('')}\n          </ul>`
   const error = refusal ? `\n            <p class="error" role="alert">${escapeHtml(refusal)}</p>` : ''
   return `
-        <details class="capacity" id="capacity"${refusal || editing ? ' open' : ''}>
+        <details class="capacity" id="capacity" data-toggle="${open ? '/' : CAPACITY_OPEN_PATH}#capacity"${open ? ' open' : ''}>
           <summary><span class="title">Capacity</span> <span class="summary">${summary}</span></summary>${renderSwitch(on)}
           <p class="note"><strong>100%</strong> = the team’s usual ${period}, as in the pace.</p>${listed}
-          <form method="post" action="/capacity/add#capacity" class="sentence">${error}
+          <form method="post" action="/capacity/add${KEEP_OPEN}#capacity" class="sentence">${error}
             The team is at ${sentenceFields(form)}.
             <button type="submit">Add</button>
           </form>
@@ -238,26 +271,32 @@ function sentenceFields(form: CapacityForm): string {
 function renderSwitch(on: boolean): string {
   const off = on ? '' : '\n          <p class="note">Off: the forecast uses pace alone. Entries are kept, and still count for the next milestone.</p>'
   return `
-          <form method="post" action="/capacity/switch#capacity"><input type="hidden" name="on" value="${!on}"><button type="submit" class="switch" role="switch" aria-checked="${on}">Use capacity in this forecast</button></form>${off}`
+          <form method="post" action="/capacity/switch${KEEP_OPEN}#capacity"><input type="hidden" name="on" value="${!on}"><button type="submit" class="switch" role="switch" aria-checked="${on}">Use capacity in this forecast</button></form>${off}`
 }
 
 /** An entry as one line: "0% 7 Sep 2026 to 11 Sep 2026 Offsite", "0% on 14 Sep 2026", or "60% from 5 Oct 2026 onward". */
-function entryLine({ from, to, percent, note }: CapacityEntry): string {
+function entryLine({ from, to, percent, note }: CapacityEntry, effect?: EntryEffect): string {
   const span = to === undefined ? `from ${formatDate(from)} onward` : to === from ? `on ${formatDate(from)}` : `${formatDate(from)} to ${formatDate(to)}`
   const why = note === '' ? '' : ` <span class="why">${escapeHtml(note)}</span>`
-  return `<span><strong>${percent}%</strong> ${span}${why}</span>`
+  const moved = effect === undefined ? '' : ` <span class="effect${effectClass(effect.shift)}">${effect.words}</span>`
+  return `<span><strong>${percent}%</strong> ${span}${why}${moved}</span>`
 }
 
-/** An entry the forecast uses: its line, its Edit holding the sentence as saved (or as typed, refused), and Remove. */
+/** An effect coloured by which way it moves the 85% date: later is a risk; no change, or past the horizon, is plain. */
+function effectClass(shift: number | null): string {
+  return shift === null || shift === 0 ? '' : shift > 0 ? ' later' : ' sooner'
+}
+
+/** An entry the forecast uses: its line and effect, its Edit holding the sentence as saved (or as typed, refused), and Remove. */
 function renderEntry(entry: CapacityEntryView, editing: CapacityView['editing']): string {
   const refused = editing?.id === entry.id ? editing : undefined
   const form = refused?.form ?? { percent: String(entry.percent), from: entry.from, to: entry.to ?? '', onward: entry.to === undefined, note: entry.note }
   const warned = entry.warning === undefined ? '' : `\n              <p class="warning">⚠ ${escapeHtml(entry.warning)}</p>`
   return `
             <li>
-              ${entryLine(entry)}
+              ${entryLine(entry, entry.effect)}
               ${editFold(entry.id, refused?.refusal, `At ${sentenceFields(form)}.`)}
-              <form method="post" action="/capacity/remove#capacity"><input type="hidden" name="id" value="${entry.id}"><button type="submit" class="link">Remove</button></form>${warned}
+              <form method="post" action="/capacity/remove${KEEP_OPEN}#capacity"><input type="hidden" name="id" value="${entry.id}"><button type="submit" class="link">Remove</button></form>${warned}
             </li>`
 }
 
@@ -283,15 +322,15 @@ function renderPast(past: readonly CapacityEntry[], editing: CapacityView['editi
           </details>`
 }
 
-/** An entry's Edit, folded: `fields` to change, with Save, and Cancel back to the forecast. Open, saying why, when refused. */
+/** An entry's Edit, folded: `fields` to change, with Save, and Cancel back to the forecast, the section open. Open, saying why, when refused. */
 function editFold(id: number, refusal: string | undefined, fields: string): string {
   const error = refusal === undefined ? '' : `\n            <p class="error" role="alert">${escapeHtml(refusal)}</p>`
   return `<details class="edit"${refusal === undefined ? '' : ' open'}>
             <summary class="link">Edit</summary>
-            <form method="post" action="/capacity/edit#capacity" class="sentence">${error}
+            <form method="post" action="/capacity/edit${KEEP_OPEN}#capacity" class="sentence">${error}
             <input type="hidden" name="id" value="${id}">
             ${fields}
-            <span class="actions"><button type="submit">Save</button> <a href="/#capacity">Cancel</a></span>
+            <span class="actions"><button type="submit">Save</button> <a href="${CAPACITY_OPEN_PATH}#capacity">Cancel</a></span>
             </form>
           </details>`
 }
