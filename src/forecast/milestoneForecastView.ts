@@ -3,7 +3,7 @@ import type { Ambiguity, GrowthRange } from '../model/ambiguity.js'
 import type { CapacityEntry } from '../model/capacity.js'
 import type { Storage } from '../storage/storage.js'
 import { daysBetween } from './calendarDate.js'
-import { capacityFactors, capacityLine, capacityView, currentEntries, entryEffect, type CapacityUse, type CapacityView, type EntryEffect } from './capacity.js'
+import { capacityFactors, capacityLine, capacityView, currentEntries, entryEffect, typedCountStarts, type CapacityUse, type CapacityView, type EntryEffect, type PacePeriods } from './capacity.js'
 import { periodName } from './cadence.js'
 import { milestoneGrowth } from './growth.js'
 import { assessMilestone, type ForecastableInputs, type InputNote, type PaceInUse } from './milestoneAssessment.js'
@@ -143,7 +143,7 @@ export function milestoneForecastView(
     warnings: assessment.warnings.map(({ input, message }) => ({ input, message })),
     finishGraph: finishGraph(result, simulationCase),
     paceTrend: paceTrend(inputs, settings),
-    capacity: capacityView(storage, teamId, today, use, period, { open: capacityOpen, ...(effects && { effects }) }),
+    capacity: capacityView(storage, teamId, today, use, period, { open: capacityOpen, ...(effects && { effects }), pace: pacePeriods(inputs, pace, today) }),
     comparison,
     capacityLine: capacityLine(use, period),
   }
@@ -154,6 +154,11 @@ function comparedDate(percent: number, withCapacity: ForecastResult, atUsual: Fo
   const usual = atUsual.percentileDates[percent] ?? null
   const shift = dated === null || usual === null ? null : daysBetween(usual, dated) / periodDays
   return { percent, withCapacity: dated, atUsual: usual, shift }
+}
+
+/** The periods the pace comes from, for the new-usual rule: each typed count's, dated back from today's period. */
+function pacePeriods({ startDate, cadenceDays }: ForecastableInputs, pace: PaceInUse, today: string): PacePeriods {
+  return pace.source === 'range' ? { source: 'range' } : { source: 'counts', starts: typedCountStarts(pace.counts.length, startDate, cadenceDays, today) }
 }
 
 function forecastDate(percent: number, date: string | null, today: string): ForecastDate {
