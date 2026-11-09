@@ -130,6 +130,8 @@ The EM types the team's capacity beside the forecast, as entries: a whole percen
 
 An entry is refused, re-displaying the Milestone forecast screen with it as typed, when its start or end is no date, it ends before it starts (an empty end is the one day it starts), its percentage is no whole number, 0 or more, or it, or the entries it overlaps multiplied, reach above 1000%: the engine's limit, which keeps a typo out of the forecast. An entry above 150% is kept but warned of: the pace comes from a team a fraction of that size, so a pace range may be better.
 
+The EM can edit an entry's dates, percentage and note; an edit is refused for the same reasons as an add. An entry is **past** once its end is before today: it is kept, never deleted, listed under a folded "Past", and touches no factor. Only a past entry's note can be edited, so the record of what happened stays as it was.
+
 #### Growth
 
 *Follows the MVP: the milestone grows by the range of its one ambiguity level, with no measured growth.* Each epic's growth range comes from its ambiguity level. Once at least `minGrowthSamples` growth samples exist, the tool suggests the measured distribution for `medium`. If the EM adopts it, epics marked medium draw from the pooled samples; low and high keep their ranges. Only medium, because the pool describes the team's typical epic, which is what medium means; low and high stay the EM's judgement. The EM can go back to the range at any time. Adopted measured growth is paused while there are fewer than `minGrowthSamples` growth samples, so medium epics grow by the range, and resumes once there are enough again.

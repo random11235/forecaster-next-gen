@@ -145,6 +145,7 @@ describe('typing capacity', () => {
 
     expect(forecast.kind === 'forecast' && forecast.capacity).toEqual({
       entries: [],
+      past: [],
       form: { percent: '', from: '', to: '', onward: false, note: '' },
     })
   })
@@ -216,6 +217,7 @@ describe('a refused capacity entry', () => {
     const shown = !result.saved && result.screen === 'forecast' ? result.view : undefined
     expect(shown?.kind === 'forecast' && shown.capacity).toEqual({
       entries: [],
+      past: [],
       form: { ...typed, onward: false, note: 'Leave' },
       refusal,
     })
@@ -250,3 +252,92 @@ function withoutCapacity(forecast: ReturnType<typeof view>) {
   const { capacity: _, ...rest } = forecast
   return rest
 }
+
+// Editing entries, and Past (#168)
+describe('editing an entry', () => {
+  /** The EM edits entry `id` and saves it: its dates, percentage and note as typed. */
+  function edit(storage: Storage, id: string, percent: string, from: string, to: string, { onward = false, note = '' } = {}) {
+    return submit(storage, { kind: 'editCapacity', id, percent, from, to, onward, note })
+  }
+
+  test('saving new dates, percentage and note changes the forecast, and the forecast screen comes next', () => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage)
+    add(storage, '0', '2026-09-07', '2026-09-11', { note: 'Offsite' })
+    expect(headline(storage)).toBe('2026-09-28')
+
+    expect(edit(storage, '1', '100', '2026-09-14', '2026-09-18', { note: 'Offsite moved' })).toEqual({ saved: true, next: 'forecast' })
+
+    expect(headline(storage)).toBe('2026-09-21')
+    const forecast = view(storage)
+    expect(forecast.kind === 'forecast' && forecast.capacity.entries).toEqual([{ id: 1, from: '2026-09-14', to: '2026-09-18', percent: 100, note: 'Offsite moved' }])
+  })
+
+  test('an edit is refused as an add is, changing nothing and showing the forecast screen with the edit as typed', () => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage)
+    add(storage, '0', '2026-09-07', '2026-09-11', { note: 'Offsite' })
+    const before = view(storage)
+
+    const result = edit(storage, '1', '50', '2026-09-11', '2026-09-07', { note: 'Shorter' })
+
+    const shown = !result.saved && result.screen === 'forecast' ? result.view : undefined
+    expect(shown?.kind === 'forecast' && shown.capacity).toEqual({
+      entries: [{ id: 1, from: '2026-09-07', to: '2026-09-11', percent: 0, note: 'Offsite' }],
+      past: [],
+      form: { percent: '', from: '', to: '', onward: false, note: '' },
+      editing: { id: 1, form: { percent: '50', from: '2026-09-11', to: '2026-09-07', onward: false, note: 'Shorter' }, refusal: 'The end date is before the start.' },
+    })
+    expect(view(storage)).toEqual(before)
+  })
+
+  test('raising an entry does not count its old self as an overlap', () => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage)
+    add(storage, '400', MONDAY, '', { onward: true })
+
+    expect(edit(storage, '1', '1000', MONDAY, '', { onward: true }).saved).toBe(true)
+  })
+})
+
+describe('past entries', () => {
+  /** A Monday before today: the forecast runs from then. */
+  const AUGUST = '2026-08-03'
+
+  test('an entry that ended before today is listed under Past and does not slow the forecast', () => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage)
+    submit(storage, { kind: 'setMilestone', name: 'Launch', startDate: AUGUST, ticketsRemaining: '10' })
+    const before = headline(storage)
+
+    add(storage, '0', AUGUST, '2026-08-07', { note: 'Offsite' })
+    add(storage, '60', '2026-10-05', '', { onward: true })
+
+    expect(headline(storage)).toBe(before)
+    const forecast = view(storage)
+    expect(forecast.kind === 'forecast' && forecast.capacity.past).toEqual([{ id: 1, from: AUGUST, to: '2026-08-07', percent: 0, note: 'Offsite' }])
+    expect(forecast.kind === 'forecast' && forecast.capacity.entries.map(({ id }) => id)).toEqual([2])
+  })
+
+  test('an entry ending today is not past yet', () => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage)
+
+    add(storage, '0', '2026-08-17', TODAY)
+
+    const forecast = view(storage)
+    expect(forecast.kind === 'forecast' && forecast.capacity.past).toEqual([])
+  })
+
+  test('only a past entry’s note can be edited: its dates and percentage stay as they were', () => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage)
+    add(storage, '0', AUGUST, '2026-08-07', { note: 'Offsite' })
+
+    const result = submit(storage, { kind: 'editCapacity', id: '1', percent: '50', from: MONDAY, to: '', onward: true, note: 'Team offsite in Lisbon' })
+
+    expect(result).toEqual({ saved: true, next: 'forecast' })
+    const forecast = view(storage)
+    expect(forecast.kind === 'forecast' && forecast.capacity.past).toEqual([{ id: 1, from: AUGUST, to: '2026-08-07', percent: 0, note: 'Team offsite in Lisbon' }])
+  })
+})

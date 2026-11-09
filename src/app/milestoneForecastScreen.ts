@@ -1,8 +1,9 @@
-import { MAX_CAPACITY_PERCENT, type CapacityEdit, type CapacityEntryView, type CapacityView } from '../forecast/capacity.js'
+import { MAX_CAPACITY_PERCENT, type CapacityEdit, type CapacityEntryView, type CapacityForm, type CapacityView } from '../forecast/capacity.js'
 import { periodName, type PeriodName } from '../forecast/cadence.js'
 import { counted } from '../forecast/counted.js'
 import type { InputNote } from '../forecast/milestoneAssessment.js'
 import type { FinishBar, ForecastDate, MilestoneForecastView } from '../forecast/milestoneForecastView.js'
+import type { CapacityEntry } from '../model/capacity.js'
 import { escapeHtml, formatDate, htmlPage, type PageHeader } from './html.js'
 import { INPUT_LABELS } from './inputsScreen.js'
 import { renderPaceTrend } from './paceTrendGraph.js'
@@ -12,19 +13,15 @@ type Forecast = Extract<MilestoneForecastView, { kind: 'forecast' }>
 /** Reads a submitted form's fields, by the field names this screen gives them; the rules they must meet are checked when it is saved. */
 type FormReader = (body: URLSearchParams) => CapacityEdit
 
+/** A capacity sentence's fields, as the add and edit forms name them. */
+function sentence(body: URLSearchParams): CapacityForm {
+  return { percent: body.get('percent') ?? '', from: body.get('from') ?? '', to: body.get('to') ?? '', onward: body.get('onward') !== null, note: body.get('note') ?? '' }
+}
+
 /** Each form this screen posts, by its action's path, and how its fields are read. */
 export const FORECAST_FORMS: ReadonlyMap<string, FormReader> = new Map<string, FormReader>([
-  [
-    '/capacity/add',
-    (body) => ({
-      kind: 'addCapacity',
-      percent: body.get('percent') ?? '',
-      from: body.get('from') ?? '',
-      to: body.get('to') ?? '',
-      onward: body.get('onward') !== null,
-      note: body.get('note') ?? '',
-    }),
-  ],
+  ['/capacity/add', (body) => ({ kind: 'addCapacity', ...sentence(body) })],
+  ['/capacity/edit', (body) => ({ kind: 'editCapacity', id: body.get('id') ?? '', ...sentence(body) })],
   ['/capacity/remove', (body) => ({ kind: 'removeCapacity', id: body.get('id') ?? '' })],
 ])
 
@@ -176,39 +173,88 @@ function renderPaceSide(view: Forecast): string {
 }
 
 /**
- * The team's capacity, folded under the pace: its entries, earliest first, each with any warning and a way to remove it,
- * and a sentence to type another. Open when a sentence just typed was refused, so why shows beside it.
+ * The team's capacity, folded under the pace: its entries, earliest first, each with any warning and a way to edit or
+ * remove it, a sentence to type another, and the folded Past. Open when a form just submitted was refused, so why
+ * shows beside it.
  */
-function renderCapacity({ entries, form, refusal }: CapacityView, period: PeriodName): string {
-  const listed = entries.length === 0 ? `\n          <p class="note">Every ${period} is at 100%.</p>` : `\n          <ul class="capacity-entries">${entries.map(renderEntry).join('')}\n          </ul>`
+function renderCapacity({ entries, past, form, refusal, editing }: CapacityView, period: PeriodName): string {
+  const listed = entries.length === 0 ? `\n          <p class="note">Every ${period} is at 100%.</p>` : `\n          <ul class="capacity-entries">${entries.map((entry) => renderEntry(entry, editing)).join('')}\n          </ul>`
   const summary = entries.length === 0 ? `none, every ${period} usual` : counted(entries.length, 'entry').replace('entrys', 'entries')
   const error = refusal ? `\n            <p class="error" role="alert">${escapeHtml(refusal)}</p>` : ''
   return `
-        <details class="capacity" id="capacity"${refusal ? ' open' : ''}>
+        <details class="capacity" id="capacity"${refusal || editing ? ' open' : ''}>
           <summary><span class="title">Capacity</span> <span class="summary">${summary}</span></summary>
           <p class="note"><strong>100%</strong> = the team’s usual ${period}, as in the pace.</p>${listed}
           <form method="post" action="/capacity/add#capacity" class="sentence">${error}
-            The team is at <input type="number" name="percent" min="0" max="${MAX_CAPACITY_PERCENT}" step="1" value="${escapeHtml(form.percent)}" aria-label="Capacity, in % of usual" required>%
-            from <input type="date" name="from" value="${escapeHtml(form.from)}" aria-label="From" required>
-            to <input type="date" name="to" value="${escapeHtml(form.to)}" aria-label="To">
-            <label><input type="checkbox" name="onward"${form.onward ? ' checked' : ''}> or onward</label>,
-            for <input type="text" name="note" value="${escapeHtml(form.note)}" placeholder="leave, an incident…" aria-label="Why">.
+            The team is at ${sentenceFields(form)}.
             <button type="submit">Add</button>
           </form>
-          <p class="note">Capacity scales pace in proportion: a 60% ${period} draws 60% of a usual ${period}’s pace. Weekends don’t count; overlapping entries multiply. Past counts aren’t adjusted.</p>
+          <p class="note">Capacity scales pace in proportion: a 60% ${period} draws 60% of a usual ${period}’s pace. Weekends don’t count; overlapping entries multiply. Past counts aren’t adjusted.</p>${renderPast(past, editing)}
         </details>`
 }
 
+/** A capacity sentence's fields after "The team is at" (or "At"), filled with `form`. */
+function sentenceFields(form: CapacityForm): string {
+  return `<input type="number" name="percent" min="0" max="${MAX_CAPACITY_PERCENT}" step="1" value="${escapeHtml(form.percent)}" aria-label="Capacity, in % of usual" required>%
+            from <input type="date" name="from" value="${escapeHtml(form.from)}" aria-label="From" required>
+            to <input type="date" name="to" value="${escapeHtml(form.to)}" aria-label="To">
+            <label><input type="checkbox" name="onward"${form.onward ? ' checked' : ''}> or onward</label>,
+            for <input type="text" name="note" value="${escapeHtml(form.note)}" placeholder="leave, an incident…" aria-label="Why">`
+}
+
 /** An entry as one line: "0% 7 Sep 2026 to 11 Sep 2026 Offsite", "0% on 14 Sep 2026", or "60% from 5 Oct 2026 onward". */
-function renderEntry({ id, from, to, percent, note, warning }: CapacityEntryView): string {
+function entryLine({ from, to, percent, note }: CapacityEntry): string {
   const span = to === undefined ? `from ${formatDate(from)} onward` : to === from ? `on ${formatDate(from)}` : `${formatDate(from)} to ${formatDate(to)}`
   const why = note === '' ? '' : ` <span class="why">${escapeHtml(note)}</span>`
-  const warned = warning === undefined ? '' : `\n              <p class="warning">⚠ ${escapeHtml(warning)}</p>`
+  return `<span><strong>${percent}%</strong> ${span}${why}</span>`
+}
+
+/** An entry the forecast uses: its line, its Edit holding the sentence as saved (or as typed, refused), and Remove. */
+function renderEntry(entry: CapacityEntryView, editing: CapacityView['editing']): string {
+  const refused = editing?.id === entry.id ? editing : undefined
+  const form = refused?.form ?? { percent: String(entry.percent), from: entry.from, to: entry.to ?? '', onward: entry.to === undefined, note: entry.note }
+  const warned = entry.warning === undefined ? '' : `\n              <p class="warning">⚠ ${escapeHtml(entry.warning)}</p>`
   return `
             <li>
-              <span><strong>${percent}%</strong> ${span}${why}</span>
-              <form method="post" action="/capacity/remove#capacity"><input type="hidden" name="id" value="${id}"><button type="submit" class="link">Remove</button></form>${warned}
+              ${entryLine(entry)}
+              ${editFold(entry.id, refused?.refusal, `At ${sentenceFields(form)}.`)}
+              <form method="post" action="/capacity/remove#capacity"><input type="hidden" name="id" value="${entry.id}"><button type="submit" class="link">Remove</button></form>${warned}
             </li>`
+}
+
+/** Entries that have ended, folded: kept, not used by the forecast, each with only its note to edit and no Remove. */
+function renderPast(past: readonly CapacityEntry[], editing: CapacityView['editing']): string {
+  if (past.length === 0) return ''
+  const open = past.some(({ id }) => id === editing?.id)
+  const lines = past.map((entry) => {
+    const refused = editing?.id === entry.id ? editing : undefined
+    const note = refused?.form.note ?? entry.note
+    return `
+              <li>
+                ${entryLine(entry)}
+                ${editFold(entry.id, refused?.refusal, `Past, so only the note can change.
+            <label>Note <input type="text" name="note" value="${escapeHtml(note)}" aria-label="Why"></label>`)}
+              </li>`
+  })
+  return `
+          <details class="capacity-past"${open ? ' open' : ''}>
+            <summary>Past (${past.length}) · kept, not used by the forecast</summary>
+            <ul class="capacity-entries">${lines.join('')}
+            </ul>
+          </details>`
+}
+
+/** An entry's Edit, folded: `fields` to change, with Save, and Cancel back to the forecast. Open, saying why, when refused. */
+function editFold(id: number, refusal: string | undefined, fields: string): string {
+  const error = refusal === undefined ? '' : `\n            <p class="error" role="alert">${escapeHtml(refusal)}</p>`
+  return `<details class="edit"${refusal === undefined ? '' : ' open'}>
+            <summary class="link">Edit</summary>
+            <form method="post" action="/capacity/edit#capacity" class="sentence">${error}
+            <input type="hidden" name="id" value="${id}">
+            ${fields}
+            <span class="actions"><button type="submit">Save</button> <a href="/#capacity">Cancel</a></span>
+            </form>
+          </details>`
 }
 
 /** The pace the dates come from: "4–8 tickets per week (range)", or "typed counts, 6 sprints". */
