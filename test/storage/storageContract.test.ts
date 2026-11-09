@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
 import type { AmbiguityRanges } from '../../src/model/ambiguity.js'
+import type { CapacityEntry } from '../../src/model/capacity.js'
 import type { MilestoneInputs } from '../../src/model/milestoneInputs.js'
 import type { Team } from '../../src/model/team.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
@@ -40,6 +41,10 @@ interface Opened {
 }
 
 /** Browser storage as `localStorage` keeps it: strings by key. */
+const HOLIDAY: CapacityEntry = { id: 1, from: '2026-09-14', to: '2026-09-14', percent: 0, note: 'Holiday' }
+/** One entry running onward, saved before an earlier one: kept in the order saved. */
+const ENTRIES: CapacityEntry[] = [{ id: 2, from: '2026-10-05', to: undefined, percent: 60, note: '' }, HOLIDAY]
+
 function memoryStore(): KeyValueStore {
   const items = new Map<string, string>()
   return { getItem: (key) => items.get(key) ?? null, setItem: (key, value) => void items.set(key, value) }
@@ -131,17 +136,31 @@ describe.each(kinds)('%s storage', (_, opened) => {
     expect(storage.ambiguityRanges('team')).toEqual(RANGES)
   })
 
+  test("keeps the team's capacity entries, in the order saved, replacing them when saved again", () => {
+    const { storage } = opened()
+    storage.saveTeam(TEAM)
+
+    expect(storage.capacityEntries('team')).toEqual([])
+    storage.saveCapacityEntries('team', [HOLIDAY])
+    storage.saveCapacityEntries('team', ENTRIES)
+
+    expect(storage.capacityEntries('team')).toEqual(ENTRIES)
+    expect(storage.capacityEntries('another')).toEqual([])
+  })
+
   test('opened again, has everything saved before', () => {
     const { storage, reopen } = opened()
     storage.saveTeam(TEAM)
     storage.saveMilestoneInputs(LAUNCH)
     storage.saveAmbiguityRanges(RANGES)
+    storage.saveCapacityEntries('team', ENTRIES)
 
     const again = reopen()
 
     expect(again.teams()).toEqual([TEAM])
     expect(again.milestoneInputs('team')).toEqual(LAUNCH)
     expect(again.ambiguityRanges('team')).toEqual(RANGES)
+    expect(again.capacityEntries('team')).toEqual(ENTRIES)
   })
 })
 

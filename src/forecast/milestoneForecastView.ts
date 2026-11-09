@@ -1,6 +1,8 @@
 import { periodEndDate, simulateCase, ENGINE_VERSION, type ForecastResult, type SimulationCase } from '../engine/index.js'
 import type { Ambiguity, GrowthRange } from '../model/ambiguity.js'
 import type { Storage } from '../storage/storage.js'
+import type { CapacityEntry } from '../model/capacity.js'
+import { capacityFactors, capacityView, type CapacityView } from './capacity.js'
 import { milestoneGrowth } from './growth.js'
 import { assessMilestone, type ForecastableInputs, type InputNote, type PaceInUse } from './milestoneAssessment.js'
 import { paceTrend, type PaceTrend } from './paceTrend.js'
@@ -55,6 +57,8 @@ export type MilestoneForecastView =
       finishGraph: FinishBar[]
       /** The typed counts in use and their fitted line, shown as warnings are; none with the range. */
       paceTrend: PaceTrend | undefined
+      /** The team's capacity, beside the pace; each period's pace is scaled by it. */
+      capacity: CapacityView
     }
 
 /** Seam B: the Milestone forecast screen for the team's milestone, forecast from its start date, on `today`. */
@@ -66,7 +70,7 @@ export function milestoneForecastView(storage: Storage, teamId: string, settings
 
   const { inputs, pace } = assessment
   const growth = milestoneGrowth(storage, inputs)
-  const simulationCase = milestoneCase(inputs, pace, growth, settings)
+  const simulationCase = milestoneCase(inputs, pace, growth, settings, storage.capacityEntries(teamId))
   const result = simulateCase(simulationCase)
   const { periodDays, maxPeriods, percentiles } = simulationCase
   return {
@@ -83,6 +87,7 @@ export function milestoneForecastView(storage: Storage, teamId: string, settings
     warnings: assessment.warnings.map(({ input, message }) => ({ input, message })),
     finishGraph: finishGraph(result, simulationCase),
     paceTrend: paceTrend(inputs, settings),
+    capacity: capacityView(storage, teamId),
   }
 }
 
@@ -96,8 +101,16 @@ function forecastDate(percent: number, date: string | null, today: string): Fore
  * its cadence. With 0 tickets the engine would draw a size, so the size range is pinned to 0 and the forecast finishes
  * on the start date.
  */
-function milestoneCase(inputs: ForecastableInputs, pace: PaceInUse, growth: GrowthRange, settings: ForecastSettings): SimulationCase {
+function milestoneCase(
+  inputs: ForecastableInputs,
+  pace: PaceInUse,
+  growth: GrowthRange,
+  settings: ForecastSettings,
+  capacity: readonly CapacityEntry[],
+): SimulationCase {
   const { startDate, ticketsRemaining } = inputs
+  // with no entries, or none touching the forecast's periods, the case is the MVP's, hash and all
+  const factors = capacityFactors(capacity, startDate, inputs.cadenceDays, settings.maxPeriods)
   return {
     engineVersion: ENGINE_VERSION,
     seed: settings.seed,
@@ -121,6 +134,7 @@ function milestoneCase(inputs: ForecastableInputs, pace: PaceInUse, growth: Grow
     throughputSamples: pace.source === 'counts' ? pace.counts : { low: pace.low, high: pace.high },
     epicSizeSamples: { low: 0, high: 0 },
     percentiles: settings.percentiles,
+    ...(factors && { capacity: factors }),
   }
 }
 

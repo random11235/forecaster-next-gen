@@ -116,6 +116,34 @@ const STYLE = `
     ul.dates .percent { font-family: var(--mono); font-weight: 600; min-width: 3.5em; }
     ul.dates .date { font-family: var(--mono); font-weight: 600; }
 
+    /* Milestone forecast: the forecast, with its pace and capacity beside it. */
+    .forecast-layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 28px; align-items: start; }
+    .forecast-main { display: flex; flex-direction: column; gap: 40px; min-width: 0; }
+    .side { border-left: 1px solid var(--hairline); padding-left: 20px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    .side > .heading { display: flex; justify-content: space-between; align-items: baseline; }
+    .side h2 { margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+    .side > .heading a { font-size: 13px; }
+    details.capacity { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--hairline); padding-top: 10px; }
+    details.capacity > summary { cursor: pointer; font-size: 13px; }
+    details.capacity > * + * { margin-top: 10px; }
+    details.capacity .title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+    details.capacity .summary, details.capacity .why { color: var(--faint); }
+    ul.capacity-entries { list-style: none; margin: 0; padding: 0; }
+    ul.capacity-entries li {
+      display: flex; flex-wrap: wrap; gap: 4px 8px; justify-content: space-between; align-items: baseline;
+      border-bottom: 1px solid var(--hairline); padding: 4px 0; font-size: 14px;
+    }
+    ul.capacity-entries li > span { flex: 1 1 0; min-width: 0; }
+    ul.capacity-entries form { margin: 0; }
+    ul.capacity-entries p.warning { flex-basis: 100%; font-size: 13px; }
+    form.sentence { margin: 0; font-size: 14px; line-height: 2.2; }
+    form.sentence input[type=number], form.sentence input[type=date], form.sentence input[type=text] { font-size: 13px; padding: 2px 0; }
+    form.sentence input[type=number] { width: 56px; text-align: center; }
+    form.sentence input[type=text] { width: 140px; }
+    form.sentence label { white-space: nowrap; }
+    form.sentence p.error { font-size: 13px; line-height: 1.5; }
+    button.link { min-height: 0; padding: 0; border: 0; background: none; color: var(--link); text-decoration: underline; font-size: 13px; }
+
     /* Milestone forecast: the finish graph. Markers stand on rows above the bars and run down through them. */
     figure.finish-graph { margin: 0; display: flex; flex-direction: column; gap: 6px; }
     .finish-graph .plot { position: relative; padding-top: 92px; }
@@ -238,6 +266,8 @@ const STYLE = `
     @media (max-width: 900px) {
       .pictures.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .problem { grid-template-columns: minmax(0, 1fr); }
+      .forecast-layout { grid-template-columns: minmax(0, 1fr); }
+      .side { border-left: 0; padding-left: 0; border-top: 1px solid var(--ink); padding-top: 12px; }
     }
 
     @media (max-width: 760px) {
