@@ -48,6 +48,9 @@ export interface Choice {
 
 export type ChoicesResult = { ok: true; choices: Choice[] } | Failed
 
+/** How a connector reaches its tracker: `fetch`, or Seam C's replay of recorded responses. */
+export type Transport = (url: string, init?: RequestInit) => Promise<Response>
+
 export interface Connector {
   milestoneChoices(): Promise<ChoicesResult>
   /** The tickets the query matches that are open or finished at or after `finishedSince`, a UTC instant. */
