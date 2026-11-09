@@ -175,6 +175,13 @@ CREATE TABLE capacity_entries (
   PRIMARY KEY (team_id, id)
 );
 `,
+  // 10: whether each team's capacity is switched on (#165). A team with no row has it on, as every team in a file from before does.
+  `
+CREATE TABLE capacity_switch (
+  team_id TEXT PRIMARY KEY REFERENCES teams(id),
+  capacity_on INTEGER NOT NULL
+);
+`,
 ]
 
 type Row = Record<string, SQLInputValue>
@@ -225,6 +232,10 @@ export function openSqliteStorage(file: string): Storage {
     'INSERT INTO capacity_entries (team_id, id, from_date, to_date, percent, note) VALUES (?, ?, ?, ?, ?, ?)',
   )
   const selectCapacityEntries = db.prepare('SELECT * FROM capacity_entries WHERE team_id = ? ORDER BY rowid')
+  const upsertCapacitySwitch = db.prepare(
+    'INSERT INTO capacity_switch (team_id, capacity_on) VALUES (?, ?) ON CONFLICT (team_id) DO UPDATE SET capacity_on = excluded.capacity_on',
+  )
+  const selectCapacitySwitch = db.prepare('SELECT capacity_on FROM capacity_switch WHERE team_id = ?')
 
   return {
     isEmpty() {
@@ -325,6 +336,15 @@ export function openSqliteStorage(file: string): Storage {
             note: String(row.note),
           }) satisfies CapacityEntry,
       )
+    },
+
+    saveCapacityOn(teamId, on) {
+      upsertCapacitySwitch.run(teamId, on ? 1 : 0)
+    },
+
+    capacityOn(teamId) {
+      const row = selectCapacitySwitch.get(teamId)
+      return row === undefined || Number(row.capacity_on) === 1
     },
 
     close() {

@@ -1,8 +1,8 @@
-import { MAX_CAPACITY_PERCENT, type CapacityEdit, type CapacityEntryView, type CapacityForm, type CapacityView } from '../forecast/capacity.js'
+import { MAX_CAPACITY_PERCENT, shifted, type CapacityEdit, type CapacityEntryView, type CapacityForm, type CapacityView } from '../forecast/capacity.js'
 import { periodName, type PeriodName } from '../forecast/cadence.js'
 import { counted } from '../forecast/counted.js'
 import type { InputNote } from '../forecast/milestoneAssessment.js'
-import type { FinishBar, ForecastDate, MilestoneForecastView } from '../forecast/milestoneForecastView.js'
+import type { ComparedDate, FinishBar, ForecastDate, MilestoneForecastView } from '../forecast/milestoneForecastView.js'
 import type { CapacityEntry } from '../model/capacity.js'
 import { escapeHtml, formatDate, htmlPage, type PageHeader } from './html.js'
 import { INPUT_LABELS } from './inputsScreen.js'
@@ -23,6 +23,7 @@ export const FORECAST_FORMS: ReadonlyMap<string, FormReader> = new Map<string, F
   ['/capacity/add', (body) => ({ kind: 'addCapacity', ...sentence(body) })],
   ['/capacity/edit', (body) => ({ kind: 'editCapacity', id: body.get('id') ?? '', ...sentence(body) })],
   ['/capacity/remove', (body) => ({ kind: 'removeCapacity', id: body.get('id') ?? '' })],
+  ['/capacity/switch', (body) => ({ kind: 'switchCapacity', on: body.get('on') === 'true' })],
 ])
 
 /** The Milestone forecast screen (EM home): the milestone's forecast from its start date, what to fix, or its empty state. */
@@ -53,8 +54,16 @@ function problemsHeader(name: string, problems: number): PageHeader {
   }
 }
 
-/** The headline answers the screen's question: from the start date, the date it is 85% confident of finishing by. */
+/**
+ * The headline answers the screen's question: from the start date, the date it is 85% confident of finishing by. A
+ * quiet line under it says whether that date includes capacity, and what capacity does to it.
+ */
 function forecastHeader(view: Forecast): PageHeader {
+  const quiet = view.capacityLine === undefined ? {} : { lede: `<span class="quiet">${escapeHtml(view.capacityLine)}</span>` }
+  return { ...headline(view), ...quiet }
+}
+
+function headline(view: Forecast): PageHeader {
   const context = `${escapeHtml(view.name)} · ${counted(view.ticketsRemaining, 'ticket')} remaining`
   const starting = `Starting ${formatDate(view.startDate)}`
   const headline = view.dates.find(({ percent }) => percent === view.headlinePercent)
@@ -65,6 +74,15 @@ function forecastHeader(view: Forecast): PageHeader {
 }
 
 function renderForecast(view: Forecast): string {
+  const dates = view.comparison ? renderComparison(view, view.comparison) : renderDates(view)
+  return `    <section class="brief" aria-label="Forecast">
+      <div class="heading"><h2>When it could finish</h2><a href="/inputs">Edit</a></div>
+${dates}
+      <p class="note">Ambiguity: ${view.ambiguity.level}, growing ${view.ambiguity.low}–${view.ambiguity.high}×</p>
+    </section>${renderFinishGraph(view)}`
+}
+
+function renderDates(view: Forecast): string {
   const dates = view.dates
     .map(({ percent, date, alreadyPast }) =>
       date === null
@@ -72,13 +90,27 @@ function renderForecast(view: Forecast): string {
         : `          <li><span class="percent">${percent}%</span> confident by <span class="date">${formatDate(date)}</span>${pastMark({ alreadyPast })}</li>`,
     )
     .join('\n')
-  return `    <section class="brief" aria-label="Forecast">
-      <div class="heading"><h2>When it could finish</h2><a href="/inputs">Edit</a></div>
-      <ul class="dates">
+  return `      <ul class="dates">
 ${dates}
-      </ul>
-      <p class="note">Ambiguity: ${view.ambiguity.level}, growing ${view.ambiguity.low}–${view.ambiguity.high}×</p>
-    </section>${renderFinishGraph(view)}`
+      </ul>`
+}
+
+/** With capacity in use: each date with capacity, at usual capacity, and how far capacity moves it. */
+function renderComparison(view: Forecast, comparison: readonly ComparedDate[]): string {
+  const period = periodName(view.cadenceDays)
+  const date = (date: string | null): string => (date === null ? `later than ${formatDate(view.horizonDate)}` : formatDate(date))
+  const rows = comparison
+    .map(({ percent, withCapacity, atUsual, shift }) => {
+      const moved = shift === null ? '' : `<span class="${shift > 0 ? 'later' : shift < 0 ? 'sooner' : ''}">${shifted(shift, period)}</span>`
+      return `          <tr><td><span class="percent">${percent}%</span> confident by</td><td class="date">${date(withCapacity)}</td><td>${date(atUsual)}</td><td>${moved}</td></tr>`
+    })
+    .join('\n')
+  return `      <table class="compared">
+        <thead><tr><th></th><th>With capacity</th><th>At usual capacity</th><th></th></tr></thead>
+        <tbody>
+${rows}
+        </tbody>
+      </table>`
 }
 
 /**
@@ -178,13 +210,12 @@ function renderPaceSide(view: Forecast): string {
  * remove it, a sentence to type another, and the folded Past. Open when a form just submitted was refused, so why
  * shows beside it.
  */
-function renderCapacity({ entries, past, form, refusal, editing }: CapacityView, period: PeriodName): string {
+function renderCapacity({ on, summary, entries, past, form, refusal, editing }: CapacityView, period: PeriodName): string {
   const listed = entries.length === 0 ? `\n          <p class="note">Every ${period} is at 100%.</p>` : `\n          <ul class="capacity-entries">${entries.map((entry) => renderEntry(entry, editing)).join('')}\n          </ul>`
-  const summary = entries.length === 0 ? `none, every ${period} usual` : counted(entries.length, 'entry').replace('entrys', 'entries')
   const error = refusal ? `\n            <p class="error" role="alert">${escapeHtml(refusal)}</p>` : ''
   return `
         <details class="capacity" id="capacity"${refusal || editing ? ' open' : ''}>
-          <summary><span class="title">Capacity</span> <span class="summary">${summary}</span></summary>
+          <summary><span class="title">Capacity</span> <span class="summary">${summary}</span></summary>${renderSwitch(on)}
           <p class="note"><strong>100%</strong> = the team’s usual ${period}, as in the pace.</p>${listed}
           <form method="post" action="/capacity/add#capacity" class="sentence">${error}
             The team is at ${sentenceFields(form)}.
@@ -201,6 +232,13 @@ function sentenceFields(form: CapacityForm): string {
             to <input type="date" name="to" value="${escapeHtml(form.to)}" aria-label="To">
             <label><input type="checkbox" name="onward"${form.onward ? ' checked' : ''}> or onward</label>,
             for <input type="text" name="note" value="${escapeHtml(form.note)}" placeholder="leave, an incident…" aria-label="Why">`
+}
+
+/** The switch: off, the forecast uses pace alone, and the entries are kept for the next milestone. */
+function renderSwitch(on: boolean): string {
+  const off = on ? '' : '\n          <p class="note">Off: the forecast uses pace alone. Entries are kept, and still count for the next milestone.</p>'
+  return `
+          <form method="post" action="/capacity/switch#capacity"><input type="hidden" name="on" value="${!on}"><button type="submit" class="switch" role="switch" aria-checked="${on}">Use capacity in this forecast</button></form>${off}`
 }
 
 /** An entry as one line: "0% 7 Sep 2026 to 11 Sep 2026 Offsite", "0% on 14 Sep 2026", or "60% from 5 Oct 2026 onward". */

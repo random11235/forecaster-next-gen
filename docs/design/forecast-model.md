@@ -130,6 +130,8 @@ The EM types the team's capacity beside the forecast, as entries: a whole percen
 
 An entry is refused, re-displaying the Milestone forecast screen with it as typed, when its start or end is no date, it ends before it starts (an empty end is the one day it starts), its percentage is no whole number, 0 or more, or it, or the entries it overlaps multiplied, reach above 1000%: the engine's limit, which keeps a typo out of the forecast. An entry above 150% is kept but warned of: the pace comes from a team a fraction of that size, so a pace range may be better.
 
+Capacity can be switched off for the team's forecasts (on until switched, stored per team); off, the forecast is the one without capacity and the entries are kept. When capacity is on and gives factors, `milestoneForecastView` runs the forecast twice from the same seed, with the factors and at usual capacity, so the two differ by capacity alone. The headline and the dates are those with capacity; `comparison` gives the 50%, 85% and 95% dates both ways and the shift between them in periods. The quiet line under the headline and the folded section's summary say how far capacity moves the 85% date, or that it is switched off.
+
 The EM can edit an entry's dates, percentage and note; an edit is refused for the same reasons as an add. An entry is **past** once its end is before today: it is kept, never deleted, listed under a folded "Past", and touches no factor. Only a past entry's note can be edited, so the record of what happened stays as it was.
 
 #### Growth

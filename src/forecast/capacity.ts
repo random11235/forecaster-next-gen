@@ -1,6 +1,8 @@
 import type { CapacityEntry } from '../model/capacity.js'
 import type { Storage } from '../storage/storage.js'
+import type { PeriodName } from './cadence.js'
 import { daysBetween, isCalendarDate } from './calendarDate.js'
+import { counted } from './counted.js'
 import { refuse, type EditResult, type Refusal } from './editResult.js'
 
 /** Far above any real team's growth, as the engine's own limit: keeps typos like 5000% out of the forecast. */
@@ -16,6 +18,8 @@ export type CapacityEdit =
   | { kind: 'removeCapacity'; id: string }
   /** Save on entry `id`'s edit form, the same sentence as typed. A past entry keeps all but its note. */
   | ({ kind: 'editCapacity'; id: string } & CapacityForm)
+  /** "Use capacity in this forecast": off keeps the entries, which still count for the next milestone. */
+  | { kind: 'switchCapacity'; on: boolean }
 
 /** The capacity form's sentence, as saved (blank) or as typed when refused. */
 export interface CapacityForm {
@@ -31,8 +35,18 @@ export interface CapacityEntryView extends CapacityEntry {
   warning?: string
 }
 
+/**
+ * What capacity does to this forecast: nothing, as no entry touches its periods; switched off, its entries kept; or in
+ * use, moving the 85% date by `shift` periods (later when positive), null when either date is later than the horizon.
+ */
+export type CapacityUse = { kind: 'unused' } | { kind: 'off' } | { kind: 'inUse'; shift: number | null }
+
 /** What the Milestone forecast screen's Capacity section shows. */
 export interface CapacityView {
+  /** Whether the forecast uses capacity; on until the EM switches it off. */
+  on: boolean
+  /** The folded section's line: "none, every week usual", or "2 entries · 85% date 2 weeks later". */
+  summary: string
   /** The team's entries the forecast uses, earliest first. */
   entries: CapacityEntryView[]
   /** Entries that have ended: kept, not used by the forecast; only their note can change. Earliest first. */
@@ -47,7 +61,7 @@ export interface CapacityView {
 export const BLANK_CAPACITY_FORM: CapacityForm = { percent: '', from: '', to: '', onward: false, note: '' }
 
 /** Seam B, behind `milestoneForecastView`: the team's capacity on `today` as the section shows it, its form blank. */
-export function capacityView(storage: Storage, teamId: string, today: string): CapacityView {
+export function capacityView(storage: Storage, teamId: string, today: string, use: CapacityUse, period: PeriodName): CapacityView {
   const all = sorted(storage.capacityEntries(teamId))
   const entries = all
     .filter((entry) => !isPast(entry, today))
@@ -55,7 +69,8 @@ export function capacityView(storage: Storage, teamId: string, today: string): C
       const warning = bigTeamWarning(entry.percent)
       return warning === undefined ? entry : { ...entry, warning }
     })
-  return { entries, past: all.filter((entry) => isPast(entry, today)), form: BLANK_CAPACITY_FORM }
+  const past = all.filter((entry) => isPast(entry, today))
+  return { on: storage.capacityOn(teamId), summary: capacitySummary(entries.length, use, period), entries, past, form: BLANK_CAPACITY_FORM }
 }
 
 /** The team's entries the forecast uses on `today`: those not past. */
@@ -69,6 +84,34 @@ function isPast({ to }: CapacityEntry, today: string): boolean {
   return to !== undefined && to < today
 }
 
+function capacitySummary(entries: number, use: CapacityUse, period: PeriodName): string {
+  if (entries === 0) return `none, every ${period} usual`
+  const listed = counted(entries, 'entry', 'entries')
+  if (use.kind === 'off') return `off · ${listed}`
+  return use.kind === 'inUse' && use.shift ? `${listed} · 85% date ${shifted(use.shift, period)}` : listed
+}
+
+/**
+ * The quiet line under the headline, saying the headline date includes capacity and what that does to it; none when
+ * no capacity touches the forecast.
+ */
+export function capacityLine(use: CapacityUse, period: PeriodName): string | undefined {
+  switch (use.kind) {
+    case 'unused':
+      return undefined
+    case 'off':
+      return 'Capacity is switched off for this forecast; its entries are kept.'
+    case 'inUse':
+      if (use.shift === null) return 'Includes capacity.'
+      return use.shift === 0 ? 'Includes capacity, which doesn’t move the 85% date.' : `Includes capacity, which moves the 85% date ${shifted(use.shift, period)}.`
+  }
+}
+
+/** A shift in periods as words: "2 weeks later", "1 sprint sooner", "same week". */
+export function shifted(shift: number, period: PeriodName): string {
+  return shift === 0 ? `same ${period}` : `${counted(Math.abs(shift), period)} ${shift > 0 ? 'later' : 'sooner'}`
+}
+
 /** An entry far above usual: the pace was measured on a team a fraction of that size. */
 function bigTeamWarning(percent: number): string | undefined {
   if (percent <= WARN_ABOVE_PERCENT) return undefined
@@ -77,10 +120,14 @@ function bigTeamWarning(percent: number): string | undefined {
 }
 
 /**
- * Seam B, through `submitInputs`: adds, edits or removes a capacity entry on `today`. An edit is checked as an add is,
- * but a past entry's edit changes only its note. A refused edit changes nothing and says why.
+ * Seam B, through `submitInputs`: adds, edits or removes a capacity entry on `today`, or switches capacity. An edit is
+ * checked as an add is, but a past entry's edit changes only its note. A refused edit changes nothing and says why.
  */
 export function editCapacity(storage: Storage, teamId: string, today: string, edit: CapacityEdit): EditResult {
+  if (edit.kind === 'switchCapacity') {
+    storage.saveCapacityOn(teamId, edit.on)
+    return { ok: true }
+  }
   const entries = storage.capacityEntries(teamId)
   if (edit.kind === 'removeCapacity') {
     storage.saveCapacityEntries(teamId, entries.filter(({ id }) => String(id) !== edit.id.trim()))

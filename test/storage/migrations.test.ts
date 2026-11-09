@@ -473,6 +473,33 @@ describe('a data file from schema version 8, before capacity', () => {
   })
 })
 
+/** Version 9's tables: version 8's, plus capacity entries as #164 shipped them. Kept verbatim: it is a past release. */
+const VERSION_9_SCHEMA = `${VERSION_8_SCHEMA}
+CREATE TABLE capacity_entries (
+  team_id TEXT NOT NULL REFERENCES teams(id),
+  id INTEGER NOT NULL,
+  from_date TEXT NOT NULL,
+  to_date TEXT,
+  percent INTEGER NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (team_id, id)
+);
+INSERT INTO capacity_entries (team_id, id, from_date, to_date, percent, note) VALUES ('${TEAM}', 1, '2026-09-07', '2026-09-07', 0, 'Holiday');
+`
+
+describe('a data file from schema version 9, before the capacity switch', () => {
+  test('keeps its capacity entries, has capacity on, and takes the switch, which survives reopening', () => {
+    const file = writeFile('v9.db', VERSION_9_SCHEMA, 9)
+    const storage = open(file)
+    expect(storage.capacityEntries(TEAM)).toEqual([{ id: 1, from: '2026-09-07', to: '2026-09-07', percent: 0, note: 'Holiday' }])
+    expect(storage.capacityOn(TEAM)).toBe(true)
+
+    storage.saveCapacityOn(TEAM, false)
+
+    expect(open(file).capacityOn(TEAM)).toBe(false)
+  })
+})
+
 describe('a data file from a newer release', () => {
   test('refuses to open, says why, and leaves the file as it was', () => {
     const file = writeFile('newer.db', 'CREATE TABLE from_the_future (id TEXT);', 999)
