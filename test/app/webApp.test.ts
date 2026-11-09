@@ -70,6 +70,7 @@ describe('web app', () => {
     app.show(post('/inputs/pace', { low: '5', high: '10' }))
 
     expect(app.show(post('/capacity/add', { percent: '0', from: '2026-11-02', to: '2026-11-06', note: 'Offsite' }))).toMatchObject({ path: '/', status: 200 })
+    expect(app.show({ method: 'GET', path: '/' }).html).toContain('<span class="capacity">0%</span>')
     const refused = app.show(post('/capacity/add', { percent: 'half', from: '2026-11-09', to: '' }))
 
     expect(refused).toMatchObject({ path: '/', status: 400 })

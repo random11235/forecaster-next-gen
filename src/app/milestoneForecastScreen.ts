@@ -85,7 +85,7 @@ ${dates}
  * When the simulations finish: a bar per period, its height the share of simulations (trials) finishing then, with a
  * marker at each confidence date and the headline's stressed. Each bar carries its date and shares, and shows them as
  * text on hover or keyboard focus. A marker per distinct date sits on its own row, its label clear of the other markers
- * (`finishMarkers`).
+ * (`finishMarkers`). A period whose capacity isn't usual is shaded and labelled with its percentage.
  */
 function renderFinishGraph(view: Forecast): string {
   const bars = view.finishGraph
@@ -95,9 +95,10 @@ function renderFinishGraph(view: Forecast): string {
   const columns = bars
     .map(
       (bar, at) =>
-        `          <div class="bar${edge(percentOf(at + 0.5, bars.length))}" tabindex="0" data-date="${bar.date}" data-share="${bar.share}" data-finished-by="${bar.finishedBy}"><span class="fill" style="height: ${percentOf(bar.share, tallest)}%"></span><span class="tip">${barText(bar, view.cadenceDays)}</span></div>`,
+        `          <div class="bar${edge(percentOf(at + 0.5, bars.length))}${changed(bar) ? ' changed' : ''}" tabindex="0" data-date="${bar.date}" data-share="${bar.share}" data-finished-by="${bar.finishedBy}">${capacityLabel(bar)}<span class="fill" style="height: ${percentOf(bar.share, tallest)}%"></span><span class="tip">${barText(bar, view.cadenceDays)}</span></div>`,
     )
     .join('\n')
+  const shaded = bars.some(changed) ? ` Shaded ${periodName(view.cadenceDays)}s: capacity changes, at the % shown.` : ''
   const markers = finishMarkers(view)
     .map(({ percents, date, left, row, runsLeft }) => {
       const stressed = percents.includes(view.headlinePercent) ? ' headline' : ''
@@ -107,7 +108,7 @@ function renderFinishGraph(view: Forecast): string {
     .join('\n')
   return `
     <section class="brief" aria-label="Finish graph">
-      <div class="heading"><h2>When the simulations finish</h2></div>
+      <div class="heading"><h2>${byPeriod(view.cadenceDays)}</h2></div>
       <figure class="finish-graph" aria-label="When the simulations finish, by ${periodName(view.cadenceDays)}">
         <div class="plot">
 ${markers}
@@ -116,7 +117,7 @@ ${columns}
           </div>
         </div>
         <div class="axis"><span>${formatDate(bars[0]!.date)}</span><span>${formatDate(bars.at(-1)!.date)}</span></div>
-        <figcaption class="note">Share of simulations finishing each ${periodName(view.cadenceDays)}, from the start date. The ${view.headlinePercent}% date is the headline.</figcaption>
+        <figcaption class="note">Share of simulations finishing each ${periodName(view.cadenceDays)}, from the start date. The ${view.headlinePercent}% date is the headline.${shaded}</figcaption>
       </figure>
     </section>`
 }
@@ -263,10 +264,31 @@ function paceUsed({ pace, cadenceDays }: Forecast): string {
   return pace.source === 'counts' ? `typed counts, ${counted(pace.counts.length, period)}` : `${pace.low}–${pace.high} tickets per ${period} (range)`
 }
 
-/** A bar's hover text, such as "1 Dec 2026: 92% chance of completing by the end of this week, 13% of simulations are completed within." */
-function barText({ date, share, finishedBy }: FinishBar, cadenceDays: number): string {
+/**
+ * A bar's hover text, such as "1 Dec 2026: 92% chance of completing by the end of this week, 13% of simulations are
+ * completed within.", followed by " At 80% capacity." when its capacity isn't usual.
+ */
+function barText(bar: FinishBar, cadenceDays: number): string {
+  const { date, share, finishedBy } = bar
   const period = periodName(cadenceDays)
-  return `${formatDate(date)}: ${Math.round(finishedBy * 100)}% chance of completing by the end of this ${period}, ${percentText(share)} of simulations are completed within.`
+  const capacity = changed(bar) ? ` At ${Math.round(bar.capacity)}% capacity.` : ''
+  return `${formatDate(date)}: ${Math.round(finishedBy * 100)}% chance of completing by the end of this ${period}, ${percentText(share)} of simulations are completed within.${capacity}`
+}
+
+/** The finish graph's heading: "Week by week", or "Sprint by sprint". */
+function byPeriod(cadenceDays: number): string {
+  const period = periodName(cadenceDays)
+  return `${period[0]!.toUpperCase()}${period.slice(1)} by ${period}`
+}
+
+/** Whether capacity changes this bar's period from the team's usual. */
+function changed({ capacity }: FinishBar): boolean {
+  return capacity !== 100
+}
+
+/** A changed period's capacity, labelled above its bar. */
+function capacityLabel(bar: FinishBar): string {
+  return changed(bar) ? `<span class="capacity">${Math.round(bar.capacity)}%</span>` : ''
 }
 
 /** A share as a whole percent, or "under 1%" for a share that rounds to 0 but holds some simulations. */
