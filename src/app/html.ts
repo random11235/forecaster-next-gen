@@ -123,6 +123,16 @@ const STYLE = `
     .side > .heading { display: flex; justify-content: space-between; align-items: baseline; }
     .side h2 { margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
     .side > .heading a { font-size: 13px; }
+    .lede .quiet { font-size: 14px; color: var(--faint); }
+    table.compared { border-collapse: collapse; font-size: 14px; }
+    table.compared th { padding: 0 20px 6px 0; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--faint); }
+    table.compared td { padding: 6px 20px 6px 0; border-top: 1px solid var(--hairline); font-variant-numeric: tabular-nums; }
+    table.compared td.date { font-weight: 600; }
+    table.compared .later { color: var(--risk); }
+    table.compared .sooner { color: var(--good); }
+    button.switch { display: inline-flex; align-items: center; gap: 8px; padding: 0; border: 0; background: none; font: inherit; font-size: 13px; color: inherit; cursor: pointer; min-height: 0; }
+    button.switch::before { content: ''; flex: none; width: 28px; height: 16px; border-radius: 8px; background: radial-gradient(circle 6px at 8px 50%, var(--page) 98%, transparent 100%), var(--border); }
+    button.switch[aria-checked="true"]::before { background: radial-gradient(circle 6px at 20px 50%, var(--page) 98%, transparent 100%), var(--good); }
     details.capacity { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--hairline); padding-top: 10px; }
     details.capacity > summary { cursor: pointer; font-size: 13px; }
     details.capacity > * + * { margin-top: 10px; }

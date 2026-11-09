@@ -1002,6 +1002,45 @@ describe('Milestone forecast screen: capacity', () => {
     expect(screen).toContain('Starting 1 Sep 2026: 85% confident of finishing by 1 Dec 2026')
   })
 
+  test('with capacity in use, the dates are compared with usual capacity, and the headline says it includes capacity', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+    const usual = dateAt(text(await page('/')), 85)
+
+    await addCapacity('0', '2026-09-07', '2026-09-11', 'Offsite')
+
+    const html = await page('/')
+    expect(html).toContain('<th>With capacity</th><th>At usual capacity</th>')
+    const screen = text(html)
+    expect(screen).toMatch(/: 85% confident of finishing by \d+ \w+ 2026 Includes capacity, which moves the 85% date 1 week later\./)
+    expect(screen).toMatch(new RegExp(`85% confident by \\d+ \\w+ 2026 ${usual} 1 week later`))
+    expect(screen).toContain('Capacity 1 entry · 85% date 1 week later')
+  })
+
+  test('switched off, the forecast is without capacity and says its entries are kept; switched on, it is back', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+    await addCapacity('0', '2026-09-07', '2026-09-11', 'Offsite')
+    const withCapacity = dateAt(text(await page('/')), 85)
+    expect(await page('/')).toContain('<form method="post" action="/capacity/switch#capacity"')
+
+    const response = await post('/capacity/switch', [['on', 'false']])
+
+    expect(response.headers.get('location')).toBe('/')
+    const html = await page('/')
+    const screen = text(html)
+    expect(screen).toContain('Starting 1 Sep 2026: 85% confident of finishing by 1 Dec 2026 Capacity is switched off for this forecast; its entries are kept.')
+    expect(screen).toContain('Capacity off · 1 entry')
+    expect(screen).toContain('Off: the forecast uses pace alone. Entries are kept, and still count for the next milestone.')
+    expect(screen).toContain('0% 7 Sep 2026 to 11 Sep 2026 Offsite')
+    expect(html).not.toContain('<th>With capacity</th>')
+    expect(html).toContain('role="switch" aria-checked="false"')
+
+    await post('/capacity/switch', [['on', 'true']])
+
+    expect(dateAt(text(await page('/')), 85)).toBe(withCapacity)
+  })
+
   test('the week-by-week chart shades each week capacity changes and labels it with its %, leaving usual weeks plain', async () => {
     await startOnPreMvpData()
     await submitPace('4', '8')

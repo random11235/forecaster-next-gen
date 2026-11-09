@@ -148,12 +148,26 @@ describe.each(kinds)('%s storage', (_, opened) => {
     expect(storage.capacityEntries('another')).toEqual([])
   })
 
+  test("switches the team's capacity off and on again, on until switched", () => {
+    const { storage } = opened()
+    storage.saveTeam(TEAM)
+
+    expect(storage.capacityOn('team')).toBe(true)
+    storage.saveCapacityOn('team', false)
+    expect(storage.capacityOn('team')).toBe(false)
+    expect(storage.capacityOn('another')).toBe(true)
+    storage.saveCapacityOn('team', true)
+
+    expect(storage.capacityOn('team')).toBe(true)
+  })
+
   test('opened again, has everything saved before', () => {
     const { storage, reopen } = opened()
     storage.saveTeam(TEAM)
     storage.saveMilestoneInputs(LAUNCH)
     storage.saveAmbiguityRanges(RANGES)
     storage.saveCapacityEntries('team', ENTRIES)
+    storage.saveCapacityOn('team', false)
 
     const again = reopen()
 
@@ -161,6 +175,7 @@ describe.each(kinds)('%s storage', (_, opened) => {
     expect(again.milestoneInputs('team')).toEqual(LAUNCH)
     expect(again.ambiguityRanges('team')).toEqual(RANGES)
     expect(again.capacityEntries('team')).toEqual(ENTRIES)
+    expect(again.capacityOn('team')).toBe(false)
   })
 })
 
