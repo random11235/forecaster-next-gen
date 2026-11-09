@@ -116,12 +116,66 @@ const STYLE = `
     ul.dates .percent { font-family: var(--mono); font-weight: 600; min-width: 3.5em; }
     ul.dates .date { font-family: var(--mono); font-weight: 600; }
 
+    /* Milestone forecast: the forecast, with its pace and capacity beside it. */
+    .forecast-layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 28px; align-items: start; }
+    .forecast-main { display: flex; flex-direction: column; gap: 40px; min-width: 0; }
+    .side { border-left: 1px solid var(--hairline); padding-left: 20px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    .side > .heading { display: flex; justify-content: space-between; align-items: baseline; }
+    .side h2 { margin: 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+    .side > .heading a { font-size: 13px; }
+    .lede .quiet { font-size: 14px; color: var(--faint); }
+    table.compared { border-collapse: collapse; font-size: 14px; }
+    table.compared th { padding: 0 20px 6px 0; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--faint); }
+    table.compared td { padding: 6px 20px 6px 0; border-top: 1px solid var(--hairline); font-variant-numeric: tabular-nums; }
+    table.compared td.date { font-weight: 600; }
+    table.compared .later { color: var(--risk); }
+    table.compared .sooner { color: var(--good); }
+    button.switch { display: inline-flex; align-items: center; gap: 8px; padding: 0; border: 0; background: none; font: inherit; font-size: 13px; color: inherit; cursor: pointer; min-height: 0; }
+    button.switch::before { content: ''; flex: none; width: 28px; height: 16px; border-radius: 8px; background: radial-gradient(circle 6px at 8px 50%, var(--page) 98%, transparent 100%), var(--border); }
+    button.switch[aria-checked="true"]::before { background: radial-gradient(circle 6px at 20px 50%, var(--page) 98%, transparent 100%), var(--good); }
+    details.capacity { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--hairline); padding-top: 10px; }
+    details.capacity > summary { cursor: pointer; font-size: 13px; }
+    details.capacity > * + * { margin-top: 10px; }
+    details.capacity .title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+    details.capacity .summary, details.capacity .why, details.capacity .effect { color: var(--faint); }
+    details.capacity .effect { font-size: 12px; white-space: nowrap; }
+    details.capacity .effect.later { color: var(--risk); }
+    details.capacity .effect.sooner { color: var(--good); }
+    ul.capacity-entries { list-style: none; margin: 0; padding: 0; }
+    ul.capacity-entries li {
+      display: flex; flex-wrap: wrap; gap: 4px 8px; justify-content: space-between; align-items: baseline;
+      border-bottom: 1px solid var(--hairline); padding: 4px 0; font-size: 14px;
+    }
+    ul.capacity-entries li > span { flex: 1 1 0; min-width: 0; }
+    ul.capacity-entries form { margin: 0; }
+    ul.capacity-entries p.warning { flex-basis: 100%; font-size: 13px; }
+    ul.capacity-entries p.note, ul.capacity-entries .proposal { flex-basis: 100%; font-size: 13px; }
+    ul.capacity-entries p.note form { display: inline; }
+    ul.capacity-entries .proposal { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; border-left: 3px solid var(--link); padding: 4px 0 4px 10px; }
+    ul.capacity-entries .proposal p { flex-basis: 100%; margin: 0; }
+    details.edit > summary { list-style: none; cursor: pointer; color: var(--link); text-decoration: underline; font-size: 13px; }
+    details.edit > summary::-webkit-details-marker { display: none; }
+    details.edit[open] { flex-basis: 100%; order: 1; border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; }
+    details.edit[open] > summary { display: none; }
+    details.edit .actions { display: flex; gap: 12px; align-items: baseline; }
+    details.edit .actions a { font-size: 13px; }
+    details.capacity-past > summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+    form.sentence { margin: 0; font-size: 14px; line-height: 2.2; }
+    form.sentence input[type=number], form.sentence input[type=date], form.sentence input[type=text] { font-size: 13px; padding: 2px 0; }
+    form.sentence input[type=number] { width: 56px; text-align: center; }
+    form.sentence input[type=text] { width: 140px; }
+    form.sentence label { white-space: nowrap; }
+    form.sentence p.error { font-size: 13px; line-height: 1.5; }
+    button.link { min-height: 0; padding: 0; border: 0; background: none; color: var(--link); text-decoration: underline; font-size: 13px; }
+
     /* Milestone forecast: the finish graph. Markers stand on rows above the bars and run down through them. */
     figure.finish-graph { margin: 0; display: flex; flex-direction: column; gap: 6px; }
     .finish-graph .plot { position: relative; padding-top: 92px; }
     .finish-graph .bars { height: 160px; display: flex; align-items: flex-end; border-bottom: 1px solid var(--ink); }
     .finish-graph .bar { position: relative; flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; padding: 0 1px; min-width: 0; }
     .finish-graph .fill { width: 100%; background: var(--bar); border-radius: 2px 2px 0 0; }
+    .finish-graph .bar.changed { background: repeating-linear-gradient(135deg, transparent 0 4px, rgba(181, 72, 42, 0.14) 4px 7px); }
+    .finish-graph .bar .capacity { position: absolute; top: 2px; left: 0; right: 0; text-align: center; font-family: var(--mono); font-size: 10px; font-weight: 600; color: var(--risk); }
     .finish-graph .bar:hover .fill, .finish-graph .bar:focus-visible .fill { background: var(--ink); }
     .finish-graph .bar:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
     /* A bar's hover text: hidden by opacity, not display, so a screen reader still reads it with the bar. Bars near
@@ -238,6 +292,8 @@ const STYLE = `
     @media (max-width: 900px) {
       .pictures.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .problem { grid-template-columns: minmax(0, 1fr); }
+      .forecast-layout { grid-template-columns: minmax(0, 1fr); }
+      .side { border-left: 0; padding-left: 0; border-top: 1px solid var(--ink); padding-top: 12px; }
     }
 
     @media (max-width: 760px) {

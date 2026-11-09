@@ -40,6 +40,12 @@ export interface SimulationCase {
   throughputSamples: number[] | ThroughputRange
   /** Final child counts of finished epics, or the default range; only used for epics with no children. */
   epicSizeSamples: number[] | EpicSizeRange
+  /**
+   * The team's capacity in each period from period 0, as a factor of its usual (1 = usual, 0.5 = half):
+   * each trial multiplies the pace it draws for a period by that period's factor. Periods past the list's
+   * end are at 1, and no list means every period is usual. Factors run from 0 to 10 (1000%).
+   */
+  capacity?: number[]
   /** The confidence levels to report as dates ('when') or counts ('howMany'): whole numbers from 0 to 100, no repeats, any order. */
   percentiles: number[]
 }

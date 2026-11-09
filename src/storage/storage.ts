@@ -1,4 +1,5 @@
 import type { AmbiguityRanges } from '../model/ambiguity.js'
+import type { CapacityEntry } from '../model/capacity.js'
 import type { MilestoneInputs } from '../model/milestoneInputs.js'
 import type { Team } from '../model/team.js'
 
@@ -22,5 +23,13 @@ export interface Storage {
   saveAmbiguityRanges(ranges: AmbiguityRanges): void
   /** The team's ambiguity ranges, if the EM has edited them. */
   ambiguityRanges(teamId: string): AmbiguityRanges | undefined
+  /** Replaces the team's capacity entries with `entries`. */
+  saveCapacityEntries(teamId: string, entries: readonly CapacityEntry[]): void
+  /** The team's capacity entries, in the order saved; none until the EM types one. */
+  capacityEntries(teamId: string): CapacityEntry[]
+  /** Switches the team's capacity on or off for its forecasts; off keeps its entries. */
+  saveCapacityOn(teamId: string, on: boolean): void
+  /** Whether the team's forecasts use its capacity: on until switched off. */
+  capacityOn(teamId: string): boolean
   close(): void
 }

@@ -50,10 +50,11 @@ function submit(storage: Storage, change: InputsEdit) {
   return submitInputs(storage, TEAM, DEFAULT_SETTINGS, TODAY, change)
 }
 
-/** Submits the form: saved, or why it was refused. */
+/** Submits a form on the Inputs screen: saved, or why it was refused there. */
 function edit(storage: Storage, change: InputsEdit) {
   const submitted = submit(storage, change)
-  return submitted.saved ? { ok: true } : { ok: false, error: submitted.screen.refusal.error }
+  if (submitted.saved) return { ok: true }
+  return submitted.screen === 'inputs' ? { ok: false, error: submitted.view.refusal.error } : { ok: false, screen: submitted.screen }
 }
 
 /** The EM enters the milestone and a pace range, as the Inputs screen does. */
@@ -111,10 +112,12 @@ describe('the forecast from what the EM enters', () => {
       ambiguity: { level: 'medium', low: 1, high: 1 },
       warnings: [],
       finishGraph: [
-        { date: '2026-09-01', share: 0, finishedBy: 0 },
-        { date: '2026-09-08', share: 0, finishedBy: 0 },
-        { date: '2026-09-15', share: 1, finishedBy: 1 },
+        { date: '2026-09-01', share: 0, finishedBy: 0, capacity: 100 },
+        { date: '2026-09-08', share: 0, finishedBy: 0, capacity: 100 },
+        { date: '2026-09-15', share: 1, finishedBy: 1, capacity: 100 },
       ],
+      paceTrend: undefined,
+      capacity: { on: true, open: false, summary: 'none, every week usual', entries: [], past: [], form: { percent: '', from: '', to: '', onward: false, note: '' } },
     })
   })
 
@@ -252,7 +255,7 @@ describe('the finish graph', () => {
 
     enter(storage, { startDate: '2026-09-01', ticketsRemaining: '0' }, { low: '4', high: '8' })
 
-    expect(graph(storage).finishGraph).toEqual([{ date: '2026-09-01', share: 1, finishedBy: 1 }])
+    expect(graph(storage).finishGraph).toEqual([{ date: '2026-09-01', share: 1, finishedBy: 1, capacity: 100 }])
   })
 
   test('zero pace: no trial finishes, so there are no bars', () => {
@@ -271,9 +274,9 @@ describe('the finish graph', () => {
     expect(edit(storage, { kind: 'setCadence', cadenceDays: '14' })).toEqual({ ok: true })
 
     expect(graph(storage).finishGraph).toEqual([
-      { date: '2026-09-01', share: 0, finishedBy: 0 },
-      { date: '2026-09-15', share: 0, finishedBy: 0 },
-      { date: '2026-09-29', share: 1, finishedBy: 1 },
+      { date: '2026-09-01', share: 0, finishedBy: 0, capacity: 100 },
+      { date: '2026-09-15', share: 0, finishedBy: 0, capacity: 100 },
+      { date: '2026-09-29', share: 1, finishedBy: 1, capacity: 100 },
     ])
   })
 })
@@ -1114,7 +1117,8 @@ describe('a submitted form', () => {
 
     expect(submitted).toMatchObject({
       saved: false,
-      screen: {
+      screen: 'inputs',
+      view: {
         milestone: { name: 'Checkout v2', ticketsRemaining: 10 },
         forms: {
           milestone: { name: 'Checkout v3', startDate: '2026-09-08', ticketsRemaining: '2.5' },
@@ -1132,7 +1136,8 @@ describe('a submitted form', () => {
 
     expect(submit(storage, { kind: 'setPaceCounts', counts: '6, x' })).toMatchObject({
       saved: false,
-      screen: {
+      screen: 'inputs',
+      view: {
         forms: { paceCounts: { counts: '6, x', count: '' } },
         refusal: { form: 'paceCounts', error: 'Enter typed counts as whole numbers of tickets, 0 or more.' },
       },
@@ -1146,7 +1151,8 @@ describe('a submitted form', () => {
 
     expect(submit(storage, { kind: 'addPaceCount', count: '1001' })).toMatchObject({
       saved: false,
-      screen: {
+      screen: 'inputs',
+      view: {
         forms: { paceCounts: { counts: '6, 4, 9', count: '1001' } },
         refusal: { form: 'paceCounts', error: 'Enter at most 1000 tickets per week.' },
       },
@@ -1156,7 +1162,8 @@ describe('a submitted form', () => {
   test('refused, removing the last count before the milestone is entered says why on the typed counts', () => {
     expect(submit(newTeam(), { kind: 'removeLastPaceCount' })).toMatchObject({
       saved: false,
-      screen: { forms: { paceCounts: { counts: '', count: '' } }, refusal: { form: 'paceCounts', error: 'Enter the milestone first.' } },
+      screen: 'inputs',
+      view: { forms: { paceCounts: { counts: '', count: '' } }, refusal: { form: 'paceCounts', error: 'Enter the milestone first.' } },
     })
   })
 
@@ -1169,7 +1176,8 @@ describe('a submitted form', () => {
 
     expect(submit(storage, change)).toMatchObject({
       saved: false,
-      screen: { milestone: { paceMode: 'range', ambiguity: 'medium' }, refusal: { form, error } },
+      screen: 'inputs',
+      view: { milestone: { paceMode: 'range', ambiguity: 'medium' }, refusal: { form, error } },
     })
   })
 
@@ -1178,10 +1186,12 @@ describe('a submitted form', () => {
     enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
 
     expect(submit(storage, { kind: 'setCadence', cadenceDays: '0' })).toMatchObject({
-      screen: { forms: { cadence: { cadenceDays: '0' }, paceRange: { low: '4', high: '8' } }, refusal: { form: 'cadence' } },
+      screen: 'inputs',
+      view: { forms: { cadence: { cadenceDays: '0' }, paceRange: { low: '4', high: '8' } }, refusal: { form: 'cadence' } },
     })
     expect(submit(storage, { kind: 'setPaceRange', low: '8', high: '4' })).toMatchObject({
-      screen: { forms: { cadence: { cadenceDays: '7' }, paceRange: { low: '8', high: '4' } }, refusal: { form: 'paceRange' } },
+      screen: 'inputs',
+      view: { forms: { cadence: { cadenceDays: '7' }, paceRange: { low: '8', high: '4' } }, refusal: { form: 'paceRange' } },
     })
   })
 
@@ -1190,7 +1200,8 @@ describe('a submitted form', () => {
 
     expect(submit(storage, { ...growth, medium: typed('2', '1.5') })).toMatchObject({
       saved: false,
-      screen: {
+      screen: 'inputs',
+      view: {
         growth: { ranges: { medium: { low: 1, high: 2 } } },
         forms: { growth: { low: typed('1', '1.5'), medium: typed('2', '1.5'), high: typed('1.5', '3') } },
         refusal: { form: 'growth', error: 'Medium ambiguity: the low end must not be above the high end.' },
