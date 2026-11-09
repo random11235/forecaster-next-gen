@@ -34,12 +34,10 @@ describe('dependency rules', () => {
     expect(concrete).toEqual([])
   })
 
-  test('connectors/ import only their shared types, each other within one connector, and model/', () => {
+  test("connectors/ import only the interface's types, what the network connectors share, their own folder, and model/", () => {
+    const shared = ['connectors/connector.js', 'connectors/remote.js']
     const outside = importsFrom('connectors').filter(
-      ({ file, imported }) =>
-        !imported.startsWith('model/') &&
-        imported !== 'connectors/connector.js' &&
-        dirname(imported) !== dirname(file),
+      ({ file, imported }) => !imported.startsWith('model/') && !shared.includes(imported) && dirname(imported) !== dirname(file),
     )
 
     expect(outside).toEqual([])
