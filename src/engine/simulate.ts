@@ -54,6 +54,7 @@ function relativeStandardError(samples: readonly number[]): number {
 /** `ranked` is the case's scope in rank order: work burns down the first unfinished epic. */
 function simulateWhen(simulationCase: SimulationCase, ranked: readonly ScopeEntry[], random: Random): QuestionResult {
   const { trials, maxPeriods, throughputSamples, epicSizeSamples } = simulationCase
+  const capacityAt = capacityFactors(simulationCase.capacity)
   const growthAt = ranked.map((epic) => growthRatioAt(epic.growth))
   const pace = paceSampler(random, throughputSamples)
   const remaining = new Float64Array(ranked.length)
@@ -81,12 +82,12 @@ function simulateWhen(simulationCase: SimulationCase, ranked: readonly ScopeEntr
     let next = skipFinished(remaining, 0)
     let period = 0
     while (next < ranked.length && period < maxPeriods) {
+      let throughput = pace.draw() * capacityAt(period)
       period++
-      let throughput = pace.draw()
       while (throughput > 0 && next < ranked.length) {
         const burned = Math.min(throughput, remaining[next]!)
-        remaining[next]! -= burned
-        throughput -= burned
+        remaining[next] = withoutFloatError(remaining[next]! - burned)
+        throughput = withoutFloatError(throughput - burned)
         if (remaining[next] === 0) {
           epicFinishPeriods[next]![trial] = period
           next = skipFinished(remaining, next + 1)
@@ -175,11 +176,12 @@ function simulateHowMany(simulationCase: SimulationCase, byDate: string, random:
   const periods = wholePeriodsUntil(startDate, periodDays, byDate)
   const doneCounts = new Float64Array(trials)
   const pace = paceSampler(random, throughputSamples)
+  const capacityAt = capacityFactors(simulationCase.capacity)
 
   for (let trial = 0; trial < trials; trial++) {
     pace.newTrial()
     let done = 0
-    for (let period = 0; period < periods; period++) done += pace.draw()
+    for (let period = 0; period < periods; period++) done = withoutFloatError(done + pace.draw() * capacityAt(period))
     doneCounts[trial] = done
   }
 
@@ -214,6 +216,15 @@ function paceSampler(random: Random, source: readonly number[] | NumberRange): P
  */
 function drawCount(random: Random, source: readonly number[] | NumberRange): number {
   return isRange(source) ? drawWholeNumberIn(random, source.low, source.high) : drawFrom(random, source)
+}
+
+/**
+ * A period's capacity factor, counting periods from 0: the case's factor, or 1 (usual) past the list's end.
+ * Capacity scales pace in proportion (a linear assumption), and the scaled pace is not rounded.
+ */
+function capacityFactors(capacity: readonly number[] | undefined): (period: number) => number {
+  if (capacity === undefined) return () => 1
+  return (period) => capacity[period] ?? 1
 }
 
 function isRange(value: readonly number[] | NumberRange): value is NumberRange {

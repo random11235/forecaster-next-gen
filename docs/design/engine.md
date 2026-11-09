@@ -30,6 +30,8 @@ SimulationCase {
   throughputSamples: number[] | { low, high },  // measured done counts per period (whole numbers), or the EM's manual range
   throughputSampler: { kind: 'bayesianBootstrap' },  // not built yet; how measured samples are drawn, see "Swappable samplers"
   epicSizeSamples:   number[] | { low, high },  // only used for epics with no children
+  capacity?: number[],                 // the team's capacity per period from period 0, as a factor of its usual
+                                       // (1 = usual); periods past the end at 1; factors from 0 to 10 (1000%)
   percentiles: number[],               // from ForecastSettings.percentiles, default [50, 70, 85, 95];
                                        // whole numbers 0 to 100, at least one, no repeats, any order
 }
@@ -75,7 +77,7 @@ An **uncommitted epic** has no baseline yet. `forecast/buildCase.ts` passes its 
 1. **Correlated growth.** Draw one uniform `u` in [0, 1) for the trial. For each epic, its growth ratio is the `u`-quantile of its own `growth` distribution: the empirical quantile of the samples, or `low + u × (high − low)` for a range. Set its total to `baseCount × ratio`, rounded to 9 decimal places to clear float error (100 × 1.1 is 110.00000000000001) while keeping real fractions, or draw one epic size (independently) if `baseCount` is null or 0. Floor the total at `currentCount`. Remaining work is `max(total − doneCount, 0)`.
    - A milestone's epics tend to over-run together (same team, same planning habits), so one shared `u` per trial keeps the range from coming out falsely narrow. Each epic still keeps its own range.
    - **Do not average several draws.** Averaging narrows the distribution and hides the tail ([research §1.1](../research/forecasting-approaches.md#11-the-users-prior-tool-random11235forecaster)).
-2. **Pace.** Each period, draw one throughput value: from measured or typed samples, a Bayesian bootstrap draw (later, by the case's `throughputSampler`; see "Swappable samplers"); from a manual range, a whole number drawn uniformly from `[low, high]`. Subtract it from the remaining work, taking epics in rank order.
+2. **Pace.** Each period, draw one throughput value: from measured or typed samples, a Bayesian bootstrap draw (later, by the case's `throughputSampler`; see "Swappable samplers"); from a manual range, a whole number drawn uniformly from `[low, high]`. Multiply it by the period's capacity factor (see "Capacity"), and subtract it from the remaining work, taking epics in rank order.
 3. Record the period in which each epic finishes, and the period in which all of them finish.
 4. Stop at `maxPeriods`. A trial that hasn't finished by then is recorded as "beyond the horizon", which also guards against all-zero throughput looping forever.
 
@@ -89,10 +91,19 @@ Collect the trial results and compute 101 quantiles overall and per epic.
 
 "How many items will be done by `byDate`?" uses no scope draws.
 
-1. Run `floor((byDate − startDate) / periodDays)` periods, drawing one throughput value per period as in 'when' step 2.
+1. Run `floor((byDate − startDate) / periodDays)` periods, drawing one throughput value per period and scaling it by the period's capacity factor, as in 'when' step 2.
 2. Record the total items done.
 
 Collect the totals and compute 101 quantiles. Confidence runs the other way from 'when': "85% sure" means at least this many items get done in 85% of trials, which is the **15th** percentile of the totals. So `percentileCounts[p] = quantiles[100 − p]`. `percentileDates` and `perEpic` are empty for this question.
+
+### Capacity
+
+`capacity` tells the engine how much of the team's usual capacity each period has, as a factor: 1 is usual, 0.5 half, 0 no one. The list runs from period 0, the first period simulated; periods past its end are at 1, and a case with no `capacity` is the MVP's case, with the MVP's `caseHash` and results. `forecast/` turns the EM's capacity entries into these factors ([#153](https://github.com/random11235/forecaster-next-gen/issues/153)).
+
+- **Linear assumption.** Each trial multiplies the pace it draws for a period by that period's factor, for typed counts and a pace range alike: half the team does half the work. Nothing validates this; it is the simplest model, and easy to change later ([#131](https://github.com/random11235/forecaster-next-gen/issues/131)).
+- **Not rounded.** The scaled pace is not rounded per period: the trial's remaining tickets fall by the scaled amount, so 2 tickets at 30% take 0.6 off. Remaining work is rounded to 9 decimal places after each subtraction, as epic totals are, so float error can't add a period.
+- **Same draws.** A period draws its pace whatever its factor, even 0, so with and without capacity the same seed uses the same draws, and a comparison of the two shows capacity's effect alone, not chance.
+- **Limits.** Each factor is from 0 to 10 (1000%), and the list holds at most 10,000 periods, the horizon's own limit; anything else is refused.
 
 ### Swappable samplers
 
