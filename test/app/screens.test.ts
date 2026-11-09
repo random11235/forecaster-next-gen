@@ -944,12 +944,12 @@ describe('Milestone forecast screen: capacity', () => {
     await submitPace('4', '8')
     const before = dateAt(text(await page('/')), 85)
 
-    const response = await addCapacity('0', '2026-09-07', '2026-09-11', 'Offsite')
+    const response = await addCapacity('0', '2026-11-02', '2026-11-06', 'Offsite')
 
     expect(response.status).toBe(303)
     expect(response.headers.get('location')).toBe('/')
     const screen = text(await page('/'))
-    expect(screen).toContain('0% 7 Sep 2026 to 11 Sep 2026 Offsite')
+    expect(screen).toContain('0% 2 Nov 2026 to 6 Nov 2026 Offsite')
     expect(Date.parse(dateAt(screen, 85))).toBeGreaterThan(Date.parse(before))
   })
 
@@ -957,12 +957,12 @@ describe('Milestone forecast screen: capacity', () => {
     await startOnPreMvpData()
     await submitPace('4', '8')
 
-    await addCapacity('0', '2026-09-14', '', 'Holiday')
-    await addCapacity('60', '2026-10-05', '', '', true)
+    await addCapacity('0', '2026-11-16', '', 'Holiday')
+    await addCapacity('60', '2026-11-23', '', '', true)
 
     const screen = text(await page('/'))
-    expect(screen).toContain('0% on 14 Sep 2026 Holiday')
-    expect(screen).toContain('60% from 5 Oct 2026 onward')
+    expect(screen).toContain('0% on 16 Nov 2026 Holiday')
+    expect(screen).toContain('60% from 23 Nov 2026 onward')
   })
 
   test('refused, shows the forecast again with the section open, saying why, keeping what was typed', async () => {
@@ -1007,7 +1007,7 @@ describe('Milestone forecast screen: capacity', () => {
     await submitPace('4', '8')
     const usual = dateAt(text(await page('/')), 85)
 
-    await addCapacity('0', '2026-09-07', '2026-09-11', 'Offsite')
+    await addCapacity('0', '2026-11-16', '2026-11-20', 'Offsite')
 
     const html = await page('/')
     expect(html).toContain('<th>With capacity</th><th>At usual capacity</th>')
@@ -1020,7 +1020,7 @@ describe('Milestone forecast screen: capacity', () => {
   test('switched off, the forecast is without capacity and says its entries are kept; switched on, it is back', async () => {
     await startOnPreMvpData()
     await submitPace('4', '8')
-    await addCapacity('0', '2026-09-07', '2026-09-11', 'Offsite')
+    await addCapacity('0', '2026-11-16', '2026-11-20', 'Offsite')
     const withCapacity = dateAt(text(await page('/')), 85)
     expect(await page('/')).toContain('<form method="post" action="/capacity/switch#capacity"')
 
@@ -1032,7 +1032,7 @@ describe('Milestone forecast screen: capacity', () => {
     expect(screen).toContain('Starting 1 Sep 2026: 85% confident of finishing by 1 Dec 2026 Capacity is switched off for this forecast; its entries are kept.')
     expect(screen).toContain('Capacity off · 1 entry')
     expect(screen).toContain('Off: the forecast uses pace alone. Entries are kept, and still count for the next milestone.')
-    expect(screen).toContain('0% 7 Sep 2026 to 11 Sep 2026 Offsite')
+    expect(screen).toContain('0% 16 Nov 2026 to 20 Nov 2026 Offsite')
     expect(html).not.toContain('<th>With capacity</th>')
     expect(html).toContain('role="switch" aria-checked="false"')
 
@@ -1047,17 +1047,17 @@ describe('Milestone forecast screen: capacity', () => {
     const plain = (await page('/')).match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
     expect(plain).not.toContain('capacity')
 
-    // from Tuesday 1 Sep, a week off from Monday 7 Sep takes one working day of five from the week ending 8 Sep, four from the next
-    await addCapacity('0', '2026-09-07', '2026-09-11', 'Offsite')
+    // from Tuesday 1 Sep, a week off from Monday 2 Nov takes one working day of five from the week ending 3 Nov, four from the next
+    await addCapacity('0', '2026-11-02', '2026-11-06', 'Offsite')
 
     const html = await page('/')
     const graph = html.match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
     const bar = (date: string) => graph.match(new RegExp(`<div class="bar[^"]*"[^>]*data-date="${date}"[\\s\\S]*?</div>`))![0]
     expect(text(html)).toContain('Week by week')
-    expect(bar('2026-09-08')).toMatch(/class="bar[^"]* changed"/)
-    expect(bar('2026-09-08')).toContain('<span class="capacity">80%</span>')
-    expect(text(bar('2026-09-15'))).toContain('At 20% capacity.')
-    expect(bar('2026-09-22')).not.toContain('changed')
+    expect(bar('2026-11-03')).toMatch(/class="bar[^"]* changed"/)
+    expect(bar('2026-11-03')).toContain('<span class="capacity">80%</span>')
+    expect(text(bar('2026-11-10'))).toContain('At 20% capacity.')
+    expect(bar('2026-11-17')).not.toContain('changed')
     expect(text(graph)).toContain('Shaded weeks: capacity changes, at the % shown.')
   })
 
@@ -1065,6 +1065,82 @@ describe('Milestone forecast screen: capacity', () => {
     await startOnPreMvpData()
 
     expect(text(await page('/inputs'))).toContain('Capacity is set beside the forecast, under Pace.')
+  })
+})
+
+/** Saves an entry's edit form as the browser does. */
+function editCapacity(id: string, percent: string, from: string, to: string, note = ''): Promise<Response> {
+  return post('/capacity/edit', [['id', id], ['percent', percent], ['from', from], ['to', to], ['note', note]])
+}
+
+describe('Milestone forecast screen: editing capacity, and Past', () => {
+  test('each entry has an Edit, holding its sentence as saved with Save and Cancel', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+    await addCapacity('0', '2026-11-02', '2026-11-06', 'Offsite')
+
+    const html = await page('/')
+
+    const edit = html.match(/<details class="edit">[\s\S]*?<\/details>/)?.[0] ?? ''
+    expect(text(edit).trim()).toMatch(/^Edit At % from to or onward , for \. Save Cancel$/)
+    expect(edit).toContain('<form method="post" action="/capacity/edit#capacity"')
+    expect(edit).toContain('<input type="hidden" name="id" value="1">')
+    expect(edit).toContain('value="0"')
+    expect(edit).toContain('value="2026-11-06"')
+    expect(edit).toContain('value="Offsite"')
+    expect(edit).toContain('<a href="/#capacity">Cancel</a>')
+  })
+
+  test('an edit saved comes back to the forecast, the entry changed', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+    await addCapacity('0', '2026-11-02', '2026-11-06', 'Offsite')
+
+    const response = await editCapacity('1', '50', '2026-11-09', '2026-11-13', 'Offsite, half the team')
+
+    expect(response.headers.get('location')).toBe('/')
+    expect(text(await page('/'))).toContain('50% 9 Nov 2026 to 13 Nov 2026 Offsite, half the team')
+  })
+
+  test('an edit refused shows the forecast again with that entry’s edit open, as typed, saying why', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+    await addCapacity('0', '2026-11-02', '2026-11-06', 'Offsite')
+
+    const response = await editCapacity('1', '50', '2026-11-13', '2026-11-09', 'Moved')
+
+    expect(response.status).toBe(400)
+    const html = await response.text()
+    expect(html).toContain('<details class="capacity" id="capacity" open>')
+    const edit = html.match(/<details class="edit" open>[\s\S]*?<\/details>/)?.[0] ?? ''
+    expect(text(edit)).toContain('The end date is before the start.')
+    expect(edit).toContain('value="2026-11-13"')
+    expect(edit).toContain('value="Moved"')
+    expect(text(html)).toContain('0% 2 Nov 2026 to 6 Nov 2026 Offsite')
+  })
+
+  test('an entry that has ended is folded under Past, kept, with only its note to edit and no Remove', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+    await addCapacity('0', '2026-09-07', '2026-09-11', 'Offsite')
+
+    const html = await page('/')
+
+    const past = html.match(/<details class="capacity-past">[\s\S]*<\/details>\s*<\/li>\s*<\/ul>\s*<\/details>/)?.[0] ?? ''
+    expect(text(past).trim()).toMatch(/^Past \(1\) · kept, not used by the forecast 0% 7 Sep 2026 to 11 Sep 2026 Offsite Edit Past, so only the note can change\. Note Save Cancel$/)
+    expect(past).not.toContain('/capacity/remove')
+    expect(text(html)).toContain('Capacity none, every week usual')
+    expect(text(html)).toContain('Starting 1 Sep 2026: 85% confident of finishing by 1 Dec 2026')
+  })
+
+  test('a past entry’s note saved changes the note alone', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+    await addCapacity('0', '2026-09-07', '2026-09-11', 'Offsite')
+
+    await post('/capacity/edit', [['id', '1'], ['note', 'Offsite in Lisbon']])
+
+    expect(text(await page('/'))).toContain('0% 7 Sep 2026 to 11 Sep 2026 Offsite in Lisbon')
   })
 })
 

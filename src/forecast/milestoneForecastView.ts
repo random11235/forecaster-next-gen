@@ -2,7 +2,7 @@ import { periodEndDate, simulateCase, ENGINE_VERSION, type ForecastResult, type 
 import type { Ambiguity, GrowthRange } from '../model/ambiguity.js'
 import type { Storage } from '../storage/storage.js'
 import { daysBetween } from './calendarDate.js'
-import { capacityFactors, capacityLine, capacityView, type CapacityUse, type CapacityView } from './capacity.js'
+import { capacityFactors, capacityLine, capacityView, currentEntries, type CapacityUse, type CapacityView } from './capacity.js'
 import { periodName } from './cadence.js'
 import { milestoneGrowth } from './growth.js'
 import { assessMilestone, type ForecastableInputs, type InputNote, type PaceInUse } from './milestoneAssessment.js'
@@ -90,8 +90,8 @@ export function milestoneForecastView(storage: Storage, teamId: string, settings
 
   const { inputs, pace } = assessment
   const growth = milestoneGrowth(storage, inputs)
-  // with no entries, or none touching the forecast's periods, the case is the MVP's, hash and all
-  const factors = capacityFactors(storage.capacityEntries(teamId), inputs.startDate, inputs.cadenceDays, settings.maxPeriods)
+  // with no entries the forecast uses (none past), or none touching the forecast's periods, the case is the MVP's, hash and all
+  const factors = capacityFactors(currentEntries(storage.capacityEntries(teamId), today), inputs.startDate, inputs.cadenceDays, settings.maxPeriods)
   const on = storage.capacityOn(teamId)
   const simulationCase = milestoneCase(inputs, pace, growth, settings, on ? factors : undefined)
   const result = simulateCase(simulationCase)
@@ -116,7 +116,7 @@ export function milestoneForecastView(storage: Storage, teamId: string, settings
     warnings: assessment.warnings.map(({ input, message }) => ({ input, message })),
     finishGraph: finishGraph(result, simulationCase),
     paceTrend: paceTrend(inputs, settings),
-    capacity: capacityView(storage, teamId, use, period),
+    capacity: capacityView(storage, teamId, today, use, period),
     comparison,
     capacityLine: capacityLine(use, period),
   }
