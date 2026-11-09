@@ -70,7 +70,7 @@ src/
     connector.ts          # the interface and its shared types: Connection, Ticket, Failure, ReadResult, Choice
     canned/               # the canned connector, answering from a fixture in the connector's own shape; Seam B tests use it
       demoFixture.json    # demo mode's synthetic fixture: made up, no real team's data
-    github/               # (to come) the GitHub connector
+    github/               # the GitHub connector: so far a skeleton passing the contract suite's shape cases (#172)
     jira/                 # (to come) the Jira connector
 
   storage/                # interface and its v1 SQLite file, with the schema's migrations; the web build's browser storage
@@ -80,7 +80,7 @@ test/
   app/                    # the screens, launch, and the launch smoke test: start the app, check the screen is served; the web build's app and its smoke test
   engine/                 # Seam A: fixed seeds, plus a performance benchmark
   forecast/               # Seam B: stored inputs + settings → the screens' views
-  connectors/             # the canned connector; the dependency rules for connectors/
+  connectors/             # Seam C: the connector contract suite and its replay transport; each tracker's quirks and recordings in its own folder; the canned connector; the dependency rules for connectors/
   storage/                # the schema's migrations; the Storage contract, run against SQLite and browser storage
 ```
 
@@ -101,9 +101,10 @@ test/
 - Fixtures are `.json`, in the same shape a connector produces (or the raw API response, for connector replay tests).
 - Settings defaults are a typed `.ts` constant.
 
-**Test seams.** There are two, as set in the spec:
+**Test seams.** There are three: two set in the spec, and Seam C from [#154](https://github.com/random11235/forecaster-next-gen/issues/154):
 - **Seam A** is `simulateCase`, tested with fixed seeds ([`engine.md`](engine.md)).
 - **Seam B** is `forecast/`: stored facts, settings and the ledger go in, and the screens' views come out: `milestoneForecastView` for the Milestone forecast screen, and `inputsView` with `submitInputs` for the Inputs screen. `submitInputs` takes a form as typed (`InputsEdit`) and either saves it, saying which screen comes next, or refuses it, naming the screen to show again and returning its view: the Inputs screen with the Inputs view, or the Milestone forecast screen with the Milestone forecast view, each with that form as typed, the rest as saved, and the refusal on the form it belongs to. Capacity's forms are on the Milestone forecast screen and refuse to it; every other form is on the Inputs screen. `app/` shows whichever screen the result names, so refused re-display is tested here, without the server. Reading a form's fields from the request body stays in `app/`, beside the HTML that names them. Both views take the same `ForecastSettings` and judge the milestone by one assessment (`assessMilestone`), so the typed counts a forecast needs, the notes beside the inputs and the Inputs screen's hint all come from those settings. In v1, team facts is part of it and tests may call `teamFacts` directly; the MVP has no team facts. Its logic is in [`forecast-model.md`](forecast-model.md).
+- **Seam C** is the connector interface (`connectors/connector.ts`): a connector built from a connection, a token and a transport goes in, and its milestone choices and reads come out. See [Seam C](#seam-c-connectors) below.
 
 Warning text and provenance are tested at Seam B, not Seam A. These cases moved from the engine tests. Each is owed, in `test/forecast/`, by the ticket that adds its warning or diagnostic. Since the MVP, only the first two can arise: the last four name epics, commits or measured pace, which return after it.
 - the horizon warning when fewer trials finish than the highest reported percentile, with the floored percentage and the horizon date, and none when enough finish;
@@ -113,7 +114,16 @@ Warning text and provenance are tested at Seam B, not Seam A. These cases moved 
 - the throughput source: `'measured'` for samples, `'manual'` for a range;
 - the uncommitted epics listed in rank order, and none for a scope of committed epics.
 
-Seam B tests read tickets through the canned connector (`connectors/canned/`), which returns its fixture's tickets, an empty list for a query that matches nothing, and any failure on cue; `test/connectors/` tests it. Connectors are tested through Seam B by replaying recorded API responses, with no seam of their own.
+Seam B tests read tickets through the canned connector (`connectors/canned/`), which returns its fixture's tickets, an empty list for a query that matches nothing, and any failure on cue; `test/connectors/` tests it.
+
+### Seam C: connectors
+
+Each real connector is tested at Seam C, offline, on raw responses recorded from the synthetic trackers and replayed through its injected transport.
+
+- **The contract suite** (`test/connectors/connectorContract.test.ts`), modelled on the Storage contract, runs the same cases against every connector: a read returning tickets, a query matching nothing (an empty list, not a failure), each failure, and milestone choices returning choices or a failure. Each connector joins it with a `ContractSubject` (`connectorContract.ts`): its connector on the synthetic tracker, with a refused token, on an unknown repo or project, and with no network, plus its queries in the tracker's syntax and its tickets' ids by role. Later specs add their cases to this suite. Tracker-only quirks are tested beside it, in the tracker's own folder (`test/connectors/github/`).
+- **The replay transport** (`test/connectors/replayTransport.ts`) answers each request with the recording of the same method, URL and body, and throws, naming the request, when there is none, so a missing recording never passes silently.
+- **Recordings** come only from the synthetic trackers (`random11235/forecaster-synthetic` for GitHub), which `scripts/synthetic/` seeds; its manifests map each case's role to its ticket. Failures are real recorded responses where the tracker gives one: a refused token is recorded with a token GitHub refuses, an unknown repo with one that doesn't exist. Only the network failing is not recorded. Recordings keep each response's status and only the fields the connector reads, and no headers.
+- **The recording script** (`npm run record:github`, `scripts/recordGithub.ts`) reads its token from the macOS Keychain (`forecaster-github-recording`), never writing it anywhere, runs the connector's own requests against the synthetic repo, and rewrites `test/connectors/github/recordings/`. It says plainly when GitHub refuses the token, which expires on 2026-12-07. A change to a connector's requests needs a re-run: the replay transport names any request left unrecorded.
 
 `test/app/` holds the launch smoke test. It is not a forecasting seam: it builds the app, runs the built `npm start` entry point (`dist/app/main.js`) with `FORECASTER_NO_BROWSER=1` so no browser opens and a temporary `FORECASTER_DATA_FILE`, and checks that the Milestone forecast screen is served in its empty state, with no sample data. It runs it again in demo mode (`FORECASTER_DEMO=1`), on the canned connector built from the synthetic fixture, so no token is needed, and checks the screen is served. It also checks that a bad `PORT` is refused.
 
