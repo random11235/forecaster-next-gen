@@ -9,6 +9,9 @@
 // keeps its status and only the fields the connector reads. Credentials go in request headers, which are never
 // recorded, and are never written or printed.
 //
+// MUST CHANGE before anyone else records Jira: the site, its token and FORECASTER_JIRA_EMAIL belong to the maintainer's
+// personal Atlassian account, whose email inbox is unreachable. Move to a shared account first (see the README).
+//
 // Node runs this file directly, so the files it imports from src/ and test/ are named by their `.ts` and import nothing
 // at runtime themselves; the connectors, which do, are loaded from the build in dist/.
 import { execFileSync } from 'node:child_process'
