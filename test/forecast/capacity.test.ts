@@ -611,4 +611,34 @@ describe('past entries', () => {
     const forecast = view(storage)
     expect(forecast.kind === 'forecast' && forecast.capacity.past).toEqual([{ id: 1, from: AUGUST, to: '2026-08-07', percent: 0, note: 'Team offsite in Lisbon' }])
   })
+
+  test('a past entry is kept: removing it is refused, and it stays under Past', () => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage)
+    add(storage, '0', AUGUST, '2026-08-07', { note: 'Offsite' })
+
+    const result = submit(storage, { kind: 'removeCapacity', id: '1' })
+
+    expect(!result.saved && result.screen === 'forecast' && result.view.kind === 'forecast' && result.view.capacity.refusal).toBe(
+      'Past entries are kept, so it can’t be removed.',
+    )
+    const forecast = view(storage)
+    expect(forecast.kind === 'forecast' && forecast.capacity.past.map(({ id }) => id)).toEqual([1])
+  })
+
+  test('a past entry no longer counts toward the limit on overlapping entries', () => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage)
+    add(storage, '400', AUGUST, '', { onward: true })
+    submit(storage, { kind: 'acceptNewUsual', id: '1' })
+
+    // 300% from today would multiply with the 400% to 1200%, but that entry is now past: it ends today as the new usual
+    const added = add(storage, '300', TODAY, '', { onward: true })
+    const edited = submit(storage, { kind: 'editCapacity', id: '2', percent: '350', from: TODAY, to: '', onward: true, note: '' })
+
+    expect([added, edited]).toEqual([
+      { saved: true, next: 'forecast' },
+      { saved: true, next: 'forecast' },
+    ])
+  })
 })
