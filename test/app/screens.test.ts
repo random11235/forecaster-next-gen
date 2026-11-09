@@ -1008,17 +1008,17 @@ describe('Milestone forecast screen: capacity', () => {
     const plain = (await page('/')).match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
     expect(plain).not.toContain('capacity')
 
-    // from Tuesday 1 Sep, a week off from Monday 7 Sep takes one working day of five from the week ending 8 Sep, four from the next
-    await addCapacity('0', '2026-09-07', '2026-09-11', 'Offsite')
+    // from Tuesday 1 Sep, a week off from Monday 2 Nov takes one working day of five from the week ending 3 Nov, four from the next
+    await addCapacity('0', '2026-11-02', '2026-11-06', 'Offsite')
 
     const html = await page('/')
     const graph = html.match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
     const bar = (date: string) => graph.match(new RegExp(`<div class="bar[^"]*"[^>]*data-date="${date}"[\\s\\S]*?</div>`))![0]
     expect(text(html)).toContain('Week by week')
-    expect(bar('2026-09-08')).toMatch(/class="bar[^"]* changed"/)
-    expect(bar('2026-09-08')).toContain('<span class="capacity">80%</span>')
-    expect(text(bar('2026-09-15'))).toContain('At 20% capacity.')
-    expect(bar('2026-09-22')).not.toContain('changed')
+    expect(bar('2026-11-03')).toMatch(/class="bar[^"]* changed"/)
+    expect(bar('2026-11-03')).toContain('<span class="capacity">80%</span>')
+    expect(text(bar('2026-11-10'))).toContain('At 20% capacity.')
+    expect(bar('2026-11-17')).not.toContain('changed')
     expect(text(graph)).toContain('Shaded weeks: capacity changes, at the % shown.')
   })
 
