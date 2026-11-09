@@ -1,4 +1,5 @@
 import type { AmbiguityRanges } from '../model/ambiguity.js'
+import type { CapacityEntry } from '../model/capacity.js'
 import type { MilestoneInputs } from '../model/milestoneInputs.js'
 import type { Team } from '../model/team.js'
 import type { Storage } from './storage.js'
@@ -17,6 +18,8 @@ interface Stored {
   teams: Team[]
   milestoneInputs: Record<string, MilestoneInputs>
   ambiguityRanges: Record<string, AmbiguityRanges>
+  /** Each team's capacity entries; an entry running onward has no `to`. */
+  capacityEntries: Record<string, CapacityEntry[]>
 }
 
 /**
@@ -70,12 +73,22 @@ export function openWebStorage(store: KeyValueStore | undefined): Storage {
       return ranges && structuredClone(ranges)
     },
 
+    saveCapacityEntries(teamId, entries) {
+      data.capacityEntries[teamId] = structuredClone([...entries])
+      write()
+    },
+
+    capacityEntries(teamId) {
+      // JSON drops an undefined `to`, so an onward entry reads back without one
+      return (data.capacityEntries[teamId] ?? []).map((entry) => ({ ...entry, to: entry.to ?? undefined }))
+    },
+
     close() {},
   }
 }
 
 function read(store: KeyValueStore | undefined): Stored {
-  const empty: Stored = { teams: [], milestoneInputs: {}, ambiguityRanges: {} }
+  const empty: Stored = { teams: [], milestoneInputs: {}, ambiguityRanges: {}, capacityEntries: {} }
   try {
     const json = store?.getItem(KEY)
     return json ? { ...empty, ...(JSON.parse(json) as Partial<Stored>) } : empty

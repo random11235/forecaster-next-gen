@@ -410,25 +410,25 @@ describe('a data file from schema version 6, before milestone inputs', () => {
   })
 })
 
-describe('a data file from schema version 7, before the cadence the pace was entered in', () => {
-  /** Version 7's tables: version 6's, plus milestone inputs as #85 shipped them. Kept verbatim: it is a past release. */
-  const VERSION_7_SCHEMA = `${VERSION_6_SCHEMA}
+/** Version 7's tables: version 6's, plus milestone inputs as #85 shipped them. Kept verbatim: it is a past release. */
+const VERSION_7_SCHEMA = `${VERSION_6_SCHEMA}
 CREATE TABLE milestone_inputs (
-  team_id TEXT PRIMARY KEY REFERENCES teams(id),
-  name TEXT NOT NULL,
-  start_date TEXT,
-  tickets_remaining INTEGER,
-  ambiguity TEXT NOT NULL DEFAULT 'medium',
-  cadence_days INTEGER NOT NULL DEFAULT 7,
-  pace_mode TEXT NOT NULL DEFAULT 'range',
-  pace_low INTEGER,
-  pace_high INTEGER,
-  pace_counts TEXT NOT NULL DEFAULT '[]'
+team_id TEXT PRIMARY KEY REFERENCES teams(id),
+name TEXT NOT NULL,
+start_date TEXT,
+tickets_remaining INTEGER,
+ambiguity TEXT NOT NULL DEFAULT 'medium',
+cadence_days INTEGER NOT NULL DEFAULT 7,
+pace_mode TEXT NOT NULL DEFAULT 'range',
+pace_low INTEGER,
+pace_high INTEGER,
+pace_counts TEXT NOT NULL DEFAULT '[]'
 );
 INSERT INTO milestone_inputs VALUES ('ACME', 'Launch', '2026-09-01', 40, 'medium', 14, 'range', 4, 8, '[6, 9]');
 INSERT INTO milestone_inputs (team_id, name, cadence_days) VALUES ('sample-team', 'Checkout v2', 14);
 `
 
+describe('a data file from schema version 7, before the cadence the pace was entered in', () => {
   test('counts a pace already saved as entered in its cadence, so it forecasts with no warning', () => {
     const storage = open(writeFile('v7.db', VERSION_7_SCHEMA, 7))
 
@@ -450,6 +450,26 @@ INSERT INTO milestone_inputs (team_id, name, cadence_days) VALUES ('sample-team'
     expect(milestoneForecastView(storage, TEAM, DEFAULT_SETTINGS, '2026-09-01')).toMatchObject({
       warnings: [{ input: 'pace', message: 'Pace: cadence length has changed. Please verify that the per period numbers are aligned.' }],
     })
+  })
+})
+
+/** Version 8's tables: version 7's, plus the cadence the pace was entered in as #99 shipped it. Kept verbatim. */
+const VERSION_8_SCHEMA = `${VERSION_7_SCHEMA}
+ALTER TABLE milestone_inputs ADD COLUMN pace_cadence_days INTEGER;
+UPDATE milestone_inputs SET pace_cadence_days = cadence_days WHERE pace_low IS NOT NULL OR pace_counts <> '[]';
+`
+
+describe('a data file from schema version 8, before capacity', () => {
+  test('has no capacity entries, forecasts as before, and takes entries that survive reopening', () => {
+    const file = writeFile('v8.db', VERSION_8_SCHEMA, 8)
+    const storage = open(file)
+    expect(storage.capacityEntries(TEAM)).toEqual([])
+    expect(milestoneForecastView(storage, TEAM, DEFAULT_SETTINGS, '2026-09-01')).toMatchObject({ kind: 'forecast', warnings: [] })
+
+    const holiday = { id: 1, from: '2026-09-07', to: '2026-09-07', percent: 0, note: 'Holiday' }
+    storage.saveCapacityEntries(TEAM, [holiday])
+
+    expect(open(file).capacityEntries(TEAM)).toEqual([holiday])
   })
 })
 

@@ -6,7 +6,7 @@ import type { Team } from '../model/team.js'
 import type { Storage } from '../storage/storage.js'
 import { renderHowItWorksScreen } from './howItWorksScreen.js'
 import { INPUTS_FORMS, renderInputsScreen } from './inputsScreen.js'
-import { renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
+import { FORECAST_FORMS, renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
 
 /** A request as the routes see it: the server has already read the form body. */
 export interface Request {
@@ -75,7 +75,7 @@ export function route(request: Request, { storage, today }: AppContext): Reply {
     html: renderInputsScreen(inputsView(storage, team.id, settings, today())),
   })
   if (request.method === 'GET' && request.path === '/inputs') return inputsScreen()
-  const readForm = request.method === 'POST' ? INPUTS_FORMS.get(request.path) : undefined
+  const readForm = request.method === 'POST' ? (INPUTS_FORMS.get(request.path) ?? FORECAST_FORMS.get(request.path)) : undefined
   if (!readForm) return { kind: 'notFound' }
   const submitted = submitInputs(storage, team.id, settings, today(), readForm(request.form ?? new URLSearchParams()))
   if (!submitted.saved) return { kind: 'html', status: 400, html: renderRefused(submitted), path: SCREEN_PATHS[submitted.screen] }

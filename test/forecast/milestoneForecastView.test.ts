@@ -116,6 +116,8 @@ describe('the forecast from what the EM enters', () => {
         { date: '2026-09-08', share: 0, finishedBy: 0 },
         { date: '2026-09-15', share: 1, finishedBy: 1 },
       ],
+      paceTrend: undefined,
+      capacity: { entries: [], form: { percent: '', from: '', to: '', onward: false, note: '' } },
     })
   })
 
