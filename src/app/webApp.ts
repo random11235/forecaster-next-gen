@@ -20,8 +20,6 @@ export interface WebAppOptions {
   today?: () => string
 }
 
-const INPUTS_PATH = '/inputs'
-
 const NOT_FOUND = `<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Not found · Forecaster</title></head>
@@ -37,8 +35,8 @@ export function openWebApp(options: WebAppOptions): WebApp {
       const reply = route(request, context)
       switch (reply.kind) {
         case 'html':
-          // only the Inputs screen's forms post, and a post answered with a page is answered with that screen
-          return { path: request.method === 'POST' ? INPUTS_PATH : request.path, status: reply.status, html: reply.html }
+          // a post answered with a page names the screen it shows
+          return { path: reply.path ?? request.path, status: reply.status, html: reply.html }
         case 'redirect':
           return this.show({ method: 'GET', path: reply.location })
         case 'notFound':
