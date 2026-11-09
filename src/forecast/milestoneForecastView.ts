@@ -2,7 +2,7 @@ import { periodEndDate, simulateCase, ENGINE_VERSION, type ForecastResult, type 
 import type { Ambiguity, GrowthRange } from '../model/ambiguity.js'
 import type { Storage } from '../storage/storage.js'
 import type { CapacityEntry } from '../model/capacity.js'
-import { capacityFactors, capacityView, type CapacityView } from './capacity.js'
+import { capacityFactors, capacityView, currentEntries, type CapacityView } from './capacity.js'
 import { milestoneGrowth } from './growth.js'
 import { assessMilestone, type ForecastableInputs, type InputNote, type PaceInUse } from './milestoneAssessment.js'
 import { paceTrend, type PaceTrend } from './paceTrend.js'
@@ -70,7 +70,7 @@ export function milestoneForecastView(storage: Storage, teamId: string, settings
 
   const { inputs, pace } = assessment
   const growth = milestoneGrowth(storage, inputs)
-  const simulationCase = milestoneCase(inputs, pace, growth, settings, storage.capacityEntries(teamId))
+  const simulationCase = milestoneCase(inputs, pace, growth, settings, currentEntries(storage.capacityEntries(teamId), today))
   const result = simulateCase(simulationCase)
   const { periodDays, maxPeriods, percentiles } = simulationCase
   return {
@@ -87,7 +87,7 @@ export function milestoneForecastView(storage: Storage, teamId: string, settings
     warnings: assessment.warnings.map(({ input, message }) => ({ input, message })),
     finishGraph: finishGraph(result, simulationCase),
     paceTrend: paceTrend(inputs, settings),
-    capacity: capacityView(storage, teamId),
+    capacity: capacityView(storage, teamId, today),
   }
 }
 

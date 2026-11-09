@@ -136,6 +136,13 @@ const STYLE = `
     ul.capacity-entries li > span { flex: 1 1 0; min-width: 0; }
     ul.capacity-entries form { margin: 0; }
     ul.capacity-entries p.warning { flex-basis: 100%; font-size: 13px; }
+    details.edit > summary { list-style: none; cursor: pointer; color: var(--link); text-decoration: underline; font-size: 13px; }
+    details.edit > summary::-webkit-details-marker { display: none; }
+    details.edit[open] { flex-basis: 100%; order: 1; border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; }
+    details.edit[open] > summary { display: none; }
+    details.edit .actions { display: flex; gap: 12px; align-items: baseline; }
+    details.edit .actions a { font-size: 13px; }
+    details.capacity-past > summary { cursor: pointer; font-size: 13px; color: var(--muted); }
     form.sentence { margin: 0; font-size: 14px; line-height: 2.2; }
     form.sentence input[type=number], form.sentence input[type=date], form.sentence input[type=text] { font-size: 13px; padding: 2px 0; }
     form.sentence input[type=number] { width: 56px; text-align: center; }
