@@ -992,7 +992,7 @@ describe('Milestone forecast screen: capacity', () => {
   test('removing an entry takes it off the forecast', async () => {
     await startOnPreMvpData()
     await submitPace('4', '8')
-    await addCapacity('0', '2026-09-07', '2026-09-11', 'Offsite')
+    await addCapacity('0', '2026-10-26', '2026-10-30', 'Offsite')
 
     const response = await post('/capacity/remove', [['id', '1']])
 
