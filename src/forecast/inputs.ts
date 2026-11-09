@@ -2,7 +2,7 @@ import type { Ambiguity } from '../model/ambiguity.js'
 import type { Storage } from '../storage/storage.js'
 import { editCapacity, type CapacityEdit, type CapacityForm, type CapacityView } from './capacity.js'
 import type { EditResult } from './editResult.js'
-import { milestoneForecastView, type MilestoneForecastView } from './milestoneForecastView.js'
+import { milestoneForecastView, type ForecastViewOptions, type MilestoneForecastView } from './milestoneForecastView.js'
 import { editGrowth, growthView, type GrowthEdit, type GrowthView, type TypedRange } from './growth.js'
 import { editMilestoneInputs, milestoneInputsView, type MilestoneInputsEdit, type MilestoneInputsView } from './milestoneInputs.js'
 import type { ForecastSettings } from './settings.js'
@@ -63,11 +63,18 @@ export function inputsView(storage: Storage, teamId: string, settings: ForecastS
 
 /**
  * Seam B: saves a form the EM submitted. Refused, nothing changes, and the result names the screen to show again: the
- * form as typed, saying why, beside the rest as saved. The capacity forms are on the Milestone forecast screen; every
- * other form is on the Inputs screen.
+ * form as typed, saying why, beside the rest as saved. The capacity forms are on the Milestone forecast screen, shown
+ * again as it was (`shown`) with its Capacity section open; every other form is on the Inputs screen.
  */
-export function submitInputs(storage: Storage, teamId: string, settings: ForecastSettings, today: string, edit: InputsEdit): Submitted {
-  if (edit.kind === 'addCapacity' || edit.kind === 'editCapacity' || edit.kind === 'removeCapacity' || edit.kind === 'switchCapacity') return submitCapacity(storage, teamId, settings, today, edit)
+export function submitInputs(
+  storage: Storage,
+  teamId: string,
+  settings: ForecastSettings,
+  today: string,
+  edit: InputsEdit,
+  shown: ForecastViewOptions = {},
+): Submitted {
+  if (edit.kind === 'addCapacity' || edit.kind === 'editCapacity' || edit.kind === 'removeCapacity' || edit.kind === 'switchCapacity') return submitCapacity(storage, teamId, settings, today, edit, shown)
   const { form, next, typed } = submission(edit)
   const result: EditResult = edit.kind === 'setAmbiguityRanges' ? editGrowth(storage, teamId, edit) : editMilestoneInputs(storage, teamId, edit)
   if (result.ok) return { saved: true, next }
@@ -80,12 +87,13 @@ export function submitInputs(storage: Storage, teamId: string, settings: Forecas
  * A capacity form, saved, goes to the forecast it changes. Refused, the Milestone forecast screen shows it again as
  * typed with why; a screen with no forecast yet has no capacity section to show it on.
  */
-function submitCapacity(storage: Storage, teamId: string, settings: ForecastSettings, today: string, edit: CapacityEdit): Submitted {
+function submitCapacity(storage: Storage, teamId: string, settings: ForecastSettings, today: string, edit: CapacityEdit, shown: ForecastViewOptions): Submitted {
   const result = editCapacity(storage, teamId, today, edit)
   if (result.ok) return { saved: true, next: 'forecast' }
-  const view = milestoneForecastView(storage, teamId, settings, today)
+  const view = milestoneForecastView(storage, teamId, settings, today, shown)
   if (view.kind !== 'forecast') return { saved: false, screen: 'forecast', view }
-  return { saved: false, screen: 'forecast', view: { ...view, capacity: { ...view.capacity, ...refusedCapacity(edit, result.error) } } }
+  // open to say why, whether or not it was open when submitted
+  return { saved: false, screen: 'forecast', view: { ...view, capacity: { ...view.capacity, open: true, ...refusedCapacity(edit, result.error) } } }
 }
 
 /** A refused capacity form as typed, with why: the add sentence, or the edit form of the entry it was on. */

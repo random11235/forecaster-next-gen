@@ -92,6 +92,23 @@ describe('web app', () => {
     expect(off.html).toContain('Offsite')
   })
 
+  test('the Capacity section, opened, gives each entry’s effect and stays open across saves', () => {
+    const { app } = firstOpen()
+    app.show(post('/inputs/milestone', { name: 'Launch', startDate: '2026-11-02', ticketsRemaining: '30' }))
+    app.show(post('/inputs/pace', { low: '5', high: '10' }))
+    app.show(post('/capacity/add', { percent: '0', from: '2026-11-02', to: '2026-11-06', note: 'Offsite' }))
+    expect(app.show({ method: 'GET', path: '/' }).html).not.toContain('85% date +')
+
+    const opened = app.show({ method: 'GET', path: '/?capacity=open' })
+    expect(opened.html).toContain('data-toggle="/#capacity" open>')
+    expect(opened.html).toContain('85% date +1 wk')
+
+    const saved = app.show(post('/capacity/add?capacity=open', { percent: '0', from: '2026-11-30', to: '', note: 'Holiday' }))
+    expect(saved).toMatchObject({ path: '/?capacity=open', status: 200 })
+    expect(saved.html).toContain('data-toggle="/#capacity" open>')
+    expect(saved.html).toMatch(/Holiday<\/span> <span class="effect[^"]*">(no change to the 85% date|85% date \+\d wk)</)
+  })
+
   test('an edited capacity entry comes back to the forecast, changed', () => {
     const { app } = firstOpen()
     app.show(post('/inputs/milestone', { name: 'Launch', startDate: '2026-11-02', ticketsRemaining: '30' }))

@@ -1,8 +1,9 @@
 import { periodEndDate, simulateCase, ENGINE_VERSION, type ForecastResult, type SimulationCase } from '../engine/index.js'
 import type { Ambiguity, GrowthRange } from '../model/ambiguity.js'
+import type { CapacityEntry } from '../model/capacity.js'
 import type { Storage } from '../storage/storage.js'
 import { daysBetween } from './calendarDate.js'
-import { capacityFactors, capacityLine, capacityView, currentEntries, type CapacityUse, type CapacityView } from './capacity.js'
+import { capacityFactors, capacityLine, capacityView, currentEntries, entryEffect, type CapacityUse, type CapacityView, type EntryEffect } from './capacity.js'
 import { periodName } from './cadence.js'
 import { milestoneGrowth } from './growth.js'
 import { assessMilestone, type ForecastableInputs, type InputNote, type PaceInUse } from './milestoneAssessment.js'
@@ -81,8 +82,22 @@ export type MilestoneForecastView =
       capacityLine: string | undefined
     }
 
-/** Seam B: the Milestone forecast screen for the team's milestone, forecast from its start date, on `today`. */
-export function milestoneForecastView(storage: Storage, teamId: string, settings: ForecastSettings, today: string): MilestoneForecastView {
+/** How the screen is shown: `capacityOpen` with the Capacity section open, where each entry gives its own effect. */
+export interface ForecastViewOptions {
+  capacityOpen?: boolean
+}
+
+/**
+ * Seam B: the Milestone forecast screen for the team's milestone, forecast from its start date, on `today`. Each
+ * entry's effect takes a run of its own, so it is worked out only with the Capacity section open.
+ */
+export function milestoneForecastView(
+  storage: Storage,
+  teamId: string,
+  settings: ForecastSettings,
+  today: string,
+  { capacityOpen = false }: ForecastViewOptions = {},
+): MilestoneForecastView {
   const saved = storage.milestoneInputs(teamId)
   if (!saved) return { kind: 'empty' }
   const assessment = assessMilestone(saved, settings, today)
@@ -91,7 +106,9 @@ export function milestoneForecastView(storage: Storage, teamId: string, settings
   const { inputs, pace } = assessment
   const growth = milestoneGrowth(storage, inputs)
   // with no entries the forecast uses (none past), or none touching the forecast's periods, the case is the MVP's, hash and all
-  const factors = capacityFactors(currentEntries(storage.capacityEntries(teamId), today), inputs.startDate, inputs.cadenceDays, settings.maxPeriods)
+  const entries = currentEntries(storage.capacityEntries(teamId), today)
+  const factorsOf = (some: readonly CapacityEntry[]) => capacityFactors(some, inputs.startDate, inputs.cadenceDays, settings.maxPeriods)
+  const factors = factorsOf(entries)
   const on = storage.capacityOn(teamId)
   const simulationCase = milestoneCase(inputs, pace, growth, settings, on ? factors : undefined)
   const result = simulateCase(simulationCase)
@@ -102,6 +119,16 @@ export function milestoneForecastView(storage: Storage, teamId: string, settings
   const headlineShift = comparison?.find(({ percent }) => percent === HEADLINE_PERCENT)?.shift ?? null
   const use: CapacityUse = !factors ? { kind: 'unused' } : on ? { kind: 'inUse', shift: headlineShift } : { kind: 'off' }
   const period = periodName(periodDays)
+  // each entry against a run without it, from the same seed, so the two differ by that entry alone
+  const effects =
+    capacityOpen && on && entries.length > 0
+      ? new Map<number, EntryEffect>(
+          entries.map((entry) => {
+            const without = simulateCase(milestoneCase(inputs, pace, growth, settings, factorsOf(entries.filter((other) => other !== entry))))
+            return [entry.id, entryEffect(comparedDate(HEADLINE_PERCENT, result, without, periodDays), period)]
+          }),
+        )
+      : undefined
   return {
     kind: 'forecast',
     name: inputs.name,
@@ -116,7 +143,7 @@ export function milestoneForecastView(storage: Storage, teamId: string, settings
     warnings: assessment.warnings.map(({ input, message }) => ({ input, message })),
     finishGraph: finishGraph(result, simulationCase),
     paceTrend: paceTrend(inputs, settings),
-    capacity: capacityView(storage, teamId, today, use, period),
+    capacity: capacityView(storage, teamId, today, use, period, { open: capacityOpen, ...(effects && { effects }) }),
     comparison,
     capacityLine: capacityLine(use, period),
   }
