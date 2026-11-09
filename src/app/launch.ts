@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
+import type { Connector } from '../connectors/connector.js'
 import type { Storage } from '../storage/storage.js'
 import { SAVE_IN_PLACE } from './inputsScript.js'
 import { appContext, route, type AppContext, type Reply } from './routes.js'
@@ -13,6 +14,8 @@ export interface LaunchOptions {
   openBrowser: (url: string) => void
   /** Where the app keeps its data. On first launch, when it is empty, the default team is added to it. */
   storage: Storage
+  /** Where tickets are read from: the canned connector in demo mode. No screen reads one yet. */
+  connector?: Connector
   /** Today's ISO calendar date, the start date's default; the system clock's local date unless given. */
   today?: () => string
 }
