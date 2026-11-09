@@ -38,3 +38,4 @@ The file holds no private data: see the review on [#57](https://github.com/rando
 
 - `npm test` runs the tests. The launch smoke test builds the app and runs it with `FORECASTER_NO_BROWSER=1`, which stops it opening a browser, and its data in a temporary `FORECASTER_DATA_FILE`. It runs it again with `FORECASTER_DEMO=1`, demo mode, which reads tickets from a synthetic fixture instead of a tracker, so no token is needed.
 - `npm run typecheck` checks types.
+- `npm run record:github` refreshes the recorded GitHub responses the connector tests replay, from the synthetic repo `random11235/forecaster-synthetic`, with a token from the macOS Keychain item `forecaster-github-recording`. The tests themselves need no token or network.
