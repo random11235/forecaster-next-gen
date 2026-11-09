@@ -221,11 +221,12 @@ export function editCapacity(storage: Storage, teamId: string, today: string, ed
   }
   const entries = storage.capacityEntries(teamId)
   if (edit.kind === 'removeCapacity') {
+    if (entries.some((entry) => String(entry.id) === edit.id.trim() && isPast(entry, today))) return refuse('Past entries are kept, so it can’t be removed.')
     storage.saveCapacityEntries(teamId, entries.filter(({ id }) => String(id) !== edit.id.trim()))
     return { ok: true }
   }
   if (edit.kind === 'addCapacity') {
-    const added = typedEntry(edit, nextId(entries), entries)
+    const added = typedEntry(edit, nextId(entries), currentEntries(entries, today))
     if (!added.ok) return added
     storage.saveCapacityEntries(teamId, [...entries, added.entry])
     return { ok: true }
@@ -243,7 +244,8 @@ export function editCapacity(storage: Storage, teamId: string, today: string, ed
     if (edit.kind === 'keepCapacity') return save({ ...edited, kept: true })
     return save(edit.kind === 'acceptNewUsual' ? { ...edited, to: today, newUsualOn: today } : { ...edited, to: addDays(today, -1) })
   }
-  const others = entries.filter((entry) => entry !== edited)
+  // past entries no longer count, so they don't count toward the limit on overlaps either
+  const others = currentEntries(entries, today).filter((entry) => entry !== edited)
   const saved = isPast(edited, today) ? { ok: true as const, entry: { ...edited, note: edit.note.trim() } } : typedEntry(edit, edited.id, others)
   return saved.ok ? save(saved.entry) : saved
 }
