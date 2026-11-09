@@ -78,6 +78,19 @@ describe('launch smoke test', () => {
     expect(html).not.toContain('Checkout v2')
   }, 15_000)
 
+  test('in demo mode, the built entry point starts on the canned connector and serves the Milestone forecast screen', async () => {
+    const app = runEntry({ PORT: '0', FORECASTER_DEMO: '1' })
+    let output = ''
+    app.stdout?.on('data', (chunk: Buffer) => (output += chunk.toString()))
+    const url = await printedUrl(app)
+
+    const response = await fetch(url)
+
+    expect(output).toContain('Demo mode')
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain('Milestone forecast')
+  }, 15_000)
+
   test.each(['abc', '5180.5', '-1', '65536'])('refuses PORT=%j, naming the bad value', async (port) => {
     const { code, stderr } = await failure(runEntry({ PORT: port }))
 
