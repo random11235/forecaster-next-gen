@@ -8,10 +8,12 @@ const MAX_SAMPLES = 100_000
 const MAX_EPICS = 100
 /** Tickets in a whole-number range (per period, or per epic); far above any real team or epic, and far below the 2^32 steps the PRNG can draw uniformly. */
 const MAX_RANGE_HIGH = 100_000
+/** A period's capacity factor: from 0 (no one) to 10 (1000% of the team's usual), so a typo can't break the forecast. */
+const MAX_CAPACITY = 10
 
 /** Rejects cases outside the engine's limits, so a bad input fails loudly instead of forecasting. */
 export function assertValidCase(simulationCase: SimulationCase): void {
-  const { trials, maxPeriods, question, scope, throughputSamples, epicSizeSamples, percentiles } = simulationCase
+  const { trials, maxPeriods, question, scope, throughputSamples, epicSizeSamples, percentiles, capacity } = simulationCase
   assertWholeNumberIn('trials', trials, 1, MAX_TRIALS)
   assertWholeNumberIn('maxPeriods', maxPeriods, 1, MAX_PERIODS)
   assertPercentiles(percentiles)
@@ -27,6 +29,7 @@ export function assertValidCase(simulationCase: SimulationCase): void {
   } else {
     assertRange('epicSizeSamples', epicSizeSamples)
   }
+  if (capacity !== undefined) assertCapacity(capacity)
   if (question.kind === 'howMany') {
     assertByDate(simulationCase, question.byDate)
   } else if (question.kind !== 'when') {
@@ -62,6 +65,18 @@ function assertPercentiles(percentiles: readonly number[]): void {
   for (const p of percentiles) assertWholeNumberIn('percentiles', p, 0, 100)
   if (new Set(percentiles).size < percentiles.length) {
     throw new RangeError(`percentiles must not repeat a percentile, got ${percentiles.join(', ')}`)
+  }
+}
+
+/** One factor per period, no more periods than the horizon allows, each from 0 to 10. */
+function assertCapacity(capacity: readonly number[]): void {
+  if (capacity.length > MAX_PERIODS) {
+    throw new RangeError(`capacity must hold at most ${MAX_PERIODS} periods, got ${capacity.length}`)
+  }
+  for (const factor of capacity) {
+    if (!Number.isFinite(factor) || factor < 0 || factor > MAX_CAPACITY) {
+      throw new RangeError(`capacity must hold factors from 0 to ${MAX_CAPACITY}, got ${factor}`)
+    }
   }
 }
 
