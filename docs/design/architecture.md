@@ -68,10 +68,11 @@ src/
 
   connectors/             # what reads the team's tickets from its tracker; everything tracker-specific stays inside one
     connector.ts          # the interface and its shared types: Connection, Ticket, Failure, ReadResult, Choice
+    remote.ts             # what the network connectors share: sending a request (only a network failure is unavailable), status to failure, the scope check, the finishedSince filter
     canned/               # the canned connector, answering from a fixture in the connector's own shape; Seam B tests use it
       demoFixture.json    # demo mode's synthetic fixture: made up, no real team's data
     github/               # the GitHub connector: so far a skeleton passing the contract suite's shape cases (#172)
-    jira/                 # (to come) the Jira connector
+    jira/                 # the Jira Cloud connector: so far a skeleton passing the contract suite's shape cases (#173)
 
   storage/                # interface and its v1 SQLite file, with the schema's migrations; the web build's browser storage
   app/                    # local server (localhost only), screens, `npm start` entry point; each screen's HTML, and reading the fields of the forms it posts; the web build's app and page script (`webApp.ts`, `webMain.ts`)
@@ -80,7 +81,7 @@ test/
   app/                    # the screens, launch, and the launch smoke test: start the app, check the screen is served; the web build's app and its smoke test
   engine/                 # Seam A: fixed seeds, plus a performance benchmark
   forecast/               # Seam B: stored inputs + settings → the screens' views
-  connectors/             # Seam C: the connector contract suite and its replay transport; each tracker's quirks and recordings in its own folder; the canned connector; the dependency rules for connectors/
+  connectors/             # Seam C: the connector contract suite, its replay transport, and the scenarios and queries recorded for it; each tracker's quirks and recordings in its own folder; the canned connector; the dependency rules for connectors/
   storage/                # the schema's migrations; the Storage contract, run against SQLite and browser storage
 ```
 
@@ -92,7 +93,7 @@ test/
 - `app/` reaches forecasts through `forecast/`, never `engine/` directly.
 - Forecast code reads facts only through team facts (`teamFacts`), never `storage.facts`, so a forecast always sees the EM's status mapping. Storage and storage tests may still read raw facts. (The MVP reads no facts: it has neither, until connectors return.)
 - `connectors/`, `storage/` and `secrets/` sit at the edges behind interfaces, so v1 can run from canned data and the same code can be hosted later.
-- `connectors/` import only their shared types (`connectors/connector.ts`) and `model/`.
+- `connectors/` import only their shared types (`connectors/connector.ts`), what the network connectors share (`connectors/remote.ts`), files in their own folder, and `model/`.
 - `forecast/` depends on the connector interface only, never on a concrete connector (`canned/`, `github/` or `jira/`). `app/` builds the connector and passes it in: the canned one from its synthetic fixture in demo mode (`FORECASTER_DEMO=1`), otherwise the real one for the connection. `test/connectors/dependencyRules.test.ts` checks both rules.
 
 **File types:**
@@ -120,10 +121,13 @@ Seam B tests read tickets through the canned connector (`connectors/canned/`), w
 
 Each real connector is tested at Seam C, offline, on raw responses recorded from the synthetic trackers and replayed through its injected transport.
 
-- **The contract suite** (`test/connectors/connectorContract.test.ts`), modelled on the Storage contract, runs the same cases against every connector: a read returning tickets, a query matching nothing (an empty list, not a failure), each failure, and milestone choices returning choices or a failure. Each connector joins it with a `ContractSubject` (`connectorContract.ts`): its connector on the synthetic tracker, with a refused token, on an unknown repo or project, and with no network, plus its queries in the tracker's syntax and its tickets' ids by role. Later specs add their cases to this suite. Tracker-only quirks are tested beside it, in the tracker's own folder (`test/connectors/github/`, `test/connectors/jira/`).
+Backoff on rate limits is not done yet: a rate limit (a 429, or a GitHub 403 whose headers say it is one) fails at once as `unavailable`. Backoff comes with the spec on which tickets count, with paging and the full reads.
+
+- **The contract suite** (`test/connectors/connectorContract.test.ts`), modelled on the Storage contract, runs the same cases against every connector: a read returning tickets, a query matching nothing (an empty list, not a failure), each failure, and milestone choices returning choices or a failure. Each connector joins it with a `ContractSubject` (`connectorContract.ts`): its connector on the synthetic tracker, with a refused token, on an unknown repo or project, with no network (its transport rejects with the `TypeError` `fetch` does), and replaying no recordings, plus its queries in the tracker's syntax and its tickets' ids by role. A connector maps only a network failure to `unavailable`, so on a request with no recording the replay's error propagates and the case fails loudly; the suite checks this for each connector. Later specs add their cases to this suite. Tracker-only quirks are tested beside it, in the tracker's own folder (`test/connectors/github/`, `test/connectors/jira/`).
 - **The replay transport** (`test/connectors/replayTransport.ts`) answers each request with the recording of the same method, URL and body, and throws, naming the request, when there is none, so a missing recording never passes silently.
 - **Recordings** come only from the synthetic trackers (`random11235/forecaster-synthetic` for GitHub, the space `SYN` on `ralphhockley.atlassian.net` for Jira), which `scripts/synthetic/` seeds; its manifests map each case's role to its ticket. Failures are real recorded responses where the tracker gives one: a refused token is recorded with a token the tracker refuses, an unknown repo or project with one that doesn't exist. Only the network failing is not recorded. Recordings keep each response's status and only the fields the connector reads, and no headers.
-- **The recording script** (`scripts/record.ts`: `npm run record` for both trackers, `npm run record:github` or `npm run record:jira` for one) reads its tokens from the macOS Keychain (`forecaster-github-recording`, `forecaster-jira-recording`) and Jira's account email from `FORECASTER_JIRA_EMAIL`, never writing either anywhere, runs each connector's own requests against its synthetic tracker, and rewrites `test/connectors/<tracker>/recordings/`. It says plainly when a tracker refuses its token: GitHub's expires on 2026-12-07, Jira's after 30 days. A change to a connector's requests needs a re-run: the replay transport names any request left unrecorded.
+- **The scenarios** (`test/connectors/scenarios.ts`) name, for each tracker, what is recorded: the synthetic connection, the unknown one, and the queries read in each scenario. The contract suite replays them and the recording script records them, so the two can't drift.
+- **The recording script** (`scripts/record.ts`: `npm run record` for both trackers, `npm run record:github` or `npm run record:jira` for one) reads its tokens from the macOS Keychain (`forecaster-github-recording`, `forecaster-jira-recording`) and Jira's account email from `FORECASTER_JIRA_EMAIL`, never writing either anywhere, runs each connector's own requests against its synthetic tracker, and rewrites `test/connectors/<tracker>/recordings/`. It says plainly when a tracker refuses its token: GitHub's expires on 2026-12-07, Jira's after 30 days. A change to a connector's requests needs a re-run: the replay transport names any request left unrecorded. Node runs the script directly, so the files it imports from `src/` and `test/` (`connectors/remote.ts`, `recording.ts`, `scenarios.ts`), named by their `.ts`, must import nothing at runtime themselves; `test/connectors/recordScript.test.ts` checks that it loads. It loads the connectors from the build in `dist/`.
 
 `test/app/` holds the launch smoke test. It is not a forecasting seam: it builds the app, runs the built `npm start` entry point (`dist/app/main.js`) with `FORECASTER_NO_BROWSER=1` so no browser opens and a temporary `FORECASTER_DATA_FILE`, and checks that the Milestone forecast screen is served in its empty state, with no sample data. It runs it again in demo mode (`FORECASTER_DEMO=1`), on the canned connector built from the synthetic fixture, so no token is needed, and checks the screen is served. It also checks that a bad `PORT` is refused.
 
@@ -153,7 +157,7 @@ The one exception is the PRNG: `engine/random.ts` is checked against output vect
 v1 is a local, single-user tool, so items 1 and 2 are what matter. Items 3 and 4 still apply; the rest becomes relevant only with a hosted or multi-team version.
 
 1. **Ticketing credentials.**
-   - Use read-only access: Jira OAuth 2.0 (3LO) with read scopes, and a GitHub App or fine-grained token with read-only issue access. A classic API token or PAT carries all of that user's permissions, including write access.
+   - Use read-only access: for Jira, a scoped API token with read-only scopes (`read:jira-work`) that expires, sent as basic auth with its account's email through Atlassian's gateway ([#154](https://github.com/random11235/forecaster-next-gen/issues/154)); OAuth 2.0 (3LO) with read scopes may replace it later. For GitHub, a GitHub App or fine-grained token with read-only issue access. A classic (unscoped) API token or PAT carries all of that user's permissions, including write access.
    - Store tokens in the OS keychain. Never put them in the browser, `localStorage`, the SQLite file, logs or error messages.
    - No webhooks in v1. Connectors poll on refresh.
 2. **Data minimisation.** The model needs only IDs, types, parent links, labels, status timestamps and counts. Don't ingest titles (except epics', which name them on screen), descriptions, comments or assignee identities. Capacity is typed for the team as a whole, so there is no `Person` table.

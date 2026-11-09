@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
-import { replayTransport, type Recording } from './replayTransport.js'
+import type { Recording } from './recording.js'
+import { replayTransport } from './replayTransport.js'
 
 // Seam C's transport: a connector's injected fetch, answering from recorded raw responses.
 
