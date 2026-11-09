@@ -62,6 +62,17 @@ describe.each(subjects)('%s connector', (_, subject) => {
     ['with no network', () => subject.unreachable(), { failure: 'unavailable' }],
   ]
 
+  describe('a request with no recording', () => {
+    // A missing recording must fail the test that needs it, never pass as a failure the case expects.
+    test('fails milestone choices loudly, naming the request', async () => {
+      await expect(subject.unrecorded().milestoneChoices()).rejects.toThrow(/^No recording for /)
+    })
+
+    test('fails a read loudly, naming the request', async () => {
+      await expect(subject.unrecorded().read(queries.searchRevamp, batches.cut)).rejects.toThrow(/^No recording for /)
+    })
+  })
+
   describe.each(failing)('%s', (_, connector, failure) => {
     test(`milestone choices fail as ${failure.failure}`, async () => {
       expect(await connector().milestoneChoices()).toEqual({ ok: false, ...failure })

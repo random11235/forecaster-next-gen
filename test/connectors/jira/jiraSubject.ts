@@ -29,7 +29,8 @@ export const jiraSubject: ContractSubject = {
     jiraConnector(JIRA_SCENARIOS.synthetic.connection, REPLAYED_CREDENTIAL, async () => {
       throw new TypeError('fetch failed')
     }),
-  queries: JIRA_QUERIES,
+  unrecorded: () => jiraConnector(JIRA_SCENARIOS.synthetic.connection, REPLAYED_CREDENTIAL, replayTransport([])),
+  queries:JIRA_QUERIES,
   idOf: (role) => {
     const issue = issues[role]
     if (!issue) throw new Error(`No synthetic issue has the role ${role}`)

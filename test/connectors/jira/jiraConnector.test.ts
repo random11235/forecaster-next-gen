@@ -28,11 +28,29 @@ describe('Jira connector', () => {
     ['a project, among others', 'labels = a OR project in (KAN, SYN)'],
     ['a project, in parentheses', '(project != SYN)'],
     ['a closing parenthesis that escapes the wrapper', 'labels = a) OR (labels = b'],
+    ['a closing parenthesis between quoted values', 'labels = "a") OR (labels = \'b\''],
   ])('a query naming %s is outOfScope, with no request made', async (_, query) => {
     // An empty replay throws on any request, so a request made would fail this test.
     const connector = jiraConnector(CONNECTION, 'someone@example.com:token', replayTransport([]))
 
     expect(await connector.read(query, SINCE)).toEqual({ ok: false, failure: 'outOfScope' })
+  })
+
+  test.each([
+    ['a closing parenthesis in double quotes', 'labels = "a)"'],
+    ['a closing parenthesis in single quotes', "labels = 'a)'"],
+    ['quoted parentheses either way round', 'labels = ")" OR labels = "wip (old"'],
+    ['a quoted parenthesis after an escaped quote', 'summary ~ "say \\") hi"'],
+  ])('a query with %s stays in scope and is searched', async (_, query) => {
+    const searched: string[] = []
+    const connector = jiraConnector(CONNECTION, 'someone@example.com:token', async (url, init) => {
+      if (url.endsWith('/_edge/tenant_info')) return json(200, { cloudId: 'cloud-1' })
+      if (url.endsWith('/search/jql')) searched.push((JSON.parse(String(init?.body)) as { jql: string }).jql)
+      return json(200, { issues: [{ id: '1', fields: { status: { statusCategory: { key: 'new' } } } }], isLast: true })
+    })
+
+    expect(await connector.read(query, SINCE)).toEqual({ ok: true, tickets: [{ id: '1' }], incomplete: false })
+    expect(searched).toEqual([`project = "SYN" AND (${query})`])
   })
 
   test("a finished ticket's finish is a UTC instant, though Jira gives it in the token user's offset", async () => {
