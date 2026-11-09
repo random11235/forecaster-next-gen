@@ -315,6 +315,35 @@ describe('the switch', () => {
   })
 })
 
+describe('the week-by-week chart', () => {
+  test('each bar carries the capacity of the week it ends: a holiday Monday leaves its week at 80%, usual weeks at 100%', () => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage)
+
+    add(storage, '0', '2026-09-07', '', { note: 'Holiday' })
+
+    const forecast = view(storage)
+    // the first bar is the start date itself, before any week has run
+    expect(forecast.kind === 'forecast' && forecast.finishGraph.map(({ date, capacity }) => ({ date, capacity }))).toEqual([
+      { date: '2026-09-07', capacity: 100 },
+      { date: '2026-09-14', capacity: 80 },
+      { date: '2026-09-21', capacity: 100 },
+      { date: '2026-09-28', capacity: 100 },
+    ])
+  })
+
+  test('a sprint cadence gives each bar its sprint’s capacity', () => {
+    const storage = openStorage()
+    tenTicketsAtFive(storage, { cadenceDays: '14', pace: '5' })
+
+    // 3 of the first sprint’s 10 working days at 0%
+    add(storage, '0', '2026-09-07', '2026-09-09')
+
+    const forecast = view(storage)
+    expect(forecast.kind === 'forecast' && forecast.finishGraph.map(({ capacity }) => capacity)).toEqual([100, 70, 100, 100])
+  })
+})
+
 describe('a refused capacity entry', () => {
   test.each([
     ['no start date', { percent: '50', from: '', to: '' }, 'Pick the date it starts.'],

@@ -781,6 +781,7 @@ describe('Milestone forecast screen', () => {
 
     const graph = (await page('/')).match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
 
+    expect(text(await page('/'))).toContain('Sprint by sprint')
     expect(graph).toContain('aria-label="When the simulations finish, by sprint"')
     expect(text(graph)).toContain('Share of simulations finishing each sprint')
     expect(text(graph)).toMatch(/\d+% chance of completing by the end of this sprint, \d+% of simulations are completed within\./)
@@ -834,7 +835,7 @@ describe('Milestone forecast screen', () => {
     for (const at of warnings) {
       expect(at).toBeGreaterThan(screen.indexOf('85% confident of finishing by'))
       expect(at).toBeLessThan(screen.indexOf('When it could finish'))
-      expect(at).toBeLessThan(screen.indexOf('When the simulations finish'))
+      expect(at).toBeLessThan(screen.indexOf('Week by week'))
     }
   })
 
@@ -1038,6 +1039,26 @@ describe('Milestone forecast screen: capacity', () => {
     await post('/capacity/switch', [['on', 'true']])
 
     expect(dateAt(text(await page('/')), 85)).toBe(withCapacity)
+  })
+
+  test('the week-by-week chart shades each week capacity changes and labels it with its %, leaving usual weeks plain', async () => {
+    await startOnPreMvpData()
+    await submitPace('4', '8')
+    const plain = (await page('/')).match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
+    expect(plain).not.toContain('capacity')
+
+    // from Tuesday 1 Sep, a week off from Monday 7 Sep takes one working day of five from the week ending 8 Sep, four from the next
+    await addCapacity('0', '2026-09-07', '2026-09-11', 'Offsite')
+
+    const html = await page('/')
+    const graph = html.match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
+    const bar = (date: string) => graph.match(new RegExp(`<div class="bar[^"]*"[^>]*data-date="${date}"[\\s\\S]*?</div>`))![0]
+    expect(text(html)).toContain('Week by week')
+    expect(bar('2026-09-08')).toMatch(/class="bar[^"]* changed"/)
+    expect(bar('2026-09-08')).toContain('<span class="capacity">80%</span>')
+    expect(text(bar('2026-09-15'))).toContain('At 20% capacity.')
+    expect(bar('2026-09-22')).not.toContain('changed')
+    expect(text(graph)).toContain('Shaded weeks: capacity changes, at the % shown.')
   })
 
   test("the Inputs screen's pace says where capacity is set", async () => {

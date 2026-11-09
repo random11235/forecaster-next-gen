@@ -42,6 +42,8 @@ export interface FinishBar {
   share: number
   /** The share of trials finished by the end of this period. */
   finishedBy: number
+  /** The team's capacity in this period, in % of its usual: 100 for a usual period, and for the first bar, which ends on the start date. */
+  capacity: number
 }
 
 /** What the Milestone forecast screen shows. */
@@ -172,11 +174,15 @@ function milestoneCase(
   }
 }
 
-/** The finish graph: for each period from the start to the last finish, the share of trials finishing in it and by it. */
-export function finishGraph(result: ForecastResult, { startDate, periodDays, trials }: SimulationCase): FinishBar[] {
+/**
+ * The finish graph: for each period from the start to the last finish, the share of trials finishing in it and by it, and
+ * its capacity. A trial finishing in bar `n` finished during the engine's period `n - 1`, so that is the capacity it carries.
+ */
+export function finishGraph(result: ForecastResult, { startDate, periodDays, trials, capacity = [] }: SimulationCase): FinishBar[] {
   let finishedBefore = 0
   return result.finishCounts.map((count, period) => {
     finishedBefore += count
-    return { date: periodEndDate(startDate, periodDays, period), share: count / trials, finishedBy: finishedBefore / trials }
+    const factor = period === 0 ? 1 : (capacity[period - 1] ?? 1)
+    return { date: periodEndDate(startDate, periodDays, period), share: count / trials, finishedBy: finishedBefore / trials, capacity: factor * 100 }
   })
 }
