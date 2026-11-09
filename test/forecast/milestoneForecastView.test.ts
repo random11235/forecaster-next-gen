@@ -112,9 +112,9 @@ describe('the forecast from what the EM enters', () => {
       ambiguity: { level: 'medium', low: 1, high: 1 },
       warnings: [],
       finishGraph: [
-        { date: '2026-09-01', share: 0, finishedBy: 0 },
-        { date: '2026-09-08', share: 0, finishedBy: 0 },
-        { date: '2026-09-15', share: 1, finishedBy: 1 },
+        { date: '2026-09-01', share: 0, finishedBy: 0, capacity: 100 },
+        { date: '2026-09-08', share: 0, finishedBy: 0, capacity: 100 },
+        { date: '2026-09-15', share: 1, finishedBy: 1, capacity: 100 },
       ],
       paceTrend: undefined,
       capacity: { entries: [], form: { percent: '', from: '', to: '', onward: false, note: '' } },
@@ -255,7 +255,7 @@ describe('the finish graph', () => {
 
     enter(storage, { startDate: '2026-09-01', ticketsRemaining: '0' }, { low: '4', high: '8' })
 
-    expect(graph(storage).finishGraph).toEqual([{ date: '2026-09-01', share: 1, finishedBy: 1 }])
+    expect(graph(storage).finishGraph).toEqual([{ date: '2026-09-01', share: 1, finishedBy: 1, capacity: 100 }])
   })
 
   test('zero pace: no trial finishes, so there are no bars', () => {
@@ -274,9 +274,9 @@ describe('the finish graph', () => {
     expect(edit(storage, { kind: 'setCadence', cadenceDays: '14' })).toEqual({ ok: true })
 
     expect(graph(storage).finishGraph).toEqual([
-      { date: '2026-09-01', share: 0, finishedBy: 0 },
-      { date: '2026-09-15', share: 0, finishedBy: 0 },
-      { date: '2026-09-29', share: 1, finishedBy: 1 },
+      { date: '2026-09-01', share: 0, finishedBy: 0, capacity: 100 },
+      { date: '2026-09-15', share: 0, finishedBy: 0, capacity: 100 },
+      { date: '2026-09-29', share: 1, finishedBy: 1, capacity: 100 },
     ])
   })
 })

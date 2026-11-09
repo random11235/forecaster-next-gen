@@ -150,6 +150,8 @@ const STYLE = `
     .finish-graph .bars { height: 160px; display: flex; align-items: flex-end; border-bottom: 1px solid var(--ink); }
     .finish-graph .bar { position: relative; flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; padding: 0 1px; min-width: 0; }
     .finish-graph .fill { width: 100%; background: var(--bar); border-radius: 2px 2px 0 0; }
+    .finish-graph .bar.changed { background: repeating-linear-gradient(135deg, transparent 0 4px, rgba(181, 72, 42, 0.14) 4px 7px); }
+    .finish-graph .bar .capacity { position: absolute; top: 2px; left: 0; right: 0; text-align: center; font-family: var(--mono); font-size: 10px; font-weight: 600; color: var(--risk); }
     .finish-graph .bar:hover .fill, .finish-graph .bar:focus-visible .fill { background: var(--ink); }
     .finish-graph .bar:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
     /* A bar's hover text: hidden by opacity, not display, so a screen reader still reads it with the bar. Bars near
