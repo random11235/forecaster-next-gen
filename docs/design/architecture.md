@@ -42,7 +42,7 @@ The data model is designed so that each of these can be relaxed later without re
 
 ## Folder structure
 
-The tree is `src/` as it stands in the MVP, with `connectors/` from [#154](https://github.com/random11235/forecaster-next-gen/issues/154). v1 adds `samples/` (Layer 2: commits, throughput, growth and epic-size samples derived from `model/`), `ledger/` (Layer 5), `secrets/`, and the epic-era files #87 deleted (work items, workflow settings, epic commits, team facts, measured pace and growth); [`forecast-model.md`](forecast-model.md) describes them.
+The tree is `src/` as it stands in the MVP, with `connectors/`. v1 adds `samples/` (Layer 2: commits, throughput, growth and epic-size samples derived from `model/`), `ledger/` (Layer 5), `secrets/`, and the epic-era files #87 deleted (work items, workflow settings, epic commits, team facts, measured pace and growth); [`forecast-model.md`](forecast-model.md) describes them.
 
 ```
 src/
@@ -71,8 +71,8 @@ src/
     remote.ts             # what the network connectors share: sending a request (only a network failure is unavailable), status to failure, the scope check, the finishedSince filter
     canned/               # the canned connector, answering from a fixture in the connector's own shape; Seam B tests use it
       demoFixture.json    # demo mode's synthetic fixture: made up, no real team's data
-    github/               # the GitHub connector: so far a skeleton passing the contract suite's shape cases (#172)
-    jira/                 # the Jira Cloud connector: so far a skeleton passing the contract suite's shape cases (#173)
+    github/               # the GitHub connector
+    jira/                 # the Jira Cloud connector
 
   storage/                # interface and its v1 SQLite file, with the schema's migrations; the web build's browser storage
   app/                    # local server (localhost only), screens, `npm start` entry point; each screen's HTML, and reading the fields of the forms it posts; the web build's app and page script (`webApp.ts`, `webMain.ts`)
@@ -102,7 +102,7 @@ test/
 - Fixtures are `.json`, in the same shape a connector produces (or the raw API response, for connector replay tests).
 - Settings defaults are a typed `.ts` constant.
 
-**Test seams.** There are three: two set in the spec, and Seam C from [#154](https://github.com/random11235/forecaster-next-gen/issues/154):
+**Test seams.** There are three:
 - **Seam A** is `simulateCase`, tested with fixed seeds ([`engine.md`](engine.md)).
 - **Seam B** is `forecast/`: stored facts, settings and the ledger go in, and the screens' views come out: `milestoneForecastView` for the Milestone forecast screen, and `inputsView` with `submitInputs` for the Inputs screen. `submitInputs` takes a form as typed (`InputsEdit`) and either saves it, saying which screen comes next, or refuses it, naming the screen to show again and returning its view: the Inputs screen with the Inputs view, or the Milestone forecast screen with the Milestone forecast view, each with that form as typed, the rest as saved, and the refusal on the form it belongs to. Capacity's forms are on the Milestone forecast screen and refuse to it; every other form is on the Inputs screen. `app/` shows whichever screen the result names, so refused re-display is tested here, without the server. Reading a form's fields from the request body stays in `app/`, beside the HTML that names them. Both views take the same `ForecastSettings` and judge the milestone by one assessment (`assessMilestone`), so the typed counts a forecast needs, the notes beside the inputs and the Inputs screen's hint all come from those settings. In v1, team facts is part of it and tests may call `teamFacts` directly; the MVP has no team facts. Its logic is in [`forecast-model.md`](forecast-model.md).
 - **Seam C** is the connector interface (`connectors/connector.ts`): a connector built from a connection, a token and a transport goes in, and its milestone choices and reads come out. See [Seam C](#seam-c-connectors) below.
@@ -156,7 +156,7 @@ The one exception is the PRNG: `engine/random.ts` is checked against output vect
 v1 is a local, single-user tool, so items 1 and 2 are what matter. Items 3 and 4 still apply; the rest becomes relevant only with a hosted or multi-team version.
 
 1. **Ticketing credentials.**
-   - Use read-only access: for Jira, a scoped API token with read-only scopes (`read:jira-work`) that expires, sent as basic auth with its account's email through Atlassian's gateway ([#154](https://github.com/random11235/forecaster-next-gen/issues/154)); OAuth 2.0 (3LO) with read scopes may replace it later. For GitHub, a GitHub App or fine-grained token with read-only issue access. A classic (unscoped) API token or PAT carries all of that user's permissions, including write access.
+   - Use read-only access: for Jira, a scoped API token with read-only scopes (`read:jira-work`) that expires, sent as basic auth with its account's email through Atlassian's gateway; OAuth 2.0 (3LO) with read scopes may replace it later. For GitHub, a GitHub App or fine-grained token with read-only issue access. A classic (unscoped) API token or PAT carries all of that user's permissions, including write access.
    - Store tokens in the OS keychain. Never put them in the browser, `localStorage`, the SQLite file, logs or error messages.
    - No webhooks in v1. Connectors poll on refresh.
 2. **Data minimisation.** The model needs only IDs, types, parent links, labels, status timestamps and counts. Don't ingest titles (except epics', which name them on screen), descriptions, comments or assignee identities. Capacity is typed for the team as a whole, so there is no `Person` table.
