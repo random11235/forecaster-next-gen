@@ -1,8 +1,8 @@
 # Design docs
 
-The Forecaster tells an engineering manager (EM) when a milestone will finish. It runs a Monte Carlo simulation over the EM's pace (a range, or typed counts per period) and the range its ambiguity could grow the milestone by. v1 is for a single team; its spec is [issue #84](https://github.com/random11235/forecaster-next-gen/issues/84). v1 ships two builds: a local server started with one command, and a browser build, one file sent to testers, that keeps each viewer's inputs in their own browser.
+The Forecaster tells an engineering manager (EM) when a milestone will finish. It runs a Monte Carlo simulation over the EM's pace (a range, or typed counts per period) and the range its ambiguity could grow the milestone by. v1 is for a single team. v1 ships two builds: a local server started with one command, and a browser build, one file sent to testers, that keeps each viewer's inputs in their own browser.
 
-**The MVP comes first.** The MVP ([#84](https://github.com/random11235/forecaster-next-gen/issues/84)) is what is built: one milestone per team, forecast from what the EM types in: its start date, tickets remaining and a pace (a range, or typed counts) per period of the team's cadence, grown by the range of its ambiguity. Where it overrides v1's design (epics, commits, pull-backs, blocked epics, per-epic ambiguity, team facts, workflow settings, measured pace and growth, sample data), each doc says so near its top and at the sections it sets aside.
+**The MVP comes first.** The MVP is what is built: one milestone per team, forecast from what the EM types in: its start date, tickets remaining and a pace (a range, or typed counts) per period of the team's cadence, grown by the range of its ambiguity. Where it overrides v1's design (epics, commits, pull-backs, blocked epics, per-epic ambiguity, team facts, workflow settings, measured pace and growth, sample data), each doc says so near its top and at the sections it sets aside.
 
 Read [`architecture.md`](architecture.md) first, then the doc for the module you're changing.
 
