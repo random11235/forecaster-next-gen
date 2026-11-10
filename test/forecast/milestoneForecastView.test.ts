@@ -697,6 +697,7 @@ describe('before there is a forecast', () => {
       paceRange: undefined,
       paceCounts: [],
       paceCadenceDays: undefined,
+      paceWindow: { action: undefined },
     })
 
     expect(view(storage)).toEqual({
@@ -723,6 +724,7 @@ describe('before there is a forecast', () => {
       paceRange: undefined,
       paceCounts: [6],
       paceCadenceDays: undefined,
+      paceWindow: { action: undefined },
     })
 
     expect(view(storage)).toEqual({
@@ -874,6 +876,7 @@ describe('the milestone on the Inputs screen', () => {
       paceRange: { low: 4, high: 8 },
       paceCounts: [],
       paceCadenceDays: undefined,
+      paceWindow: { action: undefined },
     })
 
     expect(inputs(storage)).toMatchObject({

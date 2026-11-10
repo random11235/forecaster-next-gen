@@ -28,4 +28,24 @@ export interface MilestoneInputs {
   paceCounts: number[]
   /** The cadence the pace range or typed counts were last entered in; undefined until either is. */
   paceCadenceDays: number | undefined
+  /** Which of the counts the pace is drawn from. */
+  paceWindow: PaceWindow
+}
+
+/**
+ * The periods the pace is drawn from: every count, unless the EM applied a pace pattern's action. Counts outside the
+ * window are kept, not deleted, so undoing the action brings them back.
+ */
+export interface PaceWindow {
+  action: PaceAction | undefined
+}
+
+/**
+ * A pace pattern's action, applied: count pace from the period starting on `date`, after a step, or leave out the
+ * period starting on `date`, an odd one.
+ */
+export interface PaceAction {
+  kind: 'startFrom' | 'leaveOut'
+  /** ISO calendar date the period starts, `YYYY-MM-DD`. */
+  date: string
 }

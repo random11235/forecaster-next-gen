@@ -133,6 +133,11 @@ const STYLE = `
     button.switch { display: inline-flex; align-items: center; gap: 8px; padding: 0; border: 0; background: none; font: inherit; font-size: 13px; color: inherit; cursor: pointer; min-height: 0; }
     button.switch::before { content: ''; flex: none; width: 28px; height: 16px; border-radius: 8px; background: radial-gradient(circle 6px at 8px 50%, var(--page) 98%, transparent 100%), var(--border); }
     button.switch[aria-checked="true"]::before { background: radial-gradient(circle 6px at 20px 50%, var(--page) 98%, transparent 100%), var(--good); }
+    details.pace-pattern > summary { cursor: pointer; font-size: 13px; }
+    details.pace-pattern > * + * { margin-top: 8px; }
+    details.pace-pattern .date { font-weight: 600; font-variant-numeric: tabular-nums; }
+    details.pace-pattern form, form.pace-applied { margin: 0; }
+    p.pace-pattern.quiet { margin: 0; font-size: 13px; color: var(--faint); }
     details.capacity { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--hairline); padding-top: 10px; }
     details.capacity > summary { cursor: pointer; font-size: 13px; }
     details.capacity > * + * { margin-top: 10px; }
