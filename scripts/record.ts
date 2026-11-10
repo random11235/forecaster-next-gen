@@ -1,4 +1,4 @@
-// Records the raw tracker responses Seam C's contract suite replays (#172, #173). Run with `npm run record` for both
+// Records the raw tracker responses Seam C's contract suite replays. Run with `npm run record` for both
 // trackers, or `npm run record:github` / `npm run record:jira` for one; each builds the app first and rewrites that
 // tracker's recordings in test/connectors/<tracker>/recordings/.
 //
