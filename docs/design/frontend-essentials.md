@@ -1,10 +1,10 @@
 # Front-end design: essentials
 
-Design date: 2026-10-14. Updated 2026-10-18 with the design grill decisions (Q1–Q31). Status: agreed in planning; not built. The v1 spec is [issue #6](https://github.com/random11235/forecaster-next-gen/issues/6).
+Design date: 2026-10-14. Updated 2026-10-18 with the design grill decisions (Q1–Q31). Status: agreed in planning; not built.
 
-**The MVP overrides the screens below.** The MVP ([#84](https://github.com/random11235/forecaster-next-gen/issues/84)) has the same two screens, cut down: the Milestone forecast shows the milestone's finish dates at 50/70/85/95% from its start date, the pace in use (its range, or its typed counts), a graph of when the simulations (trials) finish by period of the team's cadence with those dates marked ([#94](https://github.com/random11235/forecaster-next-gen/issues/94), reversing the histogram's removal below) and the warnings on what was typed; Inputs takes the milestone's name, start date and tickets remaining, the cadence, the pace (a range or typed counts, and which the forecast uses), the milestone's ambiguity level, and the editable ambiguity ranges. The epic table, commits, measured pace, the growth sample count, workflow settings and team changes follow it.
+**The MVP overrides the screens below.** The MVP has the same two screens, cut down: the Milestone forecast shows the milestone's finish dates at 50/70/85/95% from its start date, the pace in use (its range, or its typed counts), a graph of when the simulations (trials) finish by period of the team's cadence with those dates marked (reversing the histogram's removal below) and the warnings on what was typed; Inputs takes the milestone's name, start date and tickets remaining, the cadence, the pace (a range or typed counts, and which the forecast uses), the milestone's ambiguity level, and the editable ambiguity ranges. The epic table, commits, measured pace, the growth sample count, workflow settings and team changes follow it.
 
-**Capacity** ([#153](https://github.com/random11235/forecaster-next-gen/issues/153)) sits on the Milestone forecast, beside the forecast it changes:
+**Capacity** sits on the Milestone forecast, beside the forecast it changes:
 - **The capacity section** is folded under Pace in the sidebar, its summary line saying "none, every week usual" or how many entries there are. Open, it says "100% = the team's usual week, as in the pace", lists the team's entries earliest first (each with Remove, and a warning above 150%), takes another as one sentence ("The team is at 50% from 21 Dec to 1 Jan, or onward, for leave") and states the assumptions: pace scales in proportion, weekends don't count, overlapping entries multiply, past counts aren't adjusted. A refused sentence reopens it with the reason, keeping what was typed.
 - **The comparison table.** With capacity in use, "When it could finish" gives the 50%, 85% and 95% dates with capacity and at usual capacity, and the shift between them; a quiet line under the headline says how far capacity moves the 85% date.
 - **The chart's shading.** The finish graph, headed "Week by week" ("Sprint by sprint" at another cadence), shades each period whose capacity isn't 100% and labels it with its percentage, rounded; its hover text adds "At 80% capacity." and its caption explains the shading. Each bar's capacity is its period's average over the working days, as the forecast uses it.
@@ -37,7 +37,7 @@ Thresholds and default ranges below (growth samples, pace weeks, stale weeks, fi
 | 5 | Growth | The EM sets each epic's ambiguity: low, medium (default) or high, each mapped to an editable growth range (`AmbiguityRanges`). Growth samples from finished committed epics, in the tool or by label, are pooled per team. Once `minGrowthSamples` exist, the measured range is suggested for medium and the EM decides whether to adopt it. Uncommitted epics are still forecast, labelled "not committed: wide range". |
 | 6 | Pace | Counts only tickets under this milestone's epics, so KTLO and unrelated work show up as slower pace rather than inflating it. Starts as a manual low–high range per week. Older data may pre-fill it, labelled as a suggestion. Nothing from before installation is used automatically. Once the milestone has `minMeasuredPaceWeeks` of its own throughput, measured pace is shown beside the manual range with an offer to switch. |
 | 7 | Team change | The EM records the date. The measured window restarts, the EM is prompted to review the manual range, and pace is flagged stale until `staleWeeksAfterTeamChange` of new data exist. |
-| 8 | Capacity | Typed by the EM beside the forecast, as date ranges at a share of the team's usual ([#153](https://github.com/random11235/forecaster-next-gen/issues/153)); see Capacity above. |
+| 8 | Capacity | Typed by the EM beside the forecast, as date ranges at a share of the team's usual; see Capacity above. |
 | 9 | Track record | One line on the forecast screen, under the pace lines: how often past "85% confident" dates were met. Shown only once `minResolvedMilestones` milestones have finished; before that, nothing is shown in its place. |
 | 10 | Cycle time | From the status mapped as "started" to done. A wide spread or ageing tickets raise a warning that ticket-size discipline has slipped. |
 
@@ -76,7 +76,7 @@ Per-epic pace is information only and never feeds the forecast.
 
 Architecture: split rate estimator, `splitRatesSet/Get`, `settingsSet/Get`, `milestonesSet/Get`.
 
-Each input saves as the EM changes it, with no save buttons ([#100](https://github.com/random11235/forecaster-next-gen/issues/100)): a small inline script posts the changed form, swaps in the screen's sections from the reply and notes "Saved" beside the section; a refusal shows its reason in its own section, keeping what was typed. Without the script the buttons show and each form posts as before. Typed counts are edited as one list.
+Each input saves as the EM changes it, with no save buttons: a small inline script posts the changed form, swaps in the screen's sections from the reply and notes "Saved" beside the section; a refusal shows its reason in its own section, keeping what was typed. Without the script the buttons show and each form posts as before. Typed counts are edited as one list.
 
 | Section | Shows | Source |
 |---|---|---|

@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { demoConnector } from '../connectors/canned/demo.js'
+import type { Connector } from '../connectors/connector.js'
 import { openSqliteStorage } from '../storage/sqliteStorage.js'
 import type { Storage } from '../storage/storage.js'
 import { startAppAndOpenBrowser } from './launch.js'
@@ -53,8 +55,18 @@ try {
   process.exit(1)
 }
 
+/**
+ * Demo mode, for demo screenshots and the launch smoke test: tickets come from the canned connector's synthetic
+ * fixture, so no tracker or token is needed. Otherwise there is no connector until the EM connects a tracker.
+ */
+let connector: Connector | undefined
+if (process.env.FORECASTER_DEMO) {
+  connector = demoConnector()
+  console.log('Demo mode: tickets come from the canned connector and its synthetic fixture.')
+}
+
 try {
-  const app = await startAppAndOpenBrowser({ port, openBrowser: browserOpener, storage })
+  const app = await startAppAndOpenBrowser({ port, openBrowser: browserOpener, storage, ...(connector && { connector }) })
   console.log(`Forecaster running at ${app.url} (Ctrl+C to stop)`)
   const stop = (): void =>
     void app.close().then(() => {

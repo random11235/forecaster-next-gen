@@ -1,0 +1,35 @@
+{
+  "milestoneChoices": [
+    { "kind": "milestone", "name": "Synthetic launch", "query": "milestone:\"Synthetic launch\"" },
+    { "kind": "milestone", "name": "Synthetic beta", "query": "milestone:\"Synthetic beta\"" }
+  ],
+  "reads": {
+    "milestone:\"Synthetic launch\"": {
+      "tickets": [
+        { "id": "synthetic-launch-01", "finishedAt": "2026-09-08T10:15:00Z" },
+        { "id": "synthetic-launch-02", "finishedAt": "2026-09-11T16:40:00Z" },
+        { "id": "synthetic-launch-03", "finishedAt": "2026-09-17T09:05:00Z" },
+        { "id": "synthetic-launch-04", "finishedAt": "2026-09-24T14:30:00Z" },
+        { "id": "synthetic-launch-05", "finishedAt": "2026-09-29T11:00:00Z" },
+        { "id": "synthetic-launch-06", "finishedAt": "2026-10-06T15:20:00Z" },
+        { "id": "synthetic-launch-07", "finishedAt": "2026-10-13T10:45:00Z" },
+        { "id": "synthetic-launch-08", "finishedAt": "2026-10-21T13:10:00Z" },
+        { "id": "synthetic-launch-09", "finishedAt": "2026-10-28T17:55:00Z" },
+        { "id": "synthetic-launch-10" },
+        { "id": "synthetic-launch-11" },
+        { "id": "synthetic-launch-12" },
+        { "id": "synthetic-launch-13" },
+        { "id": "synthetic-launch-14" }
+      ],
+      "incomplete": false
+    },
+    "milestone:\"Synthetic beta\"": {
+      "tickets": [
+        { "id": "synthetic-beta-01", "finishedAt": "2026-10-15T12:00:00Z" },
+        { "id": "synthetic-beta-02" },
+        { "id": "synthetic-beta-03" }
+      ],
+      "incomplete": false
+    }
+  }
+}

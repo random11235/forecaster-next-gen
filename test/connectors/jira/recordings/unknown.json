@@ -1,0 +1,56 @@
+[
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://ralphhockley.atlassian.net/_edge/tenant_info"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "cloudId": "a043eb12-9488-4db5-a720-adb731f03abc"
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/project/SYNUNKNOWN/versions"
+    },
+    "response": {
+      "status": 404,
+      "body": {
+        "errorMessages": [
+          "No project could be found with key 'SYNUNKNOWN'."
+        ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "POST",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
+      "body": "{\"jql\":\"project = \\\"SYNUNKNOWN\\\" AND (fixVersion = 10001)\",\"fields\":[\"status\",\"statuscategorychangedate\"],\"maxResults\":100}"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "issues": [],
+        "isLast": true
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/project/SYNUNKNOWN"
+    },
+    "response": {
+      "status": 404,
+      "body": {
+        "errorMessages": [
+          "No project could be found with key 'SYNUNKNOWN'."
+        ]
+      }
+    }
+  }
+]
