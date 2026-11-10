@@ -8,6 +8,8 @@ The EM's workflow settings had a spike rule: the issue types and labels that mar
 
 The warning stays, triggered by the epic alone: an epic whose own status is mapped to started, with no commit standing, is flagged "<epic> is in progress but isn't committed". That uses the status mapping the EM already sets.
 
+Since then the MVP has removed epics, commits and workflow settings, and the warning went with them, so nothing in the code identifies spikes or warns about uncommitted epics today. The decision still stands: when epics and commits return, they come back without a spike rule, and the warning comes back triggered by the epic's own status, as above.
+
 ## Considered Options
 
 - **Warn when any child has started.** Rejected: without a spike rule, it warns on every epic in discovery.
