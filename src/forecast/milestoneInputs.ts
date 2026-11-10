@@ -74,7 +74,7 @@ export function milestoneInputsView(storage: Storage, teamId: string, settings: 
     paceMode: inputs.paceMode,
     typedCountsNeeded: settings.typedCounts,
     notes: assessment ? notesBeside(assessment) : [],
-    paceTrend: paceTrend(inputs, settings),
+    paceTrend: paceTrend(inputs, settings, today),
   }
 }
 
@@ -169,6 +169,7 @@ function newMilestone(teamId: string): MilestoneInputs {
     paceRange: undefined,
     paceCounts: [],
     paceCadenceDays: undefined,
+    paceWindow: { action: undefined },
   }
 }
 

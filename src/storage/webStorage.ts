@@ -62,7 +62,8 @@ export function openWebStorage(store: KeyValueStore | undefined): Storage {
 
     milestoneInputs(teamId) {
       const inputs = data.milestoneInputs[teamId]
-      return inputs && structuredClone(inputs)
+      // stored before the pace window (#161): no action applied
+      return inputs && structuredClone({ ...inputs, paceWindow: inputs.paceWindow ?? { action: undefined } })
     },
 
     saveAmbiguityRanges(ranges) {

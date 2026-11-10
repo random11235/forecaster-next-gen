@@ -3,10 +3,12 @@ import type { Ambiguity, GrowthRange } from '../model/ambiguity.js'
 import type { CapacityEntry } from '../model/capacity.js'
 import type { Storage } from '../storage/storage.js'
 import { daysBetween } from './calendarDate.js'
-import { capacityFactors, capacityLine, capacityView, currentEntries, entryEffect, typedCountStarts, type CapacityUse, type CapacityView, type EntryEffect, type PacePeriods } from './capacity.js'
+import { capacityFactors, capacityLine, capacityView, currentEntries, entryEffect, type CapacityUse, type CapacityView, type EntryEffect, type PacePeriods } from './capacity.js'
 import { periodName } from './cadence.js'
 import { milestoneGrowth } from './growth.js'
 import { assessMilestone, type ForecastableInputs, type InputNote, type PaceInUse } from './milestoneAssessment.js'
+import { pacePattern, type PacePatternView } from './pacePattern.js'
+import { paceWindow } from './paceWindow.js'
 import { paceTrend, type PaceTrend } from './paceTrend.js'
 import type { ForecastSettings } from './settings.js'
 
@@ -74,6 +76,8 @@ export type MilestoneForecastView =
       finishGraph: FinishBar[]
       /** The typed counts in use and their fitted line, shown as warnings are; none with the range. */
       paceTrend: PaceTrend | undefined
+      /** The shape of the typed counts in use, under the pace bars; none with the range. */
+      pacePattern: PacePatternView | undefined
       /** The team's capacity, beside the pace; each period's pace is scaled by it. */
       capacity: CapacityView
       /** With capacity in use, each date with capacity (as `dates` gives it) and at usual capacity; none otherwise. */
@@ -142,7 +146,19 @@ export function milestoneForecastView(
     ambiguity: { level: inputs.ambiguity, ...growth },
     warnings: assessment.warnings.map(({ input, message }) => ({ input, message })),
     finishGraph: finishGraph(result, simulationCase),
-    paceTrend: paceTrend(inputs, settings),
+    paceTrend: paceTrend(inputs, settings, today),
+    pacePattern:
+      pace.source === 'counts'
+        ? pacePattern(paceWindow(inputs, today), inputs.paceWindow.action, periodDays, {
+            percent: HEADLINE_PERCENT,
+            fewestCounts: settings.typedCounts.forForecast,
+            now: result.percentileDates[HEADLINE_PERCENT] ?? null,
+            // from the same seed and capacity, so the two differ by the action alone
+            from: (counts) =>
+              simulateCase(milestoneCase(inputs, { source: 'counts', counts: [...counts] }, growth, settings, on ? factors : undefined))
+                .percentileDates[HEADLINE_PERCENT] ?? null,
+          })
+        : undefined,
     capacity: capacityView(storage, teamId, today, use, period, { open: capacityOpen, ...(effects && { effects }), pace: pacePeriods(inputs, pace, today) }),
     comparison,
     capacityLine: capacityLine(use, period),
@@ -156,9 +172,9 @@ function comparedDate(percent: number, withCapacity: ForecastResult, atUsual: Fo
   return { percent, withCapacity: dated, atUsual: usual, shift }
 }
 
-/** The periods the pace comes from, for the new-usual rule: each typed count's, dated back from today's period. */
-function pacePeriods({ startDate, cadenceDays }: ForecastableInputs, pace: PaceInUse, today: string): PacePeriods {
-  return pace.source === 'range' ? { source: 'range' } : { source: 'counts', starts: typedCountStarts(pace.counts.length, startDate, cadenceDays, today) }
+/** The periods the pace comes from, for the new-usual rule: each in the pace window, dated back from today's period. */
+function pacePeriods(inputs: ForecastableInputs, pace: PaceInUse, today: string): PacePeriods {
+  return pace.source === 'range' ? { source: 'range' } : { source: 'counts', starts: paceWindow(inputs, today).window.starts }
 }
 
 function forecastDate(percent: number, date: string | null, today: string): ForecastDate {

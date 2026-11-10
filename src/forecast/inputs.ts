@@ -2,6 +2,7 @@ import type { Ambiguity } from '../model/ambiguity.js'
 import type { Storage } from '../storage/storage.js'
 import { editCapacity, isCapacityEdit, type CapacityEdit, type CapacityForm, type CapacityView } from './capacity.js'
 import type { EditResult } from './editResult.js'
+import { editPaceAction, isPaceActionEdit, type PaceActionEdit } from './paceWindow.js'
 import { milestoneForecastView, type ForecastViewOptions, type MilestoneForecastView } from './milestoneForecastView.js'
 import { editGrowth, growthView, type GrowthEdit, type GrowthView, type TypedRange } from './growth.js'
 import { editMilestoneInputs, milestoneInputsView, type MilestoneInputsEdit, type MilestoneInputsView } from './milestoneInputs.js'
@@ -11,7 +12,7 @@ import type { ForecastSettings } from './settings.js'
  * A form the EM submits, as typed: on the Inputs screen, to the milestone and its pace, or to the team's ambiguity
  * ranges; beside the forecast, to the team's capacity.
  */
-export type InputsEdit = MilestoneInputsEdit | GrowthEdit | CapacityEdit
+export type InputsEdit = MilestoneInputsEdit | GrowthEdit | CapacityEdit | PaceActionEdit
 
 /** A form on the Inputs screen, which a refusal is shown on. The typed counts' list, add and remove share one. */
 export type InputsForm = 'milestone' | 'cadence' | 'paceMode' | 'paceRange' | 'paceCounts' | 'ambiguity' | 'growth'
@@ -75,6 +76,7 @@ export function submitInputs(
   shown: ForecastViewOptions = {},
 ): Submitted {
   if (isCapacityEdit(edit)) return submitCapacity(storage, teamId, settings, today, edit, shown)
+  if (isPaceActionEdit(edit)) return submitPaceAction(storage, teamId, settings, today, edit, shown)
   const { form, next, typed } = submission(edit)
   const result: EditResult = edit.kind === 'setAmbiguityRanges' ? editGrowth(storage, teamId, edit) : editMilestoneInputs(storage, teamId, edit)
   if (result.ok) return { saved: true, next }
@@ -94,6 +96,15 @@ function submitCapacity(storage: Storage, teamId: string, settings: ForecastSett
   if (view.kind !== 'forecast') return { saved: false, screen: 'forecast', view }
   // open to say why, whether or not it was open when submitted
   return { saved: false, screen: 'forecast', view: { ...view, capacity: { ...view.capacity, open: true, ...refusedCapacity(edit, result.error) } } }
+}
+
+/** A pace pattern's action, applied or undone, goes to the forecast it changes; refused, the forecast says why. */
+function submitPaceAction(storage: Storage, teamId: string, settings: ForecastSettings, today: string, edit: PaceActionEdit, shown: ForecastViewOptions): Submitted {
+  const result = editPaceAction(storage, teamId, edit)
+  if (result.ok) return { saved: true, next: 'forecast' }
+  const view = milestoneForecastView(storage, teamId, settings, today, shown)
+  if (view.kind !== 'forecast' || view.pacePattern === undefined) return { saved: false, screen: 'forecast', view }
+  return { saved: false, screen: 'forecast', view: { ...view, pacePattern: { ...view.pacePattern, refusal: result.error } } }
 }
 
 /** A refused capacity form as typed, with why: the add sentence, or the edit form of the entry it was on. */
@@ -120,7 +131,7 @@ interface Submission {
   typed: (saved: TypedForms) => Partial<TypedForms>
 }
 
-function submission(edit: Exclude<InputsEdit, CapacityEdit>): Submission {
+function submission(edit: Exclude<InputsEdit, CapacityEdit | PaceActionEdit>): Submission {
   const asSaved = () => ({})
   switch (edit.kind) {
     case 'setMilestone': {

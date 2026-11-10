@@ -1,4 +1,5 @@
 import type { MilestoneInputs } from '../model/milestoneInputs.js'
+import { paceWindow } from './paceWindow.js'
 import type { ForecastSettings } from './settings.js'
 
 /**
@@ -15,11 +16,11 @@ export interface PaceTrend {
 }
 
 /**
- * The trend of the typed counts, when they are the pace in use and there are as many as a forecast needs; otherwise
- * none, as with the range or too few counts.
+ * The trend of the typed counts in use, those in the pace window on `today`, when they are the pace and there are as
+ * many as a forecast needs; otherwise none, as with the range or too few counts.
  */
-export function paceTrend(inputs: MilestoneInputs, { typedCounts }: ForecastSettings): PaceTrend | undefined {
-  const counts = inputs.paceCounts
+export function paceTrend(inputs: MilestoneInputs, { typedCounts }: ForecastSettings, today: string): PaceTrend | undefined {
+  const counts = paceWindow(inputs, today).window.counts
   if (inputs.paceMode !== 'counts' || counts.length < typedCounts.forForecast) return undefined
   return { counts, ...fittedLine(counts) }
 }
