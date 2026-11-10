@@ -1,0 +1,702 @@
+{
+  "repo": "random11235/forecaster-synthetic",
+  "issues": {
+    "leaf-001": {
+      "number": 1,
+      "id": 6239472978,
+      "node_id": "I_kwDOVk8DV88AAAABc-bNUg"
+    },
+    "leaf-002": {
+      "number": 2,
+      "id": 6239473448,
+      "node_id": "I_kwDOVk8DV88AAAABc-bPKA"
+    },
+    "leaf-003": {
+      "number": 3,
+      "id": 6239474008,
+      "node_id": "I_kwDOVk8DV88AAAABc-bRWA"
+    },
+    "leaf-004": {
+      "number": 4,
+      "id": 6239474591,
+      "node_id": "I_kwDOVk8DV88AAAABc-bTnw"
+    },
+    "leaf-005": {
+      "number": 5,
+      "id": 6239475156,
+      "node_id": "I_kwDOVk8DV88AAAABc-bV1A"
+    },
+    "leaf-006": {
+      "number": 6,
+      "id": 6239475672,
+      "node_id": "I_kwDOVk8DV88AAAABc-bX2A"
+    },
+    "leaf-007": {
+      "number": 7,
+      "id": 6239476125,
+      "node_id": "I_kwDOVk8DV88AAAABc-bZnQ"
+    },
+    "leaf-008": {
+      "number": 8,
+      "id": 6239476622,
+      "node_id": "I_kwDOVk8DV88AAAABc-bbjg"
+    },
+    "leaf-009": {
+      "number": 9,
+      "id": 6239477148,
+      "node_id": "I_kwDOVk8DV88AAAABc-bdnA"
+    },
+    "leaf-010": {
+      "number": 10,
+      "id": 6239477670,
+      "node_id": "I_kwDOVk8DV88AAAABc-bfpg"
+    },
+    "leaf-011": {
+      "number": 11,
+      "id": 6239478142,
+      "node_id": "I_kwDOVk8DV88AAAABc-bhfg"
+    },
+    "leaf-012": {
+      "number": 12,
+      "id": 6239478640,
+      "node_id": "I_kwDOVk8DV88AAAABc-bjcA"
+    },
+    "leaf-013": {
+      "number": 13,
+      "id": 6239479199,
+      "node_id": "I_kwDOVk8DV88AAAABc-blnw"
+    },
+    "leaf-014": {
+      "number": 14,
+      "id": 6239479721,
+      "node_id": "I_kwDOVk8DV88AAAABc-bnqQ"
+    },
+    "leaf-015": {
+      "number": 15,
+      "id": 6239480300,
+      "node_id": "I_kwDOVk8DV88AAAABc-bp7A"
+    },
+    "leaf-016": {
+      "number": 16,
+      "id": 6239480881,
+      "node_id": "I_kwDOVk8DV88AAAABc-bsMQ"
+    },
+    "leaf-017": {
+      "number": 17,
+      "id": 6239481353,
+      "node_id": "I_kwDOVk8DV88AAAABc-buCQ"
+    },
+    "leaf-018": {
+      "number": 18,
+      "id": 6239481851,
+      "node_id": "I_kwDOVk8DV88AAAABc-bv-w"
+    },
+    "leaf-019": {
+      "number": 19,
+      "id": 6239482367,
+      "node_id": "I_kwDOVk8DV88AAAABc-bx_w"
+    },
+    "leaf-020": {
+      "number": 20,
+      "id": 6239482869,
+      "node_id": "I_kwDOVk8DV88AAAABc-bz9Q"
+    },
+    "leaf-021": {
+      "number": 21,
+      "id": 6239483435,
+      "node_id": "I_kwDOVk8DV88AAAABc-b2Kw"
+    },
+    "leaf-022": {
+      "number": 22,
+      "id": 6239483956,
+      "node_id": "I_kwDOVk8DV88AAAABc-b4NA"
+    },
+    "leaf-023": {
+      "number": 23,
+      "id": 6239484451,
+      "node_id": "I_kwDOVk8DV88AAAABc-b6Iw"
+    },
+    "leaf-024": {
+      "number": 24,
+      "id": 6239484960,
+      "node_id": "I_kwDOVk8DV88AAAABc-b8IA"
+    },
+    "leaf-025": {
+      "number": 25,
+      "id": 6239485453,
+      "node_id": "I_kwDOVk8DV88AAAABc-b-DQ"
+    },
+    "leaf-026": {
+      "number": 26,
+      "id": 6239485932,
+      "node_id": "I_kwDOVk8DV88AAAABc-b_7A"
+    },
+    "leaf-027": {
+      "number": 27,
+      "id": 6239486463,
+      "node_id": "I_kwDOVk8DV88AAAABc-cB_w"
+    },
+    "leaf-028": {
+      "number": 28,
+      "id": 6239487045,
+      "node_id": "I_kwDOVk8DV88AAAABc-cERQ"
+    },
+    "leaf-029": {
+      "number": 29,
+      "id": 6239487599,
+      "node_id": "I_kwDOVk8DV88AAAABc-cGbw"
+    },
+    "leaf-030": {
+      "number": 30,
+      "id": 6239488060,
+      "node_id": "I_kwDOVk8DV88AAAABc-cIPA"
+    },
+    "leaf-031": {
+      "number": 31,
+      "id": 6239488504,
+      "node_id": "I_kwDOVk8DV88AAAABc-cJ-A"
+    },
+    "leaf-032": {
+      "number": 32,
+      "id": 6239489033,
+      "node_id": "I_kwDOVk8DV88AAAABc-cMCQ"
+    },
+    "leaf-033": {
+      "number": 33,
+      "id": 6239489576,
+      "node_id": "I_kwDOVk8DV88AAAABc-cOKA"
+    },
+    "leaf-034": {
+      "number": 34,
+      "id": 6239490072,
+      "node_id": "I_kwDOVk8DV88AAAABc-cQGA"
+    },
+    "leaf-035": {
+      "number": 35,
+      "id": 6239490562,
+      "node_id": "I_kwDOVk8DV88AAAABc-cSAg"
+    },
+    "leaf-036": {
+      "number": 36,
+      "id": 6239491122,
+      "node_id": "I_kwDOVk8DV88AAAABc-cUMg"
+    },
+    "leaf-037": {
+      "number": 37,
+      "id": 6239491593,
+      "node_id": "I_kwDOVk8DV88AAAABc-cWCQ"
+    },
+    "leaf-038": {
+      "number": 38,
+      "id": 6239492105,
+      "node_id": "I_kwDOVk8DV88AAAABc-cYCQ"
+    },
+    "leaf-039": {
+      "number": 39,
+      "id": 6239492639,
+      "node_id": "I_kwDOVk8DV88AAAABc-caHw"
+    },
+    "leaf-040": {
+      "number": 40,
+      "id": 6239493093,
+      "node_id": "I_kwDOVk8DV88AAAABc-cb5Q"
+    },
+    "leaf-041": {
+      "number": 41,
+      "id": 6239493637,
+      "node_id": "I_kwDOVk8DV88AAAABc-ceBQ"
+    },
+    "leaf-042": {
+      "number": 42,
+      "id": 6239494097,
+      "node_id": "I_kwDOVk8DV88AAAABc-cf0Q"
+    },
+    "leaf-043": {
+      "number": 43,
+      "id": 6239494635,
+      "node_id": "I_kwDOVk8DV88AAAABc-ch6w"
+    },
+    "leaf-044": {
+      "number": 44,
+      "id": 6239495088,
+      "node_id": "I_kwDOVk8DV88AAAABc-cjsA"
+    },
+    "leaf-045": {
+      "number": 45,
+      "id": 6239495597,
+      "node_id": "I_kwDOVk8DV88AAAABc-clrQ"
+    },
+    "leaf-046": {
+      "number": 46,
+      "id": 6239496128,
+      "node_id": "I_kwDOVk8DV88AAAABc-cnwA"
+    },
+    "leaf-047": {
+      "number": 47,
+      "id": 6239496610,
+      "node_id": "I_kwDOVk8DV88AAAABc-cpog"
+    },
+    "leaf-048": {
+      "number": 48,
+      "id": 6239497209,
+      "node_id": "I_kwDOVk8DV88AAAABc-cr-Q"
+    },
+    "leaf-049": {
+      "number": 49,
+      "id": 6239497779,
+      "node_id": "I_kwDOVk8DV88AAAABc-cuMw"
+    },
+    "leaf-050": {
+      "number": 50,
+      "id": 6239498284,
+      "node_id": "I_kwDOVk8DV88AAAABc-cwLA"
+    },
+    "leaf-051": {
+      "number": 51,
+      "id": 6239498800,
+      "node_id": "I_kwDOVk8DV88AAAABc-cyMA"
+    },
+    "leaf-052": {
+      "number": 52,
+      "id": 6239499306,
+      "node_id": "I_kwDOVk8DV88AAAABc-c0Kg"
+    },
+    "leaf-053": {
+      "number": 53,
+      "id": 6239499885,
+      "node_id": "I_kwDOVk8DV88AAAABc-c2bQ"
+    },
+    "leaf-054": {
+      "number": 54,
+      "id": 6239500401,
+      "node_id": "I_kwDOVk8DV88AAAABc-c4cQ"
+    },
+    "leaf-055": {
+      "number": 55,
+      "id": 6239500894,
+      "node_id": "I_kwDOVk8DV88AAAABc-c6Xg"
+    },
+    "leaf-056": {
+      "number": 56,
+      "id": 6239501468,
+      "node_id": "I_kwDOVk8DV88AAAABc-c8nA"
+    },
+    "leaf-057": {
+      "number": 57,
+      "id": 6239502039,
+      "node_id": "I_kwDOVk8DV88AAAABc-c-1w"
+    },
+    "leaf-058": {
+      "number": 58,
+      "id": 6239502569,
+      "node_id": "I_kwDOVk8DV88AAAABc-dA6Q"
+    },
+    "leaf-059": {
+      "number": 59,
+      "id": 6239503106,
+      "node_id": "I_kwDOVk8DV88AAAABc-dDAg"
+    },
+    "leaf-060": {
+      "number": 60,
+      "id": 6239503638,
+      "node_id": "I_kwDOVk8DV88AAAABc-dFFg"
+    },
+    "leaf-061": {
+      "number": 61,
+      "id": 6239504189,
+      "node_id": "I_kwDOVk8DV88AAAABc-dHPQ"
+    },
+    "leaf-062": {
+      "number": 62,
+      "id": 6239504719,
+      "node_id": "I_kwDOVk8DV88AAAABc-dJTw"
+    },
+    "leaf-063": {
+      "number": 63,
+      "id": 6239505287,
+      "node_id": "I_kwDOVk8DV88AAAABc-dLhw"
+    },
+    "leaf-064": {
+      "number": 64,
+      "id": 6239505778,
+      "node_id": "I_kwDOVk8DV88AAAABc-dNcg"
+    },
+    "leaf-065": {
+      "number": 65,
+      "id": 6239506280,
+      "node_id": "I_kwDOVk8DV88AAAABc-dPaA"
+    },
+    "leaf-066": {
+      "number": 66,
+      "id": 6239506740,
+      "node_id": "I_kwDOVk8DV88AAAABc-dRNA"
+    },
+    "leaf-067": {
+      "number": 67,
+      "id": 6239507259,
+      "node_id": "I_kwDOVk8DV88AAAABc-dTOw"
+    },
+    "leaf-068": {
+      "number": 68,
+      "id": 6239507707,
+      "node_id": "I_kwDOVk8DV88AAAABc-dU-w"
+    },
+    "leaf-069": {
+      "number": 69,
+      "id": 6239508169,
+      "node_id": "I_kwDOVk8DV88AAAABc-dWyQ"
+    },
+    "leaf-070": {
+      "number": 70,
+      "id": 6239508644,
+      "node_id": "I_kwDOVk8DV88AAAABc-dYpA"
+    },
+    "leaf-071": {
+      "number": 71,
+      "id": 6239509110,
+      "node_id": "I_kwDOVk8DV88AAAABc-dadg"
+    },
+    "leaf-072": {
+      "number": 72,
+      "id": 6239509578,
+      "node_id": "I_kwDOVk8DV88AAAABc-dcSg"
+    },
+    "leaf-073": {
+      "number": 73,
+      "id": 6239510075,
+      "node_id": "I_kwDOVk8DV88AAAABc-deOw"
+    },
+    "leaf-074": {
+      "number": 74,
+      "id": 6239510603,
+      "node_id": "I_kwDOVk8DV88AAAABc-dgSw"
+    },
+    "leaf-075": {
+      "number": 75,
+      "id": 6239511061,
+      "node_id": "I_kwDOVk8DV88AAAABc-diFQ"
+    },
+    "leaf-076": {
+      "number": 76,
+      "id": 6239511496,
+      "node_id": "I_kwDOVk8DV88AAAABc-djyA"
+    },
+    "leaf-077": {
+      "number": 77,
+      "id": 6239511983,
+      "node_id": "I_kwDOVk8DV88AAAABc-dlrw"
+    },
+    "leaf-078": {
+      "number": 78,
+      "id": 6239512475,
+      "node_id": "I_kwDOVk8DV88AAAABc-dnmw"
+    },
+    "leaf-079": {
+      "number": 79,
+      "id": 6239512987,
+      "node_id": "I_kwDOVk8DV88AAAABc-dpmw"
+    },
+    "leaf-080": {
+      "number": 80,
+      "id": 6239513524,
+      "node_id": "I_kwDOVk8DV88AAAABc-drtA"
+    },
+    "leaf-081": {
+      "number": 81,
+      "id": 6239514030,
+      "node_id": "I_kwDOVk8DV88AAAABc-dtrg"
+    },
+    "leaf-082": {
+      "number": 82,
+      "id": 6239514599,
+      "node_id": "I_kwDOVk8DV88AAAABc-dv5w"
+    },
+    "leaf-083": {
+      "number": 83,
+      "id": 6239515160,
+      "node_id": "I_kwDOVk8DV88AAAABc-dyGA"
+    },
+    "leaf-084": {
+      "number": 84,
+      "id": 6239515668,
+      "node_id": "I_kwDOVk8DV88AAAABc-d0FA"
+    },
+    "leaf-085": {
+      "number": 85,
+      "id": 6239516131,
+      "node_id": "I_kwDOVk8DV88AAAABc-d14w"
+    },
+    "leaf-086": {
+      "number": 86,
+      "id": 6239516605,
+      "node_id": "I_kwDOVk8DV88AAAABc-d3vQ"
+    },
+    "leaf-087": {
+      "number": 87,
+      "id": 6239517101,
+      "node_id": "I_kwDOVk8DV88AAAABc-d5rQ"
+    },
+    "leaf-088": {
+      "number": 88,
+      "id": 6239517633,
+      "node_id": "I_kwDOVk8DV88AAAABc-d7wQ"
+    },
+    "leaf-089": {
+      "number": 89,
+      "id": 6239518109,
+      "node_id": "I_kwDOVk8DV88AAAABc-d9nQ"
+    },
+    "leaf-090": {
+      "number": 90,
+      "id": 6239518573,
+      "node_id": "I_kwDOVk8DV88AAAABc-d_bQ"
+    },
+    "leaf-091": {
+      "number": 91,
+      "id": 6239519054,
+      "node_id": "I_kwDOVk8DV88AAAABc-eBTg"
+    },
+    "leaf-092": {
+      "number": 92,
+      "id": 6239519518,
+      "node_id": "I_kwDOVk8DV88AAAABc-eDHg"
+    },
+    "leaf-093": {
+      "number": 93,
+      "id": 6239520012,
+      "node_id": "I_kwDOVk8DV88AAAABc-eFDA"
+    },
+    "leaf-094": {
+      "number": 94,
+      "id": 6239520472,
+      "node_id": "I_kwDOVk8DV88AAAABc-eG2A"
+    },
+    "leaf-095": {
+      "number": 95,
+      "id": 6239520932,
+      "node_id": "I_kwDOVk8DV88AAAABc-eIpA"
+    },
+    "leaf-096": {
+      "number": 96,
+      "id": 6239521445,
+      "node_id": "I_kwDOVk8DV88AAAABc-eKpQ"
+    },
+    "leaf-097": {
+      "number": 97,
+      "id": 6239521968,
+      "node_id": "I_kwDOVk8DV88AAAABc-eMsA"
+    },
+    "leaf-098": {
+      "number": 98,
+      "id": 6239522502,
+      "node_id": "I_kwDOVk8DV88AAAABc-eOxg"
+    },
+    "leaf-099": {
+      "number": 99,
+      "id": 6239522993,
+      "node_id": "I_kwDOVk8DV88AAAABc-eQsQ"
+    },
+    "leaf-100": {
+      "number": 100,
+      "id": 6239523503,
+      "node_id": "I_kwDOVk8DV88AAAABc-eSrw"
+    },
+    "leaf-101": {
+      "number": 101,
+      "id": 6239524050,
+      "node_id": "I_kwDOVk8DV88AAAABc-eU0g"
+    },
+    "leaf-102": {
+      "number": 102,
+      "id": 6239524586,
+      "node_id": "I_kwDOVk8DV88AAAABc-eW6g"
+    },
+    "leaf-103": {
+      "number": 103,
+      "id": 6239525084,
+      "node_id": "I_kwDOVk8DV88AAAABc-eY3A"
+    },
+    "leaf-104": {
+      "number": 104,
+      "id": 6239525563,
+      "node_id": "I_kwDOVk8DV88AAAABc-eauw"
+    },
+    "leaf-105": {
+      "number": 105,
+      "id": 6239526062,
+      "node_id": "I_kwDOVk8DV88AAAABc-ecrg"
+    },
+    "epic": {
+      "number": 106,
+      "id": 6239526631,
+      "node_id": "I_kwDOVk8DV88AAAABc-ee5w"
+    },
+    "parent": {
+      "number": 107,
+      "id": 6239527135,
+      "node_id": "I_kwDOVk8DV88AAAABc-eg3w"
+    },
+    "child-1": {
+      "number": 108,
+      "id": 6239527670,
+      "node_id": "I_kwDOVk8DV88AAAABc-ei9g"
+    },
+    "child-2": {
+      "number": 109,
+      "id": 6239528229,
+      "node_id": "I_kwDOVk8DV88AAAABc-elJQ"
+    },
+    "child-3": {
+      "number": 110,
+      "id": 6239528826,
+      "node_id": "I_kwDOVk8DV88AAAABc-eneg"
+    },
+    "epic-leaf": {
+      "number": 111,
+      "id": 6239529384,
+      "node_id": "I_kwDOVk8DV88AAAABc-epqA"
+    },
+    "reopened-finished": {
+      "number": 112,
+      "id": 6239532827,
+      "node_id": "I_kwDOVk8DV88AAAABc-e3Gw"
+    },
+    "reopened-open": {
+      "number": 113,
+      "id": 6239533328,
+      "node_id": "I_kwDOVk8DV88AAAABc-e5EA"
+    },
+    "not-planned-1": {
+      "number": 114,
+      "id": 6239533824,
+      "node_id": "I_kwDOVk8DV88AAAABc-e7AA"
+    },
+    "not-planned-2": {
+      "number": 115,
+      "id": 6239534375,
+      "node_id": "I_kwDOVk8DV88AAAABc-e9Jw"
+    },
+    "duplicate": {
+      "number": 116,
+      "id": 6239534851,
+      "node_id": "I_kwDOVk8DV88AAAABc-e_Aw"
+    },
+    "both-queries": {
+      "number": 117,
+      "id": 6239535349,
+      "node_id": "I_kwDOVk8DV88AAAABc-fA9Q"
+    },
+    "comparable-01": {
+      "number": 118,
+      "id": 6239535818,
+      "node_id": "I_kwDOVk8DV88AAAABc-fCyg"
+    },
+    "comparable-02": {
+      "number": 119,
+      "id": 6239536304,
+      "node_id": "I_kwDOVk8DV88AAAABc-fEsA"
+    },
+    "comparable-03": {
+      "number": 120,
+      "id": 6239536694,
+      "node_id": "I_kwDOVk8DV88AAAABc-fGNg"
+    },
+    "comparable-04": {
+      "number": 121,
+      "id": 6239537126,
+      "node_id": "I_kwDOVk8DV88AAAABc-fH5g"
+    },
+    "comparable-05": {
+      "number": 122,
+      "id": 6239537602,
+      "node_id": "I_kwDOVk8DV88AAAABc-fJwg"
+    },
+    "comparable-06": {
+      "number": 123,
+      "id": 6239538037,
+      "node_id": "I_kwDOVk8DV88AAAABc-fLdQ"
+    },
+    "comparable-07": {
+      "number": 124,
+      "id": 6239538530,
+      "node_id": "I_kwDOVk8DV88AAAABc-fNYg"
+    },
+    "comparable-08": {
+      "number": 125,
+      "id": 6239538914,
+      "node_id": "I_kwDOVk8DV88AAAABc-fO4g"
+    },
+    "comparable-09": {
+      "number": 126,
+      "id": 6239539350,
+      "node_id": "I_kwDOVk8DV88AAAABc-fQlg"
+    },
+    "comparable-10": {
+      "number": 127,
+      "id": 6239539709,
+      "node_id": "I_kwDOVk8DV88AAAABc-fR_Q"
+    },
+    "comparable-11": {
+      "number": 128,
+      "id": 6239540126,
+      "node_id": "I_kwDOVk8DV88AAAABc-fTng"
+    },
+    "comparable-12": {
+      "number": 129,
+      "id": 6239540549,
+      "node_id": "I_kwDOVk8DV88AAAABc-fVRQ"
+    },
+    "ktlo-1": {
+      "number": 130,
+      "id": 6239541001,
+      "node_id": "I_kwDOVk8DV88AAAABc-fXCQ"
+    },
+    "ktlo-2": {
+      "number": 131,
+      "id": 6239541392,
+      "node_id": "I_kwDOVk8DV88AAAABc-fYkA"
+    },
+    "ktlo-3": {
+      "number": 132,
+      "id": 6239541763,
+      "node_id": "I_kwDOVk8DV88AAAABc-faAw"
+    },
+    "search-1": {
+      "number": 133,
+      "id": 6239542187,
+      "node_id": "I_kwDOVk8DV88AAAABc-fbqw"
+    },
+    "search-2": {
+      "number": 134,
+      "id": 6239542668,
+      "node_id": "I_kwDOVk8DV88AAAABc-fdjA"
+    },
+    "search-3": {
+      "number": 135,
+      "id": 6239543157,
+      "node_id": "I_kwDOVk8DV88AAAABc-ffdQ"
+    },
+    "search-4": {
+      "number": 136,
+      "id": 6239543601,
+      "node_id": "I_kwDOVk8DV88AAAABc-fhMQ"
+    },
+    "search-5": {
+      "number": 137,
+      "id": 6239544047,
+      "node_id": "I_kwDOVk8DV88AAAABc-fi7w"
+    }
+  },
+  "batches": {
+    "early_start": "2026-11-06T08:41:16+00:00",
+    "early_end": "2026-11-06T08:42:22+00:00",
+    "cut": "2026-11-06T08:44:52+00:00",
+    "later_start": "2026-11-06T08:45:22+00:00",
+    "later_end": "2026-11-06T08:47:53+00:00"
+  },
+  "milestones": {
+    "checkout": 1,
+    "search": 2,
+    "onboarding_closed": 3
+  }
+}

@@ -1,0 +1,76 @@
+import { describe, expect, test } from 'vitest'
+import type { Transport } from '../../../src/connectors/connector.js'
+import { githubConnector } from '../../../src/connectors/github/githubConnector.js'
+import { recordGithub } from '../../../scripts/record.js'
+
+// The recording script's own logic, on a stand-in GitHub: what it keeps of each response, and what it says when the
+// recording token is refused. The live run is `npm run record:github`.
+
+const TOKEN = 'github_pat_recording-token-under-test'
+
+function json(status: number, body: unknown): Response {
+  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'x-ratelimit-remaining': '4999' } })
+}
+
+/** A stand-in GitHub that accepts only TOKEN, knows only the synthetic repo, and answers with more fields than are read. */
+const github: Transport = async (url, init) => {
+  if (new Headers(init?.headers).get('authorization') !== `Bearer ${TOKEN}`) {
+    return json(401, { message: 'Bad credentials', documentation_url: 'https://docs.github.com/rest', status: '401' })
+  }
+  const known = url.includes('forecaster-synthetic/') || url.includes('forecaster-synthetic%20')
+  if (url.includes('/milestones')) {
+    return known
+      ? json(200, [{ title: 'Search revamp', number: 2, description: 'Synthetic', creator: { login: 'someone' }, open_issues: 3 }])
+      : json(404, { message: 'Not Found', status: '404' })
+  }
+  return json(200, {
+    total_count: 1,
+    incomplete_results: false,
+    items: [{ node_id: 'I_1', state: 'closed', closed_at: '2026-11-06T08:47:38Z', title: 'Search leaf 1', body: 'Synthetic', user: { login: 'someone' } }],
+    search_type: 'lexical',
+  })
+}
+
+describe('the GitHub recording script', () => {
+  test('keeps only the fields the connector reads, and no headers', async () => {
+    const result = await recordGithub(TOKEN, github, githubConnector)
+
+    if (!result.ok) throw new Error(result.message)
+    const responses = result.recordings.synthetic.map((recording) => recording.response.body)
+    expect(responses).toContainEqual([{ title: 'Search revamp' }])
+    expect(responses).toContainEqual({ total_count: 1, incomplete_results: false, items: [{ node_id: 'I_1', state: 'closed', closed_at: '2026-11-06T08:47:38Z' }] })
+    expect(JSON.stringify(result.recordings)).not.toMatch(/someone|Synthetic|ratelimit|Bearer/)
+  })
+
+  test('never writes the token into a recording', async () => {
+    const result = await recordGithub(TOKEN, github, githubConnector)
+
+    expect(JSON.stringify(result)).not.toContain(TOKEN)
+  })
+
+  test('records only from the synthetic repo', async () => {
+    const result = await recordGithub(TOKEN, github, githubConnector)
+
+    if (!result.ok) throw new Error(result.message)
+    const urls = Object.values(result.recordings).flatMap((recordings) => recordings.map((recording) => decodeURIComponent(recording.request.url)))
+    expect(urls.length).toBeGreaterThan(0)
+    for (const url of urls) expect(url).toMatch(/^https:\/\/api\.github\.com\/.*random11235\/forecaster-synthetic/)
+  })
+
+  test('records each failure the tracker gives: a refused token and an unknown repo', async () => {
+    const result = await recordGithub(TOKEN, github, githubConnector)
+
+    if (!result.ok) throw new Error(result.message)
+    expect(result.recordings.refusedToken.map((recording) => recording.response.status)).toEqual([401, 401])
+    expect(result.recordings.unknown.map((recording) => recording.response.status)).toContain(404)
+  })
+
+  test('says plainly when the recording token is refused, and records nothing', async () => {
+    const result = await recordGithub('github_pat_expired', github, githubConnector)
+
+    expect(result).toEqual({ ok: false, message: expect.stringContaining('GitHub refused the recording token') })
+    if (result.ok) return
+    expect(result.message).toContain('forecaster-github-recording')
+    expect(result.message).toContain('2026-12-07')
+  })
+})

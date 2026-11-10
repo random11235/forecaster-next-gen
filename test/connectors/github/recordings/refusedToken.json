@@ -1,0 +1,26 @@
+[
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/repos/random11235/forecaster-synthetic/milestones?state=open&per_page=100"
+    },
+    "response": {
+      "status": 401,
+      "body": {
+        "message": "Bad credentials"
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20(milestone%3A%22Search%20revamp%22)&advanced_search=true&per_page=100"
+    },
+    "response": {
+      "status": 401,
+      "body": {
+        "message": "Bad credentials"
+      }
+    }
+  }
+]

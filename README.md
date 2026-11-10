@@ -36,5 +36,6 @@ The file holds no private data: see the review on [#57](https://github.com/rando
 
 ## Development
 
-- `npm test` runs the tests. The launch smoke test builds the app and runs it with `FORECASTER_NO_BROWSER=1`, which stops it opening a browser, and its data in a temporary `FORECASTER_DATA_FILE`.
+- `npm test` runs the tests. The launch smoke test builds the app and runs it with `FORECASTER_NO_BROWSER=1`, which stops it opening a browser, and its data in a temporary `FORECASTER_DATA_FILE`. It runs it again with `FORECASTER_DEMO=1`, demo mode, which reads tickets from a synthetic fixture instead of a tracker, so no token is needed.
 - `npm run typecheck` checks types.
+- `npm run record` refreshes the recorded tracker responses the connector tests replay (`npm run record:github` or `npm run record:jira` for one tracker). GitHub's come from the synthetic repo `random11235/forecaster-synthetic`, with a token from the macOS Keychain item `forecaster-github-recording`. Jira's come from the synthetic space `SYN` on `ralphhockley.atlassian.net`, with a token from the Keychain item `forecaster-jira-recording`. That token belongs to the shared test account `forecastertest3@gmail.com`: make it while signed in to Atlassian as that account, since a token works only with its own account's email. Set `FORECASTER_JIRA_EMAIL` only to record as a different account. The tests themselves need no token or network.

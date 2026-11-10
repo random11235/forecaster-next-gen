@@ -1,12 +1,12 @@
 # Architecture: design
 
-Design date: 2026-10-14. Updated 2026-10-18 with the design grill decisions (Q1–Q31). Status: draft for v1. The v1 spec is [issue #84](https://github.com/random11235/forecaster-next-gen/issues/84); this design was written for [issue #6](https://github.com/random11235/forecaster-next-gen/issues/6), which now covers what follows it.
+Design date: 2026-10-14. Updated 2026-10-18 with the design grill decisions (Q1–Q31). Status: draft for v1.
 
 This covers the Forecaster as a whole: v1's assumptions, the principles every module follows, the folder structure and its dependency rules, the test seams, the language choice, security, and what is deferred beyond v1. Read it first. The engine (Seam A) is in [`engine.md`](engine.md), the data, samples and settings behind `forecast/` (Seam B) in [`forecast-model.md`](forecast-model.md), and the screens in [`frontend-essentials.md`](frontend-essentials.md).
 
 This builds on the recommendations in [`../research/forecasting-approaches.md`](../research/forecasting-approaches.md) ("Implications for a new tool") and the stores in [`../research/EM_usecase-arch.excalidraw`](../research/EM_usecase-arch.excalidraw).
 
-**The MVP overrides parts of this.** The MVP ([#84](https://github.com/random11235/forecaster-next-gen/issues/84)) forecasts one milestone per team from what the EM types in: a start date, the tickets remaining and a pace (a range, or typed counts) per period of the team's cadence, grown by the range of its ambiguity. It has no epics, commits, pull-backs, blocked epics, per-epic ambiguity, team facts, workflow settings, measured pace, measured growth or sample data, and #87 deleted the code for them. Where this doc describes them, it is the v1 design they follow on from, not the code as it stands; each such place says so. The tables earlier releases wrote for them are kept in the data file, unread.
+**The MVP overrides parts of this.** The MVP forecasts one milestone per team from what the EM types in: a start date, the tickets remaining and a pace (a range, or typed counts) per period of the team's cadence, grown by the range of its ambiguity. It has no epics, commits, pull-backs, blocked epics, per-epic ambiguity, team facts, workflow settings, measured pace, measured growth or sample data, and their code is deleted. Where this doc describes them, it is the v1 design they follow on from, not the code as it stands; each such place says so. The tables earlier releases wrote for them are kept in the data file, unread.
 
 The engine is built and tested in isolation first (build order: engine → app on canned data → capacity → Jira → GitHub). The app design ([`frontend-essentials.md`](frontend-essentials.md)) need not match it until the app is built.
 
@@ -14,7 +14,7 @@ The engine is built and tested in isolation first (build order: engine → app o
 
 ## v1 assumptions
 
-- **Single team, run locally.** v1 ships two builds of the same app. The local server is a web app started with one command, holding its data in a local SQLite file. The browser build (#114) is one self-contained file with no server, shared with testers by sending them the file (#57), holding each viewer's data in their own browser. There is no aggregator and no access control in v1: neither build shares data between people.
+- **Single team, run locally.** v1 ships two builds of the same app. The local server is a web app started with one command, holding its data in a local SQLite file. The browser build is one self-contained file with no server, shared with testers by sending them the file, holding each viewer's data in their own browser. There is no aggregator and no access control in v1: neither build shares data between people.
 - **No risks or added-scope events** are modelled.
 - **One reference class per team.** Growth and epic-size samples are pooled per team. The EM expresses how well each epic is understood through its ambiguity level (see [Settings](forecast-model.md#layer-3-settings)), not through separate reference classes.
 - **Counts, not story points.** Throughput and scope are measured in tickets.
@@ -42,7 +42,7 @@ The data model is designed so that each of these can be relaxed later without re
 
 ## Folder structure
 
-The tree is `src/` as it stands in the MVP. v1 adds `samples/` (Layer 2: commits, throughput, growth and epic-size samples derived from `model/`), `ledger/` (Layer 5), `secrets/` and `connectors/`, and the epic-era files #87 deleted (work items, workflow settings, epic commits, team facts, measured pace and growth); [`forecast-model.md`](forecast-model.md) describes them.
+The tree is `src/` as it stands in the MVP, with `connectors/`. v1 adds `samples/` (Layer 2: commits, throughput, growth and epic-size samples derived from `model/`), `ledger/` (Layer 5), `secrets/`, and the deleted epic-era files (work items, workflow settings, epic commits, team facts, measured pace and growth); [`forecast-model.md`](forecast-model.md) describes them.
 
 ```
 src/
@@ -66,6 +66,14 @@ src/
     counted.ts            # a count with its words: "1 ticket", "40 tickets"
     editResult.ts         # an edit saved, or refused saying why
 
+  connectors/             # what reads the team's tickets from its tracker; everything tracker-specific stays inside one
+    connector.ts          # the interface and its shared types: Connection, Ticket, Failure, ReadResult, Choice
+    remote.ts             # what the network connectors share: sending a request (only a network failure is unavailable), status to failure, the scope check, the finishedSince filter
+    canned/               # the canned connector, answering from a fixture in the connector's own shape; Seam B tests use it
+      demoFixture.json    # demo mode's synthetic fixture: made up, no real team's data
+    github/               # the GitHub connector
+    jira/                 # the Jira Cloud connector
+
   storage/                # interface and its v1 SQLite file, with the schema's migrations; the web build's browser storage
   app/                    # local server (localhost only), screens, `npm start` entry point; each screen's HTML, and reading the fields of the forms it posts; the web build's app and page script (`webApp.ts`, `webMain.ts`)
 
@@ -73,6 +81,7 @@ test/
   app/                    # the screens, launch, and the launch smoke test: start the app, check the screen is served; the web build's app and its smoke test
   engine/                 # Seam A: fixed seeds, plus a performance benchmark
   forecast/               # Seam B: stored inputs + settings → the screens' views
+  connectors/             # Seam C: the connector contract suite, its replay transport, and the scenarios and queries recorded for it; each tracker's quirks and recordings in its own folder; the canned connector; the dependency rules for connectors/
   storage/                # the schema's migrations; the Storage contract, run against SQLite and browser storage
 ```
 
@@ -84,6 +93,8 @@ test/
 - `app/` reaches forecasts through `forecast/`, never `engine/` directly.
 - Forecast code reads facts only through team facts (`teamFacts`), never `storage.facts`, so a forecast always sees the EM's status mapping. Storage and storage tests may still read raw facts. (The MVP reads no facts: it has neither, until connectors return.)
 - `connectors/`, `storage/` and `secrets/` sit at the edges behind interfaces, so v1 can run from canned data and the same code can be hosted later.
+- `connectors/` import only their shared types (`connectors/connector.ts`), what the network connectors share (`connectors/remote.ts`), files in their own folder, and `model/`.
+- `forecast/` depends on the connector interface only, never on a concrete connector (`canned/`, `github/` or `jira/`). `app/` builds the connector and passes it in: the canned one from its synthetic fixture in demo mode (`FORECASTER_DEMO=1`), otherwise the real one for the connection. `test/connectors/dependencyRules.test.ts` checks both rules.
 
 **File types:**
 - Source is `.ts`.
@@ -91,9 +102,10 @@ test/
 - Fixtures are `.json`, in the same shape a connector produces (or the raw API response, for connector replay tests).
 - Settings defaults are a typed `.ts` constant.
 
-**Test seams.** There are two, as set in the spec:
+**Test seams.** There are three:
 - **Seam A** is `simulateCase`, tested with fixed seeds ([`engine.md`](engine.md)).
 - **Seam B** is `forecast/`: stored facts, settings and the ledger go in, and the screens' views come out: `milestoneForecastView` for the Milestone forecast screen, and `inputsView` with `submitInputs` for the Inputs screen. `submitInputs` takes a form as typed (`InputsEdit`) and either saves it, saying which screen comes next, or refuses it, naming the screen to show again and returning its view: the Inputs screen with the Inputs view, or the Milestone forecast screen with the Milestone forecast view, each with that form as typed, the rest as saved, and the refusal on the form it belongs to. Capacity's forms are on the Milestone forecast screen and refuse to it; every other form is on the Inputs screen. `app/` shows whichever screen the result names, so refused re-display is tested here, without the server. Reading a form's fields from the request body stays in `app/`, beside the HTML that names them. Both views take the same `ForecastSettings` and judge the milestone by one assessment (`assessMilestone`), so the typed counts a forecast needs, the notes beside the inputs and the Inputs screen's hint all come from those settings. In v1, team facts is part of it and tests may call `teamFacts` directly; the MVP has no team facts. Its logic is in [`forecast-model.md`](forecast-model.md).
+- **Seam C** is the connector interface (`connectors/connector.ts`): a connector built from a connection, a token and a transport goes in, and its milestone choices and reads come out. See [Seam C](#seam-c-connectors) below.
 
 Warning text and provenance are tested at Seam B, not Seam A. These cases moved from the engine tests. Each is owed, in `test/forecast/`, by the ticket that adds its warning or diagnostic. Since the MVP, only the first two can arise: the last four name epics, commits or measured pace, which return after it.
 - the horizon warning when fewer trials finish than the highest reported percentile, with the floored percentage and the horizon date, and none when enough finish;
@@ -103,11 +115,22 @@ Warning text and provenance are tested at Seam B, not Seam A. These cases moved 
 - the throughput source: `'measured'` for samples, `'manual'` for a range;
 - the uncommitted epics listed in rank order, and none for a scope of committed epics.
 
-Connectors are tested through Seam B by replaying recorded API responses, with no seam of their own.
+Seam B tests read tickets through the canned connector (`connectors/canned/`), which returns its fixture's tickets, an empty list for a query that matches nothing, and any failure on cue; `test/connectors/` tests it.
 
-`test/app/` holds the launch smoke test. It is not a forecasting seam: it builds the app, runs the built `npm start` entry point (`dist/app/main.js`) with `FORECASTER_NO_BROWSER=1` so no browser opens and a temporary `FORECASTER_DATA_FILE`, and checks that the Milestone forecast screen is served in its empty state, with no sample data. It also checks that a bad `PORT` is refused.
+### Seam C: connectors
 
-The web build (#114) is tested the same way, with no seam of its own: `webApp.test.ts` asks its app for screens as its page does, and the web build smoke test runs `npm run build:web` and checks the one page it writes opens on the empty state with its script inline. Its page script (`webMain.ts`), which wires links, forms and the Inputs screen's saves to that app in the browser, is checked by the ticket's demo, not by tests.
+Each real connector is tested at Seam C, offline, on raw responses recorded from the synthetic trackers and replayed through its injected transport.
+
+Backoff on rate limits is not done yet: a rate limit (a 429, or a GitHub 403 whose headers say it is one) fails at once as `unavailable`. Backoff comes with the spec on which tickets count, with paging and the full reads.
+
+- **The contract suite** (`test/connectors/connectorContract.test.ts`), modelled on the Storage contract, runs the same cases against every connector: a read returning tickets, a query matching nothing (an empty list, not a failure), each failure, and milestone choices returning choices or a failure. Each connector joins it with a `ContractSubject` (`connectorContract.ts`): its connector on the synthetic tracker, with a refused token, on an unknown repo or project, with no network (its transport rejects with the `TypeError` `fetch` does), and replaying no recordings, plus its queries in the tracker's syntax and its tickets' ids by role. A connector maps only a network failure to `unavailable`, so on a request with no recording the replay's error propagates and the case fails loudly; the suite checks this for each connector. Later specs add their cases to this suite. Tracker-only quirks are tested beside it, in the tracker's own folder (`test/connectors/github/`, `test/connectors/jira/`).
+- **The replay transport** (`test/connectors/replayTransport.ts`) answers each request with the recording of the same method, URL and body, and throws, naming the request, when there is none, so a missing recording never passes silently.
+- **Recordings** come only from the synthetic trackers (`random11235/forecaster-synthetic` for GitHub, the space `SYN` on `ralphhockley.atlassian.net` for Jira), which `scripts/synthetic/` seeds; its manifests map each case's role to its ticket. Failures are real recorded responses where the tracker gives one: a refused token is recorded with a token the tracker refuses, an unknown repo or project with one that doesn't exist. Only the network failing is not recorded. Recordings keep each response's status and only the fields the connector reads, and no headers.
+- **The scenarios** (`test/connectors/scenarios.ts`) name, for each tracker, what is recorded: the synthetic connection, the unknown one, and the queries read in each scenario. The contract suite replays them and the recording script records them, so the two can't drift.
+- **The recording script** (`scripts/record.ts`: `npm run record` for both trackers, `npm run record:github` or `npm run record:jira` for one) reads its tokens from the macOS Keychain (`forecaster-github-recording`, `forecaster-jira-recording`) and records Jira as the shared test account `forecastertest3@gmail.com` (`FORECASTER_JIRA_EMAIL` overrides it), never writing a token anywhere, runs each connector's own requests against its synthetic tracker, and rewrites `test/connectors/<tracker>/recordings/`. It says plainly when a tracker refuses its token: GitHub's expires on 2026-12-07, Jira's after 30 days. A change to a connector's requests needs a re-run: the replay transport names any request left unrecorded. Node runs the script directly, so the files it imports from `src/` and `test/` (`connectors/remote.ts`, `recording.ts`, `scenarios.ts`), named by their `.ts`, must import nothing at runtime themselves; `test/connectors/recordScript.test.ts` checks that it loads. It loads the connectors from the build in `dist/`.
+`test/app/` holds the launch smoke test. It is not a forecasting seam: it builds the app, runs the built `npm start` entry point (`dist/app/main.js`) with `FORECASTER_NO_BROWSER=1` so no browser opens and a temporary `FORECASTER_DATA_FILE`, and checks that the Milestone forecast screen is served in its empty state, with no sample data. It runs it again in demo mode (`FORECASTER_DEMO=1`), on the canned connector built from the synthetic fixture, so no token is needed, and checks the screen is served. It also checks that a bad `PORT` is refused.
+
+The web build is tested the same way, with no seam of its own: `webApp.test.ts` asks its app for screens as its page does, and the web build smoke test runs `npm run build:web` and checks the one page it writes opens on the empty state with its script inline. Its page script (`webMain.ts`), which wires links, forms and the Inputs screen's saves to that app in the browser, is checked by the ticket's demo, not by tests.
 
 The one exception is the PRNG: `engine/random.ts` is checked against output vectors from the authors' reference C code for xoshiro128**, because a port must reproduce its exact stream and Seam A can't show that.
 
@@ -133,7 +156,7 @@ The one exception is the PRNG: `engine/random.ts` is checked against output vect
 v1 is a local, single-user tool, so items 1 and 2 are what matter. Items 3 and 4 still apply; the rest becomes relevant only with a hosted or multi-team version.
 
 1. **Ticketing credentials.**
-   - Use read-only access: Jira OAuth 2.0 (3LO) with read scopes, and a GitHub App or fine-grained token with read-only issue access. A classic API token or PAT carries all of that user's permissions, including write access.
+   - Use read-only access: for Jira, a scoped API token with read-only scopes (`read:jira-work`) that expires, sent as basic auth with its account's email through Atlassian's gateway; OAuth 2.0 (3LO) with read scopes may replace it later. For GitHub, a GitHub App or fine-grained token with read-only issue access. A classic (unscoped) API token or PAT carries all of that user's permissions, including write access.
    - Store tokens in the OS keychain. Never put them in the browser, `localStorage`, the SQLite file, logs or error messages.
    - No webhooks in v1. Connectors poll on refresh.
 2. **Data minimisation.** The model needs only IDs, types, parent links, labels, status timestamps and counts. Don't ingest titles (except epics', which name them on screen), descriptions, comments or assignee identities. Capacity is typed for the team as a whole, so there is no `Person` table.

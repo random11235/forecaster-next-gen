@@ -1,8 +1,8 @@
 # Monte Carlo engine: design
 
-Design date: 2026-10-14. Updated 2026-10-18 with the design grill decisions (Q1–Q31). Status: draft for v1. The v1 spec is [issue #6](https://github.com/random11235/forecaster-next-gen/issues/6).
+Design date: 2026-10-14. Updated 2026-10-18 with the design grill decisions (Q1–Q31). Status: draft for v1.
 
-The MVP ([#84](https://github.com/random11235/forecaster-next-gen/issues/84)) changes one thing in the engine: typed counts are drawn by the Bayesian bootstrap ([ADR-0001](../adr/0001-bayesian-bootstrap-pace-sampler.md), [#121](https://github.com/random11235/forecaster-next-gen/issues/121)), which bumped `ENGINE_VERSION` to `'2'`. It builds the case in `forecast/milestoneForecastView.ts` as one scope entry, the milestone's tickets remaining with none done, grown by the range of its ambiguity, with the EM's pace as throughput: typed counts go through the Bayesian bootstrap ([ADR-0001](../adr/0001-bayesian-bootstrap-pace-sampler.md)), a pace range is drawn uniformly.
+The MVP changes one thing in the engine: typed counts are drawn by the Bayesian bootstrap ([ADR-0001](../adr/0001-bayesian-bootstrap-pace-sampler.md)), which bumped `ENGINE_VERSION` to `'2'`. It builds the case in `forecast/milestoneForecastView.ts` as one scope entry, the milestone's tickets remaining with none done, grown by the range of its ambiguity, with the EM's pace as throughput: typed counts go through the Bayesian bootstrap ([ADR-0001](../adr/0001-bayesian-bootstrap-pace-sampler.md)), a pace range is drawn uniformly.
 
 This covers `engine/` (Seam A): the contract `simulateCase(SimulationCase) → ForecastResult`, how one trial runs, the swappable samplers, and the facts it reports when data is thin. The engine's place in the system and its dependency rules are in [`architecture.md`](architecture.md); the data and settings `forecast/` builds the case from are in [`forecast-model.md`](forecast-model.md).
 
@@ -98,16 +98,16 @@ Collect the totals and compute 101 quantiles. Confidence runs the other way from
 
 ### Capacity
 
-`capacity` tells the engine how much of the team's usual capacity each period has, as a factor: 1 is usual, 0.5 half, 0 no one. The list runs from period 0, the first period simulated; periods past its end are at 1, and a case with no `capacity` is the MVP's case, with the MVP's `caseHash` and results. `forecast/` turns the EM's capacity entries into these factors ([#153](https://github.com/random11235/forecaster-next-gen/issues/153)).
+`capacity` tells the engine how much of the team's usual capacity each period has, as a factor: 1 is usual, 0.5 half, 0 no one. The list runs from period 0, the first period simulated; periods past its end are at 1, and a case with no `capacity` is the MVP's case, with the MVP's `caseHash` and results. `forecast/` turns the EM's capacity entries into these factors.
 
-- **Linear assumption.** Each trial multiplies the pace it draws for a period by that period's factor, for typed counts and a pace range alike: half the team does half the work. Nothing validates this; it is the simplest model, and easy to change later ([#131](https://github.com/random11235/forecaster-next-gen/issues/131)).
+- **Linear assumption.** Each trial multiplies the pace it draws for a period by that period's factor, for typed counts and a pace range alike: half the team does half the work. Nothing validates this; it is the simplest model, and easy to change later.
 - **Not rounded.** The scaled pace is not rounded per period: the trial's remaining tickets fall by the scaled amount, so 2 tickets at 30% take 0.6 off. Remaining work is rounded to 9 decimal places after each subtraction, as epic totals are, so float error can't add a period.
 - **Same draws.** A period draws its pace whatever its factor, even 0, so with and without capacity the same seed uses the same draws, and a comparison of the two shows capacity's effect alone, not chance.
 - **Limits.** Each factor is from 0 to 10 (1000%), and the list holds at most 10,000 periods, the horizon's own limit; anything else is refused.
 
 ### Swappable samplers
 
-**Not built yet: this follows the MVP, as the rest of [#45](https://github.com/random11235/forecaster-next-gen/issues/45).** The MVP draws typed counts by the Bayesian bootstrap directly in `simulate.ts` (through `random.ts`'s `PaceSampler`), with no `throughputSampler` in the case, no `makeThroughputSampler` and no `engine/samplers/`.
+**Not built yet: this follows the MVP.** The MVP draws typed counts by the Bayesian bootstrap directly in `simulate.ts` (through `random.ts`'s `PaceSampler`), with no `throughputSampler` in the case, no `makeThroughputSampler` and no `engine/samplers/`.
 
 v1 draws measured throughput by Bayesian bootstrap ([ADR-0001](../adr/0001-bayesian-bootstrap-pace-sampler.md)): each trial weights the observed periods at random, and each draw returns one observed period's count by those weights. The plain `bootstrap` (every period equally likely) stays available as a sampler kind. Both return only observed counts, so they keep the empirical shape and tail, unlike the triangular draw they replace ([research §1.1](../research/forecasting-approaches.md#11-the-users-prior-tool-random11235forecaster)). Other ways of drawing (interpolated empirical, smoothed bootstrap, parametric fits, block or recency-weighted bootstrap) are worth testing later, so the draw sits behind one seam:
 

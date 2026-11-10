@@ -9,7 +9,10 @@
     "test:coverage": "vitest run --coverage",
     "coverage:usage": "node scripts/usageCoverage.ts",
     "start": "npm run build && node dist/app/main.js",
-    "build:web": "npm run build && node scripts/buildWeb.ts"
+    "build:web": "npm run build && node scripts/buildWeb.ts",
+    "record": "npm run build && node scripts/record.ts",
+    "record:github": "npm run build && node scripts/record.ts github",
+    "record:jira": "npm run build && node scripts/record.ts jira"
   },
   "devDependencies": {
     "@fontsource-variable/geist": "^5.3.0",
