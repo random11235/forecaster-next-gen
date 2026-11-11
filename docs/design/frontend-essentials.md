@@ -80,6 +80,8 @@ Architecture: split rate estimator, `splitRatesSet/Get`, `settingsSet/Get`, `mil
 
 Each input saves as the EM changes it, with no save buttons: a small inline script posts the changed form, swaps in the screen's sections from the reply and notes "Saved" beside the section; a refusal shows its reason in its own section, keeping what was typed. Without the script the buttons show and each form posts as before. Typed counts are edited as one list.
 
+The Connect step, first in the local server build, is the exception: it posts only when its Connect (or Change connection) button is pressed. Its check asks the tracker, so a save as each field changes would send a half-typed repo or token to it, and refuse each keystroke as not found; and the token, never put back into the page, can't be kept between saves.
+
 | Section | Shows | Source |
 |---|---|---|
 | Milestones | Name, committed date, epics in rank order; commit / uncommit each epic; ambiguity per epic | EM |

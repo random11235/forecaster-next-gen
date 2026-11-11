@@ -1,0 +1,184 @@
+import type { Connector, Failure } from '../connectors/connector.js'
+import type { Connection } from '../model/connection.js'
+import type { Secrets } from '../secrets/secrets.js'
+import type { ConnectionStorage } from '../storage/storage.js'
+import { BLANK_CONNECTION_FORM, connectionOf, TRACKERS, trackerOf, type ConnectionForm, type Tracker } from './trackers.js'
+
+/** Builds the connector for a connection and its token: the real one in the local server build, the canned one in tests and demo mode. */
+export type ConnectorFactory = (connection: Connection, token: string) => Connector
+
+/**
+ * What the local server build connects with: where the connection is kept, where its token is kept, and how a
+ * connector is built. The browser build has none of these, so it has no Connect step.
+ */
+export interface Connecting {
+  connections: ConnectionStorage
+  secrets: Secrets
+  connector: ConnectorFactory
+}
+
+/**
+ * The Connect step's submits: connect (or change the connection to) what the form names, or disconnect. While
+ * connected, a blank token keeps the saved one.
+ */
+export type ConnectionEdit = ({ kind: 'connect'; token: string } & ConnectionForm) | { kind: 'disconnect' }
+
+/** The read-only permission a token needs, by tracker: what the EM is told to create. */
+export const TOKEN_PERMISSIONS: Readonly<Record<Tracker, string>> = { github: TRACKERS.github.permission, jira: TRACKERS.jira.permission }
+
+/**
+ * What the Connect step shows: in the browser build, nothing (`noConnect`); otherwise its form, blank until the team
+ * connects (`connect`), then the connection, with its form filled in to change it (`connected`).
+ */
+export type ConnectionView = { kind: 'noConnect' } | ConnectStep
+
+/** The Connect step, before connecting or once connected. */
+export type ConnectStep = ({ kind: 'connect' } | { kind: 'connected'; connection: Connection }) & {
+  /** As saved, or as typed when refused; never with the token. */
+  form: ConnectionForm
+  /** The read-only permission to create each tracker's token with. */
+  permissions: Readonly<Record<Tracker, string>>
+  /** Why the form just submitted was refused; none until one is. */
+  refusal?: string
+}
+
+/** The setup step to go to next: Connect, or, once connected, picking the milestone's tickets. */
+export type SetupStep = 'connect' | 'milestone'
+
+/** A connection saved (or removed), and the setup step to go to next; or refused, with the Connect step to show again. */
+export type ConnectionSubmitted = { saved: true; next: SetupStep } | { saved: false; view: ConnectStep & { refusal: string } }
+
+/**
+ * Seam B: connects the team, changes its connection, or disconnects it.
+ *
+ * A connect (or a change, while connected) is checked by building its connector and asking for milestone choices.
+ * While connected, a change with the token left blank is checked with the saved token, so a new repo needs no new
+ * token. Answered, the connection and the token replace any the team had, and the milestone step is next. Refused,
+ * nothing changes, and the Connect step shows again with why and the form as typed, without the token. A missing name,
+ * or a missing token with none saved, is refused before any connector is built.
+ *
+ * A disconnect removes the connection and forgets the token, going back to the Connect step. Nothing follows the
+ * tracker yet, so there are no values to switch to their typed source.
+ *
+ * Should this computer's keychain or the data file fail, nothing changes: what was written is put back, and the
+ * refusal says which failed, never quoting its error.
+ */
+export async function submitConnection(connecting: Connecting, teamId: string, edit: ConnectionEdit): Promise<ConnectionSubmitted> {
+  if (edit.kind === 'disconnect') return disconnect(connecting, teamId)
+  const { tracker, repo, site, projectKey, email } = edit
+  const form: ConnectionForm = { tracker, repo, site, projectKey, email }
+  const refused = (refusal: string): ConnectionSubmitted => ({ saved: false, view: { ...connectStep(connecting, teamId), form, refusal } })
+  const connection = connectionOf(form)
+  const missing = trackerOf(connection).missing(connection)
+  if (missing) return refused(missing)
+  const typed = edit.token.trim()
+  const token = typed || (await savedToken(connecting, teamId))
+  if (typeof token !== 'string') return refused(token.refusal)
+  const checked = await connecting.connector(connection, token).milestoneChoices()
+  if (!checked.ok) return refused(refusalOf(connection, checked))
+  const failed = await replaceConnection(connecting, teamId, connection, typed || undefined)
+  return failed ? refused(failed) : { saved: true, next: 'milestone' }
+}
+
+/** The token a change with a blank token is checked with: the one saved, while the team is connected. */
+async function savedToken({ connections, secrets }: Connecting, teamId: string): Promise<string | { refusal: string }> {
+  const noToken = { refusal: 'Paste a token to connect.' }
+  if (!connections.connection(teamId)) return noToken
+  try {
+    return (await secrets.token(teamId)) || noToken
+  } catch {
+    return { refusal: KEYCHAIN_FAILED }
+  }
+}
+
+/** Why a connect or disconnect changed nothing, when this computer's keychain failed: its own error is never shown. */
+const KEYCHAIN_FAILED = 'This computer’s keychain couldn’t be used, so nothing changed. Check it’s unlocked and that the Forecaster may use it, then try again.'
+
+/** Why a connect or disconnect changed nothing, when the data file failed. */
+const DATA_FILE_FAILED = 'The data file couldn’t be written, so nothing changed. Try again.'
+
+/**
+ * Saves the team's connection, then its new token (none when the saved one is kept), so the two stay together:
+ * should the keychain fail, the connection the team had (or none) is put back. Returns why nothing changed, if it didn't.
+ */
+async function replaceConnection(
+  { connections, secrets }: Connecting,
+  teamId: string,
+  connection: Connection,
+  token: string | undefined,
+): Promise<string | undefined> {
+  const before = connections.connection(teamId)
+  try {
+    connections.saveConnection(teamId, connection)
+  } catch {
+    return DATA_FILE_FAILED
+  }
+  if (token === undefined) return undefined
+  try {
+    await secrets.saveToken(teamId, token)
+  } catch {
+    putBack(connections, teamId, before)
+    return KEYCHAIN_FAILED
+  }
+  return undefined
+}
+
+/**
+ * Removes the team's connection, then forgets its token, so the two go together: should the keychain fail, the
+ * connection is put back and the team is still connected.
+ */
+async function disconnect(connecting: Connecting, teamId: string): Promise<ConnectionSubmitted> {
+  const { connections, secrets } = connecting
+  const before = connections.connection(teamId)
+  const refused = (refusal: string): ConnectionSubmitted => ({ saved: false, view: { ...connectStep(connecting, teamId), refusal } })
+  try {
+    connections.removeConnection(teamId)
+  } catch {
+    return refused(DATA_FILE_FAILED)
+  }
+  try {
+    await secrets.deleteToken(teamId)
+  } catch {
+    putBack(connections, teamId, before)
+    return refused(KEYCHAIN_FAILED)
+  }
+  return { saved: true, next: 'connect' }
+}
+
+/** Puts back the connection the team had (or none). Should the data file fail again, it is left as it is: a later read refuses its token. */
+function putBack(connections: ConnectionStorage, teamId: string, connection: Connection | undefined): void {
+  try {
+    if (connection) connections.saveConnection(teamId, connection)
+    else connections.removeConnection(teamId)
+  } catch {
+    // the refusal already says to try again
+  }
+}
+
+/** A failed connection check, worded for the Connect step. */
+function refusalOf(connection: Connection, { failure }: Failure): string {
+  const tracker = trackerOf(connection)
+  switch (failure) {
+    case 'unauthorised':
+      return tracker.refused(connection)
+    case 'notFound':
+      return tracker.notFound(connection)
+    case 'unavailable':
+      return `${tracker.name} can’t be reached just now, or is limiting requests. Try again in a few minutes.`
+    // the check asks for no query of the EM's, so neither is expected of it
+    case 'invalidQuery':
+    case 'outOfScope':
+      return `${tracker.name} didn’t accept the connection check. Try again, and if it fails again, check what you typed.`
+  }
+}
+
+/** Seam B: the team's Connect step; none in the browser build, which has nothing to connect with (`connecting` undefined). */
+export function connectionView(connecting: Connecting | undefined, teamId: string): ConnectionView {
+  return connecting ? connectStep(connecting, teamId) : { kind: 'noConnect' }
+}
+
+function connectStep({ connections }: Connecting, teamId: string): ConnectStep {
+  const connection = connections.connection(teamId)
+  if (!connection) return { kind: 'connect', form: BLANK_CONNECTION_FORM, permissions: TOKEN_PERMISSIONS }
+  return { kind: 'connected', connection, form: trackerOf(connection).formOf(connection), permissions: TOKEN_PERMISSIONS }
+}

@@ -1,4 +1,4 @@
-import type { Connection } from '../../src/connectors/connector.js'
+import type { Connection } from '../../src/model/connection.js'
 
 /**
  * What Seam C's recordings are made of, for each tracker: the scenarios `scripts/record.ts` records from the synthetic
@@ -60,7 +60,8 @@ export const GITHUB_CASES = cases<Extract<Connection, { tracker: 'github' }>>(
   },
 )
 
-const JIRA_SYNTHETIC = { tracker: 'jira', site: 'ralphhockley.atlassian.net', projectKey: 'SYN' } as const
+/** Recorded as the shared test account; `scripts/record.ts` swaps in `FORECASTER_JIRA_EMAIL` when it is set. */
+const JIRA_SYNTHETIC = { tracker: 'jira', site: 'ralphhockley.atlassian.net', projectKey: 'SYN', email: 'forecastertest3@gmail.com' } as const
 
 /** The space SYN on ralphhockley.atlassian.net, in JQL. "Search revamp" is fix version 10001. */
 export const JIRA_CASES = cases<Extract<Connection, { tracker: 'jira' }>>(

@@ -42,7 +42,7 @@ The data model is designed so that each of these can be relaxed later without re
 
 ## Folder structure
 
-The tree is `src/` as it stands in the MVP, with `connectors/`. v1 adds `samples/` (Layer 2: commits, throughput, growth and epic-size samples derived from `model/`), `ledger/` (Layer 5), `secrets/`, and the deleted epic-era files (work items, workflow settings, epic commits, team facts, measured pace and growth); [`forecast-model.md`](forecast-model.md) describes them.
+The tree is `src/` as it stands in the MVP, with `connectors/` and `secrets/`. v1 adds `samples/` (Layer 2: commits, throughput, growth and epic-size samples derived from `model/`), `ledger/` (Layer 5), and the deleted epic-era files (work items, workflow settings, epic commits, team facts, measured pace and growth); [`forecast-model.md`](forecast-model.md) describes them.
 
 ```
 src/
@@ -50,6 +50,7 @@ src/
     team.ts
     milestoneInputs.ts    # MilestoneInputs: what the EM types in for the team's milestone; PaceMode
     ambiguity.ts          # Ambiguity and AmbiguityRanges: set by the EM
+    connection.ts         # Connection: the team's one tracker and repo or Jira project (with Jira's account email); never a token
 
   engine/                 # pure: no I/O, no DB, no clock; see src/engine/ for its files
     index.ts              # exports simulateCase, periodEndDate and the types only
@@ -59,6 +60,8 @@ src/
     milestoneInputs.ts    # behind inputs.ts: the milestone's view and edits
     milestoneAssessment.ts  # behind both views: the milestone's inputs against the settings and today: the pace in use, what stops a forecast, the warnings
     growth.ts             # behind inputs.ts: the ambiguity ranges view and edit; the milestone's growth range
+    connection.ts         # Seam B: the Connect step's view; a connect checked through a connector from a factory passed in, then saved (with its token, through secrets/) or refused; disconnect; a failing keychain or data file refused, changing nothing
+    trackers.ts           # each tracker's facts: its name, its token's permission, where a connection reads, its form and what it lacks, its refusals
     milestoneForecastView.ts  # Seam B: stored data → the Milestone forecast screen's view, through the engine
     settings.ts           # ForecastSettings and AmbiguityRanges defaults
     cadence.ts            # what the screens call a period: a week or a sprint
@@ -67,12 +70,18 @@ src/
     editResult.ts         # an edit saved, or refused saying why
 
   connectors/             # what reads the team's tickets from its tracker; everything tracker-specific stays inside one
-    connector.ts          # the interface and its shared types: Connection, Ticket, Failure, ReadResult, Choice
+    connector.ts          # the interface and its shared types: Ticket, Failure, ReadResult, Choice; a connector takes its Connection from `model/`
     remote.ts             # what the network connectors share: sending a request (only a network failure is unavailable), status to failure, the scope check, the finishedSince filter
     canned/               # the canned connector, answering from a fixture in the connector's own shape; Seam B tests use it
+      demo.ts             # demo mode's connector: the synthetic fixture, refusing the token `refused` and a repo or project named `unknown`
       demoFixture.json    # demo mode's synthetic fixture: made up, no real team's data
     github/               # the GitHub connector
     jira/                 # the Jira Cloud connector
+
+  secrets/                # the team's tracker token, keyed by team; the local server build only
+    secrets.ts            # the interface: save, read and delete a team's token
+    keychainSecrets.ts    # the OS keychain, through @napi-rs/keyring; its errors never quote the token
+    memorySecrets.ts      # in memory: the fake Seam B tests use
 
   storage/                # interface and its v1 SQLite file, with the schema's migrations; the web build's browser storage
   app/                    # local server (localhost only), screens, `npm start` entry point; each screen's HTML, and reading the fields of the forms it posts; the web build's app and page script (`webApp.ts`, `webMain.ts`)
@@ -81,8 +90,10 @@ test/
   app/                    # the screens, launch, and the launch smoke test: start the app, check the screen is served; the web build's app and its smoke test
   engine/                 # Seam A: fixed seeds, plus a performance benchmark
   forecast/               # Seam B: stored inputs + settings → the screens' views
-  connectors/             # Seam C: the connector contract suite, its replay transport, and the scenarios and queries recorded for it; each tracker's quirks and recordings in its own folder; the canned connector; the dependency rules for connectors/
+  connectors/             # Seam C: the connector contract suite, its replay transport, and the scenarios and queries recorded for it; each tracker's quirks and recordings in its own folder; the canned connector
+  secrets/                # the Secrets contract, run against the in-memory fake and the OS keychain (where one answers); no error quotes the token
   storage/                # the schema's migrations; the Storage contract, run against SQLite and browser storage
+  dependencyRules.test.ts # the dependency rules below that keep connectors/ and secrets/ at the edge
 ```
 
 **Dependency rules:**
@@ -94,7 +105,8 @@ test/
 - Forecast code reads facts only through team facts (`teamFacts`), never `storage.facts`, so a forecast always sees the EM's status mapping. Storage and storage tests may still read raw facts. (The MVP reads no facts: it has neither, until connectors return.)
 - `connectors/`, `storage/` and `secrets/` sit at the edges behind interfaces, so v1 can run from canned data and the same code can be hosted later.
 - `connectors/` import only their shared types (`connectors/connector.ts`), what the network connectors share (`connectors/remote.ts`), files in their own folder, and `model/`.
-- `forecast/` depends on the connector interface only, never on a concrete connector (`canned/`, `github/` or `jira/`). `app/` builds the connector and passes it in: the canned one from its synthetic fixture in demo mode (`FORECASTER_DEMO=1`), otherwise the real one for the connection. `test/connectors/dependencyRules.test.ts` checks both rules.
+- `forecast/` depends on the connector interface only, never on a concrete connector (`canned/`, `github/` or `jira/`). `app/` builds the connector and passes it in: the canned one from its synthetic fixture in demo mode (`FORECASTER_DEMO=1`), otherwise the real one for the connection. `test/dependencyRules.test.ts` checks both rules.
+- `secrets/` imports nothing from the rest of the app. Only `app/` builds a `Secrets` (the keychain in the local server build) and passes it in; `forecast/` imports only the interface (`secrets/secrets.ts`); nothing else imports `secrets/`. The browser build's page script (`app/webMain.ts`) loads nothing from `secrets/`: an `import type` of the interface is all it may reach. `test/dependencyRules.test.ts` checks these rules too.
 
 **File types:**
 - Source is `.ts`.
@@ -104,7 +116,7 @@ test/
 
 **Test seams.** There are three:
 - **Seam A** is `simulateCase`, tested with fixed seeds ([`engine.md`](engine.md)).
-- **Seam B** is `forecast/`: stored facts, settings and the ledger go in, and the screens' views come out: `milestoneForecastView` for the Milestone forecast screen, and `inputsView` with `submitInputs` for the Inputs screen. `submitInputs` takes a form as typed (`InputsEdit`) and either saves it, saying which screen comes next, or refuses it, naming the screen to show again and returning its view: the Inputs screen with the Inputs view, or the Milestone forecast screen with the Milestone forecast view, each with that form as typed, the rest as saved, and the refusal on the form it belongs to. Capacity's forms are on the Milestone forecast screen and refuse to it; every other form is on the Inputs screen. `app/` shows whichever screen the result names, so refused re-display is tested here, without the server. Reading a form's fields from the request body stays in `app/`, beside the HTML that names them. Both views take the same `ForecastSettings` and judge the milestone by one assessment (`assessMilestone`), so the typed counts a forecast needs, the notes beside the inputs and the Inputs screen's hint all come from those settings. In v1, team facts is part of it and tests may call `teamFacts` directly; the MVP has no team facts. Its logic is in [`forecast-model.md`](forecast-model.md).
+- **Seam B** is `forecast/`: stored facts, settings and the ledger go in, and the screens' views come out: `milestoneForecastView` for the Milestone forecast screen, and `inputsView` with `submitInputs` for the Inputs screen. `submitInputs` takes a form as typed (`InputsEdit`) and either saves it, saying which screen comes next, or refuses it, naming the screen to show again and returning its view: the Inputs screen with the Inputs view, or the Milestone forecast screen with the Milestone forecast view, each with that form as typed, the rest as saved, and the refusal on the form it belongs to. Capacity's forms are on the Milestone forecast screen and refuse to it; every other form is on the Inputs screen. `app/` shows whichever screen the result names, so refused re-display is tested here, without the server. The Connect step on the Inputs screen has its own pair, `connectionView` and `submitConnection`, given what the local server build connects with (`Connecting`: the connection storage, the `Secrets`, and a factory building a connector from a connection and token); the browser build passes none, and its view has no Connect step. Its tests use the canned connector and `openMemorySecrets`. Reading a form's fields from the request body stays in `app/`, beside the HTML that names them. Both views take the same `ForecastSettings` and judge the milestone by one assessment (`assessMilestone`), so the typed counts a forecast needs, the notes beside the inputs and the Inputs screen's hint all come from those settings. In v1, team facts is part of it and tests may call `teamFacts` directly; the MVP has no team facts. Its logic is in [`forecast-model.md`](forecast-model.md).
 - **Seam C** is the connector interface (`connectors/connector.ts`): a connector built from a connection, a token and a transport goes in, and its milestone choices and reads come out. See [Seam C](#seam-c-connectors) below.
 
 Warning text and provenance are tested at Seam B, not Seam A. These cases moved from the engine tests. Each is owed, in `test/forecast/`, by the ticket that adds its warning or diagnostic. Since the MVP, only the first two can arise: the last four name epics, commits or measured pace, which return after it.
@@ -134,7 +146,7 @@ The web build is tested the same way, with no seam of its own: `webApp.test.ts` 
 
 The one exception is the PRNG: `engine/random.ts` is checked against output vectors from the authors' reference C code for xoshiro128**, because a port must reproduce its exact stream and Seam A can't show that.
 
-`test/storage/` holds the Storage contract, one suite run against both the SQLite file and the web build's browser storage, and the schema migration tests. The migration tests are not a forecasting seam either: they write a data file as an earlier release left it, open it through `openSqliteStorage`, and check what reads back. A ticket that changes the schema appends a step to `MIGRATIONS` in `src/storage/sqliteStorage.ts` (never editing a released one) and adds a test there that opens a file from the version before.
+`test/storage/` holds the Storage contract, one suite run against both the SQLite file and the web build's browser storage, and the schema migration tests. The team's connection is kept only by the SQLite file (`ConnectionStorage`, part of `openSqliteStorage`'s `SqliteStorage`), so its cases run against SQLite alone: the browser build has no connectors. The migration tests are not a forecasting seam either: they write a data file as an earlier release left it, open it through `openSqliteStorage`, and check what reads back. A ticket that changes the schema appends a step to `MIGRATIONS` in `src/storage/sqliteStorage.ts` (never editing a released one) and adds a test there that opens a file from the version before.
 
 ---
 
@@ -157,7 +169,7 @@ v1 is a local, single-user tool, so items 1 and 2 are what matter. Items 3 and 4
 
 1. **Ticketing credentials.**
    - Use read-only access: for Jira, a scoped API token with read-only scopes (`read:jira-work`) that expires, sent as basic auth with its account's email through Atlassian's gateway; OAuth 2.0 (3LO) with read scopes may replace it later. For GitHub, a GitHub App or fine-grained token with read-only issue access. A classic (unscoped) API token or PAT carries all of that user's permissions, including write access.
-   - Store tokens in the OS keychain. Never put them in the browser, `localStorage`, the SQLite file, logs or error messages.
+   - Store tokens in the OS keychain, through `secrets/`, keyed by team. Never put them in the browser, `localStorage`, the SQLite file, logs or error messages. Nothing but `secrets/` holds a token: it goes from there to the connector when the connector is built. A keychain failure drops the keychain's own error, which might quote the token.
    - No webhooks in v1. Connectors poll on refresh.
 2. **Data minimisation.** The model needs only IDs, types, parent links, labels, status timestamps and counts. Don't ingest titles (except epics', which name them on screen), descriptions, comments or assignee identities. Capacity is typed for the team as a whole, so there is no `Person` table.
 3. **Engine input limits.**
