@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
-import type { Connection, Connector, Failure } from '../../src/connectors/connector.js'
+import type { Connector, Failure } from '../../src/connectors/connector.js'
+import type { Connection } from '../../src/model/connection.js'
 import { connectionView, submitConnection, type Connecting, type ConnectionEdit } from '../../src/forecast/connection.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
@@ -130,6 +131,30 @@ describe('changing the connection', () => {
     expect(await using.secrets.token(TEAM)).toBe(NEW_TOKEN)
   })
 
+  test('with the token left blank, reuses the saved token, checks the change with it, and keeps it', async () => {
+    const using = connecting()
+    await submitConnection(using, TEAM, github('shop-team/shop'))
+
+    const submitted = await submitConnection(using, TEAM, github('shop-team/payments', ' '))
+
+    expect(submitted).toEqual({ saved: true, next: 'milestone' })
+    expect(using.built.at(-1)).toEqual({ connection: { tracker: 'github', owner: 'shop-team', repo: 'payments' }, token: TOKEN })
+    expect(storage.connection(TEAM)).toEqual({ tracker: 'github', owner: 'shop-team', repo: 'payments' })
+    expect(await using.secrets.token(TEAM)).toBe(TOKEN)
+  })
+
+  test('with the token left blank and the check refused, keeps the connection it had', async () => {
+    const using = connecting()
+    await submitConnection(using, TEAM, github('shop-team/shop'))
+    const refusing = { ...using, connector: connecting({ failure: 'unauthorised' }).connector }
+
+    const submitted = await submitConnection(refusing, TEAM, github('shop-team/payments', ''))
+
+    expect(submitted.saved === false && submitted.view.refusal).toBe('GitHub refused the token. Check it hasn’t expired, and that it has Issues: read on this repo.')
+    expect(storage.connection(TEAM)).toEqual({ tracker: 'github', owner: 'shop-team', repo: 'shop' })
+    expect(await using.secrets.token(TEAM)).toBe(TOKEN)
+  })
+
   test('refused, keeps the connection and token it had, and shows the change as typed, without the token', async () => {
     const using = connecting()
     await submitConnection(using, TEAM, github('shop-team/shop'))
@@ -242,5 +267,125 @@ describe('a connect the tracker refuses', () => {
 
     expect(refused.every((submitted) => !submitted.saved)).toBe(true)
     expect(JSON.stringify(refused)).not.toContain(TOKEN)
+  })
+})
+
+describe('a connect or disconnect the keychain or the data file fails', () => {
+  const KEYCHAIN_FAILED = 'This computer’s keychain couldn’t be used, so nothing changed. Check it’s unlocked and that the Forecaster may use it, then try again.'
+  const DATA_FILE_FAILED = 'The data file couldn’t be written, so nothing changed. Try again.'
+  const NEW_TOKEN = 'github_pat_22NEWTOKEN9876543210_secret'
+  type Fails = Partial<Record<'saveToken' | 'token' | 'deleteToken' | 'saveConnection' | 'removeConnection', boolean>>
+
+  /** `using`, its secrets and connection storage failing as `fails` says, as the keychain or SQLite would: by throwing. */
+  function failing(using: Connecting, fails: Fails): Connecting {
+    const fail = (what: string): never => {
+      throw new Error(`${what} failed`)
+    }
+    const { secrets, connections } = using
+    return {
+      ...using,
+      secrets: {
+        saveToken: async (teamId, token) => (fails.saveToken ? fail('saveToken') : secrets.saveToken(teamId, token)),
+        token: async (teamId) => (fails.token ? fail('token') : secrets.token(teamId)),
+        deleteToken: async (teamId) => (fails.deleteToken ? fail('deleteToken') : secrets.deleteToken(teamId)),
+      },
+      connections: {
+        saveConnection: (teamId, connection) => (fails.saveConnection ? fail('saveConnection') : connections.saveConnection(teamId, connection)),
+        connection: (teamId) => connections.connection(teamId),
+        removeConnection: (teamId) => (fails.removeConnection ? fail('removeConnection') : connections.removeConnection(teamId)),
+      },
+    }
+  }
+
+  test('a first connect whose connection can’t be saved is refused, and leaves no token behind', async () => {
+    const using = connecting()
+
+    const submitted = await submitConnection(failing(using, { saveConnection: true }), TEAM, github())
+
+    expect(submitted.saved === false && submitted.view.refusal).toBe(DATA_FILE_FAILED)
+    expect(storage.connection(TEAM)).toBeUndefined()
+    expect(await using.secrets.token(TEAM)).toBeUndefined()
+  })
+
+  test('a first connect the keychain can’t keep the token of is refused, and saves no connection', async () => {
+    const using = connecting()
+
+    const submitted = await submitConnection(failing(using, { saveToken: true }), TEAM, github())
+
+    expect(submitted.saved === false && submitted.view).toMatchObject({ kind: 'connect', refusal: KEYCHAIN_FAILED, form: { repo: 'shop-team/shop' } })
+    expect(storage.connection(TEAM)).toBeUndefined()
+    expect(await using.secrets.token(TEAM)).toBeUndefined()
+  })
+
+  test('a change the keychain can’t keep the new token of keeps the connection and token the team had', async () => {
+    const using = connecting()
+    await submitConnection(using, TEAM, github('shop-team/shop'))
+
+    const submitted = await submitConnection(failing(using, { saveToken: true }), TEAM, github('shop-team/payments', NEW_TOKEN))
+
+    expect(submitted.saved === false && submitted.view).toMatchObject({ kind: 'connected', refusal: KEYCHAIN_FAILED })
+    expect(storage.connection(TEAM)).toEqual({ tracker: 'github', owner: 'shop-team', repo: 'shop' })
+    expect(await using.secrets.token(TEAM)).toBe(TOKEN)
+  })
+
+  test('a change whose connection can’t be saved keeps the connection and token the team had', async () => {
+    const using = connecting()
+    await submitConnection(using, TEAM, github('shop-team/shop'))
+
+    const submitted = await submitConnection(failing(using, { saveConnection: true }), TEAM, github('shop-team/payments', NEW_TOKEN))
+
+    expect(submitted.saved === false && submitted.view.refusal).toBe(DATA_FILE_FAILED)
+    expect(storage.connection(TEAM)).toEqual({ tracker: 'github', owner: 'shop-team', repo: 'shop' })
+    expect(await using.secrets.token(TEAM)).toBe(TOKEN)
+  })
+
+  test.each([
+    ['the keychain can’t forget the token', { deleteToken: true }, KEYCHAIN_FAILED],
+    ['the data file can’t remove the connection', { removeConnection: true }, DATA_FILE_FAILED],
+  ] as const)('a disconnect where %s is refused, and the team stays connected with its token', async (_, fails, refusal) => {
+    const using = connecting()
+    await submitConnection(using, TEAM, github('shop-team/shop'))
+
+    const submitted = await submitConnection(failing(using, fails), TEAM, { kind: 'disconnect' })
+
+    expect(submitted).toEqual({
+      saved: false,
+      view: {
+        kind: 'connected',
+        connection: { tracker: 'github', owner: 'shop-team', repo: 'shop' },
+        form: { tracker: 'github', repo: 'shop-team/shop', site: '', projectKey: '', email: '' },
+        permissions: { github: 'Issues: read', jira: 'read:jira-work' },
+        refusal,
+      },
+    })
+    expect(storage.connection(TEAM)).toEqual({ tracker: 'github', owner: 'shop-team', repo: 'shop' })
+    expect(await using.secrets.token(TEAM)).toBe(TOKEN)
+  })
+
+  test('a change with the token left blank that the keychain can’t read the saved token for is refused, before any check', async () => {
+    const using = connecting()
+    await submitConnection(using, TEAM, github('shop-team/shop'))
+    const built = using.built.length
+
+    const submitted = await submitConnection(failing(using, { token: true }), TEAM, github('shop-team/payments', ''))
+
+    expect(submitted.saved === false && submitted.view.refusal).toBe(KEYCHAIN_FAILED)
+    expect(using.built).toHaveLength(built)
+    expect(storage.connection(TEAM)).toEqual({ tracker: 'github', owner: 'shop-team', repo: 'shop' })
+  })
+
+  test('no refusal for a failing keychain or data file shows the token or the error thrown', async () => {
+    const all: Fails = { saveToken: true, token: true, deleteToken: true, saveConnection: true, removeConnection: true }
+    const using = failing(connecting(), all)
+
+    const refused = [
+      await submitConnection(using, TEAM, github()),
+      await submitConnection(using, TEAM, github('shop-team/shop', '')),
+      await submitConnection(using, TEAM, { kind: 'disconnect' }),
+    ]
+
+    expect(refused.every((submitted) => !submitted.saved)).toBe(true)
+    expect(JSON.stringify(refused)).not.toContain(TOKEN)
+    expect(JSON.stringify(refused)).not.toContain('failed')
   })
 })

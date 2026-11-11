@@ -60,7 +60,8 @@ src/
     milestoneInputs.ts    # behind inputs.ts: the milestone's view and edits
     milestoneAssessment.ts  # behind both views: the milestone's inputs against the settings and today: the pace in use, what stops a forecast, the warnings
     growth.ts             # behind inputs.ts: the ambiguity ranges view and edit; the milestone's growth range
-    connection.ts         # Seam B: the Connect step's view; a connect checked through a connector from a factory passed in, then saved (with its token, through secrets/) or refused; disconnect
+    connection.ts         # Seam B: the Connect step's view; a connect checked through a connector from a factory passed in, then saved (with its token, through secrets/) or refused; disconnect; a failing keychain or data file refused, changing nothing
+    trackers.ts           # each tracker's facts: its name, its token's permission, where a connection reads, its form and what it lacks, its refusals
     milestoneForecastView.ts  # Seam B: stored data → the Milestone forecast screen's view, through the engine
     settings.ts           # ForecastSettings and AmbiguityRanges defaults
     cadence.ts            # what the screens call a period: a week or a sprint
@@ -69,9 +70,10 @@ src/
     editResult.ts         # an edit saved, or refused saying why
 
   connectors/             # what reads the team's tickets from its tracker; everything tracker-specific stays inside one
-    connector.ts          # the interface and its shared types: Connection (from `model/`), Ticket, Failure, ReadResult, Choice
+    connector.ts          # the interface and its shared types: Ticket, Failure, ReadResult, Choice; a connector takes its Connection from `model/`
     remote.ts             # what the network connectors share: sending a request (only a network failure is unavailable), status to failure, the scope check, the finishedSince filter
     canned/               # the canned connector, answering from a fixture in the connector's own shape; Seam B tests use it
+      demo.ts             # demo mode's connector: the synthetic fixture, refusing the token `refused` and a repo or project named `unknown`
       demoFixture.json    # demo mode's synthetic fixture: made up, no real team's data
     github/               # the GitHub connector
     jira/                 # the Jira Cloud connector

@@ -1,4 +1,5 @@
-import type { ConnectionEdit, ConnectionView, ConnectStep, Tracker } from '../forecast/connection.js'
+import type { ConnectionEdit, ConnectionView, ConnectStep } from '../forecast/connection.js'
+import { TRACKERS, trackerOf, type Tracker } from '../forecast/trackers.js'
 import type { Connection } from '../model/connection.js'
 import { escapeHtml } from './html.js'
 
@@ -25,12 +26,10 @@ export const CONNECT_FORMS: ReadonlyMap<string, ConnectFormReader> = new Map<str
   [CONNECT_PATHS.disconnect, () => ({ kind: 'disconnect' })],
 ])
 
-const TRACKER_NAMES: Record<Tracker, string> = { github: 'GitHub', jira: 'Jira' }
-
 /**
  * The Connect step, the first section of the Inputs screen in the local server build; none in the browser build. It
  * posts as a whole when Connect is pressed, never as each field changes, as its check asks the tracker. The token
- * field is always blank: the token is never put back into the page.
+ * field is always blank: the token is never put back into the page. Once connected, leaving it blank keeps the saved token.
  */
 export function connectSection(view: ConnectionView): string | undefined {
   if (view.kind === 'noConnect') return undefined
@@ -42,9 +41,10 @@ export const CONNECT_HINT = 'Connect one GitHub repo or Jira project, to read th
 
 function connectedBody(step: ConnectStep, connection: Connection): string {
   const refused = step.refusal !== undefined
+  const tracker = trackerOf(connection)
   return `        <div class="connection">
           <span class="ok-dot" aria-hidden="true"></span>
-          <span>Connected to ${TRACKER_NAMES[connection.tracker]} · <b>${escapeHtml(where(connection))}</b></span>
+          <span>Connected to ${tracker.name} · <b>${escapeHtml(tracker.where(connection))}</b></span>
           <form method="post" action="${CONNECT_PATHS.disconnect}#connect">
             <button type="submit" class="linkish">Disconnect</button>
           </form>
@@ -55,14 +55,9 @@ ${connectForm(step, 'Change connection')}
         </details>`
 }
 
-/** The repo, or the Jira site and project, a connection reads. */
-function where(connection: Connection): string {
-  return connection.tracker === 'github' ? `${connection.owner}/${connection.repo}` : `${connection.site} · ${connection.projectKey}`
-}
-
 function connectForm({ form, permissions, refusal, kind }: ConnectStep, button: string): string {
   const tracker = (option: Tracker): string =>
-    `              <label><input type="radio" name="tracker" value="${option}"${option === form.tracker ? ' checked' : ''} required> ${TRACKER_NAMES[option]}</label>`
+    `              <label><input type="radio" name="tracker" value="${option}"${option === form.tracker ? ' checked' : ''} required> ${TRACKERS[option].name}</label>`
   const field = (label: string, name: string, value: string, placeholder: string, wide = true, type = 'text'): string =>
     `              <label${wide ? ' class="wide"' : ''}>${label} <input type="${type}" name="${name}" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}" autocomplete="off" spellcheck="false"></label>`
   const skip = kind === 'connect' ? '\n            <a href="#milestone" class="skip">Skip: type the inputs instead</a>' : ''
@@ -80,7 +75,7 @@ ${field('Project key', 'projectKey', form.projectKey, 'SHOP', false)}
 ${field('Account email', 'email', form.email, 'the account that made the token', true, 'email')}
           </div>
           <div class="fields">
-              <label class="wide">Token <input type="password" name="token" value="" placeholder="read-only, never shown again" autocomplete="off"></label>
+              <label class="wide">Token <input type="password" name="token" value="" placeholder="${kind === 'connected' ? 'blank keeps the saved token' : 'read-only, never shown again'}" autocomplete="off"></label>
           </div>
           <p class="note">Make a read-only token: on GitHub a fine-grained token with <b>${escapeHtml(permissions.github)}</b> on the one repo; on Jira a scoped API token with <b>${escapeHtml(permissions.jira)}</b>. Nothing is ever written to the tracker. The token is kept in this computer’s keychain, never in the page or the data file.</p>
           <div class="actions">${skip}

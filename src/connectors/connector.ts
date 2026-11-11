@@ -5,11 +5,6 @@
  * a transport (an injected `fetch`); `app/` builds it and passes it in.
  */
 
-import type { Connection } from '../model/connection.js'
-
-/** The tracker a team is connected to, and where in it the team's tickets live. */
-export type { Connection }
-
 /** All the tool holds of a ticket. */
 export interface Ticket {
   /** Opaque and stable: the GitHub node id, or the Jira numeric id (not the key, which changes on a move). */

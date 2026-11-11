@@ -14,7 +14,8 @@
 // at runtime themselves; the connectors, which do, are loaded from the build in dist/.
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
-import type { Connection, Connector, Transport } from '../src/connectors/connector.ts'
+import type { Connector, Transport } from '../src/connectors/connector.ts'
+import type { Connection } from '../src/model/connection.ts'
 import { bodyOf } from '../src/connectors/remote.ts'
 import { describeRequest, requestOf, type Recording } from '../test/connectors/recording.ts'
 import { GITHUB_CASES, JIRA_CASES, type Scenario, type TrackerCases } from '../test/connectors/scenarios.ts'
