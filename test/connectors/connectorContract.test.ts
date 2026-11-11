@@ -13,10 +13,7 @@ const subjects: [string, ContractSubject][] = [
   ['Jira', jiraSubject],
 ]
 
-/** The trackers whose reads are full: which tickets count, when they finished, every page. Jira joins with #186. */
-const fullReads = new Set(['GitHub'])
-
-describe.each(subjects)('%s connector', (name, subject) => {
+describe.each(subjects)('%s connector', (_, subject) => {
   const { queries, batches } = subject
 
   describe('milestone choices', () => {
@@ -60,7 +57,7 @@ describe.each(subjects)('%s connector', (name, subject) => {
     })
   })
 
-  describe.runIf(fullReads.has(name))('a full read', () => {
+  describe('a full read', () => {
     test("reads every page of the query's leaf tickets, and nothing else: no parents, no pull requests", async () => {
       const result = await subject.synthetic().read(queries.checkout, FROM_THE_START)
 
