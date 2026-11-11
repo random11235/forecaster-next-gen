@@ -1,8 +1,9 @@
 import type { FailedCall, Ticket, Transport } from './connector.js'
 
 /**
- * What the connectors that reach a tracker over the network (GitHub, Jira) share: sending a request, the failures a
- * response's status stands for, keeping a query inside the connection, and leaving out tickets finished too long ago.
+ * What the connectors that reach a tracker over the network (GitHub, Jira) share: sending a request, backing off a
+ * rate-limited tracker, the failures a response's status stands for, keeping a query inside the connection, and
+ * leaving out tickets finished too long ago.
  *
  * `scripts/record.ts`, which node runs directly, imports this file: keep its runtime imports to none but `node:`.
  */
@@ -24,12 +25,64 @@ export async function bodyOf(response: Response): Promise<unknown> {
   }
 }
 
+/** Waits `ms` milliseconds before a request is sent again: a timer, or Seam C's stand-in that doesn't wait. */
+export type Wait = (ms: number) => Promise<void>
+
+/** Waits on a timer. */
+export const sleep: Wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/** How a connector backs off a rate-limited tracker: which answers are rate limits, and how it waits. */
+export interface Backoff {
+  rateLimited: (received: Received) => boolean
+  wait: Wait
+}
+
+/** How many times a rate-limited request is sent again before its rate limit is the answer. */
+const RETRIES = 3
+/** The first wait, doubling on each retry, when the tracker doesn't say how long to wait. */
+const FIRST_WAIT_MS = 1000
+/** The longest wait a tracker asks for that is waited out; a longer one is the answer at once. */
+const LONGEST_WAIT_MS = 60_000
+
+/** A header's value as a number, when it is one. */
+function numberIn(headers: Headers, name: string): number | undefined {
+  const given = headers.get(name)
+  const value = given === null || given.trim() === '' ? NaN : Number(given)
+  return Number.isFinite(value) ? value : undefined
+}
+
+/**
+ * The wait a tracker asks for, in milliseconds, when it says: its `retry-after`, in seconds; else, for a limit spent
+ * until a reset (GitHub's primary rate limit), until its `x-ratelimit-reset`, an instant in seconds since the epoch.
+ */
+function waitAskedFor(headers: Headers): number | undefined {
+  const seconds = numberIn(headers, 'retry-after')
+  if (seconds !== undefined && seconds >= 0) return seconds * 1000
+  const reset = numberIn(headers, 'x-ratelimit-reset')
+  return reset === undefined ? undefined : Math.max(0, reset * 1000 - Date.now())
+}
+
 /**
  * Sends a request through `transport`; `undefined` when the network failed. Only a network failure, which `fetch`
  * rejects with a `TypeError`, stands for `unavailable`: anything else the transport throws (Seam C's replay of a
  * request it has no recording for, say) is not the tracker's answer, so it propagates.
+ *
+ * A rate-limited answer is sent again after a wait, up to `RETRIES` times: what the tracker asks for (its
+ * `retry-after`, or its rate limit's reset), else doubling from a second. Then, or at once when the tracker asks for
+ * longer than a minute, the rate limit is the answer. Nothing else is sent again.
  */
-export async function send(transport: Transport, url: string, init: RequestInit): Promise<Received | undefined> {
+export async function send(transport: Transport, url: string, init: RequestInit, backoff: Backoff): Promise<Received | undefined> {
+  for (let retry = 0; ; retry++) {
+    const received = await sendOnce(transport, url, init)
+    if (!received || !backoff.rateLimited(received) || retry === RETRIES) return received
+    const wait = waitAskedFor(received.headers) ?? FIRST_WAIT_MS * 2 ** retry
+    if (wait > LONGEST_WAIT_MS) return received
+    await backoff.wait(wait)
+  }
+}
+
+/** One request, with no backoff. */
+async function sendOnce(transport: Transport, url: string, init: RequestInit): Promise<Received | undefined> {
   try {
     const response = await transport(url, init)
     return { status: response.status, headers: response.headers, body: await bodyOf(response) }

@@ -78,8 +78,8 @@ def create(specs):
 
 create([(f"leaf-{k:03}", fields(f"leaf-{k:03}", f"Checkout leaf {k:03}", version="checkout"))
         for k in range(1, 106)])
-# Hierarchy: epic > story (with subtasks) and a direct task. The epic and subtasks are dropped;
-# the story is hierarchy level 0 with subtasks under it.
+# Hierarchy: epic > story (with subtasks) and a direct task. The epic and the story are dropped;
+# the story is hierarchy level 0, and its subtasks, which carry no fix version, are read in its place.
 create([("epic", fields("epic", "Epic: payment methods", "Epic", version="checkout"))])
 create([("story-with-subtasks", fields("story-with-subtasks", "Card payments story", "Story", "checkout", parent="epic")),
         ("epic-leaf", fields("epic-leaf", "Payment methods direct task", version="checkout", parent="epic"))])

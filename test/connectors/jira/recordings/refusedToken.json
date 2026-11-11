@@ -25,7 +25,18 @@
     "request": {
       "method": "POST",
       "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
-      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10001)\",\"fields\":[\"status\",\"statuscategorychangedate\"],\"maxResults\":100}"
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10001) AND (statusCategory != Done OR status CHANGED AFTER \\\"1969-12-31 00:00\\\" OR created >= \\\"1969-12-31 00:00\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
+    },
+    "response": {
+      "status": 401,
+      "body": {}
+    }
+  },
+  {
+    "request": {
+      "method": "POST",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10001) AND (statusCategory != Done OR status CHANGED AFTER \\\"2026-11-06 07:19\\\" OR created >= \\\"2026-11-06 07:19\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
     },
     "response": {
       "status": 401,

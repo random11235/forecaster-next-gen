@@ -25,11 +25,36 @@ const jira: Transport = async (url, init) => {
   if (url.endsWith('/project/SYN/versions')) {
     return json(200, [{ id: '10001', name: 'Search revamp', released: false, archived: false, description: 'Synthetic', self: 'https://x', projectId: 10001 }])
   }
+  if (url.endsWith('/project/SYN/statuses')) {
+    const status = (id: string, name: string, key: string) => ({ id, name, description: 'Synthetic', statusCategory: { id: 3, key, name, colorName: 'green' } })
+    return json(200, [{ id: '10009', name: 'Story', subtask: false, statuses: [status('10003', 'To Do', 'new'), status('10004', 'Done', 'done')] }])
+  }
   if (url.includes('/project/')) return unknown
+  if (url.endsWith('/changelog/bulkfetch')) {
+    return json(200, {
+      issueChangeLogs: [
+        {
+          issueId: '10134',
+          changeHistories: [
+            {
+              id: '10230',
+              author: { displayName: 'Someone', timeZone: 'Australia/Melbourne' },
+              created: 1794036079480,
+              items: [{ field: 'status', fieldtype: 'jira', fieldId: 'status', from: '10003', fromString: 'To Do', to: '10004', toString: 'Done' }],
+            },
+          ],
+        },
+      ],
+    })
+  }
   const { jql } = JSON.parse(String(init?.body)) as { jql: string }
   // Like Jira, search on an unknown project matches nothing rather than failing; a refused query gets a 400.
   if (jql.includes('==')) return json(400, { errorMessages: ["Error in JQL Query: Expecting either a value, list or function but got '='."], errors: {}, warningMessages: [] })
   if (!jql.startsWith('project = "SYN" ') || jql.includes('no-such-label')) return json(200, { issues: [], isLast: true })
+  if (jql.includes('subTaskIssueTypes()')) {
+    const parent = { id: '10133', key: 'SYN-134', fields: { summary: 'Search leaf 1', status: { name: 'In Progress' } } }
+    return json(200, { issues: [{ id: '10134', key: 'SYN-135', fields: { parent } }], isLast: true })
+  }
   return json(200, {
     issues: [
       {
@@ -39,8 +64,19 @@ const jira: Transport = async (url, init) => {
         expand: 'renderedFields',
         fields: {
           summary: 'Search leaf 1',
-          status: { name: 'Done', id: '10002', self: 'https://x', statusCategory: { key: 'done', name: 'Done', colorName: 'green' } },
-          statuscategorychangedate: '2026-11-07T18:20:31.412+1100',
+          issuetype: { id: '10009', name: 'Story', subtask: false, hierarchyLevel: 0 },
+          status: { name: 'In Progress', id: '3', self: 'https://x', statusCategory: { key: 'indeterminate', name: 'In Progress', colorName: 'yellow' } },
+          subtasks: [
+            {
+              id: '10134',
+              key: 'SYN-135',
+              fields: {
+                summary: 'Search subtask',
+                status: { name: 'Done', id: '10004', statusCategory: { key: 'done', name: 'Done' } },
+                issuetype: { name: 'Subtask', hierarchyLevel: -1 },
+              },
+            },
+          ],
           assignee: { displayName: 'Someone' },
         },
       },
@@ -59,10 +95,31 @@ describe('the Jira recording script', () => {
     expect(responses).toContainEqual({ errorMessages: ["Error in JQL Query: Expecting either a value, list or function but got '='."] })
     expect(responses).toContainEqual([{ id: '10001', name: 'Search revamp', released: false, archived: false }])
     expect(responses).toContainEqual({
-      issues: [{ id: '10133', fields: { status: { statusCategory: { key: 'done' } }, statuscategorychangedate: '2026-11-07T18:20:31.412+1100' } }],
+      issues: [
+        {
+          id: '10133',
+          fields: {
+            issuetype: { hierarchyLevel: 0 },
+            status: { statusCategory: { key: 'indeterminate' } },
+            subtasks: [{ id: '10134', fields: { status: { statusCategory: { key: 'done' } } } }],
+          },
+        },
+      ],
       isLast: true,
     })
-    expect(JSON.stringify(result.recordings)).not.toMatch(/Someone|Synthetic|SYN-134|x-arequestid|Basic|warningMessages|lead/)
+    expect(responses).toContainEqual({ issues: [{ id: '10134', fields: { parent: { id: '10133' } } }], isLast: true })
+    expect(responses).toContainEqual([
+      {
+        statuses: [
+          { id: '10003', statusCategory: { key: 'new' } },
+          { id: '10004', statusCategory: { key: 'done' } },
+        ],
+      },
+    ])
+    expect(responses).toContainEqual({
+      issueChangeLogs: [{ issueId: '10134', changeHistories: [{ created: 1794036079480, items: [{ fieldId: 'status', from: '10003', to: '10004' }] }] }],
+    })
+    expect(JSON.stringify(result.recordings)).not.toMatch(/Someone|Synthetic|SYN-13[45]|Melbourne|To Do|x-arequestid|Basic|warningMessages|lead/)
   })
 
   test('never writes the token or the account email into a recording', async () => {
@@ -82,6 +139,8 @@ describe('the Jira recording script', () => {
     expect(requests.length).toBeGreaterThan(0)
     for (const { url, body } of requests) {
       if (url.endsWith('/_edge/tenant_info')) expect(url).toBe('https://ralphhockley.atlassian.net/_edge/tenant_info')
+      // Changelogs are fetched by id, only for tickets the space's search found.
+      else if (url.endsWith('/changelog/bulkfetch')) expect(JSON.parse(body!)).toMatchObject({ issueIdsOrKeys: ['10134'] })
       else expect(`${url} ${body ?? ''}`).toMatch(new RegExp(`^https://api\\.atlassian\\.com/ex/jira/${CLOUD}/.*SYN`))
     }
   })
@@ -90,8 +149,9 @@ describe('the Jira recording script', () => {
     const result = await recordJira(EMAIL, TOKEN, jira, jiraConnector)
 
     if (!result.ok) throw new Error(result.message)
-    expect(result.recordings.refusedToken.map((recording) => recording.response.status)).toEqual([200, 401, 401])
-    expect(result.recordings.unknown.map((recording) => recording.response.status)).toEqual([200, 404, 200, 404])
+    // The read is recorded from the start and from the cut: two searches.
+    expect(result.recordings.refusedToken.map((recording) => recording.response.status)).toEqual([200, 401, 401, 401])
+    expect(result.recordings.unknown.map((recording) => recording.response.status)).toEqual([200, 404, 200, 404, 200])
   })
 
   test('says plainly when the recording token is refused, and records nothing', async () => {

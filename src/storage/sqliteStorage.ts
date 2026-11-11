@@ -4,8 +4,9 @@ import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import type { Ambiguity, AmbiguityRanges } from '../model/ambiguity.js'
 import type { CapacityEntry } from '../model/capacity.js'
 import type { MilestoneInputs, PaceMode, PaceWindow } from '../model/milestoneInputs.js'
+import type { SavedRead } from '../model/savedRead.js'
 import type { Team } from '../model/team.js'
-import type { ConnectionStorage, Storage } from './storage.js'
+import type { ConnectionStorage, SavedReadStorage, Storage } from './storage.js'
 
 /**
  * The schema, as the steps that build it. The file records how many it has applied (`PRAGMA user_version`), and
@@ -204,12 +205,32 @@ CREATE TABLE connections (
   email TEXT
 );
 `,
+  // 14: the last read of each of a team's queries (#183), replaced whole on each read: whether it was incomplete and
+  // when it was read, and its tickets by id and finish time only (open tickets have none). A file from before has none.
+  `
+CREATE TABLE saved_reads (
+  team_id TEXT NOT NULL REFERENCES teams(id),
+  query TEXT NOT NULL,
+  incomplete INTEGER NOT NULL,
+  read_at TEXT NOT NULL,
+  PRIMARY KEY (team_id, query)
+);
+CREATE TABLE saved_read_tickets (
+  team_id TEXT NOT NULL,
+  query TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  id TEXT NOT NULL,
+  finished_at TEXT,
+  PRIMARY KEY (team_id, query, position),
+  FOREIGN KEY (team_id, query) REFERENCES saved_reads(team_id, query) ON DELETE CASCADE
+);
+`,
 ]
 
 type Row = Record<string, SQLInputValue>
 
-/** The local server build's storage: everything, and the team's connection. */
-export type SqliteStorage = Storage & ConnectionStorage
+/** The local server build's storage: everything, and the team's connection and saved reads. */
+export type SqliteStorage = Storage & ConnectionStorage & SavedReadStorage
 
 /** Opens (creating if needed) the SQLite file at `file`. `':memory:'` keeps everything in memory. */
 export function openSqliteStorage(file: string): SqliteStorage {
@@ -268,6 +289,15 @@ export function openSqliteStorage(file: string): SqliteStorage {
       project_key = excluded.project_key, email = excluded.email`)
   const selectConnection = db.prepare('SELECT * FROM connections WHERE team_id = ?')
   const deleteConnection = db.prepare('DELETE FROM connections WHERE team_id = ?')
+  const deleteSavedRead = db.prepare('DELETE FROM saved_reads WHERE team_id = ? AND query = ?')
+  const insertSavedRead = db.prepare('INSERT INTO saved_reads (team_id, query, incomplete, read_at) VALUES (?, ?, ?, ?)')
+  const insertSavedReadTicket = db.prepare(
+    'INSERT INTO saved_read_tickets (team_id, query, position, id, finished_at) VALUES (?, ?, ?, ?, ?)',
+  )
+  const selectSavedRead = db.prepare('SELECT incomplete, read_at FROM saved_reads WHERE team_id = ? AND query = ?')
+  const selectSavedReadTickets = db.prepare(
+    'SELECT id, finished_at FROM saved_read_tickets WHERE team_id = ? AND query = ? ORDER BY position',
+  )
 
   return {
     isEmpty() {
@@ -397,6 +427,31 @@ export function openSqliteStorage(file: string): SqliteStorage {
 
     removeConnection(teamId) {
       deleteConnection.run(teamId)
+    },
+
+    saveRead({ teamId, query }, read) {
+      transaction(() => {
+        deleteSavedRead.run(teamId, query)
+        insertSavedRead.run(teamId, query, read.incomplete ? 1 : 0, read.readAt)
+        read.tickets.forEach((ticket, position) => {
+          insertSavedReadTicket.run(teamId, query, position, ticket.id, ticket.finishedAt ?? null)
+        })
+      })
+    },
+
+    savedRead({ teamId, query }) {
+      const row = selectSavedRead.get(teamId, query)
+      if (row === undefined) return undefined
+      return {
+        tickets: selectSavedReadTickets
+          .all(teamId, query)
+          .map((ticket: Row) => ({
+            id: String(ticket.id),
+            ...(ticket.finished_at !== null && { finishedAt: String(ticket.finished_at) }),
+          })),
+        incomplete: Number(row.incomplete) === 1,
+        readAt: String(row.read_at),
+      } satisfies SavedRead
     },
 
     close() {

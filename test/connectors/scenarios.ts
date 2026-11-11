@@ -10,10 +10,20 @@ import type { Connection } from '../../src/model/connection.js'
 /** The scenarios each tracker is recorded in: on the synthetic tracker, with a refused token, and on an unknown repo or project. */
 export type Scenario = 'synthetic' | 'refusedToken' | 'unknown'
 
+/**
+ * The `finishedSince` that reads every finished ticket. Each query is recorded read from it and from the manifest's
+ * `cut`, the two a contract case reads from.
+ */
+export const FROM_THE_START = '1970-01-01T00:00:00Z'
+
 /** Queries in the tracker's own syntax. */
 export interface Queries {
   /** The tickets of the open milestone "Search revamp", as its milestone choice reads them. */
   searchRevamp: string
+  /** The tickets of the open milestone "Checkout v2": more leaf tickets than one page, with parents and reopens among them. */
+  checkout: string
+  /** Every open ticket, wherever it is: matching tickets outside the connection, were it not added. */
+  open: string
   /** Valid, matching no ticket. */
   nothing: string
   /** One the tracker refuses. */
@@ -54,6 +64,8 @@ export const GITHUB_CASES = cases<Extract<Connection, { tracker: 'github' }>>(
   { ...GITHUB_SYNTHETIC, repo: 'forecaster-synthetic-unknown' },
   {
     searchRevamp: 'milestone:"Search revamp"',
+    checkout: 'milestone:"Checkout v2"',
+    open: 'is:open',
     nothing: 'label:"no such label"',
     invalid: 'closed:>2026-13-45',
     outOfScope: 'repo:random11235/forecaster-next-gen',
@@ -63,12 +75,14 @@ export const GITHUB_CASES = cases<Extract<Connection, { tracker: 'github' }>>(
 /** Recorded as the shared test account; `scripts/record.ts` swaps in `FORECASTER_JIRA_EMAIL` when it is set. */
 const JIRA_SYNTHETIC = { tracker: 'jira', site: 'ralphhockley.atlassian.net', projectKey: 'SYN', email: 'forecastertest3@gmail.com' } as const
 
-/** The space SYN on ralphhockley.atlassian.net, in JQL. "Search revamp" is fix version 10001. */
+/** The space SYN on ralphhockley.atlassian.net, in JQL. "Checkout v2" is fix version 10000, "Search revamp" 10001. */
 export const JIRA_CASES = cases<Extract<Connection, { tracker: 'jira' }>>(
   JIRA_SYNTHETIC,
   { ...JIRA_SYNTHETIC, projectKey: 'SYNUNKNOWN' },
   {
     searchRevamp: 'fixVersion = 10001',
+    checkout: 'fixVersion = 10000',
+    open: 'statusCategory != Done',
     nothing: 'labels = "no-such-label"',
     invalid: 'labels == comparable',
     outOfScope: 'project = KAN',
