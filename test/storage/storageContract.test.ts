@@ -5,6 +5,7 @@ import { afterEach, describe, expect, test } from 'vitest'
 import type { AmbiguityRanges } from '../../src/model/ambiguity.js'
 import type { CapacityEntry } from '../../src/model/capacity.js'
 import type { Connection } from '../../src/model/connection.js'
+import type { SavedRead } from '../../src/model/savedRead.js'
 import type { MilestoneInputs } from '../../src/model/milestoneInputs.js'
 import type { Team } from '../../src/model/team.js'
 import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
@@ -258,6 +259,76 @@ describe("SQLite storage's connection", () => {
     storage.removeConnection('team')
 
     expect(storage.connection('team')).toBeUndefined()
+  })
+})
+
+// Only the local server build keeps saved reads: the browser build has no connectors (#183).
+describe("SQLite storage's saved reads", () => {
+  const OPEN_TICKETS = 'repo:acme/checkout is:issue milestone:"Launch"'
+  const READ: SavedRead = {
+    tickets: [{ id: 'I_1', finishedAt: '2026-11-06T22:30:00Z' }, { id: 'I_2' }, { id: 'I_3', finishedAt: '2026-10-30T09:00:00Z' }],
+    incomplete: false,
+    readAt: '2026-11-11T08:15:00Z',
+  }
+
+  function sqliteFile(): { storage: SqliteStorage; reopen: () => SqliteStorage } {
+    dir = mkdtempSync(join(tmpdir(), 'forecaster-'))
+    const file = join(dir, 'forecaster.db')
+    const reopen = (): SqliteStorage => {
+      open?.close()
+      const storage = openSqliteStorage(file)
+      open = storage
+      return storage
+    }
+    return { storage: reopen(), reopen }
+  }
+
+  test("keeps a query's last read, with its tickets in order, whether it was incomplete, and when it was read", () => {
+    const { storage, reopen } = sqliteFile()
+    storage.saveTeam(TEAM)
+
+    expect(storage.savedRead('team', OPEN_TICKETS)).toBeUndefined()
+    storage.saveRead('team', OPEN_TICKETS, READ)
+
+    expect(reopen().savedRead('team', OPEN_TICKETS)).toEqual(READ)
+  })
+
+  test("replaces a query's saved read whole, leaving the team's other queries and other teams' reads as they were", () => {
+    const { storage, reopen } = sqliteFile()
+    storage.saveTeam(TEAM)
+    storage.saveTeam({ ...TEAM, id: 'another' })
+    const otherQuery = 'repo:acme/checkout is:issue milestone:"Beta"'
+    storage.saveRead('team', OPEN_TICKETS, READ)
+    storage.saveRead('team', otherQuery, READ)
+    storage.saveRead('another', OPEN_TICKETS, READ)
+
+    const later: SavedRead = { tickets: [{ id: 'I_2', finishedAt: '2026-11-12T10:00:00Z' }], incomplete: true, readAt: '2026-11-12T11:00:00Z' }
+    storage.saveRead('team', OPEN_TICKETS, later)
+
+    const again = reopen()
+    expect(again.savedRead('team', OPEN_TICKETS)).toEqual(later)
+    expect(again.savedRead('team', otherQuery)).toEqual(READ)
+    expect(again.savedRead('another', OPEN_TICKETS)).toEqual(READ)
+  })
+
+  test('keeps a read that matched nothing as an empty list', () => {
+    const { storage, reopen } = sqliteFile()
+    storage.saveTeam(TEAM)
+    const empty: SavedRead = { tickets: [], incomplete: false, readAt: '2026-11-11T08:15:00Z' }
+
+    storage.saveRead('team', OPEN_TICKETS, empty)
+
+    expect(reopen().savedRead('team', OPEN_TICKETS)).toEqual(empty)
+  })
+
+  test("keeps nothing of a ticket but its id and finish time, whatever else it is handed", () => {
+    const { storage, reopen } = sqliteFile()
+    storage.saveTeam(TEAM)
+    const handed = { id: 'I_1', finishedAt: '2026-11-06T22:30:00Z', title: 'Fix checkout', assignee: 'sam' }
+
+    storage.saveRead('team', OPEN_TICKETS, { ...READ, tickets: [handed] })
+
+    expect(reopen().savedRead('team', OPEN_TICKETS)!.tickets).toStrictEqual([{ id: 'I_1', finishedAt: '2026-11-06T22:30:00Z' }])
   })
 })
 
