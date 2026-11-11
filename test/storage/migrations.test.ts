@@ -569,7 +569,40 @@ describe('a data file from schema version 12, before the connection', () => {
     expect(rowsOf(file, 'SELECT * FROM connections')).toEqual([
       { team_id: TEAM, tracker: 'jira', owner: null, repo: null, site: 'acme.atlassian.net', project_key: 'ACME', email: 'em@acme.example' },
     ])
-    expect(versionOf(file)).toBe(13)
+    expect(versionOf(file)).toBeGreaterThan(12)
+  })
+})
+
+/** Version 13's tables: version 12's, plus the connection as #178 shipped it. Kept verbatim: it is a past release. */
+const VERSION_13_SCHEMA = `${VERSION_12_SCHEMA}
+CREATE TABLE connections (
+  team_id TEXT PRIMARY KEY REFERENCES teams(id),
+  tracker TEXT NOT NULL,
+  owner TEXT,
+  repo TEXT,
+  site TEXT,
+  project_key TEXT,
+  email TEXT
+);
+INSERT INTO connections (team_id, tracker, owner, repo) VALUES ('${TEAM}', 'github', 'acme', 'checkout');
+`
+
+describe('a data file from schema version 13, before saved reads', () => {
+  test('keeps its connection, has no saved reads, and takes one, which survives reopening', () => {
+    const file = writeFile('v13.db', VERSION_13_SCHEMA, 13)
+    const query = 'repo:acme/checkout is:issue milestone:"Launch"'
+    const storage = openSqliteStorage(file)
+    expect(storage.connection(TEAM)).toEqual({ tracker: 'github', owner: 'acme', repo: 'checkout' })
+    expect(storage.savedRead(TEAM, query)).toBeUndefined()
+
+    const read = { tickets: [{ id: 'I_1', finishedAt: '2026-11-06T22:30:00Z' }, { id: 'I_2' }], incomplete: true, readAt: '2026-11-11T08:15:00Z' }
+    storage.saveRead(TEAM, query, read)
+    storage.close()
+
+    const again = openSqliteStorage(file)
+    expect(again.savedRead(TEAM, query)).toEqual(read)
+    again.close()
+    expect(versionOf(file)).toBe(14)
   })
 })
 
