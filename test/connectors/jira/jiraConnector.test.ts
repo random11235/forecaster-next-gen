@@ -20,31 +20,64 @@ function issue(id: string, category = 'new'): unknown {
   return { id, fields: { issuetype: { hierarchyLevel: 0 }, status: { statusCategory: { key: category } }, subtasks: [] } }
 }
 
+/** The project's statuses, by id: To Do, In Progress, and two in the Done category, Done and Won't Do. */
+const TO_DO = '1'
+const DONE = '3'
+const WONT_DO = '4'
+const STATUSES = [
+  { id: TO_DO, statusCategory: { key: 'new' } },
+  { id: '2', statusCategory: { key: 'indeterminate' } },
+  { id: DONE, statusCategory: { key: 'done' } },
+  { id: WONT_DO, statusCategory: { key: 'done' } },
+]
+
 /** One status change in a changelog, at `at`, as bulk fetch gives it: in milliseconds since the epoch. */
-function statusChange(at: string): unknown {
-  return { created: Date.parse(at), items: [{ fieldId: 'status' }] }
+function statusChange(at: string, from = TO_DO, to = DONE): unknown {
+  return { created: Date.parse(at), items: [{ fieldId: 'status', from, to }] }
+}
+
+/** What a stand-in Jira holds besides what the read's own search finds. */
+interface Site {
+  /** Each ticket's changelog, keyed by id. */
+  changelogs?: Record<string, unknown[]>
+  /** When each ticket was made, as Jira writes it. */
+  created?: Record<string, string>
+  /** The subtasks open or changed in the window, as search returns them, with their parents' ids. */
+  subtasksInWindow?: { id: string; parent: string }[]
+  /** Tickets the query matches that fall outside the window, by id. */
+  outsideWindow?: Record<string, unknown>
 }
 
 /**
- * A stand-in Jira whose search finds `issues`, one page, and whose bulk fetch gives each ticket the changelog in
- * `changelogs`, keyed by id. `searched` and `fetched` collect what was asked of each.
+ * A stand-in Jira whose search for the read's query finds `issues`, one page, and whose bulk fetch gives each ticket
+ * the changelog in `site.changelogs`. `searched` and `fetched` collect what was asked of each.
  */
-function jiraFinding(issues: unknown[], changelogs: Record<string, unknown[]> = {}) {
+function jiraFinding(issues: unknown[], site: Site = {}) {
   const searched: { jql: string; nextPageToken?: string }[] = []
   const fetched: string[][] = []
   const transport: Transport = async (url, init) => {
     if (url.endsWith('/_edge/tenant_info')) return json(200, { cloudId: 'cloud-1' })
+    if (url.endsWith('/project/SYN/statuses')) return json(200, [{ statuses: STATUSES }])
     const body = JSON.parse(String(init?.body)) as { jql: string; issueIdsOrKeys: string[] }
     if (url.endsWith('/search/jql')) {
       searched.push(body)
-      return json(200, { issues, isLast: true })
+      return json(200, { issues: searchOf(body.jql, issues, site), isLast: true })
     }
     fetched.push(body.issueIdsOrKeys)
     return json(200, {
-      issueChangeLogs: body.issueIdsOrKeys.map((id) => ({ issueId: id, changeHistories: changelogs[id] ?? [] })),
+      issueChangeLogs: body.issueIdsOrKeys.map((id) => ({ issueId: id, changeHistories: site.changelogs?.[id] ?? [] })),
     })
   }
   return { transport, searched, fetched }
+}
+
+/** What the stand-in's search finds for `jql`: the read's own search, or one of the connector's lookups by id. */
+function searchOf(jql: string, issues: unknown[], site: Site): unknown[] {
+  const ids = /\bid in \(([^)]*)\)/.exec(jql)?.[1]?.split(', ') ?? []
+  if (jql.includes('subTaskIssueTypes()')) return (site.subtasksInWindow ?? []).map(({ id, parent }) => ({ id, fields: { parent: { id: parent } } }))
+  if (jql.startsWith('project = "SYN" AND id in (')) return ids.map((id) => ({ id, fields: { created: site.created?.[id] } }))
+  if (ids.length > 0) return ids.flatMap((id) => (site.outsideWindow?.[id] === undefined ? [] : [site.outsideWindow[id]]))
+  return issues
 }
 
 describe('Jira connector', () => {
@@ -83,7 +116,6 @@ describe('Jira connector', () => {
     const connector = jiraConnector(CONNECTION, 'token', transport)
 
     expect(await connector.read(query, SINCE)).toEqual({ ok: true, tickets: [{ id: '1' }], incomplete: false })
-    expect(searched).toHaveLength(1)
     expect(searched[0]!.jql.startsWith(`project = "SYN" AND (${query}) AND (`)).toBe(true)
   })
 
@@ -95,16 +127,37 @@ describe('Jira connector', () => {
 
     await connector.read('labels = a', '2026-01-01T05:30:45Z')
 
-    expect(searched.map(({ jql }) => jql)).toEqual([
-      'project = "SYN" AND (labels = a) AND (statusCategory != Done OR status CHANGED AFTER "2025-12-31 05:30")',
-    ])
+    expect(searched[0]!.jql).toBe(
+      'project = "SYN" AND (labels = a) AND (statusCategory != Done OR status CHANGED AFTER "2025-12-31 05:30" OR created >= "2025-12-31 05:30")',
+    )
+  })
+
+  test('a ticket made in a Done status, never moved into Done, is finished when it was made', async () => {
+    // Finished means in the Done category now; with no move into Done, its finish is its making. Search reaches it in
+    // the window by when it was made (above); bulk fetch gives it no move into Done.
+    const { transport } = jiraFinding([issue('made-done', 'done'), issue('then-wont-do', 'done')], {
+      changelogs: { 'then-wont-do': [statusChange('2026-03-05T00:00:00Z', DONE, WONT_DO)] },
+      created: { 'made-done': '2026-03-01T10:00:00.000+1100', 'then-wont-do': '2026-03-02T00:00:00.000+0000' },
+    })
+    const connector = jiraConnector(CONNECTION, 'token', transport)
+
+    expect(await connector.read('labels = a', SINCE)).toEqual({
+      ok: true,
+      tickets: [
+        { id: 'made-done', finishedAt: '2026-02-28T23:00:00.000Z' },
+        { id: 'then-wont-do', finishedAt: '2026-03-02T00:00:00.000Z' },
+      ],
+      incomplete: false,
+    })
   })
 
   test('the day early is read but compared as instants: a ticket finished before finishedSince is left out', async () => {
     const { transport } = jiraFinding([issue('early', 'done'), issue('onTime', 'done'), issue('open', 'indeterminate')], {
+      changelogs: {
       early: [statusChange('2026-01-01T05:30:44Z')],
       onTime: [statusChange('2026-01-01T05:30:45Z')],
       open: [statusChange('2025-06-01T00:00:00Z')],
+      },
     })
     const connector = jiraConnector(CONNECTION, 'token', transport)
 
@@ -118,16 +171,30 @@ describe('Jira connector', () => {
   test('a changelog returned newest first gives the last finish, not the first', async () => {
     // Reopened: finished, back to To Do, finished again. Bulk fetch promises no order, so it can come newest first.
     const { transport } = jiraFinding([issue('1', 'done')], {
-      '1': [statusChange('2026-03-03T00:00:00Z'), statusChange('2026-03-02T00:00:00Z'), statusChange('2026-03-01T00:00:00Z')],
+      changelogs: {
+        '1': [statusChange('2026-03-03T00:00:00Z'), statusChange('2026-03-02T00:00:00Z', DONE, TO_DO), statusChange('2026-03-01T00:00:00Z')],
+      },
     })
     const connector = jiraConnector(CONNECTION, 'token', transport)
 
     expect(await connector.read('labels = a', SINCE)).toEqual({ ok: true, tickets: [{ id: '1', finishedAt: '2026-03-03T00:00:00.000Z' }], incomplete: false })
   })
 
+  test("a move from one Done-category status to another isn't a finish: the last finish is the last move into Done", async () => {
+    // Done, then Won't Do: both in the Done category, so the ticket finished when it first moved into Done.
+    const { transport } = jiraFinding([issue('1', 'done')], {
+      changelogs: { '1': [statusChange('2026-03-05T00:00:00Z', DONE, WONT_DO), statusChange('2026-03-01T00:00:00Z', TO_DO, DONE)] },
+    })
+    const connector = jiraConnector(CONNECTION, 'token', transport)
+
+    expect(await connector.read('labels = a', SINCE)).toEqual({ ok: true, tickets: [{ id: '1', finishedAt: '2026-03-01T00:00:00.000Z' }], incomplete: false })
+  })
+
   test("changelogs are fetched for finished tickets only, up to 1,000 tickets a call", async () => {
     const finished = Array.from({ length: 1500 }, (_, k) => String(k + 1))
-    const { transport, fetched } = jiraFinding([...finished.map((id) => issue(id, 'done')), issue('open')], {})
+    const { transport, fetched } = jiraFinding([...finished.map((id) => issue(id, 'done')), issue('open')], {
+      changelogs: Object.fromEntries(finished.map((id) => [id, [statusChange('2026-03-01T00:00:00Z')]])),
+    })
     const connector = jiraConnector(CONNECTION, 'token', transport)
 
     await connector.read('labels = a', SINCE)
@@ -138,10 +205,11 @@ describe('Jira connector', () => {
   test('every page of a changelog fetch is read', async () => {
     const pages = [
       { issueChangeLogs: [{ issueId: '1', changeHistories: [statusChange('2026-03-01T00:00:00Z')] }], nextPageToken: 'more' },
-      { issueChangeLogs: [{ issueId: '1', changeHistories: [statusChange('2026-03-05T00:00:00Z')] }] },
+      { issueChangeLogs: [{ issueId: '1', changeHistories: [statusChange('2026-03-02T00:00:00Z', DONE, TO_DO), statusChange('2026-03-05T00:00:00Z')] }] },
     ]
     const connector = jiraConnector(CONNECTION, 'token', async (url, init) => {
       if (url.endsWith('/_edge/tenant_info')) return json(200, { cloudId: 'cloud-1' })
+      if (url.endsWith('/project/SYN/statuses')) return json(200, [{ statuses: STATUSES }])
       if (url.endsWith('/search/jql')) return json(200, { issues: [issue('1', 'done')], isLast: true })
       return json(200, (JSON.parse(String(init?.body)) as { nextPageToken?: string }).nextPageToken === 'more' ? pages[1] : pages[0])
     })
@@ -162,7 +230,7 @@ describe('Jira connector', () => {
       },
     }
     const subtask = { id: 'sub-2', fields: { issuetype: { hierarchyLevel: -1 }, status: { statusCategory: { key: 'new' } }, subtasks: [] } }
-    const { transport } = jiraFinding([story, subtask], { 'sub-1': [statusChange('2026-03-01T00:00:00Z')] })
+    const { transport } = jiraFinding([story, subtask], { changelogs: { 'sub-1': [statusChange('2026-03-01T00:00:00Z')] } })
     const connector = jiraConnector(CONNECTION, 'token', transport)
 
     expect(await connector.read('labels = a', SINCE)).toEqual({
@@ -170,6 +238,46 @@ describe('Jira connector', () => {
       tickets: [{ id: 'sub-1', finishedAt: '2026-03-01T00:00:00.000Z' }, { id: 'sub-2' }],
       incomplete: false,
     })
+  })
+
+  test("a story finished before finishedSince still gives its subtasks open or finished since, though search's window leaves it out", async () => {
+    // The story is Done, unchanged since long ago, so the window leaves it out; one subtask was reopened and is open,
+    // another finished since. Each is a ticket of the query, through its story.
+    const story = {
+      id: 'story',
+      fields: {
+        issuetype: { hierarchyLevel: 0 },
+        status: { statusCategory: { key: 'done' } },
+        subtasks: [
+          { id: 'reopened', fields: { status: { statusCategory: { key: 'new' } } } },
+          { id: 'finished-since', fields: { status: { statusCategory: { key: 'done' } } } },
+          { id: 'finished-before', fields: { status: { statusCategory: { key: 'done' } } } },
+        ],
+      },
+    }
+    const { transport, searched } = jiraFinding([issue('other')], {
+      subtasksInWindow: [
+        { id: 'reopened', parent: 'story' },
+        { id: 'finished-since', parent: 'story' },
+        { id: 'elsewhere', parent: 'unmatched-story' },
+      ],
+      outsideWindow: { story },
+      changelogs: {
+        'finished-since': [statusChange('2026-03-01T00:00:00Z')],
+        'finished-before': [statusChange('2025-06-01T00:00:00Z')],
+      },
+    })
+    const connector = jiraConnector(CONNECTION, 'token', transport)
+
+    expect(await connector.read('labels = a', SINCE)).toEqual({
+      ok: true,
+      tickets: [{ id: 'other' }, { id: 'reopened' }, { id: 'finished-since', finishedAt: '2026-03-01T00:00:00.000Z' }],
+      incomplete: false,
+    })
+    expect(searched.map(({ jql }) => jql).slice(1)).toEqual([
+      'project = "SYN" AND issuetype in subTaskIssueTypes() AND (statusCategory != Done OR status CHANGED AFTER "2025-12-31 00:00" OR created >= "2025-12-31 00:00")',
+      'project = "SYN" AND (labels = a) AND id in (story, unmatched-story)',
+    ])
   })
 
   test('search matches nothing on a project that is not there, so a read that finds nothing asks for the project', async () => {
