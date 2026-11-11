@@ -44,7 +44,7 @@
     "request": {
       "method": "POST",
       "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
-      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10001)\",\"fields\":[\"status\",\"statuscategorychangedate\"],\"maxResults\":100}"
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10001) AND (statusCategory != Done OR status CHANGED AFTER \\\"1969-12-31 00:00\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
     },
     "response": {
       "status": 200,
@@ -53,56 +53,196 @@
           {
             "id": "10137",
             "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
               "status": {
                 "statusCategory": {
                   "key": "new"
                 }
               },
-              "statuscategorychangedate": "2026-11-07T18:16:57.006+1100"
+              "subtasks": []
             }
           },
           {
             "id": "10136",
             "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
               "status": {
                 "statusCategory": {
                   "key": "new"
                 }
               },
-              "statuscategorychangedate": "2026-11-07T18:16:56.666+1100"
+              "subtasks": []
             }
           },
           {
             "id": "10135",
             "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
               "status": {
                 "statusCategory": {
                   "key": "new"
                 }
               },
-              "statuscategorychangedate": "2026-11-07T18:16:56.363+1100"
+              "subtasks": []
             }
           },
           {
             "id": "10134",
             "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
               "status": {
                 "statusCategory": {
                   "key": "done"
                 }
               },
-              "statuscategorychangedate": "2026-11-07T18:21:11.937+1100"
+              "subtasks": []
             }
           },
           {
             "id": "10133",
             "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
               "status": {
                 "statusCategory": {
                   "key": "done"
                 }
               },
-              "statuscategorychangedate": "2026-11-07T18:21:11.191+1100"
+              "subtasks": []
+            }
+          }
+        ],
+        "isLast": true
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "POST",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/changelog/bulkfetch",
+      "body": "{\"issueIdsOrKeys\":[\"10134\",\"10133\"],\"fieldIds\":[\"status\"]}"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "issueChangeLogs": [
+          {
+            "issueId": "10134",
+            "changeHistories": [
+              {
+                "created": 1794036071936,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10133",
+            "changeHistories": [
+              {
+                "created": 1794036071191,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "POST",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10001) AND (statusCategory != Done OR status CHANGED AFTER \\\"2026-11-06 07:19\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "issues": [
+          {
+            "id": "10137",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10136",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10135",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10134",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10133",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
             }
           }
         ],
@@ -114,7 +254,5978 @@
     "request": {
       "method": "POST",
       "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
-      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (labels = \\\"no-such-label\\\")\",\"fields\":[\"status\",\"statuscategorychangedate\"],\"maxResults\":100}"
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10000) AND (statusCategory != Done OR status CHANGED AFTER \\\"1969-12-31 00:00\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "issues": [
+          {
+            "id": "10117",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10116",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10115",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10114",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10113",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10112",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "indeterminate"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10111",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10107",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10106",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": [
+                {
+                  "id": "10108",
+                  "fields": {
+                    "status": {
+                      "statusCategory": {
+                        "key": "done"
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "10109",
+                  "fields": {
+                    "status": {
+                      "statusCategory": {
+                        "key": "done"
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "10110",
+                  "fields": {
+                    "status": {
+                      "statusCategory": {
+                        "key": "new"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "id": "10105",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 1
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10104",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10103",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10102",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10101",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10100",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10099",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10098",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10097",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10096",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10095",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10094",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10093",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10092",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10091",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10090",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10089",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10088",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10087",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10086",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10085",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10084",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10083",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10082",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10081",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10080",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10079",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10078",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10077",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10076",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10075",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10074",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10073",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10072",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10071",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10070",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10069",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10068",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10067",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10066",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10065",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10064",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "indeterminate"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10063",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "indeterminate"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10062",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "indeterminate"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10061",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "indeterminate"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10060",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "indeterminate"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10059",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10058",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10057",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10056",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10055",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10054",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10053",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10052",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10051",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10050",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10049",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10048",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10047",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10046",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10045",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10044",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10043",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10042",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10041",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10040",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10039",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10038",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10037",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10036",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10035",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10034",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10033",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10032",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10031",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10030",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10029",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10028",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10027",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10026",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10025",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10024",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10023",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10022",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10021",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10020",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10019",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10018",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10017",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10016",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10015",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          }
+        ],
+        "isLast": false,
+        "nextPageToken": "EGQYjtnKz5w0InBwcm9qZWN0ID0gIlNZTiIgQU5EIChmaXhWZXJzaW9uID0gMTAwMDApIEFORCAoc3RhdHVzQ2F0ZWdvcnkgIT0gRG9uZSBPUiBzdGF0dXMgQ0hBTkdFRCBBRlRFUiAiMTk2OS0xMi0zMSAwMDowMCIpKgJbXTIgVEVOQU5UX05PVF9GT1VORF9JTl9URU5BTlRfU1RPUkU="
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "POST",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10000) AND (statusCategory != Done OR status CHANGED AFTER \\\"1969-12-31 00:00\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100,\"nextPageToken\":\"EGQYjtnKz5w0InBwcm9qZWN0ID0gIlNZTiIgQU5EIChmaXhWZXJzaW9uID0gMTAwMDApIEFORCAoc3RhdHVzQ2F0ZWdvcnkgIT0gRG9uZSBPUiBzdGF0dXMgQ0hBTkdFRCBBRlRFUiAiMTk2OS0xMi0zMSAwMDowMCIpKgJbXTIgVEVOQU5UX05PVF9GT1VORF9JTl9URU5BTlRfU1RPUkU=\"}"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "issues": [
+          {
+            "id": "10014",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10013",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10012",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10011",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10010",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10009",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10008",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10007",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10006",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10005",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10004",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10003",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10002",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10001",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10000",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          }
+        ],
+        "isLast": true
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "POST",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/changelog/bulkfetch",
+      "body": "{\"issueIdsOrKeys\":[\"10117\",\"10116\",\"10115\",\"10114\",\"10113\",\"10111\",\"10107\",\"10108\",\"10109\",\"10059\",\"10058\",\"10057\",\"10056\",\"10055\",\"10054\",\"10053\",\"10052\",\"10051\",\"10050\",\"10049\",\"10048\",\"10047\",\"10046\",\"10045\",\"10044\",\"10043\",\"10042\",\"10041\",\"10040\",\"10039\",\"10038\",\"10037\",\"10036\",\"10035\",\"10034\",\"10033\",\"10032\",\"10031\",\"10030\",\"10029\",\"10028\",\"10027\",\"10026\",\"10025\",\"10024\",\"10023\",\"10022\",\"10021\",\"10020\",\"10019\",\"10018\",\"10017\",\"10016\",\"10015\",\"10014\",\"10013\",\"10012\",\"10011\",\"10010\",\"10009\",\"10008\",\"10007\",\"10006\",\"10005\",\"10004\",\"10003\",\"10002\",\"10001\",\"10000\"],\"fieldIds\":[\"status\"]}"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "issueChangeLogs": [
+          {
+            "issueId": "10113",
+            "changeHistories": [
+              {
+                "created": 1794036067888,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10114",
+            "changeHistories": [
+              {
+                "created": 1794036068712,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10115",
+            "changeHistories": [
+              {
+                "created": 1794036069539,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10116",
+            "changeHistories": [
+              {
+                "created": 1794036070342,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10117",
+            "changeHistories": [
+              {
+                "created": 1794036067048,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10000",
+            "changeHistories": [
+              {
+                "created": 1794035822771,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10001",
+            "changeHistories": [
+              {
+                "created": 1794035823547,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10002",
+            "changeHistories": [
+              {
+                "created": 1794035824322,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10003",
+            "changeHistories": [
+              {
+                "created": 1794035825063,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10004",
+            "changeHistories": [
+              {
+                "created": 1794035825996,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10005",
+            "changeHistories": [
+              {
+                "created": 1794035826867,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10006",
+            "changeHistories": [
+              {
+                "created": 1794035827771,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10007",
+            "changeHistories": [
+              {
+                "created": 1794035828563,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10008",
+            "changeHistories": [
+              {
+                "created": 1794035829491,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10009",
+            "changeHistories": [
+              {
+                "created": 1794035830302,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10010",
+            "changeHistories": [
+              {
+                "created": 1794035831199,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10011",
+            "changeHistories": [
+              {
+                "created": 1794035832045,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10012",
+            "changeHistories": [
+              {
+                "created": 1794035832920,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10013",
+            "changeHistories": [
+              {
+                "created": 1794035833741,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10014",
+            "changeHistories": [
+              {
+                "created": 1794035834526,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10015",
+            "changeHistories": [
+              {
+                "created": 1794035835412,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10016",
+            "changeHistories": [
+              {
+                "created": 1794035836234,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10017",
+            "changeHistories": [
+              {
+                "created": 1794035837100,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10018",
+            "changeHistories": [
+              {
+                "created": 1794035837863,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10019",
+            "changeHistories": [
+              {
+                "created": 1794035838617,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10020",
+            "changeHistories": [
+              {
+                "created": 1794036025531,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10021",
+            "changeHistories": [
+              {
+                "created": 1794036026556,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10022",
+            "changeHistories": [
+              {
+                "created": 1794036027389,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10023",
+            "changeHistories": [
+              {
+                "created": 1794036028301,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10024",
+            "changeHistories": [
+              {
+                "created": 1794036029121,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10025",
+            "changeHistories": [
+              {
+                "created": 1794036029982,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10026",
+            "changeHistories": [
+              {
+                "created": 1794036030800,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10027",
+            "changeHistories": [
+              {
+                "created": 1794036031679,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10028",
+            "changeHistories": [
+              {
+                "created": 1794036032657,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10029",
+            "changeHistories": [
+              {
+                "created": 1794036033490,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10030",
+            "changeHistories": [
+              {
+                "created": 1794036034397,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10031",
+            "changeHistories": [
+              {
+                "created": 1794036035267,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10032",
+            "changeHistories": [
+              {
+                "created": 1794036036136,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10033",
+            "changeHistories": [
+              {
+                "created": 1794036037096,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10034",
+            "changeHistories": [
+              {
+                "created": 1794036037964,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10035",
+            "changeHistories": [
+              {
+                "created": 1794036038804,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10036",
+            "changeHistories": [
+              {
+                "created": 1794036039728,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10037",
+            "changeHistories": [
+              {
+                "created": 1794036040605,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10038",
+            "changeHistories": [
+              {
+                "created": 1794036041446,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10039",
+            "changeHistories": [
+              {
+                "created": 1794036042246,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10040",
+            "changeHistories": [
+              {
+                "created": 1794036043042,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10041",
+            "changeHistories": [
+              {
+                "created": 1794036043794,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10042",
+            "changeHistories": [
+              {
+                "created": 1794036044586,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10043",
+            "changeHistories": [
+              {
+                "created": 1794036045465,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10044",
+            "changeHistories": [
+              {
+                "created": 1794036046401,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10045",
+            "changeHistories": [
+              {
+                "created": 1794036047187,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10046",
+            "changeHistories": [
+              {
+                "created": 1794036048013,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10047",
+            "changeHistories": [
+              {
+                "created": 1794036048801,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10048",
+            "changeHistories": [
+              {
+                "created": 1794036049584,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10049",
+            "changeHistories": [
+              {
+                "created": 1794036050426,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10050",
+            "changeHistories": [
+              {
+                "created": 1794036051328,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10051",
+            "changeHistories": [
+              {
+                "created": 1794036052326,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10052",
+            "changeHistories": [
+              {
+                "created": 1794036053136,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10053",
+            "changeHistories": [
+              {
+                "created": 1794036053931,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10054",
+            "changeHistories": [
+              {
+                "created": 1794036054834,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10055",
+            "changeHistories": [
+              {
+                "created": 1794036055713,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10056",
+            "changeHistories": [
+              {
+                "created": 1794036056605,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10057",
+            "changeHistories": [
+              {
+                "created": 1794036057457,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10058",
+            "changeHistories": [
+              {
+                "created": 1794036058248,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10059",
+            "changeHistories": [
+              {
+                "created": 1794036059048,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10107",
+            "changeHistories": [
+              {
+                "created": 1794036066187,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10108",
+            "changeHistories": [
+              {
+                "created": 1794036064606,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10109",
+            "changeHistories": [
+              {
+                "created": 1794036065357,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10111",
+            "changeHistories": [
+              {
+                "created": 1794036079480,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              },
+              {
+                "created": 1794036072740,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              },
+              {
+                "created": 1794035842825,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "POST",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10000) AND (statusCategory != Done OR status CHANGED AFTER \\\"2026-11-06 07:19\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "issues": [
+          {
+            "id": "10117",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10116",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10115",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10114",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10113",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10112",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "indeterminate"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10111",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10107",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10106",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": [
+                {
+                  "id": "10108",
+                  "fields": {
+                    "status": {
+                      "statusCategory": {
+                        "key": "done"
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "10109",
+                  "fields": {
+                    "status": {
+                      "statusCategory": {
+                        "key": "done"
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "10110",
+                  "fields": {
+                    "status": {
+                      "statusCategory": {
+                        "key": "new"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "id": "10105",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 1
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10104",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10103",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10102",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10101",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10100",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10099",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10098",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10097",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10096",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10095",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10094",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10093",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10092",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10091",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10090",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10089",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10088",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10087",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10086",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10085",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10084",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10083",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10082",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10081",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10080",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10079",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10078",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10077",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10076",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10075",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10074",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10073",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10072",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10071",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10070",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10069",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10068",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10067",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10066",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10065",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10064",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "indeterminate"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10063",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "indeterminate"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10062",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "indeterminate"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10061",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "indeterminate"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10060",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "indeterminate"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10059",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10058",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10057",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10056",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10055",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10054",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10053",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10052",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10051",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10050",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10049",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10048",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10047",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10046",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10045",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10044",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10043",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10042",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10041",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10040",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10039",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10038",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10037",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10036",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10035",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10034",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10033",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10032",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10031",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10030",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10029",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10028",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10027",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10026",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10025",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10024",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10023",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10022",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10021",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10020",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10019",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10018",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10017",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10016",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10015",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          }
+        ],
+        "isLast": false,
+        "nextPageToken": "EGQY6t_Kz5w0InBwcm9qZWN0ID0gIlNZTiIgQU5EIChmaXhWZXJzaW9uID0gMTAwMDApIEFORCAoc3RhdHVzQ2F0ZWdvcnkgIT0gRG9uZSBPUiBzdGF0dXMgQ0hBTkdFRCBBRlRFUiAiMjAyNi0xMS0wNiAwNzoxOSIpKgJbXTIgVEVOQU5UX05PVF9GT1VORF9JTl9URU5BTlRfU1RPUkU="
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "POST",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10000) AND (statusCategory != Done OR status CHANGED AFTER \\\"2026-11-06 07:19\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100,\"nextPageToken\":\"EGQY6t_Kz5w0InBwcm9qZWN0ID0gIlNZTiIgQU5EIChmaXhWZXJzaW9uID0gMTAwMDApIEFORCAoc3RhdHVzQ2F0ZWdvcnkgIT0gRG9uZSBPUiBzdGF0dXMgQ0hBTkdFRCBBRlRFUiAiMjAyNi0xMS0wNiAwNzoxOSIpKgJbXTIgVEVOQU5UX05PVF9GT1VORF9JTl9URU5BTlRfU1RPUkU=\"}"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "issues": [
+          {
+            "id": "10014",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10013",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10012",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10011",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10010",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10009",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10008",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10007",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10006",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10005",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10004",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10003",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10002",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10001",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10000",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "done"
+                }
+              },
+              "subtasks": []
+            }
+          }
+        ],
+        "isLast": true
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "POST",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (statusCategory != Done) AND (statusCategory != Done OR status CHANGED AFTER \\\"1969-12-31 00:00\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "issues": [
+          {
+            "id": "10137",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10136",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10135",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10132",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10131",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10129",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10128",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10112",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "indeterminate"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10110",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": -1
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10106",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": [
+                {
+                  "id": "10108",
+                  "fields": {
+                    "status": {
+                      "statusCategory": {
+                        "key": "done"
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "10109",
+                  "fields": {
+                    "status": {
+                      "statusCategory": {
+                        "key": "done"
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "10110",
+                  "fields": {
+                    "status": {
+                      "statusCategory": {
+                        "key": "new"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "id": "10105",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 1
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10104",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10103",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10102",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10101",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10100",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10099",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10098",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10097",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10096",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10095",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10094",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10093",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10092",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10091",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10090",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10089",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10088",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10087",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10086",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10085",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10084",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10083",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10082",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10081",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10080",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10079",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10078",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10077",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10076",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10075",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10074",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10073",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10072",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10071",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10070",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10069",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10068",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10067",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10066",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10065",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10064",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "indeterminate"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10063",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "indeterminate"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10062",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "indeterminate"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10061",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "indeterminate"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10060",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "indeterminate"
+                }
+              },
+              "subtasks": []
+            }
+          }
+        ],
+        "isLast": true
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "POST",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/changelog/bulkfetch",
+      "body": "{\"issueIdsOrKeys\":[\"10108\",\"10109\"],\"fieldIds\":[\"status\"]}"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "issueChangeLogs": [
+          {
+            "issueId": "10108",
+            "changeHistories": [
+              {
+                "created": 1794036064606,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "issueId": "10109",
+            "changeHistories": [
+              {
+                "created": 1794036065357,
+                "items": [
+                  {
+                    "fieldId": "status"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "POST",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (statusCategory != Done) AND (statusCategory != Done OR status CHANGED AFTER \\\"2026-11-06 07:19\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "issues": [
+          {
+            "id": "10137",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10136",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10135",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10132",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10131",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10129",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10128",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10112",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "indeterminate"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10110",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": -1
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10106",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": [
+                {
+                  "id": "10108",
+                  "fields": {
+                    "status": {
+                      "statusCategory": {
+                        "key": "done"
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "10109",
+                  "fields": {
+                    "status": {
+                      "statusCategory": {
+                        "key": "done"
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "10110",
+                  "fields": {
+                    "status": {
+                      "statusCategory": {
+                        "key": "new"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "id": "10105",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 1
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10104",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10103",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10102",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10101",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10100",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10099",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10098",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10097",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10096",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10095",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10094",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10093",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10092",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10091",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10090",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10089",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10088",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10087",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10086",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10085",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10084",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10083",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10082",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10081",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10080",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10079",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10078",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10077",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10076",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10075",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10074",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10073",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10072",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10071",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10070",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10069",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10068",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10067",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10066",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10065",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "new"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10064",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "indeterminate"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10063",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "indeterminate"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10062",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "indeterminate"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10061",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "indeterminate"
+                }
+              },
+              "subtasks": []
+            }
+          },
+          {
+            "id": "10060",
+            "fields": {
+              "issuetype": {
+                "hierarchyLevel": 0
+              },
+              "status": {
+                "statusCategory": {
+                  "key": "indeterminate"
+                }
+              },
+              "subtasks": []
+            }
+          }
+        ],
+        "isLast": true
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "POST",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (labels = \\\"no-such-label\\\") AND (statusCategory != Done OR status CHANGED AFTER \\\"1969-12-31 00:00\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
     },
     "response": {
       "status": 200,
@@ -138,7 +6249,36 @@
     "request": {
       "method": "POST",
       "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
-      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (labels == comparable)\",\"fields\":[\"status\",\"statuscategorychangedate\"],\"maxResults\":100}"
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (labels = \\\"no-such-label\\\") AND (statusCategory != Done OR status CHANGED AFTER \\\"2026-11-06 07:19\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "issues": [],
+        "isLast": true
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "POST",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (labels == comparable) AND (statusCategory != Done OR status CHANGED AFTER \\\"1969-12-31 00:00\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
+    },
+    "response": {
+      "status": 400,
+      "body": {
+        "errorMessages": [
+          "Error in JQL Query: Expecting either a value, list or function but got '='. You must surround '=' in quotation marks to use it as a value. (line 1, character 30)"
+        ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "POST",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (labels == comparable) AND (statusCategory != Done OR status CHANGED AFTER \\\"2026-11-06 07:19\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
     },
     "response": {
       "status": 400,

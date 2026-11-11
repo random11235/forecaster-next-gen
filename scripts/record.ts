@@ -156,12 +156,24 @@ const JIRA: Tracker<JiraConnection> = {
     if (url.endsWith('/versions')) return (body as Body[]).map((version) => pick(version, ['id', 'name', 'released', 'archived']))
     if (url.endsWith('/search/jql')) {
       const found = pick(body, ['issues', 'isLast', 'nextPageToken'])
+      const statusOf = (fields: Body) => ({ statusCategory: pick((fields.status as Body).statusCategory, ['key']) })
       found.issues = (found.issues as Body[]).map((issue) => {
         const fields = issue.fields as Body
-        const status = fields.status as Body
-        return { id: issue.id, fields: { status: { statusCategory: pick(status.statusCategory, ['key']) }, ...pick(fields, ['statuscategorychangedate']) } }
+        const subtasks = ((fields.subtasks ?? []) as Body[]).map((subtask) => ({ id: subtask.id, fields: { status: statusOf(subtask.fields as Body) } }))
+        return { id: issue.id, fields: { issuetype: pick(fields.issuetype, ['hierarchyLevel']), status: statusOf(fields), subtasks } }
       })
       return found
+    }
+    if (url.endsWith('/changelog/bulkfetch')) {
+      const fetched = pick(body, ['issueChangeLogs', 'nextPageToken'])
+      fetched.issueChangeLogs = (fetched.issueChangeLogs as Body[]).map((log) => ({
+        issueId: log.issueId,
+        changeHistories: (log.changeHistories as Body[]).map((change) => ({
+          created: change.created,
+          items: (change.items as Body[]).map((item) => pick(item, ['fieldId'])),
+        })),
+      }))
+      return fetched
     }
     throw new Error(`The recording script doesn't know what the connector reads from ${url}`)
   },
