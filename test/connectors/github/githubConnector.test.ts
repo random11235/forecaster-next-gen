@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { githubConnector } from '../../../src/connectors/github/githubConnector.js'
 import { replayTransport } from '../replayTransport.js'
 
-// GitHub-only quirks, beside the contract suite. Search wraps the query as `repo:… is:issue (query)`, so a query that
+// GitHub-only quirks, beside the contract suite. Search wraps the query as `repo:… is:issue no:sub-issue (query) (…)`, so a query that
 // names another repo, or closes the wrapper's parenthesis, would reach past the connection.
 
 const CONNECTION = { tracker: 'github', owner: 'random11235', repo: 'forecaster-synthetic' } as const
@@ -33,7 +33,7 @@ describe('GitHub connector', () => {
     })
 
     expect(await connector.read(query, '2026-01-01T00:00:00Z')).toEqual({ ok: true, tickets: [], incomplete: false })
-    expect(searched).toEqual([`repo:random11235/forecaster-synthetic is:issue (${query})`])
+    expect(searched).toEqual([`repo:random11235/forecaster-synthetic is:issue no:sub-issue (${query}) (is:open OR closed:>=2026-01-01T00:00:00+00:00)`])
   })
 
   // GitHub rate limits with a 429, or with a 403 that says so in its headers; a 403 without them is a refusal.

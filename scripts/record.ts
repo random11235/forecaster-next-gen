@@ -13,12 +13,12 @@
 // Node runs this file directly, so the files it imports from src/ and test/ are named by their `.ts` and import nothing
 // at runtime themselves; the connectors, which do, are loaded from the build in dist/.
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import type { Connector, Transport } from '../src/connectors/connector.ts'
 import type { Connection } from '../src/model/connection.ts'
 import { bodyOf } from '../src/connectors/remote.ts'
 import { describeRequest, requestOf, type Recording } from '../test/connectors/recording.ts'
-import { GITHUB_CASES, JIRA_CASES, type Scenario, type TrackerCases } from '../test/connectors/scenarios.ts'
+import { FROM_THE_START, GITHUB_CASES, JIRA_CASES, type Scenario, type TrackerCases } from '../test/connectors/scenarios.ts'
 
 type GithubConnection = Extract<Connection, { tracker: 'github' }>
 type JiraConnection = Extract<Connection, { tracker: 'jira' }>
@@ -56,9 +56,17 @@ function recording(transport: Transport, trim: Trim): { transport: Transport; re
   }
 }
 
+/** The `cut` in a synthetic tracker's manifest: a `finishedSince` between its early finishes and its later ones. */
+function cutOf(tracker: string): string {
+  const manifest = JSON.parse(readFileSync(new URL(`synthetic/manifest-${tracker}.json`, import.meta.url), 'utf8')) as { batches: { cut: string } }
+  return manifest.batches.cut
+}
+
 /** How one tracker is recorded. */
 interface Tracker<C extends Connection> {
   cases: TrackerCases<C>
+  /** Its manifest's `cut`: each query is read from it, and from the start. */
+  cut: string
   /** A credential the tracker refuses, for recording the refusal. */
   refusedCredential: string
   trim: Trim
@@ -67,7 +75,8 @@ interface Tracker<C extends Connection> {
 }
 
 /**
- * Runs each scenario's requests through `transport`, recording them: its milestone choices, then each of its reads.
+ * Runs each scenario's requests through `transport`, recording them: its milestone choices, then each of its reads,
+ * from the start and from the manifest's cut, the `finishedSince`s the contract cases read from.
  * Records nothing, saying why, when the synthetic tracker refuses the recording credential or can't give its choices.
  */
 async function recordTracker<C extends Connection>(
@@ -85,7 +94,7 @@ async function recordTracker<C extends Connection>(
       if (choices.failure === 'unauthorised') return { ok: false, message: tracker.refusedMessage }
       return { ok: false, message: `The synthetic tracker's milestone choices failed as ${choices.failure}. Nothing was recorded.` }
     }
-    for (const query of reads) await connector.read(query, '1970-01-01T00:00:00Z')
+    for (const query of reads) for (const since of [FROM_THE_START, tracker.cut]) await connector.read(query, since)
     recordings[scenario] = recorder.recordings
   }
   return { ok: true, recordings }
@@ -98,6 +107,7 @@ const GITHUB_TOKEN_EXPIRES = '2026-12-07'
 
 const GITHUB: Tracker<GithubConnection> = {
   cases: GITHUB_CASES,
+  cut: cutOf('github'),
   refusedCredential: 'forecaster-refused-token',
   trim: (url, status, body) => {
     if (status !== 200) {
@@ -136,6 +146,7 @@ const JIRA_EMAIL_VARIABLE = 'FORECASTER_JIRA_EMAIL'
 
 const JIRA: Tracker<JiraConnection> = {
   cases: JIRA_CASES,
+  cut: cutOf('jira'),
   refusedCredential: 'forecaster-refused-token',
   trim: (url, status, body) => {
     if (url.endsWith('/_edge/tenant_info')) return status === 200 ? pick(body, ['cloudId']) : {}
