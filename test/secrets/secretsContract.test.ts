@@ -41,4 +41,48 @@ describe.each(subjects)('Secrets contract: %s', (_name, open) => {
 
     expect(await secrets.token('team')).toBe('github_pat_one')
   })
+
+  test('a team with no saved token has none', async () => {
+    const secrets = open()
+
+    await secrets.deleteToken('team')
+
+    expect(await secrets.token('team')).toBeUndefined()
+  })
+
+  test('saving a new token replaces the old one', async () => {
+    const secrets = open()
+
+    await secrets.saveToken('team', 'github_pat_one')
+    await secrets.saveToken('team', 'github_pat_two')
+
+    expect(await secrets.token('team')).toBe('github_pat_two')
+  })
+
+  test("a deleted token is gone, and deleting again doesn't fail", async () => {
+    const secrets = open()
+    await secrets.saveToken('team', 'github_pat_one')
+
+    await secrets.deleteToken('team')
+    await secrets.deleteToken('team')
+
+    expect(await secrets.token('team')).toBeUndefined()
+  })
+
+  test("tokens are kept by team: saving or deleting one team's leaves another's", async () => {
+    const secrets = open()
+    await secrets.saveToken('team', 'github_pat_one')
+    await secrets.saveToken('other', 'jira_token_other')
+
+    await secrets.deleteToken('team')
+
+    expect(await secrets.token('other')).toBe('jira_token_other')
+  })
+})
+
+test('the keychain keeps tokens across openings, as a restart does', async () => {
+  if (!keychain) return
+  await openKeychainSecrets({ service: TEST_SERVICE }).saveToken('team', 'github_pat_kept')
+
+  expect(await openKeychainSecrets({ service: TEST_SERVICE }).token('team')).toBe('github_pat_kept')
 })
