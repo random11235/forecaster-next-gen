@@ -3,7 +3,7 @@ import { dirname } from 'node:path'
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import type { Ambiguity, AmbiguityRanges } from '../model/ambiguity.js'
 import type { CapacityEntry } from '../model/capacity.js'
-import type { MilestoneInputs, PaceMode } from '../model/milestoneInputs.js'
+import type { MilestoneInputs, PaceMode, PaceWindow } from '../model/milestoneInputs.js'
 import type { Team } from '../model/team.js'
 import type { Storage } from './storage.js'
 
@@ -187,6 +187,10 @@ CREATE TABLE capacity_switch (
 ALTER TABLE capacity_entries ADD COLUMN new_usual_on TEXT;
 ALTER TABLE capacity_entries ADD COLUMN kept INTEGER NOT NULL DEFAULT 0;
 `,
+  // 12: the milestone's pace window (#161), as JSON: the pace pattern action applied, if any. A file from before has none.
+  `
+ALTER TABLE milestone_inputs ADD COLUMN pace_window TEXT NOT NULL DEFAULT '{}';
+`,
 ]
 
 type Row = Record<string, SQLInputValue>
@@ -216,13 +220,13 @@ export function openSqliteStorage(file: string): Storage {
   const upsertMilestoneInputs = db.prepare(`
     INSERT INTO milestone_inputs
       (team_id, name, start_date, tickets_remaining, ambiguity, cadence_days, pace_mode, pace_low, pace_high, pace_counts,
-       pace_cadence_days)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       pace_cadence_days, pace_window)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (team_id) DO UPDATE SET
       name = excluded.name, start_date = excluded.start_date, tickets_remaining = excluded.tickets_remaining,
       ambiguity = excluded.ambiguity, cadence_days = excluded.cadence_days, pace_mode = excluded.pace_mode,
       pace_low = excluded.pace_low, pace_high = excluded.pace_high, pace_counts = excluded.pace_counts,
-      pace_cadence_days = excluded.pace_cadence_days`)
+      pace_cadence_days = excluded.pace_cadence_days, pace_window = excluded.pace_window`)
   const selectMilestoneInputs = db.prepare('SELECT * FROM milestone_inputs WHERE team_id = ?')
   // medium_measured is left as it is: nothing reads it since measured growth went with the MVP (#84)
   const upsertAmbiguityRanges = db.prepare(`
@@ -277,6 +281,7 @@ export function openSqliteStorage(file: string): Storage {
         inputs.paceRange?.high ?? null,
         JSON.stringify(inputs.paceCounts),
         inputs.paceCadenceDays ?? null,
+        JSON.stringify(inputs.paceWindow),
       )
     },
 
@@ -294,6 +299,7 @@ export function openSqliteStorage(file: string): Storage {
         paceRange: row.pace_low === null ? undefined : { low: Number(row.pace_low), high: Number(row.pace_high) },
         paceCounts: JSON.parse(String(row.pace_counts)) as number[],
         paceCadenceDays: row.pace_cadence_days === null ? undefined : Number(row.pace_cadence_days),
+        paceWindow: { action: (JSON.parse(String(row.pace_window)) as Partial<PaceWindow>).action },
       } satisfies MilestoneInputs
     },
 

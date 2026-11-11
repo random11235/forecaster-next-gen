@@ -357,6 +357,7 @@ describe('a data file from schema version 6, before milestone inputs', () => {
       ...defaults,
       paceRange: { low: 3, high: 7 },
       paceCadenceDays: 7,
+      paceWindow: { action: undefined },
     })
     expect(storage.milestoneInputs('sample-team')).toEqual({
       teamId: 'sample-team',
@@ -365,6 +366,7 @@ describe('a data file from schema version 6, before milestone inputs', () => {
       ...defaults,
       paceRange: undefined,
       paceCadenceDays: undefined,
+      paceWindow: { action: undefined },
     })
   })
 
@@ -402,6 +404,7 @@ describe('a data file from schema version 6, before milestone inputs', () => {
       paceRange: { low: 4, high: 8 },
       paceCounts: [6, 0, 9],
       paceCadenceDays: 7,
+      paceWindow: { action: undefined },
     }
 
     open(file).saveMilestoneInputs(inputs)
@@ -521,6 +524,26 @@ describe('a data file from schema version 10, before the new usual', () => {
     storage.saveCapacityEntries(TEAM, [accepted, kept])
 
     expect(open(file).capacityEntries(TEAM)).toEqual([accepted, kept])
+  })
+})
+
+/** Version 11's tables: version 10's, plus the new usual as #169 shipped it. Kept verbatim: it is a past release. */
+const VERSION_11_SCHEMA = `${VERSION_10_SCHEMA}
+ALTER TABLE capacity_entries ADD COLUMN new_usual_on TEXT;
+ALTER TABLE capacity_entries ADD COLUMN kept INTEGER NOT NULL DEFAULT 0;
+`
+
+describe('a data file from schema version 11, before the pace window', () => {
+  test('keeps its milestone with no action on its pace, and takes one, which survives reopening', () => {
+    const file = writeFile('v11.db', VERSION_11_SCHEMA, 11)
+    const storage = open(file)
+    const before = storage.milestoneInputs(TEAM)!
+    expect(before).toMatchObject({ name: 'Launch', paceCounts: [6, 9], paceWindow: { action: undefined } })
+
+    const acted = { ...before, paceWindow: { action: { kind: 'leaveOut' as const, period: '2026-08-17' } } }
+    storage.saveMilestoneInputs(acted)
+
+    expect(open(file).milestoneInputs(TEAM)).toEqual(acted)
   })
 })
 

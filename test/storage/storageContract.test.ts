@@ -25,6 +25,7 @@ const LAUNCH: MilestoneInputs = {
   paceRange: { low: 5, high: 10 },
   paceCounts: [4, 7, 6],
   paceCadenceDays: 14,
+  paceWindow: { action: { kind: 'startFrom', date: '2026-10-12' } },
 }
 
 const RANGES: AmbiguityRanges = {
@@ -126,11 +127,28 @@ describe.each(kinds)('%s storage', (_, opened) => {
   test('keeps milestone inputs with nothing entered yet', () => {
     const { storage } = opened()
     storage.saveTeam(TEAM)
-    const bare: MilestoneInputs = { ...LAUNCH, startDate: undefined, ticketsRemaining: undefined, paceRange: undefined, paceCounts: [] }
+    const bare: MilestoneInputs = {
+      ...LAUNCH,
+      startDate: undefined,
+      ticketsRemaining: undefined,
+      paceRange: undefined,
+      paceCounts: [],
+      paceWindow: { action: undefined },
+    }
 
     storage.saveMilestoneInputs(bare)
 
     expect(storage.milestoneInputs('team')).toEqual(bare)
+  })
+
+  test('keeps either pace action: counting from a date, or leaving out a period', () => {
+    const { storage } = opened()
+    storage.saveTeam(TEAM)
+    const leftOut: MilestoneInputs = { ...LAUNCH, paceWindow: { action: { kind: 'leaveOut', period: '2026-10-12' } } }
+
+    storage.saveMilestoneInputs(leftOut)
+
+    expect(storage.milestoneInputs('team')).toEqual(leftOut)
   })
 
   test("keeps the team's ambiguity ranges, replacing them when saved again", () => {
@@ -209,6 +227,15 @@ describe('browser storage the browser refuses', () => {
 
     expect(storage.teams()).toEqual([TEAM])
     expect(storage.milestoneInputs('team')).toEqual(LAUNCH)
+  })
+
+  test('with a milestone stored before the pace window, reads it with no action applied', () => {
+    const store = memoryStore()
+    const { paceWindow: _, ...before } = LAUNCH
+    const stored = { teams: [TEAM], milestoneInputs: { team: before }, ambiguityRanges: {}, capacityEntries: {}, capacityOff: [] }
+    store.setItem('forecaster', JSON.stringify(stored))
+
+    expect(openWebStorage(store).milestoneInputs('team')).toEqual({ ...LAUNCH, paceWindow: { action: undefined } })
   })
 
   test('with stored data it cannot read, starts empty', () => {
