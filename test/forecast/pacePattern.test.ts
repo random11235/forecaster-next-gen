@@ -145,11 +145,11 @@ describe('the pattern named from typed counts', () => {
     const pattern = forecast(withTypedCounts([5, 6, 5, 4, 6, 5, 5, 4, 6, 5, 23, 5, 6, 4])).pacePattern
 
     expect(pattern).toMatchObject({
-      pattern: 'oneOddWeek',
+      pattern: 'oneOddPeriod',
       line: 'One odd week · 12 Oct finished 23',
       meaning: 'The week of 12 Oct finished 23, against 4 to 6 in the other weeks.',
       advice: "If that week wasn't like the others, leave it out of the pace.",
-      action: { kind: 'leaveOut', date: '2026-10-12', button: 'Leave out 12 Oct' },
+      action: { kind: 'leaveOut', period: '2026-10-12', button: 'Leave out 12 Oct' },
     })
   })
 })
@@ -278,7 +278,7 @@ describe('an applied action', () => {
   test('leaving out the odd week reads the other weeks again, naming the week left out, with no action offered', () => {
     const storage = withTypedCounts(ODD_WEEK)
 
-    submit(storage, { kind: 'applyPaceAction', action: 'leaveOut', date: '2026-10-12' })
+    submit(storage, { kind: 'applyPaceAction', action: 'leaveOut', period: '2026-10-12' })
 
     const view = forecast(storage)
     expect(view.pace).toEqual({ source: 'counts', counts: [5, 6, 5, 4, 6, 5, 5, 4, 6, 5, 5, 6, 4] })
@@ -301,17 +301,50 @@ describe('an applied action', () => {
 
     const submitted = submit(storage, { kind: 'applyPaceAction', action: 'skipAll', date: '2026-10-12' })
 
-    expect(submitted).toMatchObject({ saved: false, screen: 'forecast', view: { pacePattern: { refusal: 'That action is no longer offered.' } } })
+    expect(submitted).toMatchObject({ saved: false, screen: 'forecast', view: { paceActionRefusal: 'That action is no longer offered.' } })
     expect(forecast(storage).pace).toEqual({ source: 'counts', counts: STEPPED_UP })
   })
 
-  test('is not offered when it would leave fewer counts than the forecast needs', () => {
+  test('refused with no pattern to show it on, the forecast still says why', () => {
+    const storage = withTypedCounts(STEPPED_UP)
+    submit(storage, { kind: 'setPaceRange', low: '4', high: '6' })
+    submit(storage, { kind: 'setPaceMode', paceMode: 'range' })
+
+    const submitted = submit(storage, { kind: 'applyPaceAction', action: 'startFrom', date: 'soon' })
+
+    expect(submitted).toMatchObject({ saved: false, screen: 'forecast', view: { pacePattern: undefined, paceActionRefusal: 'That action is no longer offered.' } })
+  })
+
+  test('is still offered when it would leave fewer counts than the forecast needs', () => {
     // Eight weeks from 14 Sep: about 4 a week, then 9 from 19 Oct, three weeks ago.
     const pattern = forecast(withTypedCounts([4, 3, 4, 5, 4, 9, 8, 9])).pacePattern
 
-    expect(pattern).toMatchObject({ pattern: 'steppedUp', meaning: 'About 4 a week, then 9 since 19 Oct.' })
-    expect(pattern?.advice).toBe("If that's lasting, count pace from 19 Oct once 4 weeks have been read since: so far there are 3.")
-    expect(pattern?.action).toBeUndefined()
+    expect(pattern).toMatchObject({
+      pattern: 'steppedUp',
+      meaning: 'About 4 a week, then 9 since 19 Oct.',
+      advice: "If that's lasting, count pace from 19 Oct.",
+      action: { kind: 'startFrom', date: '2026-10-19', button: 'Start from 19 Oct' },
+    })
+  })
+
+  test('applied, leaving fewer counts than the forecast needs, gets the too-few-counts problem, with the action said and undo', () => {
+    const storage = withTypedCounts([4, 3, 4, 5, 4, 9, 8, 9])
+
+    expect(submit(storage, { kind: 'applyPaceAction', action: 'startFrom', date: '2026-10-19' })).toEqual({ saved: true, next: 'forecast' })
+
+    expect(milestoneForecastView(storage, TEAM, DEFAULT_SETTINGS, TODAY)).toEqual({
+      kind: 'problems',
+      name: 'Launch',
+      problems: [
+        {
+          input: 'typedCounts',
+          message: 'Counting pace from 19 Oct leaves 3 weeks. The forecast needs at least 4. Add another count, or switch pace to the range.',
+        },
+      ],
+      paceApplied: 'Counting pace from 19 Oct, after it stepped up.',
+    })
+    submit(storage, { kind: 'undoPaceAction' })
+    expect(forecast(storage).pace).toEqual({ source: 'counts', counts: [4, 3, 4, 5, 4, 9, 8, 9] })
   })
 
   test('leaving fewer counts than are reliable warns of the window, not of the counts typed', () => {

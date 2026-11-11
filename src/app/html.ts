@@ -1,6 +1,5 @@
+import { dayMonth } from '../forecast/calendarDate.js'
 import { FONT_FACES } from './fonts.js'
-
-const MONTHS =['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 /** The screens in the sidebar, by path. */
 const SCREENS = [
@@ -319,8 +318,7 @@ const STYLE = `
 
 /** `2026-12-18` → `18 Dec 2026`. */
 export function formatDate(isoDate: string): string {
-  const [year, month, day] = isoDate.split('-').map(Number)
-  return `${day} ${MONTHS[month! - 1]} ${year}`
+  return `${dayMonth(isoDate)} ${isoDate.slice(0, 4)}`
 }
 
 export function escapeHtml(text: string): string {
