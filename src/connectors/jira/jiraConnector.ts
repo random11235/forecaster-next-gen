@@ -1,10 +1,10 @@
 import type { Connection } from '../../model/connection.js'
 import type { Choice, Connector, FailedCall, ReadResult, Ticket, Transport } from '../connector.js'
-import { failureOf, finishedSince, send, staysInScope, type QueryScope, type Received } from '../remote.js'
+import { failureOf, finishedSince, send, sleep, staysInScope, type Backoff, type QueryScope, type Received, type Wait } from '../remote.js'
 
 /**
  * The Jira Cloud connector, so far a skeleton that passes the contract suite's shape cases (#173). Its full reads (leaf
- * tickets, last finish from the changelog, paging, backoff on rate limits) come with the spec on which tickets count;
+ * tickets, last finish from the changelog, paging) come with the spec on which tickets count;
  * until then a read is one page of JQL search results, flagged incomplete when there are more, and a finished ticket's
  * finish is when its status last entered the Done category.
  *
@@ -55,8 +55,20 @@ function utc(timestamp: string): string {
 
 const UNAVAILABLE: FailedCall = { ok: false, failure: 'unavailable' }
 
-export function jiraConnector(connection: Extract<Connection, { tracker: 'jira' }>, token: string, transport: Transport): Connector {
+/** Jira answers a rate limit with a 429. */
+function rateLimited({ status }: Received): boolean {
+  return status === 429
+}
+
+/** `wait` is how backoff on a rate limit waits: a timer, unless a test stands in for it. */
+export function jiraConnector(
+  connection: Extract<Connection, { tracker: 'jira' }>,
+  token: string,
+  transport: Transport,
+  wait: Wait = sleep,
+): Connector {
   const key = connection.projectKey
+  const backoff: Backoff = { rateLimited, wait }
   const authorization = `Basic ${btoa(`${connection.email}:${token}`)}`
 
   let cloudId: string | undefined
@@ -64,7 +76,7 @@ export function jiraConnector(connection: Extract<Connection, { tracker: 'jira' 
   /** A call to the site's REST API through the gateway, or the failure that stopped it reaching there. */
   async function api(path: string, body?: unknown): Promise<Received | FailedCall> {
     if (cloudId === undefined) {
-      const tenant = await send(transport, `https://${connection.site}/_edge/tenant_info`, {})
+      const tenant = await send(transport, `https://${connection.site}/_edge/tenant_info`, {}, backoff)
       if (!tenant) return UNAVAILABLE
       if (tenant.status !== 200) return failureOf(tenant.status)
       cloudId = (tenant.body as { cloudId: string }).cloudId
@@ -72,7 +84,7 @@ export function jiraConnector(connection: Extract<Connection, { tracker: 'jira' 
     const headers: Record<string, string> = { authorization, accept: 'application/json' }
     const init: RequestInit =
       body === undefined ? { headers } : { method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify(body) }
-    return (await send(transport, `${GATEWAY}/${cloudId}/rest/api/3${path}`, init)) ?? UNAVAILABLE
+    return (await send(transport, `${GATEWAY}/${cloudId}/rest/api/3${path}`, init, backoff)) ?? UNAVAILABLE
   }
 
   return {
