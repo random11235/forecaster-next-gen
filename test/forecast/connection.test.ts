@@ -115,6 +115,65 @@ describe('connecting', () => {
   })
 })
 
+describe('changing the connection', () => {
+  const NEW_TOKEN = 'github_pat_22NEWTOKEN9876543210_secret'
+
+  test('to another repo with a new token replaces both, once checked', async () => {
+    const using = connecting()
+    await submitConnection(using, TEAM, github('shop-team/shop'))
+
+    const submitted = await submitConnection(using, TEAM, github('shop-team/payments', NEW_TOKEN))
+
+    expect(submitted).toEqual({ saved: true, next: 'milestone' })
+    expect(using.built.at(-1)).toEqual({ connection: { tracker: 'github', owner: 'shop-team', repo: 'payments' }, token: NEW_TOKEN })
+    expect(storage.connection(TEAM)).toEqual({ tracker: 'github', owner: 'shop-team', repo: 'payments' })
+    expect(await using.secrets.token(TEAM)).toBe(NEW_TOKEN)
+  })
+
+  test('refused, keeps the connection and token it had, and shows the change as typed, without the token', async () => {
+    const using = connecting()
+    await submitConnection(using, TEAM, github('shop-team/shop'))
+    const refusing = { ...using, connector: connecting({ failure: 'notFound' }).connector }
+
+    const submitted = await submitConnection(refusing, TEAM, github('shop-team/shopp', NEW_TOKEN))
+
+    expect(submitted).toEqual({
+      saved: false,
+      view: {
+        kind: 'connected',
+        connection: { tracker: 'github', owner: 'shop-team', repo: 'shop' },
+        form: { tracker: 'github', repo: 'shop-team/shopp', site: '', projectKey: '', email: '' },
+        permissions: { github: 'Issues: read', jira: 'read:jira-work' },
+        refusal: 'GitHub can’t see shop-team/shopp with this token. Check the repo’s name, and that the token covers it.',
+      },
+    })
+    expect(JSON.stringify(submitted)).not.toContain(NEW_TOKEN)
+    expect(storage.connection(TEAM)).toEqual({ tracker: 'github', owner: 'shop-team', repo: 'shop' })
+    expect(await using.secrets.token(TEAM)).toBe(TOKEN)
+  })
+})
+
+describe('disconnecting', () => {
+  test('removes the connection and forgets the token, going back to the Connect step', async () => {
+    const using = connecting()
+    await submitConnection(using, TEAM, jira())
+
+    const submitted = await submitConnection(using, TEAM, { kind: 'disconnect' })
+
+    expect(submitted).toEqual({ saved: true, next: 'connect' })
+    expect(storage.connection(TEAM)).toBeUndefined()
+    expect(await using.secrets.token(TEAM)).toBeUndefined()
+    expect(connectionView(using, TEAM).kind).toBe('connect')
+  })
+
+  test('with no connection, there is nothing to remove', async () => {
+    const using = connecting()
+
+    expect(await submitConnection(using, TEAM, { kind: 'disconnect' })).toEqual({ saved: true, next: 'connect' })
+    expect(using.built).toEqual([])
+  })
+})
+
 describe('a connect refused before the tracker is asked', () => {
   test.each([
     ['a missing token', github('shop-team/shop', '  '), 'Paste a token to connect.'],

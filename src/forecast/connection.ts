@@ -56,17 +56,34 @@ export type SetupStep = 'connect' | 'milestone'
 /** A connection saved (or removed), and the setup step to go to next; or refused, with the Connect step to show again. */
 export type ConnectionSubmitted = { saved: true; next: SetupStep } | { saved: false; view: ConnectStep & { refusal: string } }
 
-/** Seam B: checks the connection the EM submitted by asking its tracker for milestone choices, and saves it if it answers. */
+/**
+ * Seam B: connects the team, changes its connection, or disconnects it.
+ *
+ * A connect (or a change, while connected) is checked by building its connector and asking for milestone choices.
+ * Answered, the token and the connection replace any the team had, and the milestone step is next. Refused, nothing
+ * changes, and the Connect step shows again with why and the form as typed, without the token. A missing token or
+ * name is refused before any connector is built.
+ *
+ * A disconnect forgets the token and removes the connection, going back to the Connect step. Nothing follows the
+ * tracker yet, so there are no values to switch to their typed source.
+ */
 export async function submitConnection(connecting: Connecting, teamId: string, edit: ConnectionEdit): Promise<ConnectionSubmitted> {
-  if (edit.kind === 'disconnect') throw new Error('not yet')
-  const { token, kind: _, ...form } = edit
+  if (edit.kind === 'disconnect') {
+    // the token first: should the keychain fail, the team is still connected, not left with a token and no connection
+    await connecting.secrets.deleteToken(teamId)
+    connecting.connections.removeConnection(teamId)
+    return { saved: true, next: 'connect' }
+  }
+  const { tracker, repo, site, projectKey, email } = edit
+  const form: ConnectionForm = { tracker, repo, site, projectKey, email }
+  const token = edit.token.trim()
   const refused = (refusal: string): ConnectionSubmitted => ({ saved: false, view: { ...connectStep(connecting, teamId), form, refusal } })
   const connection = connectionOf(form)
-  const missing = missingFrom(connection, token.trim())
+  const missing = missingFrom(connection, token)
   if (missing) return refused(missing)
-  const checked = await connecting.connector(connection, token.trim()).milestoneChoices()
+  const checked = await connecting.connector(connection, token).milestoneChoices()
   if (!checked.ok) return refused(refusalOf(connection, checked))
-  await connecting.secrets.saveToken(teamId, token.trim())
+  await connecting.secrets.saveToken(teamId, token)
   connecting.connections.saveConnection(teamId, connection)
   return { saved: true, next: 'milestone' }
 }
