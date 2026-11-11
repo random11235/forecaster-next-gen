@@ -62,3 +62,26 @@ describe('connecting', () => {
     expect(await using.secrets.token(TEAM)).toBe(TOKEN)
   })
 })
+
+describe('a connect the tracker refuses', () => {
+  const refusedBy = (failure: Failure['failure']): CannedFixture['milestoneChoices'] =>
+    failure === 'invalidQuery' ? { failure, message: 'no' } : { failure }
+
+  test('a refused GitHub token says so, saves nothing, and keeps the form as typed without the token', async () => {
+    const using = connecting(refusedBy('unauthorised'))
+
+    const submitted = await submitConnection(using, TEAM, github('shop-team/shop'))
+
+    expect(submitted).toEqual({
+      saved: false,
+      view: {
+        kind: 'connect',
+        form: { tracker: 'github', repo: 'shop-team/shop', site: '', projectKey: '', email: '' },
+        permissions: { github: 'Issues: read', jira: 'read:jira-work' },
+        refusal: 'GitHub refused the token. Check it hasn’t expired, and that it has Issues: read on this repo.',
+      },
+    })
+    expect(storage.connection(TEAM)).toBeUndefined()
+    expect(await using.secrets.token(TEAM)).toBeUndefined()
+  })
+})
