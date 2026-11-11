@@ -18,3 +18,8 @@ export function daysBetween(from: string, to: string): number {
   const MS_PER_DAY = 86_400_000
   return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / MS_PER_DAY)
 }
+
+/** The calendar date `days` after `date`, both `YYYY-MM-DD`: before it when `days` is negative. */
+export function addDays(date: string, days: number): string {
+  return new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
+}
