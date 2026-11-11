@@ -1,7 +1,9 @@
-import type { PaceAction } from '../model/milestoneInputs.js'
+import type { MilestoneInputs, PaceAction } from '../model/milestoneInputs.js'
+import type { Storage } from '../storage/storage.js'
 import { periodName, type PeriodName } from './cadence.js'
-import { dayMonth } from './calendarDate.js'
-import { withAction, type DatedCounts } from './paceWindow.js'
+import { dayMonth, isCalendarDate } from './calendarDate.js'
+import { refuse, type EditResult } from './editResult.js'
+import { actionSaid, paceWindow, withAction, type DatedCounts } from './paceWindow.js'
 
 // The rule is the research classifier's, trimmed (docs/research/pace-stability/classify.mjs).
 
@@ -14,7 +16,7 @@ export type PacePatternName =
   | 'steppedUp'
   | 'steppedDown'
   | 'goodAndBadSpells'
-  | 'oneOddWeek'
+  | 'oneOddPeriod'
 
 /** The fewest periods, from the first with a finished ticket, that a pattern is read from. */
 const FEWEST_TO_READ = 6
@@ -54,7 +56,7 @@ const SPELLS_LAG1 = 0.3
 const LUMPY_DISPERSION = 2
 
 /** The action a pattern offers, with the headline date it would change, both from the same seed. */
-export interface PatternAction extends PaceAction {
+export type PatternAction = PaceAction & {
   button: string
   dates: { percent: number; now: string | null; applied: string | null }
 }
@@ -64,8 +66,6 @@ export interface HeadlineDates {
   percent: number
   now: string | null
   from(counts: readonly number[]): string | null
-  /** The fewest counts the forecast is drawn from: an action leaving fewer isn't offered. */
-  fewestCounts: number
 }
 
 /**
@@ -85,8 +85,6 @@ export interface PacePatternView {
   action?: PatternAction
   /** The action applied, said, with undo beside it: "Counting pace from 12 Oct, after it stepped up." */
   applied?: string
-  /** Why the action or undo just submitted was refused. */
-  refusal?: string
 }
 
 /**
@@ -110,22 +108,53 @@ export function pacePattern(
   const early = counts.length < FEWEST_TO_BE_SURE && view.pattern && EARLY[view.pattern]
   const worded = { ...view, ...(early ? { line: `${early}: too early to be sure.` } : {}), ...shown }
   if (!action || applied) return worded
-  const kept = withAction(window, action).counts
-  const { percent, now, fewestCounts } = headline
-  if (kept.length < fewestCounts) {
-    const since = `${fewestCounts} ${period}s have been read since: so far there are ${kept.length}`
-    return { ...worded, advice: `If that's lasting, count pace from ${dayMonth(action.date)} once ${since}.` }
-  }
-  return { ...worded, action: { ...action, dates: { percent, now, applied: headline.from(kept) } } }
+  // offered even when it leaves fewer counts than the forecast needs: applied, the forecast says so
+  const { percent, now } = headline
+  return { ...worded, action: { ...action, dates: { percent, now, applied: headline.from(withAction(window, action).counts) } } }
+}
+
+/**
+ * The milestone's applied action, said, as the forecast shows it with undo even when the window it leaves is too short
+ * to forecast from; none with none applied.
+ */
+export function paceActionApplied(inputs: MilestoneInputs, today: string): string | undefined {
+  const action = inputs.paceWindow.action
+  return action && appliedLine(paceWindow(inputs, today).typed, action, periodName(inputs.cadenceDays))
 }
 
 /** The applied action, said: what the pace is counted from, and why. */
-function appliedLine(typed: DatedCounts, { kind, date }: PaceAction, period: PeriodName): string {
-  if (kind === 'leaveOut') return `Leaving out the ${period} of ${dayMonth(date)}, the odd ${period}.`
-  // ISO calendar dates order as strings do
-  const before = typed.counts.filter((_, i) => typed.starts[i]! < date)
-  const since = typed.counts.filter((_, i) => typed.starts[i]! >= date)
-  return `Counting pace from ${dayMonth(date)}, after it stepped ${mean(since) >= mean(before) ? 'up' : 'down'}.`
+function appliedLine(typed: DatedCounts, action: PaceAction, period: PeriodName): string {
+  const said = actionSaid(action, period)
+  if (action.kind === 'leaveOut') return `${said}, the odd ${period}.`
+  const since = withAction(typed, action).counts
+  const before = typed.counts.slice(0, typed.counts.length - since.length)
+  return `${said}, after it stepped ${mean(since) >= mean(before) ? 'up' : 'down'}.`
+}
+
+/** A form on the pace pattern, as typed: apply its action (on `date` or `period`, by its kind), or undo the one applied. */
+export type PaceActionEdit = { kind: 'applyPaceAction'; action: string; date?: string; period?: string } | { kind: 'undoPaceAction' }
+
+const PACE_ACTION_EDITS: ReadonlySet<string> = new Set<PaceActionEdit['kind']>(['applyPaceAction', 'undoPaceAction'])
+
+export function isPaceActionEdit(edit: { kind: string }): edit is PaceActionEdit {
+  return PACE_ACTION_EDITS.has(edit.kind)
+}
+
+/** Seam B, behind `submitInputs`: applies the pace pattern's action to the milestone's pace window, or undoes it. */
+export function editPaceAction(storage: Storage, teamId: string, edit: PaceActionEdit): EditResult {
+  const saved = storage.milestoneInputs(teamId)
+  if (saved === undefined) return refuse('There is no milestone to apply it to.')
+  const action = edit.kind === 'undoPaceAction' ? undefined : typedAction(edit)
+  if (action === null) return refuse('That action is no longer offered.')
+  storage.saveMilestoneInputs({ ...saved, paceWindow: { ...saved.paceWindow, action } })
+  return { ok: true }
+}
+
+/** The action a form names, or null when it names none. */
+function typedAction({ action, date = '', period = '' }: Extract<PaceActionEdit, { kind: 'applyPaceAction' }>): PaceAction | null {
+  if (action === 'startFrom' && isCalendarDate(date.trim())) return { kind: 'startFrom', date: date.trim() }
+  if (action === 'leaveOut' && isCalendarDate(period.trim())) return { kind: 'leaveOut', period: period.trim() }
+  return null
 }
 
 /** A pattern as named, its action not yet dated. */
@@ -182,13 +211,13 @@ function oneOdd(counts: readonly number[], starts: readonly string[], odd: numbe
   const date = starts[odd]!
   const rest = counts.filter((_, i) => i !== odd)
   return {
-    pattern: 'oneOddWeek',
+    pattern: 'oneOddPeriod',
     line: `One odd ${period} · ${dayMonth(date)} finished ${counts[odd]}`,
     meaning:
       `The ${period} of ${dayMonth(date)} finished ${counts[odd]}, ` +
       `against ${Math.min(...rest)} to ${Math.max(...rest)} in the other ${period}s.`,
     advice: `If that ${period} wasn't like the others, leave it out of the pace.`,
-    action: { kind: 'leaveOut', date, button: `Leave out ${dayMonth(date)}` },
+    action: { kind: 'leaveOut', period: date, button: `Leave out ${dayMonth(date)}` },
   }
 }
 

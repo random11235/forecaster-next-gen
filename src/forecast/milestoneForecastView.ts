@@ -7,7 +7,7 @@ import { capacityFactors, capacityLine, capacityView, currentEntries, entryEffec
 import { periodName } from './cadence.js'
 import { milestoneGrowth } from './growth.js'
 import { assessMilestone, type ForecastableInputs, type InputNote, type PaceInUse } from './milestoneAssessment.js'
-import { pacePattern, type PacePatternView } from './pacePattern.js'
+import { paceActionApplied, pacePattern, type PacePatternView } from './pacePattern.js'
 import { paceWindow } from './paceWindow.js'
 import { paceTrend, type PaceTrend } from './paceTrend.js'
 import type { ForecastSettings } from './settings.js'
@@ -53,9 +53,12 @@ export interface FinishBar {
 export type MilestoneForecastView =
   /** Nothing entered yet: the screen sends the EM to Inputs. */
   | { kind: 'empty' }
-  /** Inputs that can't be forecast, each naming what to fix: one missing, or too few typed counts. */
-  | { kind: 'problems'; name: string; problems: InputNote[] }
-  | {
+  /**
+   * Inputs that can't be forecast, each naming what to fix: one missing, or too few typed counts. With a pace action
+   * applied, it is said with undo, since it may be what left too few.
+   */
+  | ({ kind: 'problems'; name: string; problems: InputNote[]; paceApplied?: string } & PaceActionRefused)
+  | ({
       kind: 'forecast'
       name: string
       ticketsRemaining: number
@@ -84,7 +87,12 @@ export type MilestoneForecastView =
       comparison: ComparedDate[] | undefined
       /** The quiet line under the headline: what capacity does to its date; none when no capacity touches it. */
       capacityLine: string | undefined
-    }
+    } & PaceActionRefused)
+
+/** A pace action the EM just submitted, refused: why, shown under the pace pattern, or alone with none to show. */
+interface PaceActionRefused {
+  paceActionRefusal?: string
+}
 
 /** How the screen is shown: `capacityOpen` with the Capacity section open, where each entry gives its own effect. */
 export interface ForecastViewOptions {
@@ -105,7 +113,10 @@ export function milestoneForecastView(
   const saved = storage.milestoneInputs(teamId)
   if (!saved) return { kind: 'empty' }
   const assessment = assessMilestone(saved, settings, today)
-  if (!assessment.forecastable) return { kind: 'problems', name: saved.name, problems: assessment.problems }
+  if (!assessment.forecastable) {
+    const applied = paceActionApplied(saved, today)
+    return { kind: 'problems', name: saved.name, problems: assessment.problems, ...(applied && { paceApplied: applied }) }
+  }
 
   const { inputs, pace } = assessment
   const growth = milestoneGrowth(storage, inputs)
@@ -151,7 +162,6 @@ export function milestoneForecastView(
       pace.source === 'counts'
         ? pacePattern(paceWindow(inputs, today), inputs.paceWindow.action, periodDays, {
             percent: HEADLINE_PERCENT,
-            fewestCounts: settings.typedCounts.forForecast,
             now: result.percentileDates[HEADLINE_PERCENT] ?? null,
             // from the same seed and capacity, so the two differ by the action alone
             from: (counts) =>

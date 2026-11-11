@@ -41,11 +41,7 @@ export interface PaceWindow {
 }
 
 /**
- * A pace pattern's action, applied: count pace from the period starting on `date`, after a step, or leave out the
- * period starting on `date`, an odd one.
+ * A pace pattern's action, applied: count pace from the period starting on `date`, after a step, or leave out
+ * `period`, an odd one. Both are ISO calendar dates a period starts on, `YYYY-MM-DD`.
  */
-export interface PaceAction {
-  kind: 'startFrom' | 'leaveOut'
-  /** ISO calendar date the period starts, `YYYY-MM-DD`. */
-  date: string
-}
+export type PaceAction = { kind: 'startFrom'; date: string } | { kind: 'leaveOut'; period: string }

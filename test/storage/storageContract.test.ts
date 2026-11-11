@@ -141,6 +141,16 @@ describe.each(kinds)('%s storage', (_, opened) => {
     expect(storage.milestoneInputs('team')).toEqual(bare)
   })
 
+  test('keeps either pace action: counting from a date, or leaving out a period', () => {
+    const { storage } = opened()
+    storage.saveTeam(TEAM)
+    const leftOut: MilestoneInputs = { ...LAUNCH, paceWindow: { action: { kind: 'leaveOut', period: '2026-10-12' } } }
+
+    storage.saveMilestoneInputs(leftOut)
+
+    expect(storage.milestoneInputs('team')).toEqual(leftOut)
+  })
+
   test("keeps the team's ambiguity ranges, replacing them when saved again", () => {
     const { storage } = opened()
     storage.saveTeam(TEAM)

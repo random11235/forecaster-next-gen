@@ -540,7 +540,7 @@ describe('a data file from schema version 11, before the pace window', () => {
     const before = storage.milestoneInputs(TEAM)!
     expect(before).toMatchObject({ name: 'Launch', paceCounts: [6, 9], paceWindow: { action: undefined } })
 
-    const acted = { ...before, paceWindow: { action: { kind: 'leaveOut' as const, date: '2026-08-17' } } }
+    const acted = { ...before, paceWindow: { action: { kind: 'leaveOut' as const, period: '2026-08-17' } } }
     storage.saveMilestoneInputs(acted)
 
     expect(open(file).milestoneInputs(TEAM)).toEqual(acted)
