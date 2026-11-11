@@ -1,4 +1,4 @@
-import type { Connector } from '../connectors/connector.js'
+import type { Connector, Failure } from '../connectors/connector.js'
 import type { Connection } from '../model/connection.js'
 import type { Secrets } from '../secrets/secrets.js'
 import type { ConnectionStorage } from '../storage/storage.js'
@@ -31,20 +31,45 @@ export interface ConnectionForm {
 /** The Connect step's submits: connect (or change the connection to) what the form names, or disconnect. */
 export type ConnectionEdit = ({ kind: 'connect'; token: string } & ConnectionForm) | { kind: 'disconnect' }
 
+/** The read-only permission a token needs, by tracker: what the EM is told to create. */
+export const TOKEN_PERMISSIONS: Readonly<Record<Tracker, string>> = { github: 'Issues: read', jira: 'read:jira-work' }
+
+/** What the Connect step shows. */
+export interface ConnectionView {
+  kind: 'connect'
+  form: ConnectionForm
+  permissions: Readonly<Record<Tracker, string>>
+  /** Why the connect just submitted was refused; none until one is. */
+  refusal?: string
+}
+
 /** The setup step to go to next: Connect, or, once connected, picking the milestone's tickets. */
 export type SetupStep = 'connect' | 'milestone'
 
-export type ConnectionSubmitted = { saved: true; next: SetupStep }
+/** A connection saved (or removed), and the setup step to go to next; or refused, with the Connect step to show again. */
+export type ConnectionSubmitted = { saved: true; next: SetupStep } | { saved: false; view: ConnectionView & { refusal: string } }
 
 /** Seam B: checks the connection the EM submitted by asking its tracker for milestone choices, and saves it if it answers. */
 export async function submitConnection(connecting: Connecting, teamId: string, edit: ConnectionEdit): Promise<ConnectionSubmitted> {
   if (edit.kind === 'disconnect') throw new Error('not yet')
-  const [owner = '', repo = ''] = edit.repo.split('/')
+  const { token, kind: _, ...form } = edit
+  const [owner = '', repo = ''] = form.repo.split('/')
   const connection: Connection = { tracker: 'github', owner, repo }
-  await connecting.connector(connection, edit.token).milestoneChoices()
-  await connecting.secrets.saveToken(teamId, edit.token)
+  const checked = await connecting.connector(connection, token).milestoneChoices()
+  if (!checked.ok) return { saved: false, view: { kind: 'connect', form, permissions: TOKEN_PERMISSIONS, refusal: refusalOf(checked) } }
+  await connecting.secrets.saveToken(teamId, token)
   connecting.connections.saveConnection(teamId, connection)
   return { saved: true, next: 'milestone' }
+}
+
+/** A failed connection check, worded for the Connect step. */
+function refusalOf(failure: Failure): string {
+  switch (failure.failure) {
+    case 'unauthorised':
+      return 'GitHub refused the token. Check it hasn’t expired, and that it has Issues: read on this repo.'
+    default:
+      return ''
+  }
 }
 
 export function connectionView(): void {}
