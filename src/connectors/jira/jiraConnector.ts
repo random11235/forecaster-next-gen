@@ -1,4 +1,5 @@
-import type { Choice, Connection, Connector, FailedCall, ReadResult, Ticket, Transport } from '../connector.js'
+import type { Connection } from '../../model/connection.js'
+import type { Choice, Connector, FailedCall, ReadResult, Ticket, Transport } from '../connector.js'
 import { failureOf, finishedSince, send, staysInScope, type QueryScope, type Received } from '../remote.js'
 
 /**

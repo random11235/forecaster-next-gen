@@ -64,12 +64,13 @@ const trackerConnector: ConnectorFactory = (connection, token) =>
 
 /**
  * Demo mode, for demo screenshots and the launch smoke test: any connection connects to the canned connector and its
- * synthetic fixture, so no tracker is needed, and the token typed is held in memory only, never put in the keychain.
+ * synthetic fixture, so no tracker is needed (but for the cues `demoConnector` refuses on), and the token typed is held
+ * in memory only, never put in the keychain.
  * Otherwise a connection is checked with its tracker and its token kept in the OS keychain.
  */
 const demo = Boolean(process.env.FORECASTER_DEMO)
 const connecting: Connecting = demo
-  ? { connections: storage, secrets: openMemorySecrets(), connector: () => demoConnector() }
+  ? { connections: storage, secrets: openMemorySecrets(), connector: demoConnector }
   : { connections: storage, secrets: openKeychainSecrets(), connector: trackerConnector }
 if (demo) console.log('Demo mode: tickets come from the canned connector and its synthetic fixture.')
 

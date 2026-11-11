@@ -123,6 +123,34 @@ describe('the Connect step', () => {
     expect(await connecting.secrets.token('team')).toBe('new-token')
   })
 
+  test('once connected, a change can leave the token blank to keep the saved one', async () => {
+    const { app, connecting } = await startConnecting()
+    await post(app, '/inputs/connect', github('shop-team/shop'))
+
+    const page = await inputsPage(app)
+    const posted = await post(app, '/inputs/connect', github('shop-team/checkout', ''))
+
+    expect(page).toContain('placeholder="blank keeps the saved token"')
+    expect(posted.status).toBe(303)
+    expect(await inputsPage(app)).toContain('Connected to GitHub · <b>shop-team/checkout</b>')
+    expect(await connecting.secrets.token('team')).toBe(TOKEN)
+  })
+
+  test('a keychain failing as the token is saved shows the Inputs screen again, saying so, and never the token', async () => {
+    const { app, connecting } = await startConnecting()
+    connecting.secrets.saveToken = async () => {
+      throw new Error(`keychain refused ${TOKEN}`)
+    }
+
+    const posted = await post(app, '/inputs/connect', github('shop-team/shop'))
+    const html = await posted.text()
+
+    expect(posted.status).toBe(400)
+    expect(html).toContain('This computer’s keychain couldn’t be used, so nothing changed.')
+    expect(html).not.toContain(TOKEN)
+    expect(await inputsPage(app)).not.toContain('Connected to')
+  })
+
   test('disconnecting forgets the token and goes back to the Connect step', async () => {
     const { app, connecting } = await startConnecting()
     await post(app, '/inputs/connect', github('shop-team/shop'))

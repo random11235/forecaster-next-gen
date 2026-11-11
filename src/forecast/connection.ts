@@ -2,9 +2,7 @@ import type { Connector, Failure } from '../connectors/connector.js'
 import type { Connection } from '../model/connection.js'
 import type { Secrets } from '../secrets/secrets.js'
 import type { ConnectionStorage } from '../storage/storage.js'
-
-/** A tracker a team can connect to. */
-export type Tracker = Connection['tracker']
+import { BLANK_CONNECTION_FORM, connectionOf, TRACKERS, trackerOf, type ConnectionForm, type Tracker } from './trackers.js'
 
 /** Builds the connector for a connection and its token: the real one in the local server build, the canned one in tests and demo mode. */
 export type ConnectorFactory = (connection: Connection, token: string) => Connector
@@ -19,20 +17,14 @@ export interface Connecting {
   connector: ConnectorFactory
 }
 
-/** The Connect step's form as typed, all but the token, which is never shown back. GitHub's repo is `owner/repo`. */
-export interface ConnectionForm {
-  tracker: Tracker
-  repo: string
-  site: string
-  projectKey: string
-  email: string
-}
-
-/** The Connect step's submits: connect (or change the connection to) what the form names, or disconnect. */
+/**
+ * The Connect step's submits: connect (or change the connection to) what the form names, or disconnect. While
+ * connected, a blank token keeps the saved one.
+ */
 export type ConnectionEdit = ({ kind: 'connect'; token: string } & ConnectionForm) | { kind: 'disconnect' }
 
 /** The read-only permission a token needs, by tracker: what the EM is told to create. */
-export const TOKEN_PERMISSIONS: Readonly<Record<Tracker, string>> = { github: 'Issues: read', jira: 'read:jira-work' }
+export const TOKEN_PERMISSIONS: Readonly<Record<Tracker, string>> = { github: TRACKERS.github.permission, jira: TRACKERS.jira.permission }
 
 /**
  * What the Connect step shows: in the browser build, nothing (`noConnect`); otherwise its form, blank until the team
@@ -60,78 +52,123 @@ export type ConnectionSubmitted = { saved: true; next: SetupStep } | { saved: fa
  * Seam B: connects the team, changes its connection, or disconnects it.
  *
  * A connect (or a change, while connected) is checked by building its connector and asking for milestone choices.
- * Answered, the token and the connection replace any the team had, and the milestone step is next. Refused, nothing
- * changes, and the Connect step shows again with why and the form as typed, without the token. A missing token or
- * name is refused before any connector is built.
+ * While connected, a change with the token left blank is checked with the saved token, so a new repo needs no new
+ * token. Answered, the connection and the token replace any the team had, and the milestone step is next. Refused,
+ * nothing changes, and the Connect step shows again with why and the form as typed, without the token. A missing name,
+ * or a missing token with none saved, is refused before any connector is built.
  *
- * A disconnect forgets the token and removes the connection, going back to the Connect step. Nothing follows the
+ * A disconnect removes the connection and forgets the token, going back to the Connect step. Nothing follows the
  * tracker yet, so there are no values to switch to their typed source.
+ *
+ * Should this computer's keychain or the data file fail, nothing changes: what was written is put back, and the
+ * refusal says which failed, never quoting its error.
  */
 export async function submitConnection(connecting: Connecting, teamId: string, edit: ConnectionEdit): Promise<ConnectionSubmitted> {
-  if (edit.kind === 'disconnect') {
-    // the token first: should the keychain fail, the team is still connected, not left with a token and no connection
-    await connecting.secrets.deleteToken(teamId)
-    connecting.connections.removeConnection(teamId)
-    return { saved: true, next: 'connect' }
-  }
+  if (edit.kind === 'disconnect') return disconnect(connecting, teamId)
   const { tracker, repo, site, projectKey, email } = edit
   const form: ConnectionForm = { tracker, repo, site, projectKey, email }
-  const token = edit.token.trim()
   const refused = (refusal: string): ConnectionSubmitted => ({ saved: false, view: { ...connectStep(connecting, teamId), form, refusal } })
   const connection = connectionOf(form)
-  const missing = missingFrom(connection, token)
+  const missing = trackerOf(connection).missing(connection)
   if (missing) return refused(missing)
+  const typed = edit.token.trim()
+  const token = typed || (await savedToken(connecting, teamId))
+  if (typeof token !== 'string') return refused(token.refusal)
   const checked = await connecting.connector(connection, token).milestoneChoices()
   if (!checked.ok) return refused(refusalOf(connection, checked))
-  await connecting.secrets.saveToken(teamId, token)
-  connecting.connections.saveConnection(teamId, connection)
-  return { saved: true, next: 'milestone' }
+  const failed = await replaceConnection(connecting, teamId, connection, typed || undefined)
+  return failed ? refused(failed) : { saved: true, next: 'milestone' }
 }
 
-/** The connection the form names, tidied: no stray spaces, a Jira site without its scheme or slash, its project key in capitals. */
-function connectionOf(form: ConnectionForm): Connection {
-  if (form.tracker === 'jira') {
-    const site = form.site.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '')
-    return { tracker: 'jira', site, projectKey: form.projectKey.trim().toUpperCase(), email: form.email.trim() }
+/** The token a change with a blank token is checked with: the one saved, while the team is connected. */
+async function savedToken({ connections, secrets }: Connecting, teamId: string): Promise<string | { refusal: string }> {
+  const noToken = { refusal: 'Paste a token to connect.' }
+  if (!connections.connection(teamId)) return noToken
+  try {
+    return (await secrets.token(teamId)) || noToken
+  } catch {
+    return { refusal: KEYCHAIN_FAILED }
   }
-  const parts = form.repo.trim().split('/')
-  // anything but owner/repo names no repo, so it is refused as missing
-  const [owner = '', repo = ''] = parts.length === 2 ? parts : []
-  return { tracker: 'github', owner, repo }
 }
 
-/** What the connection or its token lacks, worded for the Connect step; nothing when it has all it needs to be checked. */
-function missingFrom(connection: Connection, token: string): string | undefined {
-  if (connection.tracker === 'github') {
-    if (!connection.owner || !connection.repo) return 'Give the repo as owner/repo, like shop-team/shop.'
-  } else {
-    if (!connection.site) return 'Give the Jira site, like your-team.atlassian.net.'
-    if (!connection.projectKey) return 'Give the Jira project key, like SHOP.'
-    if (!connection.email) return 'Give the email of the Atlassian account that made the token.'
+/** Why a connect or disconnect changed nothing, when this computer's keychain failed: its own error is never shown. */
+const KEYCHAIN_FAILED = 'This computer’s keychain couldn’t be used, so nothing changed. Check it’s unlocked and that the Forecaster may use it, then try again.'
+
+/** Why a connect or disconnect changed nothing, when the data file failed. */
+const DATA_FILE_FAILED = 'The data file couldn’t be written, so nothing changed. Try again.'
+
+/**
+ * Saves the team's connection, then its new token (none when the saved one is kept), so the two stay together:
+ * should the keychain fail, the connection the team had (or none) is put back. Returns why nothing changed, if it didn't.
+ */
+async function replaceConnection(
+  { connections, secrets }: Connecting,
+  teamId: string,
+  connection: Connection,
+  token: string | undefined,
+): Promise<string | undefined> {
+  const before = connections.connection(teamId)
+  try {
+    connections.saveConnection(teamId, connection)
+  } catch {
+    return DATA_FILE_FAILED
   }
-  if (!token) return 'Paste a token to connect.'
+  if (token === undefined) return undefined
+  try {
+    await secrets.saveToken(teamId, token)
+  } catch {
+    putBack(connections, teamId, before)
+    return KEYCHAIN_FAILED
+  }
   return undefined
+}
+
+/**
+ * Removes the team's connection, then forgets its token, so the two go together: should the keychain fail, the
+ * connection is put back and the team is still connected.
+ */
+async function disconnect(connecting: Connecting, teamId: string): Promise<ConnectionSubmitted> {
+  const { connections, secrets } = connecting
+  const before = connections.connection(teamId)
+  const refused = (refusal: string): ConnectionSubmitted => ({ saved: false, view: { ...connectStep(connecting, teamId), refusal } })
+  try {
+    connections.removeConnection(teamId)
+  } catch {
+    return refused(DATA_FILE_FAILED)
+  }
+  try {
+    await secrets.deleteToken(teamId)
+  } catch {
+    putBack(connections, teamId, before)
+    return refused(KEYCHAIN_FAILED)
+  }
+  return { saved: true, next: 'connect' }
+}
+
+/** Puts back the connection the team had (or none). Should the data file fail again, it is left as it is: a later read refuses its token. */
+function putBack(connections: ConnectionStorage, teamId: string, connection: Connection | undefined): void {
+  try {
+    if (connection) connections.saveConnection(teamId, connection)
+    else connections.removeConnection(teamId)
+  } catch {
+    // the refusal already says to try again
+  }
 }
 
 /** A failed connection check, worded for the Connect step. */
 function refusalOf(connection: Connection, { failure }: Failure): string {
-  const github = connection.tracker === 'github'
-  const tracker = github ? 'GitHub' : 'Jira'
+  const tracker = trackerOf(connection)
   switch (failure) {
     case 'unauthorised':
-      return github
-        ? `GitHub refused the token. Check it hasn’t expired, and that it has ${TOKEN_PERMISSIONS.github} on this repo.`
-        : `Jira refused the token. Check it hasn’t expired, that it has ${TOKEN_PERMISSIONS.jira}, and that ${connection.email} is the account that made it.`
+      return tracker.refused(connection)
     case 'notFound':
-      return github
-        ? `GitHub can’t see ${connection.owner}/${connection.repo} with this token. Check the repo’s name, and that the token covers it.`
-        : `Jira can’t find project ${connection.projectKey} on ${connection.site} with this token. Check the site and the project key, and that the account can see it.`
+      return tracker.notFound(connection)
     case 'unavailable':
-      return `${tracker} can’t be reached just now, or is limiting requests. Try again in a few minutes.`
+      return `${tracker.name} can’t be reached just now, or is limiting requests. Try again in a few minutes.`
     // the check asks for no query of the EM's, so neither is expected of it
     case 'invalidQuery':
     case 'outOfScope':
-      return `${tracker} didn’t accept the connection check. Try again, and if it fails again, check what you typed.`
+      return `${tracker.name} didn’t accept the connection check. Try again, and if it fails again, check what you typed.`
   }
 }
 
@@ -142,15 +179,6 @@ export function connectionView(connecting: Connecting | undefined, teamId: strin
 
 function connectStep({ connections }: Connecting, teamId: string): ConnectStep {
   const connection = connections.connection(teamId)
-  if (!connection) return { kind: 'connect', form: BLANK_FORM, permissions: TOKEN_PERMISSIONS }
-  return { kind: 'connected', connection, form: formOf(connection), permissions: TOKEN_PERMISSIONS }
-}
-
-const BLANK_FORM: ConnectionForm = { tracker: 'github', repo: '', site: '', projectKey: '', email: '' }
-
-/** The form naming `connection`, as the EM would type it. */
-function formOf(connection: Connection): ConnectionForm {
-  return connection.tracker === 'github'
-    ? { ...BLANK_FORM, repo: `${connection.owner}/${connection.repo}` }
-    : { ...BLANK_FORM, tracker: 'jira', site: connection.site, projectKey: connection.projectKey, email: connection.email }
+  if (!connection) return { kind: 'connect', form: BLANK_CONNECTION_FORM, permissions: TOKEN_PERMISSIONS }
+  return { kind: 'connected', connection, form: trackerOf(connection).formOf(connection), permissions: TOKEN_PERMISSIONS }
 }
