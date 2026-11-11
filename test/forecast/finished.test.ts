@@ -30,7 +30,7 @@ afterEach(() => {
 /** Reads QUERY through the canned connector answering with `tickets`, and returns the read it saved. */
 async function readOf(tickets: { id: string; finishedAt?: string }[]) {
   const fixture: CannedFixture = { milestoneChoices: [], reads: { [QUERY]: { tickets, incomplete: false } } }
-  const result = await readQuery(cannedConnector(fixture), storage, TEAM, QUERY, SINCE, READ_AT)
+  const result = await readQuery(cannedConnector(fixture), storage, { teamId: TEAM, query: QUERY, finishedSince: SINCE, readAt: READ_AT })
   if (!result.ok) throw new Error(`read failed: ${result.failure}`)
   return result.read
 }
@@ -82,20 +82,20 @@ describe('reading a query', () => {
     await readOf([{ id: 'a' }])
     const read = await readOf([{ id: 'b', finishedAt: '2026-10-05T10:00:00Z' }])
     expect(read).toEqual({ tickets: [{ id: 'b', finishedAt: '2026-10-05T10:00:00Z' }], incomplete: false, readAt: READ_AT })
-    expect(storage.savedRead(TEAM, QUERY)).toEqual(read)
+    expect(storage.savedRead({ teamId: TEAM, query: QUERY })).toEqual(read)
   })
 
   test('a failed read keeps the saved read', async () => {
     const saved = await readOf([{ id: 'a' }, { id: 'b', finishedAt: '2026-10-05T10:00:00Z' }])
     const failing: CannedFixture = { milestoneChoices: [], reads: { [QUERY]: { failure: 'unavailable' } } }
-    const result = await readQuery(cannedConnector(failing), storage, TEAM, QUERY, SINCE, '2026-10-27T09:00:00Z')
+    const result = await readQuery(cannedConnector(failing), storage, { teamId: TEAM, query: QUERY, finishedSince: SINCE, readAt: '2026-10-27T09:00:00Z' })
     expect(result).toEqual({ ok: false, failure: 'unavailable', saved })
-    expect(storage.savedRead(TEAM, QUERY)).toEqual(saved)
+    expect(storage.savedRead({ teamId: TEAM, query: QUERY })).toEqual(saved)
   })
 
   test('a failed first read has no saved read', async () => {
     const failing: CannedFixture = { milestoneChoices: [], reads: { [QUERY]: { failure: 'unauthorised' } } }
-    expect(await readQuery(cannedConnector(failing), storage, TEAM, QUERY, SINCE, READ_AT)).toEqual({ ok: false, failure: 'unauthorised', saved: undefined })
+    expect(await readQuery(cannedConnector(failing), storage, { teamId: TEAM, query: QUERY, finishedSince: SINCE, readAt: READ_AT })).toEqual({ ok: false, failure: 'unauthorised', saved: undefined })
   })
 })
 
