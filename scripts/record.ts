@@ -57,7 +57,7 @@ function recording(transport: Transport, trim: Trim): { transport: Transport; re
 }
 
 /** The `cut` in a synthetic tracker's manifest: a `finishedSince` between its early finishes and its later ones. */
-function cutOf(tracker: string): string {
+function cutOf(tracker: Connection['tracker']): string {
   const manifest = JSON.parse(readFileSync(new URL(`synthetic/manifest-${tracker}.json`, import.meta.url), 'utf8')) as { batches: { cut: string } }
   return manifest.batches.cut
 }

@@ -84,9 +84,16 @@ interface SearchResponse<F> {
   nextPageToken?: string
 }
 
+/** One field's change in a changelog: for a status, the ids of the statuses it moved from and to. */
+interface ChangeItem {
+  fieldId?: string
+  from?: string | null
+  to?: string | null
+}
+
 interface ChangelogResponse {
   /** Each ticket's status changes, `created` in milliseconds since the epoch, in no promised order. */
-  issueChangeLogs: { issueId: string; changeHistories: { created: number; items: { fieldId?: string; from?: string | null; to?: string | null }[] }[] }[]
+  issueChangeLogs: { issueId: string; changeHistories: { created: number; items: ChangeItem[] }[] }[]
   nextPageToken?: string
 }
 
@@ -104,6 +111,30 @@ function rateLimited({ status }: Received): boolean {
 
 function done(status: Status): boolean {
   return status.statusCategory.key === 'done'
+}
+
+/** One page of a call Jira pages by cursor: its items, and the cursor to the next page, if there is one. */
+interface Page<T> {
+  items: T[]
+  nextPageToken: string | undefined
+}
+
+/** Every page's items, each page asked for by the cursor the last gave; or the failure that stopped one. */
+async function everyPage<T>(pageAt: (nextPageToken: string | undefined) => Promise<Page<T> | FailedCall>): Promise<T[] | FailedCall> {
+  const items: T[] = []
+  let nextPageToken: string | undefined
+  do {
+    const page = await pageAt(nextPageToken)
+    if ('ok' in page) return page
+    items.push(...page.items)
+    nextPageToken = page.nextPageToken
+  } while (nextPageToken !== undefined)
+  return items
+}
+
+/** A request body's cursor field, for every page but the first. */
+function cursor(nextPageToken: string | undefined): { nextPageToken?: string } {
+  return nextPageToken === undefined ? {} : { nextPageToken }
 }
 
 /** `wait` is how backoff on a rate limit waits: a timer, unless a test stands in for it. */
@@ -147,52 +178,48 @@ export function jiraConnector(
   }
 
   /**
-   * Each ticket's last move into the Done category, in milliseconds since the epoch, from its changelog, fetched in
-   * bulk: a status change from a status outside Done to one in it. A move between two Done statuses (Done to Won't Do)
-   * isn't a finish. Bulk fetch promises no order, so the latest is found, not taken from the end.
+   * Each ticket's last move into the Done category, as a UTC instant, from its changelog, fetched in bulk: a status
+   * change from a status outside Done to one in it. A move between two Done statuses (Done to Won't Do) isn't a
+   * finish. Bulk fetch promises no order, so the latest is found, not taken from the end.
    */
-  async function lastStatusChanges(ids: string[]): Promise<Map<string, number> | FailedCall> {
-    const last = new Map<string, number>()
-    if (ids.length === 0) return last
+  async function lastMovesIntoDone(ids: string[]): Promise<Map<string, string> | FailedCall> {
+    if (ids.length === 0) return new Map()
     const doneIds = await doneStatusIds()
     if (!(doneIds instanceof Set)) return doneIds
-    const intoDone = (item: { fieldId?: string; from?: string | null; to?: string | null }) =>
-      item.fieldId === 'status' && doneIds.has(item.to ?? '') && !doneIds.has(item.from ?? '')
+    const intoDone = (item: ChangeItem) => item.fieldId === 'status' && doneIds.has(item.to ?? '') && !doneIds.has(item.from ?? '')
+    /** In milliseconds since the epoch, as bulk fetch gives them. */
+    const lastMs = new Map<string, number>()
     for (let start = 0; start < ids.length; start += CHANGELOG_BATCH) {
       const issueIdsOrKeys = ids.slice(start, start + CHANGELOG_BATCH)
-      let nextPageToken: string | undefined
-      do {
-        const response = await api('/changelog/bulkfetch', { issueIdsOrKeys, fieldIds: ['status'], ...(nextPageToken === undefined ? {} : { nextPageToken }) })
+      const changelogs = await everyPage(async (nextPageToken) => {
+        const response = await api('/changelog/bulkfetch', { issueIdsOrKeys, fieldIds: ['status'], ...cursor(nextPageToken) })
         if ('ok' in response) return response
         if (response.status !== 200) return failureOf(response.status)
         const page = response.body as ChangelogResponse
-        for (const { issueId, changeHistories } of page.issueChangeLogs) {
-          for (const { created, items } of changeHistories) {
-            if (items.some(intoDone)) last.set(issueId, Math.max(last.get(issueId) ?? -Infinity, created))
-          }
+        return { items: page.issueChangeLogs, nextPageToken: page.nextPageToken }
+      })
+      if (!Array.isArray(changelogs)) return changelogs
+      for (const { issueId, changeHistories } of changelogs) {
+        for (const { created, items } of changeHistories) {
+          if (items.some(intoDone)) lastMs.set(issueId, Math.max(lastMs.get(issueId) ?? -Infinity, created))
         }
-        nextPageToken = page.nextPageToken
-      } while (nextPageToken !== undefined)
+      }
     }
-    return last
+    return new Map([...lastMs].map(([id, ms]) => [id, new Date(ms).toISOString()]))
   }
 
   /** Every page of what search finds for `jql`, with `fields`; a JQL error, Jira's message with it, is invalidQuery. */
-  async function search<F>(jql: string, fields: string[]): Promise<Found<F>[] | FailedCall> {
-    const found: Found<F>[] = []
-    let nextPageToken: string | undefined
-    do {
-      const response = await api('/search/jql', { jql, fields, maxResults: PAGE, ...(nextPageToken === undefined ? {} : { nextPageToken }) })
+  function search<F>(jql: string, fields: string[]): Promise<Found<F>[] | FailedCall> {
+    return everyPage(async (nextPageToken) => {
+      const response = await api('/search/jql', { jql, fields, maxResults: PAGE, ...cursor(nextPageToken) })
       if ('ok' in response) return response
       if (response.status === 400) {
         return { ok: false, failure: 'invalidQuery', message: (response.body as ErrorResponse).errorMessages?.join(' ') ?? '' }
       }
       if (response.status !== 200) return failureOf(response.status)
       const page = response.body as SearchResponse<F>
-      found.push(...page.issues)
-      nextPageToken = page.isLast === true ? undefined : page.nextPageToken
-    } while (nextPageToken !== undefined)
-    return found
+      return { items: page.issues, nextPageToken: page.isLast === true ? undefined : page.nextPageToken }
+    })
   }
 
   /** What search finds among the tickets `ids`, a batch at a time, by `jql` naming them. */
@@ -228,9 +255,9 @@ export function jiraConnector(
       if (!staysInScope(query, SCOPE)) return { ok: false, failure: 'outOfScope' }
       const before = jqlBefore(since)
       const inWindow = `(statusCategory != Done OR status CHANGED AFTER "${before}" OR created >= "${before}")`
-      const found = await search<ReadFields>(`project = "${key}" AND (${query}) AND ${inWindow}`, FIELDS)
-      if (!Array.isArray(found)) return found
-      if (found.length === 0) {
+      const matched = await search<ReadFields>(`project = "${key}" AND (${query}) AND ${inWindow}`, FIELDS)
+      if (!Array.isArray(matched)) return matched
+      if (matched.length === 0) {
         // Search matches nothing, rather than failing, on a project that doesn't exist or can't be seen.
         const project = await api(`/project/${encodeURIComponent(key)}`)
         if ('ok' in project) return project
@@ -241,35 +268,32 @@ export function jiraConnector(
       // subtasks still count. Its subtasks in the window name it; it is read if the query matches it.
       const subtasks = await search<{ parent?: { id: string } }>(`project = "${key}" AND issuetype in subTaskIssueTypes() AND ${inWindow}`, ['parent'])
       if (!Array.isArray(subtasks)) return subtasks
-      const foundIds = new Set(found.map(({ id }) => id))
-      const storiesLeftOut = [...new Set(subtasks.flatMap(({ fields }) => (fields.parent === undefined || foundIds.has(fields.parent.id) ? [] : [fields.parent.id])))]
+      const matchedIds = new Set(matched.map(({ id }) => id))
+      const storiesLeftOut = [...new Set(subtasks.flatMap(({ fields }) => (fields.parent === undefined || matchedIds.has(fields.parent.id) ? [] : [fields.parent.id])))]
       const stories = await searchByIds<ReadFields>(storiesLeftOut, (idList) => `project = "${key}" AND (${query}) AND ${idList}`, FIELDS)
       if (!Array.isArray(stories)) return stories
-      found.push(...stories)
+      matched.push(...stories)
 
-      // Each leaf's id, and whether it is finished. A subtask can be found both itself and under its story.
-      const leaves = new Map<string, boolean>()
-      for (const { id, fields } of found) {
+      // Whether each leaf is finished, by its id. A subtask can be matched both itself and under its story.
+      const isFinished = new Map<string, boolean>()
+      for (const { id, fields } of matched) {
         if (fields.issuetype.hierarchyLevel > 0) continue
         const subtasks = fields.subtasks ?? []
-        if (subtasks.length === 0) leaves.set(id, done(fields.status))
-        for (const subtask of subtasks) leaves.set(subtask.id, done(subtask.fields.status))
+        if (subtasks.length === 0) isFinished.set(id, done(fields.status))
+        for (const subtask of subtasks) isFinished.set(subtask.id, done(subtask.fields.status))
       }
+      const finishedIds = [...isFinished].filter(([, finished]) => finished).map(([id]) => id)
 
-      const lastChange = await lastStatusChanges([...leaves].filter(([, finished]) => finished).map(([id]) => id))
-      if (!(lastChange instanceof Map)) return lastChange
+      const movedIntoDone = await lastMovesIntoDone(finishedIds)
+      if (!(movedIntoDone instanceof Map)) return movedIntoDone
       // In Done with no move into it, a ticket was made there: it finished when it was made.
-      const made = await createdAt([...leaves].filter(([id, finished]) => finished && !lastChange.has(id)).map(([id]) => id))
-      if (!(made instanceof Map)) return made
+      const madeAt = await createdAt(finishedIds.filter((id) => !movedIntoDone.has(id)))
+      if (!(madeAt instanceof Map)) return madeAt
       const tickets: Ticket[] = []
-      for (const [id, finished] of leaves) {
-        const at = lastChange.get(id)
+      for (const [id, finished] of isFinished) {
+        const finishedAt = finished ? (movedIntoDone.get(id) ?? madeAt.get(id)) : undefined
         if (!finished) tickets.push({ id })
-        else if (at !== undefined) tickets.push({ id, finishedAt: new Date(at).toISOString() })
-        else {
-          const madeAt = made.get(id)
-          if (madeAt !== undefined) tickets.push({ id, finishedAt: madeAt })
-        }
+        else if (finishedAt !== undefined) tickets.push({ id, finishedAt })
       }
       // The JQL's lower bound is a day early; this keeps the window exact.
       return { ok: true, tickets: finishedSince(tickets, since), incomplete: false }
