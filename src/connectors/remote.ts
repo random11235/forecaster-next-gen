@@ -2,8 +2,8 @@ import type { FailedCall, Ticket, Transport } from './connector.js'
 
 /**
  * What the connectors that reach a tracker over the network (GitHub, Jira) share: sending a request, backing off a
- * rate-limited tracker, the failures a
- * response's status stands for, keeping a query inside the connection, and leaving out tickets finished too long ago.
+ * rate-limited tracker, the failures a response's status stands for, keeping a query inside the connection, and
+ * leaving out tickets finished too long ago.
  *
  * `scripts/record.ts`, which node runs directly, imports this file: keep its runtime imports to none but `node:`.
  */
