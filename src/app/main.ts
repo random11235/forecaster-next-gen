@@ -1,9 +1,12 @@
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { demoConnector } from '../connectors/canned/demo.js'
-import type { Connector } from '../connectors/connector.js'
-import { openSqliteStorage } from '../storage/sqliteStorage.js'
-import type { Storage } from '../storage/storage.js'
+import { githubConnector } from '../connectors/github/githubConnector.js'
+import { jiraConnector } from '../connectors/jira/jiraConnector.js'
+import type { Connecting, ConnectorFactory } from '../forecast/connection.js'
+import { openKeychainSecrets } from '../secrets/keychainSecrets.js'
+import { openMemorySecrets } from '../secrets/memorySecrets.js'
+import { openSqliteStorage, type SqliteStorage } from '../storage/sqliteStorage.js'
 import { startAppAndOpenBrowser } from './launch.js'
 
 const DEFAULT_PORT = 5180
@@ -47,7 +50,7 @@ try {
 }
 
 const dataFile = process.env.FORECASTER_DATA_FILE || DEFAULT_DATA_FILE
-let storage: Storage
+let storage: SqliteStorage
 try {
   storage = openSqliteStorage(dataFile)
 } catch (error) {
@@ -55,18 +58,23 @@ try {
   process.exit(1)
 }
 
+/** The real connectors, reaching their trackers with `fetch`. */
+const trackerConnector: ConnectorFactory = (connection, token) =>
+  connection.tracker === 'github' ? githubConnector(connection, token, fetch) : jiraConnector(connection, token, fetch)
+
 /**
- * Demo mode, for demo screenshots and the launch smoke test: tickets come from the canned connector's synthetic
- * fixture, so no tracker or token is needed. Otherwise there is no connector until the EM connects a tracker.
+ * Demo mode, for demo screenshots and the launch smoke test: any connection connects to the canned connector and its
+ * synthetic fixture, so no tracker is needed, and the token typed is held in memory only, never put in the keychain.
+ * Otherwise a connection is checked with its tracker and its token kept in the OS keychain.
  */
-let connector: Connector | undefined
-if (process.env.FORECASTER_DEMO) {
-  connector = demoConnector()
-  console.log('Demo mode: tickets come from the canned connector and its synthetic fixture.')
-}
+const demo = Boolean(process.env.FORECASTER_DEMO)
+const connecting: Connecting = demo
+  ? { connections: storage, secrets: openMemorySecrets(), connector: () => demoConnector() }
+  : { connections: storage, secrets: openKeychainSecrets(), connector: trackerConnector }
+if (demo) console.log('Demo mode: tickets come from the canned connector and its synthetic fixture.')
 
 try {
-  const app = await startAppAndOpenBrowser({ port, openBrowser: browserOpener, storage, ...(connector && { connector }) })
+  const app = await startAppAndOpenBrowser({ port, openBrowser: browserOpener, storage, connecting })
   console.log(`Forecaster running at ${app.url} (Ctrl+C to stop)`)
   const stop = (): void =>
     void app.close().then(() => {
