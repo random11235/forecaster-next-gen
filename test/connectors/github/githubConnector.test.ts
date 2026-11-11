@@ -61,6 +61,45 @@ describe('GitHub connector', () => {
     expect(sent).toBe(4)
   })
 
+  test('a primary rate limit (no requests left) waits until its reset, which GitHub gives as an instant, not a retry-after', async () => {
+    const waits: number[] = []
+    const reset = String(Math.floor(Date.now() / 1000) + 30)
+    const connector = githubConnector(
+      CONNECTION,
+      'token',
+      async () => new Response('{"message":"API rate limit exceeded"}', { status: 403, headers: { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': reset } }),
+      async (ms) => {
+        waits.push(ms)
+      },
+    )
+
+    expect(await connector.read('label:a', '2026-01-01T00:00:00Z')).toEqual({ ok: false, failure: 'unavailable' })
+    expect(waits).toHaveLength(3)
+    for (const wait of waits) {
+      expect(wait).toBeGreaterThan(28_000)
+      expect(wait).toBeLessThanOrEqual(30_000)
+    }
+  })
+
+  test('a primary rate limit resetting more than a minute away is unavailable at once', async () => {
+    let sent = 0
+    const reset = String(Math.ceil(Date.now() / 1000) + 3600)
+    const connector = githubConnector(
+      CONNECTION,
+      'token',
+      async () => {
+        sent++
+        return new Response('{"message":"API rate limit exceeded"}', { status: 403, headers: { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': reset } })
+      },
+      async () => {
+        throw new Error('waited')
+      },
+    )
+
+    expect(await connector.read('label:a', '2026-01-01T00:00:00Z')).toEqual({ ok: false, failure: 'unavailable' })
+    expect(sent).toBe(1)
+  })
+
   test("a 403 from GitHub asking to retry after more than a minute is unavailable at once, so a read doesn't hang", async () => {
     let sent = 0
     const connector = githubConnector(
