@@ -1,6 +1,7 @@
 import type { Connector, Transport } from '../../src/connectors/connector.js'
 import type { Wait } from '../../src/connectors/remote.js'
 import type { Connection } from '../../src/model/connection.js'
+import { noWait, recordingWait } from './backoff.js'
 import type { Recording } from './recording.js'
 import { replayTransport } from './replayTransport.js'
 import type { Queries, Scenario, TrackerCases } from './scenarios.js'
@@ -56,9 +57,6 @@ const offline: Transport = async () => {
   throw new TypeError('fetch failed', { cause: new Error('getaddrinfo ENOTFOUND') })
 }
 
-/** A backoff that is never waited out. */
-export const noWait: Wait = async () => {}
-
 /** `transport`, behind a tracker that answers each request with a 429 its first `times` times. */
 function rateLimiting(transport: Transport, times: number, retryAfter: string | undefined): Transport {
   const limited = new Map<string, number>()
@@ -97,12 +95,9 @@ export function replayedSubject<C extends Connection>(tracker: {
     unreachable: () => connect(synthetic, REPLAYED_CREDENTIAL, offline, noWait),
     unrecorded: () => connect(synthetic, REPLAYED_CREDENTIAL, replayTransport([]), noWait),
     rateLimited: (times, retryAfter) => {
-      const waits: number[] = []
+      const { wait, waits } = recordingWait()
       const transport = rateLimiting(replayTransport(recordings.synthetic), times, retryAfter)
-      const connector = connect(synthetic, REPLAYED_CREDENTIAL, transport, async (ms) => {
-        waits.push(ms)
-      })
-      return { connector, waits }
+      return { connector: connect(synthetic, REPLAYED_CREDENTIAL, transport, wait), waits }
     },
     ...(tracker.capped ? { capped: tracker.capped } : {}),
     queries: cases.queries,

@@ -90,7 +90,7 @@ test/
   app/                    # the screens, launch, and the launch smoke test: start the app, check the screen is served; the web build's app and its smoke test
   engine/                 # Seam A: fixed seeds, plus a performance benchmark
   forecast/               # Seam B: stored inputs + settings → the screens' views
-  connectors/             # Seam C: the connector contract suite, its replay transport, and the scenarios and queries recorded for it; each tracker's quirks and recordings in its own folder; the canned connector
+  connectors/             # Seam C: the connector contract suite, its replay transport, the backoff tests' stand-in tracker and waits, and the scenarios and queries recorded for it; each tracker's quirks and recordings in its own folder; the canned connector
   secrets/                # the Secrets contract, run against the in-memory fake and the OS keychain (where one answers); no error quotes the token
   storage/                # the schema's migrations; the Storage contract, run against SQLite and browser storage
   dependencyRules.test.ts # the dependency rules below that keep connectors/ and secrets/ at the edge

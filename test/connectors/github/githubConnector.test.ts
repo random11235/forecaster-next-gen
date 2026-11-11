@@ -1,11 +1,18 @@
 import { describe, expect, test } from 'vitest'
 import { githubConnector } from '../../../src/connectors/github/githubConnector.js'
+import { answering, mustNotWait, recordingWait } from '../backoff.js'
 import { replayTransport } from '../replayTransport.js'
 
 // GitHub-only quirks, beside the contract suite. Search wraps the query as `repo:… is:issue no:sub-issue (query) (…)`, so a query that
 // names another repo, or closes the wrapper's parenthesis, would reach past the connection.
 
 const CONNECTION = { tracker: 'github', owner: 'random11235', repo: 'forecaster-synthetic' } as const
+
+/** A stand-in GitHub whose primary rate limit is spent until `reset`, in seconds since the epoch. */
+function primaryRateLimit(reset: string) {
+  const headers = { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': reset }
+  return answering(async () => new Response('{"message":"API rate limit exceeded"}', { status: 403, headers }))
+}
 
 describe('GitHub connector', () => {
   test.each([
@@ -42,101 +49,48 @@ describe('GitHub connector', () => {
     ['a 403 with no requests left', 403, { 'x-ratelimit-remaining': '0' }, [1000, 2000, 4000]],
     ['a 403 asking to retry later', 403, { 'retry-after': '30' }, [30_000, 30_000, 30_000]],
   ])('%s from GitHub is a rate limit, backed off, then unavailable', async (_, status, headers, backoff) => {
-    let sent = 0
-    const waits: number[] = []
-    const connector = githubConnector(
-      CONNECTION,
-      'token',
-      async () => {
-        sent++
-        return new Response('{"message":"rate limited"}', { status, headers })
-      },
-      async (ms) => {
-        waits.push(ms)
-      },
-    )
+    const github = answering(async () => new Response('{"message":"rate limited"}', { status, headers }))
+    const { wait, waits } = recordingWait()
+    const connector = githubConnector(CONNECTION, 'token', github.transport, wait)
 
     expect(await connector.read('label:a', '2026-01-01T00:00:00Z')).toEqual({ ok: false, failure: 'unavailable' })
     expect(waits).toEqual(backoff)
-    expect(sent).toBe(4)
+    expect(github.sent).toHaveLength(4)
   })
 
   test('a primary rate limit (no requests left) waits until its reset, which GitHub gives as an instant, not a retry-after', async () => {
-    const waits: number[] = []
     const reset = String(Math.floor(Date.now() / 1000) + 30)
-    const connector = githubConnector(
-      CONNECTION,
-      'token',
-      async () => new Response('{"message":"API rate limit exceeded"}', { status: 403, headers: { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': reset } }),
-      async (ms) => {
-        waits.push(ms)
-      },
-    )
+    const { wait, waits } = recordingWait()
+    const connector = githubConnector(CONNECTION, 'token', primaryRateLimit(reset).transport, wait)
 
     expect(await connector.read('label:a', '2026-01-01T00:00:00Z')).toEqual({ ok: false, failure: 'unavailable' })
     expect(waits).toHaveLength(3)
-    for (const wait of waits) {
-      expect(wait).toBeGreaterThan(28_000)
-      expect(wait).toBeLessThanOrEqual(30_000)
+    for (const each of waits) {
+      expect(each).toBeGreaterThan(28_000)
+      expect(each).toBeLessThanOrEqual(30_000)
     }
   })
 
-  test('a primary rate limit resetting more than a minute away is unavailable at once', async () => {
-    let sent = 0
-    const reset = String(Math.ceil(Date.now() / 1000) + 3600)
-    const connector = githubConnector(
-      CONNECTION,
-      'token',
-      async () => {
-        sent++
-        return new Response('{"message":"API rate limit exceeded"}', { status: 403, headers: { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': reset } })
-      },
-      async () => {
-        throw new Error('waited')
-      },
-    )
+  test.each([
+    ['a primary rate limit resetting more than a minute away', () => primaryRateLimit(String(Math.ceil(Date.now() / 1000) + 3600))],
+    ['a 403 asking to retry after more than a minute', () => answering(async () => new Response('{"message":"rate limited"}', { status: 403, headers: { 'retry-after': '3600' } }))],
+  ])("%s is unavailable at once, so a read doesn't hang", async (_, standIn) => {
+    const github = standIn()
+    const connector = githubConnector(CONNECTION, 'token', github.transport, mustNotWait)
 
     expect(await connector.read('label:a', '2026-01-01T00:00:00Z')).toEqual({ ok: false, failure: 'unavailable' })
-    expect(sent).toBe(1)
-  })
-
-  test("a 403 from GitHub asking to retry after more than a minute is unavailable at once, so a read doesn't hang", async () => {
-    let sent = 0
-    const connector = githubConnector(
-      CONNECTION,
-      'token',
-      async () => {
-        sent++
-        return new Response('{"message":"rate limited"}', { status: 403, headers: { 'retry-after': '3600' } })
-      },
-      async () => {
-        throw new Error('waited')
-      },
-    )
-
-    expect(await connector.read('label:a', '2026-01-01T00:00:00Z')).toEqual({ ok: false, failure: 'unavailable' })
-    expect(sent).toBe(1)
+    expect(github.sent).toHaveLength(1)
   })
 
   test.each([
     ['a 502 (GitHub down) is unavailable', 502, {}, 'unavailable'],
     ['a 403 that is not a rate limit (the token lacks permission) is unauthorised', 403, { 'x-ratelimit-remaining': '4999' }, 'unauthorised'],
   ])('%s, sent once with no backoff', async (_, status, headers, failure) => {
-    let sent = 0
-    const connector = githubConnector(
-      CONNECTION,
-      'token',
-      async () => {
-        sent++
-        return new Response('{"message":"Resource not accessible by personal access token"}', { status, headers })
-      },
-      async () => {
-        throw new Error('waited')
-      },
-    )
+    const github = answering(async () => new Response('{"message":"Resource not accessible by personal access token"}', { status, headers }))
+    const connector = githubConnector(CONNECTION, 'token', github.transport, mustNotWait)
 
     expect(await connector.milestoneChoices()).toEqual({ ok: false, failure })
     expect(await connector.read('label:a', '2026-01-01T00:00:00Z')).toEqual({ ok: false, failure })
-    expect(sent).toBe(2)
+    expect(github.sent).toHaveLength(2)
   })
 })

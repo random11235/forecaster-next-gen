@@ -1,7 +1,8 @@
 import { githubConnector } from '../../../src/connectors/github/githubConnector.js'
 import manifest from '../../../scripts/synthetic/manifest-github.json' with { type: 'json' }
 import type { Transport } from '../../../src/connectors/connector.js'
-import { noWait, REPLAYED_CREDENTIAL, replayedSubject } from '../connectorContract.js'
+import { noWait } from '../backoff.js'
+import { REPLAYED_CREDENTIAL, replayedSubject } from '../connectorContract.js'
 import { GITHUB_CASES } from '../scenarios.js'
 import refusedToken from './recordings/refusedToken.json' with { type: 'json' }
 import synthetic from './recordings/synthetic.json' with { type: 'json' }
