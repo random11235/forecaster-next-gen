@@ -5,8 +5,21 @@ export function isCalendarDate(value: string): boolean {
   return !Number.isNaN(day.getTime()) && day.toISOString().slice(0, 10) === value
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/** `2026-10-12` → `12 Oct`, as a line about recent periods says it. */
+export function dayMonth(isoDate: string): string {
+  const [, month, day] = isoDate.split('-').map(Number)
+  return `${day} ${MONTHS[month! - 1]}`
+}
+
 /** Whole days from calendar date `from` to `to`, both `YYYY-MM-DD`: negative when `to` is earlier. */
 export function daysBetween(from: string, to: string): number {
   const MS_PER_DAY = 86_400_000
   return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / MS_PER_DAY)
+}
+
+/** The calendar date `days` after `date`, both `YYYY-MM-DD`: before it when `days` is negative. */
+export function addDays(date: string, days: number): string {
+  return new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
 }

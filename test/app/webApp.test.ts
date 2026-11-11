@@ -138,6 +138,20 @@ describe('web app', () => {
     expect(page.html).not.toContain('/capacity/new-usual')
   })
 
+  test('typed counts get their pace pattern; its button applies the action, and a refused one shows the forecast again, saying why', () => {
+    const { app } = firstOpen()
+    app.show(post('/inputs/milestone', { name: 'Launch', startDate: '2026-11-02', ticketsRemaining: '30' }))
+    app.show(post('/inputs/pace-counts', { counts: '4, 3, 5, 4, 4, 3, 4, 5, 3, 4, 8, 9, 7, 8' }))
+
+    const page = app.show(post('/inputs/pace-mode', { paceMode: 'counts' }))
+
+    expect(page.html).toContain('<summary>Stepped up · about 4 a week, then 8 since 28 Sep</summary>')
+    expect(app.show(post('/pace-action/apply', { action: 'startFrom', date: '2026-09-28' })).html).toContain('Counting pace from 28 Sep, after it stepped up.')
+    const refused = app.show(post('/pace-action/apply', { action: 'startFrom', date: 'soon' }))
+    expect(refused).toMatchObject({ path: '/', status: 400 })
+    expect(refused.html).toContain('That action is no longer offered.')
+  })
+
   test('shows not found for anything but the screens', () => {
     const { app } = firstOpen()
 

@@ -1,7 +1,7 @@
 import type { CapacityEntry } from '../model/capacity.js'
 import type { Storage } from '../storage/storage.js'
 import type { PeriodName } from './cadence.js'
-import { daysBetween, isCalendarDate } from './calendarDate.js'
+import { addDays, daysBetween, isCalendarDate } from './calendarDate.js'
 import { counted } from './counted.js'
 import { refuse, type EditResult, type Refusal } from './editResult.js'
 import type { ComparedDate } from './milestoneForecastView.js'
@@ -151,15 +151,6 @@ function newUsualOf(entry: CapacityEntry, pace: PacePeriods, today: string): New
   return entry.kept ? undefined : { kind: 'proposed' }
 }
 
-/**
- * The first day of each typed count's period, oldest first. They are dated back from the current period (the one
- * holding `today`, in periods counted from the start date): the last count is the most recent whole period.
- */
-export function typedCountStarts(counts: number, startDate: string, periodDays: number, today: string): string[] {
-  const current = Math.floor(daysBetween(startDate, today) / periodDays)
-  return Array.from({ length: counts }, (_, count) => addDays(startDate, (current - counts + count) * periodDays))
-}
-
 /** The team's entries the forecast uses on `today`: those not past. */
 export function currentEntries(entries: readonly CapacityEntry[], today: string): CapacityEntry[] {
   return entries.filter((entry) => !isPast(entry, today))
@@ -306,10 +297,6 @@ function dayFactor(day: string, entries: readonly CapacityEntry[]): number {
 
 function sorted(entries: readonly CapacityEntry[]): CapacityEntry[] {
   return [...entries].sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : a.id - b.id))
-}
-
-function addDays(date: string, days: number): string {
-  return new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
 }
 
 function isWorkingDay(date: string): boolean {

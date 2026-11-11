@@ -3,6 +3,7 @@ import type { MilestoneInputs } from '../model/milestoneInputs.js'
 import { periodName } from './cadence.js'
 import { daysBetween } from './calendarDate.js'
 import { counted } from './counted.js'
+import { actionSaid, paceWindow } from './paceWindow.js'
 import type { ForecastSettings } from './settings.js'
 
 /** An input of the milestone on the Inputs screen. */
@@ -37,15 +38,17 @@ export type MilestoneAssessment =
 /** Seam B, behind both views: assesses the milestone's inputs against `settings` on `today`. */
 export function assessMilestone(inputs: MilestoneInputs, settings: ForecastSettings, today: string): MilestoneAssessment {
   const { typedCounts } = settings
-  const warnings = [...startDateWarnings(inputs, today), ...paceWarnings(inputs), ...paceCadenceWarnings(inputs), ...typedCountsWarnings(inputs, typedCounts)]
-  const pace = paceInUse(inputs)
+  // the typed counts the pace is drawn from: those in its window
+  const inWindow = paceWindow(inputs, today).window.counts
+  const pace = paceInUse(inputs, inWindow)
+  const warnings = [...startDateWarnings(inputs, today), ...paceWarnings(inputs, pace), ...paceCadenceWarnings(inputs), ...typedCountsWarnings(inputs, inWindow.length, typedCounts)]
   const problems = [
     ...(inputs.startDate === undefined ? [{ input: 'startDate', message: 'No start date is saved yet.' } as const] : []),
     ...(inputs.ticketsRemaining === undefined
       ? [{ input: 'ticketsRemaining', message: 'Enter how many tickets are left.' } as const]
       : []),
     ...(pace === undefined ? [{ input: 'pace', message: 'Enter a pace range.' } as const] : []),
-    ...typedCountsShort(inputs, typedCounts),
+    ...typedCountsShort(inputs, inWindow.length, typedCounts),
   ]
   const { startDate, ticketsRemaining } = inputs
   if (problems.length > 0 || pace === undefined || startDate === undefined || ticketsRemaining === undefined) {
@@ -54,39 +57,47 @@ export function assessMilestone(inputs: MilestoneInputs, settings: ForecastSetti
   return { forecastable: true, inputs: { ...inputs, startDate, ticketsRemaining }, pace, warnings }
 }
 
-/** The pace the milestone's forecast uses, or undefined until the chosen one is entered. */
-function paceInUse(inputs: MilestoneInputs): PaceInUse | undefined {
-  if (inputs.paceMode === 'counts') return { source: 'counts', counts: inputs.paceCounts }
+/**
+ * The pace the milestone's forecast uses, or undefined until the chosen one is entered. Typed counts are those in its
+ * pace window, `inWindow`.
+ */
+function paceInUse(inputs: MilestoneInputs, inWindow: number[]): PaceInUse | undefined {
+  if (inputs.paceMode === 'counts') return { source: 'counts', counts: inWindow }
   return inputs.paceRange && { source: 'range', ...inputs.paceRange }
 }
 
 type TypedCounts = ForecastSettings['typedCounts']
 
 /** Why the typed counts in use are too few to forecast from, if they are: one count isn't a pace. */
-function typedCountsShort(inputs: MilestoneInputs, { forForecast }: TypedCounts): InputNote[] {
-  if (inputs.paceMode !== 'counts' || inputs.paceCounts.length >= forForecast) return []
+function typedCountsShort(inputs: MilestoneInputs, inUse: number, { forForecast }: TypedCounts): InputNote[] {
+  if (inputs.paceMode !== 'counts' || inUse >= forForecast) return []
   return [
     {
       input: 'typedCounts',
-      message: `${typedCountsEntered(inputs)} The forecast needs at least ${forForecast}. Add another count, or switch pace to the range.`,
+      message: `${typedCountsEntered(inputs, inUse)} The forecast needs at least ${forForecast}. Add another count, or switch pace to the range.`,
     },
   ]
 }
 
-/** How many typed counts there are, in the milestone's periods: "Typed counts: 4 weeks entered." */
-function typedCountsEntered(inputs: MilestoneInputs): string {
-  return `Typed counts: ${counted(inputs.paceCounts.length, periodName(inputs.cadenceDays))} entered.`
+/**
+ * How many typed counts the pace is drawn from (`inUse`), in the milestone's periods: "Typed counts: 4 weeks
+ * entered." With an action applied, how many it leaves: "Counting pace from 12 Oct leaves 4 weeks."
+ */
+function typedCountsEntered(inputs: MilestoneInputs, inUse: number): string {
+  const period = periodName(inputs.cadenceDays)
+  const action = inputs.paceWindow.action
+  const periods = counted(inUse, period)
+  return action ? `${actionSaid(action, period)} leaves ${periods}.` : `Typed counts: ${periods} entered.`
 }
 
 /** Typed counts enough to forecast from, but too few for a range the EM can rely on. */
-function typedCountsWarnings(inputs: MilestoneInputs, { forForecast, reliable }: TypedCounts): Warning[] {
-  const entered = inputs.paceCounts.length
-  if (inputs.paceMode !== 'counts' || entered < forForecast || entered >= reliable) return []
+function typedCountsWarnings(inputs: MilestoneInputs, inUse: number, { forForecast, reliable }: TypedCounts): Warning[] {
+  if (inputs.paceMode !== 'counts' || inUse < forForecast || inUse >= reliable) return []
   return [
     {
       input: 'typedCounts',
-      message: `${typedCountsEntered(inputs)} The forecast needs ${reliable} to be reliable.`,
-      beside: `${entered} of ${reliable} needed for reliable results`,
+      message: `${typedCountsEntered(inputs, inUse)} The forecast needs ${reliable} to be reliable.`,
+      beside: `${inUse} of ${reliable} needed for reliable results`,
     },
   ]
 }
@@ -99,9 +110,8 @@ function startDateWarnings(inputs: MilestoneInputs, today: string): Warning[] {
   return [worded('startDate', `Start date is ${counted(daysBefore, 'day')} before today; tickets remaining are still today's count.`)]
 }
 
-function paceWarnings(inputs: MilestoneInputs): Warning[] {
+function paceWarnings(inputs: MilestoneInputs, pace: PaceInUse | undefined): Warning[] {
   const workLeft = (inputs.ticketsRemaining ?? 0) > 0
-  const pace = paceInUse(inputs)
   // with no counts typed yet, the too-few-counts problem says what to do
   const zeroPace =
     pace?.source === 'counts' ? pace.counts.length > 0 && pace.counts.every((count) => count === 0) : pace?.high === 0

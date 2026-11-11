@@ -3,6 +3,8 @@ import { periodName, type PeriodName } from '../forecast/cadence.js'
 import { counted } from '../forecast/counted.js'
 import type { InputNote } from '../forecast/milestoneAssessment.js'
 import type { ComparedDate, FinishBar, ForecastDate, MilestoneForecastView } from '../forecast/milestoneForecastView.js'
+import { dayMonth } from '../forecast/calendarDate.js'
+import type { PaceActionEdit, PacePatternView, PatternAction } from '../forecast/pacePattern.js'
 import type { CapacityEntry } from '../model/capacity.js'
 import { escapeHtml, formatDate, htmlPage, type PageHeader } from './html.js'
 import { INPUT_LABELS } from './inputsScreen.js'
@@ -11,7 +13,7 @@ import { renderPaceTrend } from './paceTrendGraph.js'
 type Forecast = Extract<MilestoneForecastView, { kind: 'forecast' }>
 
 /** Reads a submitted form's fields, by the field names this screen gives them; the rules they must meet are checked when it is saved. */
-type FormReader = (body: URLSearchParams) => CapacityEdit
+type FormReader = (body: URLSearchParams) => CapacityEdit | PaceActionEdit
 
 /** A capacity sentence's fields, as the add and edit forms name them. */
 function sentence(body: URLSearchParams): CapacityForm {
@@ -27,6 +29,8 @@ export const FORECAST_FORMS: ReadonlyMap<string, FormReader> = new Map<string, F
   ['/capacity/new-usual', (body) => ({ kind: 'acceptNewUsual', id: body.get('id') ?? '' })],
   ['/capacity/keep', (body) => ({ kind: 'keepCapacity', id: body.get('id') ?? '' })],
   ['/capacity/end-today', (body) => ({ kind: 'endCapacityToday', id: body.get('id') ?? '' })],
+  ['/pace-action/apply', (body) => ({ kind: 'applyPaceAction', action: body.get('action') ?? '', date: body.get('date') ?? '', period: body.get('period') ?? '' })],
+  ['/pace-action/undo', () => ({ kind: 'undoPaceAction' })],
 ])
 
 /** The query that shows the Milestone forecast with its Capacity section open, where each entry gives its effect. */
@@ -62,7 +66,11 @@ export function renderMilestoneForecastScreen(view: MilestoneForecastView): stri
     case 'empty':
       return htmlPage('/', EMPTY_STATE_HEADER, '')
     case 'problems':
-      return htmlPage('/', problemsHeader(view.name, view.problems.length), renderNotes('What to fix', view.problems))
+      return htmlPage(
+        '/',
+        problemsHeader(view.name, view.problems.length),
+        `${renderNotes('What to fix', view.problems)}${renderPaceApplied(view.paceApplied, '    ')}${renderRefusal(view.paceActionRefusal, '    ')}`,
+      )
     case 'forecast':
       return htmlPage(
         '/',
@@ -236,8 +244,46 @@ function renderPaceSide(view: Forecast): string {
   return `
       <aside class="side" aria-label="Pace">
         <div class="heading"><h2>Pace</h2><a href="/inputs#pace">Change</a></div>
-        <p class="note">${paceUsed(view)}</p>${renderPaceTrend(view.paceTrend, period, '        ')}${renderCapacity(view.capacity, period)}
+        <p class="note">${paceUsed(view)}</p>${renderPaceTrend(view.paceTrend, period, '        ')}${renderPacePattern(view.pacePattern, view.paceActionRefusal, view.horizonDate)}${renderCapacity(view.capacity, period)}
       </aside>`
+}
+
+/**
+ * The pace pattern, under the pace bars: one folded line, opened to say what it means and what to do and, with an
+ * action, the 85% date with and without it and its button. With no pattern to name, the line alone, faint. An applied
+ * action is said with Undo; a refused form opens it, saying why.
+ */
+function renderPacePattern(view: PacePatternView | undefined, refusal: string | undefined, horizonDate: string): string {
+  if (!view) return renderRefusal(refusal, '        ')
+  const applied = renderPaceApplied(view.applied, '        ')
+  if (view.pattern === undefined) return `\n        <p class="pace-pattern quiet">${escapeHtml(view.line)}</p>${applied}${renderRefusal(refusal, '        ')}`
+  const advice = view.advice ? ` ${escapeHtml(view.advice)}` : ''
+  const action = view.action ? renderPatternAction(view.action, horizonDate) : ''
+  return `
+        <details class="pace-pattern"${refusal ? ' open' : ''}><summary>${escapeHtml(view.line)}</summary>
+          <p class="note">${escapeHtml(view.meaning ?? '')}${advice}</p>${action}${renderRefusal(refusal, '          ')}
+        </details>${applied}`
+}
+
+/** The pace action applied, said, with Undo; nothing with none applied. */
+function renderPaceApplied(applied: string | undefined, indent: string): string {
+  if (!applied) return ''
+  return `\n${indent}<form class="pace-applied" method="post" action="/pace-action/undo"><p class="note">${escapeHtml(applied)} <button class="link">Undo</button></p></form>`
+}
+
+/** Why the pace action just submitted was refused; nothing when it wasn't. */
+function renderRefusal(refusal: string | undefined, indent: string): string {
+  return refusal ? `\n${indent}<p class="error" role="alert">${escapeHtml(refusal)}</p>` : ''
+}
+
+/** The pattern's action: the 85% date now and with it, from the same seed, and the button applying it. */
+function renderPatternAction(action: PatternAction, horizonDate: string): string {
+  const { kind, button, dates } = action
+  const dated = (day: string | null): string => (day === null ? `later than ${formatDate(horizonDate)}` : formatDate(day))
+  const [by, field, on] = action.kind === 'startFrom' ? [`from ${dayMonth(action.date)}`, 'date', action.date] : [`leaving out ${dayMonth(action.period)}`, 'period', action.period]
+  return `
+          <p class="note">${dates.percent}% confident by <span class="date">${dated(dates.now)}</span> now, <span class="date">${dated(dates.applied)}</span> ${by}.</p>
+          <form method="post" action="/pace-action/apply"><input type="hidden" name="action" value="${kind}"><input type="hidden" name="${field}" value="${on}"><button>${escapeHtml(button)}</button></form>`
 }
 
 /**
