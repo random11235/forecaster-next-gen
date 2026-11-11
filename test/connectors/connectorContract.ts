@@ -1,4 +1,5 @@
-import type { Connection, Connector, Transport } from '../../src/connectors/connector.js'
+import type { Connector, Transport } from '../../src/connectors/connector.js'
+import type { Connection } from '../../src/model/connection.js'
 import type { Recording } from './recording.js'
 import { replayTransport } from './replayTransport.js'
 import type { Queries, Scenario, TrackerCases } from './scenarios.js'
