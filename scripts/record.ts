@@ -130,12 +130,12 @@ export function recordGithub(token: string, transport: Transport, github: Connec
 
 const JIRA_KEYCHAIN = 'forecaster-jira-recording'
 /** The shared test account that owns the Jira recording token; `FORECASTER_JIRA_EMAIL` overrides it. */
-const JIRA_ACCOUNT_EMAIL = 'forecastertest3@gmail.com'
+const JIRA_ACCOUNT_EMAIL = JIRA_CASES.scenarios.synthetic.connection.email
 const JIRA_EMAIL_VARIABLE = 'FORECASTER_JIRA_EMAIL'
 
 const JIRA: Tracker<JiraConnection> = {
   cases: JIRA_CASES,
-  refusedCredential: 'refused@example.invalid:forecaster-refused-token',
+  refusedCredential: 'forecaster-refused-token',
   trim: (url, status, body) => {
     if (url.endsWith('/_edge/tenant_info')) return status === 200 ? pick(body, ['cloudId']) : {}
     if (status !== 200) return pick(body, ['errorMessages'])
@@ -165,7 +165,10 @@ const JIRA: Tracker<JiraConnection> = {
 
 /** Records the Jira scenarios through `transport`, as the account `email`; or says plainly that the token was refused. */
 export function recordJira(email: string, token: string, transport: Transport, jira: Connect<JiraConnection>): Promise<Recorded> {
-  return recordTracker(JIRA, `${email}:${token}`, transport, jira)
+  const scenarios = Object.fromEntries(
+    Object.entries(JIRA.cases.scenarios).map(([scenario, setup]) => [scenario, { ...setup, connection: { ...setup.connection, email } }]),
+  ) as TrackerCases<JiraConnection>['scenarios']
+  return recordTracker({ ...JIRA, cases: { ...JIRA.cases, scenarios } }, token, transport, jira)
 }
 
 // The command line
