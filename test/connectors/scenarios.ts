@@ -1,4 +1,4 @@
-import type { Connection } from '../../src/connectors/connector.js'
+import type { Connection } from '../../src/model/connection.js'
 
 /**
  * What Seam C's recordings are made of, for each tracker: the scenarios `scripts/record.ts` records from the synthetic

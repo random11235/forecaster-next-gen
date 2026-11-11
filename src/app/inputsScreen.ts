@@ -56,7 +56,7 @@ export function renderInputsScreen(screen: InputsView, connection: ConnectionVie
   const error = (form: InputsForm): string | undefined => (screen.refusal?.form === form ? screen.refusal.error : undefined)
   const connect = connectSection(connection)
   const sections = [
-    ...(connect === undefined ? [] : [inputSection('Connect', 'Connect', CONNECT_HINT, connect, 'submits')]),
+    ...(connect === undefined ? [] : [inputSection('Connect', 'Connect', CONNECT_HINT, connect, { postsOnSubmit: true })]),
     milestoneSection(forms.milestone, error('milestone'), milestone.notes),
     cadenceSection(forms.cadence, error('cadence'), milestone.cadenceDays),
     paceSection(screen, error, periodName(milestone.cadenceDays)),
@@ -75,11 +75,11 @@ export function renderInputsScreen(screen: InputsView, connection: ConnectionVie
 type Section = (number: number) => string
 
 /**
- * A numbered section: its name and hint in the label column, `body` beside them. One that `submits` posts only when
+ * A numbered section: its name and hint in the label column, `body` beside them. One that `postsOnSubmit` posts only when
  * its button is pressed; the others save each input as it changes (see `inputsScript.ts`).
  */
-function inputSection(label: string, name: string, hint: string, body: string, submits?: 'submits'): Section {
-  return (number) => `    <section class="input${submits ? ' submits' : ''}" id="${label.toLowerCase()}" aria-label="${label}">
+function inputSection(label: string, name: string, hint: string, body: string, { postsOnSubmit = false } = {}): Section {
+  return (number) => `    <section class="input${postsOnSubmit ? ' submits' : ''}" id="${label.toLowerCase()}" aria-label="${label}">
       <div class="label">
         <span class="number">${String(number).padStart(2, '0')}</span>
         <h2>${name}</h2>
