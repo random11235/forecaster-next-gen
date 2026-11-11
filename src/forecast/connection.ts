@@ -53,22 +53,43 @@ export type ConnectionSubmitted = { saved: true; next: SetupStep } | { saved: fa
 export async function submitConnection(connecting: Connecting, teamId: string, edit: ConnectionEdit): Promise<ConnectionSubmitted> {
   if (edit.kind === 'disconnect') throw new Error('not yet')
   const { token, kind: _, ...form } = edit
-  const [owner = '', repo = ''] = form.repo.split('/')
-  const connection: Connection = { tracker: 'github', owner, repo }
+  const connection = connectionOf(form)
   const checked = await connecting.connector(connection, token).milestoneChoices()
-  if (!checked.ok) return { saved: false, view: { kind: 'connect', form, permissions: TOKEN_PERMISSIONS, refusal: refusalOf(checked) } }
+  if (!checked.ok) return { saved: false, view: { kind: 'connect', form, permissions: TOKEN_PERMISSIONS, refusal: refusalOf(connection, checked) } }
   await connecting.secrets.saveToken(teamId, token)
   connecting.connections.saveConnection(teamId, connection)
   return { saved: true, next: 'milestone' }
 }
 
+/** The connection the form names, tidied: no stray spaces, a Jira site without its scheme or slash, its project key in capitals. */
+function connectionOf(form: ConnectionForm): Connection {
+  if (form.tracker === 'jira') {
+    const site = form.site.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '')
+    return { tracker: 'jira', site, projectKey: form.projectKey.trim().toUpperCase(), email: form.email.trim() }
+  }
+  const [owner = '', repo = ''] = form.repo.trim().split('/')
+  return { tracker: 'github', owner, repo }
+}
+
 /** A failed connection check, worded for the Connect step. */
-function refusalOf(failure: Failure): string {
-  switch (failure.failure) {
+function refusalOf(connection: Connection, { failure }: Failure): string {
+  const github = connection.tracker === 'github'
+  const tracker = github ? 'GitHub' : 'Jira'
+  switch (failure) {
     case 'unauthorised':
-      return 'GitHub refused the token. Check it hasn’t expired, and that it has Issues: read on this repo.'
-    default:
-      return ''
+      return github
+        ? `GitHub refused the token. Check it hasn’t expired, and that it has ${TOKEN_PERMISSIONS.github} on this repo.`
+        : `Jira refused the token. Check it hasn’t expired, that it has ${TOKEN_PERMISSIONS.jira}, and that ${connection.email} is the account that made it.`
+    case 'notFound':
+      return github
+        ? `GitHub can’t see ${connection.owner}/${connection.repo} with this token. Check the repo’s name, and that the token covers it.`
+        : `Jira can’t find project ${connection.projectKey} on ${connection.site} with this token. Check the site and the project key, and that the account can see it.`
+    case 'unavailable':
+      return `${tracker} can’t be reached just now, or is limiting requests. Try again in a few minutes.`
+    // the check asks for no query of the EM's, so neither is expected of it
+    case 'invalidQuery':
+    case 'outOfScope':
+      return `${tracker} didn’t accept the connection check. Try again, and if it fails again, check what you typed.`
   }
 }
 
