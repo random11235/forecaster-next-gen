@@ -19,7 +19,7 @@
   {
     "request": {
       "method": "GET",
-      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20(milestone%3A%22Search%20revamp%22)&advanced_search=true&per_page=100"
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20no%3Asub-issue%20(milestone%3A%22Search%20revamp%22)%20(is%3Aopen%20OR%20closed%3A%3E%3D1970-01-01T00%3A00%3A00%2B00%3A00)&advanced_search=true&per_page=100&page=1"
     },
     "response": {
       "status": 200,
@@ -59,7 +59,1712 @@
   {
     "request": {
       "method": "GET",
-      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20(label%3A%22no%20such%20label%22)&advanced_search=true&per_page=100"
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20no%3Asub-issue%20(milestone%3A%22Search%20revamp%22)%20(is%3Aopen%20OR%20closed%3A%3E%3D2026-11-06T08%3A44%3A52%2B00%3A00)&advanced_search=true&per_page=100&page=1"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "total_count": 5,
+        "incomplete_results": false,
+        "items": [
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-fi7w",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-fhMQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-ffdQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-fdjA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:40Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-fbqw",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:38Z"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20no%3Asub-issue%20(milestone%3A%22Checkout%20v2%22)%20(is%3Aopen%20OR%20closed%3A%3E%3D1970-01-01T00%3A00%3A00%2B00%3A00)&advanced_search=true&per_page=100&page=1"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "total_count": 115,
+        "incomplete_results": false,
+        "items": [
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-fA9Q",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:35Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-e_Aw",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:30Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-e9Jw",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:28Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-e7AA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:25Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-e5EA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-e3Gw",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:53Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-epqA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:23Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eneg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-elJQ",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:20Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-ei9g",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:18Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-ecrg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eauw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eY3A",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eW6g",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eU0g",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eSrw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eQsQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eOxg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eMsA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eKpQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eIpA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eG2A",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eFDA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eDHg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eBTg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d_bQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d9nQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d7wQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d5rQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d3vQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d14w",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d0FA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dyGA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dv5w",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dtrg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-drtA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dpmw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dnmw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dlrw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-djyA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-diFQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dgSw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-deOw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dcSg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dadg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dYpA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dWyQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dU-w",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dTOw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dRNA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dPaA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dNcg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dLhw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dJTw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dHPQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dFFg",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:01Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dDAg",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:58Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dA6Q",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:56Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-c-1w",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:53Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-c8nA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:51Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-c6Xg",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:48Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-c4cQ",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:46Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-c2bQ",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:43Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-c0Kg",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:41Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cyMA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:38Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cwLA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:36Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cuMw",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:33Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cr-Q",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:31Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cpog",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:28Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cnwA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:26Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-clrQ",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:23Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cjsA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:21Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-ch6w",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:18Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cf0Q",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:16Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-ceBQ",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:13Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cb5Q",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:11Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-caHw",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:08Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cYCQ",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:06Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cWCQ",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:04Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cUMg",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:01Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cSAg",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:59Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cQGA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:56Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cOKA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:54Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cMCQ",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:51Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cJ-A",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:49Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cIPA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:46Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cGbw",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:44Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cERQ",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:42Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cB_w",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:39Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-b_7A",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:36Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-b-DQ",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:34Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-b8IA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:31Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-b6Iw",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:29Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-b4NA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:26Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-b2Kw",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:24Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-bz9Q",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:42:04Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-bx_w",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:42:02Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-bv-w",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:41:59Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-buCQ",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:41:57Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-bsMQ",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:41:55Z"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20no%3Asub-issue%20(milestone%3A%22Checkout%20v2%22)%20(is%3Aopen%20OR%20closed%3A%3E%3D1970-01-01T00%3A00%3A00%2B00%3A00)&advanced_search=true&per_page=100&page=2"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "total_count": 115,
+        "incomplete_results": false,
+        "items": [
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-bp7A",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:41:52Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-bnqQ",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:41:50Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-blnw",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:41:47Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-bjcA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:41:45Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-bhfg",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:41:42Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-bfpg",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:41:40Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-bdnA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:41:37Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-bbjg",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:41:35Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-bZnQ",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:41:32Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-bX2A",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:41:30Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-bV1A",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:41:27Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-bTnw",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:41:25Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-bRWA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:41:22Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-bPKA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:41:20Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-bNUg",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:41:18Z"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20no%3Asub-issue%20(milestone%3A%22Checkout%20v2%22)%20(is%3Aopen%20OR%20closed%3A%3E%3D2026-11-06T08%3A44%3A52%2B00%3A00)&advanced_search=true&per_page=100&page=1"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "total_count": 95,
+        "incomplete_results": false,
+        "items": [
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-fA9Q",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:35Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-e_Aw",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:30Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-e9Jw",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:28Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-e7AA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:25Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-e5EA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-e3Gw",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:53Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-epqA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:23Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eneg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-elJQ",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:20Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-ei9g",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:18Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-ecrg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eauw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eY3A",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eW6g",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eU0g",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eSrw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eQsQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eOxg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eMsA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eKpQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eIpA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eG2A",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eFDA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eDHg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eBTg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d_bQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d9nQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d7wQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d5rQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d3vQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d14w",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d0FA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dyGA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dv5w",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dtrg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-drtA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dpmw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dnmw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dlrw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-djyA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-diFQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dgSw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-deOw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dcSg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dadg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dYpA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dWyQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dU-w",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dTOw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dRNA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dPaA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dNcg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dLhw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dJTw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dHPQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dFFg",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:01Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dDAg",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:58Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dA6Q",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:56Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-c-1w",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:53Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-c8nA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:51Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-c6Xg",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:48Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-c4cQ",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:46Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-c2bQ",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:43Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-c0Kg",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:41Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cyMA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:38Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cwLA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:36Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cuMw",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:33Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cr-Q",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:31Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cpog",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:28Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cnwA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:26Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-clrQ",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:23Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cjsA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:21Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-ch6w",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:18Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cf0Q",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:16Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-ceBQ",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:13Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cb5Q",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:11Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-caHw",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:08Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cYCQ",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:06Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cWCQ",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:04Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cUMg",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:46:01Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cSAg",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:59Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cQGA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:56Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cOKA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:54Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cMCQ",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:51Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cJ-A",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:49Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cIPA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:46Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cGbw",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:44Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cERQ",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:42Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-cB_w",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:39Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-b_7A",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:36Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-b-DQ",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:34Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-b8IA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:31Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-b6Iw",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:29Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-b4NA",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:26Z"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-b2Kw",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:45:24Z"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20no%3Asub-issue%20(is%3Aopen)%20(is%3Aopen%20OR%20closed%3A%3E%3D1970-01-01T00%3A00%3A00%2B00%3A00)&advanced_search=true&per_page=100&page=1"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "total_count": 54,
+        "incomplete_results": false,
+        "items": [
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-fi7w",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-fhMQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-ffdQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-faAw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-fYkA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-fVRQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-fTng",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-e5EA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eneg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-ecrg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eauw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eY3A",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eW6g",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eU0g",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eSrw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eQsQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eOxg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eMsA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eKpQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eIpA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eG2A",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eFDA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eDHg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eBTg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d_bQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d9nQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d7wQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d5rQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d3vQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d14w",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d0FA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dyGA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dv5w",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dtrg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-drtA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dpmw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dnmw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dlrw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-djyA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-diFQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dgSw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-deOw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dcSg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dadg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dYpA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dWyQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dU-w",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dTOw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dRNA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dPaA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dNcg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dLhw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dJTw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dHPQ",
+            "state": "open",
+            "closed_at": null
+          }
+        ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20no%3Asub-issue%20(is%3Aopen)%20(is%3Aopen%20OR%20closed%3A%3E%3D2026-11-06T08%3A44%3A52%2B00%3A00)&advanced_search=true&per_page=100&page=1"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "total_count": 54,
+        "incomplete_results": false,
+        "items": [
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-fi7w",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-fhMQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-ffdQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-faAw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-fYkA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-fVRQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-fTng",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-e5EA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eneg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-ecrg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eauw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eY3A",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eW6g",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eU0g",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eSrw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eQsQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eOxg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eMsA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eKpQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eIpA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eG2A",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eFDA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eDHg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eBTg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d_bQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d9nQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d7wQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d5rQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d3vQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d14w",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-d0FA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dyGA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dv5w",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dtrg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-drtA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dpmw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dnmw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dlrw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-djyA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-diFQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dgSw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-deOw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dcSg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dadg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dYpA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dWyQ",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dU-w",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dTOw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dRNA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dPaA",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dNcg",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dLhw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dJTw",
+            "state": "open",
+            "closed_at": null
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-dHPQ",
+            "state": "open",
+            "closed_at": null
+          }
+        ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20no%3Asub-issue%20(label%3A%22no%20such%20label%22)%20(is%3Aopen%20OR%20closed%3A%3E%3D1970-01-01T00%3A00%3A00%2B00%3A00)&advanced_search=true&per_page=100&page=1"
     },
     "response": {
       "status": 200,
@@ -73,7 +1778,38 @@
   {
     "request": {
       "method": "GET",
-      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20(closed%3A%3E2026-13-45)&advanced_search=true&per_page=100"
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20no%3Asub-issue%20(label%3A%22no%20such%20label%22)%20(is%3Aopen%20OR%20closed%3A%3E%3D2026-11-06T08%3A44%3A52%2B00%3A00)&advanced_search=true&per_page=100&page=1"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "total_count": 0,
+        "incomplete_results": false,
+        "items": []
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20no%3Asub-issue%20(closed%3A%3E2026-13-45)%20(is%3Aopen%20OR%20closed%3A%3E%3D1970-01-01T00%3A00%3A00%2B00%3A00)&advanced_search=true&per_page=100&page=1"
+    },
+    "response": {
+      "status": 422,
+      "body": {
+        "message": "Validation Failed",
+        "errors": [
+          {
+            "message": "\"2026-13-45\" is not a recognized date/time format. Please provide an ISO 8601 date/time value, such as YYYY-MM-DD."
+          }
+        ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20no%3Asub-issue%20(closed%3A%3E2026-13-45)%20(is%3Aopen%20OR%20closed%3A%3E%3D2026-11-06T08%3A44%3A52%2B00%3A00)&advanced_search=true&per_page=100&page=1"
     },
     "response": {
       "status": 422,

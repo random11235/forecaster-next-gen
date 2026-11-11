@@ -16,5 +16,15 @@ export const jiraSubject = replayedSubject({
   cases: JIRA_CASES,
   recordings: { synthetic, refusedToken, unknown },
   idOf: (role) => issues[role]?.id,
+  ids: Object.values(issues).map((issue) => issue.id),
   batches: manifest.batches,
+  roles: {
+    // The subtasks carry no fix version, so "Checkout v2" doesn't match them; #186 settles how they're read.
+    checkout: [
+      ...Array.from({ length: 105 }, (_, k) => `leaf-${String(k + 1).padStart(3, '0')}`),
+      'epic-leaf',
+      ...['reopened-finished', 'reopened-open', 'wont-do-1', 'wont-do-2', 'duplicate', 'both-queries', 'bug'],
+    ],
+    parents: ['epic', 'story-with-subtasks'],
+  },
 })
