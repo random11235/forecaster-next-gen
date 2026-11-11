@@ -1,5 +1,5 @@
 import type { Connector, Failure } from '../connectors/connector.js'
-import type { SavedRead } from '../model/savedRead.js'
+import type { SavedRead, TeamQuery } from '../model/savedRead.js'
 import type { SavedReadStorage } from '../storage/storage.js'
 import { addDays, daysBetween } from './calendarDate.js'
 import type { DatedCounts } from './paceWindow.js'
@@ -7,28 +7,30 @@ import type { DatedCounts } from './paceWindow.js'
 /** A query read and saved; or a failed read, with the read saved before it, which is kept (none if it was never read). */
 export type QueryRead = { ok: true; read: SavedRead } | ({ ok: false; saved: SavedRead | undefined } & Failure)
 
+/** A read of one of a team's queries: its tickets open, or finished at or after `finishedSince`, read at `readAt`. */
+export interface QueryReading extends TeamQuery {
+  /** A UTC instant. */
+  finishedSince: string
+  /** The UTC instant the read is made. */
+  readAt: string
+}
+
 /**
- * Seam B: reads the query through the connector, open tickets and those finished at or after `finishedSince` (a UTC
- * instant), and saves the read as made at `readAt`, replacing the query's last one. A failed read saves nothing, so
- * the last saved read stays in use.
+ * Seam B: reads the query through the connector, open tickets and those finished at or after `finishedSince`, and
+ * saves the read as made at `readAt`, replacing the query's last one. A failed read saves nothing, so the last saved
+ * read stays in use.
  */
-export async function readQuery(
-  connector: Connector,
-  reads: SavedReadStorage,
-  teamId: string,
-  query: string,
-  finishedSince: string,
-  readAt: string,
-): Promise<QueryRead> {
+export async function readQuery(connector: Connector, reads: SavedReadStorage, { teamId, query, finishedSince, readAt }: QueryReading): Promise<QueryRead> {
+  const teamQuery = { teamId, query }
   const result = await connector.read(query, finishedSince)
   if (!result.ok) {
     const { ok: _, ...failure } = result
-    return { ok: false, ...failure, saved: reads.savedRead(teamId, query) }
+    return { ok: false, ...failure, saved: reads.savedRead(teamQuery) }
   }
   // only ids and finish times are kept
   const tickets = result.tickets.map(({ id, finishedAt }) => (finishedAt === undefined ? { id } : { id, finishedAt }))
   const read: SavedRead = { tickets, incomplete: result.incomplete, readAt }
-  reads.saveRead(teamId, query, read)
+  reads.saveRead(teamQuery, read)
   return { ok: true, read }
 }
 

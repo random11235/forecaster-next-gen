@@ -287,10 +287,10 @@ describe("SQLite storage's saved reads", () => {
     const { storage, reopen } = sqliteFile()
     storage.saveTeam(TEAM)
 
-    expect(storage.savedRead('team', OPEN_TICKETS)).toBeUndefined()
-    storage.saveRead('team', OPEN_TICKETS, READ)
+    expect(storage.savedRead({ teamId: 'team', query: OPEN_TICKETS })).toBeUndefined()
+    storage.saveRead({ teamId: 'team', query: OPEN_TICKETS }, READ)
 
-    expect(reopen().savedRead('team', OPEN_TICKETS)).toEqual(READ)
+    expect(reopen().savedRead({ teamId: 'team', query: OPEN_TICKETS })).toEqual(READ)
   })
 
   test("replaces a query's saved read whole, leaving the team's other queries and other teams' reads as they were", () => {
@@ -298,17 +298,17 @@ describe("SQLite storage's saved reads", () => {
     storage.saveTeam(TEAM)
     storage.saveTeam({ ...TEAM, id: 'another' })
     const otherQuery = 'repo:acme/checkout is:issue milestone:"Beta"'
-    storage.saveRead('team', OPEN_TICKETS, READ)
-    storage.saveRead('team', otherQuery, READ)
-    storage.saveRead('another', OPEN_TICKETS, READ)
+    storage.saveRead({ teamId: 'team', query: OPEN_TICKETS }, READ)
+    storage.saveRead({ teamId: 'team', query: otherQuery }, READ)
+    storage.saveRead({ teamId: 'another', query: OPEN_TICKETS }, READ)
 
     const later: SavedRead = { tickets: [{ id: 'I_2', finishedAt: '2026-11-12T10:00:00Z' }], incomplete: true, readAt: '2026-11-12T11:00:00Z' }
-    storage.saveRead('team', OPEN_TICKETS, later)
+    storage.saveRead({ teamId: 'team', query: OPEN_TICKETS }, later)
 
     const again = reopen()
-    expect(again.savedRead('team', OPEN_TICKETS)).toEqual(later)
-    expect(again.savedRead('team', otherQuery)).toEqual(READ)
-    expect(again.savedRead('another', OPEN_TICKETS)).toEqual(READ)
+    expect(again.savedRead({ teamId: 'team', query: OPEN_TICKETS })).toEqual(later)
+    expect(again.savedRead({ teamId: 'team', query: otherQuery })).toEqual(READ)
+    expect(again.savedRead({ teamId: 'another', query: OPEN_TICKETS })).toEqual(READ)
   })
 
   test('keeps a read that matched nothing as an empty list', () => {
@@ -316,9 +316,9 @@ describe("SQLite storage's saved reads", () => {
     storage.saveTeam(TEAM)
     const empty: SavedRead = { tickets: [], incomplete: false, readAt: '2026-11-11T08:15:00Z' }
 
-    storage.saveRead('team', OPEN_TICKETS, empty)
+    storage.saveRead({ teamId: 'team', query: OPEN_TICKETS }, empty)
 
-    expect(reopen().savedRead('team', OPEN_TICKETS)).toEqual(empty)
+    expect(reopen().savedRead({ teamId: 'team', query: OPEN_TICKETS })).toEqual(empty)
   })
 
   test("keeps nothing of a ticket but its id and finish time, whatever else it is handed", () => {
@@ -326,9 +326,9 @@ describe("SQLite storage's saved reads", () => {
     storage.saveTeam(TEAM)
     const handed = { id: 'I_1', finishedAt: '2026-11-06T22:30:00Z', title: 'Fix checkout', assignee: 'sam' }
 
-    storage.saveRead('team', OPEN_TICKETS, { ...READ, tickets: [handed] })
+    storage.saveRead({ teamId: 'team', query: OPEN_TICKETS }, { ...READ, tickets: [handed] })
 
-    expect(reopen().savedRead('team', OPEN_TICKETS)!.tickets).toStrictEqual([{ id: 'I_1', finishedAt: '2026-11-06T22:30:00Z' }])
+    expect(reopen().savedRead({ teamId: 'team', query: OPEN_TICKETS })!.tickets).toStrictEqual([{ id: 'I_1', finishedAt: '2026-11-06T22:30:00Z' }])
   })
 })
 

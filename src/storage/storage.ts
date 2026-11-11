@@ -2,7 +2,7 @@ import type { AmbiguityRanges } from '../model/ambiguity.js'
 import type { CapacityEntry } from '../model/capacity.js'
 import type { Connection } from '../model/connection.js'
 import type { MilestoneInputs } from '../model/milestoneInputs.js'
-import type { SavedRead } from '../model/savedRead.js'
+import type { SavedRead, TeamQuery } from '../model/savedRead.js'
 import type { Team } from '../model/team.js'
 
 /**
@@ -56,7 +56,7 @@ export interface ConnectionStorage {
  */
 export interface SavedReadStorage {
   /** Saves the query's read, replacing whatever was saved for it. */
-  saveRead(teamId: string, query: string, read: SavedRead): void
+  saveRead(teamQuery: TeamQuery, read: SavedRead): void
   /** The query's last saved read, if it has been read. */
-  savedRead(teamId: string, query: string): SavedRead | undefined
+  savedRead(teamQuery: TeamQuery): SavedRead | undefined
 }

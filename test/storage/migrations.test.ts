@@ -593,14 +593,14 @@ describe('a data file from schema version 13, before saved reads', () => {
     const query = 'repo:acme/checkout is:issue milestone:"Launch"'
     const storage = openSqliteStorage(file)
     expect(storage.connection(TEAM)).toEqual({ tracker: 'github', owner: 'acme', repo: 'checkout' })
-    expect(storage.savedRead(TEAM, query)).toBeUndefined()
+    expect(storage.savedRead({ teamId: TEAM, query })).toBeUndefined()
 
     const read = { tickets: [{ id: 'I_1', finishedAt: '2026-11-06T22:30:00Z' }, { id: 'I_2' }], incomplete: true, readAt: '2026-11-11T08:15:00Z' }
-    storage.saveRead(TEAM, query, read)
+    storage.saveRead({ teamId: TEAM, query }, read)
     storage.close()
 
     const again = openSqliteStorage(file)
-    expect(again.savedRead(TEAM, query)).toEqual(read)
+    expect(again.savedRead({ teamId: TEAM, query })).toEqual(read)
     again.close()
     expect(versionOf(file)).toBe(14)
   })
