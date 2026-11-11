@@ -38,26 +38,66 @@ describe('GitHub connector', () => {
 
   // GitHub rate limits with a 429, or with a 403 that says so in its headers; a 403 without them is a refusal.
   test.each([
-    ['a 429', 429, {}],
-    ['a 403 with no requests left', 403, { 'x-ratelimit-remaining': '0' }],
-    ['a 403 asking to retry later', 403, { 'retry-after': '60' }],
-    ['a 502', 502, {}],
-  ])('%s from GitHub (rate limited, or GitHub down) is unavailable', async (_, status, headers) => {
-    const connector = githubConnector(CONNECTION, 'token', async () => new Response('{"message":"rate limited"}', { status, headers }))
-
-    expect(await connector.milestoneChoices()).toEqual({ ok: false, failure: 'unavailable' })
-    expect(await connector.read('label:a', '2026-01-01T00:00:00Z')).toEqual({ ok: false, failure: 'unavailable' })
-  })
-
-  test('a 403 from GitHub that is not a rate limit (the token lacks permission) is unauthorised', async () => {
+    ['a 429', 429, {}, [1000, 2000, 4000]],
+    ['a 403 with no requests left', 403, { 'x-ratelimit-remaining': '0' }, [1000, 2000, 4000]],
+    ['a 403 asking to retry later', 403, { 'retry-after': '30' }, [30_000, 30_000, 30_000]],
+  ])('%s from GitHub is a rate limit, backed off, then unavailable', async (_, status, headers, backoff) => {
+    let sent = 0
+    const waits: number[] = []
     const connector = githubConnector(
       CONNECTION,
       'token',
-      async () =>
-        new Response('{"message":"Resource not accessible by personal access token"}', { status: 403, headers: { 'x-ratelimit-remaining': '4999' } }),
+      async () => {
+        sent++
+        return new Response('{"message":"rate limited"}', { status, headers })
+      },
+      async (ms) => {
+        waits.push(ms)
+      },
     )
 
-    expect(await connector.milestoneChoices()).toEqual({ ok: false, failure: 'unauthorised' })
-    expect(await connector.read('label:a', '2026-01-01T00:00:00Z')).toEqual({ ok: false, failure: 'unauthorised' })
+    expect(await connector.read('label:a', '2026-01-01T00:00:00Z')).toEqual({ ok: false, failure: 'unavailable' })
+    expect(waits).toEqual(backoff)
+    expect(sent).toBe(4)
+  })
+
+  test("a 403 from GitHub asking to retry after more than a minute is unavailable at once, so a read doesn't hang", async () => {
+    let sent = 0
+    const connector = githubConnector(
+      CONNECTION,
+      'token',
+      async () => {
+        sent++
+        return new Response('{"message":"rate limited"}', { status: 403, headers: { 'retry-after': '3600' } })
+      },
+      async () => {
+        throw new Error('waited')
+      },
+    )
+
+    expect(await connector.read('label:a', '2026-01-01T00:00:00Z')).toEqual({ ok: false, failure: 'unavailable' })
+    expect(sent).toBe(1)
+  })
+
+  test.each([
+    ['a 502 (GitHub down) is unavailable', 502, {}, 'unavailable'],
+    ['a 403 that is not a rate limit (the token lacks permission) is unauthorised', 403, { 'x-ratelimit-remaining': '4999' }, 'unauthorised'],
+  ])('%s, sent once with no backoff', async (_, status, headers, failure) => {
+    let sent = 0
+    const connector = githubConnector(
+      CONNECTION,
+      'token',
+      async () => {
+        sent++
+        return new Response('{"message":"Resource not accessible by personal access token"}', { status, headers })
+      },
+      async () => {
+        throw new Error('waited')
+      },
+    )
+
+    expect(await connector.milestoneChoices()).toEqual({ ok: false, failure })
+    expect(await connector.read('label:a', '2026-01-01T00:00:00Z')).toEqual({ ok: false, failure })
+    expect(sent).toBe(2)
   })
 })

@@ -1,12 +1,11 @@
 import type { Connection } from '../../model/connection.js'
 import type { Choice, Connector, FailedCall, ReadResult, Ticket, Transport } from '../connector.js'
-import { failureOf as statusFailure, finishedSince, send, staysInScope, type QueryScope, type Received } from '../remote.js'
+import { failureOf as statusFailure, finishedSince, send, sleep, staysInScope, type QueryScope, type Received, type Wait } from '../remote.js'
 
 /**
  * The GitHub connector, so far a skeleton that passes the contract suite's shape cases (#172). It reads through
  * GitHub's REST API: issue search, rather than GraphQL's, because only REST refuses a query it can't parse, with its own
- * message, where GraphQL silently matches nothing. Its full reads (leaf tickets, last finish, paging, backoff on rate
- * limits) come with the spec on which tickets count; until then a read is one page of search results, flagged
+ * message, where GraphQL silently matches nothing. Its full reads (leaf tickets, last finish, paging) come with the spec on which tickets count; until then a read is one page of search results, flagged
  * incomplete when there are more.
  */
 
@@ -35,24 +34,35 @@ interface ErrorResponse {
   errors?: { message?: string }[]
 }
 
-/**
- * The failure an unsuccessful response stands for, other than a refused query. GitHub answers a rate limit with a 429,
- * or with a 403 that says so in its headers; any other 403 refuses the token permission.
- */
-function failureOf({ status, headers }: Received): FailedCall {
-  if (status !== 403) return statusFailure(status)
-  const rateLimited = headers.get('x-ratelimit-remaining') === '0' || headers.has('retry-after')
-  return { ok: false, failure: rateLimited ? 'unavailable' : 'unauthorised' }
+/** GitHub answers a rate limit with a 429, or with a 403 that says so in its headers. */
+function rateLimited({ status, headers }: Received): boolean {
+  return status === 429 || (status === 403 && (headers.get('x-ratelimit-remaining') === '0' || headers.has('retry-after')))
 }
 
-export function githubConnector(connection: Extract<Connection, { tracker: 'github' }>, token: string, transport: Transport): Connector {
+/**
+ * The failure an unsuccessful response stands for, other than a refused query. A rate limit still there after backoff
+ * is unavailable; any other 403 refuses the token permission.
+ */
+function failureOf(received: Received): FailedCall {
+  if (rateLimited(received)) return { ok: false, failure: 'unavailable' }
+  if (received.status === 403) return { ok: false, failure: 'unauthorised' }
+  return statusFailure(received.status)
+}
+
+/** `wait` is how backoff on a rate limit waits: a timer, unless a test stands in for it. */
+export function githubConnector(
+  connection: Extract<Connection, { tracker: 'github' }>,
+  token: string,
+  transport: Transport,
+  wait: Wait = sleep,
+): Connector {
   const repo = `${connection.owner}/${connection.repo}`
 
-  /** The response, or `undefined` when the network failed. */
+  const headers = { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28' }
+
+  /** The response, rate limits backed off, or `undefined` when the network failed. */
   function get(path: string): Promise<Received | undefined> {
-    return send(transport, `${API}${path}`, {
-      headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28' },
-    })
+    return send(transport, `${API}${path}`, { headers }, { rateLimited, wait })
   }
 
   return {

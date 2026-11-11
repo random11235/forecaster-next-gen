@@ -120,12 +120,40 @@ describe('Jira connector', () => {
     expect(await connector.read('labels = a', SINCE)).toEqual({ ok: false, failure: 'notFound' })
   })
 
-  test.each([429, 502])('a %s from Jira (rate limited, or Jira down) is unavailable', async (status) => {
-    const connector = jiraConnector(CONNECTION, 'token', async (url) =>
-      url.endsWith('/_edge/tenant_info') ? json(200, { cloudId: 'cloud-1' }) : new Response('Too many requests', { status }),
+  test.each([
+    ['a 429 (rate limited) is backed off, then', 429, 4],
+    ['a 502 (Jira down) is sent once, and', 502, 1],
+  ])('%s unavailable', async (_, status, times) => {
+    let sent = 0
+    const connector = jiraConnector(
+      CONNECTION,
+      'token',
+      async (url) => {
+        if (url.endsWith('/_edge/tenant_info')) return json(200, { cloudId: 'cloud-1' })
+        sent++
+        return new Response('Too many requests', { status })
+      },
+      async () => {},
+    )
+
+    expect(await connector.read('labels = a', SINCE)).toEqual({ ok: false, failure: 'unavailable' })
+    expect(sent).toBe(times)
+  })
+
+  test('a 403 from Jira is not a rate limit, so it is sent once', async () => {
+    let sent = 0
+    const connector = jiraConnector(
+      CONNECTION,
+      'token',
+      async (url) => {
+        if (url.endsWith('/_edge/tenant_info')) return json(200, { cloudId: 'cloud-1' })
+        sent++
+        return new Response('Forbidden', { status: 403, headers: { 'retry-after': '1' } })
+      },
+      async () => {},
     )
 
     expect(await connector.milestoneChoices()).toEqual({ ok: false, failure: 'unavailable' })
-    expect(await connector.read('labels = a', SINCE)).toEqual({ ok: false, failure: 'unavailable' })
+    expect(sent).toBe(1)
   })
 })
