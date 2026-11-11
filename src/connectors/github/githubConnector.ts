@@ -3,20 +3,29 @@ import type { Choice, Connector, FailedCall, ReadResult, Ticket, Transport } fro
 import { failureOf as statusFailure, finishedSince, send, sleep, staysInScope, type QueryScope, type Received, type Wait } from '../remote.js'
 
 /**
- * The GitHub connector, so far a skeleton that passes the contract suite's shape cases (#172). It reads through
- * GitHub's REST API: issue search, rather than GraphQL's, because only REST refuses a query it can't parse, with its own
- * message, where GraphQL silently matches nothing. Its full reads (leaf tickets, last finish, paging) come with the spec on which tickets count; until then a read is one page of search results, flagged
- * incomplete when there are more.
+ * The GitHub connector. It reads through GitHub's REST API: issue search, rather than GraphQL's, because only REST
+ * refuses a query it can't parse, with its own message, where GraphQL silently matches nothing (#156).
+ *
+ * A read is the repo's open leaf issues the query matches, plus those closed since `finishedSince`, each finished at
+ * its last close (`closed_at`); the project board isn't read. `is:issue` leaves out pull requests and `no:sub-issue`
+ * parents. Every page is read, up to the 1,000 results search gives, past which the read is incomplete.
  */
 
 const API = 'https://api.github.com'
 const PAGE = 100
+/** The most results search gives for one query, however many it finds. */
+const SEARCH_CAP = 1000
 
 /**
- * Search wraps the query as `repo:… is:issue (query)`; a qualifier naming where to look would reach past the repo.
+ * Search wraps the query as `repo:… is:issue no:sub-issue (query) (…)`; a qualifier naming where to look would reach past the repo.
  * Search quotes values in double quotes only, with no escapes.
  */
 const SCOPE: QueryScope = { reachesOut: /(^|[\s(])-?(repo|org|user|owner):/i, quoted: /"[^"]*"/g }
+
+/** `since`, a UTC instant, as search's date qualifiers take it, to the second: the window's lower bound, inclusive. */
+function searchDate(since: string): string {
+  return `${new Date(since).toISOString().slice(0, 19)}+00:00`
+}
 
 /** The `milestone:` qualifier reading a milestone's tickets. */
 function milestoneQuery(title: string): string {
@@ -77,22 +86,33 @@ export function githubConnector(
 
     read: async (query, since): Promise<ReadResult> => {
       if (!staysInScope(query, SCOPE)) return { ok: false, failure: 'outOfScope' }
-      const q = encodeURIComponent(`repo:${repo} is:issue (${query})`)
-      const response = await get(`/search/issues?q=${q}&advanced_search=true&per_page=${PAGE}`)
-      if (!response) return { ok: false, failure: 'unavailable' }
-      if (response.status === 422) {
-        const message = (response.body as ErrorResponse).errors?.[0]?.message ?? (response.body as ErrorResponse).message ?? ''
-        // Search names an unknown or unseen repo this way, rather than with a 404.
-        if (/cannot be searched/.test(message)) return { ok: false, failure: 'notFound' }
-        return { ok: false, failure: 'invalidQuery', message }
+      const q = encodeURIComponent(`repo:${repo} is:issue no:sub-issue (${query}) (is:open OR closed:>=${searchDate(since)})`)
+      const tickets: Ticket[] = []
+      let incomplete = false
+      for (let page = 1; ; page++) {
+        const response = await get(`/search/issues?q=${q}&advanced_search=true&per_page=${PAGE}&page=${page}`)
+        if (!response) return { ok: false, failure: 'unavailable' }
+        if (response.status === 422) {
+          const message = (response.body as ErrorResponse).errors?.[0]?.message ?? (response.body as ErrorResponse).message ?? ''
+          // Search names an unknown or unseen repo this way, rather than with a 404.
+          if (/cannot be searched/.test(message)) return { ok: false, failure: 'notFound' }
+          return { ok: false, failure: 'invalidQuery', message }
+        }
+        if (response.status !== 200) return failureOf(response)
+        const found = response.body as SearchResponse
+        for (const item of found.items) {
+          tickets.push(item.state === 'closed' && item.closed_at ? { id: item.node_id, finishedAt: item.closed_at } : { id: item.node_id })
+        }
+        incomplete ||= found.incomplete_results
+        const read = (page - 1) * PAGE + found.items.length
+        if (found.items.length < PAGE || read >= found.total_count) break
+        if (read >= SEARCH_CAP) {
+          incomplete = true
+          break
+        }
       }
-      if (response.status !== 200) return failureOf(response)
-      const found = response.body as SearchResponse
-      const tickets = finishedSince(
-        found.items.map((item): Ticket => (item.state === 'closed' && item.closed_at ? { id: item.node_id, finishedAt: item.closed_at } : { id: item.node_id })),
-        since,
-      )
-      return { ok: true, tickets, incomplete: found.incomplete_results || found.total_count > found.items.length }
+      // Search compares to the second; this keeps the window exact.
+      return { ok: true, tickets: finishedSince(tickets, since), incomplete }
     },
   }
 }
