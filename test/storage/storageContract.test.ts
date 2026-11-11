@@ -4,9 +4,10 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
 import type { AmbiguityRanges } from '../../src/model/ambiguity.js'
 import type { CapacityEntry } from '../../src/model/capacity.js'
+import type { Connection } from '../../src/model/connection.js'
 import type { MilestoneInputs } from '../../src/model/milestoneInputs.js'
 import type { Team } from '../../src/model/team.js'
-import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
+import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
 import { openWebStorage, type KeyValueStore } from '../../src/storage/webStorage.js'
 
@@ -34,6 +35,9 @@ const RANGES: AmbiguityRanges = {
   medium: { low: 1.1, high: 1.6 },
   high: { low: 1.4, high: 2.5 },
 }
+
+const GITHUB: Connection = { tracker: 'github', owner: 'acme', repo: 'checkout' }
+const JIRA: Connection = { tracker: 'jira', site: 'acme.atlassian.net', projectKey: 'PAY', email: 'em@acme.example' }
 
 /** A Storage to test, and a way to open it again on the same data, as a relaunch or a reload does. */
 interface Opened {
@@ -202,6 +206,58 @@ describe.each(kinds)('%s storage', (_, opened) => {
     expect(again.ambiguityRanges('team')).toEqual(RANGES)
     expect(again.capacityEntries('team')).toEqual(ENTRIES)
     expect(again.capacityOn('team')).toBe(false)
+  })
+})
+
+// Only the local server build keeps a connection: the browser build has no connectors (#155), so its Storage has no
+// place for one.
+describe("SQLite storage's connection", () => {
+  function sqliteFile(): { storage: SqliteStorage; reopen: () => SqliteStorage } {
+    dir = mkdtempSync(join(tmpdir(), 'forecaster-'))
+    const file = join(dir, 'forecaster.db')
+    const reopen = (): SqliteStorage => {
+      open?.close()
+      const storage = openSqliteStorage(file)
+      open = storage
+      return storage
+    }
+    return { storage: reopen(), reopen }
+  }
+
+  test("keeps the team's connection, replacing it when saved again, until it is removed", () => {
+    const { storage, reopen } = sqliteFile()
+    storage.saveTeam(TEAM)
+
+    expect(storage.connection('team')).toBeUndefined()
+    storage.saveConnection('team', GITHUB)
+    storage.saveConnection('team', JIRA)
+    expect(storage.connection('team')).toEqual(JIRA)
+    expect(storage.connection('another')).toBeUndefined()
+
+    const again = reopen()
+    expect(again.connection('team')).toEqual(JIRA)
+    again.removeConnection('team')
+
+    expect(again.connection('team')).toBeUndefined()
+    expect(reopen().connection('team')).toBeUndefined()
+  })
+
+  test('keeps a GitHub connection as saved', () => {
+    const { storage, reopen } = sqliteFile()
+    storage.saveTeam(TEAM)
+
+    storage.saveConnection('team', GITHUB)
+
+    expect(reopen().connection('team')).toEqual(GITHUB)
+  })
+
+  test('removing a connection the team does not have changes nothing', () => {
+    const { storage } = sqliteFile()
+    storage.saveTeam(TEAM)
+
+    storage.removeConnection('team')
+
+    expect(storage.connection('team')).toBeUndefined()
   })
 })
 

@@ -5,10 +5,10 @@
  * a transport (an injected `fetch`); `app/` builds it and passes it in.
  */
 
+import type { Connection } from '../model/connection.js'
+
 /** The tracker a team is connected to, and where in it the team's tickets live. */
-export type Connection =
-  | { tracker: 'github'; owner: string; repo: string }
-  | { tracker: 'jira'; site: string; projectKey: string }
+export type { Connection }
 
 /** All the tool holds of a ticket. */
 export interface Ticket {
