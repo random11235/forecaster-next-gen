@@ -2,9 +2,11 @@ import { periodName, type PeriodName } from '../forecast/cadence.js'
 import type { InputNote, MilestoneInput } from '../forecast/milestoneAssessment.js'
 import { MAX_CADENCE_DAYS, MAX_TICKETS_PER_PERIOD, MAX_TICKETS_REMAINING } from '../forecast/milestoneInputs.js'
 import { ambiguityName, MAX_GROWTH, type GrowthView, type TypedRange } from '../forecast/growth.js'
+import type { ConnectionView } from '../forecast/connection.js'
 import type { InputsEdit, InputsForm, InputsView, TypedForms } from '../forecast/inputs.js'
 import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
 import type { PaceMode } from '../model/milestoneInputs.js'
+import { CONNECT_HINT, connectSection } from './connectSection.js'
 import { escapeHtml, htmlPage } from './html.js'
 import { INPUTS_SCRIPT } from './inputsScript.js'
 import { renderPaceTrend } from './paceTrendGraph.js'
@@ -48,11 +50,13 @@ export const INPUTS_FORMS: ReadonlyMap<string, FormReader> = new Map<string, For
   ],
 ])
 
-/** The Inputs screen: the milestone, its pace and the team's growth. */
-export function renderInputsScreen(screen: InputsView): string {
+/** The Inputs screen: in the local server build the Connect step first, then the milestone, its pace and the team's growth. */
+export function renderInputsScreen(screen: InputsView, connection: ConnectionView): string {
   const { milestone, forms } = screen
   const error = (form: InputsForm): string | undefined => (screen.refusal?.form === form ? screen.refusal.error : undefined)
+  const connect = connectSection(connection)
   const sections = [
+    ...(connect === undefined ? [] : [inputSection('Connect', 'Connect', CONNECT_HINT, connect, { postsOnSubmit: true })]),
     milestoneSection(forms.milestone, error('milestone'), milestone.notes),
     cadenceSection(forms.cadence, error('cadence'), milestone.cadenceDays),
     paceSection(screen, error, periodName(milestone.cadenceDays)),
@@ -70,9 +74,12 @@ export function renderInputsScreen(screen: InputsView): string {
 /** A section of the Inputs screen, given its number on the screen. */
 type Section = (number: number) => string
 
-/** A numbered section: its name and hint in the label column, `body` beside them. */
-function inputSection(label: string, name: string, hint: string, body: string): Section {
-  return (number) => `    <section class="input" id="${label.toLowerCase()}" aria-label="${label}">
+/**
+ * A numbered section: its name and hint in the label column, `body` beside them. One that `postsOnSubmit` posts only when
+ * its button is pressed; the others save each input as it changes (see `inputsScript.ts`).
+ */
+function inputSection(label: string, name: string, hint: string, body: string, { postsOnSubmit = false } = {}): Section {
+  return (number) => `    <section class="input${postsOnSubmit ? ' submits' : ''}" id="${label.toLowerCase()}" aria-label="${label}">
       <div class="label">
         <span class="number">${String(number).padStart(2, '0')}</span>
         <h2>${name}</h2>

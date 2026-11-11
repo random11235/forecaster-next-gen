@@ -1,9 +1,9 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import type { Connector } from '../connectors/connector.js'
+import type { Connecting } from '../forecast/connection.js'
 import type { Storage } from '../storage/storage.js'
 import { SAVE_IN_PLACE } from './inputsScript.js'
-import { appContext, route, type AppContext, type Reply } from './routes.js'
+import { appContext, route, routeConnection, type AppContext, type Reply, type Request } from './routes.js'
 
 /** Localhost only: the Forecaster is a local, single-user tool and is never reachable from the network. */
 const HOST = '127.0.0.1'
@@ -14,8 +14,8 @@ export interface LaunchOptions {
   openBrowser: (url: string) => void
   /** Where the app keeps its data. On first launch, when it is empty, the default team is added to it. */
   storage: Storage
-  /** Where tickets are read from: the canned connector in demo mode. No screen reads one yet. */
-  connector?: Connector
+  /** What the Inputs screen's Connect step connects a tracker with: the keychain and the real connectors, or demo mode's. */
+  connecting?: Connecting
   /** Today's ISO calendar date, the start date's default; the system clock's local date unless given. */
   today?: () => string
 }
@@ -27,7 +27,7 @@ export interface RunningApp {
 
 /** Starts the local server and opens the browser on the Milestone forecast screen. */
 export async function startAppAndOpenBrowser(options: LaunchOptions): Promise<RunningApp> {
-  const context = appContext(options.storage, options.today)
+  const context = appContext(options.storage, options.today, options.connecting)
   const server = createServer((request, response) => {
     serve(request, response, context).catch((error: unknown) => {
       response.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' })
@@ -64,7 +64,8 @@ async function serve(request: IncomingMessage, response: ServerResponse, context
   const path = pathname + search
   const form = method === 'POST' ? new URLSearchParams(await readBody(request)) : undefined
   const saveInPlace = request.headers[SAVE_IN_PLACE.header] === SAVE_IN_PLACE.value
-  send(response, route({ method, path, ...(form && { form }), ...(saveInPlace && { saveInPlace }) }, context))
+  const routed: Request = { method, path, ...(form && { form }), ...(saveInPlace && { saveInPlace }) }
+  send(response, await (routeConnection(routed, context) ?? route(routed, context)))
 }
 
 /** Form posts are a few bytes; anything over this is refused rather than buffered. */

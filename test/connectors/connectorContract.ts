@@ -1,4 +1,5 @@
-import type { Connection, Connector, Transport } from '../../src/connectors/connector.js'
+import type { Connector, Transport } from '../../src/connectors/connector.js'
+import type { Connection } from '../../src/model/connection.js'
 import type { Recording } from './recording.js'
 import { replayTransport } from './replayTransport.js'
 import type { Queries, Scenario, TrackerCases } from './scenarios.js'
@@ -27,7 +28,7 @@ export interface ContractSubject {
 }
 
 /** Recordings keep no headers, so any credential stands in for the one they were recorded with. */
-const REPLAYED_CREDENTIAL = 'replayed@example.invalid:replayed-token'
+const REPLAYED_CREDENTIAL = 'replayed-token'
 
 /** What `fetch` rejects with when the network is down. */
 const offline: Transport = async () => {

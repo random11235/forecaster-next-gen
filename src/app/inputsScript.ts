@@ -7,6 +7,9 @@
  * note shows beside the section saved. A refusal answers with the screen to show again, and only the refused section
  * is replaced, showing why and keeping what was typed. Focus and scroll position stay where they were.
  *
+ * A section marked `submits` (the Connect step, whose submit asks the tracker) is left alone: its form posts only when
+ * its button is pressed, and a save elsewhere doesn't replace it, so what is typed in it stays.
+ *
  * Without it the screen works as before: the buttons are in the markup, and this hides them.
  */
 /** The header the script sends with each save, asking for the Inputs screen back rather than a redirect. */
@@ -20,7 +23,7 @@ export const INPUTS_SCRIPT = `
   let saving = Promise.resolve()
 
   const bodyOf = (form) => new URLSearchParams(new FormData(form)).toString()
-  const sectionOf = (element) => element.closest('section.input')
+  const sectionOf = (element) => element.closest('section.input:not(.submits)')
 
   /** Where the focus is, as something to find again in a section that replaces this one. */
   function focusNow() {
@@ -91,7 +94,7 @@ export const INPUTS_SCRIPT = `
       })
       const reply = new DOMParser().parseFromString(await response.text(), 'text/html')
       if (response.ok) {
-        swap(reply, [...reply.querySelectorAll('section.input')].map((section) => section.id))
+        swap(reply, [...reply.querySelectorAll('section.input:not(.submits)')].map((section) => section.id))
         note(document.getElementById(id), 'Saved', 'saved')
       } else {
         swap(reply, [id])

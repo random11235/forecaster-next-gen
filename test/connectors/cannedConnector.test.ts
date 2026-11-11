@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
 import { demoConnector } from '../../src/connectors/canned/demo.js'
 import type { Failure } from '../../src/connectors/connector.js'
+import type { Connection } from '../../src/model/connection.js'
 
 // The canned connector: what Seam B tests read tickets through, with no tracker, token or network.
 
@@ -75,8 +76,11 @@ describe('canned connector', () => {
 })
 
 describe("demo mode's connector", () => {
+  const REPO: Connection = { tracker: 'github', owner: 'shop-team', repo: 'shop' }
+  const PROJECT: Connection = { tracker: 'jira', site: 'shop.atlassian.net', projectKey: 'SHOP', email: 'em@shop.example' }
+
   test('offers milestone choices, each of whose queries reads synthetic tickets', async () => {
-    const connector = demoConnector()
+    const connector = demoConnector(REPO, 'any-token')
 
     const choices = await connector.milestoneChoices()
 
@@ -88,5 +92,17 @@ describe("demo mode's connector", () => {
       expect(read.tickets.length).toBeGreaterThan(0)
       expect(read.tickets.every((ticket) => ticket.id.startsWith('synthetic-'))).toBe(true)
     }
+  })
+})
+
+describe("demo mode's connector, refusing on cue", () => {
+  test.each([
+    ['the token `refused`', { tracker: 'github', owner: 'shop-team', repo: 'shop' }, 'refused', 'unauthorised'],
+    ['the token `refused`, on Jira', { tracker: 'jira', site: 'shop.atlassian.net', projectKey: 'SHOP', email: 'em@shop.example' }, ' refused ', 'unauthorised'],
+    ['a repo named `unknown`', { tracker: 'github', owner: 'shop-team', repo: 'unknown' }, 'any-token', 'notFound'],
+    ['a project named `unknown`', { tracker: 'jira', site: 'shop.atlassian.net', projectKey: 'UNKNOWN', email: 'em@shop.example' }, 'any-token', 'notFound'],
+  ] as const)('%s is refused', async (_, connection, token, failure) => {
+    expect(await demoConnector(connection, token).milestoneChoices()).toEqual({ ok: false, failure })
+    expect(await demoConnector(connection, token).read('milestone:"Synthetic launch"', '2026-01-01T00:00:00Z')).toEqual({ ok: false, failure })
   })
 })

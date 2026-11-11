@@ -255,7 +255,24 @@ const STYLE = `
     table.growth td { padding: 6px 24px 6px 0; }
     table.growth input[type=number] { width: 64px; text-align: center; }
     table.growth .to, table.growth .unit { padding: 0 8px; font-size: 13px; color: var(--muted); }
-    .saves-as-changed section.input .actions, .saves-as-changed section.input .counts { display: none; }
+    .saves-as-changed section.input:not(.submits) .actions, .saves-as-changed section.input .counts { display: none; }
+    /* The Connect step: a tracker's fields show only while it is chosen. */
+    form.connect:has(input[name=tracker][value=github]:checked) .fields.jira,
+    form.connect:has(input[name=tracker][value=jira]:checked) .fields.github { display: none; }
+    input[type=password], input[type=email] {
+      font-size: 15px; color: var(--ink); background: transparent;
+      border: 0; border-bottom: 1px solid var(--ink); border-radius: 0; padding: 6px 0;
+    }
+    input[type=password] { font-family: var(--mono); }
+    form.connect .actions { gap: 16px; align-items: center; }
+    form.connect .skip { margin-right: auto; font-size: 13px; }
+    .connection { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 15px; }
+    .connection b { font-family: var(--mono); font-weight: 500; }
+    .connection form { display: inline; }
+    .ok-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); display: inline-block; }
+    button.linkish { border: 0; background: none; padding: 0; min-height: 0; color: var(--link); text-decoration: underline; font-size: 13px; }
+    details.change > summary { cursor: pointer; font-size: 13px; color: var(--link); }
+    details.change[open] > summary { margin-bottom: 16px; }
     section.input > .label p.saved { color: var(--good); font-weight: 600; }
     section.input > .label p.error { font-size: 13px; color: var(--risk); }
 

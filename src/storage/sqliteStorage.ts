@@ -5,7 +5,7 @@ import type { Ambiguity, AmbiguityRanges } from '../model/ambiguity.js'
 import type { CapacityEntry } from '../model/capacity.js'
 import type { MilestoneInputs, PaceMode, PaceWindow } from '../model/milestoneInputs.js'
 import type { Team } from '../model/team.js'
-import type { Storage } from './storage.js'
+import type { ConnectionStorage, Storage } from './storage.js'
 
 /**
  * The schema, as the steps that build it. The file records how many it has applied (`PRAGMA user_version`), and
@@ -191,12 +191,28 @@ ALTER TABLE capacity_entries ADD COLUMN kept INTEGER NOT NULL DEFAULT 0;
   `
 ALTER TABLE milestone_inputs ADD COLUMN pace_window TEXT NOT NULL DEFAULT '{}';
 `,
+  // 13: each team's connection (#178), at most one: GitHub's owner and repo, or Jira's site, project key and account
+  // email. Never a token. A file from before has none.
+  `
+CREATE TABLE connections (
+  team_id TEXT PRIMARY KEY REFERENCES teams(id),
+  tracker TEXT NOT NULL,
+  owner TEXT,
+  repo TEXT,
+  site TEXT,
+  project_key TEXT,
+  email TEXT
+);
+`,
 ]
 
 type Row = Record<string, SQLInputValue>
 
+/** The local server build's storage: everything, and the team's connection. */
+export type SqliteStorage = Storage & ConnectionStorage
+
 /** Opens (creating if needed) the SQLite file at `file`. `':memory:'` keeps everything in memory. */
-export function openSqliteStorage(file: string): Storage {
+export function openSqliteStorage(file: string): SqliteStorage {
   if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true })
   const db = new DatabaseSync(file)
 
@@ -245,6 +261,13 @@ export function openSqliteStorage(file: string): Storage {
     'INSERT INTO capacity_switch (team_id, capacity_on) VALUES (?, ?) ON CONFLICT (team_id) DO UPDATE SET capacity_on = excluded.capacity_on',
   )
   const selectCapacitySwitch = db.prepare('SELECT capacity_on FROM capacity_switch WHERE team_id = ?')
+  const upsertConnection = db.prepare(`
+    INSERT INTO connections (team_id, tracker, owner, repo, site, project_key, email) VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (team_id) DO UPDATE SET
+      tracker = excluded.tracker, owner = excluded.owner, repo = excluded.repo, site = excluded.site,
+      project_key = excluded.project_key, email = excluded.email`)
+  const selectConnection = db.prepare('SELECT * FROM connections WHERE team_id = ?')
+  const deleteConnection = db.prepare('DELETE FROM connections WHERE team_id = ?')
 
   return {
     isEmpty() {
@@ -358,6 +381,22 @@ export function openSqliteStorage(file: string): Storage {
     capacityOn(teamId) {
       const row = selectCapacitySwitch.get(teamId)
       return row === undefined || Number(row.capacity_on) === 1
+    },
+
+    saveConnection(teamId, connection) {
+      if (connection.tracker === 'github') upsertConnection.run(teamId, 'github', connection.owner, connection.repo, null, null, null)
+      else upsertConnection.run(teamId, 'jira', null, null, connection.site, connection.projectKey, connection.email)
+    },
+
+    connection(teamId) {
+      const row = selectConnection.get(teamId)
+      if (row === undefined) return undefined
+      if (row.tracker === 'github') return { tracker: 'github', owner: String(row.owner), repo: String(row.repo) }
+      return { tracker: 'jira', site: String(row.site), projectKey: String(row.project_key), email: String(row.email) }
+    },
+
+    removeConnection(teamId) {
+      deleteConnection.run(teamId)
     },
 
     close() {
