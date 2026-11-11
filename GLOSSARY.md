@@ -7,7 +7,7 @@ _Avoid_: project, release, epic
 
 **Start date** (of a milestone): the day the EM says work on the milestone starts, which the forecast counts from instead of today.
 
-**Tickets remaining** (of a milestone): the whole tickets the EM says are left to do.
+**Tickets remaining** (of a milestone): the whole tickets left to do: the open leaves its tracker query matches now, when the team has a connection, else the count the EM types.
 
 **Ambiguity** (of a milestone): how well the EM judges the milestone's work is understood: low, medium or high, each with a range its growth is drawn from.
 _Avoid_: uncertainty, confidence (the forecast's "85% confident" is its confidence)
@@ -45,5 +45,8 @@ _Avoid_: team change (names a cause), pace trend (the bars and their line)
 **Connection** (of a team): the one tracker, GitHub or Jira, and the one repo or Jira project in it, that the team's tickets are read from; nothing is written back.
 _Avoid_: integration, sync, account
 
-**Finished** (of a ticket): done in the team's tracker, whatever the reason, and counted once, at its last finish. Only tickets with no children of their own count.
+**Leaf**: a ticket in the tracker with no children of its own: never a pull request, a parent, an epic, or a story with subtasks. Only leaves count, as remaining or finished.
+_Avoid_: child ticket, work item
+
+**Finished** (of a ticket): done in the team's tracker, whatever the reason, and counted once, at its last finish. Only leaves count.
 _Avoid_: completed, resolved

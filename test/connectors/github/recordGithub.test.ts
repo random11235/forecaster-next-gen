@@ -61,7 +61,7 @@ describe('the GitHub recording script', () => {
     const result = await recordGithub(TOKEN, github, githubConnector)
 
     if (!result.ok) throw new Error(result.message)
-    expect(result.recordings.refusedToken.map((recording) => recording.response.status)).toEqual([401, 401])
+    expect(result.recordings.refusedToken.map((recording) => recording.response.status)).toEqual([401, 401, 401])
     expect(result.recordings.unknown.map((recording) => recording.response.status)).toContain(404)
   })
 
