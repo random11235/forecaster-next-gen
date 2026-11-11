@@ -42,7 +42,7 @@ The data model is designed so that each of these can be relaxed later without re
 
 ## Folder structure
 
-The tree is `src/` as it stands in the MVP, with `connectors/`. v1 adds `samples/` (Layer 2: commits, throughput, growth and epic-size samples derived from `model/`), `ledger/` (Layer 5), `secrets/`, and the deleted epic-era files (work items, workflow settings, epic commits, team facts, measured pace and growth); [`forecast-model.md`](forecast-model.md) describes them.
+The tree is `src/` as it stands in the MVP, with `connectors/` and `secrets/`. v1 adds `samples/` (Layer 2: commits, throughput, growth and epic-size samples derived from `model/`), `ledger/` (Layer 5), and the deleted epic-era files (work items, workflow settings, epic commits, team facts, measured pace and growth); [`forecast-model.md`](forecast-model.md) describes them.
 
 ```
 src/
@@ -75,6 +75,11 @@ src/
     github/               # the GitHub connector
     jira/                 # the Jira Cloud connector
 
+  secrets/                # the team's tracker token, keyed by team; the local server build only
+    secrets.ts            # the interface: save, read and delete a team's token
+    keychainSecrets.ts    # the OS keychain, through @napi-rs/keyring; its errors never quote the token
+    memorySecrets.ts      # in memory: the fake Seam B tests use
+
   storage/                # interface and its v1 SQLite file, with the schema's migrations; the web build's browser storage
   app/                    # local server (localhost only), screens, `npm start` entry point; each screen's HTML, and reading the fields of the forms it posts; the web build's app and page script (`webApp.ts`, `webMain.ts`)
 
@@ -82,8 +87,10 @@ test/
   app/                    # the screens, launch, and the launch smoke test: start the app, check the screen is served; the web build's app and its smoke test
   engine/                 # Seam A: fixed seeds, plus a performance benchmark
   forecast/               # Seam B: stored inputs + settings → the screens' views
-  connectors/             # Seam C: the connector contract suite, its replay transport, and the scenarios and queries recorded for it; each tracker's quirks and recordings in its own folder; the canned connector; the dependency rules for connectors/
+  connectors/             # Seam C: the connector contract suite, its replay transport, and the scenarios and queries recorded for it; each tracker's quirks and recordings in its own folder; the canned connector
+  secrets/                # the Secrets contract, run against the in-memory fake and the OS keychain (where one answers); no error quotes the token
   storage/                # the schema's migrations; the Storage contract, run against SQLite and browser storage
+  dependencyRules.test.ts # the dependency rules below that keep connectors/ and secrets/ at the edge
 ```
 
 **Dependency rules:**
@@ -95,7 +102,8 @@ test/
 - Forecast code reads facts only through team facts (`teamFacts`), never `storage.facts`, so a forecast always sees the EM's status mapping. Storage and storage tests may still read raw facts. (The MVP reads no facts: it has neither, until connectors return.)
 - `connectors/`, `storage/` and `secrets/` sit at the edges behind interfaces, so v1 can run from canned data and the same code can be hosted later.
 - `connectors/` import only their shared types (`connectors/connector.ts`), what the network connectors share (`connectors/remote.ts`), files in their own folder, and `model/`.
-- `forecast/` depends on the connector interface only, never on a concrete connector (`canned/`, `github/` or `jira/`). `app/` builds the connector and passes it in: the canned one from its synthetic fixture in demo mode (`FORECASTER_DEMO=1`), otherwise the real one for the connection. `test/connectors/dependencyRules.test.ts` checks both rules.
+- `forecast/` depends on the connector interface only, never on a concrete connector (`canned/`, `github/` or `jira/`). `app/` builds the connector and passes it in: the canned one from its synthetic fixture in demo mode (`FORECASTER_DEMO=1`), otherwise the real one for the connection. `test/dependencyRules.test.ts` checks both rules.
+- `secrets/` imports nothing from the rest of the app. Only `app/` builds a `Secrets` (the keychain in the local server build) and passes it in; `forecast/` imports only the interface (`secrets/secrets.ts`); nothing else imports `secrets/`. The browser build's page script (`app/webMain.ts`) loads nothing from `secrets/`: an `import type` of the interface is all it may reach. `test/dependencyRules.test.ts` checks these rules too.
 
 **File types:**
 - Source is `.ts`.
@@ -158,7 +166,7 @@ v1 is a local, single-user tool, so items 1 and 2 are what matter. Items 3 and 4
 
 1. **Ticketing credentials.**
    - Use read-only access: for Jira, a scoped API token with read-only scopes (`read:jira-work`) that expires, sent as basic auth with its account's email through Atlassian's gateway; OAuth 2.0 (3LO) with read scopes may replace it later. For GitHub, a GitHub App or fine-grained token with read-only issue access. A classic (unscoped) API token or PAT carries all of that user's permissions, including write access.
-   - Store tokens in the OS keychain. Never put them in the browser, `localStorage`, the SQLite file, logs or error messages.
+   - Store tokens in the OS keychain, through `secrets/`, keyed by team. Never put them in the browser, `localStorage`, the SQLite file, logs or error messages. Nothing but `secrets/` holds a token: it goes from there to the connector when the connector is built. A keychain failure drops the keychain's own error, which might quote the token.
    - No webhooks in v1. Connectors poll on refresh.
 2. **Data minimisation.** The model needs only IDs, types, parent links, labels, status timestamps and counts. Don't ingest titles (except epics', which name them on screen), descriptions, comments or assignee identities. Capacity is typed for the team as a whole, so there is no `Person` table.
 3. **Engine input limits.**
