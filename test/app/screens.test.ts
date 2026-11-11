@@ -965,6 +965,31 @@ describe('Milestone forecast screen: pace pattern', () => {
     expect(text(await page('/'))).toContain('Pace Change typed counts, 14 weeks')
   })
 
+  test('an action leaving too few counts to forecast from shows what to fix, with the action said and Undo', async () => {
+    await startOnPreMvpData()
+    await submitCounts('4, 3, 4, 5, 4, 9, 8, 9')
+    await choosePace('counts')
+    const date = (await page('/')).match(/name="date" value="(\d{4}-\d{2}-\d{2})"/)![1]!
+
+    await post('/pace-action/apply', [['action', 'startFrom'], ['date', date]])
+
+    const html = await page('/')
+    expect(text(html)).toMatch(/Typed counts: Counting pace from \d{1,2} [A-Z][a-z]{2} leaves 3 weeks\. The forecast needs at least 4\./)
+    expect(text(html)).toMatch(/Counting pace from \d{1,2} [A-Z][a-z]{2}, after it stepped up\. Undo/)
+    expect(html).toContain('<form class="pace-applied" method="post" action="/pace-action/undo">')
+  })
+
+  test('one odd week posts the period it leaves out, and the forecast says it is left out', async () => {
+    await startOnPreMvpData()
+    await submitCounts('5, 6, 5, 4, 6, 5, 5, 4, 6, 5, 23, 5, 6, 4')
+    await choosePace('counts')
+    const period = (await page('/')).match(/<input type="hidden" name="action" value="leaveOut"><input type="hidden" name="period" value="(\d{4}-\d{2}-\d{2})">/)![1]!
+
+    await post('/pace-action/apply', [['action', 'leaveOut'], ['period', period]])
+
+    expect(text(await page('/'))).toMatch(/Leaving out the week of \d{1,2} [A-Z][a-z]{2}, the odd week\. Undo/)
+  })
+
   test('with too few weeks to read, the line says so, faintly, and opens to nothing', async () => {
     await startOnPreMvpData()
     await submitCounts('5, 4, 6, 5, 5')

@@ -2,7 +2,7 @@ import type { Ambiguity } from '../model/ambiguity.js'
 import type { Storage } from '../storage/storage.js'
 import { editCapacity, isCapacityEdit, type CapacityEdit, type CapacityForm, type CapacityView } from './capacity.js'
 import type { EditResult } from './editResult.js'
-import { editPaceAction, isPaceActionEdit, type PaceActionEdit } from './paceWindow.js'
+import { editPaceAction, isPaceActionEdit, type PaceActionEdit } from './pacePattern.js'
 import { milestoneForecastView, type ForecastViewOptions, type MilestoneForecastView } from './milestoneForecastView.js'
 import { editGrowth, growthView, type GrowthEdit, type GrowthView, type TypedRange } from './growth.js'
 import { editMilestoneInputs, milestoneInputsView, type MilestoneInputsEdit, type MilestoneInputsView } from './milestoneInputs.js'
@@ -103,8 +103,8 @@ function submitPaceAction(storage: Storage, teamId: string, settings: ForecastSe
   const result = editPaceAction(storage, teamId, edit)
   if (result.ok) return { saved: true, next: 'forecast' }
   const view = milestoneForecastView(storage, teamId, settings, today, shown)
-  if (view.kind !== 'forecast' || view.pacePattern === undefined) return { saved: false, screen: 'forecast', view }
-  return { saved: false, screen: 'forecast', view: { ...view, pacePattern: { ...view.pacePattern, refusal: result.error } } }
+  // with no milestone, the empty screen says what to do
+  return { saved: false, screen: 'forecast', view: view.kind === 'empty' ? view : { ...view, paceActionRefusal: result.error } }
 }
 
 /** A refused capacity form as typed, with why: the add sentence, or the edit form of the entry it was on. */
