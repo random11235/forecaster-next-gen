@@ -44,7 +44,7 @@
     "request": {
       "method": "POST",
       "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
-      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10001) AND (statusCategory != Done OR status CHANGED AFTER \\\"1969-12-31 00:00\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10001) AND (statusCategory != Done OR status CHANGED AFTER \\\"1969-12-31 00:00\\\" OR created >= \\\"1969-12-31 00:00\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
     },
     "response": {
       "status": 200,
@@ -123,6 +123,210 @@
         ],
         "isLast": true
       }
+    }
+  },
+  {
+    "request": {
+      "method": "POST",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND issuetype in subTaskIssueTypes() AND (statusCategory != Done OR status CHANGED AFTER \\\"1969-12-31 00:00\\\" OR created >= \\\"1969-12-31 00:00\\\")\",\"fields\":[\"parent\"],\"maxResults\":100}"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "issues": [
+          {
+            "id": "10110",
+            "fields": {
+              "parent": {
+                "id": "10106"
+              }
+            }
+          },
+          {
+            "id": "10109",
+            "fields": {
+              "parent": {
+                "id": "10106"
+              }
+            }
+          },
+          {
+            "id": "10108",
+            "fields": {
+              "parent": {
+                "id": "10106"
+              }
+            }
+          }
+        ],
+        "isLast": true
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "POST",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10001) AND id in (10106)\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "issues": [],
+        "isLast": true
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/project/SYN/statuses"
+    },
+    "response": {
+      "status": 200,
+      "body": [
+        {
+          "statuses": [
+            {
+              "id": "3",
+              "statusCategory": {
+                "key": "indeterminate"
+              }
+            },
+            {
+              "id": "10004",
+              "statusCategory": {
+                "key": "done"
+              }
+            },
+            {
+              "id": "10003",
+              "statusCategory": {
+                "key": "new"
+              }
+            },
+            {
+              "id": "10005",
+              "statusCategory": {
+                "key": "done"
+              }
+            }
+          ]
+        },
+        {
+          "statuses": [
+            {
+              "id": "3",
+              "statusCategory": {
+                "key": "indeterminate"
+              }
+            },
+            {
+              "id": "10004",
+              "statusCategory": {
+                "key": "done"
+              }
+            },
+            {
+              "id": "10003",
+              "statusCategory": {
+                "key": "new"
+              }
+            },
+            {
+              "id": "10005",
+              "statusCategory": {
+                "key": "done"
+              }
+            }
+          ]
+        },
+        {
+          "statuses": [
+            {
+              "id": "3",
+              "statusCategory": {
+                "key": "indeterminate"
+              }
+            },
+            {
+              "id": "10004",
+              "statusCategory": {
+                "key": "done"
+              }
+            },
+            {
+              "id": "10003",
+              "statusCategory": {
+                "key": "new"
+              }
+            },
+            {
+              "id": "10005",
+              "statusCategory": {
+                "key": "done"
+              }
+            }
+          ]
+        },
+        {
+          "statuses": [
+            {
+              "id": "3",
+              "statusCategory": {
+                "key": "indeterminate"
+              }
+            },
+            {
+              "id": "10004",
+              "statusCategory": {
+                "key": "done"
+              }
+            },
+            {
+              "id": "10003",
+              "statusCategory": {
+                "key": "new"
+              }
+            },
+            {
+              "id": "10005",
+              "statusCategory": {
+                "key": "done"
+              }
+            }
+          ]
+        },
+        {
+          "statuses": [
+            {
+              "id": "3",
+              "statusCategory": {
+                "key": "indeterminate"
+              }
+            },
+            {
+              "id": "10004",
+              "statusCategory": {
+                "key": "done"
+              }
+            },
+            {
+              "id": "10003",
+              "statusCategory": {
+                "key": "new"
+              }
+            },
+            {
+              "id": "10005",
+              "statusCategory": {
+                "key": "done"
+              }
+            }
+          ]
+        }
+      ]
     }
   },
   {
@@ -142,7 +346,9 @@
                 "created": 1794036071936,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -155,7 +361,9 @@
                 "created": 1794036071191,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -169,7 +377,7 @@
     "request": {
       "method": "POST",
       "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
-      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10001) AND (statusCategory != Done OR status CHANGED AFTER \\\"2026-11-06 07:19\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10001) AND (statusCategory != Done OR status CHANGED AFTER \\\"2026-11-06 07:19\\\" OR created >= \\\"2026-11-06 07:19\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
     },
     "response": {
       "status": 200,
@@ -254,7 +462,46 @@
     "request": {
       "method": "POST",
       "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
-      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10000) AND (statusCategory != Done OR status CHANGED AFTER \\\"1969-12-31 00:00\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND issuetype in subTaskIssueTypes() AND (statusCategory != Done OR status CHANGED AFTER \\\"2026-11-06 07:19\\\" OR created >= \\\"2026-11-06 07:19\\\")\",\"fields\":[\"parent\"],\"maxResults\":100}"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "issues": [
+          {
+            "id": "10110",
+            "fields": {
+              "parent": {
+                "id": "10106"
+              }
+            }
+          },
+          {
+            "id": "10109",
+            "fields": {
+              "parent": {
+                "id": "10106"
+              }
+            }
+          },
+          {
+            "id": "10108",
+            "fields": {
+              "parent": {
+                "id": "10106"
+              }
+            }
+          }
+        ],
+        "isLast": true
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "POST",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10000) AND (statusCategory != Done OR status CHANGED AFTER \\\"1969-12-31 00:00\\\" OR created >= \\\"1969-12-31 00:00\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
     },
     "response": {
       "status": 200,
@@ -1693,7 +1940,7 @@
           }
         ],
         "isLast": false,
-        "nextPageToken": "EGQYjtnKz5w0InBwcm9qZWN0ID0gIlNZTiIgQU5EIChmaXhWZXJzaW9uID0gMTAwMDApIEFORCAoc3RhdHVzQ2F0ZWdvcnkgIT0gRG9uZSBPUiBzdGF0dXMgQ0hBTkdFRCBBRlRFUiAiMTk2OS0xMi0zMSAwMDowMCIpKgJbXTIgVEVOQU5UX05PVF9GT1VORF9JTl9URU5BTlRfU1RPUkU="
+        "nextPageToken": "EGQYk5O50Jw0IpEBcHJvamVjdCA9ICJTWU4iIEFORCAoZml4VmVyc2lvbiA9IDEwMDAwKSBBTkQgKHN0YXR1c0NhdGVnb3J5ICE9IERvbmUgT1Igc3RhdHVzIENIQU5HRUQgQUZURVIgIjE5NjktMTItMzEgMDA6MDAiIE9SIGNyZWF0ZWQgPj0gIjE5NjktMTItMzEgMDA6MDAiKSoCW10yIFRFTkFOVF9OT1RfRk9VTkRfSU5fVEVOQU5UX1NUT1JF"
       }
     }
   },
@@ -1701,7 +1948,7 @@
     "request": {
       "method": "POST",
       "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
-      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10000) AND (statusCategory != Done OR status CHANGED AFTER \\\"1969-12-31 00:00\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100,\"nextPageToken\":\"EGQYjtnKz5w0InBwcm9qZWN0ID0gIlNZTiIgQU5EIChmaXhWZXJzaW9uID0gMTAwMDApIEFORCAoc3RhdHVzQ2F0ZWdvcnkgIT0gRG9uZSBPUiBzdGF0dXMgQ0hBTkdFRCBBRlRFUiAiMTk2OS0xMi0zMSAwMDowMCIpKgJbXTIgVEVOQU5UX05PVF9GT1VORF9JTl9URU5BTlRfU1RPUkU=\"}"
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10000) AND (statusCategory != Done OR status CHANGED AFTER \\\"1969-12-31 00:00\\\" OR created >= \\\"1969-12-31 00:00\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100,\"nextPageToken\":\"EGQYk5O50Jw0IpEBcHJvamVjdCA9ICJTWU4iIEFORCAoZml4VmVyc2lvbiA9IDEwMDAwKSBBTkQgKHN0YXR1c0NhdGVnb3J5ICE9IERvbmUgT1Igc3RhdHVzIENIQU5HRUQgQUZURVIgIjE5NjktMTItMzEgMDA6MDAiIE9SIGNyZWF0ZWQgPj0gIjE5NjktMTItMzEgMDA6MDAiKSoCW10yIFRFTkFOVF9OT1RfRk9VTkRfSU5fVEVOQU5UX1NUT1JF\"}"
     },
     "response": {
       "status": 200,
@@ -1939,7 +2186,9 @@
                 "created": 1794036067888,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10005"
                   }
                 ]
               }
@@ -1952,7 +2201,9 @@
                 "created": 1794036068712,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10005"
                   }
                 ]
               }
@@ -1965,7 +2216,9 @@
                 "created": 1794036069539,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10005"
                   }
                 ]
               }
@@ -1978,7 +2231,9 @@
                 "created": 1794036070342,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -1991,7 +2246,9 @@
                 "created": 1794036067048,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2004,7 +2261,9 @@
                 "created": 1794035822771,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2017,7 +2276,9 @@
                 "created": 1794035823547,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2030,7 +2291,9 @@
                 "created": 1794035824322,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2043,7 +2306,9 @@
                 "created": 1794035825063,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2056,7 +2321,9 @@
                 "created": 1794035825996,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2069,7 +2336,9 @@
                 "created": 1794035826867,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2082,7 +2351,9 @@
                 "created": 1794035827771,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2095,7 +2366,9 @@
                 "created": 1794035828563,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2108,7 +2381,9 @@
                 "created": 1794035829491,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2121,7 +2396,9 @@
                 "created": 1794035830302,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2134,7 +2411,9 @@
                 "created": 1794035831199,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2147,7 +2426,9 @@
                 "created": 1794035832045,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2160,7 +2441,9 @@
                 "created": 1794035832920,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2173,7 +2456,9 @@
                 "created": 1794035833741,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2186,7 +2471,9 @@
                 "created": 1794035834526,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2199,7 +2486,9 @@
                 "created": 1794035835412,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2212,7 +2501,9 @@
                 "created": 1794035836234,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2225,7 +2516,9 @@
                 "created": 1794035837100,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2238,7 +2531,9 @@
                 "created": 1794035837863,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2251,7 +2546,9 @@
                 "created": 1794035838617,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2264,7 +2561,9 @@
                 "created": 1794036025531,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2277,7 +2576,9 @@
                 "created": 1794036026556,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2290,7 +2591,9 @@
                 "created": 1794036027389,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2303,7 +2606,9 @@
                 "created": 1794036028301,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2316,7 +2621,9 @@
                 "created": 1794036029121,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2329,7 +2636,9 @@
                 "created": 1794036029982,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2342,7 +2651,9 @@
                 "created": 1794036030800,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2355,7 +2666,9 @@
                 "created": 1794036031679,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2368,7 +2681,9 @@
                 "created": 1794036032657,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2381,7 +2696,9 @@
                 "created": 1794036033490,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2394,7 +2711,9 @@
                 "created": 1794036034397,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2407,7 +2726,9 @@
                 "created": 1794036035267,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2420,7 +2741,9 @@
                 "created": 1794036036136,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2433,7 +2756,9 @@
                 "created": 1794036037096,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2446,7 +2771,9 @@
                 "created": 1794036037964,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2459,7 +2786,9 @@
                 "created": 1794036038804,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2472,7 +2801,9 @@
                 "created": 1794036039728,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2485,7 +2816,9 @@
                 "created": 1794036040605,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2498,7 +2831,9 @@
                 "created": 1794036041446,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2511,7 +2846,9 @@
                 "created": 1794036042246,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2524,7 +2861,9 @@
                 "created": 1794036043042,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2537,7 +2876,9 @@
                 "created": 1794036043794,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2550,7 +2891,9 @@
                 "created": 1794036044586,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2563,7 +2906,9 @@
                 "created": 1794036045465,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2576,7 +2921,9 @@
                 "created": 1794036046401,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2589,7 +2936,9 @@
                 "created": 1794036047187,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2602,7 +2951,9 @@
                 "created": 1794036048013,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2615,7 +2966,9 @@
                 "created": 1794036048801,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2628,7 +2981,9 @@
                 "created": 1794036049584,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2641,7 +2996,9 @@
                 "created": 1794036050426,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2654,7 +3011,9 @@
                 "created": 1794036051328,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2667,7 +3026,9 @@
                 "created": 1794036052326,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2680,7 +3041,9 @@
                 "created": 1794036053136,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2693,7 +3056,9 @@
                 "created": 1794036053931,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2706,7 +3071,9 @@
                 "created": 1794036054834,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2719,7 +3086,9 @@
                 "created": 1794036055713,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2732,7 +3101,9 @@
                 "created": 1794036056605,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2745,7 +3116,9 @@
                 "created": 1794036057457,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2758,7 +3131,9 @@
                 "created": 1794036058248,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2771,7 +3146,9 @@
                 "created": 1794036059048,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2784,7 +3161,9 @@
                 "created": 1794036066187,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2797,7 +3176,9 @@
                 "created": 1794036064606,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2810,7 +3191,9 @@
                 "created": 1794036065357,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2823,7 +3206,9 @@
                 "created": 1794036079480,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               },
@@ -2831,7 +3216,9 @@
                 "created": 1794036072740,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10004",
+                    "to": "10003"
                   }
                 ]
               },
@@ -2839,7 +3226,9 @@
                 "created": 1794035842825,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -2853,7 +3242,7 @@
     "request": {
       "method": "POST",
       "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
-      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10000) AND (statusCategory != Done OR status CHANGED AFTER \\\"2026-11-06 07:19\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10000) AND (statusCategory != Done OR status CHANGED AFTER \\\"2026-11-06 07:19\\\" OR created >= \\\"2026-11-06 07:19\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
     },
     "response": {
       "status": 200,
@@ -4292,7 +4681,7 @@
           }
         ],
         "isLast": false,
-        "nextPageToken": "EGQY6t_Kz5w0InBwcm9qZWN0ID0gIlNZTiIgQU5EIChmaXhWZXJzaW9uID0gMTAwMDApIEFORCAoc3RhdHVzQ2F0ZWdvcnkgIT0gRG9uZSBPUiBzdGF0dXMgQ0hBTkdFRCBBRlRFUiAiMjAyNi0xMS0wNiAwNzoxOSIpKgJbXTIgVEVOQU5UX05PVF9GT1VORF9JTl9URU5BTlRfU1RPUkU="
+        "nextPageToken": "EGQYn5u50Jw0IpEBcHJvamVjdCA9ICJTWU4iIEFORCAoZml4VmVyc2lvbiA9IDEwMDAwKSBBTkQgKHN0YXR1c0NhdGVnb3J5ICE9IERvbmUgT1Igc3RhdHVzIENIQU5HRUQgQUZURVIgIjIwMjYtMTEtMDYgMDc6MTkiIE9SIGNyZWF0ZWQgPj0gIjIwMjYtMTEtMDYgMDc6MTkiKSoCW10yIFRFTkFOVF9OT1RfRk9VTkRfSU5fVEVOQU5UX1NUT1JF"
       }
     }
   },
@@ -4300,7 +4689,7 @@
     "request": {
       "method": "POST",
       "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
-      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10000) AND (statusCategory != Done OR status CHANGED AFTER \\\"2026-11-06 07:19\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100,\"nextPageToken\":\"EGQY6t_Kz5w0InBwcm9qZWN0ID0gIlNZTiIgQU5EIChmaXhWZXJzaW9uID0gMTAwMDApIEFORCAoc3RhdHVzQ2F0ZWdvcnkgIT0gRG9uZSBPUiBzdGF0dXMgQ0hBTkdFRCBBRlRFUiAiMjAyNi0xMS0wNiAwNzoxOSIpKgJbXTIgVEVOQU5UX05PVF9GT1VORF9JTl9URU5BTlRfU1RPUkU=\"}"
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10000) AND (statusCategory != Done OR status CHANGED AFTER \\\"2026-11-06 07:19\\\" OR created >= \\\"2026-11-06 07:19\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100,\"nextPageToken\":\"EGQYn5u50Jw0IpEBcHJvamVjdCA9ICJTWU4iIEFORCAoZml4VmVyc2lvbiA9IDEwMDAwKSBBTkQgKHN0YXR1c0NhdGVnb3J5ICE9IERvbmUgT1Igc3RhdHVzIENIQU5HRUQgQUZURVIgIjIwMjYtMTEtMDYgMDc6MTkiIE9SIGNyZWF0ZWQgPj0gIjIwMjYtMTEtMDYgMDc6MTkiKSoCW10yIFRFTkFOVF9OT1RfRk9VTkRfSU5fVEVOQU5UX1NUT1JF\"}"
     },
     "response": {
       "status": 200,
@@ -4525,7 +4914,7 @@
     "request": {
       "method": "POST",
       "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
-      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (statusCategory != Done) AND (statusCategory != Done OR status CHANGED AFTER \\\"1969-12-31 00:00\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (statusCategory != Done) AND (statusCategory != Done OR status CHANGED AFTER \\\"1969-12-31 00:00\\\" OR created >= \\\"1969-12-31 00:00\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
     },
     "response": {
       "status": 200,
@@ -5368,7 +5757,9 @@
                 "created": 1794036064606,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -5381,7 +5772,9 @@
                 "created": 1794036065357,
                 "items": [
                   {
-                    "fieldId": "status"
+                    "fieldId": "status",
+                    "from": "10003",
+                    "to": "10004"
                   }
                 ]
               }
@@ -5395,7 +5788,7 @@
     "request": {
       "method": "POST",
       "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
-      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (statusCategory != Done) AND (statusCategory != Done OR status CHANGED AFTER \\\"2026-11-06 07:19\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (statusCategory != Done) AND (statusCategory != Done OR status CHANGED AFTER \\\"2026-11-06 07:19\\\" OR created >= \\\"2026-11-06 07:19\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
     },
     "response": {
       "status": 200,
@@ -6225,7 +6618,7 @@
     "request": {
       "method": "POST",
       "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
-      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (labels = \\\"no-such-label\\\") AND (statusCategory != Done OR status CHANGED AFTER \\\"1969-12-31 00:00\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (labels = \\\"no-such-label\\\") AND (statusCategory != Done OR status CHANGED AFTER \\\"1969-12-31 00:00\\\" OR created >= \\\"1969-12-31 00:00\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
     },
     "response": {
       "status": 200,
@@ -6249,7 +6642,7 @@
     "request": {
       "method": "POST",
       "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
-      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (labels = \\\"no-such-label\\\") AND (statusCategory != Done OR status CHANGED AFTER \\\"2026-11-06 07:19\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (labels = \\\"no-such-label\\\") AND id in (10106)\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
     },
     "response": {
       "status": 200,
@@ -6263,7 +6656,21 @@
     "request": {
       "method": "POST",
       "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
-      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (labels == comparable) AND (statusCategory != Done OR status CHANGED AFTER \\\"1969-12-31 00:00\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (labels = \\\"no-such-label\\\") AND (statusCategory != Done OR status CHANGED AFTER \\\"2026-11-06 07:19\\\" OR created >= \\\"2026-11-06 07:19\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "issues": [],
+        "isLast": true
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "POST",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (labels == comparable) AND (statusCategory != Done OR status CHANGED AFTER \\\"1969-12-31 00:00\\\" OR created >= \\\"1969-12-31 00:00\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
     },
     "response": {
       "status": 400,
@@ -6278,7 +6685,7 @@
     "request": {
       "method": "POST",
       "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
-      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (labels == comparable) AND (statusCategory != Done OR status CHANGED AFTER \\\"2026-11-06 07:19\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (labels == comparable) AND (statusCategory != Done OR status CHANGED AFTER \\\"2026-11-06 07:19\\\" OR created >= \\\"2026-11-06 07:19\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
     },
     "response": {
       "status": 400,

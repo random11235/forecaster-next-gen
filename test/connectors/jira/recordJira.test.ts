@@ -25,6 +25,10 @@ const jira: Transport = async (url, init) => {
   if (url.endsWith('/project/SYN/versions')) {
     return json(200, [{ id: '10001', name: 'Search revamp', released: false, archived: false, description: 'Synthetic', self: 'https://x', projectId: 10001 }])
   }
+  if (url.endsWith('/project/SYN/statuses')) {
+    const status = (id: string, name: string, key: string) => ({ id, name, description: 'Synthetic', statusCategory: { id: 3, key, name, colorName: 'green' } })
+    return json(200, [{ id: '10009', name: 'Story', subtask: false, statuses: [status('10003', 'To Do', 'new'), status('10004', 'Done', 'done')] }])
+  }
   if (url.includes('/project/')) return unknown
   if (url.endsWith('/changelog/bulkfetch')) {
     return json(200, {
@@ -47,6 +51,10 @@ const jira: Transport = async (url, init) => {
   // Like Jira, search on an unknown project matches nothing rather than failing; a refused query gets a 400.
   if (jql.includes('==')) return json(400, { errorMessages: ["Error in JQL Query: Expecting either a value, list or function but got '='."], errors: {}, warningMessages: [] })
   if (!jql.startsWith('project = "SYN" ') || jql.includes('no-such-label')) return json(200, { issues: [], isLast: true })
+  if (jql.includes('subTaskIssueTypes()')) {
+    const parent = { id: '10133', key: 'SYN-134', fields: { summary: 'Search leaf 1', status: { name: 'In Progress' } } }
+    return json(200, { issues: [{ id: '10134', key: 'SYN-135', fields: { parent } }], isLast: true })
+  }
   return json(200, {
     issues: [
       {
@@ -99,8 +107,17 @@ describe('the Jira recording script', () => {
       ],
       isLast: true,
     })
+    expect(responses).toContainEqual({ issues: [{ id: '10134', fields: { parent: { id: '10133' } } }], isLast: true })
+    expect(responses).toContainEqual([
+      {
+        statuses: [
+          { id: '10003', statusCategory: { key: 'new' } },
+          { id: '10004', statusCategory: { key: 'done' } },
+        ],
+      },
+    ])
     expect(responses).toContainEqual({
-      issueChangeLogs: [{ issueId: '10134', changeHistories: [{ created: 1794036079480, items: [{ fieldId: 'status' }] }] }],
+      issueChangeLogs: [{ issueId: '10134', changeHistories: [{ created: 1794036079480, items: [{ fieldId: 'status', from: '10003', to: '10004' }] }] }],
     })
     expect(JSON.stringify(result.recordings)).not.toMatch(/Someone|Synthetic|SYN-13[45]|Melbourne|To Do|x-arequestid|Basic|warningMessages|lead/)
   })

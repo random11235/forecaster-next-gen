@@ -1,6 +1,6 @@
 import type { Connection } from '../../model/connection.js'
 import type { Choice, Connector, FailedCall, ReadResult, Ticket, Transport } from '../connector.js'
-import { failureOf as statusFailure, finishedSince, send, sleep, staysInScope, type QueryScope, type Received, type Wait } from '../remote.js'
+import { failureOf as statusFailure, finishedSince, send, sleep, staysInScope, type Backoff, type QueryScope, type Received, type Wait } from '../remote.js'
 
 /**
  * The GitHub connector. It reads through GitHub's REST API: issue search, rather than GraphQL's, because only REST
@@ -66,12 +66,13 @@ export function githubConnector(
   wait: Wait = sleep,
 ): Connector {
   const repo = `${connection.owner}/${connection.repo}`
+  const backoff: Backoff = { rateLimited, wait }
 
   const headers = { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28' }
 
   /** The response, rate limits backed off, or `undefined` when the network failed. */
   function get(path: string): Promise<Received | undefined> {
-    return send(transport, `${API}${path}`, { headers }, { rateLimited, wait })
+    return send(transport, `${API}${path}`, { headers }, backoff)
   }
 
   return {
@@ -99,13 +100,13 @@ export function githubConnector(
           return { ok: false, failure: 'invalidQuery', message }
         }
         if (response.status !== 200) return failureOf(response)
-        const found = response.body as SearchResponse
-        for (const item of found.items) {
+        const results = response.body as SearchResponse
+        for (const item of results.items) {
           tickets.push(item.state === 'closed' && item.closed_at ? { id: item.node_id, finishedAt: item.closed_at } : { id: item.node_id })
         }
-        incomplete ||= found.incomplete_results
-        const read = (page - 1) * PAGE + found.items.length
-        if (found.items.length < PAGE || read >= found.total_count) break
+        incomplete ||= results.incomplete_results
+        const read = (page - 1) * PAGE + results.items.length
+        if (results.items.length < PAGE || read >= results.total_count) break
         if (read >= SEARCH_CAP) {
           incomplete = true
           break

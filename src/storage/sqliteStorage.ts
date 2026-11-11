@@ -429,7 +429,7 @@ export function openSqliteStorage(file: string): SqliteStorage {
       deleteConnection.run(teamId)
     },
 
-    saveRead(teamId, query, read) {
+    saveRead({ teamId, query }, read) {
       transaction(() => {
         deleteSavedRead.run(teamId, query)
         insertSavedRead.run(teamId, query, read.incomplete ? 1 : 0, read.readAt)
@@ -439,7 +439,7 @@ export function openSqliteStorage(file: string): SqliteStorage {
       })
     },
 
-    savedRead(teamId, query) {
+    savedRead({ teamId, query }) {
       const row = selectSavedRead.get(teamId, query)
       if (row === undefined) return undefined
       return {

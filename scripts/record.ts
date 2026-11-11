@@ -57,7 +57,7 @@ function recording(transport: Transport, trim: Trim): { transport: Transport; re
 }
 
 /** The `cut` in a synthetic tracker's manifest: a `finishedSince` between its early finishes and its later ones. */
-function cutOf(tracker: string): string {
+function cutOf(tracker: Connection['tracker']): string {
   const manifest = JSON.parse(readFileSync(new URL(`synthetic/manifest-${tracker}.json`, import.meta.url), 'utf8')) as { batches: { cut: string } }
   return manifest.batches.cut
 }
@@ -154,13 +154,26 @@ const JIRA: Tracker<JiraConnection> = {
     // The connector reads only whether the project is there, from the status.
     if (/\/project\/[^/]+$/.test(url)) return {}
     if (url.endsWith('/versions')) return (body as Body[]).map((version) => pick(version, ['id', 'name', 'released', 'archived']))
+    const categoryOf = (status: unknown) => ({ statusCategory: pick((status as Body).statusCategory, ['key']) })
+    if (url.endsWith('/statuses')) {
+      return (body as Body[]).map((issueType) => ({
+        statuses: (issueType.statuses as Body[]).map((status) => ({ id: status.id, ...categoryOf(status) })),
+      }))
+    }
     if (url.endsWith('/search/jql')) {
       const found = pick(body, ['issues', 'isLast', 'nextPageToken'])
-      const statusOf = (fields: Body) => ({ statusCategory: pick((fields.status as Body).statusCategory, ['key']) })
       found.issues = (found.issues as Body[]).map((issue) => {
         const fields = issue.fields as Body
-        const subtasks = ((fields.subtasks ?? []) as Body[]).map((subtask) => ({ id: subtask.id, fields: { status: statusOf(subtask.fields as Body) } }))
-        return { id: issue.id, fields: { issuetype: pick(fields.issuetype, ['hierarchyLevel']), status: statusOf(fields), subtasks } }
+        // Each search asks for its own fields: a read's, a subtask's parent, or when a ticket was made.
+        const kept: Body = {}
+        if ('issuetype' in fields) kept.issuetype = pick(fields.issuetype, ['hierarchyLevel'])
+        if ('status' in fields) kept.status = categoryOf(fields.status)
+        if ('subtasks' in fields) {
+          kept.subtasks = (fields.subtasks as Body[]).map((subtask) => ({ id: subtask.id, fields: { status: categoryOf((subtask.fields as Body).status) } }))
+        }
+        if ('parent' in fields) kept.parent = pick(fields.parent, ['id'])
+        if ('created' in fields) kept.created = fields.created
+        return { id: issue.id, fields: kept }
       })
       return found
     }
@@ -170,7 +183,7 @@ const JIRA: Tracker<JiraConnection> = {
         issueId: log.issueId,
         changeHistories: (log.changeHistories as Body[]).map((change) => ({
           created: change.created,
-          items: (change.items as Body[]).map((item) => pick(item, ['fieldId'])),
+          items: (change.items as Body[]).map((item) => pick(item, ['fieldId', 'from', 'to'])),
         })),
       }))
       return fetched
