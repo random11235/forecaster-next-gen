@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import type { Connector, Failure } from '../../src/connectors/connector.js'
 import type { ContractSubject } from './connectorContract.js'
+import { FROM_THE_START } from './scenarios.js'
 import { githubSubject } from './github/githubSubject.js'
 import { jiraSubject } from './jira/jiraSubject.js'
 
@@ -12,7 +13,10 @@ const subjects: [string, ContractSubject][] = [
   ['Jira', jiraSubject],
 ]
 
-describe.each(subjects)('%s connector', (_, subject) => {
+/** The trackers whose reads are full: which tickets count, when they finished, every page. Jira joins with #186. */
+const fullReads = new Set(['GitHub'])
+
+describe.each(subjects)('%s connector', (name, subject) => {
   const { queries, batches } = subject
 
   describe('milestone choices', () => {
@@ -53,6 +57,65 @@ describe.each(subjects)('%s connector', (_, subject) => {
 
     test('reaching outside the connection fails as outOfScope', async () => {
       expect(await subject.synthetic().read(queries.outOfScope, batches.cut)).toEqual({ ok: false, failure: 'outOfScope' })
+    })
+  })
+
+  describe.runIf(fullReads.has(name))('a full read', () => {
+    test("reads every page of the query's leaf tickets, and nothing else: no parents, no pull requests", async () => {
+      const result = await subject.synthetic().read(queries.checkout, FROM_THE_START)
+
+      if (!result.ok) throw new Error(`read failed: ${result.failure}`)
+      expect(result.tickets.map((ticket) => ticket.id).sort()).toEqual(subject.roles.checkout.map(subject.idOf).sort())
+      expect(result.incomplete).toBe(false)
+    })
+
+    test("adds the connection's repo or project: a query matching tickets anywhere reads only the connection's", async () => {
+      const result = await subject.synthetic().read(queries.open, batches.cut)
+
+      if (!result.ok) throw new Error(`read failed: ${result.failure}`)
+      expect(result.tickets.length).toBeGreaterThan(0)
+      expect(subject.ids).toEqual(expect.arrayContaining(result.tickets.map((ticket) => ticket.id)))
+    })
+
+    test('a reopened ticket finished again is finished at its last finish', async () => {
+      const result = await subject.synthetic().read(queries.checkout, batches.cut)
+
+      if (!result.ok) throw new Error(`read failed: ${result.failure}`)
+      const finishedAt = result.tickets.find((ticket) => ticket.id === subject.idOf('reopened-finished'))?.finishedAt
+      expect(Date.parse(finishedAt!)).toBeGreaterThanOrEqual(Date.parse(batches.laterStart) - 1000)
+      expect(Date.parse(finishedAt!)).toBeLessThanOrEqual(Date.parse(batches.laterEnd) + 1000)
+    })
+
+    test('a reopened ticket still open is open', async () => {
+      const result = await subject.synthetic().read(queries.checkout, batches.cut)
+
+      if (!result.ok) throw new Error(`read failed: ${result.failure}`)
+      expect(result.tickets).toContainEqual({ id: subject.idOf('reopened-open') })
+    })
+
+    test('never returns a parent, though its leaves are read', async () => {
+      const result = await subject.synthetic().read(queries.checkout, FROM_THE_START)
+
+      if (!result.ok) throw new Error(`read failed: ${result.failure}`)
+      const ids = result.tickets.map((ticket) => ticket.id)
+      for (const role of subject.roles.parents) expect(ids).not.toContain(subject.idOf(role))
+      expect(ids).toContain(subject.idOf('epic-leaf'))
+    })
+
+    test('leaves out tickets finished before finishedSince, and keeps those finished since and those open', async () => {
+      const result = await subject.synthetic().read(queries.checkout, batches.cut)
+
+      if (!result.ok) throw new Error(`read failed: ${result.failure}`)
+      const ids = result.tickets.map((ticket) => ticket.id)
+      // The seed finished leaves 001 to 020 before the cut, 021 to 060 after it, and left 061 to 105 open.
+      for (const role of ['leaf-001', 'leaf-020']) expect(ids).not.toContain(subject.idOf(role))
+      for (const role of ['leaf-021', 'leaf-060', 'leaf-061', 'leaf-105']) expect(ids).toContain(subject.idOf(role))
+    })
+
+    test.runIf(subject.capped)('reading as far as a search cap allows, the read is incomplete', async () => {
+      const result = await subject.capped!().read(queries.checkout, FROM_THE_START)
+
+      expect(result).toMatchObject({ ok: true, incomplete: true })
     })
   })
 

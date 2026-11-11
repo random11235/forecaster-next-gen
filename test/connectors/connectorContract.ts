@@ -27,15 +27,29 @@ export interface ContractSubject {
    * waited out.
    */
   rateLimited(times: number, retryAfter?: string): { connector: Connector; waits: number[] }
+  /**
+   * On the synthetic repo or space, its tracker's search finding more tickets than it pages through. Only a tracker
+   * that caps its search results (GitHub's, at 1,000) has one.
+   */
+  capped?(): Connector
   queries: Queries
   /** A synthetic ticket's id, by its role in the manifest. */
   idOf(role: string): string
+  /** Every synthetic ticket's id in the manifest. */
+  ids: string[]
+  /** The roles of the synthetic tickets the hierarchy cases read, in the manifest's words. */
+  roles: {
+    /** Every leaf ticket the "Checkout v2" query reads: more than one page. */
+    checkout: string[]
+    /** The tickets in "Checkout v2" with children of their own, which are never returned. */
+    parents: string[]
+  }
   /** When the seed script's batches of finishes ran: `cut` falls between the early and later ones. */
   batches: { laterStart: string; laterEnd: string; cut: string }
 }
 
 /** Recordings keep no headers, so any credential stands in for the one they were recorded with. */
-const REPLAYED_CREDENTIAL = 'replayed-token'
+export const REPLAYED_CREDENTIAL = 'replayed-token'
 
 /** What `fetch` rejects with when the network is down. */
 const offline: Transport = async () => {
@@ -43,7 +57,7 @@ const offline: Transport = async () => {
 }
 
 /** A backoff that is never waited out. */
-const noWait: Wait = async () => {}
+export const noWait: Wait = async () => {}
 
 /** `transport`, behind a tracker that answers each request with a 429 its first `times` times. */
 function rateLimiting(transport: Transport, times: number, retryAfter: string | undefined): Transport {
@@ -65,8 +79,12 @@ export function replayedSubject<C extends Connection>(tracker: {
   recordings: Record<Scenario, Recording[]>
   /** A synthetic ticket's id by its role, from the tracker's manifest. */
   idOf: (role: string) => string | undefined
+  /** Every synthetic ticket's id in the manifest. */
+  ids: string[]
   /** The manifest's batches. */
   batches: { later_start: string; later_end: string; cut: string }
+  roles: ContractSubject['roles']
+  capped?: ContractSubject['capped']
 }): ContractSubject {
   const { connect, cases, recordings, batches } = tracker
   const synthetic = cases.scenarios.synthetic.connection
@@ -86,7 +104,10 @@ export function replayedSubject<C extends Connection>(tracker: {
       })
       return { connector, waits }
     },
+    ...(tracker.capped ? { capped: tracker.capped } : {}),
     queries: cases.queries,
+    roles: tracker.roles,
+    ids: tracker.ids,
     idOf: (role) => {
       const id = tracker.idOf(role)
       if (id === undefined) throw new Error(`No synthetic ticket has the role ${role}`)
