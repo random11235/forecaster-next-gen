@@ -50,6 +50,7 @@ src/
     team.ts
     milestoneInputs.ts    # MilestoneInputs: what the EM types in for the team's milestone; PaceMode
     ambiguity.ts          # Ambiguity and AmbiguityRanges: set by the EM
+    connection.ts         # Connection: the team's one tracker and repo or Jira project (with Jira's account email); never a token
 
   engine/                 # pure: no I/O, no DB, no clock; see src/engine/ for its files
     index.ts              # exports simulateCase, periodEndDate and the types only
@@ -67,7 +68,7 @@ src/
     editResult.ts         # an edit saved, or refused saying why
 
   connectors/             # what reads the team's tickets from its tracker; everything tracker-specific stays inside one
-    connector.ts          # the interface and its shared types: Connection, Ticket, Failure, ReadResult, Choice
+    connector.ts          # the interface and its shared types: Connection (from `model/`), Ticket, Failure, ReadResult, Choice
     remote.ts             # what the network connectors share: sending a request (only a network failure is unavailable), status to failure, the scope check, the finishedSince filter
     canned/               # the canned connector, answering from a fixture in the connector's own shape; Seam B tests use it
       demoFixture.json    # demo mode's synthetic fixture: made up, no real team's data
@@ -142,7 +143,7 @@ The web build is tested the same way, with no seam of its own: `webApp.test.ts` 
 
 The one exception is the PRNG: `engine/random.ts` is checked against output vectors from the authors' reference C code for xoshiro128**, because a port must reproduce its exact stream and Seam A can't show that.
 
-`test/storage/` holds the Storage contract, one suite run against both the SQLite file and the web build's browser storage, and the schema migration tests. The migration tests are not a forecasting seam either: they write a data file as an earlier release left it, open it through `openSqliteStorage`, and check what reads back. A ticket that changes the schema appends a step to `MIGRATIONS` in `src/storage/sqliteStorage.ts` (never editing a released one) and adds a test there that opens a file from the version before.
+`test/storage/` holds the Storage contract, one suite run against both the SQLite file and the web build's browser storage, and the schema migration tests. The team's connection is kept only by the SQLite file (`ConnectionStorage`, part of `openSqliteStorage`'s `SqliteStorage`), so its cases run against SQLite alone: the browser build has no connectors. The migration tests are not a forecasting seam either: they write a data file as an earlier release left it, open it through `openSqliteStorage`, and check what reads back. A ticket that changes the schema appends a step to `MIGRATIONS` in `src/storage/sqliteStorage.ts` (never editing a released one) and adds a test there that opens a file from the version before.
 
 ---
 

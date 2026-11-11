@@ -7,7 +7,7 @@ import { failureOf, finishedSince, send, staysInScope, type QueryScope, type Rec
  * until then a read is one page of JQL search results, flagged incomplete when there are more, and a finished ticket's
  * finish is when its status last entered the Done category.
  *
- * Its token is `email:apiToken`, sent as basic auth. Scoped API tokens work only through Atlassian's gateway, by the
+ * It signs in as the connection's account email with the API token, sent as basic auth. Scoped API tokens work only through Atlassian's gateway, by the
  * site's cloud id, so the connector looks that up from the site first.
  * See docs/research/jira-connector.md (on research/jira-connector).
  */
@@ -56,7 +56,7 @@ const UNAVAILABLE: FailedCall = { ok: false, failure: 'unavailable' }
 
 export function jiraConnector(connection: Extract<Connection, { tracker: 'jira' }>, token: string, transport: Transport): Connector {
   const key = connection.projectKey
-  const authorization = `Basic ${btoa(token)}`
+  const authorization = `Basic ${btoa(`${connection.email}:${token}`)}`
 
   let cloudId: string | undefined
 

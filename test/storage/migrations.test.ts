@@ -547,6 +547,32 @@ describe('a data file from schema version 11, before the pace window', () => {
   })
 })
 
+/** Version 12's tables: version 11's, plus the pace window as #161 shipped it. Kept verbatim: it is a past release. */
+const VERSION_12_SCHEMA = `${VERSION_11_SCHEMA}
+ALTER TABLE milestone_inputs ADD COLUMN pace_window TEXT NOT NULL DEFAULT '{}';
+`
+
+describe('a data file from schema version 12, before the connection', () => {
+  test('keeps its milestone, has no connection, and takes one, which survives reopening with no token in the file', () => {
+    const file = writeFile('v12.db', VERSION_12_SCHEMA, 12)
+    const storage = openSqliteStorage(file)
+    expect(storage.milestoneInputs(TEAM)).toMatchObject({ name: 'Launch', paceCounts: [6, 9] })
+    expect(storage.connection(TEAM)).toBeUndefined()
+
+    const jira = { tracker: 'jira' as const, site: 'acme.atlassian.net', projectKey: 'ACME', email: 'em@acme.example' }
+    storage.saveConnection(TEAM, jira)
+    storage.close()
+
+    const again = openSqliteStorage(file)
+    expect(again.connection(TEAM)).toEqual(jira)
+    again.close()
+    expect(rowsOf(file, 'SELECT * FROM connections')).toEqual([
+      { team_id: TEAM, tracker: 'jira', owner: null, repo: null, site: 'acme.atlassian.net', project_key: 'ACME', email: 'em@acme.example' },
+    ])
+    expect(versionOf(file)).toBe(13)
+  })
+})
+
 describe('a data file from a newer release', () => {
   test('refuses to open, says why, and leaves the file as it was', () => {
     const file = writeFile('newer.db', 'CREATE TABLE from_the_future (id TEXT);', 999)
