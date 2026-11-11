@@ -34,12 +34,19 @@ export type ConnectionEdit = ({ kind: 'connect'; token: string } & ConnectionFor
 /** The read-only permission a token needs, by tracker: what the EM is told to create. */
 export const TOKEN_PERMISSIONS: Readonly<Record<Tracker, string>> = { github: 'Issues: read', jira: 'read:jira-work' }
 
-/** What the Connect step shows. */
-export interface ConnectionView {
-  kind: 'connect'
+/**
+ * What the Connect step shows: in the browser build, nothing (`noConnect`); otherwise its form, blank until the team
+ * connects (`connect`), then the connection, with its form filled in to change it (`connected`).
+ */
+export type ConnectionView = { kind: 'noConnect' } | ConnectStep
+
+/** The Connect step, before connecting or once connected. */
+export type ConnectStep = ({ kind: 'connect' } | { kind: 'connected'; connection: Connection }) & {
+  /** As saved, or as typed when refused; never with the token. */
   form: ConnectionForm
+  /** The read-only permission to create each tracker's token with. */
   permissions: Readonly<Record<Tracker, string>>
-  /** Why the connect just submitted was refused; none until one is. */
+  /** Why the form just submitted was refused; none until one is. */
   refusal?: string
 }
 
@@ -47,13 +54,13 @@ export interface ConnectionView {
 export type SetupStep = 'connect' | 'milestone'
 
 /** A connection saved (or removed), and the setup step to go to next; or refused, with the Connect step to show again. */
-export type ConnectionSubmitted = { saved: true; next: SetupStep } | { saved: false; view: ConnectionView & { refusal: string } }
+export type ConnectionSubmitted = { saved: true; next: SetupStep } | { saved: false; view: ConnectStep & { refusal: string } }
 
 /** Seam B: checks the connection the EM submitted by asking its tracker for milestone choices, and saves it if it answers. */
 export async function submitConnection(connecting: Connecting, teamId: string, edit: ConnectionEdit): Promise<ConnectionSubmitted> {
   if (edit.kind === 'disconnect') throw new Error('not yet')
   const { token, kind: _, ...form } = edit
-  const refused = (refusal: string): ConnectionSubmitted => ({ saved: false, view: { kind: 'connect', form, permissions: TOKEN_PERMISSIONS, refusal } })
+  const refused = (refusal: string): ConnectionSubmitted => ({ saved: false, view: { ...connectStep(connecting, teamId), form, refusal } })
   const connection = connectionOf(form)
   const missing = missingFrom(connection, token.trim())
   if (missing) return refused(missing)
@@ -111,4 +118,22 @@ function refusalOf(connection: Connection, { failure }: Failure): string {
   }
 }
 
-export function connectionView(): void {}
+/** Seam B: the team's Connect step; none in the browser build, which has nothing to connect with (`connecting` undefined). */
+export function connectionView(connecting: Connecting | undefined, teamId: string): ConnectionView {
+  return connecting ? connectStep(connecting, teamId) : { kind: 'noConnect' }
+}
+
+function connectStep({ connections }: Connecting, teamId: string): ConnectStep {
+  const connection = connections.connection(teamId)
+  if (!connection) return { kind: 'connect', form: BLANK_FORM, permissions: TOKEN_PERMISSIONS }
+  return { kind: 'connected', connection, form: formOf(connection), permissions: TOKEN_PERMISSIONS }
+}
+
+const BLANK_FORM: ConnectionForm = { tracker: 'github', repo: '', site: '', projectKey: '', email: '' }
+
+/** The form naming `connection`, as the EM would type it. */
+function formOf(connection: Connection): ConnectionForm {
+  return connection.tracker === 'github'
+    ? { ...BLANK_FORM, repo: `${connection.owner}/${connection.repo}` }
+    : { ...BLANK_FORM, tracker: 'jira', site: connection.site, projectKey: connection.projectKey, email: connection.email }
+}
