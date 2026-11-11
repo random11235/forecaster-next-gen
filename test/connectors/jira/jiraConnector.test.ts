@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import type { Transport } from '../../../src/connectors/connector.js'
 import { jiraConnector } from '../../../src/connectors/jira/jiraConnector.js'
+import { answering, mustNotWait, noWait } from '../backoff.js'
 import { replayTransport } from '../replayTransport.js'
 
 // Jira-only quirks, beside the contract suite. A read's JQL is wrapped as `project = "KEY" AND (query)`, so a query
@@ -78,6 +79,15 @@ function searchOf(jql: string, issues: unknown[], site: Site): unknown[] {
   if (jql.startsWith('project = "SYN" AND id in (')) return ids.map((id) => ({ id, fields: { created: site.created?.[id] } }))
   if (ids.length > 0) return ids.flatMap((id) => (site.outsideWindow?.[id] === undefined ? [] : [site.outsideWindow[id]]))
   return issues
+}
+
+/** A stand-in Jira that gives its cloud id, then answers each call through the gateway with `answer`. */
+function answeringPastTenant(answer: Transport) {
+  return answering(async (url, init) => (url.endsWith('/_edge/tenant_info') ? json(200, { cloudId: 'cloud-1' }) : answer(url, init)))
+}
+
+function throughGateway(url: string): boolean {
+  return !url.endsWith('/_edge/tenant_info')
 }
 
 describe('Jira connector', () => {
@@ -304,36 +314,18 @@ describe('Jira connector', () => {
     ['a 429 (rate limited) is backed off, then', 429, 4],
     ['a 502 (Jira down) is sent once, and', 502, 1],
   ])('%s unavailable', async (_, status, times) => {
-    let sent = 0
-    const connector = jiraConnector(
-      CONNECTION,
-      'token',
-      async (url) => {
-        if (url.endsWith('/_edge/tenant_info')) return json(200, { cloudId: 'cloud-1' })
-        sent++
-        return new Response('Too many requests', { status })
-      },
-      async () => {},
-    )
+    const jira = answeringPastTenant(async () => new Response('Too many requests', { status }))
+    const connector = jiraConnector(CONNECTION, 'token', jira.transport, noWait)
 
     expect(await connector.read('labels = a', SINCE)).toEqual({ ok: false, failure: 'unavailable' })
-    expect(sent).toBe(times)
+    expect(jira.sent.filter(throughGateway)).toHaveLength(times)
   })
 
   test('a 403 from Jira is not a rate limit, so it is sent once', async () => {
-    let sent = 0
-    const connector = jiraConnector(
-      CONNECTION,
-      'token',
-      async (url) => {
-        if (url.endsWith('/_edge/tenant_info')) return json(200, { cloudId: 'cloud-1' })
-        sent++
-        return new Response('Forbidden', { status: 403, headers: { 'retry-after': '1' } })
-      },
-      async () => {},
-    )
+    const jira = answeringPastTenant(async () => new Response('Forbidden', { status: 403, headers: { 'retry-after': '1' } }))
+    const connector = jiraConnector(CONNECTION, 'token', jira.transport, mustNotWait)
 
     expect(await connector.milestoneChoices()).toEqual({ ok: false, failure: 'unavailable' })
-    expect(sent).toBe(1)
+    expect(jira.sent.filter(throughGateway)).toHaveLength(1)
   })
 })
