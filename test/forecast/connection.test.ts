@@ -61,6 +61,18 @@ describe('connecting', () => {
     expect(storage.connection(TEAM)).toEqual({ tracker: 'github', owner: 'shop-team', repo: 'shop' })
     expect(await using.secrets.token(TEAM)).toBe(TOKEN)
   })
+
+  test('a good Jira connect saves the site, the project and the account email, as typed but tidied', async () => {
+    const using = connecting()
+
+    const submitted = await submitConnection(using, TEAM, jira({ site: ' https://shop.atlassian.net/ ', projectKey: 'shop ', email: ' em@shop.example' }))
+
+    const connection: Connection = { tracker: 'jira', site: 'shop.atlassian.net', projectKey: 'SHOP', email: 'em@shop.example' }
+    expect(submitted).toEqual({ saved: true, next: 'milestone' })
+    expect(using.built).toEqual([{ connection, token: TOKEN }])
+    expect(storage.connection(TEAM)).toEqual(connection)
+    expect(await using.secrets.token(TEAM)).toBe(TOKEN)
+  })
 })
 
 describe('a connect the tracker refuses', () => {
@@ -81,6 +93,23 @@ describe('a connect the tracker refuses', () => {
         refusal: 'GitHub refused the token. Check it hasn’t expired, and that it has Issues: read on this repo.',
       },
     })
+    expect(storage.connection(TEAM)).toBeUndefined()
+    expect(await using.secrets.token(TEAM)).toBeUndefined()
+  })
+
+  test.each([
+    ['github', 'unauthorised', 'GitHub refused the token. Check it hasn’t expired, and that it has Issues: read on this repo.'],
+    ['github', 'notFound', 'GitHub can’t see shop-team/shop with this token. Check the repo’s name, and that the token covers it.'],
+    ['github', 'unavailable', 'GitHub can’t be reached just now, or is limiting requests. Try again in a few minutes.'],
+    ['jira', 'unauthorised', 'Jira refused the token. Check it hasn’t expired, that it has read:jira-work, and that em@shop.example is the account that made it.'],
+    ['jira', 'notFound', 'Jira can’t find project SHOP on shop.atlassian.net with this token. Check the site and the project key, and that the account can see it.'],
+    ['jira', 'unavailable', 'Jira can’t be reached just now, or is limiting requests. Try again in a few minutes.'],
+  ] as const)('%s failing the check as %s says so, and saves nothing', async (tracker, failure, refusal) => {
+    const using = connecting(refusedBy(failure))
+
+    const submitted = await submitConnection(using, TEAM, tracker === 'github' ? github() : jira())
+
+    expect(submitted.saved === false && submitted.view.refusal).toBe(refusal)
     expect(storage.connection(TEAM)).toBeUndefined()
     expect(await using.secrets.token(TEAM)).toBeUndefined()
   })
