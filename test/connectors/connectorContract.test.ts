@@ -56,6 +56,30 @@ describe.each(subjects)('%s connector', (_, subject) => {
     })
   })
 
+  describe('a rate-limited tracker', () => {
+    test('is retried with backoff, so a read rate limited, then answered, succeeds', async () => {
+      const { connector, waits } = subject.rateLimited(1)
+
+      expect(await connector.read(queries.searchRevamp, batches.cut)).toEqual(await subject.synthetic().read(queries.searchRevamp, batches.cut))
+      expect(waits.length).toBeGreaterThan(0)
+    })
+
+    test("waits as long as the tracker's retry-after asks", async () => {
+      const { connector, waits } = subject.rateLimited(1, '5')
+
+      expect((await connector.milestoneChoices()).ok).toBe(true)
+      expect(waits.length).toBeGreaterThan(0)
+      expect(new Set(waits)).toEqual(new Set([5000]))
+    })
+
+    test('still rate limited after backoff, a read is unavailable', async () => {
+      const { connector, waits } = subject.rateLimited(Infinity)
+
+      expect(await connector.read(queries.searchRevamp, batches.cut)).toEqual({ ok: false, failure: 'unavailable' })
+      expect(waits).toEqual([1000, 2000, 4000])
+    })
+  })
+
   const failing: [string, () => Connector, Failure][] = [
     ['with a refused token', () => subject.refusedToken(), { failure: 'unauthorised' }],
     ['on a repo or project that does not exist', () => subject.unknown(), { failure: 'notFound' }],
