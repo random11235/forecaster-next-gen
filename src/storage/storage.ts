@@ -1,5 +1,6 @@
 import type { AmbiguityRanges } from '../model/ambiguity.js'
 import type { CapacityEntry } from '../model/capacity.js'
+import type { Connection } from '../model/connection.js'
 import type { MilestoneInputs } from '../model/milestoneInputs.js'
 import type { Team } from '../model/team.js'
 
@@ -32,4 +33,17 @@ export interface Storage {
   /** Whether the team's forecasts use its capacity: on until switched off. */
   capacityOn(teamId: string): boolean
   close(): void
+}
+
+/**
+ * Where the local server build keeps the team's connection, beside its other data. The browser build has no
+ * connectors, so its storage has no connection. Never a token: that is kept in the OS keychain, by `secrets/`.
+ */
+export interface ConnectionStorage {
+  /** Adds the team's connection, or replaces the one it has: a team has at most one. */
+  saveConnection(teamId: string, connection: Connection): void
+  /** The team's connection, if it has one. */
+  connection(teamId: string): Connection | undefined
+  /** Removes the team's connection, if it has one. */
+  removeConnection(teamId: string): void
 }
