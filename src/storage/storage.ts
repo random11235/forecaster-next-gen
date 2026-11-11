@@ -2,6 +2,7 @@ import type { AmbiguityRanges } from '../model/ambiguity.js'
 import type { CapacityEntry } from '../model/capacity.js'
 import type { Connection } from '../model/connection.js'
 import type { MilestoneInputs } from '../model/milestoneInputs.js'
+import type { SavedRead } from '../model/savedRead.js'
 import type { Team } from '../model/team.js'
 
 /**
@@ -46,4 +47,16 @@ export interface ConnectionStorage {
   connection(teamId: string): Connection | undefined
   /** Removes the team's connection, if it has one. */
   removeConnection(teamId: string): void
+}
+
+/**
+ * Where the local server build keeps the last read of each of a team's queries, beside its connection, so screens open
+ * without a network call. Not the append-only facts earlier releases wrote: a read replaces the query's saved read
+ * whole. Nothing of a ticket but its id and finish time is kept. The browser build has no connectors, so no saved reads.
+ */
+export interface SavedReadStorage {
+  /** Saves the query's read, replacing whatever was saved for it. */
+  saveRead(teamId: string, query: string, read: SavedRead): void
+  /** The query's last saved read, if it has been read. */
+  savedRead(teamId: string, query: string): SavedRead | undefined
 }
