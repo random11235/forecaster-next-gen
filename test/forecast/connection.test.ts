@@ -75,6 +75,27 @@ describe('connecting', () => {
   })
 })
 
+describe('a connect refused before the tracker is asked', () => {
+  test.each([
+    ['a missing token', github('shop-team/shop', '  '), 'Paste a token to connect.'],
+    ['a missing repo', github(''), 'Give the repo as owner/repo, like shop-team/shop.'],
+    ['a repo without its owner', github('shop'), 'Give the repo as owner/repo, like shop-team/shop.'],
+    ['a path beyond the repo', github('shop-team/shop/issues'), 'Give the repo as owner/repo, like shop-team/shop.'],
+    ['a missing site', jira({ site: '' }), 'Give the Jira site, like your-team.atlassian.net.'],
+    ['a missing project key', jira({ projectKey: ' ' }), 'Give the Jira project key, like SHOP.'],
+    ['a missing email', jira({ email: '' }), 'Give the email of the Atlassian account that made the token.'],
+  ])('%s is refused with no connector built, keeping the form', async (_, edit, refusal) => {
+    const using = connecting()
+
+    const submitted = await submitConnection(using, TEAM, edit)
+
+    expect(submitted.saved === false && submitted.view.refusal).toBe(refusal)
+    expect(submitted.saved === false && submitted.view.form).toEqual({ ...edit, kind: undefined, token: undefined })
+    expect(using.built).toEqual([])
+    expect(storage.connection(TEAM)).toBeUndefined()
+  })
+})
+
 describe('a connect the tracker refuses', () => {
   const refusedBy = (failure: Failure['failure']): CannedFixture['milestoneChoices'] =>
     failure === 'invalidQuery' ? { failure, message: 'no' } : { failure }

@@ -53,10 +53,13 @@ export type ConnectionSubmitted = { saved: true; next: SetupStep } | { saved: fa
 export async function submitConnection(connecting: Connecting, teamId: string, edit: ConnectionEdit): Promise<ConnectionSubmitted> {
   if (edit.kind === 'disconnect') throw new Error('not yet')
   const { token, kind: _, ...form } = edit
+  const refused = (refusal: string): ConnectionSubmitted => ({ saved: false, view: { kind: 'connect', form, permissions: TOKEN_PERMISSIONS, refusal } })
   const connection = connectionOf(form)
-  const checked = await connecting.connector(connection, token).milestoneChoices()
-  if (!checked.ok) return { saved: false, view: { kind: 'connect', form, permissions: TOKEN_PERMISSIONS, refusal: refusalOf(connection, checked) } }
-  await connecting.secrets.saveToken(teamId, token)
+  const missing = missingFrom(connection, token.trim())
+  if (missing) return refused(missing)
+  const checked = await connecting.connector(connection, token.trim()).milestoneChoices()
+  if (!checked.ok) return refused(refusalOf(connection, checked))
+  await connecting.secrets.saveToken(teamId, token.trim())
   connecting.connections.saveConnection(teamId, connection)
   return { saved: true, next: 'milestone' }
 }
@@ -67,8 +70,23 @@ function connectionOf(form: ConnectionForm): Connection {
     const site = form.site.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '')
     return { tracker: 'jira', site, projectKey: form.projectKey.trim().toUpperCase(), email: form.email.trim() }
   }
-  const [owner = '', repo = ''] = form.repo.trim().split('/')
+  const parts = form.repo.trim().split('/')
+  // anything but owner/repo names no repo, so it is refused as missing
+  const [owner = '', repo = ''] = parts.length === 2 ? parts : []
   return { tracker: 'github', owner, repo }
+}
+
+/** What the connection or its token lacks, worded for the Connect step; nothing when it has all it needs to be checked. */
+function missingFrom(connection: Connection, token: string): string | undefined {
+  if (connection.tracker === 'github') {
+    if (!connection.owner || !connection.repo) return 'Give the repo as owner/repo, like shop-team/shop.'
+  } else {
+    if (!connection.site) return 'Give the Jira site, like your-team.atlassian.net.'
+    if (!connection.projectKey) return 'Give the Jira project key, like SHOP.'
+    if (!connection.email) return 'Give the email of the Atlassian account that made the token.'
+  }
+  if (!token) return 'Paste a token to connect.'
+  return undefined
 }
 
 /** A failed connection check, worded for the Connect step. */
