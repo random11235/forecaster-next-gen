@@ -50,6 +50,46 @@ function jira(fields: Partial<{ site: string; projectKey: string; email: string;
   return { kind: 'connect', tracker: 'jira', repo: '', site: 'shop.atlassian.net', projectKey: 'SHOP', email: 'em@shop.example', token: TOKEN, ...fields }
 }
 
+describe('the Connect step', () => {
+  const PERMISSIONS = { github: 'Issues: read', jira: 'read:jira-work' }
+
+  test('before connecting, it shows a blank GitHub form and the permissions each tracker’s token needs', () => {
+    expect(connectionView(connecting(), TEAM)).toEqual({
+      kind: 'connect',
+      form: { tracker: 'github', repo: '', site: '', projectKey: '', email: '' },
+      permissions: PERMISSIONS,
+    })
+  })
+
+  test('connected, it shows the connection, its form filled in to change it, but never the token', async () => {
+    const using = connecting()
+    await submitConnection(using, TEAM, jira())
+
+    const view = connectionView(using, TEAM)
+
+    expect(view).toEqual({
+      kind: 'connected',
+      connection: { tracker: 'jira', site: 'shop.atlassian.net', projectKey: 'SHOP', email: 'em@shop.example' },
+      form: { tracker: 'jira', repo: '', site: 'shop.atlassian.net', projectKey: 'SHOP', email: 'em@shop.example' },
+      permissions: PERMISSIONS,
+    })
+    expect(JSON.stringify(view)).not.toContain(TOKEN)
+  })
+
+  test('connected to GitHub, the form names the repo as owner/repo', async () => {
+    const using = connecting()
+    await submitConnection(using, TEAM, github('shop-team/shop'))
+
+    const view = connectionView(using, TEAM)
+
+    expect(view.kind === 'connected' && view.form).toEqual({ tracker: 'github', repo: 'shop-team/shop', site: '', projectKey: '', email: '' })
+  })
+
+  test('the browser build, with nothing to connect with, has no Connect step', () => {
+    expect(connectionView(undefined, TEAM)).toEqual({ kind: 'noConnect' })
+  })
+})
+
 describe('connecting', () => {
   test('a good GitHub connect is checked, saves the connection and the token, and moves on to the milestone', async () => {
     const using = connecting()
@@ -133,5 +173,15 @@ describe('a connect the tracker refuses', () => {
     expect(submitted.saved === false && submitted.view.refusal).toBe(refusal)
     expect(storage.connection(TEAM)).toBeUndefined()
     expect(await using.secrets.token(TEAM)).toBeUndefined()
+  })
+
+  test('no refusal, nor the view it comes with, includes the token', async () => {
+    const failures: Failure['failure'][] = ['unauthorised', 'notFound', 'unavailable', 'invalidQuery', 'outOfScope']
+    const refused = await Promise.all(
+      failures.flatMap((failure) => [github(), jira(), github('shop')].map((edit) => submitConnection(connecting(refusedBy(failure)), TEAM, edit))),
+    )
+
+    expect(refused.every((submitted) => !submitted.saved)).toBe(true)
+    expect(JSON.stringify(refused)).not.toContain(TOKEN)
   })
 })
