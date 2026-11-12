@@ -19,6 +19,10 @@ import { failureOf as statusFailure, finishedSince, send, sleep, staysInScope, t
  * A read is the repo's open leaf issues the query matches, plus those closed since `finishedSince`, each finished at
  * its last close (`closed_at`); the project board isn't read. `is:issue` leaves out pull requests and `no:sub-issue`
  * parents. Every page is read, up to the 1,000 results search gives, past which the read is incomplete.
+ *
+ * A picked epic (`parent-issue:owner/repo#N`, as its choice reads it) stands for every leaf beneath it, through any
+ * sub-epics: before each read, its sub-epics are found level by level, and the epic is read as itself or any of them.
+ * The query keeps only the epic, so a sub-epic added since is found on the next read.
  */
 
 const API = 'https://api.github.com'
@@ -51,10 +55,37 @@ function epicQuery(repo: string, number: number): string {
   return `parent-issue:${repo}#${number}`
 }
 
+/** How many levels down a picked epic's sub-epics are looked for: as deep as GitHub nests sub-issues. */
+const EPIC_LEVELS = 8
+
+/**
+ * Each picked epic a query names, as its choice reads it: `parent-issue:` with the repo in full, not negated and not
+ * in quotes. A quoted value is matched too, with no epic number, so a term inside quotes is kept as written.
+ */
+function pickedEpics(repo: string): RegExp {
+  const escaped = repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`"[^"]*"|(?<=^|[\\s(])parent-issue:${escaped}#(\\d+)(?=$|[\\s)])`, 'gi')
+}
+
+/** A searched issue's number, from the URL GitHub gives for it. */
+function numberOf(issueUrl: string): number {
+  return Number(issueUrl.slice(issueUrl.lastIndexOf('/') + 1))
+}
+
+type Issue = {
+  node_id: string
+  number: number
+  title: string
+  state: 'open' | 'closed'
+  closed_at: string | null
+  /** Only on a sub-issue. */
+  parent_issue_url?: string | null
+}
+
 interface SearchResponse {
   total_count: number
   incomplete_results: boolean
-  items: { node_id: string; number: number; title: string; state: 'open' | 'closed'; closed_at: string | null }[]
+  items: Issue[]
 }
 
 interface ErrorResponse {
@@ -198,6 +229,58 @@ export function githubConnector(
     milestone: searchedMilestones,
   }
 
+  /**
+   * Every issue search finds for `q`, page by page, up to the 1,000 it gives: past that, or when search says it timed
+   * out, they are incomplete.
+   */
+  async function searched(q: string): Promise<{ ok: true; issues: Issue[]; incomplete: boolean } | FailedCall> {
+    const issues: Issue[] = []
+    let incomplete = false
+    for (let page = 1; ; page++) {
+      const response = await get(`/search/issues?q=${encodeURIComponent(q)}&advanced_search=true&per_page=${PAGE}&page=${page}`)
+      if (!response) return { ok: false, failure: 'unavailable' }
+      if (response.status !== 200) return searchFailure(response)
+      const results = response.body as SearchResponse
+      issues.push(...results.items)
+      incomplete ||= results.incomplete_results
+      const read = (page - 1) * PAGE + results.items.length
+      if (results.items.length < PAGE || read >= results.total_count) return { ok: true, issues, incomplete }
+      if (read >= SEARCH_CAP) return { ok: true, issues, incomplete: true }
+    }
+  }
+
+  /**
+   * `query` with each picked epic it names read as itself or any of its sub-epics, found level by level, one search a
+   * level, at most `EPIC_LEVELS`. Incomplete when a level's search was.
+   */
+  async function expanded(query: string): Promise<{ ok: true; query: string; incomplete: boolean } | FailedCall> {
+    const picked = pickedEpics(repo)
+    const epics = [...query.matchAll(picked)].flatMap((match) => (match[1] === undefined ? [] : [Number(match[1])]))
+    if (epics.length === 0) return { ok: true, query, incomplete: false }
+    /** Each epic found, by the picked epic it is beneath (a picked epic beneath itself). */
+    const pickedAbove = new Map(epics.map((epic) => [epic, epic]))
+    let incomplete = false
+    let level = [...new Set(epics)]
+    for (let depth = 0; depth < EPIC_LEVELS && level.length > 0; depth++) {
+      const found = await searched(`repo:${repo} is:issue has:sub-issue (${level.map((epic) => epicQuery(repo, epic)).join(' OR ')})`)
+      if (!found.ok) return found
+      incomplete ||= found.incomplete
+      level = []
+      for (const { number, parent_issue_url } of found.issues) {
+        const above = parent_issue_url ? pickedAbove.get(numberOf(parent_issue_url)) : undefined
+        if (above === undefined || pickedAbove.has(number)) continue
+        pickedAbove.set(number, above)
+        level.push(number)
+      }
+    }
+    const withSubEpics = query.replace(picked, (term, epic: string | undefined) => {
+      if (epic === undefined) return term
+      const beneath = [...pickedAbove].filter(([found, above]) => above === Number(epic) && found !== above).map(([found]) => found)
+      return beneath.length === 0 ? term : `(${[Number(epic), ...beneath].map((each) => epicQuery(repo, each)).join(' OR ')})`
+    })
+    return { ok: true, query: withSubEpics, incomplete }
+  }
+
   return {
     searchChoices: async (kind, text) => {
       const search = Object.hasOwn(SEARCHES, kind) ? SEARCHES[kind]! : undefined
@@ -222,25 +305,14 @@ export function githubConnector(
 
     read: async (query, since): Promise<ReadResult> => {
       if (!staysInScope(query, SCOPE)) return { ok: false, failure: 'outOfScope' }
-      const q = encodeURIComponent(`repo:${repo} is:issue no:sub-issue (${query}) (is:open OR closed:>=${searchDate(since)})`)
-      const tickets: Ticket[] = []
-      let incomplete = false
-      for (let page = 1; ; page++) {
-        const response = await get(`/search/issues?q=${q}&advanced_search=true&per_page=${PAGE}&page=${page}`)
-        if (!response) return { ok: false, failure: 'unavailable' }
-        if (response.status !== 200) return searchFailure(response)
-        const results = response.body as SearchResponse
-        for (const item of results.items) {
-          tickets.push(item.state === 'closed' && item.closed_at ? { id: item.node_id, finishedAt: item.closed_at } : { id: item.node_id })
-        }
-        incomplete ||= results.incomplete_results
-        const read = (page - 1) * PAGE + results.items.length
-        if (results.items.length < PAGE || read >= results.total_count) break
-        if (read >= SEARCH_CAP) {
-          incomplete = true
-          break
-        }
-      }
+      const withSubEpics = await expanded(query)
+      if (!withSubEpics.ok) return withSubEpics
+      const leaves = await searched(`repo:${repo} is:issue no:sub-issue (${withSubEpics.query}) (is:open OR closed:>=${searchDate(since)})`)
+      if (!leaves.ok) return leaves
+      const tickets: Ticket[] = leaves.issues.map((issue) =>
+        issue.state === 'closed' && issue.closed_at ? { id: issue.node_id, finishedAt: issue.closed_at } : { id: issue.node_id },
+      )
+      const incomplete = withSubEpics.incomplete || leaves.incomplete
       // Search compares to the second; this keeps the window exact.
       return { ok: true, tickets: finishedSince(tickets, since), incomplete }
     },
