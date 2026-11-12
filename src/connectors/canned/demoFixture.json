@@ -4,7 +4,18 @@
       "kind": "milestone",
       "choices": [
         { "kind": "milestone", "name": "Synthetic launch", "query": "milestone:\"Synthetic launch\"" },
-        { "kind": "milestone", "name": "Synthetic beta", "query": "milestone:\"Synthetic beta\"" }
+        { "kind": "milestone", "name": "Synthetic beta", "query": "milestone:\"Synthetic beta\"" },
+        { "kind": "milestone", "name": "Payments v2", "query": "milestone:\"Payments v2\"" }
+      ],
+      "pastLimit": false
+    },
+    {
+      "kind": "label",
+      "choices": [
+        { "kind": "label", "name": "payments", "query": "label:\"payments\"" },
+        { "kind": "label", "name": "repayments", "query": "label:\"repayments\"" },
+        { "kind": "label", "name": "checkout", "query": "label:\"checkout\"" },
+        { "kind": "label", "name": "bug", "query": "label:\"bug\"" }
       ],
       "pastLimit": false
     }
@@ -34,6 +45,70 @@
         { "id": "synthetic-beta-01", "finishedAt": "2026-10-15T12:00:00Z" },
         { "id": "synthetic-beta-02" },
         { "id": "synthetic-beta-03" }
+      ],
+      "incomplete": false
+    },
+    "label:\"payments\"": {
+      "tickets": [
+        { "id": "synthetic-payments-01", "finishedAt": "2026-10-27T09:30:00Z" },
+        { "id": "synthetic-payments-02" },
+        { "id": "synthetic-payments-03" }
+      ],
+      "incomplete": false
+    },
+    "milestone:\"Synthetic launch\" OR label:\"payments\"": {
+      "tickets": [
+        { "id": "synthetic-launch-01", "finishedAt": "2026-09-08T10:15:00Z" },
+        { "id": "synthetic-launch-02", "finishedAt": "2026-09-11T16:40:00Z" },
+        { "id": "synthetic-launch-03", "finishedAt": "2026-09-17T09:05:00Z" },
+        { "id": "synthetic-launch-04", "finishedAt": "2026-09-24T14:30:00Z" },
+        { "id": "synthetic-launch-05", "finishedAt": "2026-09-29T11:00:00Z" },
+        { "id": "synthetic-launch-06", "finishedAt": "2026-10-06T15:20:00Z" },
+        { "id": "synthetic-launch-07", "finishedAt": "2026-10-13T10:45:00Z" },
+        { "id": "synthetic-launch-08", "finishedAt": "2026-10-21T13:10:00Z" },
+        { "id": "synthetic-launch-09", "finishedAt": "2026-10-28T17:55:00Z" },
+        { "id": "synthetic-launch-10" },
+        { "id": "synthetic-launch-11" },
+        { "id": "synthetic-launch-12" },
+        { "id": "synthetic-launch-13" },
+        { "id": "synthetic-launch-14" },
+        { "id": "synthetic-payments-01", "finishedAt": "2026-10-27T09:30:00Z" },
+        { "id": "synthetic-payments-02" },
+        { "id": "synthetic-payments-03" }
+      ],
+      "incomplete": false
+    },
+    "milestone:\"Payments v2\"": {
+      "tickets": [
+        { "id": "synthetic-payments-v2-01", "finishedAt": "2026-10-19T11:00:00Z" },
+        { "id": "synthetic-payments-v2-02" },
+        { "id": "synthetic-payments-v2-03" },
+        { "id": "synthetic-payments-v2-04" },
+        { "id": "synthetic-payments-v2-05" }
+      ],
+      "incomplete": false
+    },
+    "label:\"repayments\"": {
+      "tickets": [
+        { "id": "synthetic-repayments-01" },
+        { "id": "synthetic-repayments-02" }
+      ],
+      "incomplete": false
+    },
+    "label:\"checkout\"": {
+      "tickets": [
+        { "id": "synthetic-checkout-01", "finishedAt": "2026-10-08T14:00:00Z" },
+        { "id": "synthetic-checkout-02", "finishedAt": "2026-11-03T10:20:00Z" },
+        { "id": "synthetic-checkout-03" },
+        { "id": "synthetic-checkout-04" },
+        { "id": "synthetic-checkout-05" }
+      ],
+      "incomplete": false
+    },
+    "label:\"bug\"": {
+      "tickets": [
+        { "id": "synthetic-bug-01", "finishedAt": "2026-10-30T16:45:00Z" },
+        { "id": "synthetic-bug-02" }
       ],
       "incomplete": false
     }
