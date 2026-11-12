@@ -3,6 +3,7 @@ import type { MilestoneQuery } from '../model/milestoneQuery.js'
 import type { SavedRead } from '../model/savedRead.js'
 import { teamConnector, type Connecting } from './connection.js'
 import { readQuery, ticketsRemaining, type QueryRead } from './finished.js'
+import { trackerOf } from './trackers.js'
 
 /** What the Milestone step says once, beside the milestone query: the only two things a read adds to it. */
 export const LEAF_NOTE = 'Leaf tickets only. Epics include their sub-epics.'
@@ -40,27 +41,83 @@ export interface MilestoneStep {
   /** Why the choices couldn't be listed; none when they were. */
   choicesFailure?: string
   picks: Choice[]
-  /** The milestone query: the picks joined with OR; empty until something is picked. */
+  /** The milestone query: the picks joined with OR, or as edited by hand; empty until something is picked. */
   query: string
   note: string
   /** The query's last read, as one line: "50 open · 43 finished in the last 8 weeks"; none until it is read. */
   read?: string
+  /**
+   * The milestone query open for editing by hand, in place of finding choices to pick: when the EM asks to edit it as
+   * a query, or when the picker can't show it as chips. None while finding.
+   */
+  editing?: QueryEditing
+}
+
+/** The milestone query open for editing by hand. */
+export interface QueryEditing {
+  /** The query in the box: the milestone query, or as typed when refused. */
+  typed: string
+  /** The connected repo or Jira project, which the query reads within. */
+  readIn: string
+  /** Why the query just submitted was refused, before reading it; none until one is. */
+  refusal?: string
+  /** That going back to finding clears the query, when the picker can't show it; none when it can, as chips. */
+  backClears?: string
 }
 
 /** The Milestone step; none in the browser build, nor before the team connects (`noMilestoneStep`). */
 export type MilestoneStepView = { kind: 'noMilestoneStep' } | MilestoneStep
 
 /**
+ * How the Milestone step opens: on finding (the default), or with the milestone query open for editing; also open for
+ * editing, with the query as typed and why, once a hand-edited query is `refused`.
+ */
+export interface MilestoneStepOpening {
+  editing?: boolean
+  refused?: RefusedQuery
+}
+
+/** What the step says, editing a query the picker can't show, of going back to finding. */
+export const BACK_CLEARS = 'The picker can’t show this query, so going back to finding clears it.'
+
+/**
  * Seam B: the team's Milestone step, opened: the choices are asked for once, here, and kept nowhere, so each opening
  * lists them afresh. Each list holds the choices whose name holds `find`, ignoring case, less those already picked.
+ * The milestone query is open for editing when `opening` asks, or when the picker can't show it.
  */
-export async function milestoneStepView(connecting: Connecting | undefined, teamId: string, find = ''): Promise<MilestoneStepView> {
+export async function milestoneStepView(
+  connecting: Connecting | undefined,
+  teamId: string,
+  find = '',
+  opening: MilestoneStepOpening = {},
+): Promise<MilestoneStepView> {
   if (!connecting) return { kind: 'noMilestoneStep' }
   const connector = await teamConnector(connecting, teamId)
-  if (connector === 'notConnected') return { kind: 'noMilestoneStep' }
-  const saved = connecting.milestoneQueries.milestoneQuery(teamId) ?? { picks: [], query: '' }
+  const connection = connecting.connections.connection(teamId)
+  if (connector === 'notConnected' || !connection) return { kind: 'noMilestoneStep' }
+  const saved = connecting.milestoneQueries.milestoneQuery(teamId) ?? NO_QUERY
   const read = saved.query === '' ? undefined : connecting.reads.savedRead({ teamId, query: saved.query })
-  const step: MilestoneStep = { kind: 'milestoneStep', find, lists: [], picks: saved.picks, query: saved.query, note: LEAF_NOTE, ...(read && { read: readLine(read) }) }
+  const shownAsChips = chipsShow(saved)
+  const { refused } = opening
+  const editing: QueryEditing | undefined =
+    opening.editing || refused || !shownAsChips
+      ? {
+          typed: refused?.query ?? saved.query,
+          readIn: trackerOf(connection).where(connection),
+          ...(refused && { refusal: refused.refusal }),
+          ...(!shownAsChips && { backClears: BACK_CLEARS }),
+        }
+      : undefined
+  const step: MilestoneStep = {
+    kind: 'milestoneStep',
+    find,
+    lists: [],
+    picks: saved.picks,
+    query: saved.query,
+    note: LEAF_NOTE,
+    ...(read && { read: readLine(read) }),
+    ...(editing && { editing }),
+  }
   if (connector === 'keychainFailed') return { ...step, choicesFailure: KEYCHAIN_FAILED }
   const choices = await connector.milestoneChoices()
   if (!choices.ok) return { ...step, choicesFailure: CHOICES_FAILED }
@@ -112,37 +169,130 @@ function readLine(read: SavedRead): string {
   return `${ticketsRemaining(read)} open · ${finished} finished in the last ${FINISHED_WEEKS} weeks`
 }
 
-/** The Milestone step's submits: add a choice as a pick, or remove the pick with this query. */
-export type MilestoneQueryEdit = { kind: 'addPick'; choice: Choice } | { kind: 'removePick'; query: string }
+/**
+ * The Milestone step's submits: add a choice as a pick, or remove the pick with this query (`PicksEdit`); edit the
+ * milestone query by hand, as typed; or go back to finding, which clears the query when the picker can't show it.
+ */
+export type MilestoneQueryEdit = PicksEdit | { kind: 'editQuery'; query: string } | { kind: 'backToFinding' }
+
+type PicksEdit = { kind: 'addPick'; choice: Choice } | { kind: 'removePick'; query: string }
 
 /**
- * Seam B: changes the milestone's picks, saving them with the milestone query they join into (with OR, in the order
- * picked), then reads that query once, as at `readAt`, open tickets and those finished in the last `FINISHED_WEEKS`
- * weeks. A change that changes nothing (a pick already picked, or a removal of none) saves and reads nothing; nor
- * does an empty query read anything. Returns the read, if one was made; none before the team connects.
+ * Seam B: changes the milestone query and saves it, then reads it once, as at `readAt`, open tickets and those
+ * finished in the last `FINISHED_WEEKS` weeks. A change of the picks saves them with the query they join into (with
+ * OR, in the order picked); a query edited by hand is saved as written. A change that changes nothing (a pick already
+ * picked, a removal of none, the query as it was) saves and reads nothing; nor does an empty query read anything.
+ * Before any of that, a hand-edited query with free text or an empty qualifier is refused, changing nothing.
  */
 export async function submitMilestoneQuery(
   connecting: Connecting,
   teamId: string,
   edit: MilestoneQueryEdit,
   readAt: string,
-): Promise<QueryRead | undefined> {
+): Promise<MilestoneQuerySubmitted> {
   const connector = await teamConnector(connecting, teamId)
-  if (connector === 'notConnected') return undefined
-  const before = connecting.milestoneQueries.milestoneQuery(teamId)?.picks ?? []
-  const picks = picksAfter(before, edit)
-  if (picks === before) return undefined
-  const milestoneQuery: MilestoneQuery = { picks, query: picks.map((pick) => pick.query).join(' OR ') }
-  connecting.milestoneQueries.saveMilestoneQuery(teamId, milestoneQuery)
-  if (milestoneQuery.query === '' || connector === 'keychainFailed') return undefined
+  const connection = connecting.connections.connection(teamId)
+  if (connector === 'notConnected' || !connection) return { kind: 'unchanged' }
+  if (edit.kind === 'editQuery') {
+    const refusal = trackerOf(connection).queryRefusal(edit.query)
+    if (refusal) return { kind: 'refused', query: edit.query, refusal }
+  }
+  const before = connecting.milestoneQueries.milestoneQuery(teamId) ?? NO_QUERY
+  const after =
+    edit.kind === 'editQuery' ? await editedQuery(before, edit.query, connector)
+    : edit.kind === 'backToFinding' ? (chipsShow(before) ? before : NO_QUERY)
+    : picksChanged(before, edit)
+  if (after === before) return { kind: 'unchanged' }
+  connecting.milestoneQueries.saveMilestoneQuery(teamId, after)
+  if (after.query === '' || connector === 'keychainFailed') return { kind: 'saved' }
   const finishedSince = new Date(Date.parse(readAt) - FINISHED_WEEKS * 7 * DAY_MS).toISOString()
-  return readQuery(connector, connecting.reads, { teamId, query: milestoneQuery.query, finishedSince, readAt })
+  return { kind: 'saved', read: await readQuery(connector, connecting.reads, { teamId, query: after.query, finishedSince, readAt }) }
+}
+
+/**
+ * What a submit did: saved the milestone query, with its read when one was made (none for an empty query, or when the
+ * keychain failed); changed nothing (also before the team connects); or refused a hand-edited query before reading it.
+ */
+export type MilestoneQuerySubmitted = { kind: 'saved'; read?: QueryRead } | { kind: 'unchanged' } | ({ kind: 'refused' } & RefusedQuery)
+
+/** A hand-edited query refused before reading: as typed, and why. */
+export interface RefusedQuery {
+  query: string
+  refusal: string
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
+/** Nothing picked, and no milestone query. */
+const NO_QUERY: MilestoneQuery = { picks: [], query: '' }
+
+/**
+ * The milestone query edited by hand to `typed`, as written; `before` itself when it is the query as it was. Its picks
+ * are the choices it is an OR of, when it is one, so the picker can show it as their chips; otherwise none. Those
+ * already picked are known; others are asked for, once, only when the query names one that isn't.
+ */
+async function editedQuery(before: MilestoneQuery, typed: string, connector: Connector | 'keychainFailed'): Promise<MilestoneQuery> {
+  const query = typed.trim()
+  if (query === before.query) return before
+  const parts = orParts(query)
+  const picked = (choices: Choice[]): Choice[] | undefined => {
+    const found = parts.map((part) => choices.find((choice) => choice.query === part))
+    return found.every((choice) => choice !== undefined) ? found : undefined
+  }
+  const listed = async (): Promise<Choice[]> => {
+    if (connector === 'keychainFailed') return []
+    const choices = await connector.milestoneChoices()
+    return choices.ok ? choices.kinds.flatMap((kind) => kind.choices) : []
+  }
+  const picks = picked(before.picks) ?? picked([...before.picks, ...(await listed())]) ?? []
+  return { picks, query }
+}
+
+/** Whether the picker can show the milestone query as its picks' chips: it is an OR of their queries, or empty. */
+function chipsShow({ picks, query }: MilestoneQuery): boolean {
+  if (query === '') return true
+  const parts = orParts(query)
+  return parts.length === picks.length && parts.every((part, at) => part === picks[at]!.query)
+}
+
+/**
+ * The parts of a query joined by OR at its top level, outside quotes and brackets, each trimmed, and none repeated:
+ * `label:"a" OR milestone:"b"` has two; `label:a -label:b` is one.
+ */
+function orParts(query: string): string[] {
+  const parts: string[] = []
+  let depth = 0
+  let quoted = false
+  let start = 0
+  for (let at = 0; at < query.length; at += 1) {
+    const char = query[at]!
+    if (char === '"' && query[at - 1] !== '\\') quoted = !quoted
+    if (quoted) continue
+    if (char === '(') depth += 1
+    if (char === ')') depth -= 1
+    const or = depth === 0 && /^\sOR\s/.exec(query.slice(at, at + 4))
+    if (or) {
+      parts.push(query.slice(start, at).trim())
+      start = at + 3
+    }
+  }
+  parts.push(query.slice(start).trim())
+  return [...new Set(parts)]
+}
+
+/** The milestone query after a change of the picks; `before` itself when it changes nothing. */
+function picksChanged(before: MilestoneQuery, edit: PicksEdit): MilestoneQuery {
+  const picks = picksAfter(before.picks, edit)
+  return picks === before.picks ? before : { picks, query: joined(picks) }
+}
+
+/** The milestone query the picks join into: their queries, with OR, in the order picked. */
+function joined(picks: Choice[]): string {
+  return picks.map((pick) => pick.query).join(' OR ')
+}
+
 /** The picks after `edit`; `picks` itself when the edit changes nothing. */
-function picksAfter(picks: Choice[], edit: MilestoneQueryEdit): Choice[] {
+function picksAfter(picks: Choice[], edit: PicksEdit): Choice[] {
   const query = edit.kind === 'addPick' ? edit.choice.query : edit.query
   const has = picks.some((pick) => pick.query === query)
   if (edit.kind === 'addPick') return has ? picks : [...picks, edit.choice]
