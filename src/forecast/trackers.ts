@@ -1,4 +1,5 @@
 import type { Connection } from '../model/connection.js'
+import { githubQueryRefusal, jqlRefusal } from './queryRefusal.js'
 
 /** A tracker a team can connect to. */
 export type Tracker = Connection['tracker']
@@ -30,6 +31,8 @@ export interface TrackerFacts<C extends Connection = Connection> {
   refused(connection: C): string
   /** Why the tracker can't find the repo or project, worded for the Connect step. */
   notFound(connection: C): string
+  /** Why a milestone query edited by hand is refused before reading, worded for the Milestone step; nothing when it is read. */
+  queryRefusal(query: string): string | undefined
 }
 
 const BLANK_FORM: Omit<ConnectionForm, 'tracker'> = { repo: '', site: '', projectKey: '', email: '' }
@@ -51,6 +54,7 @@ export const TRACKERS: { readonly [T in Tracker]: TrackerFacts<Extract<Connectio
     refused: () => `GitHub refused the token. Check it hasn’t expired, and that it has ${TRACKERS.github.permission} on this repo.`,
     notFound: (connection) =>
       `GitHub can’t see ${TRACKERS.github.where(connection)} with this token. Check the repo’s name, and that the token covers it.`,
+    queryRefusal: githubQueryRefusal,
   },
   jira: {
     name: 'Jira',
@@ -74,6 +78,7 @@ export const TRACKERS: { readonly [T in Tracker]: TrackerFacts<Extract<Connectio
       `Jira refused the token. Check it hasn’t expired, that it has ${TRACKERS.jira.permission}, and that ${email} is the account that made it.`,
     notFound: ({ site, projectKey }) =>
       `Jira can’t find project ${projectKey} on ${site} with this token. Check the site and the project key, and that the account can see it.`,
+    queryRefusal: jqlRefusal,
   },
 }
 

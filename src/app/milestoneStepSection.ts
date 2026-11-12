@@ -1,12 +1,20 @@
-import type { ChoiceList, MilestoneQueryEdit, MilestoneStepView } from '../forecast/milestoneStep.js'
+import type { ChoiceList, MilestoneQueryEdit, MilestoneStep, MilestoneStepView, QueryEditing } from '../forecast/milestoneStep.js'
 import { kindName } from '../forecast/milestoneStep.js'
 import { escapeHtml } from './html.js'
 
 /** Where the Milestone step is on the Inputs screen: its section's id. */
 export const MILESTONE_STEP_ID = 'milestone-tickets'
 
-/** Where the Milestone step's forms post: add a choice as a pick, and remove a pick. */
-export const MILESTONE_STEP_PATHS = { add: '/inputs/milestone-query/add', remove: '/inputs/milestone-query/remove' } as const
+/**
+ * Where the Milestone step's forms post: add a choice as a pick, remove a pick, submit the query edited by hand, and
+ * go back to finding.
+ */
+export const MILESTONE_STEP_PATHS = {
+  add: '/inputs/milestone-query/add',
+  remove: '/inputs/milestone-query/remove',
+  edit: '/inputs/milestone-query/edit',
+  back: '/inputs/milestone-query/back',
+} as const
 
 /** The field the step's find box sends, to `/inputs`, when it is submitted without the page's script. */
 export const FIND_FIELD = 'find'
@@ -20,6 +28,15 @@ export const SEARCHED_CHOICES_PATH = '/inputs/milestone-choices'
 /** The field naming the kind searched, at `SEARCHED_CHOICES_PATH`. */
 export const KIND_FIELD = 'kind'
 
+/** What opens the step with its query open for editing: `/inputs?edit=query`. */
+export const EDITING = { name: 'edit', value: 'query' } as const
+
+/** Where the step is served, finding choices to pick, and with its query open for editing. */
+export const MILESTONE_STEP_URLS = {
+  finding: `/inputs#${MILESTONE_STEP_ID}`,
+  editing: `/inputs?${EDITING.name}=${EDITING.value}#${MILESTONE_STEP_ID}`,
+} as const
+
 /** Reads a submitted Milestone step form, by the field names this section gives them. */
 type MilestoneStepFormReader = (body: URLSearchParams) => MilestoneQueryEdit
 
@@ -30,6 +47,8 @@ export const MILESTONE_STEP_FORMS: ReadonlyMap<string, MilestoneStepFormReader> 
     (body) => ({ kind: 'addPick', choice: { kind: body.get('kind') ?? '', name: body.get('name') ?? '', query: body.get('query') ?? '' } }),
   ],
   [MILESTONE_STEP_PATHS.remove, (body) => ({ kind: 'removePick', query: body.get('query') ?? '' })],
+  [MILESTONE_STEP_PATHS.edit, (body) => ({ kind: 'editQuery', query: body.get('query') ?? '' })],
+  [MILESTONE_STEP_PATHS.back, () => ({ kind: 'backToFinding' })],
 ])
 
 /** What the section says in its label column. */
@@ -42,7 +61,41 @@ export const MILESTONE_STEP_HINT = 'Which tickets are the milestone? Find and ad
  */
 export function milestoneStepSection(view: MilestoneStepView): string | undefined {
   if (view.kind === 'noMilestoneStep') return undefined
-  const anchor = `#${MILESTONE_STEP_ID}`
+  return view.editing ? editingSection(view, view.editing) : findingSection(view)
+}
+
+const anchor = `#${MILESTONE_STEP_ID}`
+
+/** The query's last read, as its line; nothing until it is read. */
+function readLine(view: MilestoneStep): string {
+  return view.read === undefined ? '' : `\n          <p class="read">${escapeHtml(view.read)}</p>`
+}
+
+/**
+ * The step with its milestone query open for editing by hand, within the connected repo or project: it is submitted
+ * (and read) only on Enter, so a half-typed query changes nothing. Back to finding says first when it will clear it.
+ */
+function editingSection(view: MilestoneStep, editing: QueryEditing): string {
+  const refusal = editing.refusal === undefined ? '' : `\n          <p class="error" role="alert">${escapeHtml(editing.refusal)}</p>`
+  const inUse =
+    editing.refusal === undefined || view.query === ''
+      ? ''
+      : `\n          <p class="note">Still reading <code>${escapeHtml(view.query)}</code></p>`
+  const clears = editing.backClears === undefined ? '' : `<p class="note warn">${escapeHtml(editing.backClears)}</p> `
+  return `        <div class="picker editing">
+          <form method="post" action="${MILESTONE_STEP_PATHS.edit}${anchor}" class="query">
+            <label class="label" for="milestone-query">Milestone query, within <b>${escapeHtml(editing.readIn)}</b></label>
+            <input type="text" id="milestone-query" name="query" value="${escapeHtml(editing.typed)}" autocomplete="off" spellcheck="false">
+            <p class="note">Press Enter to read it. ${escapeHtml(view.note)}</p>
+          </form>${refusal}${inUse}${readLine(view)}
+          <form method="post" action="${MILESTONE_STEP_PATHS.back}${anchor}" class="back">
+            ${clears}<button type="submit" class="linkish">Back to finding</button>
+          </form>
+        </div>`
+}
+
+/** The step finding choices to pick: the chips, the find box over the lists, and the query, to edit as a query. */
+function findingSection(view: MilestoneStep): string {
   const kinds = view.lists.map((list) => kindName(list.kind))
   const chips = view.picks
     .map(
@@ -54,7 +107,6 @@ export function milestoneStepSection(view: MilestoneStepView): string | undefine
   const lists = view.lists.map(choiceListHtml).join('\n')
   const failure = view.choicesFailure === undefined ? '' : `\n          <p class="error" role="alert">${escapeHtml(view.choicesFailure)}</p>`
   const query = view.query === '' ? '<span class="none">Nothing picked yet.</span>' : `<code>${escapeHtml(view.query)}</code>`
-  const read = view.read === undefined ? '' : `\n          <p class="read">${escapeHtml(view.read)}</p>`
   return `        <div class="picker">${failure}${chips === '' ? '' : `\n          <ul class="chips">\n${chips}\n          </ul>`}
           <form method="get" action="/inputs${anchor}" class="find">
             <input type="search" name="${FIND_FIELD}" value="${escapeHtml(view.find)}" placeholder="Find ${escapeHtml(article(alternatives(kinds)))}…" aria-label="Find a choice to pick" autocomplete="off" spellcheck="false">
@@ -64,9 +116,9 @@ ${lists}
             <p class="note none-found" hidden>Nothing matches.</p>
           </div>
           <div class="query">
-            <span class="label">Milestone query</span> ${query}
+            <span class="label">Milestone query <a href="${MILESTONE_STEP_URLS.editing}" class="edit">Edit as a query</a></span> ${query}
             <p class="note">${escapeHtml(view.note)}</p>
-          </div>${read}
+          </div>${readLine(view)}
         </div>`
 }
 
