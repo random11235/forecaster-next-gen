@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'vitest'
+import type { Transport } from '../../../src/connectors/connector.js'
 import { githubConnector } from '../../../src/connectors/github/githubConnector.js'
 import { answering, mustNotWait, recordingWait } from '../backoff.js'
 import { replayTransport } from '../replayTransport.js'
+import { FROM_THE_START, GITHUB_QUIRKS } from '../scenarios.js'
 import { githubSubject } from './githubSubject.js'
 
 // GitHub-only quirks, beside the contract suite. Search wraps the query as `repo:… is:issue no:sub-issue (query) (…)`, so a query that
@@ -165,6 +167,87 @@ describe('GitHub connector', () => {
         { kind: 'label', names: hundred('L'), pastLimit: false },
         { kind: 'milestone', names: hundred('M'), pastLimit: false },
       ])
+    })
+  })
+
+  describe('a picked epic', () => {
+    const REPO = 'random11235/forecaster-synthetic'
+
+    /**
+     * A stand-in GitHub whose issues are nested as `children` says (an issue's sub-issues by its number), searched as
+     * GitHub does: `has:sub-issue` finds the named parents' children that have children of their own, and `no:sub-issue`
+     * those that don't. `searched` keeps each search's query.
+     */
+    function nested(children: Map<number, number[]>) {
+      const searched: string[] = []
+      const transport: Transport = async (url) => {
+        const q = new URL(url).searchParams.get('q')!
+        searched.push(q)
+        const parents = [...q.matchAll(/parent-issue:random11235\/forecaster-synthetic#(\d+)/g)].map((match) => Number(match[1]))
+        const epics = q.includes('has:sub-issue')
+        const items = parents.flatMap((parent) =>
+          (children.get(parent) ?? [])
+            .filter((child) => (children.get(child)?.length ?? 0) > 0 === epics)
+            .map((child) => ({
+              node_id: `I_${child}`,
+              number: child,
+              title: `#${child}`,
+              state: 'open',
+              closed_at: null,
+              parent_issue_url: `https://api.github.com/repos/${REPO}/issues/${parent}`,
+            })),
+        )
+        return new Response(JSON.stringify({ total_count: items.length, incomplete_results: false, items }), { status: 200 })
+      }
+      return { transport, searched }
+    }
+
+    test('picks up, on a later read, a sub-epic added since the last', async () => {
+      const children = new Map([[106, [111]]])
+      const connector = githubConnector(CONNECTION, 'token', nested(children).transport, mustNotWait)
+      const query = `parent-issue:${REPO}#106`
+
+      expect(await connector.read(query, FROM_THE_START)).toEqual({ ok: true, tickets: [{ id: 'I_111' }], incomplete: false })
+
+      children.set(106, [107, 111]).set(107, [108, 109])
+
+      const later = await connector.read(query, FROM_THE_START)
+      expect(later.ok && later.tickets.map((ticket) => ticket.id).sort()).toEqual(['I_108', 'I_109', 'I_111'])
+    })
+
+    test('reads the leaves of each picked epic in its place in the query, leaving the rest as written', async () => {
+      const github = nested(new Map([[106, [107, 111]], [107, [108]], [200, [201]]]))
+      const connector = githubConnector(CONNECTION, 'token', github.transport, mustNotWait)
+
+      await connector.read(`(parent-issue:${REPO}#106 label:"checkout") OR parent-issue:${REPO}#200`, '2026-01-01T00:00:00Z')
+
+      expect(github.searched.at(-1)).toBe(
+        `repo:${REPO} is:issue no:sub-issue (((parent-issue:${REPO}#106 OR parent-issue:${REPO}#107) label:"checkout") OR parent-issue:${REPO}#200) (is:open OR closed:>=2026-01-01T00:00:00+00:00)`,
+      )
+    })
+
+    test('looks for sub-epics at most 8 levels down, as deep as GitHub nests sub-issues', async () => {
+      // A chain of epics 12 deep, each the only sub-issue of the one above.
+      const chain = new Map(Array.from({ length: 12 }, (_, k) => [1 + k, [2 + k]] as [number, number[]]))
+      const github = nested(chain)
+      const connector = githubConnector(CONNECTION, 'token', github.transport, mustNotWait)
+
+      await connector.read(`parent-issue:${REPO}#1`, FROM_THE_START)
+
+      expect(github.searched.filter((q) => q.includes('has:sub-issue'))).toHaveLength(8)
+    })
+
+    test('a query naming no epic is read with no search for sub-epics', async () => {
+      const github = nested(new Map())
+      const connector = githubConnector(CONNECTION, 'token', github.transport, mustNotWait)
+
+      await connector.read('label:"checkout"', FROM_THE_START)
+
+      expect(github.searched).toHaveLength(1)
+    })
+
+    test("in parent-issue:'s short form matches nothing, with no error, as GitHub's own search does", async () => {
+      expect(await githubSubject.synthetic().read(GITHUB_QUIRKS.shortFormEpic, FROM_THE_START)).toEqual({ ok: true, tickets: [], incomplete: false })
     })
   })
 })
