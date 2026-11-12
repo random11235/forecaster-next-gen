@@ -56,6 +56,10 @@ const jira: Transport = async (url, init) => {
     const fields = { summary: 'Payment methods', status: { name: 'In Progress' }, assignee: { displayName: 'Someone' } }
     return json(200, { issues: [{ id: '10105', key: 'SYN-106', self: 'https://x', fields }], isLast: true })
   }
+  if (jql.includes(' key in (SYN-106)')) {
+    const fields = { issuetype: { id: '10010', name: 'Epic', subtask: false, hierarchyLevel: 1 }, summary: 'Payment methods' }
+    return json(200, { issues: [{ id: '10105', key: 'SYN-106', self: 'https://x', fields }], isLast: true })
+  }
   if (jql.includes('subTaskIssueTypes()')) {
     const parent = { id: '10133', key: 'SYN-134', fields: { summary: 'Search leaf 1', status: { name: 'In Progress' } } }
     return json(200, { issues: [{ id: '10134', key: 'SYN-135', fields: { parent } }], isLast: true })
@@ -115,6 +119,8 @@ describe('the Jira recording script', () => {
     expect(responses).toContainEqual({ issues: [{ id: '10134', fields: { parent: { id: '10133' } } }], isLast: true })
     // An epic is read by its key, so the epics search keeps it.
     expect(responses).toContainEqual({ issues: [{ id: '10105', key: 'SYN-106', fields: { summary: 'Payment methods' } }], isLast: true })
+    // A picked epic is looked up by its key, to find what is beneath it, so that search keeps it too.
+    expect(responses).toContainEqual({ issues: [{ id: '10105', key: 'SYN-106', fields: { issuetype: { hierarchyLevel: 1 } } }], isLast: true })
     expect(responses).toContainEqual({ values: ['comparable', 'ktlo'], isLast: true })
     expect(responses).toContainEqual([
       {
