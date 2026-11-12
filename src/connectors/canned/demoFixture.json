@@ -373,6 +373,14 @@
         { "id": "synthetic-bug-02" }
       ],
       "incomplete": false
+    },
+    "is:open": {
+      "tickets": [
+        { "id": "synthetic-open-01" },
+        { "id": "synthetic-open-02" },
+        { "id": "synthetic-open-03" }
+      ],
+      "incomplete": true
     }
   }
 }

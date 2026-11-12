@@ -66,9 +66,11 @@ export function milestoneStepSection(view: MilestoneStepView): string | undefine
 
 const anchor = `#${MILESTONE_STEP_ID}`
 
-/** The query's last read, as its line; nothing until it is read. */
+/** The query's last read, as its line, with its flag beneath when it has one; nothing until it is read. */
 function readLine(view: MilestoneStep): string {
-  return view.read === undefined ? '' : `\n          <p class="read">${escapeHtml(view.read)}</p>`
+  if (view.read === undefined) return ''
+  const flag = view.flag === undefined ? '' : `\n          <p class="note warn flag">⚠ ${escapeHtml(view.flag)}</p>`
+  return `\n          <p class="read">${escapeHtml(view.read)}</p>${flag}`
 }
 
 /**

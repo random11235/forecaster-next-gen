@@ -60,11 +60,11 @@ describe.each(subjects)('%s connector', (_, subject) => {
     test("the tracker refuses fails as invalidQuery, with the tracker's own message", async () => {
       const result = await subject.synthetic().read(queries.invalid, batches.cut)
 
-      expect(result).toEqual({ ok: false, failure: 'invalidQuery', message: expect.stringMatching(/\S/) })
+      expect(result).toEqual({ ok: false, failure: 'invalidQuery', message: subject.invalidMessage })
     })
 
-    test('reaching outside the connection fails as outOfScope', async () => {
-      expect(await subject.synthetic().read(queries.outOfScope, batches.cut)).toEqual({ ok: false, failure: 'outOfScope' })
+    test.each(subject.outOfScope)('naming %s fails as outOfScope', async (_, query) => {
+      expect(await subject.synthetic().read(query, batches.cut)).toEqual({ ok: false, failure: 'outOfScope' })
     })
   })
 
