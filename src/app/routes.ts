@@ -1,5 +1,6 @@
 import { connectionView, submitConnection, type Connecting, type ConnectionView, type SetupStep } from '../forecast/connection.js'
 import { howItWorksView } from '../forecast/howItWorksView.js'
+import { milestoneStepView, submitMilestoneQuery, type MilestoneStepView } from '../forecast/milestoneStep.js'
 import { inputsView, submitInputs, type NextScreen, type RefusedScreen } from '../forecast/inputs.js'
 import { milestoneForecastView, type MilestoneForecastView } from '../forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS, type ForecastSettings } from '../forecast/settings.js'
@@ -9,6 +10,7 @@ import { CONNECT_FORMS } from './connectSection.js'
 import { renderHowItWorksScreen } from './howItWorksScreen.js'
 import { INPUTS_FORMS, renderInputsScreen } from './inputsScreen.js'
 import { CAPACITY_OPEN, CAPACITY_OPEN_PATH, FORECAST_FORMS, renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
+import { FIND_FIELD, MILESTONE_STEP_FORMS, MILESTONE_STEP_ID } from './milestoneStepSection.js'
 
 /** A request as the routes see it: the server has already read the form body. */
 export interface Request {
@@ -32,17 +34,24 @@ export interface AppContext {
   storage: Storage
   /** Today's ISO calendar date: the start date's default, and what marks dates as past. */
   today: () => string
-  /** What the local server build connects a tracker with; the browser build has none, so no Connect step. */
+  /** What the local server build connects a tracker with; the browser build has none, so no Connect or Milestone step. */
   connecting?: Connecting
+  /** The UTC instant now, which a read is made at. */
+  now: () => string
 }
 
 /**
  * The context the routes run in, on `storage`; today is the system clock's local date unless given. Given
  * `connecting`, the Inputs screen has its Connect step.
  */
-export function appContext(storage: Storage, today?: () => string, connecting?: Connecting): AppContext {
+export function appContext(storage: Storage, today?: () => string, connecting?: Connecting, now?: () => string): AppContext {
   addDefaultTeamIfEmpty(storage)
-  return { storage, today: today ?? (() => localCalendarDate(new Date())), ...(connecting && { connecting }) }
+  return {
+    storage,
+    today: today ?? (() => localCalendarDate(new Date())),
+    now: now ?? (() => new Date().toISOString()),
+    ...(connecting && { connecting }),
+  }
 }
 
 /**
@@ -71,15 +80,15 @@ interface Routing {
   settings: ForecastSettings
   pathname: string
   searchParams: URLSearchParams
-  /** The Inputs screen, with the Connect step `connection` first. */
-  inputsScreen: (teamId: string, connection: ConnectionView) => string
+  /** The Inputs screen, with the Connect step `connection` first, then any Milestone step. */
+  inputsScreen: (teamId: string, connection: ConnectionView, milestoneStep?: MilestoneStepView) => string
 }
 
 function routing(request: Request, { storage, today }: AppContext): Routing {
   const settings = DEFAULT_SETTINGS
   const { pathname, searchParams } = new URL(request.path, 'http://app')
-  const inputsScreen = (teamId: string, connection: ConnectionView): string =>
-    renderInputsScreen(inputsView(storage, teamId, settings, today()), connection)
+  const inputsScreen = (teamId: string, connection: ConnectionView, milestoneStep?: MilestoneStepView): string =>
+    renderInputsScreen(inputsView(storage, teamId, settings, today()), connection, milestoneStep)
   return { team: storage.teams()[0], settings, pathname, searchParams, inputsScreen }
 }
 
@@ -114,27 +123,39 @@ function renderRefused(refused: RefusedScreen, connection: ConnectionView): stri
 }
 
 /**
- * The Connect step's posts, in the local server build: answered once the tracker has been asked, so later than every
- * other route. None for any other request, nor in the browser build, which has nothing to connect with. Refused, the
- * Inputs screen shows again with why, and the form as typed but for the token.
+ * The setup steps' requests, in the local server build: the Inputs screen, whose Milestone step asks the tracker for
+ * its choices as it opens, and the Connect and Milestone steps' posts, each answered once the tracker has been asked,
+ * so later than every other route. None for any other request, nor in the browser build, which has nothing to connect
+ * with. A refused connect shows the Inputs screen again with why, and the form as typed but for the token. A change of
+ * the milestone's picks reads its query again, then goes back to the Milestone step.
  */
-export function routeConnection(request: Request, context: AppContext): Promise<Reply> | undefined {
-  const { connecting } = context
-  const { team, pathname, inputsScreen } = routing(request, context)
-  const readForm = request.method === 'POST' ? CONNECT_FORMS.get(pathname) : undefined
-  if (!connecting || !team || !readForm) return undefined
+export function routeSetup(request: Request, context: AppContext): Promise<Reply> | undefined {
+  const { connecting, now } = context
+  const { team, pathname, searchParams, inputsScreen } = routing(request, context)
+  if (!connecting || !team) return undefined
+  const milestoneStep = (): Promise<MilestoneStepView> => milestoneStepView(connecting, team.id, searchParams.get(FIND_FIELD) ?? '')
+  if (request.method === 'GET' && pathname === SCREEN_PATHS.inputs) {
+    return (async (): Promise<Reply> => ({ kind: 'html', status: 200, html: inputsScreen(team.id, connectionView(connecting, team.id), await milestoneStep()) }))()
+  }
+  const form = request.form ?? new URLSearchParams()
+  const readPicks = request.method === 'POST' ? MILESTONE_STEP_FORMS.get(pathname) : undefined
+  if (readPicks) {
+    return (async (): Promise<Reply> => {
+      await submitMilestoneQuery(connecting, team.id, readPicks(form), now())
+      return { kind: 'redirect', location: SETUP_STEP_PATHS.milestone }
+    })()
+  }
+  const readConnect = request.method === 'POST' ? CONNECT_FORMS.get(pathname) : undefined
+  if (!readConnect) return undefined
   return (async (): Promise<Reply> => {
-    const submitted = await submitConnection(connecting, team.id, readForm(request.form ?? new URLSearchParams()))
+    const submitted = await submitConnection(connecting, team.id, readConnect(form))
     if (submitted.saved) return { kind: 'redirect', location: SETUP_STEP_PATHS[submitted.next] }
-    return { kind: 'html', status: 400, html: inputsScreen(team.id, submitted.view), path: SCREEN_PATHS.inputs }
+    return { kind: 'html', status: 400, html: inputsScreen(team.id, submitted.view, await milestoneStep()), path: SCREEN_PATHS.inputs }
   })()
 }
 
-/**
- * Where each setup step is served. Picking the milestone's tickets isn't built yet, so a good connect comes back to
- * the Connect step, connected.
- */
-const SETUP_STEP_PATHS: Record<SetupStep, string> = { connect: '/inputs#connect', milestone: '/inputs#connect' }
+/** Where each setup step is served. */
+const SETUP_STEP_PATHS: Record<SetupStep, string> = { connect: '/inputs#connect', milestone: `/inputs#${MILESTONE_STEP_ID}` }
 
 /** Where each screen is served. */
 const SCREEN_PATHS: Record<NextScreen, string> = { forecast: '/', inputs: '/inputs' }
