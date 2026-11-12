@@ -30,8 +30,8 @@ type Recorded = { ok: true; recordings: Record<Scenario, Recording[]> } | { ok: 
 
 type Body = Record<string, unknown>
 
-/** A response body cut to the fields the connector reads from `url`. */
-type Trim = (url: string, status: number, body: unknown) => unknown
+/** A response body cut to the fields the connector reads from `url`, asked for with `requestBody`, if it had one. */
+type Trim = (url: string, status: number, body: unknown, requestBody: string | undefined) => unknown
 
 function pick(body: unknown, fields: string[]): Body {
   if (typeof body !== 'object' || body === null) return {}
@@ -49,7 +49,7 @@ function recording(transport: Transport, trim: Trim): { transport: Transport; re
       const body = await bodyOf(response.clone())
       const request = requestOf(url, init)
       if (!recordings.some((each) => describeRequest(each.request) === describeRequest(request))) {
-        recordings.push({ request, response: { status: response.status, body: trim(url, response.status, body) } })
+        recordings.push({ request, response: { status: response.status, body: trim(url, response.status, body, request.body) } })
       }
       return response
     },
@@ -148,12 +148,13 @@ const JIRA: Tracker<JiraConnection> = {
   cases: JIRA_CASES,
   cut: cutOf('jira'),
   refusedCredential: 'forecaster-refused-token',
-  trim: (url, status, body) => {
+  trim: (url, status, body, requestBody) => {
     if (url.endsWith('/_edge/tenant_info')) return status === 200 ? pick(body, ['cloudId']) : {}
     if (status !== 200) return pick(body, ['errorMessages'])
     // The connector reads only whether the project is there, from the status.
     if (/\/project\/[^/]+$/.test(url)) return {}
     if (url.endsWith('/versions')) return (body as Body[]).map((version) => pick(version, ['id', 'name', 'released', 'archived']))
+    if (url.includes('/label?')) return pick(body, ['values', 'isLast'])
     const categoryOf = (status: unknown) => ({ statusCategory: pick((status as Body).statusCategory, ['key']) })
     if (url.endsWith('/statuses')) {
       return (body as Body[]).map((issueType) => ({
@@ -162,9 +163,10 @@ const JIRA: Tracker<JiraConnection> = {
     }
     if (url.endsWith('/search/jql')) {
       const found = pick(body, ['issues', 'isLast', 'nextPageToken'])
+      // Each search asks for its own fields: a read's, a subtask's parent, when a ticket was made, or an epic's summary.
+      const asked = new Set((JSON.parse(requestBody ?? '{}') as { fields?: string[] }).fields ?? [])
       found.issues = (found.issues as Body[]).map((issue) => {
-        const fields = issue.fields as Body
-        // Each search asks for its own fields: a read's, a subtask's parent, or when a ticket was made.
+        const fields = pick(issue.fields, [...asked])
         const kept: Body = {}
         if ('issuetype' in fields) kept.issuetype = pick(fields.issuetype, ['hierarchyLevel'])
         if ('status' in fields) kept.status = categoryOf(fields.status)
@@ -173,6 +175,8 @@ const JIRA: Tracker<JiraConnection> = {
         }
         if ('parent' in fields) kept.parent = pick(fields.parent, ['id'])
         if ('created' in fields) kept.created = fields.created
+        // An epic is listed by its summary and read by its key.
+        if ('summary' in fields) return { id: issue.id, key: issue.key, fields: { ...kept, summary: fields.summary } }
         return { id: issue.id, fields: kept }
       })
       return found

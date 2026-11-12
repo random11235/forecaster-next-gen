@@ -1,5 +1,5 @@
 import type { Connection } from '../../model/connection.js'
-import { CHOICES_LIMIT, type Choice, type Connector, type FailedCall, type ReadResult, type Ticket, type Transport } from '../connector.js'
+import { CHOICES_LIMIT, type Choice, type ChoicesOfKind, type Connector, type FailedCall, type ReadResult, type Ticket, type Transport } from '../connector.js'
 import { failureOf, finishedSince, send, sleep, staysInScope, type Backoff, type QueryScope, type Received, type Wait } from '../remote.js'
 
 /**
@@ -34,9 +34,9 @@ const SCOPE: QueryScope = {
   quoted: /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g,
 }
 
-/** The JQL reading a fix version's tickets, by its id, which survives a rename. */
-function fixVersionQuery(id: string): string {
-  return `fixVersion = ${id}`
+/** `value` as a JQL string: in double quotes, any quote or backslash in it escaped. */
+function jqlString(value: string): string {
+  return `"${value.replace(/["\\]/g, '\\$&')}"`
 }
 
 /**
@@ -72,6 +72,8 @@ interface IssueTypeStatuses {
 /** A ticket as search returns it, with the fields asked for. */
 interface Found<F> {
   id: string
+  /** Changes when the ticket moves project, so only an epic's choice is read by it, for the EM to recognise. */
+  key: string
   fields: F
 }
 
@@ -95,6 +97,12 @@ interface ChangelogResponse {
   /** Each ticket's status changes, `created` in milliseconds since the epoch, in no promised order. */
   issueChangeLogs: { issueId: string; changeHistories: { created: number; items: ChangeItem[] }[] }[]
   nextPageToken?: string
+}
+
+/** A page of the site's labels. */
+interface LabelsResponse {
+  values: string[]
+  isLast?: boolean
 }
 
 interface ErrorResponse {
@@ -240,16 +248,48 @@ export function jiraConnector(
     return new Map(found.map(({ id, fields }) => [id, new Date(jiraInstant(fields.created)).toISOString()]))
   }
 
+  /** The project's unreleased fix versions, each read by its name. */
+  async function fixVersions(): Promise<ChoicesOfKind | FailedCall> {
+    const response = await api(`/project/${encodeURIComponent(key)}/versions`)
+    if ('ok' in response) return response
+    if (response.status !== 200) return failureOf(response.status)
+    // Jira gives every version at once; past the limit, the first are listed.
+    const choices: Choice[] = (response.body as Version[])
+      .filter((version) => !version.released && !version.archived)
+      .map((version) => ({ kind: 'fixVersion', name: version.name, query: `fixVersion = ${jqlString(version.name)}` }))
+    return { kind: 'fixVersion', choices: choices.slice(0, CHOICES_LIMIT), pastLimit: choices.length > CHOICES_LIMIT }
+  }
+
+  /** The project's epics not yet done, newest first, each named by its summary and read by its children. */
+  async function epics(): Promise<ChoicesOfKind | FailedCall> {
+    const jql = `project = "${key}" AND issuetype = Epic AND statusCategory != Done ORDER BY created DESC`
+    const response = await api('/search/jql', { jql, fields: ['summary'], maxResults: CHOICES_LIMIT })
+    if ('ok' in response) return response
+    if (response.status !== 200) return failureOf(response.status)
+    const page = response.body as SearchResponse<{ summary: string }>
+    const choices: Choice[] = page.issues.map((epic) => ({ kind: 'epic', name: epic.fields.summary, query: `parent = ${epic.key}` }))
+    return { kind: 'epic', choices, pastLimit: page.isLast !== true }
+  }
+
+  /** The site's labels: Jira keeps labels for the whole site, not per project. */
+  async function labels(): Promise<ChoicesOfKind | FailedCall> {
+    const response = await api(`/label?maxResults=${CHOICES_LIMIT}`)
+    if ('ok' in response) return response
+    if (response.status !== 200) return failureOf(response.status)
+    const page = response.body as LabelsResponse
+    const choices: Choice[] = page.values.map((label) => ({ kind: 'label', name: label, query: `labels = ${jqlString(label)}` }))
+    return { kind: 'label', choices, pastLimit: page.isLast !== true }
+  }
+
   return {
     milestoneChoices: async () => {
-      const response = await api(`/project/${encodeURIComponent(key)}/versions`)
-      if ('ok' in response) return response
-      if (response.status !== 200) return failureOf(response.status)
-      // Jira gives every version at once; past the limit, the first are listed.
-      const choices: Choice[] = (response.body as Version[])
-        .filter((version) => !version.released && !version.archived)
-        .map((version) => ({ kind: 'fixVersion', name: version.name, query: fixVersionQuery(version.id) }))
-      return { ok: true, kinds: [{ kind: 'fixVersion', choices: choices.slice(0, CHOICES_LIMIT), pastLimit: choices.length > CHOICES_LIMIT }] }
+      const kinds: ChoicesOfKind[] = []
+      for (const list of [fixVersions, epics, labels]) {
+        const listed = await list()
+        if ('ok' in listed) return listed
+        kinds.push(listed)
+      }
+      return { ok: true, kinds }
     },
 
     read: async (query, since): Promise<ReadResult> => {

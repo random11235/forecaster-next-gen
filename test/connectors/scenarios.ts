@@ -75,13 +75,13 @@ export const GITHUB_CASES = cases<Extract<Connection, { tracker: 'github' }>>(
 /** Recorded as the shared test account; `scripts/record.ts` swaps in `FORECASTER_JIRA_EMAIL` when it is set. */
 const JIRA_SYNTHETIC = { tracker: 'jira', site: 'ralphhockley.atlassian.net', projectKey: 'SYN', email: 'forecastertest3@gmail.com' } as const
 
-/** The space SYN on ralphhockley.atlassian.net, in JQL. "Checkout v2" is fix version 10000, "Search revamp" 10001. */
+/** The space SYN on ralphhockley.atlassian.net, in JQL. */
 export const JIRA_CASES = cases<Extract<Connection, { tracker: 'jira' }>>(
   JIRA_SYNTHETIC,
   { ...JIRA_SYNTHETIC, projectKey: 'SYNUNKNOWN' },
   {
-    searchRevamp: 'fixVersion = 10001',
-    checkout: 'fixVersion = 10000',
+    searchRevamp: 'fixVersion = "Search revamp"',
+    checkout: 'fixVersion = "Checkout v2"',
     open: 'statusCategory != Done',
     nothing: 'labels = "no-such-label"',
     invalid: 'labels == comparable',
