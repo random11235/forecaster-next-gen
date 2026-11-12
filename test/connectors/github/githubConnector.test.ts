@@ -93,4 +93,37 @@ describe('GitHub connector', () => {
     expect(await connector.read('label:a', '2026-01-01T00:00:00Z')).toEqual({ ok: false, failure })
     expect(github.sent).toHaveLength(2)
   })
+
+  describe('milestone choices', () => {
+    /** A stand-in GitHub with `count` open milestones, paged as its REST API pages them. */
+    function withMilestones(count: number) {
+      return answering(async (url) => {
+        const params = new URL(url).searchParams
+        const perPage = Number(params.get('per_page') ?? 30)
+        const page = Number(params.get('page') ?? 1)
+        const titles = Array.from({ length: count }, (_, i) => `M${i + 1}`).slice((page - 1) * perPage, page * perPage)
+        return new Response(JSON.stringify(titles.map((title) => ({ title }))), { status: 200 })
+      })
+    }
+
+    test('with more than 100 open milestones, list 100, marked past the limit', async () => {
+      const connector = githubConnector(CONNECTION, 'token', withMilestones(101).transport, mustNotWait)
+
+      const result = await connector.milestoneChoices()
+
+      if (!result.ok) throw new Error(`milestone choices failed: ${result.failure}`)
+      expect(result.kinds).toEqual([{ kind: 'milestone', choices: expect.any(Array), pastLimit: true }])
+      expect(result.kinds[0]!.choices).toHaveLength(100)
+    })
+
+    test('with exactly 100 open milestones, list them all, not past the limit', async () => {
+      const connector = githubConnector(CONNECTION, 'token', withMilestones(100).transport, mustNotWait)
+
+      const result = await connector.milestoneChoices()
+
+      if (!result.ok) throw new Error(`milestone choices failed: ${result.failure}`)
+      expect(result.kinds[0]!.choices.map((choice) => choice.name)).toEqual(Array.from({ length: 100 }, (_, i) => `M${i + 1}`))
+      expect(result.kinds[0]!.pastLimit).toBe(false)
+    })
+  })
 })

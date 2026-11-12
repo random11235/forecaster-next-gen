@@ -41,7 +41,21 @@ export interface Choice {
   query: string
 }
 
-export type ChoicesResult = { ok: true; choices: Choice[] } | FailedCall
+/** The most choices of one kind a connector lists; past it, the picker searches that kind in the tracker instead. */
+export const CHOICES_LIMIT = 100
+
+/**
+ * One kind's milestone choices, up to `CHOICES_LIMIT` of them; `pastLimit` when the tracker has more than that of the
+ * kind, so the list isn't all of them.
+ */
+export interface ChoicesOfKind {
+  kind: string
+  choices: Choice[]
+  pastLimit: boolean
+}
+
+/** The milestone choices, one list per kind, in the order the picker shows them; or one failure. */
+export type ChoicesResult = { ok: true; kinds: ChoicesOfKind[] } | FailedCall
 
 /** How a connector reaches its tracker: `fetch`, or Seam C's replay of recorded responses. */
 export type Transport = (url: string, init?: RequestInit) => Promise<Response>
