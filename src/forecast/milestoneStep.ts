@@ -1,4 +1,4 @@
-import type { Choice } from '../connectors/connector.js'
+import type { Choice, Connector } from '../connectors/connector.js'
 import type { MilestoneQuery } from '../model/milestoneQuery.js'
 import type { SavedRead } from '../model/savedRead.js'
 import { teamConnector, type Connecting } from './connection.js'
@@ -15,10 +15,17 @@ export function kindName(kind: string): string {
   return KIND_NAMES[kind] ?? kind
 }
 
-/** One kind's choices, as the picker lists them: those matching what is typed, less those already picked. */
+/**
+ * One kind's choices, as the picker lists them: those matching what is typed, less those already picked. A kind
+ * `searched` has more than the tracker lists, so once something is typed it is searched in the tracker, not filtered
+ * here; the tracker's search may match whole words only.
+ */
 export interface ChoiceList {
   kind: string
   choices: Choice[]
+  searched: boolean
+  /** Why the tracker couldn't search this kind; none when it could. */
+  failure?: string
 }
 
 /**
@@ -57,10 +64,39 @@ export async function milestoneStepView(connecting: Connecting | undefined, team
   if (connector === 'keychainFailed') return { ...step, choicesFailure: KEYCHAIN_FAILED }
   const choices = await connector.milestoneChoices()
   if (!choices.ok) return { ...step, choicesFailure: CHOICES_FAILED }
-  const picked = new Set(saved.picks.map((pick) => pick.query))
-  const typed = find.trim().toLowerCase()
-  const shown = (choice: Choice): boolean => !picked.has(choice.query) && choice.name.toLowerCase().includes(typed)
-  return { ...step, lists: choices.kinds.map(({ kind, choices }) => ({ kind, choices: choices.filter(shown) })) }
+  const typed = find.trim()
+  const unpicked = notPicked(saved.picks)
+  const lists: ChoiceList[] = []
+  // A kind past the limit is searched once something is typed, one kind after another, to spare the rate limit.
+  for (const { kind, choices: listed, pastLimit } of choices.kinds) {
+    if (pastLimit && typed !== '') lists.push(await searched(connector, kind, typed, unpicked))
+    else lists.push({ kind, choices: listed.filter((choice) => unpicked(choice) && choice.name.toLowerCase().includes(typed.toLowerCase())), searched: pastLimit })
+  }
+  return { ...step, lists }
+}
+
+/**
+ * Seam B: one kind past the limit, searched in the tracker for `find`, as the Milestone step's picker asks for it while
+ * the EM types: the choices the tracker finds, less those already picked. None before the team connects.
+ */
+export async function searchedChoiceList(connecting: Connecting, teamId: string, kind: string, find: string): Promise<ChoiceList | undefined> {
+  const connector = await teamConnector(connecting, teamId)
+  if (connector === 'notConnected') return undefined
+  if (connector === 'keychainFailed') return { kind, choices: [], searched: true, failure: KEYCHAIN_FAILED }
+  const picks = connecting.milestoneQueries.milestoneQuery(teamId)?.picks ?? []
+  return searched(connector, kind, find.trim(), notPicked(picks))
+}
+
+/** Whether a choice is none of `picks`. */
+function notPicked(picks: Choice[]): (choice: Choice) => boolean {
+  const picked = new Set(picks.map((pick) => pick.query))
+  return (choice) => !picked.has(choice.query)
+}
+
+async function searched(connector: Connector, kind: string, typed: string, unpicked: (choice: Choice) => boolean): Promise<ChoiceList> {
+  const found = await connector.searchChoices(kind, typed)
+  if (!found.ok) return { kind, choices: [], searched: true, failure: `The tracker couldn’t search its ${kindName(kind)}s just now. Try again in a few minutes.` }
+  return { kind, choices: found.choices.filter(unpicked), searched: true }
 }
 
 const KEYCHAIN_FAILED = 'This computer’s keychain couldn’t give the token, so nothing can be listed. Check it’s unlocked, then open the step again.'

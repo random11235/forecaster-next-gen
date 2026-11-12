@@ -57,11 +57,19 @@ export interface ChoicesOfKind {
 /** The milestone choices, one list per kind, in the order the picker shows them; or one failure. */
 export type ChoicesResult = { ok: true; kinds: ChoicesOfKind[] } | FailedCall
 
+/** The choices of one kind a search of the tracker found, up to `CHOICES_LIMIT` of them; or one failure. */
+export type SearchedChoices = { ok: true; choices: Choice[] } | FailedCall
+
 /** How a connector reaches its tracker: `fetch`, or Seam C's replay of recorded responses. */
 export type Transport = (url: string, init?: RequestInit) => Promise<Response>
 
 export interface Connector {
   milestoneChoices(): Promise<ChoicesResult>
+  /**
+   * The choices of `kind` whose names match `text`, found by the tracker's own search, for a kind past the limit; each
+   * with its query built as `milestoneChoices()` builds it. The tracker's search may match whole words only.
+   */
+  searchChoices(kind: string, text: string): Promise<SearchedChoices>
   /** The tickets the query matches that are open or finished at or after `finishedSince`, a UTC instant. */
   read(query: string, finishedSince: string): Promise<ReadResult>
 }

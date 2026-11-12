@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from 'vitest'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
 import { openWebApp } from '../../src/app/webApp.js'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
+import type { ChoicesOfKind } from '../../src/connectors/connector.js'
 import type { Connecting } from '../../src/forecast/connection.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
@@ -36,14 +37,14 @@ afterEach(async () => {
   storage = undefined
 })
 
-async function startConnected(): Promise<RunningApp> {
+async function startConnected(fixture: CannedFixture = FIXTURE): Promise<RunningApp> {
   storage = openSqliteStorage(':memory:')
   const connecting: Connecting = {
     connections: storage,
     reads: storage,
     milestoneQueries: storage,
     secrets: openMemorySecrets(),
-    connector: () => cannedConnector(FIXTURE),
+    connector: () => cannedConnector(fixture),
   }
   app = await startAppAndOpenBrowser({
     port: 0,
@@ -114,6 +115,49 @@ describe('the Milestone step', () => {
     const step = stepOf(await page(running))
     expect(step).not.toContain('class="chip"')
     expect(step).not.toContain('open ·')
+  })
+
+  describe('with more than 100 epics', () => {
+    const epic = (n: number, name = `Epic ${n}`) => ({ kind: 'epic', name, query: `parent-issue:shop-team/shop#${n}` })
+    const listed = Array.from({ length: 100 }, (_, i) => epic(i + 1))
+    const PAST_LIMIT: CannedFixture = {
+      ...FIXTURE,
+      milestoneChoices: [{ kind: 'epic', choices: listed, pastLimit: true }, ...(FIXTURE.milestoneChoices as ChoicesOfKind[])],
+      searched: { epic: [...listed, epic(140, 'Card payments'), epic(141, 'Payouts')] },
+    }
+
+    test('what is typed searches the epics in the tracker, and still filters the milestones', async () => {
+      const running = await startConnected(PAST_LIMIT)
+
+      const step = stepOf(await page(running, '/inputs?find=payments'))
+
+      expect(step).toContain('Card payments')
+      expect(step).toContain('Payments v2')
+      expect(step).not.toContain('Checkout')
+      expect(step).not.toContain('Epic 1<')
+    })
+
+    test('the epics are marked to be searched as the EM types, the milestones not', async () => {
+      const running = await startConnected(PAST_LIMIT)
+
+      const step = stepOf(await page(running))
+
+      expect(step).toContain('<div class="kind-list" data-kind="epic" data-searched>')
+      expect(step).toContain('<div class="kind-list" data-kind="milestone">')
+    })
+
+    test('the picker asks for one kind searched, and gets its list alone', async () => {
+      const running = await startConnected(PAST_LIMIT)
+
+      const response = await fetch(new URL('/inputs/milestone-choices?kind=epic&find=payouts', running.url))
+      const list = await response.text()
+
+      expect(response.status).toBe(200)
+      expect(list).toMatch(/^\s*<div class="kind-list" data-kind="epic" data-searched>/)
+      expect(list).toContain('value="parent-issue:shop-team/shop#141"')
+      expect(list).not.toContain('Payments v2')
+      expect(list).not.toContain('<html')
+    })
   })
 
   test('before connecting, there is none', async () => {
