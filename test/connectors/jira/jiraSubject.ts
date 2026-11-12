@@ -26,5 +26,8 @@ export const jiraSubject = replayedSubject({
       ...['reopened-finished', 'reopened-open', 'wont-do-1', 'wont-do-2', 'duplicate', 'both-queries', 'bug'],
     ],
     parents: ['epic', 'story-with-subtasks'],
+    // SYN-106 has the story SYN-107 (with the subtasks SYN-109 to SYN-111) and the task SYN-108. A team-managed space
+    // nests nothing beneath an epic but stories and their subtasks, so the story stands where GitHub's sub-epic does.
+    nestedEpic: { leaves: ['subtask-1', 'subtask-2', 'subtask-3', 'epic-leaf'], underSubEpic: ['subtask-1', 'subtask-2', 'subtask-3'] },
   },
 })
