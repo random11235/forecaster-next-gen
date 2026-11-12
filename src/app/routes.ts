@@ -1,6 +1,6 @@
 import { connectionView, submitConnection, type Connecting, type ConnectionView, type SetupStep } from '../forecast/connection.js'
 import { howItWorksView } from '../forecast/howItWorksView.js'
-import { milestoneStepView, submitMilestoneQuery, type MilestoneStepView } from '../forecast/milestoneStep.js'
+import { milestoneStepView, searchedChoiceList, submitMilestoneQuery, type MilestoneStepView } from '../forecast/milestoneStep.js'
 import { inputsView, submitInputs, type NextScreen, type RefusedScreen } from '../forecast/inputs.js'
 import { milestoneForecastView, type MilestoneForecastView } from '../forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS, type ForecastSettings } from '../forecast/settings.js'
@@ -10,7 +10,7 @@ import { CONNECT_FORMS } from './connectSection.js'
 import { renderHowItWorksScreen } from './howItWorksScreen.js'
 import { INPUTS_FORMS, renderInputsScreen } from './inputsScreen.js'
 import { CAPACITY_OPEN, CAPACITY_OPEN_PATH, FORECAST_FORMS, renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
-import { FIND_FIELD, MILESTONE_STEP_FORMS, MILESTONE_STEP_ID } from './milestoneStepSection.js'
+import { choiceListHtml, FIND_FIELD, KIND_FIELD, MILESTONE_STEP_FORMS, MILESTONE_STEP_ID, SEARCHED_CHOICES_PATH } from './milestoneStepSection.js'
 
 /** A request as the routes see it: the server has already read the form body. */
 export interface Request {
@@ -136,6 +136,12 @@ export function routeSetup(request: Request, context: AppContext): Promise<Reply
   const milestoneStep = (): Promise<MilestoneStepView> => milestoneStepView(connecting, team.id, searchParams.get(FIND_FIELD) ?? '')
   if (request.method === 'GET' && pathname === SCREEN_PATHS.inputs) {
     return (async (): Promise<Reply> => ({ kind: 'html', status: 200, html: inputsScreen(team.id, connectionView(connecting, team.id), await milestoneStep()) }))()
+  }
+  if (request.method === 'GET' && pathname === SEARCHED_CHOICES_PATH) {
+    return (async (): Promise<Reply> => {
+      const list = await searchedChoiceList(connecting, team.id, searchParams.get(KIND_FIELD) ?? '', searchParams.get(FIND_FIELD) ?? '')
+      return list ? { kind: 'html', status: 200, html: choiceListHtml(list) } : { kind: 'notFound' }
+    })()
   }
   const form = request.form ?? new URLSearchParams()
   const readPicks = request.method === 'POST' ? MILESTONE_STEP_FORMS.get(pathname) : undefined

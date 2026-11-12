@@ -1,5 +1,15 @@
 import type { Connection } from '../../model/connection.js'
-import { CHOICES_LIMIT, type Choice, type ChoicesOfKind, type Connector, type FailedCall, type ReadResult, type Ticket, type Transport } from '../connector.js'
+import {
+  CHOICES_LIMIT,
+  type Choice,
+  type ChoicesOfKind,
+  type Connector,
+  type FailedCall,
+  type ReadResult,
+  type SearchedChoices,
+  type Ticket,
+  type Transport,
+} from '../connector.js'
 import { failureOf, finishedSince, send, sleep, staysInScope, type Backoff, type QueryScope, type Received, type Wait } from '../remote.js'
 
 /**
@@ -33,6 +43,9 @@ const SCOPE: QueryScope = {
   reachesOut: /(^|[\s(])project\s*(!?=|~|\bnot\s+in\b|\bin\b|\bis\b|\bwas\b|\bchanged\b)/i,
   quoted: /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g,
 }
+
+/** The characters JQL's text search (`~`) reads as its own syntax, and quotes. */
+const TEXT_SEARCH_SPECIALS = /[+\-&|!(){}[\]^"'~*?:\\/]/g
 
 /** `value` as a JQL string: in double quotes, any quote or backslash in it escaped. */
 function jqlString(value: string): string {
@@ -248,27 +261,77 @@ export function jiraConnector(
     return new Map(found.map(({ id, fields }) => [id, new Date(jiraInstant(fields.created)).toISOString()]))
   }
 
-  /** The project's unreleased fix versions, each read by its name. */
-  async function fixVersions(): Promise<ChoicesOfKind | FailedCall> {
+  /** Every one of the project's unreleased fix versions, each read by its name: Jira gives them all at once. */
+  async function unreleasedVersions(): Promise<Choice[] | FailedCall> {
     const response = await api(`/project/${encodeURIComponent(key)}/versions`)
     if ('ok' in response) return response
     if (response.status !== 200) return failureOf(response.status)
-    // Jira gives every version at once; past the limit, the first are listed.
-    const choices: Choice[] = (response.body as Version[])
+    return (response.body as Version[])
       .filter((version) => !version.released && !version.archived)
       .map((version) => ({ kind: 'fixVersion', name: version.name, query: `fixVersion = ${jqlString(version.name)}` }))
+  }
+
+  /** The project's unreleased fix versions; past the limit, the first are listed. */
+  async function fixVersions(): Promise<ChoicesOfKind | FailedCall> {
+    const choices = await unreleasedVersions()
+    if (!Array.isArray(choices)) return choices
     return { kind: 'fixVersion', choices: choices.slice(0, CHOICES_LIMIT), pastLimit: choices.length > CHOICES_LIMIT }
   }
 
-  /** The project's epics not yet done, newest first, each named by its summary and read by its children. */
-  async function epics(): Promise<ChoicesOfKind | FailedCall> {
-    const jql = `project = "${key}" AND issuetype = Epic AND statusCategory != Done ORDER BY created DESC`
+  /** The unreleased fix versions with `text` in their names, ignoring case, up to the limit: matched here, as Jira gives them all. */
+  async function searchedVersions(text: string): Promise<SearchedChoices> {
+    const choices = await unreleasedVersions()
+    if (!Array.isArray(choices)) return choices
+    const typed = text.toLowerCase()
+    return { ok: true, choices: choices.filter((choice) => choice.name.toLowerCase().includes(typed)).slice(0, CHOICES_LIMIT) }
+  }
+
+  /**
+   * The first page of the project's epics not yet done, and matching `clause` too, if any; newest first, each named by
+   * its summary and read by its children.
+   */
+  async function epicsPage(clause = ''): Promise<{ choices: Choice[]; isLast: boolean } | FailedCall> {
+    const jql = `project = "${key}" AND issuetype = Epic AND statusCategory != Done${clause} ORDER BY created DESC`
     const response = await api('/search/jql', { jql, fields: ['summary'], maxResults: CHOICES_LIMIT })
     if ('ok' in response) return response
     if (response.status !== 200) return failureOf(response.status)
     const page = response.body as SearchResponse<{ summary: string }>
     const choices: Choice[] = page.issues.map((epic) => ({ kind: 'epic', name: epic.fields.summary, query: `parent = ${epic.key}` }))
-    return { kind: 'epic', choices, pastLimit: page.isLast !== true }
+    return { choices, isLast: page.isLast === true }
+  }
+
+  /** The project's epics not yet done, up to the limit. */
+  async function epics(): Promise<ChoicesOfKind | FailedCall> {
+    const page = await epicsPage()
+    if ('ok' in page) return page
+    return { kind: 'epic', choices: page.choices, pastLimit: !page.isLast }
+  }
+
+  /**
+   * The epics not done with a word starting with each word of `text` in their summaries, up to the limit. Text
+   * search's special characters are left out, so none can make the JQL fail.
+   */
+  async function searchedEpics(text: string): Promise<SearchedChoices> {
+    const words = text.replace(TEXT_SEARCH_SPECIALS, ' ').split(/\s+/).filter((word) => word !== '')
+    const page = await epicsPage(words.map((word) => ` AND summary ~ "${word}*"`).join(''))
+    if ('ok' in page) return page
+    return { ok: true, choices: page.choices }
+  }
+
+  /** The site's labels JQL suggests for `text`, as it autocompletes the labels field, up to the limit. */
+  async function searchedLabels(text: string): Promise<SearchedChoices> {
+    const response = await api(`/jql/autocompletedata/suggestions?fieldName=labels&fieldValue=${encodeURIComponent(text)}`)
+    if ('ok' in response) return response
+    if (response.status !== 200) return failureOf(response.status)
+    const { results } = response.body as { results: { value: string }[] }
+    const choices: Choice[] = results.map(({ value }) => ({ kind: 'label', name: value, query: `labels = ${jqlString(value)}` }))
+    return { ok: true, choices: choices.slice(0, CHOICES_LIMIT) }
+  }
+
+  const SEARCHES: Readonly<Record<string, (text: string) => Promise<SearchedChoices>>> = {
+    fixVersion: searchedVersions,
+    epic: searchedEpics,
+    label: searchedLabels,
   }
 
   /** The site's labels: Jira keeps labels for the whole site, not per project. */
@@ -282,6 +345,11 @@ export function jiraConnector(
   }
 
   return {
+    searchChoices: async (kind, text) => {
+      const search = Object.hasOwn(SEARCHES, kind) ? SEARCHES[kind]! : undefined
+      return search ? search(text) : { ok: true, choices: [] }
+    },
+
     milestoneChoices: async () => {
       const kinds: ChoicesOfKind[] = []
       for (const list of [fixVersions, epics, labels]) {
