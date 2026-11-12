@@ -28,8 +28,6 @@ export interface Queries {
   nothing: string
   /** One the tracker refuses. */
   invalid: string
-  /** One reaching outside the connection's repo or project. */
-  outOfScope: string
   /**
    * The picked epic "Epic: payment methods", as its epic choice reads it: naming only the epic, though a sub-epic (on
    * Jira, a story with subtasks) is nested beneath it. A tracker whose connector doesn't expand epics yet leaves it out.
@@ -46,6 +44,13 @@ export interface ScenarioSetup<C extends Connection> {
 
 export interface TrackerCases<C extends Connection> {
   queries: Queries
+  /** The tracker's own message refusing `queries.invalid`, as recorded. */
+  invalidMessage: string
+  /**
+   * Queries reaching outside the connection's repo or project, by what they name. A connector refuses them before any
+   * request, so none is recorded.
+   */
+  outOfScope: [names: string, query: string][]
   scenarios: Record<Scenario, ScenarioSetup<C>>
 }
 
@@ -53,9 +58,16 @@ export interface TrackerCases<C extends Connection> {
  * Every scenario but the synthetic one reads only "Search revamp", to record its failure. The synthetic one reads every
  * query, and `quirks`: the tracker's own queries, read by the tests in its folder.
  */
-function cases<C extends Connection>(synthetic: C, unknown: C, queries: Queries, quirks: string[] = []): TrackerCases<C> {
+function cases<C extends Connection>(
+  synthetic: C,
+  unknown: C,
+  { queries, invalidMessage, outOfScope }: Pick<TrackerCases<C>, 'queries' | 'invalidMessage' | 'outOfScope'>,
+  quirks: string[] = [],
+): TrackerCases<C> {
   return {
     queries,
+    invalidMessage,
+    outOfScope,
     scenarios: {
       synthetic: { connection: synthetic, refused: false, reads: [...Object.values(queries), ...quirks] },
       refusedToken: { connection: synthetic, refused: true, reads: [queries.searchRevamp] },
@@ -77,13 +89,19 @@ export const GITHUB_CASES = cases<Extract<Connection, { tracker: 'github' }>>(
   GITHUB_SYNTHETIC,
   { ...GITHUB_SYNTHETIC, repo: 'forecaster-synthetic-unknown' },
   {
-    searchRevamp: 'milestone:"Search revamp"',
-    checkout: 'milestone:"Checkout v2"',
-    open: 'is:open',
-    nothing: 'label:"no such label"',
-    invalid: 'closed:>2026-13-45',
-    outOfScope: 'repo:random11235/forecaster-next-gen',
-    nestedEpic: 'parent-issue:random11235/forecaster-synthetic#106',
+    queries: {
+      searchRevamp: 'milestone:"Search revamp"',
+      checkout: 'milestone:"Checkout v2"',
+      open: 'is:open',
+      nothing: 'label:"no such label"',
+      invalid: 'closed:>2026-13-45',
+      nestedEpic: 'parent-issue:random11235/forecaster-synthetic#106',
+    },
+    invalidMessage: '"2026-13-45" is not a recognized date/time format. Please provide an ISO 8601 date/time value, such as YYYY-MM-DD.',
+    outOfScope: [
+      ['another repo', 'repo:random11235/forecaster-next-gen'],
+      ['an organisation', 'org:random11235'],
+    ],
   },
   Object.values(GITHUB_QUIRKS),
 )
@@ -96,12 +114,16 @@ export const JIRA_CASES = cases<Extract<Connection, { tracker: 'jira' }>>(
   JIRA_SYNTHETIC,
   { ...JIRA_SYNTHETIC, projectKey: 'SYNUNKNOWN' },
   {
-    searchRevamp: 'fixVersion = "Search revamp"',
-    checkout: 'fixVersion = "Checkout v2"',
-    open: 'statusCategory != Done',
-    nothing: 'labels = "no-such-label"',
-    invalid: 'labels == comparable',
-    outOfScope: 'project = KAN',
-    nestedEpic: 'parent = SYN-106',
+    queries: {
+      searchRevamp: 'fixVersion = "Search revamp"',
+      checkout: 'fixVersion = "Checkout v2"',
+      open: 'statusCategory != Done',
+      nothing: 'labels = "no-such-label"',
+      invalid: 'labels == comparable',
+      nestedEpic: 'parent = SYN-106',
+    },
+    invalidMessage:
+      "Error in JQL Query: Expecting either a value, list or function but got '='. You must surround '=' in quotation marks to use it as a value. (line 1, character 30)",
+    outOfScope: [['another Jira project', 'project = KAN']],
   },
 )

@@ -194,6 +194,29 @@ describe('the Milestone step', () => {
     expect(step).toContain('“payments” is free text, which isn’t read.')
   })
 
+  test('a query the tracker rejects shows again as typed with the tracker’s message, still reading the last that worked', async () => {
+    const running = await startConnected({ ...FIXTURE, reads: { ...FIXTURE.reads, 'closed:>2026-13-45': { failure: 'invalidQuery', message: 'Not a date.' } } })
+    await post(running, '/inputs/milestone-query/add', { kind: 'milestone', name: 'Payments v2', query: 'milestone:"Payments v2"' })
+
+    const rejected = await post(running, '/inputs/milestone-query/edit', { query: 'closed:>2026-13-45' })
+
+    expect(rejected.status).toBe(400)
+    const step = stepOf(await rejected.text())
+    expect(step).toContain('value="closed:&#62;2026-13-45"')
+    expect(step).toContain('GitHub rejected this query: Not a date.')
+    expect(step).toContain('Still reading <code>milestone:&#34;Payments v2&#34;</code>')
+    expect(step).toContain('1 open · 1 finished in the last 8 weeks')
+  })
+
+  test('a read matching nothing is flagged beside its line, while finding and editing', async () => {
+    const running = await startConnected()
+    await post(running, '/inputs/milestone-query/add', { kind: 'milestone', name: 'Checkout', query: 'milestone:"Checkout"' })
+
+    const flagged = /0 open · 0 finished in the last 8 weeks[^]*class="note warn flag">⚠ This query matches nothing/
+    expect(stepOf(await page(running))).toMatch(flagged)
+    expect(stepOf(await page(running, '/inputs?edit=query'))).toMatch(flagged)
+  })
+
   test('Back to finding warns when it will clear a query the picker can’t show, and going back clears it', async () => {
     const running = await startConnected()
     await post(running, '/inputs/milestone-query/edit', { query: 'label:checkout -label:bug' })

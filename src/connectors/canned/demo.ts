@@ -10,14 +10,26 @@ const DEMO_REFUSED_TOKEN = 'refused'
 const DEMO_UNKNOWN_NAME = 'unknown'
 
 /**
+ * The reads demo mode fails, as a tracker fails them, to show the Milestone step's flags: a query the tracker rejects,
+ * with its message, and one reaching outside the connection. Kept here, not in the fixture, which JSON can't type.
+ */
+const DEMO_FAILED_READS: CannedFixture['reads'] = {
+  'closed:>2026-13-45': {
+    failure: 'invalidQuery',
+    message: '"2026-13-45" is not a recognized date/time format. Please provide an ISO 8601 date/time value, such as YYYY-MM-DD.',
+  },
+  'repo:someone/else': { failure: 'outOfScope' },
+}
+
+/**
  * Demo mode's connector: canned, from a committed synthetic fixture (made up for demos, holding no real team's data),
  * so demo screenshots and the launch smoke test need no tracker or token. Any connection and token connect, but for
  * two cues that show the Connect step's refusals: the token `refused` is refused (`unauthorised`), and a repo or Jira
- * project named `unknown` (in any case) isn't found (`notFound`).
+ * project named `unknown` (in any case) isn't found (`notFound`). Reads of `DEMO_FAILED_READS`' queries fail.
  */
 export function demoConnector(connection: Connection, token: string): Connector {
   const failure = cuedFailure(connection, token)
-  if (!failure) return cannedConnector(fixture satisfies CannedFixture)
+  if (!failure) return cannedConnector({ ...(fixture satisfies CannedFixture), reads: { ...fixture.reads, ...DEMO_FAILED_READS } })
   // a refused token or an unknown repo fails every call, as it would on the tracker
   return {
     milestoneChoices: async () => ({ ok: false, ...failure }),

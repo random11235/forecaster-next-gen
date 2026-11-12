@@ -33,6 +33,8 @@ export interface TrackerFacts<C extends Connection = Connection> {
   notFound(connection: C): string
   /** Why a milestone query edited by hand is refused before reading, worded for the Milestone step; nothing when it is read. */
   queryRefusal(query: string): string | undefined
+  /** Why a milestone query reaching outside the connection isn't read, worded for the Milestone step. */
+  outOfScope(connection: C): string
 }
 
 const BLANK_FORM: Omit<ConnectionForm, 'tracker'> = { repo: '', site: '', projectKey: '', email: '' }
@@ -55,6 +57,8 @@ export const TRACKERS: { readonly [T in Tracker]: TrackerFacts<Extract<Connectio
     notFound: (connection) =>
       `GitHub can’t see ${TRACKERS.github.where(connection)} with this token. Check the repo’s name, and that the token covers it.`,
     queryRefusal: githubQueryRefusal,
+    outOfScope: (connection) =>
+      `This query reaches outside ${TRACKERS.github.where(connection)}, the connected repo. Take out what names another repo, owner or organisation.`,
   },
   jira: {
     name: 'Jira',
@@ -79,6 +83,7 @@ export const TRACKERS: { readonly [T in Tracker]: TrackerFacts<Extract<Connectio
     notFound: ({ site, projectKey }) =>
       `Jira can’t find project ${projectKey} on ${site} with this token. Check the site and the project key, and that the account can see it.`,
     queryRefusal: jqlRefusal,
+    outOfScope: ({ projectKey }) => `This query reaches outside project ${projectKey}, the connected Jira project. Take out what names another project.`,
   },
 }
 
