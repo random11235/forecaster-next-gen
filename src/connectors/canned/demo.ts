@@ -19,7 +19,11 @@ export function demoConnector(connection: Connection, token: string): Connector 
   const failure = cuedFailure(connection, token)
   if (!failure) return cannedConnector(fixture satisfies CannedFixture)
   // a refused token or an unknown repo fails every call, as it would on the tracker
-  return { milestoneChoices: async () => ({ ok: false, ...failure }), read: async () => ({ ok: false, ...failure }) }
+  return {
+    milestoneChoices: async () => ({ ok: false, ...failure }),
+    searchChoices: async () => ({ ok: false, ...failure }),
+    read: async () => ({ ok: false, ...failure }),
+  }
 }
 
 function cuedFailure(connection: Connection, token: string): Failure | undefined {
