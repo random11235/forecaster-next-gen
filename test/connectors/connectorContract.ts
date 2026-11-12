@@ -34,6 +34,10 @@ export interface ContractSubject {
    */
   capped?(): Connector
   queries: Queries
+  /** The tracker's own message refusing `queries.invalid`. */
+  invalidMessage: string
+  /** Queries reaching outside the connection's repo or project, by what they name. */
+  outOfScope: [names: string, query: string][]
   /** A synthetic ticket's id, by its role in the manifest. */
   idOf(role: string): string
   /** Every synthetic ticket's id in the manifest. */
@@ -103,6 +107,8 @@ export function replayedSubject<C extends Connection>(tracker: {
     },
     ...(tracker.capped ? { capped: tracker.capped } : {}),
     queries: cases.queries,
+    invalidMessage: cases.invalidMessage,
+    outOfScope: cases.outOfScope,
     roles: tracker.roles,
     ids: tracker.ids,
     idOf: (role) => {

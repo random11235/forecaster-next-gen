@@ -1,4 +1,5 @@
-import type { Choice, Connector } from '../connectors/connector.js'
+import type { Choice, Connector, Failure } from '../connectors/connector.js'
+import type { Connection } from '../model/connection.js'
 import type { MilestoneQuery } from '../model/milestoneQuery.js'
 import type { SavedRead } from '../model/savedRead.js'
 import { teamConnector, type Connecting } from './connection.js'
@@ -46,6 +47,8 @@ export interface MilestoneStep {
   note: string
   /** The query's last read, as one line: "50 open · 43 finished in the last 8 weeks"; none until it is read. */
   read?: string
+  /** What is wrong with that read, beside its line: it matched nothing, or is incomplete. None when it is fine. */
+  flag?: string
   /**
    * The milestone query open for editing by hand, in place of finding choices to pick: when the EM asks to edit it as
    * a query, or when the picker can't show it as chips. None while finding.
@@ -116,6 +119,7 @@ export async function milestoneStepView(
     query: saved.query,
     note: LEAF_NOTE,
     ...(read && { read: readLine(read) }),
+    ...(read && readFlag(read, trackerOf(connection).name)),
     ...(editing && { editing }),
   }
   if (connector === 'keychainFailed') return { ...step, choicesFailure: KEYCHAIN_FAILED }
@@ -169,6 +173,15 @@ function readLine(read: SavedRead): string {
   return `${ticketsRemaining(read)} open · ${finished} finished in the last ${FINISHED_WEEKS} weeks`
 }
 
+/** A read's flag: incomplete, asking to narrow the query; or matching nothing. None for a read with all its tickets. */
+function readFlag(read: SavedRead, trackerName: string): { flag: string } | undefined {
+  if (read.incomplete) return { flag: `This count is incomplete: ${trackerName} gave only part of what the query matches. Narrow the query to read all of it.` }
+  if (read.tickets.length === 0) {
+    return { flag: `This query matches nothing: no open tickets, and none finished in the last ${FINISHED_WEEKS} weeks. Check it picks out the milestone’s tickets.` }
+  }
+  return undefined
+}
+
 /**
  * The Milestone step's submits: add a choice as a pick, or remove the pick with this query (`PicksEdit`); edit the
  * milestone query by hand, as typed; or go back to finding, which clears the query when the picker can't show it.
@@ -182,7 +195,9 @@ type PicksEdit = { kind: 'addPick'; choice: Choice } | { kind: 'removePick'; que
  * finished in the last `FINISHED_WEEKS` weeks. A change of the picks saves them with the query they join into (with
  * OR, in the order picked); a query edited by hand is saved as written. A change that changes nothing (a pick already
  * picked, a removal of none, the query as it was) saves and reads nothing; nor does an empty query read anything.
- * Before any of that, a hand-edited query with free text or an empty qualifier is refused, changing nothing.
+ * Before any of that, a hand-edited query with free text or an empty qualifier is refused, changing nothing. The
+ * query is saved only once read, unless its read says it is wrong: the tracker rejecting it, or it reaching outside
+ * the connection, refuses it, and the last query that worked stays in use, with its saved read.
  */
 export async function submitMilestoneQuery(
   connecting: Connecting,
@@ -203,19 +218,38 @@ export async function submitMilestoneQuery(
     : edit.kind === 'backToFinding' ? (chipsShow(before) ? before : NO_QUERY)
     : picksChanged(before, edit)
   if (after === before) return { kind: 'unchanged' }
-  connecting.milestoneQueries.saveMilestoneQuery(teamId, after)
-  if (after.query === '' || connector === 'keychainFailed') return { kind: 'saved' }
+  const save = (): void => connecting.milestoneQueries.saveMilestoneQuery(teamId, after)
+  if (after.query === '' || connector === 'keychainFailed') {
+    save()
+    return { kind: 'saved' }
+  }
   const finishedSince = new Date(Date.parse(readAt) - FINISHED_WEEKS * 7 * DAY_MS).toISOString()
-  return { kind: 'saved', read: await readQuery(connector, connecting.reads, { teamId, query: after.query, finishedSince, readAt }) }
+  const read = await readQuery(connector, connecting.reads, { teamId, query: after.query, finishedSince, readAt })
+  const rejection = read.ok ? undefined : rejectionOf(connection, read)
+  if (rejection) return { kind: 'refused', query: after.query, refusal: rejection }
+  save()
+  return { kind: 'saved', read }
+}
+
+/**
+ * Why the tracker's failure to read a query rejects it, worded for the Milestone step: it reaches outside the
+ * connection, or the tracker refused it, in its own words. None for a failure that says nothing of the query.
+ */
+function rejectionOf(connection: Connection, failure: Failure): string | undefined {
+  const tracker = trackerOf(connection)
+  if (failure.failure === 'outOfScope') return tracker.outOfScope(connection)
+  if (failure.failure === 'invalidQuery') return `${tracker.name} rejected this query: ${failure.message}`
+  return undefined
 }
 
 /**
  * What a submit did: saved the milestone query, with its read when one was made (none for an empty query, or when the
- * keychain failed); changed nothing (also before the team connects); or refused a hand-edited query before reading it.
+ * keychain failed); changed nothing (also before the team connects); or refused the query, keeping the last one in
+ * use: a hand-edited query before reading it, or any query the tracker rejected or that reaches outside the connection.
  */
 export type MilestoneQuerySubmitted = { kind: 'saved'; read?: QueryRead } | { kind: 'unchanged' } | ({ kind: 'refused' } & RefusedQuery)
 
-/** A hand-edited query refused before reading: as typed, and why. */
+/** A query refused: as typed, and why. */
 export interface RefusedQuery {
   query: string
   refusal: string
