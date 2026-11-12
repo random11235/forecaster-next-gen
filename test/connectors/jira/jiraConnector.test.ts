@@ -99,7 +99,7 @@ describe('Jira connector', () => {
       return json(200, [])
     })
 
-    expect(await connector.milestoneChoices()).toEqual({ ok: true, choices: [] })
+    expect(await connector.milestoneChoices()).toEqual({ ok: true, kinds: [{ kind: 'fixVersion', choices: [], pastLimit: false }] })
     expect(sent).toEqual([`Basic ${btoa('someone@example.com:ATATT-token')}`])
   })
 
@@ -327,5 +327,30 @@ describe('Jira connector', () => {
 
     expect(await connector.milestoneChoices()).toEqual({ ok: false, failure: 'unavailable' })
     expect(jira.sent.filter(throughGateway)).toHaveLength(1)
+  })
+
+  test('with more than 100 unreleased fix versions, milestone choices list 100, marked past the limit', async () => {
+    const versions = Array.from({ length: 102 }, (_, i) => ({ id: String(i + 1), name: `V${i + 1}`, released: i === 0, archived: false }))
+    const jira = answeringPastTenant(async () => json(200, versions))
+    const connector = jiraConnector(CONNECTION, 'token', jira.transport, mustNotWait)
+
+    const result = await connector.milestoneChoices()
+
+    if (!result.ok) throw new Error(`milestone choices failed: ${result.failure}`)
+    expect(result.kinds).toEqual([{ kind: 'fixVersion', choices: expect.any(Array), pastLimit: true }])
+    expect(result.kinds[0]!.choices).toHaveLength(100)
+    expect(result.kinds[0]!.choices[0]!.name).toBe('V2')
+  })
+
+  test('with exactly 100 unreleased fix versions, milestone choices list them all, not past the limit', async () => {
+    const versions = Array.from({ length: 101 }, (_, i) => ({ id: String(i + 1), name: `V${i + 1}`, released: false, archived: i === 100 }))
+    const jira = answeringPastTenant(async () => json(200, versions))
+    const connector = jiraConnector(CONNECTION, 'token', jira.transport, mustNotWait)
+
+    const result = await connector.milestoneChoices()
+
+    if (!result.ok) throw new Error(`milestone choices failed: ${result.failure}`)
+    expect(result.kinds[0]!.choices).toHaveLength(100)
+    expect(result.kinds[0]!.pastLimit).toBe(false)
   })
 })

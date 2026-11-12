@@ -7,7 +7,10 @@ import type { Connection } from '../../src/model/connection.js'
 // The canned connector: what Seam B tests read tickets through, with no tracker, token or network.
 
 const FIXTURE: CannedFixture = {
-  milestoneChoices: [{ kind: 'milestone', name: 'Launch', query: 'milestone:Launch' }],
+  milestoneChoices: [
+    { kind: 'milestone', choices: [{ kind: 'milestone', name: 'Launch', query: 'milestone:Launch' }], pastLimit: false },
+    { kind: 'label', choices: [{ kind: 'label', name: 'checkout', query: 'label:checkout' }], pastLimit: true },
+  ],
   reads: {
     'milestone:Launch': {
       tickets: [{ id: 'T1', finishedAt: '2026-10-20T09:00:00Z' }, { id: 'T2' }],
@@ -61,10 +64,13 @@ describe('canned connector', () => {
     expect(await connector.read('milestone:Launch', '2026-10-01T00:00:00Z')).toEqual({ ok: false, ...failure })
   })
 
-  test("milestone choices are the fixture's", async () => {
+  test("milestone choices are the fixture's, one list per kind, each marked whether it is past the limit", async () => {
     expect(await cannedConnector(FIXTURE).milestoneChoices()).toEqual({
       ok: true,
-      choices: [{ kind: 'milestone', name: 'Launch', query: 'milestone:Launch' }],
+      kinds: [
+        { kind: 'milestone', choices: [{ kind: 'milestone', name: 'Launch', query: 'milestone:Launch' }], pastLimit: false },
+        { kind: 'label', choices: [{ kind: 'label', name: 'checkout', query: 'label:checkout' }], pastLimit: true },
+      ],
     })
   })
 
@@ -85,8 +91,9 @@ describe("demo mode's connector", () => {
     const choices = await connector.milestoneChoices()
 
     if (!choices.ok) throw new Error(`milestone choices failed: ${choices.failure}`)
-    expect(choices.choices.map((choice) => choice.name)).toEqual(['Synthetic launch', 'Synthetic beta'])
-    for (const choice of choices.choices) {
+    const all = choices.kinds.flatMap((kind) => kind.choices)
+    expect(all.map((choice) => choice.name)).toEqual(['Synthetic launch', 'Synthetic beta'])
+    for (const choice of all) {
       const read = await connector.read(choice.query, '2026-01-01T00:00:00Z')
       if (!read.ok) throw new Error(`read of ${choice.query} failed: ${read.failure}`)
       expect(read.tickets.length).toBeGreaterThan(0)

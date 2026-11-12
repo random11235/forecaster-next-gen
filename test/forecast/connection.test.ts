@@ -14,7 +14,7 @@ import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteS
 const TEAM = 'team'
 const TOKEN = 'github_pat_11ABCDEFG0123456789_secret'
 
-const CHOICES: CannedFixture = { milestoneChoices: [{ kind: 'milestone', name: 'Checkout v2', query: 'milestone:"Checkout v2"' }], reads: {} }
+const CHOICES: CannedFixture = { milestoneChoices: [{ kind: 'milestone', choices: [{ kind: 'milestone', name: 'Checkout v2', query: 'milestone:"Checkout v2"' }], pastLimit: false }], reads: {} }
 
 let dir: string
 let storage: SqliteStorage
