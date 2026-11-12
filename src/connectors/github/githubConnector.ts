@@ -1,5 +1,5 @@
 import type { Connection } from '../../model/connection.js'
-import type { Choice, Connector, FailedCall, ReadResult, Ticket, Transport } from '../connector.js'
+import { CHOICES_LIMIT, type Choice, type Connector, type FailedCall, type ReadResult, type Ticket, type Transport } from '../connector.js'
 import { failureOf as statusFailure, finishedSince, send, sleep, staysInScope, type Backoff, type QueryScope, type Received, type Wait } from '../remote.js'
 
 /**
@@ -77,12 +77,20 @@ export function githubConnector(
 
   return {
     milestoneChoices: async () => {
-      const response = await get(`/repos/${repo}/milestones?state=open&per_page=${PAGE}`)
+      const response = await get(`/repos/${repo}/milestones?state=open&per_page=${CHOICES_LIMIT}`)
       if (!response) return { ok: false, failure: 'unavailable' }
       if (response.status !== 200) return failureOf(response)
       const milestones = response.body as { title: string }[]
       const choices: Choice[] = milestones.map(({ title }) => ({ kind: 'milestone', name: title, query: milestoneQuery(title) }))
-      return { ok: true, choices }
+      let pastLimit = false
+      if (milestones.length === CHOICES_LIMIT) {
+        // A full page may be all of them: whether there is one more is asked only then, as one milestone past the limit.
+        const next = await get(`/repos/${repo}/milestones?state=open&per_page=1&page=${CHOICES_LIMIT + 1}`)
+        if (!next) return { ok: false, failure: 'unavailable' }
+        if (next.status !== 200) return failureOf(next)
+        pastLimit = (next.body as unknown[]).length > 0
+      }
+      return { ok: true, kinds: [{ kind: 'milestone', choices, pastLimit }] }
     },
 
     read: async (query, since): Promise<ReadResult> => {

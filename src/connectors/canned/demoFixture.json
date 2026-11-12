@@ -1,7 +1,13 @@
 {
   "milestoneChoices": [
-    { "kind": "milestone", "name": "Synthetic launch", "query": "milestone:\"Synthetic launch\"" },
-    { "kind": "milestone", "name": "Synthetic beta", "query": "milestone:\"Synthetic beta\"" }
+    {
+      "kind": "milestone",
+      "choices": [
+        { "kind": "milestone", "name": "Synthetic launch", "query": "milestone:\"Synthetic launch\"" },
+        { "kind": "milestone", "name": "Synthetic beta", "query": "milestone:\"Synthetic beta\"" }
+      ],
+      "pastLimit": false
+    }
   ],
   "reads": {
     "milestone:\"Synthetic launch\"": {
