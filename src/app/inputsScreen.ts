@@ -3,12 +3,14 @@ import type { InputNote, MilestoneInput } from '../forecast/milestoneAssessment.
 import { MAX_CADENCE_DAYS, MAX_TICKETS_PER_PERIOD, MAX_TICKETS_REMAINING } from '../forecast/milestoneInputs.js'
 import { ambiguityName, MAX_GROWTH, type GrowthView, type TypedRange } from '../forecast/growth.js'
 import type { ConnectionView } from '../forecast/connection.js'
+import type { MilestoneStepView } from '../forecast/milestoneStep.js'
 import type { InputsEdit, InputsForm, InputsView, TypedForms } from '../forecast/inputs.js'
 import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
 import type { PaceMode } from '../model/milestoneInputs.js'
 import { CONNECT_HINT, connectSection } from './connectSection.js'
 import { escapeHtml, htmlPage } from './html.js'
 import { INPUTS_SCRIPT } from './inputsScript.js'
+import { MILESTONE_STEP_HINT, MILESTONE_STEP_ID, MILESTONE_STEP_SCRIPT, milestoneStepSection } from './milestoneStepSection.js'
 import { renderPaceTrend } from './paceTrendGraph.js'
 
 /** Each input of the milestone by its label on this screen, which notes about it are named by everywhere. */
@@ -50,13 +52,24 @@ export const INPUTS_FORMS: ReadonlyMap<string, FormReader> = new Map<string, For
   ],
 ])
 
-/** The Inputs screen: in the local server build the Connect step first, then the milestone, its pace and the team's growth. */
-export function renderInputsScreen(screen: InputsView, connection: ConnectionView): string {
+/**
+ * The Inputs screen: in the local server build the Connect step first, and once connected the Milestone step picking
+ * the milestone's tickets; then the milestone, its pace and the team's growth.
+ */
+export function renderInputsScreen(
+  screen: InputsView,
+  connection: ConnectionView,
+  milestoneStep: MilestoneStepView = { kind: 'noMilestoneStep' },
+): string {
   const { milestone, forms } = screen
   const error = (form: InputsForm): string | undefined => (screen.refusal?.form === form ? screen.refusal.error : undefined)
   const connect = connectSection(connection)
+  const picker = milestoneStepSection(milestoneStep)
   const sections = [
     ...(connect === undefined ? [] : [inputSection('Connect', 'Connect', CONNECT_HINT, connect, { postsOnSubmit: true })]),
+    ...(picker === undefined
+      ? []
+      : [inputSection('Milestone’s tickets', 'Milestone’s tickets', MILESTONE_STEP_HINT, picker, { postsOnSubmit: true, id: MILESTONE_STEP_ID })]),
     milestoneSection(forms.milestone, error('milestone'), milestone.notes),
     cadenceSection(forms.cadence, error('cadence'), milestone.cadenceDays),
     paceSection(screen, error, periodName(milestone.cadenceDays)),
@@ -68,7 +81,8 @@ export function renderInputsScreen(screen: InputsView, connection: ConnectionVie
     heading: 'Inputs',
     lede: 'What drives the forecast: the milestone, the team’s pace, and how work grows.',
   }
-  return htmlPage('/inputs', header, sections.map((section, index) => section(index + 1)).join('\n'), INPUTS_SCRIPT)
+  const script = picker === undefined ? INPUTS_SCRIPT : INPUTS_SCRIPT + MILESTONE_STEP_SCRIPT
+  return htmlPage('/inputs', header, sections.map((section, index) => section(index + 1)).join('\n'), script)
 }
 
 /** A section of the Inputs screen, given its number on the screen. */
@@ -78,8 +92,8 @@ type Section = (number: number) => string
  * A numbered section: its name and hint in the label column, `body` beside them. One that `postsOnSubmit` posts only when
  * its button is pressed; the others save each input as it changes (see `inputsScript.ts`).
  */
-function inputSection(label: string, name: string, hint: string, body: string, { postsOnSubmit = false } = {}): Section {
-  return (number) => `    <section class="input${postsOnSubmit ? ' submits' : ''}" id="${label.toLowerCase()}" aria-label="${label}">
+function inputSection(label: string, name: string, hint: string, body: string, { postsOnSubmit = false, id = label.toLowerCase() } = {}): Section {
+  return (number) => `    <section class="input${postsOnSubmit ? ' submits' : ''}" id="${id}" aria-label="${label}">
       <div class="label">
         <span class="number">${String(number).padStart(2, '0')}</span>
         <h2>${name}</h2>

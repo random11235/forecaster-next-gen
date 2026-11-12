@@ -1,18 +1,21 @@
 import type { Connector, Failure } from '../connectors/connector.js'
 import type { Connection } from '../model/connection.js'
 import type { Secrets } from '../secrets/secrets.js'
-import type { ConnectionStorage } from '../storage/storage.js'
+import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage } from '../storage/storage.js'
 import { BLANK_CONNECTION_FORM, connectionOf, TRACKERS, trackerOf, type ConnectionForm, type Tracker } from './trackers.js'
 
 /** Builds the connector for a connection and its token: the real one in the local server build, the canned one in tests and demo mode. */
 export type ConnectorFactory = (connection: Connection, token: string) => Connector
 
 /**
- * What the local server build connects with: where the connection is kept, where its token is kept, and how a
- * connector is built. The browser build has none of these, so it has no Connect step.
+ * What the local server build connects with: where the connection is kept, where its token is kept, how a connector is
+ * built, and where the milestone's picks and query and their reads are kept. The browser build has none of these, so
+ * it has no Connect or Milestone step.
  */
 export interface Connecting {
   connections: ConnectionStorage
+  reads: SavedReadStorage
+  milestoneQueries: MilestoneQueryStorage
   secrets: Secrets
   connector: ConnectorFactory
 }
@@ -169,6 +172,24 @@ function refusalOf(connection: Connection, { failure }: Failure): string {
     case 'invalidQuery':
     case 'outOfScope':
       return `${tracker.name} didn’t accept the connection check. Try again, and if it fails again, check what you typed.`
+  }
+}
+
+/**
+ * The connector for the team's connection and its saved token: `notConnected` while the team has no connection, and
+ * `keychainFailed` when this computer's keychain can't give the token.
+ */
+export async function teamConnector(
+  { connections, secrets, connector }: Connecting,
+  teamId: string,
+): Promise<Connector | 'notConnected' | 'keychainFailed'> {
+  const connection = connections.connection(teamId)
+  if (!connection) return 'notConnected'
+  try {
+    const token = await secrets.token(teamId)
+    return token ? connector(connection, token) : 'keychainFailed'
+  } catch {
+    return 'keychainFailed'
   }
 }
 
