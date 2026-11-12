@@ -246,28 +246,32 @@
             "number": 111,
             "title": "Payment methods direct leaf",
             "state": "closed",
-            "closed_at": "2026-11-06T08:47:23Z"
+            "closed_at": "2026-11-06T08:47:23Z",
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/106"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eneg",
             "number": 110,
             "title": "Card payments child 3",
             "state": "open",
-            "closed_at": null
+            "closed_at": null,
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-elJQ",
             "number": 109,
             "title": "Card payments child 2",
             "state": "closed",
-            "closed_at": "2026-11-06T08:47:20Z"
+            "closed_at": "2026-11-06T08:47:20Z",
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-ei9g",
             "number": 108,
             "title": "Card payments child 1",
             "state": "closed",
-            "closed_at": "2026-11-06T08:47:18Z"
+            "closed_at": "2026-11-06T08:47:18Z",
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-ecrg",
@@ -1081,28 +1085,32 @@
             "number": 111,
             "title": "Payment methods direct leaf",
             "state": "closed",
-            "closed_at": "2026-11-06T08:47:23Z"
+            "closed_at": "2026-11-06T08:47:23Z",
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/106"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eneg",
             "number": 110,
             "title": "Card payments child 3",
             "state": "open",
-            "closed_at": null
+            "closed_at": null,
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-elJQ",
             "number": 109,
             "title": "Card payments child 2",
             "state": "closed",
-            "closed_at": "2026-11-06T08:47:20Z"
+            "closed_at": "2026-11-06T08:47:20Z",
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-ei9g",
             "number": 108,
             "title": "Card payments child 1",
             "state": "closed",
-            "closed_at": "2026-11-06T08:47:18Z"
+            "closed_at": "2026-11-06T08:47:18Z",
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-ecrg",
@@ -1775,7 +1783,8 @@
             "number": 110,
             "title": "Card payments child 3",
             "state": "open",
-            "closed_at": null
+            "closed_at": null,
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-ecrg",
@@ -2168,7 +2177,8 @@
             "number": 110,
             "title": "Card payments child 3",
             "state": "open",
-            "closed_at": null
+            "closed_at": null,
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-ecrg",
@@ -2548,6 +2558,165 @@
             "message": "\"2026-13-45\" is not a recognized date/time format. Please provide an ISO 8601 date/time value, such as YYYY-MM-DD."
           }
         ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20has%3Asub-issue%20(parent-issue%3Arandom11235%2Fforecaster-synthetic%23106)&advanced_search=true&per_page=100&page=1"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "total_count": 1,
+        "incomplete_results": false,
+        "items": [
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eg3w",
+            "number": 107,
+            "title": "Parent: card payments",
+            "state": "open",
+            "closed_at": null,
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/106"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20has%3Asub-issue%20(parent-issue%3Arandom11235%2Fforecaster-synthetic%23107)&advanced_search=true&per_page=100&page=1"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "total_count": 0,
+        "incomplete_results": false,
+        "items": []
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20no%3Asub-issue%20((parent-issue%3Arandom11235%2Fforecaster-synthetic%23106%20OR%20parent-issue%3Arandom11235%2Fforecaster-synthetic%23107))%20(is%3Aopen%20OR%20closed%3A%3E%3D1970-01-01T00%3A00%3A00%2B00%3A00)&advanced_search=true&per_page=100&page=1"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "total_count": 4,
+        "incomplete_results": false,
+        "items": [
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-epqA",
+            "number": 111,
+            "title": "Payment methods direct leaf",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:23Z",
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/106"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eneg",
+            "number": 110,
+            "title": "Card payments child 3",
+            "state": "open",
+            "closed_at": null,
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-elJQ",
+            "number": 109,
+            "title": "Card payments child 2",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:20Z",
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-ei9g",
+            "number": 108,
+            "title": "Card payments child 1",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:18Z",
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20no%3Asub-issue%20((parent-issue%3Arandom11235%2Fforecaster-synthetic%23106%20OR%20parent-issue%3Arandom11235%2Fforecaster-synthetic%23107))%20(is%3Aopen%20OR%20closed%3A%3E%3D2026-11-06T08%3A44%3A52%2B00%3A00)&advanced_search=true&per_page=100&page=1"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "total_count": 4,
+        "incomplete_results": false,
+        "items": [
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-epqA",
+            "number": 111,
+            "title": "Payment methods direct leaf",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:23Z",
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/106"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eneg",
+            "number": 110,
+            "title": "Card payments child 3",
+            "state": "open",
+            "closed_at": null,
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-elJQ",
+            "number": 109,
+            "title": "Card payments child 2",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:20Z",
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-ei9g",
+            "number": 108,
+            "title": "Card payments child 1",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:18Z",
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20no%3Asub-issue%20(parent-issue%3A%23106)%20(is%3Aopen%20OR%20closed%3A%3E%3D1970-01-01T00%3A00%3A00%2B00%3A00)&advanced_search=true&per_page=100&page=1"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "total_count": 0,
+        "incomplete_results": false,
+        "items": []
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20no%3Asub-issue%20(parent-issue%3A%23106)%20(is%3Aopen%20OR%20closed%3A%3E%3D2026-11-06T08%3A44%3A52%2B00%3A00)&advanced_search=true&per_page=100&page=1"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "total_count": 0,
+        "incomplete_results": false,
+        "items": []
       }
     }
   }
