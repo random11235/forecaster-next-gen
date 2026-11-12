@@ -44,5 +44,7 @@ export const githubSubject = replayedSubject({
       ...['reopened-finished', 'reopened-open', 'not-planned-1', 'not-planned-2', 'duplicate', 'both-queries'],
     ],
     parents: ['epic', 'parent'],
+    // #106 has the sub-epic #107 (with #108 to #110) and the leaf #111.
+    nestedEpic: { leaves: ['child-1', 'child-2', 'child-3', 'epic-leaf'], underSubEpic: ['child-1', 'child-2', 'child-3'] },
   },
 })
