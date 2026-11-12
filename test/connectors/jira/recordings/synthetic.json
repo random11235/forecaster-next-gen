@@ -44,7 +44,45 @@
     "request": {
       "method": "POST",
       "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
-      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10001) AND (statusCategory != Done OR status CHANGED AFTER \\\"1969-12-31 00:00\\\" OR created >= \\\"1969-12-31 00:00\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND issuetype = Epic AND statusCategory != Done ORDER BY created DESC\",\"fields\":[\"summary\"],\"maxResults\":100}"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "issues": [
+          {
+            "id": "10105",
+            "key": "SYN-106",
+            "fields": {
+              "summary": "Epic: payment methods"
+            }
+          }
+        ],
+        "isLast": true
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/label?maxResults=100"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "values": [
+          "comparable",
+          "ktlo"
+        ],
+        "isLast": true
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "POST",
+      "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = \\\"Search revamp\\\") AND (statusCategory != Done OR status CHANGED AFTER \\\"1969-12-31 00:00\\\" OR created >= \\\"1969-12-31 00:00\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
     },
     "response": {
       "status": 200,
@@ -168,7 +206,7 @@
     "request": {
       "method": "POST",
       "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
-      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10001) AND id in (10106)\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = \\\"Search revamp\\\") AND id in (10106)\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
     },
     "response": {
       "status": 200,
@@ -377,7 +415,7 @@
     "request": {
       "method": "POST",
       "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
-      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10001) AND (statusCategory != Done OR status CHANGED AFTER \\\"2026-11-06 07:19\\\" OR created >= \\\"2026-11-06 07:19\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = \\\"Search revamp\\\") AND (statusCategory != Done OR status CHANGED AFTER \\\"2026-11-06 07:19\\\" OR created >= \\\"2026-11-06 07:19\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
     },
     "response": {
       "status": 200,
@@ -501,7 +539,7 @@
     "request": {
       "method": "POST",
       "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
-      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10000) AND (statusCategory != Done OR status CHANGED AFTER \\\"1969-12-31 00:00\\\" OR created >= \\\"1969-12-31 00:00\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = \\\"Checkout v2\\\") AND (statusCategory != Done OR status CHANGED AFTER \\\"1969-12-31 00:00\\\" OR created >= \\\"1969-12-31 00:00\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
     },
     "response": {
       "status": 200,
@@ -1940,7 +1978,7 @@
           }
         ],
         "isLast": false,
-        "nextPageToken": "EGQYk5O50Jw0IpEBcHJvamVjdCA9ICJTWU4iIEFORCAoZml4VmVyc2lvbiA9IDEwMDAwKSBBTkQgKHN0YXR1c0NhdGVnb3J5ICE9IERvbmUgT1Igc3RhdHVzIENIQU5HRUQgQUZURVIgIjE5NjktMTItMzEgMDA6MDAiIE9SIGNyZWF0ZWQgPj0gIjE5NjktMTItMzEgMDA6MDAiKSoCW10yIFRFTkFOVF9OT1RfRk9VTkRfSU5fVEVOQU5UX1NUT1JF"
+        "nextPageToken": "EGQY9Orb6Jw0IpkBcHJvamVjdCA9ICJTWU4iIEFORCAoZml4VmVyc2lvbiA9ICJDaGVja291dCB2MiIpIEFORCAoc3RhdHVzQ2F0ZWdvcnkgIT0gRG9uZSBPUiBzdGF0dXMgQ0hBTkdFRCBBRlRFUiAiMTk2OS0xMi0zMSAwMDowMCIgT1IgY3JlYXRlZCA-PSAiMTk2OS0xMi0zMSAwMDowMCIpKgJbXTIgVEVOQU5UX05PVF9GT1VORF9JTl9URU5BTlRfU1RPUkU="
       }
     }
   },
@@ -1948,7 +1986,7 @@
     "request": {
       "method": "POST",
       "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
-      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10000) AND (statusCategory != Done OR status CHANGED AFTER \\\"1969-12-31 00:00\\\" OR created >= \\\"1969-12-31 00:00\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100,\"nextPageToken\":\"EGQYk5O50Jw0IpEBcHJvamVjdCA9ICJTWU4iIEFORCAoZml4VmVyc2lvbiA9IDEwMDAwKSBBTkQgKHN0YXR1c0NhdGVnb3J5ICE9IERvbmUgT1Igc3RhdHVzIENIQU5HRUQgQUZURVIgIjE5NjktMTItMzEgMDA6MDAiIE9SIGNyZWF0ZWQgPj0gIjE5NjktMTItMzEgMDA6MDAiKSoCW10yIFRFTkFOVF9OT1RfRk9VTkRfSU5fVEVOQU5UX1NUT1JF\"}"
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = \\\"Checkout v2\\\") AND (statusCategory != Done OR status CHANGED AFTER \\\"1969-12-31 00:00\\\" OR created >= \\\"1969-12-31 00:00\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100,\"nextPageToken\":\"EGQY9Orb6Jw0IpkBcHJvamVjdCA9ICJTWU4iIEFORCAoZml4VmVyc2lvbiA9ICJDaGVja291dCB2MiIpIEFORCAoc3RhdHVzQ2F0ZWdvcnkgIT0gRG9uZSBPUiBzdGF0dXMgQ0hBTkdFRCBBRlRFUiAiMTk2OS0xMi0zMSAwMDowMCIgT1IgY3JlYXRlZCA-PSAiMTk2OS0xMi0zMSAwMDowMCIpKgJbXTIgVEVOQU5UX05PVF9GT1VORF9JTl9URU5BTlRfU1RPUkU=\"}"
     },
     "response": {
       "status": 200,
@@ -3242,7 +3280,7 @@
     "request": {
       "method": "POST",
       "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
-      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10000) AND (statusCategory != Done OR status CHANGED AFTER \\\"2026-11-06 07:19\\\" OR created >= \\\"2026-11-06 07:19\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = \\\"Checkout v2\\\") AND (statusCategory != Done OR status CHANGED AFTER \\\"2026-11-06 07:19\\\" OR created >= \\\"2026-11-06 07:19\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100}"
     },
     "response": {
       "status": 200,
@@ -4681,7 +4719,7 @@
           }
         ],
         "isLast": false,
-        "nextPageToken": "EGQYn5u50Jw0IpEBcHJvamVjdCA9ICJTWU4iIEFORCAoZml4VmVyc2lvbiA9IDEwMDAwKSBBTkQgKHN0YXR1c0NhdGVnb3J5ICE9IERvbmUgT1Igc3RhdHVzIENIQU5HRUQgQUZURVIgIjIwMjYtMTEtMDYgMDc6MTkiIE9SIGNyZWF0ZWQgPj0gIjIwMjYtMTEtMDYgMDc6MTkiKSoCW10yIFRFTkFOVF9OT1RfRk9VTkRfSU5fVEVOQU5UX1NUT1JF"
+        "nextPageToken": "EGQYrPvb6Jw0IpkBcHJvamVjdCA9ICJTWU4iIEFORCAoZml4VmVyc2lvbiA9ICJDaGVja291dCB2MiIpIEFORCAoc3RhdHVzQ2F0ZWdvcnkgIT0gRG9uZSBPUiBzdGF0dXMgQ0hBTkdFRCBBRlRFUiAiMjAyNi0xMS0wNiAwNzoxOSIgT1IgY3JlYXRlZCA-PSAiMjAyNi0xMS0wNiAwNzoxOSIpKgJbXTIgVEVOQU5UX05PVF9GT1VORF9JTl9URU5BTlRfU1RPUkU="
       }
     }
   },
@@ -4689,7 +4727,7 @@
     "request": {
       "method": "POST",
       "url": "https://api.atlassian.com/ex/jira/a043eb12-9488-4db5-a720-adb731f03abc/rest/api/3/search/jql",
-      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = 10000) AND (statusCategory != Done OR status CHANGED AFTER \\\"2026-11-06 07:19\\\" OR created >= \\\"2026-11-06 07:19\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100,\"nextPageToken\":\"EGQYn5u50Jw0IpEBcHJvamVjdCA9ICJTWU4iIEFORCAoZml4VmVyc2lvbiA9IDEwMDAwKSBBTkQgKHN0YXR1c0NhdGVnb3J5ICE9IERvbmUgT1Igc3RhdHVzIENIQU5HRUQgQUZURVIgIjIwMjYtMTEtMDYgMDc6MTkiIE9SIGNyZWF0ZWQgPj0gIjIwMjYtMTEtMDYgMDc6MTkiKSoCW10yIFRFTkFOVF9OT1RfRk9VTkRfSU5fVEVOQU5UX1NUT1JF\"}"
+      "body": "{\"jql\":\"project = \\\"SYN\\\" AND (fixVersion = \\\"Checkout v2\\\") AND (statusCategory != Done OR status CHANGED AFTER \\\"2026-11-06 07:19\\\" OR created >= \\\"2026-11-06 07:19\\\")\",\"fields\":[\"issuetype\",\"status\",\"subtasks\"],\"maxResults\":100,\"nextPageToken\":\"EGQYrPvb6Jw0IpkBcHJvamVjdCA9ICJTWU4iIEFORCAoZml4VmVyc2lvbiA9ICJDaGVja291dCB2MiIpIEFORCAoc3RhdHVzQ2F0ZWdvcnkgIT0gRG9uZSBPUiBzdGF0dXMgQ0hBTkdFRCBBRlRFUiAiMjAyNi0xMS0wNiAwNzoxOSIgT1IgY3JlYXRlZCA-PSAiMjAyNi0xMS0wNiAwNzoxOSIpKgJbXTIgVEVOQU5UX05PVF9GT1VORF9JTl9URU5BTlRfU1RPUkU=\"}"
     },
     "response": {
       "status": 200,

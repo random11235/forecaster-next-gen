@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { githubConnector } from '../../../src/connectors/github/githubConnector.js'
 import { answering, mustNotWait, recordingWait } from '../backoff.js'
 import { replayTransport } from '../replayTransport.js'
+import { githubSubject } from './githubSubject.js'
 
 // GitHub-only quirks, beside the contract suite. Search wraps the query as `repo:… is:issue no:sub-issue (query) (…)`, so a query that
 // names another repo, or closes the wrapper's parenthesis, would reach past the connection.
@@ -95,35 +96,75 @@ describe('GitHub connector', () => {
   })
 
   describe('milestone choices', () => {
-    /** A stand-in GitHub with `count` open milestones, paged as its REST API pages them. */
-    function withMilestones(count: number) {
+    test("come as the repo's epics, labels and milestones, in that order, each with the query that reads its tickets", async () => {
+      const result = await githubSubject.synthetic().milestoneChoices()
+
+      if (!result.ok) throw new Error(`milestone choices failed: ${result.failure}`)
+      expect(result.kinds.map(({ kind, pastLimit }) => ({ kind, pastLimit }))).toEqual([
+        { kind: 'epic', pastLimit: false },
+        { kind: 'label', pastLimit: false },
+        { kind: 'milestone', pastLimit: false },
+      ])
+      const [epics, labels] = result.kinds
+      // #106 is the top-level epic; its sub-epic #107 is picked through it, so isn't listed. Short forms of
+      // `parent-issue:` match nothing, with no error, so the repo is named in full.
+      expect(epics!.choices).toEqual([{ kind: 'epic', name: 'Epic: payment methods', query: 'parent-issue:random11235/forecaster-synthetic#106' }])
+      expect(labels!.choices).toHaveLength(13)
+      expect(labels!.choices).toContainEqual({ kind: 'label', name: 'good first issue', query: 'label:"good first issue"' })
+      expect(labels!.choices).toContainEqual({ kind: 'label', name: 'comparable', query: 'label:"comparable"' })
+    })
+
+    /** How many of each kind a stand-in GitHub has. */
+    type Counts = Record<'epic' | 'label' | 'milestone', number>
+
+    /**
+     * A stand-in GitHub with `counts` top-level epics, labels and open milestones: its REST API pages the labels and
+     * milestones, and its search gives one page of epics with the count of all it found.
+     */
+    function withChoices(counts: Counts) {
       return answering(async (url) => {
-        const params = new URL(url).searchParams
-        const perPage = Number(params.get('per_page') ?? 30)
-        const page = Number(params.get('page') ?? 1)
-        const titles = Array.from({ length: count }, (_, i) => `M${i + 1}`).slice((page - 1) * perPage, page * perPage)
-        return new Response(JSON.stringify(titles.map((title) => ({ title }))), { status: 200 })
+        const { pathname, searchParams } = new URL(url)
+        const perPage = Number(searchParams.get('per_page') ?? 30)
+        const page = Number(searchParams.get('page') ?? 1)
+        const paged = (count: number, prefix: string) =>
+          Array.from({ length: count }, (_, i) => `${prefix}${i + 1}`).slice((page - 1) * perPage, page * perPage)
+        if (pathname.endsWith('/search/issues')) {
+          const items = paged(counts.epic, 'E').map((title, i) => ({ node_id: `I_${i}`, number: 1000 + i, title, state: 'open', closed_at: null }))
+          return new Response(JSON.stringify({ total_count: counts.epic, incomplete_results: false, items }), { status: 200 })
+        }
+        if (pathname.endsWith('/labels')) return new Response(JSON.stringify(paged(counts.label, 'L').map((name) => ({ name }))), { status: 200 })
+        return new Response(JSON.stringify(paged(counts.milestone, 'M').map((title) => ({ title }))), { status: 200 })
       })
     }
 
-    test('with more than 100 open milestones, list 100, marked past the limit', async () => {
-      const connector = githubConnector(CONNECTION, 'token', withMilestones(101).transport, mustNotWait)
+    test.each([
+      ['epic', { epic: 101, label: 3, milestone: 3 }],
+      ['label', { epic: 3, label: 101, milestone: 3 }],
+      ['milestone', { epic: 3, label: 3, milestone: 101 }],
+    ] as const)('with more than 100 of a kind (%s), list 100 of it, marked past the limit, and the others in full', async (kind, counts) => {
+      const connector = githubConnector(CONNECTION, 'token', withChoices(counts).transport, mustNotWait)
 
       const result = await connector.milestoneChoices()
 
       if (!result.ok) throw new Error(`milestone choices failed: ${result.failure}`)
-      expect(result.kinds).toEqual([{ kind: 'milestone', choices: expect.any(Array), pastLimit: true }])
-      expect(result.kinds[0]!.choices).toHaveLength(100)
+      for (const each of result.kinds) {
+        expect(each.choices).toHaveLength(each.kind === kind ? 100 : 3)
+        expect(each.pastLimit).toBe(each.kind === kind)
+      }
     })
 
-    test('with exactly 100 open milestones, list them all, not past the limit', async () => {
-      const connector = githubConnector(CONNECTION, 'token', withMilestones(100).transport, mustNotWait)
+    test('with exactly 100 of each kind, list them all, none past the limit', async () => {
+      const connector = githubConnector(CONNECTION, 'token', withChoices({ epic: 100, label: 100, milestone: 100 }).transport, mustNotWait)
 
       const result = await connector.milestoneChoices()
 
       if (!result.ok) throw new Error(`milestone choices failed: ${result.failure}`)
-      expect(result.kinds[0]!.choices.map((choice) => choice.name)).toEqual(Array.from({ length: 100 }, (_, i) => `M${i + 1}`))
-      expect(result.kinds[0]!.pastLimit).toBe(false)
+      const hundred = (prefix: string) => Array.from({ length: 100 }, (_, i) => `${prefix}${i + 1}`)
+      expect(result.kinds.map(({ kind, choices, pastLimit }) => ({ kind, names: choices.map((choice) => choice.name), pastLimit }))).toEqual([
+        { kind: 'epic', names: hundred('E'), pastLimit: false },
+        { kind: 'label', names: hundred('L'), pastLimit: false },
+        { kind: 'milestone', names: hundred('M'), pastLimit: false },
+      ])
     })
   })
 })
