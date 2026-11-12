@@ -119,8 +119,9 @@ const GITHUB: Tracker<GithubConnection> = {
     if (url.includes('/labels?')) return (body as Body[]).map((label) => pick(label, ['name']))
     if (url.includes('/search/issues?')) {
       const found = pick(body, ['total_count', 'incomplete_results', 'items'])
-      // A read keeps each ticket's id and finish; the epics among the milestone choices, their number and title.
-      found.items = (found.items as Body[]).map((item) => pick(item, ['node_id', 'number', 'title', 'state', 'closed_at']))
+      // A read keeps each ticket's id and finish; the epics among the milestone choices, their number and title; and a
+      // search for sub-epics, each one's parent.
+      found.items = (found.items as Body[]).map((item) => pick(item, ['node_id', 'number', 'title', 'state', 'closed_at', 'parent_issue_url']))
       return found
     }
     throw new Error(`The recording script doesn't know what the connector reads from ${url}`)
