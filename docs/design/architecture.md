@@ -70,7 +70,7 @@ src/
     editResult.ts         # an edit saved, or refused saying why
 
   connectors/             # what reads the team's tickets from its tracker; everything tracker-specific stays inside one
-    connector.ts          # the interface and its shared types: Ticket, Failure, ReadResult, Choice; a connector takes its Connection from `model/`
+    connector.ts          # the interface and its shared types: Ticket, Failure, ReadResult, Choice, ChoicesOfKind; a connector takes its Connection from `model/`
     remote.ts             # what the network connectors share: sending a request (only a network failure is unavailable), status to failure, the scope check, the finishedSince filter
     canned/               # the canned connector, answering from a fixture in the connector's own shape; Seam B tests use it
       demo.ts             # demo mode's connector: the synthetic fixture, refusing the token `refused` and a repo or project named `unknown`

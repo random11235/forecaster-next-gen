@@ -17,12 +17,23 @@ describe.each(subjects)('%s connector', (_, subject) => {
   const { queries, batches } = subject
 
   describe('milestone choices', () => {
-    test('are the open milestones, each with the query that reads its tickets', async () => {
+    test('come one list per kind, each choice of its list\'s kind', async () => {
       const result = await subject.synthetic().milestoneChoices()
 
       if (!result.ok) throw new Error(`milestone choices failed: ${result.failure}`)
-      expect(result.choices.map((choice) => choice.name)).toEqual(expect.arrayContaining(['Checkout v2', 'Search revamp']))
-      expect(result.choices.find((choice) => choice.name === 'Search revamp')?.query).toBe(queries.searchRevamp)
+      const kinds = result.kinds.map(({ kind }) => kind)
+      expect(new Set(kinds).size).toBe(kinds.length)
+      for (const { kind, choices } of result.kinds) for (const choice of choices) expect(choice.kind).toBe(kind)
+    })
+
+    test('list the open milestones, each with the query that reads its tickets, all of them, not past the limit', async () => {
+      const result = await subject.synthetic().milestoneChoices()
+
+      if (!result.ok) throw new Error(`milestone choices failed: ${result.failure}`)
+      const milestones = result.kinds.find(({ choices }) => choices.some((choice) => choice.name === 'Search revamp'))
+      expect(milestones?.choices.map((choice) => choice.name)).toEqual(expect.arrayContaining(['Checkout v2', 'Search revamp']))
+      expect(milestones?.choices.find((choice) => choice.name === 'Search revamp')?.query).toBe(queries.searchRevamp)
+      expect(milestones?.pastLimit).toBe(false)
     })
   })
 

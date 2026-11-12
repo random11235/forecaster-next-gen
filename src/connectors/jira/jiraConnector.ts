@@ -1,5 +1,5 @@
 import type { Connection } from '../../model/connection.js'
-import type { Choice, Connector, FailedCall, ReadResult, Ticket, Transport } from '../connector.js'
+import { CHOICES_LIMIT, type Choice, type Connector, type FailedCall, type ReadResult, type Ticket, type Transport } from '../connector.js'
 import { failureOf, finishedSince, send, sleep, staysInScope, type Backoff, type QueryScope, type Received, type Wait } from '../remote.js'
 
 /**
@@ -245,10 +245,11 @@ export function jiraConnector(
       const response = await api(`/project/${encodeURIComponent(key)}/versions`)
       if ('ok' in response) return response
       if (response.status !== 200) return failureOf(response.status)
+      // Jira gives every version at once; past the limit, the first are listed.
       const choices: Choice[] = (response.body as Version[])
         .filter((version) => !version.released && !version.archived)
         .map((version) => ({ kind: 'fixVersion', name: version.name, query: fixVersionQuery(version.id) }))
-      return { ok: true, choices }
+      return { ok: true, kinds: [{ kind: 'fixVersion', choices: choices.slice(0, CHOICES_LIMIT), pastLimit: choices.length > CHOICES_LIMIT }] }
     },
 
     read: async (query, since): Promise<ReadResult> => {
