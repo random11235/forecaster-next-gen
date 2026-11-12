@@ -23,10 +23,20 @@ const github: Transport = async (url, init) => {
       ? json(200, [{ title: 'Search revamp', number: 2, description: 'Synthetic', creator: { login: 'someone' }, open_issues: 3 }])
       : json(404, { message: 'Not Found', status: '404' })
   }
+  if (url.includes('/labels')) {
+    return known
+      ? json(200, [{ id: 1, name: 'comparable', color: '0e8a16', description: 'Synthetic', url: 'https://api.github.com/someone' }])
+      : json(404, { message: 'Not Found', status: '404' })
+  }
+  // Search names a repo it can't see with a 422, not a 404.
+  if (!known) {
+    const cannot = 'The listed users and repositories cannot be searched either because the resources do not exist or you do not have permission to view them.'
+    return json(422, { message: 'Validation Failed', errors: [{ message: cannot, resource: 'Search', field: 'q', code: 'invalid' }], status: '422' })
+  }
   return json(200, {
     total_count: 1,
     incomplete_results: false,
-    items: [{ node_id: 'I_1', state: 'closed', closed_at: '2026-11-06T08:47:38Z', title: 'Search leaf 1', body: 'Synthetic', user: { login: 'someone' } }],
+    items: [{ node_id: 'I_1', number: 7, state: 'closed', closed_at: '2026-11-06T08:47:38Z', title: 'Search leaf 1', body: 'Synthetic', user: { login: 'someone' } }],
     search_type: 'lexical',
   })
 }
@@ -38,7 +48,12 @@ describe('the GitHub recording script', () => {
     if (!result.ok) throw new Error(result.message)
     const responses = result.recordings.synthetic.map((recording) => recording.response.body)
     expect(responses).toContainEqual([{ title: 'Search revamp' }])
-    expect(responses).toContainEqual({ total_count: 1, incomplete_results: false, items: [{ node_id: 'I_1', state: 'closed', closed_at: '2026-11-06T08:47:38Z' }] })
+    expect(responses).toContainEqual([{ name: 'comparable' }])
+    expect(responses).toContainEqual({
+      total_count: 1,
+      incomplete_results: false,
+      items: [{ node_id: 'I_1', number: 7, title: 'Search leaf 1', state: 'closed', closed_at: '2026-11-06T08:47:38Z' }],
+    })
     expect(JSON.stringify(result.recordings)).not.toMatch(/someone|Synthetic|ratelimit|Bearer/)
   })
 
@@ -62,7 +77,7 @@ describe('the GitHub recording script', () => {
 
     if (!result.ok) throw new Error(result.message)
     expect(result.recordings.refusedToken.map((recording) => recording.response.status)).toEqual([401, 401, 401])
-    expect(result.recordings.unknown.map((recording) => recording.response.status)).toContain(404)
+    expect(result.recordings.unknown.map((recording) => recording.response.status)).toEqual([422, 422, 422])
   })
 
   test('says plainly when the recording token is refused, and records nothing', async () => {

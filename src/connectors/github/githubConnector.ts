@@ -1,5 +1,5 @@
 import type { Connection } from '../../model/connection.js'
-import { CHOICES_LIMIT, type Choice, type Connector, type FailedCall, type ReadResult, type Ticket, type Transport } from '../connector.js'
+import { CHOICES_LIMIT, type ChoicesOfKind, type Connector, type FailedCall, type ReadResult, type Ticket, type Transport } from '../connector.js'
 import { failureOf as statusFailure, finishedSince, send, sleep, staysInScope, type Backoff, type QueryScope, type Received, type Wait } from '../remote.js'
 
 /**
@@ -27,15 +27,24 @@ function searchDate(since: string): string {
   return `${new Date(since).toISOString().slice(0, 19)}+00:00`
 }
 
-/** The `milestone:` qualifier reading a milestone's tickets. */
-function milestoneQuery(title: string): string {
-  return `milestone:"${title}"`
+/**
+ * Search's issues with sub-issues and no parent: the repo's top-level epics. A sub-epic isn't listed, as picking its
+ * top-level epic picks it.
+ */
+const TOP_LEVEL_EPICS = 'is:issue has:sub-issue no:parent-issue'
+
+/**
+ * The qualifier reading an epic's tickets: the repo named in full, as search's short forms (`parent-issue:#N`,
+ * `parent-issue:N`) match nothing, with no error.
+ */
+function epicQuery(repo: string, number: number): string {
+  return `parent-issue:${repo}#${number}`
 }
 
 interface SearchResponse {
   total_count: number
   incomplete_results: boolean
-  items: { node_id: string; state: 'open' | 'closed'; closed_at: string | null }[]
+  items: { node_id: string; number: number; title: string; state: 'open' | 'closed'; closed_at: string | null }[]
 }
 
 interface ErrorResponse {
@@ -58,6 +67,21 @@ function failureOf(received: Received): FailedCall {
   return statusFailure(received.status)
 }
 
+/**
+ * The failure an unsuccessful search stands for. Search names an unknown or unseen repo with a 422 that says so,
+ * rather than a 404; any other 422 refuses the query, with GitHub's message.
+ */
+function searchFailure(received: Received): FailedCall {
+  if (received.status !== 422) return failureOf(received)
+  const body = received.body as ErrorResponse
+  const message = body.errors?.[0]?.message ?? body.message ?? ''
+  if (/cannot be searched/.test(message)) return { ok: false, failure: 'notFound' }
+  return { ok: false, failure: 'invalidQuery', message }
+}
+
+/** One kind's choices, or the failure that stopped them being listed. */
+type Listed = ({ ok: true } & ChoicesOfKind) | FailedCall
+
 /** `wait` is how backoff on a rate limit waits: a timer, unless a test stands in for it. */
 export function githubConnector(
   connection: Extract<Connection, { tracker: 'github' }>,
@@ -75,22 +99,53 @@ export function githubConnector(
     return send(transport, `${API}${path}`, { headers }, backoff)
   }
 
+  /** The top-level epics, up to the limit: one search, whose count says whether there are more. */
+  async function epics(): Promise<Listed> {
+    const q = encodeURIComponent(`repo:${repo} ${TOP_LEVEL_EPICS}`)
+    const response = await get(`/search/issues?q=${q}&advanced_search=true&per_page=${CHOICES_LIMIT}`)
+    if (!response) return { ok: false, failure: 'unavailable' }
+    if (response.status !== 200) return searchFailure(response)
+    const found = response.body as SearchResponse
+    const choices = found.items.map(({ number, title }) => ({ kind: 'epic', name: title, query: epicQuery(repo, number) }))
+    return { ok: true, kind: 'epic', choices, pastLimit: found.total_count > CHOICES_LIMIT }
+  }
+
+  /**
+   * The first `CHOICES_LIMIT` of a REST list (`path` with its own parameters, if any, ending in `?` or `&`), each a
+   * choice of `kind` named by `nameOf` and read by `qualifier`, its value quoted.
+   */
+  async function listed<T>(kind: string, path: string, nameOf: (item: T) => string, qualifier: string): Promise<Listed> {
+    const response = await get(`${path}per_page=${CHOICES_LIMIT}`)
+    if (!response) return { ok: false, failure: 'unavailable' }
+    if (response.status !== 200) return failureOf(response)
+    const items = response.body as T[]
+    const choices = items.map(nameOf).map((name) => ({ kind, name, query: `${qualifier}:"${name}"` }))
+    let pastLimit = false
+    if (items.length === CHOICES_LIMIT) {
+      // A full page may be all of them: whether there is one more is asked only then, as one item past the limit.
+      const next = await get(`${path}per_page=1&page=${CHOICES_LIMIT + 1}`)
+      if (!next) return { ok: false, failure: 'unavailable' }
+      if (next.status !== 200) return failureOf(next)
+      pastLimit = (next.body as unknown[]).length > 0
+    }
+    return { ok: true, kind, choices, pastLimit }
+  }
+
   return {
     milestoneChoices: async () => {
-      const response = await get(`/repos/${repo}/milestones?state=open&per_page=${CHOICES_LIMIT}`)
-      if (!response) return { ok: false, failure: 'unavailable' }
-      if (response.status !== 200) return failureOf(response)
-      const milestones = response.body as { title: string }[]
-      const choices: Choice[] = milestones.map(({ title }) => ({ kind: 'milestone', name: title, query: milestoneQuery(title) }))
-      let pastLimit = false
-      if (milestones.length === CHOICES_LIMIT) {
-        // A full page may be all of them: whether there is one more is asked only then, as one milestone past the limit.
-        const next = await get(`/repos/${repo}/milestones?state=open&per_page=1&page=${CHOICES_LIMIT + 1}`)
-        if (!next) return { ok: false, failure: 'unavailable' }
-        if (next.status !== 200) return failureOf(next)
-        pastLimit = (next.body as unknown[]).length > 0
+      const kinds: ChoicesOfKind[] = []
+      // Asked one after another, stopping at the first failure: three requests, and one more for each full list.
+      for (const list of [
+        epics,
+        () => listed<{ name: string }>('label', `/repos/${repo}/labels?`, ({ name }) => name, 'label'),
+        () => listed<{ title: string }>('milestone', `/repos/${repo}/milestones?state=open&`, ({ title }) => title, 'milestone'),
+      ]) {
+        const result = await list()
+        if (!result.ok) return result
+        const { ok: _, ...kind } = result
+        kinds.push(kind)
       }
-      return { ok: true, kinds: [{ kind: 'milestone', choices, pastLimit }] }
+      return { ok: true, kinds }
     },
 
     read: async (query, since): Promise<ReadResult> => {
@@ -101,13 +156,7 @@ export function githubConnector(
       for (let page = 1; ; page++) {
         const response = await get(`/search/issues?q=${q}&advanced_search=true&per_page=${PAGE}&page=${page}`)
         if (!response) return { ok: false, failure: 'unavailable' }
-        if (response.status === 422) {
-          const message = (response.body as ErrorResponse).errors?.[0]?.message ?? (response.body as ErrorResponse).message ?? ''
-          // Search names an unknown or unseen repo this way, rather than with a 404.
-          if (/cannot be searched/.test(message)) return { ok: false, failure: 'notFound' }
-          return { ok: false, failure: 'invalidQuery', message }
-        }
-        if (response.status !== 200) return failureOf(response)
+        if (response.status !== 200) return searchFailure(response)
         const results = response.body as SearchResponse
         for (const item of results.items) {
           tickets.push(item.state === 'closed' && item.closed_at ? { id: item.node_id, finishedAt: item.closed_at } : { id: item.node_id })

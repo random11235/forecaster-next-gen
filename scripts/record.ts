@@ -116,9 +116,11 @@ const GITHUB: Tracker<GithubConnection> = {
       return error
     }
     if (url.includes('/milestones?')) return (body as Body[]).map((milestone) => pick(milestone, ['title']))
+    if (url.includes('/labels?')) return (body as Body[]).map((label) => pick(label, ['name']))
     if (url.includes('/search/issues?')) {
       const found = pick(body, ['total_count', 'incomplete_results', 'items'])
-      found.items = (found.items as Body[]).map((item) => pick(item, ['node_id', 'state', 'closed_at']))
+      // A read keeps each ticket's id and finish; the epics among the milestone choices, their number and title.
+      found.items = (found.items as Body[]).map((item) => pick(item, ['node_id', 'number', 'title', 'state', 'closed_at']))
       return found
     }
     throw new Error(`The recording script doesn't know what the connector reads from ${url}`)
