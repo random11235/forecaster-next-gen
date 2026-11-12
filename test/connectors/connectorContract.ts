@@ -44,6 +44,8 @@ export interface ContractSubject {
     checkout: string[]
     /** The tickets in "Checkout v2" with children of their own, which are never returned. */
     parents: string[]
+    /** Given with `queries.nestedEpic`: the leaves beneath that epic, at any depth, and those beneath its sub-epic. */
+    nestedEpic?: { leaves: string[]; underSubEpic: string[] }
   }
   /** When the seed script's batches of finishes ran: `cut` falls between the early and later ones. */
   batches: { laterStart: string; laterEnd: string; cut: string }

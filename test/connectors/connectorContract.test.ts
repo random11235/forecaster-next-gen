@@ -120,6 +120,27 @@ describe.each(subjects)('%s connector', (_, subject) => {
       for (const role of ['leaf-021', 'leaf-060', 'leaf-061', 'leaf-105']) expect(ids).toContain(subject.idOf(role))
     })
 
+    test.runIf(queries.nestedEpic)('of a picked nested epic returns every leaf beneath it, through its sub-epics, and no epic', async () => {
+      const result = await subject.synthetic().read(queries.nestedEpic!, FROM_THE_START)
+
+      if (!result.ok) throw new Error(`read failed: ${result.failure}`)
+      expect(result.tickets.map((ticket) => ticket.id).sort()).toEqual(subject.roles.nestedEpic!.leaves.map(subject.idOf).sort())
+      expect(result.incomplete).toBe(false)
+    })
+
+    test.runIf(queries.nestedEpic)("finds a picked epic's sub-epics as it reads, so one added after the pick is read", async () => {
+      // The epic's choice, as kept with the milestone, names only the epic: its sub-epics are found by each read.
+      const choices = await subject.synthetic().milestoneChoices()
+      if (!choices.ok) throw new Error(`milestone choices failed: ${choices.failure}`)
+      const epics = choices.kinds.find(({ kind }) => kind === 'epic')
+      expect(epics?.choices.map((choice) => choice.query)).toContain(queries.nestedEpic)
+
+      const result = await subject.synthetic().read(queries.nestedEpic!, FROM_THE_START)
+
+      if (!result.ok) throw new Error(`read failed: ${result.failure}`)
+      expect(result.tickets.map((ticket) => ticket.id)).toEqual(expect.arrayContaining(subject.roles.nestedEpic!.underSubEpic.map(subject.idOf)))
+    })
+
     test.runIf(subject.capped)('reading as far as a search cap allows, the read is incomplete', async () => {
       const result = await subject.capped!().read(queries.checkout, FROM_THE_START)
 
