@@ -30,6 +30,11 @@ export interface Queries {
   invalid: string
   /** One reaching outside the connection's repo or project. */
   outOfScope: string
+  /**
+   * The picked epic "Epic: payment methods", as its epic choice reads it: naming only the epic, though a sub-epic is
+   * nested beneath it. A tracker whose connector doesn't expand epics yet leaves it out.
+   */
+  nestedEpic?: string
 }
 
 /** One recording: the connection it is made on, whether with a credential the tracker refuses, and the queries read on it after the milestone choices. */
@@ -44,12 +49,15 @@ export interface TrackerCases<C extends Connection> {
   scenarios: Record<Scenario, ScenarioSetup<C>>
 }
 
-/** Every scenario but the synthetic one reads only "Search revamp", to record its failure. */
-function cases<C extends Connection>(synthetic: C, unknown: C, queries: Queries): TrackerCases<C> {
+/**
+ * Every scenario but the synthetic one reads only "Search revamp", to record its failure. The synthetic one reads every
+ * query, and `quirks`: the tracker's own queries, read by the tests in its folder.
+ */
+function cases<C extends Connection>(synthetic: C, unknown: C, queries: Queries, quirks: string[] = []): TrackerCases<C> {
   return {
     queries,
     scenarios: {
-      synthetic: { connection: synthetic, refused: false, reads: Object.values(queries) },
+      synthetic: { connection: synthetic, refused: false, reads: [...Object.values(queries), ...quirks] },
       refusedToken: { connection: synthetic, refused: true, reads: [queries.searchRevamp] },
       unknown: { connection: unknown, refused: false, reads: [queries.searchRevamp] },
     },
@@ -57,6 +65,12 @@ function cases<C extends Connection>(synthetic: C, unknown: C, queries: Queries)
 }
 
 const GITHUB_SYNTHETIC = { tracker: 'github', owner: 'random11235', repo: 'forecaster-synthetic' } as const
+
+/** GitHub-only queries, read by the tests in `test/connectors/github/`. */
+export const GITHUB_QUIRKS = {
+  /** The epic "Epic: payment methods" in `parent-issue:`'s short form, which search matches to nothing, with no error. */
+  shortFormEpic: 'parent-issue:#106',
+}
 
 /** random11235/forecaster-synthetic, in GitHub's search syntax. */
 export const GITHUB_CASES = cases<Extract<Connection, { tracker: 'github' }>>(
@@ -69,7 +83,9 @@ export const GITHUB_CASES = cases<Extract<Connection, { tracker: 'github' }>>(
     nothing: 'label:"no such label"',
     invalid: 'closed:>2026-13-45',
     outOfScope: 'repo:random11235/forecaster-next-gen',
+    nestedEpic: 'parent-issue:random11235/forecaster-synthetic#106',
   },
+  Object.values(GITHUB_QUIRKS),
 )
 
 /** Recorded as the shared test account; `scripts/record.ts` swaps in `FORECASTER_JIRA_EMAIL` when it is set. */
