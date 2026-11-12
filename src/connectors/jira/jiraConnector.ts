@@ -12,6 +12,11 @@ import { failureOf, finishedSince, send, sleep, staysInScope, type Backoff, type
  *
  * It signs in as the connection's account email with the API token, sent as basic auth. Scoped API tokens work only
  * through Atlassian's gateway, by the site's cloud id, so the connector looks that up from the site first.
+ *
+ * A picked epic (`parent = KEY-N`, as its choice reads it) stands for every leaf beneath it. Beneath an epic are stories
+ * and their subtasks, which the read reaches already; in a hierarchy with levels above epics, a ticket picked there has
+ * epics beneath it, found level by level through `parent` before each read, and the ticket is read as itself or any of
+ * them. The query keeps only the pick, so one added beneath it since is found on the next read.
  * See docs/research/jira-connector.md (on research/jira-connector).
  */
 
@@ -33,6 +38,12 @@ const SCOPE: QueryScope = {
   reachesOut: /(^|[\s(])project\s*(!?=|~|\bnot\s+in\b|\bin\b|\bis\b|\bwas\b|\bchanged\b)/i,
   quoted: /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g,
 }
+
+/**
+ * Each picked epic a query names, as its choice reads it: `parent = KEY-N`, not negated by a `NOT` before it and not in
+ * quotes. A quoted value is matched too, with no key, so a term inside quotes is kept as written.
+ */
+const PICKED = /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|(?<!\bnot\s+)(?<=^|[\s(])parent\s*=\s*([a-z][a-z0-9_]*-\d+)(?=$|[\s)])/gi
 
 /** `value` as a JQL string: in double quotes, any quote or backslash in it escaped. */
 function jqlString(value: string): string {
@@ -76,6 +87,9 @@ interface Found<F> {
   key: string
   fields: F
 }
+
+/** What finding the tickets beneath a picked epic needs of each. */
+type LevelFields = { issuetype: { hierarchyLevel: number }; parent?: { id: string } }
 
 /** What a read needs of each ticket its query finds. */
 type ReadFields = { issuetype: { hierarchyLevel: number }; status: Status; subtasks?: { id: string; fields: { status: Status } }[] }
@@ -248,6 +262,39 @@ export function jiraConnector(
     return new Map(found.map(({ id, fields }) => [id, new Date(jiraInstant(fields.created)).toISOString()]))
   }
 
+  /**
+   * `query` with each picked epic it names read as itself or any ticket above level 0 beneath it, found level by level
+   * through `parent`: the picked tickets first, by key, then each level's children, while any is above level 1.
+   */
+  async function expanded(query: string): Promise<string | FailedCall> {
+    const keys = [...new Set([...query.matchAll(PICKED)].flatMap((match) => (match[1] === undefined ? [] : [match[1].toUpperCase()])))]
+    if (keys.length === 0) return query
+    const picked = await search<LevelFields>(`project = "${key}" AND key in (${keys.join(', ')})`, ['issuetype'])
+    if (!Array.isArray(picked)) return picked
+    /** The picked epic each ticket found is beneath, by the ticket's id (a picked epic beneath itself). */
+    const pickedAbove = new Map(picked.map((ticket) => [ticket.id, ticket.key.toUpperCase()]))
+    const beneath = new Map<string, string[]>()
+    // A level's children are a level below it, so the levels run out at the hierarchy's foot.
+    let level = picked.filter(({ fields }) => fields.issuetype.hierarchyLevel > 1)
+    while (level.length > 0) {
+      const children = await search<LevelFields>(`project = "${key}" AND parent in (${level.map(({ id }) => id).join(', ')})`, ['issuetype', 'parent'])
+      if (!Array.isArray(children)) return children
+      level = []
+      for (const child of children) {
+        const above = child.fields.parent === undefined ? undefined : pickedAbove.get(child.fields.parent.id)
+        if (above === undefined || pickedAbove.has(child.id) || child.fields.issuetype.hierarchyLevel < 1) continue
+        pickedAbove.set(child.id, above)
+        beneath.set(above, [...(beneath.get(above) ?? []), child.id])
+        level.push(child)
+      }
+      level = level.filter(({ fields }) => fields.issuetype.hierarchyLevel > 1)
+    }
+    return query.replace(PICKED, (term, epic: string | undefined) => {
+      const found = epic === undefined ? undefined : beneath.get(epic.toUpperCase())
+      return found === undefined ? term : `parent in (${[epic, ...found].join(', ')})`
+    })
+  }
+
   /** The project's unreleased fix versions, each read by its name. */
   async function fixVersions(): Promise<ChoicesOfKind | FailedCall> {
     const response = await api(`/project/${encodeURIComponent(key)}/versions`)
@@ -294,9 +341,11 @@ export function jiraConnector(
 
     read: async (query, since): Promise<ReadResult> => {
       if (!staysInScope(query, SCOPE)) return { ok: false, failure: 'outOfScope' }
+      const withEpicsBeneath = await expanded(query)
+      if (typeof withEpicsBeneath !== 'string') return withEpicsBeneath
       const before = jqlBefore(since)
       const inWindow = `(statusCategory != Done OR status CHANGED AFTER "${before}" OR created >= "${before}")`
-      const matched = await search<ReadFields>(`project = "${key}" AND (${query}) AND ${inWindow}`, FIELDS)
+      const matched = await search<ReadFields>(`project = "${key}" AND (${withEpicsBeneath}) AND ${inWindow}`, FIELDS)
       if (!Array.isArray(matched)) return matched
       if (matched.length === 0) {
         // Search matches nothing, rather than failing, on a project that doesn't exist or can't be seen.
@@ -311,7 +360,7 @@ export function jiraConnector(
       if (!Array.isArray(subtasks)) return subtasks
       const matchedIds = new Set(matched.map(({ id }) => id))
       const storiesLeftOut = [...new Set(subtasks.flatMap(({ fields }) => (fields.parent === undefined || matchedIds.has(fields.parent.id) ? [] : [fields.parent.id])))]
-      const stories = await searchByIds<ReadFields>(storiesLeftOut, (idList) => `project = "${key}" AND (${query}) AND ${idList}`, FIELDS)
+      const stories = await searchByIds<ReadFields>(storiesLeftOut, (idList) => `project = "${key}" AND (${withEpicsBeneath}) AND ${idList}`, FIELDS)
       if (!Array.isArray(stories)) return stories
       matched.push(...stories)
 
