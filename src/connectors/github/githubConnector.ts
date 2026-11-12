@@ -1,5 +1,15 @@
 import type { Connection } from '../../model/connection.js'
-import { CHOICES_LIMIT, type ChoicesOfKind, type Connector, type FailedCall, type ReadResult, type Ticket, type Transport } from '../connector.js'
+import {
+  CHOICES_LIMIT,
+  type Choice,
+  type ChoicesOfKind,
+  type Connector,
+  type FailedCall,
+  type ReadResult,
+  type SearchedChoices,
+  type Ticket,
+  type Transport,
+} from '../connector.js'
 import { failureOf as statusFailure, finishedSince, send, sleep, staysInScope, type Backoff, type QueryScope, type Received, type Wait } from '../remote.js'
 
 /**
@@ -163,6 +173,63 @@ export function githubConnector(
   }
 
   /**
+   * The top-level epics with every word of `text` in their titles, up to the limit. Each word is quoted, so none is
+   * read as a qualifier; search matches whole words only.
+   */
+  async function searchedEpics(text: string): Promise<SearchedChoices> {
+    const words = text.replace(/"/g, ' ').split(/\s+/).filter((word) => word !== '')
+    const q = encodeURIComponent(`repo:${repo} ${TOP_LEVEL_EPICS} in:title ${words.map((word) => `"${word}"`).join(' ')}`)
+    const response = await get(`/search/issues?q=${q}&advanced_search=true&per_page=${CHOICES_LIMIT}`)
+    if (!response) return { ok: false, failure: 'unavailable' }
+    if (response.status !== 200) return searchFailure(response)
+    const found = response.body as SearchResponse
+    return { ok: true, choices: found.items.map(({ number, title }) => ({ kind: 'epic', name: title, query: epicQuery(repo, number) })) }
+  }
+
+  let repoId: number | undefined
+
+  /** The labels search finds for `text` in the repo, which it names by id, looked up once; up to the limit. */
+  async function searchedLabels(text: string): Promise<SearchedChoices> {
+    if (repoId === undefined) {
+      const found = await get(`/repos/${repo}`)
+      if (!found) return { ok: false, failure: 'unavailable' }
+      if (found.status !== 200) return failureOf(found)
+      repoId = (found.body as { id: number }).id
+    }
+    const response = await get(`/search/labels?repository_id=${repoId}&q=${encodeURIComponent(text)}&per_page=${CHOICES_LIMIT}`)
+    if (!response) return { ok: false, failure: 'unavailable' }
+    if (response.status !== 200) return searchFailure(response)
+    const { items } = response.body as { items: { name: string }[] }
+    return { ok: true, choices: items.map(({ name }) => ({ kind: 'label', name, query: `label:"${name}"` })) }
+  }
+
+  /**
+   * The open milestones with `text` in their titles, ignoring case, up to the limit. GitHub has no milestone search,
+   * so every page is read and matched here.
+   */
+  async function searchedMilestones(text: string): Promise<SearchedChoices> {
+    const typed = text.toLowerCase()
+    const choices: Choice[] = []
+    for (let page = 1; ; page++) {
+      const response = await get(`/repos/${repo}/milestones?state=open&per_page=${PAGE}&page=${page}`)
+      if (!response) return { ok: false, failure: 'unavailable' }
+      if (response.status !== 200) return failureOf(response)
+      const milestones = response.body as { title: string }[]
+      for (const { title } of milestones) {
+        if (title.toLowerCase().includes(typed)) choices.push({ kind: 'milestone', name: title, query: `milestone:"${title}"` })
+      }
+      if (milestones.length < PAGE || choices.length >= CHOICES_LIMIT) break
+    }
+    return { ok: true, choices: choices.slice(0, CHOICES_LIMIT) }
+  }
+
+  const SEARCHES: Readonly<Record<string, (text: string) => Promise<SearchedChoices>>> = {
+    epic: searchedEpics,
+    label: searchedLabels,
+    milestone: searchedMilestones,
+  }
+
+  /**
    * Every issue search finds for `q`, page by page, up to the 1,000 it gives: past that, or when search says it timed
    * out, they are incomplete.
    */
@@ -215,6 +282,11 @@ export function githubConnector(
   }
 
   return {
+    searchChoices: async (kind, text) => {
+      const search = Object.hasOwn(SEARCHES, kind) ? SEARCHES[kind]! : undefined
+      return search ? search(text) : { ok: true, choices: [] }
+    },
+
     milestoneChoices: async () => {
       const kinds: ChoicesOfKind[] = []
       // Asked one after another, stopping at the first failure: three requests, and one more for each full list.

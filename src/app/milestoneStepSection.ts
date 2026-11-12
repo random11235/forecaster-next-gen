@@ -1,4 +1,4 @@
-import type { MilestoneQueryEdit, MilestoneStepView } from '../forecast/milestoneStep.js'
+import type { ChoiceList, MilestoneQueryEdit, MilestoneStepView } from '../forecast/milestoneStep.js'
 import { kindName } from '../forecast/milestoneStep.js'
 import { escapeHtml } from './html.js'
 
@@ -10,6 +10,15 @@ export const MILESTONE_STEP_PATHS = { add: '/inputs/milestone-query/add', remove
 
 /** The field the step's find box sends, to `/inputs`, when it is submitted without the page's script. */
 export const FIND_FIELD = 'find'
+
+/**
+ * Where the step's script asks for one kind searched in the tracker, as the EM types: `KIND_FIELD` names the kind and
+ * `FIND_FIELD` what is typed. It answers with that kind's list alone (`choiceListHtml`).
+ */
+export const SEARCHED_CHOICES_PATH = '/inputs/milestone-choices'
+
+/** The field naming the kind searched, at `SEARCHED_CHOICES_PATH`. */
+export const KIND_FIELD = 'kind'
 
 /** Reads a submitted Milestone step form, by the field names this section gives them. */
 type MilestoneStepFormReader = (body: URLSearchParams) => MilestoneQueryEdit
@@ -42,22 +51,7 @@ export function milestoneStepSection(view: MilestoneStepView): string | undefine
             </li>`,
     )
     .join('\n')
-  const lists = view.lists
-    .map((list) => {
-      const choices = list.choices
-        .map(
-          (choice) => `              <form method="post" action="${MILESTONE_STEP_PATHS.add}${anchor}" data-name="${escapeHtml(choice.name.toLowerCase())}">
-                <input type="hidden" name="kind" value="${escapeHtml(choice.kind)}"><input type="hidden" name="name" value="${escapeHtml(choice.name)}"><input type="hidden" name="query" value="${escapeHtml(choice.query)}">
-                <button type="submit">${escapeHtml(choice.name)} <span class="kind">${escapeHtml(kindName(choice.kind))}</span></button>
-              </form>`,
-        )
-        .join('\n')
-      return `            <div class="kind-list">
-              <h3>${escapeHtml(capitalised(kindName(list.kind)))}s</h3>
-${choices}
-            </div>`
-    })
-    .join('\n')
+  const lists = view.lists.map(choiceListHtml).join('\n')
   const failure = view.choicesFailure === undefined ? '' : `\n          <p class="error" role="alert">${escapeHtml(view.choicesFailure)}</p>`
   const query = view.query === '' ? '<span class="none">Nothing picked yet.</span>' : `<code>${escapeHtml(view.query)}</code>`
   const read = view.read === undefined ? '' : `\n          <p class="read">${escapeHtml(view.read)}</p>`
@@ -76,6 +70,27 @@ ${lists}
         </div>`
 }
 
+/**
+ * One kind's list of choices to pick, each a form adding it; a kind searched in the tracker is marked for the script
+ * (`data-searched`), which asks for it again as the EM types rather than filtering it.
+ */
+export function choiceListHtml(list: ChoiceList): string {
+  const anchor = `#${MILESTONE_STEP_ID}`
+  const choices = list.choices
+    .map(
+      (choice) => `              <form method="post" action="${MILESTONE_STEP_PATHS.add}${anchor}" data-name="${escapeHtml(choice.name.toLowerCase())}">
+                <input type="hidden" name="kind" value="${escapeHtml(choice.kind)}"><input type="hidden" name="name" value="${escapeHtml(choice.name)}"><input type="hidden" name="query" value="${escapeHtml(choice.query)}">
+                <button type="submit">${escapeHtml(choice.name)} <span class="kind">${escapeHtml(kindName(choice.kind))}</span></button>
+              </form>`,
+    )
+    .join('\n')
+  const failure = list.failure === undefined ? '' : `\n              <p class="error" role="alert">${escapeHtml(list.failure)}</p>`
+  return `            <div class="kind-list" data-kind="${escapeHtml(list.kind)}"${list.searched ? ' data-searched' : ''}>
+              <h3>${escapeHtml(capitalised(kindName(list.kind)))}s</h3>${failure}
+${choices}
+            </div>`
+}
+
 function capitalised(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
@@ -90,9 +105,14 @@ function alternatives(names: string[]): string {
   return names.length === 1 ? names[0]! : `${names.slice(0, -1).join(', ')} or ${names.at(-1)!}`
 }
 
+/** How long the step's script waits after the last key typed before it searches the tracker, in milliseconds. */
+const SEARCH_DEBOUNCE_MS = 300
+
 /**
  * The Milestone step's script: it filters the lists as the EM types in the find box, ignoring case and matching part of
- * a word, as `milestoneStepView` does for a find submitted without it. The lists show only once something is typed.
+ * a word, as `milestoneStepView` does for a find submitted without it. A kind searched in the tracker isn't filtered:
+ * once typing pauses, its list is asked for again, searched for what is typed, and an answer to anything but the
+ * latest search is dropped. The lists show only once something is typed.
  */
 export const MILESTONE_STEP_SCRIPT = `
 (() => {
@@ -106,17 +126,46 @@ export const MILESTONE_STEP_SCRIPT = `
     for (const list of found.querySelectorAll('.kind-list')) {
       let shown = 0
       for (const choice of list.querySelectorAll('form[data-name]')) {
-        const matches = choice.dataset.name.includes(typed)
+        const matches = list.hasAttribute('data-searched') || choice.dataset.name.includes(typed)
         choice.hidden = !matches
         if (matches) shown += 1
       }
-      list.hidden = shown === 0
-      any = any || shown > 0
+      list.hidden = shown === 0 && !list.querySelector('.error')
+      any = any || !list.hidden
     }
     found.classList.toggle('finding', typed !== '')
     found.querySelector('.none-found').hidden = any || typed === ''
   }
-  find.addEventListener('input', filter)
+  let timer
+  let latest = 0
+  const search = () => {
+    clearTimeout(timer)
+    const typed = find.value.trim()
+    if (typed === '') return
+    timer = setTimeout(() => {
+      const asked = ++latest
+      for (const list of found.querySelectorAll('.kind-list[data-searched]')) {
+        const kind = list.dataset.kind
+        const url = '${SEARCHED_CHOICES_PATH}?${KIND_FIELD}=' + encodeURIComponent(kind) + '&${FIND_FIELD}=' + encodeURIComponent(typed)
+        fetch(url)
+          .then((response) => (response.ok ? response.text() : Promise.reject(response.status)))
+          .then((html) => {
+            if (asked !== latest) return
+            const answered = document.createElement('template')
+            answered.innerHTML = html
+            const fresh = answered.content.querySelector('.kind-list')
+            const current = [...found.querySelectorAll('.kind-list[data-searched]')].find((each) => each.dataset.kind === kind)
+            if (fresh && current) current.replaceWith(fresh)
+            filter()
+          })
+          .catch(() => {})
+      }
+    }, ${SEARCH_DEBOUNCE_MS})
+  }
+  find.addEventListener('input', () => {
+    filter()
+    search()
+  })
   find.form.addEventListener('submit', (event) => event.preventDefault())
   filter()
 })()

@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
-import type { Choice, Connector } from '../../src/connectors/connector.js'
+import type { Choice, ChoicesOfKind, Connector } from '../../src/connectors/connector.js'
 import { submitConnection, type Connecting } from '../../src/forecast/connection.js'
-import { milestoneStepView, submitMilestoneQuery } from '../../src/forecast/milestoneStep.js'
+import { milestoneStepView, searchedChoiceList, submitMilestoneQuery } from '../../src/forecast/milestoneStep.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
 
@@ -52,14 +52,18 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true })
 })
 
-/** The local build's means to connect, on the canned connector, counting its calls. */
-function connecting(): Connecting & { calls: { choices: number; reads: string[] } } {
-  const calls = { choices: 0, reads: [] as string[] }
-  const canned = cannedConnector(FIXTURE)
+/** The local build's means to connect, on the canned connector answering from `fixture`, counting its calls. */
+function connecting(fixture: CannedFixture = FIXTURE): Connecting & { calls: { choices: number; reads: string[]; searches: [string, string][] } } {
+  const calls = { choices: 0, reads: [] as string[], searches: [] as [string, string][] }
+  const canned = cannedConnector(fixture)
   const connector = (): Connector => ({
     milestoneChoices: () => {
       calls.choices += 1
       return canned.milestoneChoices()
+    },
+    searchChoices: (kind, text) => {
+      calls.searches.push([kind, text])
+      return canned.searchChoices(kind, text)
     },
     read: (query, since) => {
       calls.reads.push(query)
@@ -70,8 +74,8 @@ function connecting(): Connecting & { calls: { choices: number; reads: string[] 
 }
 
 /** Connected to a GitHub repo, with no calls counted yet. */
-async function connected(): Promise<ReturnType<typeof connecting>> {
-  const using = connecting()
+async function connected(fixture: CannedFixture = FIXTURE): Promise<ReturnType<typeof connecting>> {
+  const using = connecting(fixture)
   await submitConnection(using, TEAM, { kind: 'connect', tracker: 'github', repo: 'shop-team/shop', site: '', projectKey: '', email: '', token: 'token' })
   using.calls.choices = 0
   return using
@@ -92,8 +96,8 @@ describe('opening the Milestone step', () => {
       kind: 'milestoneStep',
       find: '',
       lists: [
-        { kind: 'milestone', choices: [payments, checkout] },
-        { kind: 'label', choices: [repay, bug] },
+        { kind: 'milestone', choices: [payments, checkout], searched: false },
+        { kind: 'label', choices: [repay, bug], searched: false },
       ],
       picks: [],
       query: '',
@@ -107,8 +111,8 @@ describe('opening the Milestone step', () => {
     const view = await milestoneStepView(using, TEAM, 'PAY')
 
     expect(view.kind === 'milestoneStep' && view.lists).toEqual([
-      { kind: 'milestone', choices: [payments] },
-      { kind: 'label', choices: [repay] },
+      { kind: 'milestone', choices: [payments], searched: false },
+      { kind: 'label', choices: [repay], searched: false },
     ])
   })
 
@@ -118,6 +122,76 @@ describe('opening the Milestone step', () => {
 
   test('before connecting, there is no Milestone step', async () => {
     expect(await milestoneStepView(connecting(), TEAM)).toEqual({ kind: 'noMilestoneStep' })
+  })
+})
+
+describe('a kind with more than 100 entries', () => {
+  const epic = (n: number): Choice => ({ kind: 'epic', name: `Epic ${n}`, query: `parent-issue:shop-team/shop#${n}` })
+  const listed = Array.from({ length: 100 }, (_, i) => epic(i + 1))
+  const cardPayments: Choice = { kind: 'epic', name: 'Card payments', query: 'parent-issue:shop-team/shop#140' }
+  const payouts: Choice = { kind: 'epic', name: 'Payouts', query: 'parent-issue:shop-team/shop#141' }
+
+  /** 120 epics, past the limit, the first 100 listed; and the milestones and labels in full. */
+  const PAST_LIMIT: CannedFixture = {
+    ...FIXTURE,
+    milestoneChoices: [
+      { kind: 'epic', choices: listed, pastLimit: true },
+      ...(FIXTURE.milestoneChoices as ChoicesOfKind[]),
+    ],
+    searched: { epic: [...listed, cardPayments, payouts, ...Array.from({ length: 18 }, (_, i) => epic(142 + i))] },
+  }
+
+  test('is searched in the tracker for what is typed, while the other kinds are filtered here', async () => {
+    const using = await connected(PAST_LIMIT)
+
+    const view = await milestoneStepView(using, TEAM, ' Payments ')
+
+    expect(using.calls.searches).toEqual([['epic', 'Payments']])
+    expect(view.kind === 'milestoneStep' && view.lists).toEqual([
+      { kind: 'epic', choices: [cardPayments], searched: true },
+      { kind: 'milestone', choices: [payments], searched: false },
+      { kind: 'label', choices: [repay], searched: false },
+    ])
+  })
+
+  test('with nothing typed, lists the first 100, searching nothing', async () => {
+    const using = await connected(PAST_LIMIT)
+
+    const view = await milestoneStepView(using, TEAM)
+
+    expect(using.calls.searches).toEqual([])
+    expect(view.kind === 'milestoneStep' && view.lists[0]).toEqual({ kind: 'epic', choices: listed, searched: true })
+  })
+
+  test('leaves out of what the tracker finds the choices already picked', async () => {
+    const using = await connected(PAST_LIMIT)
+    await submitMilestoneQuery(using, TEAM, add(cardPayments), READ_AT)
+
+    const view = await milestoneStepView(using, TEAM, 'payments')
+
+    expect(view.kind === 'milestoneStep' && view.lists[0]).toEqual({ kind: 'epic', choices: [], searched: true })
+  })
+
+  test('says so when the tracker can’t search, still listing the other kinds', async () => {
+    const using = await connected({ ...PAST_LIMIT, searched: { epic: { failure: 'unavailable' } } })
+
+    const view = await milestoneStepView(using, TEAM, 'pay')
+
+    expect(view.kind === 'milestoneStep' && view.choicesFailure).toBeUndefined()
+    expect(view).toMatchObject({
+      lists: [
+        { kind: 'epic', choices: [], searched: true, failure: 'The tracker couldn’t search its epics just now. Try again in a few minutes.' },
+        { kind: 'milestone', choices: [payments], searched: false },
+        { kind: 'label', choices: [repay], searched: false },
+      ],
+    })
+  })
+
+  test('one kind searched on its own, as the picker asks for it while the EM types', async () => {
+    const using = await connected(PAST_LIMIT)
+
+    expect(await searchedChoiceList(using, TEAM, 'epic', 'payouts')).toEqual({ kind: 'epic', choices: [payouts], searched: true })
+    expect(using.calls.choices).toBe(0)
   })
 })
 
@@ -145,8 +219,8 @@ describe('picking', () => {
       query: 'milestone:"Payments v2" OR label:"bug"',
       read: '3 open · 2 finished in the last 8 weeks',
       lists: [
-        { kind: 'milestone', choices: [checkout] },
-        { kind: 'label', choices: [repay] },
+        { kind: 'milestone', choices: [checkout], searched: false },
+        { kind: 'label', choices: [repay], searched: false },
       ],
     })
   })
