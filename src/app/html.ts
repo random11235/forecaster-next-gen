@@ -293,6 +293,18 @@ const STYLE = `
     .picker .query code { font-family: var(--mono); font-size: 13px; overflow-wrap: anywhere; }
     .picker .query .none { color: var(--faint); }
     .picker p.read { margin: 0; color: var(--good); font-weight: 600; }
+    .picker .query a.edit { margin-left: 8px; font-weight: 400; font-size: 13px; color: var(--link); }
+    /* The query open for editing: read on Enter, and Back to finding, with its warning when it clears the query. */
+    .picker.editing .query { border-top: 0; padding-top: 0; }
+    .picker.editing .query b { font-family: var(--mono); font-weight: 500; }
+    .picker input[type=text] {
+      width: 100%; font-family: var(--mono); font-size: 14px; color: var(--ink); background: transparent;
+      border: 0; border-bottom: 1px solid var(--ink); border-radius: 0; padding: 6px 0;
+    }
+    .picker p.error { margin: 0; font-size: 13px; color: var(--risk); }
+    .picker code { font-family: var(--mono); font-size: 13px; overflow-wrap: anywhere; }
+    .picker form.back { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border-top: 1px solid var(--hairline); padding-top: 12px; }
+    .picker .warn { margin: 0; color: var(--risk); }
     details.change > summary { cursor: pointer; font-size: 13px; color: var(--link); }
     details.change[open] > summary { margin-bottom: 16px; }
     section.input > .label p.saved { color: var(--good); font-weight: 600; }
