@@ -602,7 +602,57 @@ describe('a data file from schema version 13, before saved reads', () => {
     const again = openSqliteStorage(file)
     expect(again.savedRead({ teamId: TEAM, query })).toEqual(read)
     again.close()
-    expect(versionOf(file)).toBe(14)
+    expect(versionOf(file)).toBeGreaterThan(13)
+  })
+})
+
+/** Version 14's tables: version 13's, plus saved reads as #183 shipped them. Kept verbatim: it is a past release. */
+const VERSION_14_SCHEMA = `${VERSION_13_SCHEMA}
+CREATE TABLE saved_reads (
+  team_id TEXT NOT NULL REFERENCES teams(id),
+  query TEXT NOT NULL,
+  incomplete INTEGER NOT NULL,
+  read_at TEXT NOT NULL,
+  PRIMARY KEY (team_id, query)
+);
+CREATE TABLE saved_read_tickets (
+  team_id TEXT NOT NULL,
+  query TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  id TEXT NOT NULL,
+  finished_at TEXT,
+  PRIMARY KEY (team_id, query, position),
+  FOREIGN KEY (team_id, query) REFERENCES saved_reads(team_id, query) ON DELETE CASCADE
+);
+`
+
+describe("a data file from schema version 14, before the milestone's picks and query", () => {
+  test('keeps its milestone inputs unchanged, has no picks and no query, and takes them, which survive reopening', () => {
+    const file = writeFile('v14.db', VERSION_14_SCHEMA, 14)
+    const storage = openSqliteStorage(file)
+    expect(storage.milestoneInputs(TEAM)).toEqual({
+      teamId: TEAM,
+      name: 'Launch',
+      startDate: '2026-09-01',
+      ticketsRemaining: 40,
+      ambiguity: 'medium',
+      cadenceDays: 14,
+      paceMode: 'range',
+      paceRange: { low: 4, high: 8 },
+      paceCounts: [6, 9],
+      paceCadenceDays: 14,
+      paceWindow: { action: undefined },
+    })
+    expect(storage.milestoneQuery(TEAM)).toBeUndefined()
+
+    const picked = { picks: [{ kind: 'milestone', name: 'Launch', query: 'milestone:"Launch"' }], query: 'milestone:"Launch"' }
+    storage.saveMilestoneQuery(TEAM, picked)
+    storage.close()
+
+    const again = openSqliteStorage(file)
+    expect(again.milestoneQuery(TEAM)).toEqual(picked)
+    again.close()
+    expect(versionOf(file)).toBe(15)
   })
 })
 

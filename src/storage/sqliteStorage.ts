@@ -1,12 +1,14 @@
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
+import type { Choice } from '../connectors/connector.js'
 import type { Ambiguity, AmbiguityRanges } from '../model/ambiguity.js'
 import type { CapacityEntry } from '../model/capacity.js'
 import type { MilestoneInputs, PaceMode, PaceWindow } from '../model/milestoneInputs.js'
+import type { MilestoneQuery } from '../model/milestoneQuery.js'
 import type { SavedRead } from '../model/savedRead.js'
 import type { Team } from '../model/team.js'
-import type { ConnectionStorage, SavedReadStorage, Storage } from './storage.js'
+import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage, Storage } from './storage.js'
 
 /**
  * The schema, as the steps that build it. The file records how many it has applied (`PRAGMA user_version`), and
@@ -225,12 +227,21 @@ CREATE TABLE saved_read_tickets (
   FOREIGN KEY (team_id, query) REFERENCES saved_reads(team_id, query) ON DELETE CASCADE
 );
 `,
+  // 15: the milestone's picks and query (#190), replaced together: the query as the EM picked or wrote it, and the
+  // picks as a JSON array of each choice's kind, name and query, in the order picked. A file from before has neither.
+  `
+CREATE TABLE milestone_queries (
+  team_id TEXT PRIMARY KEY REFERENCES teams(id),
+  query TEXT NOT NULL,
+  picks TEXT NOT NULL
+);
+`,
 ]
 
 type Row = Record<string, SQLInputValue>
 
-/** The local server build's storage: everything, and the team's connection and saved reads. */
-export type SqliteStorage = Storage & ConnectionStorage & SavedReadStorage
+/** The local server build's storage: everything, and the team's connection, saved reads and milestone query. */
+export type SqliteStorage = Storage & ConnectionStorage & SavedReadStorage & MilestoneQueryStorage
 
 /** Opens (creating if needed) the SQLite file at `file`. `':memory:'` keeps everything in memory. */
 export function openSqliteStorage(file: string): SqliteStorage {
@@ -298,6 +309,10 @@ export function openSqliteStorage(file: string): SqliteStorage {
   const selectSavedReadTickets = db.prepare(
     'SELECT id, finished_at FROM saved_read_tickets WHERE team_id = ? AND query = ? ORDER BY position',
   )
+  const upsertMilestoneQuery = db.prepare(`
+    INSERT INTO milestone_queries (team_id, query, picks) VALUES (?, ?, ?)
+    ON CONFLICT (team_id) DO UPDATE SET query = excluded.query, picks = excluded.picks`)
+  const selectMilestoneQuery = db.prepare('SELECT query, picks FROM milestone_queries WHERE team_id = ?')
 
   return {
     isEmpty() {
@@ -452,6 +467,17 @@ export function openSqliteStorage(file: string): SqliteStorage {
         incomplete: Number(row.incomplete) === 1,
         readAt: String(row.read_at),
       } satisfies SavedRead
+    },
+
+    saveMilestoneQuery(teamId, { picks, query }) {
+      const kept = picks.map(({ kind, name, query }) => ({ kind, name, query }))
+      upsertMilestoneQuery.run(teamId, query, JSON.stringify(kept))
+    },
+
+    milestoneQuery(teamId) {
+      const row = selectMilestoneQuery.get(teamId)
+      if (row === undefined) return undefined
+      return { picks: JSON.parse(String(row.picks)) as Choice[], query: String(row.query) } satisfies MilestoneQuery
     },
 
     close() {
