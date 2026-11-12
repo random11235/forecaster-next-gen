@@ -92,7 +92,7 @@ describe("demo mode's connector", () => {
 
     if (!choices.ok) throw new Error(`milestone choices failed: ${choices.failure}`)
     const all = choices.kinds.flatMap((kind) => kind.choices)
-    expect(all.map((choice) => choice.name)).toEqual(['Synthetic launch', 'Synthetic beta'])
+    expect(all.map((choice) => choice.name)).toEqual(['Synthetic launch', 'Synthetic beta', 'Payments v2', 'payments', 'repayments', 'checkout', 'bug'])
     for (const choice of all) {
       const read = await connector.read(choice.query, '2026-01-01T00:00:00Z')
       if (!read.ok) throw new Error(`read of ${choice.query} failed: ${read.failure}`)
