@@ -167,7 +167,10 @@ const JIRA: Tracker<JiraConnection> = {
     if (url.endsWith('/search/jql')) {
       const found = pick(body, ['issues', 'isLast', 'nextPageToken'])
       // Each search asks for its own fields: a read's, a subtask's parent, when a ticket was made, or an epic's summary.
-      const asked = new Set((JSON.parse(requestBody ?? '{}') as { fields?: string[] }).fields ?? [])
+      const { jql, fields: askedFields } = JSON.parse(requestBody ?? '{}') as { jql?: string; fields?: string[] }
+      const asked = new Set(askedFields ?? [])
+      // A picked epic, looked up by its key, is known by its key.
+      const byKey = jql?.includes(' key in (') === true
       found.issues = (found.issues as Body[]).map((issue) => {
         const fields = pick(issue.fields, [...asked])
         const kept: Body = {}
@@ -180,6 +183,7 @@ const JIRA: Tracker<JiraConnection> = {
         if ('created' in fields) kept.created = fields.created
         // An epic is listed by its summary and read by its key.
         if ('summary' in fields) return { id: issue.id, key: issue.key, fields: { ...kept, summary: fields.summary } }
+        if (byKey) return { id: issue.id, key: issue.key, fields: kept }
         return { id: issue.id, fields: kept }
       })
       return found

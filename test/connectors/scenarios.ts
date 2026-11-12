@@ -31,8 +31,8 @@ export interface Queries {
   /** One reaching outside the connection's repo or project. */
   outOfScope: string
   /**
-   * The picked epic "Epic: payment methods", as its epic choice reads it: naming only the epic, though a sub-epic is
-   * nested beneath it. A tracker whose connector doesn't expand epics yet leaves it out.
+   * The picked epic "Epic: payment methods", as its epic choice reads it: naming only the epic, though a sub-epic (on
+   * Jira, a story with subtasks) is nested beneath it. A tracker whose connector doesn't expand epics yet leaves it out.
    */
   nestedEpic?: string
 }
@@ -102,5 +102,6 @@ export const JIRA_CASES = cases<Extract<Connection, { tracker: 'jira' }>>(
     nothing: 'labels = "no-such-label"',
     invalid: 'labels == comparable',
     outOfScope: 'project = KAN',
+    nestedEpic: 'parent = SYN-106',
   },
 )
