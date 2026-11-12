@@ -116,6 +116,55 @@ describe('the Milestone step', () => {
     expect(step).not.toContain('open ·')
   })
 
+  test('Edit as a query opens the query in a box, read within the connected repo', async () => {
+    const running = await startConnected()
+    await post(running, '/inputs/milestone-query/add', { kind: 'milestone', name: 'Payments v2', query: 'milestone:"Payments v2"' })
+
+    expect(stepOf(await page(running))).toContain('href="/inputs?edit=query#milestone-tickets"')
+    const step = stepOf(await page(running, '/inputs?edit=query'))
+
+    expect(step).toMatch(/<form method="post" action="\/inputs\/milestone-query\/edit#milestone-tickets"[^]*name="query" value="milestone:&#34;Payments v2&#34;"/)
+    expect(step).toContain('shop-team/shop')
+    expect(step).not.toContain('class="chip"')
+    expect(step).not.toContain('type="search"')
+  })
+
+  test('a hand-edited query is read once submitted, and the step stays open for editing', async () => {
+    const running = await startConnected()
+
+    const edited = await post(running, '/inputs/milestone-query/edit', { query: 'milestone:"Payments v2"' })
+
+    expect(edited.status).toBe(303)
+    expect(edited.headers.get('location')).toBe('/inputs?edit=query#milestone-tickets')
+    expect(stepOf(await page(running, '/inputs?edit=query'))).toContain('1 open · 1 finished in the last 8 weeks')
+  })
+
+  test('free text is refused: the step shows again with the query as typed and why', async () => {
+    const running = await startConnected()
+
+    const refused = await post(running, '/inputs/milestone-query/edit', { query: 'payments' })
+
+    expect(refused.status).toBe(400)
+    const step = stepOf(await refused.text())
+    expect(step).toContain('name="query" value="payments"')
+    expect(step).toContain('“payments” is free text, which isn’t read.')
+  })
+
+  test('Back to finding warns when it will clear a query the picker can’t show, and going back clears it', async () => {
+    const running = await startConnected()
+    await post(running, '/inputs/milestone-query/edit', { query: 'label:checkout -label:bug' })
+
+    const editing = stepOf(await page(running))
+    const back = await post(running, '/inputs/milestone-query/back', {})
+
+    expect(editing).toContain('The picker can’t show this query, so going back to finding clears it.')
+    expect(editing).toContain('action="/inputs/milestone-query/back#milestone-tickets"')
+    expect(back.headers.get('location')).toBe('/inputs#milestone-tickets')
+    const finding = stepOf(await page(running))
+    expect(finding).toContain('Nothing picked yet.')
+    expect(finding).toContain('type="search"')
+  })
+
   test('before connecting, there is none', async () => {
     storage = openSqliteStorage(':memory:')
     const connecting: Connecting = { connections: storage, reads: storage, milestoneQueries: storage, secrets: openMemorySecrets(), connector: () => cannedConnector(FIXTURE) }
