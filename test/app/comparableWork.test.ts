@@ -19,6 +19,7 @@ const FIXTURE: CannedFixture = {
   ],
   reads: {
     [payments.query]: { tickets: [{ id: 'p1' }, { id: 'p2', finishedAt: '2026-10-20T10:00:00Z' }], incomplete: false },
+    [checkout.query]: { tickets: [{ id: 'c1', finishedAt: '2026-11-02T10:00:00Z' }], incomplete: false },
     [both]: {
       tickets: [{ id: 'p1' }, { id: 'p2', finishedAt: '2026-10-20T10:00:00Z' }, { id: 'c1', finishedAt: '2026-11-02T10:00:00Z' }],
       incomplete: false,
@@ -161,5 +162,24 @@ describe('the Comparable work step', () => {
 
     expect(list).not.toContain('value="label:&#34;checkout&#34;"')
     expect(milestones).toContain('value="label:&#34;checkout&#34;"')
+  })
+
+  test('leads with the pace in use and how far it is from the milestone’s own, then the two paired per week, each chip with its own (#204)', async () => {
+    const running = await startConnected()
+    await post(running, '/inputs/milestone', { name: 'Payments v2', startDate: '2026-10-01', ticketsRemaining: '1' })
+    await post(running, '/inputs/milestone-query/add', payments)
+
+    const before = stepOf(await page(running))
+    await post(running, '/inputs/comparable-work/add', checkout)
+    const step = stepOf(await page(running))
+
+    expect(before).toMatch(/<p class="headline">0 a week <small>pace, from the milestone’s own tickets, range 0–1<\/small><\/p>/)
+    expect(before).toContain('Add comparable work to measure pace from work like this milestone’s.')
+    expect(step).toMatch(/<p class="headline">0 a week <small>pace, from comparable work, range 0–1<\/small><\/p>/)
+    expect(step).toContain('<p class="delta aboutTheSame">About the same as the milestone’s own so far (0 a week).</p>')
+    expect(step.match(/<li class="period/g)).toHaveLength(7)
+    expect(step.match(/<li class="period before"/g)).toHaveLength(1)
+    expect(step).toMatch(/class="legend"[^]*comparable work[^]*the milestone’s own[^]*before it started/)
+    expect(step).toMatch(/class="chip"[^]*class="strip"[^]*1 finished/)
   })
 })

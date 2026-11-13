@@ -308,6 +308,27 @@ const STYLE = `
     .picker form.back { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border-top: 1px solid var(--hairline); padding-top: 12px; }
     .picker .warn { margin: 0; color: var(--risk); }
     .picker form.back a.keep { font-size: 13px; color: var(--link); }
+    /* The Comparable work step's pace: the pace in use, how far from the milestone's own, and the two paired per period. */
+    .pace { display: flex; flex-direction: column; gap: 4px; padding-bottom: 12px; border-bottom: 1px solid var(--hairline); }
+    .pace p { margin: 0; }
+    .pace .headline { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .pace .headline small { font-size: 14px; font-weight: 400; color: var(--muted); }
+    .pace .delta { font-size: 15px; color: var(--muted); }
+    .pace .delta.faster { color: var(--good); }
+    .pace .delta.slower { color: var(--risk); }
+    .pace .delta.aboutTheSame { color: var(--ink); }
+    ol.pairs { list-style: none; margin: 8px 0 0; padding: 0; display: flex; gap: 12px; align-items: flex-end; height: 100px; }
+    ol.pairs .period { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px; height: 100%; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+    ol.pairs .two { display: flex; gap: 2px; align-items: flex-end; }
+    ol.pairs i, .pace .legend i { display: block; width: 11px; }
+    .pace .comparable, .chip .strip i { background: #C9A227; }
+    .pace .own { background: var(--ink); }
+    .pace .before { background: repeating-linear-gradient(45deg, var(--border) 0 3px, transparent 3px 6px); box-shadow: inset 0 0 0 1px var(--border); }
+    .pace .legend { font-size: 12px; color: var(--muted); }
+    .pace .legend i { display: inline-block; height: 10px; vertical-align: middle; margin: 0 3px 0 8px; }
+    .pace .legend i:first-child { margin-left: 0; }
+    .chip .strip { display: inline-flex; align-items: flex-end; gap: 1px; height: 12px; }
+    .chip .strip i { display: block; width: 3px; }
     details.change > summary { cursor: pointer; font-size: 13px; color: var(--link); }
     details.change[open] > summary { margin-bottom: 16px; }
     section.input > .label p.saved { color: var(--good); font-weight: 600; }

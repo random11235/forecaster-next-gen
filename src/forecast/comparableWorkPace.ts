@@ -1,9 +1,8 @@
 import type { SavedRead } from '../model/savedRead.js'
-import type { MilestoneQueryStorage, SavedReadStorage, Storage } from '../storage/storage.js'
 import { periodName } from './cadence.js'
 import { finishedPerPeriod, ticketsRemaining } from './finished.js'
 import { comparedWithOwn, comparisonSaid, median, perPeriod, type PaceComparison } from './paceComparison.js'
-import { paceReads, type PaceDay, type PaceFrom } from './paceReads.js'
+import { paceReads, type PaceDay, type PaceFrom, type PaceStorage } from './paceReads.js'
 
 /** The pace in use: where it comes from, and its median and range a period. */
 export interface PaceInUse {
@@ -66,7 +65,7 @@ export interface ComparableWorkPace {
  * Seam B: the Comparable work step's pace, from the team's saved reads (`paceReads`), asking the tracker nothing.
  * None before the milestone has a start date and a complete read of its query.
  */
-export function comparableWorkPace(storage: Storage & MilestoneQueryStorage & SavedReadStorage, teamId: string, day: PaceDay): ComparableWorkPace | undefined {
+export function comparableWorkPace(storage: PaceStorage, teamId: string, day: PaceDay): ComparableWorkPace | undefined {
   const reads = paceReads(storage, teamId, day)
   const inputs = storage.milestoneInputs(teamId)
   if (!reads || !inputs) return undefined
@@ -103,7 +102,7 @@ function range({ low, high }: PaceInUse): string {
 }
 
 /** Each of comparable work's picks with a complete read of its own, with its `strip` of the periods paired. */
-function picksPace(storage: MilestoneQueryStorage & SavedReadStorage, teamId: string, strip: (read: SavedRead) => number[]): PickPace[] {
+function picksPace(storage: PaceStorage, teamId: string, strip: (read: SavedRead) => number[]): PickPace[] {
   const picks = storage.comparableWorkQuery(teamId)?.picks ?? []
   const read = picks.flatMap((pick) => {
     const saved = storage.savedRead({ teamId, query: pick.query })
