@@ -91,8 +91,8 @@ export interface ChoiceList {
  * What the Milestone step shows, in the local server build once connected: the choices to pick from, by kind; the
  * picks, as chips; the milestone query they make, always shown, with `note` beside it; and the query's read.
  */
-export interface MilestoneStep {
-  kind: 'milestoneStep'
+export interface QueryStep {
+  kind: 'queryStep'
   /** What the EM typed to find a choice by. */
   find: string
   lists: ChoiceList[]
@@ -138,8 +138,8 @@ export interface QueryEditing {
   confirmingBack?: true
 }
 
-/** The Milestone step; none in the browser build, nor before the team connects (`noMilestoneStep`). */
-export type MilestoneStepView = { kind: 'noMilestoneStep' } | MilestoneStep
+/** The Milestone step; none in the browser build, nor before the team connects (`noQueryStep`). */
+export type QueryStepView = { kind: 'noQueryStep' } | QueryStep
 
 /**
  * How the Milestone step opens: on finding (the default), or with the milestone query open for editing; also open for
@@ -148,7 +148,7 @@ export type MilestoneStepView = { kind: 'noMilestoneStep' } | MilestoneStep
  * to confirm going back to finding from a query that it clears. `unlisted`, it asks the tracker nothing and lists no
  * choices: for a reply whose Milestone step is counted among the screen's sections but not shown.
  */
-export interface MilestoneStepOpening {
+export interface QueryStepOpening {
   editing?: boolean
   refused?: RefusedQuery
   confirmingBack?: boolean
@@ -164,15 +164,15 @@ export const BACK_CLEARS = 'The picker can’t show this query, so going back to
  * The milestone query is open for editing when `opening` asks, or when the picker can't show it. The step edits
  * `stepQuery`, the milestone query unless given.
  */
-export async function milestoneStepView(
+export async function queryStepView(
   connecting: Connecting | undefined,
   teamId: string,
   find = '',
-  opening: MilestoneStepOpening = {},
+  opening: QueryStepOpening = {},
   stepQuery: StepQuery = MILESTONE_QUERY,
-): Promise<MilestoneStepView> {
+): Promise<QueryStepView> {
   const connected = connecting && (await teamConnection(connecting, teamId))
-  if (!connected) return { kind: 'noMilestoneStep' }
+  if (!connected) return { kind: 'noQueryStep' }
   const { connection, connector } = connected
   const tracker = trackerOf(connection)
   const saved = stepQuery.saved(connecting.milestoneQueries, teamId) ?? NO_QUERY
@@ -189,8 +189,8 @@ export async function milestoneStepView(
           ...(!shownAsChips && opening.confirmingBack && { confirmingBack: true }),
         }
       : undefined
-  const step: MilestoneStep = {
-    kind: 'milestoneStep',
+  const step: QueryStep = {
+    kind: 'queryStep',
     find,
     lists: [],
     picks: saved.picks,
@@ -303,7 +303,7 @@ function readFlag(read: SavedRead, trackerName: string, { picksOut, countsOpen }
  * milestone query by hand, as typed; go back to finding, which clears the query when the picker can't show it,
  * once the EM has `confirmed` that; or, in the Comparable work step, start afresh, clearing the picks and query at once.
  */
-export type MilestoneQueryEdit =
+export type StepQueryEdit =
   | PicksEdit
   | { kind: 'editQuery'; query: string }
   | { kind: 'backToFinding'; confirmed: boolean }
@@ -322,13 +322,13 @@ type PicksEdit = { kind: 'addPick'; choice: Choice } | { kind: 'removePick'; que
  * from a query the picker can't show changes nothing until confirmed. Starting afresh clears the picks and query
  * together, reading nothing. The query changed is `stepQuery`, the milestone query unless given.
  */
-export async function submitMilestoneQuery(
+export async function submitStepQuery(
   connecting: Connecting,
   teamId: string,
-  edit: MilestoneQueryEdit,
+  edit: StepQueryEdit,
   readAt: string,
   stepQuery: StepQuery = MILESTONE_QUERY,
-): Promise<MilestoneQuerySubmitted> {
+): Promise<StepQuerySubmitted> {
   const connected = await teamConnection(connecting, teamId)
   if (!connected) return { kind: 'unchanged' }
   const { connection, connector } = connected
@@ -380,7 +380,7 @@ function rejectionOf(connection: Connection, failure: Failure): string | undefin
  * use: a hand-edited query before reading it, or any query the tracker rejected or that reaches outside the connection;
  * or changed nothing yet, as going back to finding would clear the query, which the EM is to confirm (`confirmClear`).
  */
-export type MilestoneQuerySubmitted =
+export type StepQuerySubmitted =
   | { kind: 'saved'; read?: QueryRead }
   | { kind: 'unchanged' }
   | ({ kind: 'refused' } & RefusedQuery)

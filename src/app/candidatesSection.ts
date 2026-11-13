@@ -3,10 +3,10 @@ import type { PeriodName } from '../forecast/cadence.js'
 import { dayMonth } from '../forecast/calendarDate.js'
 import { FEW_CANDIDATES, type Candidate, type CandidateGroupKind, type CandidateOpening, type Candidates } from '../forecast/candidates.js'
 import { FINISHED_WEEKS } from '../forecast/finished.js'
-import { kindName } from '../forecast/milestoneStep.js'
+import { kindName } from '../forecast/queryStep.js'
 import type { PaceVersus } from '../forecast/paceVersusOwn.js'
 import { escapeHtml } from './html.js'
-import { CHOICE_FIELDS, type StepSection } from './milestoneStepSection.js'
+import { CHOICE_FIELDS, type StepSection } from './queryStepSection.js'
 
 /**
  * Candidates for comparable work (#205), as the Comparable work step shows them: below its picker, those read in this

@@ -6,7 +6,7 @@ import { cannedConnector, type CannedFixture } from '../../src/connectors/canned
 import type { Choice, Connector } from '../../src/connectors/connector.js'
 import { submitConnection, type Connecting, type ConnectionEdit } from '../../src/forecast/connection.js'
 import { followRenamedMilestone } from '../../src/forecast/milestoneRenamed.js'
-import { milestoneStepView, submitMilestoneQuery } from '../../src/forecast/milestoneStep.js'
+import { queryStepView, submitStepQuery } from '../../src/forecast/queryStep.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
 
@@ -71,7 +71,7 @@ async function pickedFrom(fixture: CannedFixture, connect: ConnectionEdit, picks
   })
   const using: Connecting = { connections: storage, reads: storage, milestoneQueries: storage, secrets: openMemorySecrets(), connector }
   await submitConnection(using, TEAM, connect)
-  for (const choice of picks) await submitMilestoneQuery(using, TEAM, { kind: 'addPick', choice }, READ_AT)
+  for (const choice of picks) await submitStepQuery(using, TEAM, { kind: 'addPick', choice }, READ_AT)
   queriesRead.length = 0
   return Object.assign(using, { queriesRead })
 }
@@ -84,7 +84,7 @@ describe('renaming the milestone', () => {
 
     expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [loyalty], query: 'milestone:"Loyalty launch"' })
     expect(using.queriesRead).toEqual(['milestone:"Loyalty launch"'])
-    expect(await milestoneStepView(using, TEAM, '', { unlisted: true })).toMatchObject({
+    expect(await queryStepView(using, TEAM, '', { unlisted: true })).toMatchObject({
       picks: [loyalty],
       query: 'milestone:"Loyalty launch"',
       read: '3 open · 0 finished in the last 8 weeks',
@@ -134,7 +134,7 @@ describe('renaming the milestone', () => {
 
   test('a query written by hand is left as it was, even when it names only the old milestone', async () => {
     const using = await pickedFrom(GITHUB, GITHUB_REPO, [])
-    await submitMilestoneQuery(using, TEAM, { kind: 'editQuery', query: 'milestone:"Checkout v2" -label:"bug"' }, READ_AT)
+    await submitStepQuery(using, TEAM, { kind: 'editQuery', query: 'milestone:"Checkout v2" -label:"bug"' }, READ_AT)
     const before = storage.milestoneQuery(TEAM)
 
     await followRenamedMilestone(using, TEAM, RENAMED, READ_AT)

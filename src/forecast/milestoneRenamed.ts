@@ -1,6 +1,6 @@
 import type { Choice, ChoiceKind, Connector } from '../connectors/connector.js'
 import { teamConnection, type Connecting } from './connection.js'
-import { submitMilestoneQuery, type MilestoneQuerySubmitted } from './milestoneStep.js'
+import { submitStepQuery, type StepQuerySubmitted } from './queryStep.js'
 
 /** The kinds of choice that are the tracker's own milestone: a GitHub milestone, a Jira fix version. */
 const MILESTONE_KINDS: readonly ChoiceKind[] = ['milestone', 'fixVersion']
@@ -17,7 +17,7 @@ export async function followRenamedMilestone(
   teamId: string,
   { from, to }: { from: string; to: string },
   readAt: string,
-): Promise<MilestoneQuerySubmitted> {
+): Promise<StepQuerySubmitted> {
   if (from === to) return { kind: 'unchanged' }
   const saved = connecting.milestoneQueries.milestoneQuery(teamId)
   const pick = saved?.picks.length === 1 ? saved.picks[0]! : undefined
@@ -26,7 +26,7 @@ export async function followRenamedMilestone(
   if (!connected || connected.connector === 'keychainFailed') return { kind: 'unchanged' }
   const renamed = await choiceNamed(connected.connector, pick.kind, to)
   if (!renamed) return { kind: 'unchanged' }
-  return submitMilestoneQuery(connecting, teamId, { kind: 'editQuery', query: renamed.query }, readAt)
+  return submitStepQuery(connecting, teamId, { kind: 'editQuery', query: renamed.query }, readAt)
 }
 
 /** The tracker's choice of `kind` named `name`: among those it lists, else, for a kind past the limit, found by its search. */
