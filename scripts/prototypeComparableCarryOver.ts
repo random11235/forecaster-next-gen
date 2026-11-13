@@ -8,6 +8,8 @@
 //   B  Cleared on rename: saving the milestone under a new name clears comparable work, with an Undo.
 //   C  Start a new milestone: an explicit action that says what resets (comparable work) and what stays.
 //   D  Carried over, flagged: kept, but marked "picked for <old milestone>" until the EM keeps or clears it.
+// Comparable work's step shows the most data to choose by: each candidate's 8 weeks, median, finished, what it
+// adds that isn't already counted; the picks' pace stacked on the milestone's own.
 // The scene: the Shop team has finished "Checkout v2" and moves on to "Loyalty launch". All state is in memory;
 // reload to reset. Run: `npm run prototype:comparable` (builds, writes dist/prototype/comparable-carry-over.html, opens it).
 import { mkdirSync, writeFileSync } from 'node:fs'
@@ -36,6 +38,22 @@ const STYLE = `
     .resets td { padding: 2px 12px 2px 0; vertical-align: top; }
     .muted { color: var(--muted); font-size: 13px; }
     .state { font-family: var(--mono); font-size: 12px; white-space: pre-wrap; background: #f6f4ee; border: 1px dashed var(--border); padding: 10px; margin: 24px 0 80px; }
+    .strip { display: inline-flex; align-items: flex-end; gap: 1px; vertical-align: middle; }
+    .strip .bar { display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
+    .strip i, .col i { display: block; }
+    .o { background: var(--ink); }
+    .x { background: #c9a227; }
+    .pace .weeks { display: flex; gap: 10px; align-items: flex-end; }
+    .pace .wk { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; color: var(--muted); }
+    .pace .wk b { color: var(--ink); font-size: 12px; }
+    .pace .col { width: 28px; height: 90px; display: flex; flex-direction: column; justify-content: flex-end; }
+    .legend { font-size: 12px; color: var(--muted); margin: 6px 0; }
+    .legend i { display: inline-block; width: 10px; height: 10px; vertical-align: middle; margin: 0 3px 0 8px; }
+    .paces td, .cands td, .cands th { padding: 4px 14px 4px 0; font-size: 13px; text-align: left; }
+    .cands th { font-weight: 500; color: var(--muted); font-size: 12px; border-bottom: 1px solid var(--hairline); }
+    .cands .num { font-variant-numeric: tabular-nums; }
+    .cands button { font-size: 13px; min-height: 0; padding: 3px 8px; }
+    .more summary { cursor: pointer; font-size: 14px; margin-bottom: 6px; }
     .switcher { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #1c1b18; color: #fff; border-radius: 999px; padding: 6px 10px; display: flex; gap: 10px; align-items: center; box-shadow: 0 4px 16px rgba(0,0,0,.25); font: 13px var(--mono); z-index: 10; max-width: calc(100vw - 32px); }
     .switcher button { background: none; border: 0; color: #fff; font-size: 16px; cursor: pointer; min-height: 0; padding: 2px 8px; }
   </style>`
@@ -51,21 +69,66 @@ const KEYS = Object.keys(VARIANTS)
 const params = new URLSearchParams(location.search)
 let variant = KEYS.includes(params.get('variant')) ? params.get('variant') : 'A'
 
-// The tracker's choices, canned. Counts are finished tickets in the last 8 weeks.
+// The tracker's choices, canned, as their finished tickets: an id each, and the week it finished in (0 = 8 weeks ago,
+// 7 = this past week). Some tickets match several choices (the payments label tags some Payments rework tickets), so
+// comparable work counts a ticket once however many of its picks match it.
+const WEEKS = 8
+function made(prefix, weekly, from = 1) {
+  const tickets = []
+  let n = from
+  weekly.forEach((count, week) => { for (let i = 0; i < count; i++) tickets.push({ id: prefix + '-' + n++, week }) })
+  return tickets
+}
+const REWORK = made('PAY', [2, 2, 1, 2, 2, 1, 2, 2])
 const CHOICES = [
-  { kind: 'milestone', name: 'Checkout v2', query: 'milestone:"Checkout v2"', finished: 31, open: 0 },
-  { kind: 'milestone', name: 'Loyalty launch', query: 'milestone:"Loyalty launch"', finished: 2, open: 46 },
-  { kind: 'epic', name: 'Payments rework', query: 'parent-issue:shop/shop#40', finished: 14, open: 0 },
-  { kind: 'epic', name: 'Points ledger', query: 'parent-issue:shop/shop#88', finished: 0, open: 12 },
-  { kind: 'label', name: 'payments', query: 'label:"payments"', finished: 22, open: 3 },
-  { kind: 'label', name: 'rewards', query: 'label:"rewards"', finished: 9, open: 5 },
+  { kind: 'milestone', name: 'Checkout v2', query: 'milestone:"Checkout v2"', open: 0,
+    tickets: [...made('CO', [3, 4, 5, 4, 3, 4, 4, 0]), ...REWORK.slice(0, 4)] },
+  { kind: 'milestone', name: 'Loyalty launch', query: 'milestone:"Loyalty launch"', open: 46, tickets: made('LOY', [0, 0, 0, 0, 0, 0, 1, 1]) },
+  { kind: 'milestone', name: 'Search revamp', query: 'milestone:"Search revamp"', open: 0, tickets: made('SRCH', [6, 5, 7, 6, 6, 5, 3, 0]) },
+  { kind: 'epic', name: 'Payments rework', query: 'parent-issue:shop/shop#40', open: 0, tickets: REWORK },
+  { kind: 'epic', name: 'Points ledger', query: 'parent-issue:shop/shop#88', open: 12, tickets: [] },
+  { kind: 'label', name: 'payments', query: 'label:"payments"', open: 3, tickets: [...made('PAY', [2, 2, 1, 2, 2, 2, 2, 1], 100), ...REWORK.slice(0, 8)] },
+  { kind: 'label', name: 'rewards', query: 'label:"rewards"', open: 5, tickets: made('RWD', [1, 0, 1, 2, 1, 1, 2, 1]) },
+  { kind: 'label', name: 'bug', query: 'label:"bug"', open: 21, tickets: made('BUG', [5, 7, 6, 4, 8, 6, 5, 7]) },
 ]
+CHOICES.forEach((c) => { c.finished = c.tickets.length })
+
+// The week each period starts, Monday, oldest first.
+const WEEK_STARTS = Array.from({ length: WEEKS }, (_, i) => new Date(Date.UTC(2026, 8, 21 + 7 * i)))
+const weekLabel = (i) => WEEK_STARTS[i].toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+
+/** The tickets of several picks, each counted once. */
+function union(picks) {
+  const byId = new Map()
+  picks.forEach((p) => p.tickets.forEach((t) => byId.set(t.id, t)))
+  return [...byId.values()]
+}
+const perWeek = (tickets) => Array.from({ length: WEEKS }, (_, w) => tickets.filter((t) => t.week === w).length)
+function median(xs) { const s = [...xs].sort((a, b) => a - b); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2 }
+function paceSaid(weekly) {
+  const lo = Math.min(...weekly), hi = Math.max(...weekly)
+  return 'median ' + median(weekly) + ' a week (' + (lo === hi ? lo : lo + '–' + hi) + ')'
+}
+function lastFinished(tickets) {
+  if (tickets.length === 0) return 'none finished'
+  const ago = WEEKS - 1 - Math.max(...tickets.map((t) => t.week))
+  return ago === 0 ? 'last finished this week' : 'last finished ' + ago + (ago === 1 ? ' week ago' : ' weeks ago')
+}
+/** A small 8-week bar strip: own in ink below, extra above it in the accent. */
+function strip(own, extra, height = 18, width = 4) {
+  const top = Math.max(1, ...own.map((n, i) => n + (extra ? extra[i] : 0)))
+  return '<span class="strip" style="height:' + height + 'px">' + own.map((n, i) => {
+    const e = extra ? extra[i] : 0
+    return '<span class="bar" style="width:' + width + 'px" title="' + weekLabel(i) + ': ' + n + (extra ? ' own + ' + e + ' comparable' : '') + '">' +
+      '<i class="x" style="height:' + (e / top) * height + 'px"></i><i class="o" style="height:' + (n / top) * height + 'px"></i></span>'
+  }).join('') + '</span>'
+}
 
 function fresh() {
   return {
     milestone: { name: 'Checkout v2', startDate: '2026-08-03' },
     milestonePicks: [CHOICES[0]],
-    comparable: { picks: [CHOICES[2], CHOICES[4]], pickedFor: 'Checkout v2' },
+    comparable: { picks: [CHOICES[3], CHOICES[5]], pickedFor: 'Checkout v2' },
     notice: undefined,      // B: what renaming just cleared, for Undo
     starting: false,        // C: the start-a-new-milestone form is open
   }
@@ -74,7 +137,7 @@ let state = fresh()
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
 const joined = (picks) => picks.map((p) => p.query).join(' OR ')
-const sum = (picks, key) => picks.reduce((n, p) => n + p[key], 0)
+const sum = (picks, key) => key === 'finished' ? union(picks).length : picks.reduce((n, p) => n + p[key], 0)
 
 function chips(picks, which) {
   if (picks.length === 0) return '<p class="muted">Nothing picked yet.</p>'
@@ -120,7 +183,7 @@ function followName(oldName, newName) {
   const p = state.milestonePicks
   if (p.length === 1 && p[0].query === 'milestone:"' + oldName + '"') {
     state.milestonePicks = [CHOICES.find((c) => c.query === 'milestone:"' + newName + '"') ??
-      { kind: 'milestone', name: newName, query: 'milestone:"' + newName + '"', finished: 0, open: 0 }]
+      { kind: 'milestone', name: newName, query: 'milestone:"' + newName + '"', finished: 0, open: 0, tickets: [] }]
   }
 }
 
@@ -132,10 +195,42 @@ function milestoneTicketsSection() {
     '<p><span class="label">Milestone query</span> ' + (p.length ? '<code>' + esc(joined(p)) + '</code>' : '<span class="muted">Nothing picked yet.</span>') + '</p>' + read + '</div></section>'
 }
 
+/** Every candidate for comparable work, with what it would add: the most data to choose by. */
+function candidates(picks, ownTickets) {
+  const counted = new Set(union([...picks, ...state.milestonePicks]).map((t) => t.id))
+  const left = CHOICES.filter((c) => !picks.includes(c) && !state.milestonePicks.includes(c))
+  const rows = left.map((c) => {
+    const weekly = perWeek(c.tickets)
+    const adds = c.tickets.filter((t) => !counted.has(t.id)).length
+    const overlap = c.tickets.length - adds
+    return '<tr><td><button data-act="pick" data-which="comparable" data-q="' + esc(c.query) + '">+ ' + esc(c.name) + '</button> <span class="kind">' + c.kind + '</span></td>' +
+      '<td>' + strip(weekly) + '</td><td class="num">' + (c.tickets.length ? median(weekly) : '–') + '</td><td class="num">' + c.tickets.length + '</td>' +
+      '<td class="num">' + (adds ? '+' + adds : '0') + (overlap ? ' <span class="muted">(' + overlap + ' already counted)</span>' : '') + '</td>' +
+      '<td class="muted">' + lastFinished(c.tickets) + (c.open ? ' · ' + c.open + ' open' : '') + '</td></tr>'
+  })
+  return '<table class="cands"><thead><tr><th>Candidate</th><th>8 weeks</th><th>Median a week</th><th>Finished</th><th>Adds</th><th></th></tr></thead><tbody>' + rows.join('') + '</tbody></table>'
+}
+
+function paceBlock(ownTickets, comparableOnly) {
+  const own = perWeek(ownTickets), extra = perWeek(comparableOnly)
+  const both = own.map((n, i) => n + extra[i])
+  const bars = own.map((n, i) => {
+    const top = Math.max(1, ...both)
+    return '<div class="wk"><div class="col" title="' + n + ' own + ' + extra[i] + ' comparable">' +
+      '<i class="x" style="height:' + (extra[i] / top) * 90 + 'px"></i><i class="o" style="height:' + (n / top) * 90 + 'px"></i></div>' +
+      '<b>' + both[i] + '</b><span>' + weekLabel(i) + '</span></div>'
+  }).join('')
+  return '<div class="pace"><div class="weeks">' + bars + '</div>' +
+    '<p class="legend"><i class="o"></i> the milestone’s own <i class="x"></i> comparable work only</p>' +
+    '<table class="paces"><tr><td>Pace with comparable work</td><td><b>' + paceSaid(both) + '</b></td></tr>' +
+    '<tr><td>The milestone’s own alone</td><td>' + paceSaid(own) + '</td></tr></table></div>'
+}
+
 function comparableSection() {
   const c = state.comparable
-  const own = sum(state.milestonePicks, 'finished')
-  const comparableOnly = sum(c.picks, 'finished')
+  const ownTickets = union(state.milestonePicks)
+  const ownIds = new Set(ownTickets.map((t) => t.id))
+  const comparableOnly = union(c.picks).filter((t) => !ownIds.has(t.id))
   const stale = variant === 'D' && c.picks.length && c.pickedFor !== state.milestone.name
   const owner = variant === 'D' && c.picks.length ? ' <span class="owner">picked for ' + esc(c.pickedFor) + '</span>' : ''
   const flag = stale
@@ -146,13 +241,21 @@ function comparableSection() {
   const notice = variant === 'B' && state.notice
     ? '<div class="toast">Comparable work cleared for ' + esc(state.milestone.name) + ' (was ' + esc(state.notice.picks.map((p) => p.name).join(', ')) + '). <button data-act="undo" class="linkish">Undo</button></div>'
     : ''
-  const read = '<p class="read">' + (own + comparableOnly) + ' finished in the last 8 weeks: ' + own + ' the milestone’s own' +
-    (c.picks.length ? ', ' + comparableOnly + ' comparable' : '') + '</p>'
+  const pickChips = c.picks.length === 0 ? '<p class="muted">Nothing picked yet.</p>' : '<ul class="chips">' + c.picks.map((p, i) => {
+    const others = new Set(union([...state.milestonePicks, ...c.picks.filter((q) => q !== p)]).map((t) => t.id))
+    const adds = p.tickets.filter((t) => !others.has(t.id)).length
+    return '<li class="chip">' + esc(p.name) + ' <span class="kind">' + p.kind + '</span> ' + strip(perWeek(p.tickets), undefined, 12, 3) +
+      ' <span class="kind">' + p.tickets.length + ' finished, +' + adds + ' only here</span><button data-act="remove" data-which="comparable" data-i="' + i + '" aria-label="Remove">×</button></li>'
+  }).join('') + '</ul>'
+  const read = '<p class="read">' + (ownTickets.length + comparableOnly.length) + ' finished in the last 8 weeks: ' + ownTickets.length + ' the milestone’s own' +
+    (c.picks.length ? ', ' + comparableOnly.length + ' comparable' : '') + '</p>'
   const button = c.picks.length ? 'Next' : 'Skip'
   return '<section class="input" id="comparable-work"><div class="label"><span class="number">02</span><h2>Comparable work</h2>' + owner + '<p>Optional. Work like this milestone’s, to measure its pace from. The milestone’s own finished tickets always count.</p></div><div class="body">' +
-    notice + flag + chips(c.picks, 'comparable') + pickable(c.picks, 'comparable') +
+    notice + flag + pickChips +
     '<p><span class="label">Comparable-work query</span> ' + (c.picks.length ? '<code>' + esc(joined(c.picks)) + '</code>' : '<span class="muted">None: pace comes from the milestone’s own tickets.</span>') + '</p>' +
-    read + '<div class="actions"><button class="primary">' + button + '</button></div></div></section>'
+    read + paceBlock(ownTickets, comparableOnly) +
+    '<details class="more" open><summary>Add comparable work</summary>' + candidates(c.picks, ownTickets) + '</details>' +
+    '<div class="actions"><button class="primary">' + button + '</button></div></div></section>'
 }
 
 function render() {
