@@ -349,7 +349,7 @@ const STYLE = `
     .candidates .strip { display: inline-flex; align-items: flex-end; gap: 1px; height: 14px; border-bottom: 1px solid var(--border); }
     .candidates .strip i { display: block; width: 4px; min-height: 1px; background: var(--bar); }
     .candidates .pace { font-family: var(--mono); font-size: 12px; }
-    .candidates .this { font-size: 11px; color: var(--link); border: 1px solid var(--border); border-radius: 999px; padding: 0 6px; }
+    .candidates .this, .kind-list .this { font-size: 11px; color: var(--link); border: 1px solid var(--border); border-radius: 999px; padding: 0 6px; }
     .candidates p.facts { flex-basis: 100%; margin: 0; font-size: 12px; color: var(--muted); }
     .candidates p.error { flex-basis: 100%; margin: 0; font-size: 12px; color: var(--risk); font-weight: 400; }
     details.change > summary { cursor: pointer; font-size: 13px; color: var(--link); }
