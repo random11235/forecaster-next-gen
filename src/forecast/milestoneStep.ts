@@ -22,6 +22,11 @@ export interface StepQuery {
   optional: boolean
   /** Its read's open tickets count, as tickets remaining; comparable work's are ignored, only its finished ones count. */
   countsOpen: boolean
+  /**
+   * Each of several picks is read too, whenever the query is, so the step can show what each brings: comparable work's
+   * chips each show their own pace.
+   */
+  readsEachPick: boolean
   /** The team's picks and query, if the EM has picked or written one. */
   saved(storage: MilestoneQueryStorage, teamId: string): MilestoneQuery | undefined
   /** Saves the team's picks and query, replacing both. */
@@ -34,6 +39,7 @@ export const MILESTONE_QUERY: StepQuery = {
   picksOut: 'the milestone’s tickets',
   optional: false,
   countsOpen: true,
+  readsEachPick: false,
   saved: (storage, teamId) => storage.milestoneQuery(teamId),
   save: (storage, teamId, query) => storage.saveMilestoneQuery(teamId, query),
 }
@@ -48,6 +54,7 @@ export const COMPARABLE_WORK: StepQuery = {
   picksOut: 'work like the milestone’s',
   optional: true,
   countsOpen: false,
+  readsEachPick: true,
   saved: (storage, teamId) => storage.comparableWorkQuery(teamId),
   save: (storage, teamId, query) => storage.saveComparableWorkQuery(teamId, query),
 }
@@ -339,6 +346,10 @@ export async function submitMilestoneQuery(
   const rejection = read.ok ? undefined : rejectionOf(connection, read)
   if (rejection) return { kind: 'refused', query: after.query, refusal: rejection, ...(edit.kind !== 'editQuery' && { fromPicks: true as const }) }
   save()
+  // one pick's read is the query's; a pick's own read failing leaves its chip without its pace, and nothing else
+  if (stepQuery.readsEachPick && after.picks.length > 1 && chipsShow(tracker, after)) {
+    for (const pick of after.picks) await readQuery(connector, connecting.reads, { teamId, query: pick.query, finishedSince, readAt })
+  }
   return { kind: 'saved', read }
 }
 
