@@ -20,6 +20,7 @@ const out = new URL('../dist/prototype/comparable-carry-over.html', import.meta.
 
 const STYLE = `
   <style>
+    #proto { display: flex; flex-direction: column; gap: 40px; }
     .proto-banner { font-size: 12px; color: var(--risk); font-family: var(--mono); margin: 0 0 12px; }
     .chips { list-style: none; padding: 0; margin: 6px 0; display: flex; gap: 6px; flex-wrap: wrap; }
     .chips .chip { border: 1px solid var(--border); border-radius: 999px; padding: 2px 4px 2px 10px; min-height: 0; font-size: 13px; background: #fff; display: inline-flex; gap: 6px; align-items: center; }
