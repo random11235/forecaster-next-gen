@@ -20,6 +20,8 @@ import { CONNECT_FORMS } from './connectSection.js'
 import { renderHowItWorksScreen } from './howItWorksScreen.js'
 import { INPUTS_FORMS, renderInputsScreen } from './inputsScreen.js'
 import { CAPACITY_OPEN, CAPACITY_OPEN_PATH, FORECAST_FORMS, renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
+import { comparableWorkPace, type ComparableWorkPace } from '../forecast/comparableWorkPace.js'
+import type { PaceStorage } from '../forecast/paceReads.js'
 import { choiceListHtml, CONFIRMING_BACK, KIND_FIELD, MILESTONE_STEP, STEP_SECTIONS, type StepSection } from './milestoneStepSection.js'
 
 /** A request as the routes see it: the server has already read the form body. */
@@ -225,7 +227,9 @@ async function inputsWithStep(
         ? { refused: refused.query }
         : { editing, confirmingBack: editing && searchParams.get(CONFIRMING_BACK.name) === CONFIRMING_BACK.value, unlisted }
     const find = searchParams.get(section.findField) ?? ''
-    steps.push({ section, view: await milestoneStepView(listing, team.id, find, opening, section.stepQuery) })
+    const view = await milestoneStepView(listing, team.id, find, opening, section.stepQuery)
+    const pace = section.leadsWithPace ? stepPace(context, connecting, team.id) : undefined
+    steps.push({ section, view, ...(pace && { pace }) })
   }
   const html = renderInputsScreen(
     view ?? inputsView(context.storage, team.id, settings, context.today()),
@@ -233,6 +237,20 @@ async function inputsWithStep(
     steps,
   )
   return { kind: 'html', status, html, ...(request.method === 'POST' && { path: SCREEN_PATHS.inputs }) }
+}
+
+/**
+ * The Comparable work step's pace, from the saved reads alone, so the tracker isn't asked again; each finish is
+ * counted on its calendar day in the machine's time zone, as today is.
+ */
+function stepPace({ storage, today }: AppContext, { milestoneQueries, reads }: Connecting, teamId: string): ComparableWorkPace | undefined {
+  const stored: PaceStorage = {
+    milestoneInputs: (id) => storage.milestoneInputs(id),
+    milestoneQuery: (id) => milestoneQueries.milestoneQuery(id),
+    comparableWorkQuery: (id) => milestoneQueries.comparableWorkQuery(id),
+    savedRead: (teamQuery) => reads.savedRead(teamQuery),
+  }
+  return comparableWorkPace(stored, teamId, { today: today(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone })
 }
 
 /** `connecting`, but its connectors ask the tracker for the milestone choices once between them, however often asked. */

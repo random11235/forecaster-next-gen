@@ -1,6 +1,8 @@
 import type { ChoiceList, MilestoneQueryEdit, MilestoneStep, MilestoneStepView, QueryEditing, StepQuery } from '../forecast/milestoneStep.js'
 import { COMPARABLE_WORK, kindName, MILESTONE_QUERY } from '../forecast/milestoneStep.js'
 import { choiceKindOf } from '../connectors/connector.js'
+import { dayMonth } from '../forecast/calendarDate.js'
+import type { ComparableWorkPace, PairedPeriod, PickPace } from '../forecast/comparableWorkPace.js'
 import { escapeHtml } from './html.js'
 
 /** Reads a submitted step's form, by the field names this section gives them; none when it isn't one of its forms as sent. */
@@ -41,6 +43,8 @@ export interface StepSection {
   urls: { finding: string; editing: string; confirmingBack: string }
   /** Where an optional step's main button (Skip, or Next) goes on to: the next section. None for a step that isn't optional. */
   onwardTo?: string
+  /** It leads with the pace in use, how far it is from the milestone's own, and the two paired per period. */
+  leadsWithPace?: boolean
 }
 
 /** The field naming the kind searched, at a step's `searchedChoicesPath`. */
@@ -118,6 +122,7 @@ export const COMPARABLE_WORK_STEP: StepSection = stepSection({
   searchedChoicesPath: '/inputs/comparable-work-choices',
   editingValue: 'comparable',
   onwardTo: '/inputs#milestone',
+  leadsWithPace: true,
 })
 
 /** The setup steps that pick or write a query, in the order the Inputs screen shows them. */
@@ -129,9 +134,54 @@ export const STEP_SECTIONS: readonly StepSection[] = [MILESTONE_STEP, COMPARABLE
  * `milestoneStepScript`), and without the script it submits to `/inputs` with what was typed. An optional step ends
  * with its main button, Skip until something is added and Next after, and Start afresh once it has a query.
  */
-export function milestoneStepSection(view: MilestoneStepView, section: StepSection): string | undefined {
+export function milestoneStepSection(view: MilestoneStepView, section: StepSection, pace?: ComparableWorkPace): string | undefined {
   if (view.kind === 'noMilestoneStep') return undefined
-  return view.editing ? editingSection(view, view.editing, section) : findingSection(view, section)
+  return view.editing ? editingSection(view, view.editing, section, pace) : findingSection(view, section, pace)
+}
+
+/**
+ * The pace the step leads with: the pace in use as the headline, how far it is from the milestone's own beneath, and
+ * the two paired per period as bars, those before the milestone started hatched. Nothing until there is a pace.
+ */
+function paceHtml(pace: ComparableWorkPace | undefined): string {
+  if (pace?.said.inUse === undefined) return ''
+  const comparing = pace.periods.some((period) => period.comparableWork !== undefined)
+  const delta =
+    pace.comparison !== undefined
+      ? `\n            <p class="delta ${pace.comparison.kind}">${escapeHtml(pace.said.comparison ?? '')}</p>`
+      : comparing
+        ? ''
+        : '\n            <p class="delta">Add comparable work to measure pace from work like this milestone’s.</p>'
+  const top = Math.max(1, ...pace.periods.flatMap((period) => [period.milestone, period.comparableWork ?? 0]))
+  const periods = pace.periods.map((period) => periodHtml(period, top)).join('\n')
+  const legend = `${comparing ? '<i class="comparable"></i> comparable work ' : ''}<i class="own"></i> the milestone’s own${pace.periods.some((period) => period.beforeStart) ? ' <i class="before"></i> before it started' : ''}`
+  return `
+          <div class="pace">
+            <p class="headline">${escapeHtml(pace.said.inUse)} <small>${escapeHtml(pace.said.from ?? '')}</small></p>${delta}
+            <ol class="pairs" aria-label="Tickets finished each period, oldest first">
+${periods}
+            </ol>
+            <p class="legend">${legend}</p>
+          </div>`
+}
+
+/** Tallest bar's height, in pixels. */
+const PAIR_HEIGHT = 80
+
+/** One period's pair of bars: comparable work's, when it has a query, beside the milestone's own, hatched before it started. */
+function periodHtml({ start, milestone, comparableWork, beforeStart }: PairedPeriod, top: number): string {
+  const bar = (count: number, kind: string): string => `<i class="${kind}" style="height:${Math.max(2, Math.round((count / top) * PAIR_HEIGHT))}px"></i>`
+  const said = `${dayMonth(start)}: ${comparableWork === undefined ? '' : `comparable work ${comparableWork}, `}the milestone’s own ${milestone}${beforeStart ? ', before it started' : ''}`
+  return `              <li class="period${beforeStart ? ' before' : ''}" title="${escapeHtml(said)}"><span class="two">${comparableWork === undefined ? '' : bar(comparableWork, 'comparable')}${bar(milestone, beforeStart ? 'before' : 'own')}</span><span class="when">${escapeHtml(dayMonth(start))}</span></li>`
+}
+
+/** A pick's chip's own pace: its strip of the periods paired, how many it finished, and with several picks how many only it brings in. */
+function pickPaceHtml(pick: PickPace | undefined): string {
+  if (!pick) return ''
+  const top = Math.max(1, ...pick.strip)
+  const strip = pick.strip.map((count) => `<i style="height:${Math.round((count / top) * 12)}px"></i>`).join('')
+  const only = pick.onlyHere === undefined ? '' : `, +${pick.onlyHere} only here`
+  return ` <span class="strip" role="img" aria-label="Finished each period: ${pick.strip.join(', ')}">${strip}</span> <span class="kind">${pick.finished} finished${only}</span>`
 }
 
 /** The query's last read: its line, when it has one, and its flag beneath; nothing until it is read. */
@@ -160,7 +210,7 @@ function onwardHtml(view: MilestoneStep, { paths, id, onwardTo }: StepSection): 
  * only on Enter, so a half-typed query changes nothing. Back to finding says first when it will clear it, and then
  * asks the EM to confirm that, in a form of its own, so it works without the script.
  */
-function editingSection(view: MilestoneStep, editing: QueryEditing, section: StepSection): string {
+function editingSection(view: MilestoneStep, editing: QueryEditing, section: StepSection, pace: ComparableWorkPace | undefined): string {
   const { paths, urls, id, inputId } = section
   const refusal = editing.refusal === undefined ? '' : `\n          <p class="error" role="alert">${escapeHtml(editing.refusal)}</p>`
   const inUse =
@@ -171,7 +221,7 @@ function editingSection(view: MilestoneStep, editing: QueryEditing, section: Ste
   const back = editing.confirmingBack
     ? `<input type="hidden" name="${CONFIRMED.name}" value="${CONFIRMED.value}"><button type="submit">Clear the query and go back</button> <a href="${urls.editing}" class="keep">Keep editing</a>`
     : '<button type="submit" class="linkish">Back to finding</button>'
-  return `        <div class="picker editing">
+  return `        <div class="picker editing">${paceHtml(pace)}
           <form method="post" action="${paths.edit}#${id}" class="query">
             <label class="label" for="${inputId}">${escapeHtml(section.stepQuery.name)}, within <b>${escapeHtml(editing.readIn)}</b></label>
             <input type="text" id="${inputId}" name="${CHOICE_FIELDS.query}" value="${escapeHtml(editing.typed)}" autocomplete="off" spellcheck="false">
@@ -184,12 +234,12 @@ function editingSection(view: MilestoneStep, editing: QueryEditing, section: Ste
 }
 
 /** The step finding choices to pick: the chips, the find box over the lists, and the query, to edit as a query. */
-function findingSection(view: MilestoneStep, section: StepSection): string {
+function findingSection(view: MilestoneStep, section: StepSection, pace: ComparableWorkPace | undefined): string {
   const { paths, urls, id, findField } = section
   const kinds = view.lists.map((list) => kindName(list.kind))
   const chips = view.picks
     .map(
-      (pick) => `            <li class="chip">${escapeHtml(pick.name)} <span class="kind">${escapeHtml(kindName(pick.kind))}</span>
+      (pick) => `            <li class="chip">${escapeHtml(pick.name)} <span class="kind">${escapeHtml(kindName(pick.kind))}</span>${pickPaceHtml(pace?.picks.find((each) => each.query === pick.query))}
               <form method="post" action="${paths.remove}#${id}"><input type="hidden" name="${CHOICE_FIELDS.query}" value="${escapeHtml(pick.query)}"><button type="submit" class="x" aria-label="Remove ${escapeHtml(pick.name)}">×</button></form>
             </li>`,
     )
@@ -199,7 +249,7 @@ function findingSection(view: MilestoneStep, section: StepSection): string {
   const lists = view.lists.map((list) => choiceListHtml(list, section)).join('\n')
   const failure = view.choicesFailure === undefined ? '' : `\n          <p class="error" role="alert">${escapeHtml(view.choicesFailure)}</p>`
   const query = view.query === '' ? '<span class="none">Nothing picked yet.</span>' : `<code>${escapeHtml(view.query)}</code>`
-  return `        <div class="picker">${failure}${chips === '' ? '' : `\n          <ul class="chips">\n${chips}\n          </ul>`}${refusal}
+  return `        <div class="picker">${paceHtml(pace)}${failure}${chips === '' ? '' : `\n          <ul class="chips">\n${chips}\n          </ul>`}${refusal}
           <form method="get" action="/inputs#${id}" class="find">
             <input type="search" name="${findField}" value="${escapeHtml(view.find)}" placeholder="Find ${escapeHtml(article(alternatives(kinds)))}…" aria-label="Find a choice to pick" autocomplete="off" spellcheck="false">
           </form>
