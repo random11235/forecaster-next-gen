@@ -75,7 +75,7 @@ function completeRead(reads: SavedReadStorage, teamId: string, query: string | u
  * The first period, counted from the start date, that the read reaches whole: the first starting after the day its
  * reach back of `FINISHED_WEEKS` weeks falls on, as a period it reaches only part of would pass for a quiet one.
  */
-function firstWholePeriod(read: SavedRead, startDate: string, cadenceDays: number, timeZone: string): number {
+export function firstWholePeriod(read: SavedRead, startDate: string, cadenceDays: number, timeZone: string): number {
   const reachedOn = calendarDayIn(timeZone)(new Date(Date.parse(read.readAt) - FINISHED_WEEKS * 7 * DAY_MS).toISOString())
   return Math.ceil((daysBetween(startDate, reachedOn) + 1) / cadenceDays)
 }
