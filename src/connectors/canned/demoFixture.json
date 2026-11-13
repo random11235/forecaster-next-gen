@@ -121,7 +121,8 @@
         { "kind": "label", "name": "payments", "query": "label:\"payments\"" },
         { "kind": "label", "name": "repayments", "query": "label:\"repayments\"" },
         { "kind": "label", "name": "checkout", "query": "label:\"checkout\"" },
-        { "kind": "label", "name": "bug", "query": "label:\"bug\"" }
+        { "kind": "label", "name": "bug", "query": "label:\"bug\"" },
+        { "kind": "label", "name": "platform", "query": "label:\"platform\"" }
       ],
       "pastLimit": false
     }
@@ -371,6 +372,70 @@
       "tickets": [
         { "id": "synthetic-bug-01", "finishedAt": "2026-10-30T16:45:00Z" },
         { "id": "synthetic-bug-02" }
+      ],
+      "incomplete": false
+    },
+    "label:\"platform\"": {
+      "tickets": [
+        { "id": "synthetic-platform-01", "finishedAt": "2026-09-25T10:30:00Z" },
+        { "id": "synthetic-platform-02", "finishedAt": "2026-09-25T11:30:00Z" },
+        { "id": "synthetic-platform-03", "finishedAt": "2026-09-25T12:30:00Z" },
+        { "id": "synthetic-platform-04", "finishedAt": "2026-10-02T10:30:00Z" },
+        { "id": "synthetic-platform-05", "finishedAt": "2026-10-02T11:30:00Z" },
+        { "id": "synthetic-platform-06", "finishedAt": "2026-10-02T12:30:00Z" },
+        { "id": "synthetic-platform-07", "finishedAt": "2026-10-02T13:30:00Z" },
+        { "id": "synthetic-platform-08", "finishedAt": "2026-10-09T10:30:00Z" },
+        { "id": "synthetic-platform-09", "finishedAt": "2026-10-09T11:30:00Z" },
+        { "id": "synthetic-platform-10", "finishedAt": "2026-10-09T12:30:00Z" },
+        { "id": "synthetic-platform-11", "finishedAt": "2026-10-16T10:30:00Z" },
+        { "id": "synthetic-platform-12", "finishedAt": "2026-10-16T11:30:00Z" },
+        { "id": "synthetic-platform-13", "finishedAt": "2026-10-23T10:30:00Z" },
+        { "id": "synthetic-platform-14", "finishedAt": "2026-10-23T11:30:00Z" },
+        { "id": "synthetic-platform-15", "finishedAt": "2026-10-23T12:30:00Z" },
+        { "id": "synthetic-platform-16", "finishedAt": "2026-10-23T13:30:00Z" },
+        { "id": "synthetic-platform-17", "finishedAt": "2026-10-30T10:30:00Z" },
+        { "id": "synthetic-platform-18", "finishedAt": "2026-10-30T11:30:00Z" },
+        { "id": "synthetic-platform-19", "finishedAt": "2026-10-30T12:30:00Z" },
+        { "id": "synthetic-platform-20", "finishedAt": "2026-11-06T10:30:00Z" },
+        { "id": "synthetic-platform-21", "finishedAt": "2026-11-06T11:30:00Z" },
+        { "id": "synthetic-platform-22", "finishedAt": "2026-11-06T12:30:00Z" },
+        { "id": "synthetic-checkout-01", "finishedAt": "2026-10-08T14:00:00Z" },
+        { "id": "synthetic-platform-open-01" },
+        { "id": "synthetic-platform-open-02" }
+      ],
+      "incomplete": false
+    },
+    "label:\"checkout\" OR label:\"platform\"": {
+      "tickets": [
+        { "id": "synthetic-checkout-01", "finishedAt": "2026-10-08T14:00:00Z" },
+        { "id": "synthetic-checkout-02", "finishedAt": "2026-11-03T10:20:00Z" },
+        { "id": "synthetic-checkout-03" },
+        { "id": "synthetic-checkout-04" },
+        { "id": "synthetic-checkout-05" },
+        { "id": "synthetic-platform-01", "finishedAt": "2026-09-25T10:30:00Z" },
+        { "id": "synthetic-platform-02", "finishedAt": "2026-09-25T11:30:00Z" },
+        { "id": "synthetic-platform-03", "finishedAt": "2026-09-25T12:30:00Z" },
+        { "id": "synthetic-platform-04", "finishedAt": "2026-10-02T10:30:00Z" },
+        { "id": "synthetic-platform-05", "finishedAt": "2026-10-02T11:30:00Z" },
+        { "id": "synthetic-platform-06", "finishedAt": "2026-10-02T12:30:00Z" },
+        { "id": "synthetic-platform-07", "finishedAt": "2026-10-02T13:30:00Z" },
+        { "id": "synthetic-platform-08", "finishedAt": "2026-10-09T10:30:00Z" },
+        { "id": "synthetic-platform-09", "finishedAt": "2026-10-09T11:30:00Z" },
+        { "id": "synthetic-platform-10", "finishedAt": "2026-10-09T12:30:00Z" },
+        { "id": "synthetic-platform-11", "finishedAt": "2026-10-16T10:30:00Z" },
+        { "id": "synthetic-platform-12", "finishedAt": "2026-10-16T11:30:00Z" },
+        { "id": "synthetic-platform-13", "finishedAt": "2026-10-23T10:30:00Z" },
+        { "id": "synthetic-platform-14", "finishedAt": "2026-10-23T11:30:00Z" },
+        { "id": "synthetic-platform-15", "finishedAt": "2026-10-23T12:30:00Z" },
+        { "id": "synthetic-platform-16", "finishedAt": "2026-10-23T13:30:00Z" },
+        { "id": "synthetic-platform-17", "finishedAt": "2026-10-30T10:30:00Z" },
+        { "id": "synthetic-platform-18", "finishedAt": "2026-10-30T11:30:00Z" },
+        { "id": "synthetic-platform-19", "finishedAt": "2026-10-30T12:30:00Z" },
+        { "id": "synthetic-platform-20", "finishedAt": "2026-11-06T10:30:00Z" },
+        { "id": "synthetic-platform-21", "finishedAt": "2026-11-06T11:30:00Z" },
+        { "id": "synthetic-platform-22", "finishedAt": "2026-11-06T12:30:00Z" },
+        { "id": "synthetic-platform-open-01" },
+        { "id": "synthetic-platform-open-02" }
       ],
       "incomplete": false
     },
