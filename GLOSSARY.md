@@ -45,6 +45,9 @@ _Avoid_: team change (names a cause), pace trend (the bars and their line)
 **Connection** (of a team): the one tracker, GitHub or Jira, and the one repo or Jira project in it, that the team's tickets are read from; nothing is written back.
 _Avoid_: integration, sync, account
 
+**Milestone query**: the query, in the connected tracker's own language (a GitHub search, or JQL on Jira), that picks out a milestone's tickets within the team's connection. The milestone is whatever it matches now. The EM writes it by picking epics, labels and milestones (fix versions on Jira), joined with OR, or by editing it by hand; a picked epic stands for every leaf beneath it, through any sub-epics.
+_Avoid_: selector, filter, scope
+
 **Leaf**: a ticket in the tracker with no children of its own: never a pull request, a parent, an epic, or a story with subtasks. Only leaves count, as remaining or finished.
 _Avoid_: child ticket, work item
 

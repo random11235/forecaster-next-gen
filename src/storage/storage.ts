@@ -2,6 +2,7 @@ import type { AmbiguityRanges } from '../model/ambiguity.js'
 import type { CapacityEntry } from '../model/capacity.js'
 import type { Connection } from '../model/connection.js'
 import type { MilestoneInputs } from '../model/milestoneInputs.js'
+import type { MilestoneQuery } from '../model/milestoneQuery.js'
 import type { SavedRead, TeamQuery } from '../model/savedRead.js'
 import type { Team } from '../model/team.js'
 
@@ -59,4 +60,15 @@ export interface SavedReadStorage {
   saveRead(teamQuery: TeamQuery, read: SavedRead): void
   /** The query's last saved read, if it has been read. */
   savedRead(teamQuery: TeamQuery): SavedRead | undefined
+}
+
+/**
+ * Where the local server build keeps the milestone's picks and query, beside its inputs, so they outlast restarts.
+ * The browser build has no connectors, so it keeps neither.
+ */
+export interface MilestoneQueryStorage {
+  /** Saves the milestone's picks and query, replacing both. */
+  saveMilestoneQuery(teamId: string, milestoneQuery: MilestoneQuery): void
+  /** The milestone's picks and query, if the EM has picked or written one. */
+  milestoneQuery(teamId: string): MilestoneQuery | undefined
 }

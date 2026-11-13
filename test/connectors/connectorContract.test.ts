@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import type { Connector, Failure } from '../../src/connectors/connector.js'
 import type { ContractSubject } from './connectorContract.js'
-import { FROM_THE_START } from './scenarios.js'
+import { FROM_THE_START, NO_SUCH_CHOICE } from './scenarios.js'
 import { githubSubject } from './github/githubSubject.js'
 import { jiraSubject } from './jira/jiraSubject.js'
 
@@ -17,12 +17,52 @@ describe.each(subjects)('%s connector', (_, subject) => {
   const { queries, batches } = subject
 
   describe('milestone choices', () => {
-    test('are the open milestones, each with the query that reads its tickets', async () => {
+    test('come one list per kind, each choice of its list\'s kind', async () => {
       const result = await subject.synthetic().milestoneChoices()
 
       if (!result.ok) throw new Error(`milestone choices failed: ${result.failure}`)
-      expect(result.choices.map((choice) => choice.name)).toEqual(expect.arrayContaining(['Checkout v2', 'Search revamp']))
-      expect(result.choices.find((choice) => choice.name === 'Search revamp')?.query).toBe(queries.searchRevamp)
+      const kinds = result.kinds.map(({ kind }) => kind)
+      expect(new Set(kinds).size).toBe(kinds.length)
+      for (const { kind, choices } of result.kinds) for (const choice of choices) expect(choice.kind).toBe(kind)
+    })
+
+    test('list the open milestones, each with the query that reads its tickets, all of them, not past the limit', async () => {
+      const result = await subject.synthetic().milestoneChoices()
+
+      if (!result.ok) throw new Error(`milestone choices failed: ${result.failure}`)
+      const milestones = result.kinds.find(({ choices }) => choices.some((choice) => choice.name === 'Search revamp'))
+      expect(milestones?.choices.map((choice) => choice.name)).toEqual(expect.arrayContaining(['Checkout v2', 'Search revamp']))
+      expect(milestones?.choices.find((choice) => choice.name === 'Search revamp')?.query).toBe(queries.searchRevamp)
+      expect(milestones?.pastLimit).toBe(false)
+    })
+  })
+
+  describe('a search of choices', () => {
+    test.each(subject.searches)('for $kind choices finds the one it names, the same choice the milestone choices list', async ({ kind, text, finds }) => {
+      const connector = subject.synthetic()
+      const listed = await connector.milestoneChoices()
+
+      const found = await connector.searchChoices(kind, text)
+
+      if (!listed.ok) throw new Error(`milestone choices failed: ${listed.failure}`)
+      if (!found.ok) throw new Error(`search failed: ${found.failure}`)
+      const asListed = listed.kinds.find((each) => each.kind === kind)?.choices.find((choice) => choice.name === finds)
+      expect(asListed).toBeDefined()
+      expect(found.choices).toContainEqual(asListed)
+      for (const choice of found.choices) expect(choice.kind).toBe(kind)
+    })
+
+    test('covers every kind the milestone choices list', async () => {
+      const listed = await subject.synthetic().milestoneChoices()
+
+      if (!listed.ok) throw new Error(`milestone choices failed: ${listed.failure}`)
+      expect(subject.searches.map(({ kind }) => kind).sort()).toEqual(listed.kinds.map(({ kind }) => kind).sort())
+    })
+
+    test('for text no choice has finds nothing, not a failure', async () => {
+      const { kind } = subject.searches[0]!
+
+      expect(await subject.synthetic().searchChoices(kind, NO_SUCH_CHOICE)).toEqual({ ok: true, choices: [] })
     })
   })
 
@@ -49,11 +89,11 @@ describe.each(subjects)('%s connector', (_, subject) => {
     test("the tracker refuses fails as invalidQuery, with the tracker's own message", async () => {
       const result = await subject.synthetic().read(queries.invalid, batches.cut)
 
-      expect(result).toEqual({ ok: false, failure: 'invalidQuery', message: expect.stringMatching(/\S/) })
+      expect(result).toEqual({ ok: false, failure: 'invalidQuery', message: subject.invalidMessage })
     })
 
-    test('reaching outside the connection fails as outOfScope', async () => {
-      expect(await subject.synthetic().read(queries.outOfScope, batches.cut)).toEqual({ ok: false, failure: 'outOfScope' })
+    test.each(subject.outOfScope)('naming %s fails as outOfScope', async (_, query) => {
+      expect(await subject.synthetic().read(query, batches.cut)).toEqual({ ok: false, failure: 'outOfScope' })
     })
   })
 
@@ -109,6 +149,27 @@ describe.each(subjects)('%s connector', (_, subject) => {
       for (const role of ['leaf-021', 'leaf-060', 'leaf-061', 'leaf-105']) expect(ids).toContain(subject.idOf(role))
     })
 
+    test('of a picked nested epic returns every leaf beneath it, through its sub-epics, and no epic', async () => {
+      const result = await subject.synthetic().read(queries.nestedEpic, FROM_THE_START)
+
+      if (!result.ok) throw new Error(`read failed: ${result.failure}`)
+      expect(result.tickets.map((ticket) => ticket.id).sort()).toEqual(subject.roles.nestedEpic.leaves.map(subject.idOf).sort())
+      expect(result.incomplete).toBe(false)
+    })
+
+    test("finds a picked epic's sub-epics as it reads, so one added after the pick is read", async () => {
+      // The epic's choice, as kept with the milestone, names only the epic: its sub-epics are found by each read.
+      const choices = await subject.synthetic().milestoneChoices()
+      if (!choices.ok) throw new Error(`milestone choices failed: ${choices.failure}`)
+      const epics = choices.kinds.find(({ kind }) => kind === 'epic')
+      expect(epics?.choices.map((choice) => choice.query)).toContain(queries.nestedEpic)
+
+      const result = await subject.synthetic().read(queries.nestedEpic, FROM_THE_START)
+
+      if (!result.ok) throw new Error(`read failed: ${result.failure}`)
+      expect(result.tickets.map((ticket) => ticket.id)).toEqual(expect.arrayContaining(subject.roles.nestedEpic.underSubEpic.map(subject.idOf)))
+    })
+
     test.runIf(subject.capped)('reading as far as a search cap allows, the read is incomplete', async () => {
       const result = await subject.capped!().read(queries.checkout, FROM_THE_START)
 
@@ -155,11 +216,23 @@ describe.each(subjects)('%s connector', (_, subject) => {
     test('fails a read loudly, naming the request', async () => {
       await expect(subject.unrecorded().read(queries.searchRevamp, batches.cut)).rejects.toThrow(/^No recording for /)
     })
+
+    test('fails a search of choices loudly, naming the request', async () => {
+      const { kind, text } = subject.searches[0]!
+
+      await expect(subject.unrecorded().searchChoices(kind, text)).rejects.toThrow(/^No recording for /)
+    })
   })
 
   describe.each(failing)('%s', (_, connector, failure) => {
     test(`milestone choices fail as ${failure.failure}`, async () => {
       expect(await connector().milestoneChoices()).toEqual({ ok: false, ...failure })
+    })
+
+    test(`a search of choices fails as ${failure.failure}`, async () => {
+      const { kind, text } = subject.searches[0]!
+
+      expect(await connector().searchChoices(kind, text)).toEqual({ ok: false, ...failure })
     })
 
     test(`a read fails as ${failure.failure}`, async () => {

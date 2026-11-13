@@ -3,6 +3,7 @@ import type { Transport } from '../../../src/connectors/connector.js'
 import { jiraConnector } from '../../../src/connectors/jira/jiraConnector.js'
 import { answering, mustNotWait, noWait } from '../backoff.js'
 import { replayTransport } from '../replayTransport.js'
+import { jiraSubject } from './jiraSubject.js'
 
 // Jira-only quirks, beside the contract suite. A read's JQL is wrapped as `project = "KEY" AND (query)`, so a query
 // naming a project, or closing the wrapper's parenthesis, would reach past the connection. JQL reads date literals in
@@ -81,6 +82,47 @@ function searchOf(jql: string, issues: unknown[], site: Site): unknown[] {
   return issues
 }
 
+/** A ticket in a stand-in Jira's hierarchy: its key, id and hierarchy level, and its parent's key. */
+interface Nested {
+  key: string
+  id: string
+  level: number
+  parent?: string
+}
+
+/**
+ * A stand-in Jira holding the open tickets `tickets`, searched as Jira does: by key, and by `parent`, naming each parent
+ * by its key or its id. `searched` keeps each search's JQL.
+ */
+function nested(tickets: Nested[]) {
+  const searched: string[] = []
+  const found = (ticket: Nested) => ({
+    id: ticket.id,
+    key: ticket.key,
+    fields: {
+      issuetype: { hierarchyLevel: ticket.level },
+      status: { statusCategory: { key: 'new' } },
+      subtasks: [],
+      parent: { id: tickets.find(({ key }) => key === ticket.parent)?.id },
+    },
+  })
+  const named = (list: string) => list.split(',').map((each) => each.trim())
+  const transport: Transport = async (url, init) => {
+    if (url.endsWith('/_edge/tenant_info')) return json(200, { cloudId: 'cloud-1' })
+    if (url.endsWith('/project/SYN')) return json(200, {})
+    const { jql } = JSON.parse(String(init?.body)) as { jql: string }
+    searched.push(jql)
+    if (jql.includes('subTaskIssueTypes()')) return json(200, { issues: [], isLast: true })
+    const keys = /\bkey in \(([^)]*)\)/.exec(jql)?.[1]
+    const parents = [...jql.matchAll(/\bparent (?:= ([\w-]+)|in \(([^)]*)\))/g)].flatMap((match) => named(match[1] ?? match[2]!))
+    const matching = keys
+      ? tickets.filter(({ key }) => named(keys).includes(key))
+      : tickets.filter(({ parent }) => tickets.some(({ key, id }) => key === parent && (parents.includes(key) || parents.includes(id))))
+    return json(200, { issues: matching.map(found), isLast: true })
+  }
+  return { transport, searched }
+}
+
 /** A stand-in Jira that gives its cloud id, then answers each call through the gateway with `answer`. */
 function answeringPastTenant(answer: Transport) {
   return answering(async (url, init) => (url.endsWith('/_edge/tenant_info') ? json(200, { cloudId: 'cloud-1' }) : answer(url, init)))
@@ -93,14 +135,14 @@ function throughGateway(url: string): boolean {
 describe('Jira connector', () => {
   test("signs in as the connection's account email with the token, which holds no email of its own", async () => {
     const sent: (string | null)[] = []
+    const jira = jiraListing({})
     const connector = jiraConnector(CONNECTION, 'ATATT-token', async (url, init) => {
-      if (url.endsWith('/_edge/tenant_info')) return json(200, { cloudId: 'cloud-1' })
-      sent.push(new Headers(init?.headers).get('authorization'))
-      return json(200, [])
+      if (throughGateway(url)) sent.push(new Headers(init?.headers).get('authorization'))
+      return jira.transport(url, init)
     })
 
-    expect(await connector.milestoneChoices()).toEqual({ ok: true, choices: [] })
-    expect(sent).toEqual([`Basic ${btoa('someone@example.com:ATATT-token')}`])
+    expect((await connector.milestoneChoices()).ok).toBe(true)
+    expect(new Set(sent)).toEqual(new Set([`Basic ${btoa('someone@example.com:ATATT-token')}`]))
   })
 
   test.each([
@@ -327,5 +369,254 @@ describe('Jira connector', () => {
 
     expect(await connector.milestoneChoices()).toEqual({ ok: false, failure: 'unavailable' })
     expect(jira.sent.filter(throughGateway)).toHaveLength(1)
+  })
+
+})
+
+/** What a stand-in Jira lists for milestone choices: its fix versions, and the first page of its epics and labels. */
+interface Listing {
+  versions?: { id: string; name: string; released: boolean; archived: boolean }[]
+  /** The epics the first page of the epics search finds; `moreEpics` when there is another page. */
+  epics?: { key: string; summary: string }[]
+  moreEpics?: boolean
+  /** The labels the first page of the site's labels gives; `moreLabels` when there is another page. */
+  labels?: string[]
+  moreLabels?: boolean
+}
+
+/** A stand-in Jira listing `listing`, past its cloud id. */
+function jiraListing(listing: Listing) {
+  return answeringPastTenant(async (url) => {
+    if (url.endsWith('/project/SYN/versions')) return json(200, listing.versions ?? [])
+    if (url.endsWith('/search/jql')) {
+      const issues = (listing.epics ?? []).map(({ key, summary }, i) => ({ id: String(20000 + i), key, fields: { summary } }))
+      return json(200, listing.moreEpics ? { issues, isLast: false, nextPageToken: 'page-2' } : { issues, isLast: true })
+    }
+    if (url.includes('/label?')) return json(200, { values: listing.labels ?? [], isLast: !listing.moreLabels })
+    return json(404, {})
+  })
+}
+
+/** The milestone choices from a stand-in Jira listing `listing`. */
+async function choicesListing(listing: Listing) {
+  const connector = jiraConnector(CONNECTION, 'token', jiraListing(listing).transport, mustNotWait)
+  const result = await connector.milestoneChoices()
+  if (!result.ok) throw new Error(`milestone choices failed: ${result.failure}`)
+  return result.kinds
+}
+
+/** `count` things, each made by `make` from its number, counting from 1. */
+function many<T>(count: number, make: (n: number) => T): T[] {
+  return Array.from({ length: count }, (_, i) => make(i + 1))
+}
+
+describe('Jira milestone choices', () => {
+  describe('in the space SYN', () => {
+    test('come as fix versions, then epics, then labels, none past the limit', async () => {
+      const result = await jiraSubject.synthetic().milestoneChoices()
+
+      if (!result.ok) throw new Error(`milestone choices failed: ${result.failure}`)
+      expect(result.kinds.map(({ kind, pastLimit }) => ({ kind, pastLimit }))).toEqual([
+        { kind: 'fixVersion', pastLimit: false },
+        { kind: 'epic', pastLimit: false },
+        { kind: 'label', pastLimit: false },
+      ])
+    })
+
+    test('list the epics not done, each read by its children', async () => {
+      const result = await jiraSubject.synthetic().milestoneChoices()
+
+      if (!result.ok) throw new Error(`milestone choices failed: ${result.failure}`)
+      expect(result.kinds[1]!.choices).toEqual([{ kind: 'epic', name: 'Epic: payment methods', query: 'parent = SYN-106' }])
+    })
+
+    test('list the labels, each read by its name', async () => {
+      const result = await jiraSubject.synthetic().milestoneChoices()
+
+      if (!result.ok) throw new Error(`milestone choices failed: ${result.failure}`)
+      expect(result.kinds[2]!.choices).toEqual(
+        expect.arrayContaining([
+          { kind: 'label', name: 'comparable', query: 'labels = "comparable"' },
+          { kind: 'label', name: 'ktlo', query: 'labels = "ktlo"' },
+        ]),
+      )
+    })
+  })
+
+  test('come as fix versions, then epics, then labels', async () => {
+    expect(await choicesListing({})).toEqual([
+      { kind: 'fixVersion', choices: [], pastLimit: false },
+      { kind: 'epic', choices: [], pastLimit: false },
+      { kind: 'label', choices: [], pastLimit: false },
+    ])
+  })
+
+  test('with more than 100 unreleased fix versions, list 100, marked past the limit', async () => {
+    const versions = many(102, (n) => ({ id: String(n), name: `V${n}`, released: n === 1, archived: false }))
+
+    const [fixVersions] = await choicesListing({ versions })
+
+    expect(fixVersions!.choices).toHaveLength(100)
+    expect(fixVersions!.choices[0]!.name).toBe('V2')
+    expect(fixVersions!.pastLimit).toBe(true)
+  })
+
+  test('with exactly 100 unreleased fix versions, list them all, not past the limit', async () => {
+    const versions = many(101, (n) => ({ id: String(n), name: `V${n}`, released: false, archived: n === 101 }))
+
+    const [fixVersions] = await choicesListing({ versions })
+
+    expect(fixVersions!.choices).toHaveLength(100)
+    expect(fixVersions!.pastLimit).toBe(false)
+  })
+
+  test('a fix version is read by its name, quoted, any quote or backslash in it escaped', async () => {
+    const [fixVersions] = await choicesListing({ versions: [{ id: '1', name: 'Say "hi" \\ bye', released: false, archived: false }] })
+
+    expect(fixVersions!.choices).toEqual([{ kind: 'fixVersion', name: 'Say "hi" \\ bye', query: 'fixVersion = "Say \\"hi\\" \\\\ bye"' }])
+  })
+
+  test('an epic is named by its summary and read by its children, its key naming it', async () => {
+    const [, epics] = await choicesListing({ epics: [{ key: 'SYN-7', summary: 'Payments' }] })
+
+    expect(epics!.choices).toEqual([{ kind: 'epic', name: 'Payments', query: 'parent = SYN-7' }])
+  })
+
+  test('with a page of epics after the first 100, list 100, marked past the limit', async () => {
+    const [, epics] = await choicesListing({ epics: many(100, (n) => ({ key: `SYN-${n}`, summary: `E${n}` })), moreEpics: true })
+
+    expect(epics!.choices).toHaveLength(100)
+    expect(epics!.pastLimit).toBe(true)
+  })
+
+  test('a label is read by its name, quoted', async () => {
+    const [, , labels] = await choicesListing({ labels: ['checkout', 'say"hi'] })
+
+    expect(labels!.choices).toEqual([
+      { kind: 'label', name: 'checkout', query: 'labels = "checkout"' },
+      { kind: 'label', name: 'say"hi', query: 'labels = "say\\"hi"' },
+    ])
+  })
+
+  test('with a page of labels after the first 100, list 100, marked past the limit', async () => {
+    const [, , labels] = await choicesListing({ labels: many(100, (n) => `l${n}`), moreLabels: true })
+
+    expect(labels!.choices).toHaveLength(100)
+    expect(labels!.pastLimit).toBe(true)
+  })
+})
+
+describe('A picked epic on Jira', () => {
+  test('in a hierarchy above epics, picks up on a later read an epic added beneath the picked one since the last', async () => {
+    const tickets: Nested[] = [
+      { key: 'SYN-1', id: '1', level: 2 },
+      { key: 'SYN-2', id: '2', level: 1, parent: 'SYN-1' },
+      { key: 'SYN-3', id: '3', level: 0, parent: 'SYN-2' },
+    ]
+    const connector = jiraConnector(CONNECTION, 'token', nested(tickets).transport, mustNotWait)
+
+    expect(await connector.read('parent = SYN-1', SINCE)).toEqual({ ok: true, tickets: [{ id: '3' }], incomplete: false })
+
+    tickets.push({ key: 'SYN-4', id: '4', level: 1, parent: 'SYN-1' }, { key: 'SYN-5', id: '5', level: 0, parent: 'SYN-4' })
+
+    expect(await connector.read('parent = SYN-1', SINCE)).toEqual({ ok: true, tickets: [{ id: '3' }, { id: '5' }], incomplete: false })
+  })
+
+  test('reads each picked epic in its place in the query as itself or the epics beneath it, leaving the rest as written', async () => {
+    const jira = nested([
+      { key: 'SYN-1', id: '1', level: 2 },
+      { key: 'SYN-2', id: '2', level: 1, parent: 'SYN-1' },
+      { key: 'SYN-9', id: '9', level: 1 },
+    ])
+    const connector = jiraConnector(CONNECTION, 'token', jira.transport, mustNotWait)
+
+    await connector.read('(parent = SYN-1 AND labels = "parent = SYN-1") OR NOT parent = SYN-1 OR parent = SYN-9', SINCE)
+
+    expect(jira.searched.slice(0, 3)).toEqual([
+      'project = "SYN" AND key in (SYN-1, SYN-9)',
+      'project = "SYN" AND parent in (1)',
+      'project = "SYN" AND ((parent in (SYN-1, 2) AND labels = "parent = SYN-1") OR NOT parent = SYN-1 OR parent = SYN-9) AND (statusCategory != Done OR status CHANGED AFTER "2025-12-31 00:00" OR created >= "2025-12-31 00:00")',
+    ])
+  })
+
+  test('picked as its choice reads it, an epic has only stories beneath it, so it is looked up and no level beneath it is', async () => {
+    const jira = nested([
+      { key: 'SYN-106', id: '106', level: 1 },
+      { key: 'SYN-108', id: '108', level: 0, parent: 'SYN-106' },
+    ])
+    const connector = jiraConnector(CONNECTION, 'token', jira.transport, mustNotWait)
+
+    expect(await connector.read('parent = SYN-106', SINCE)).toEqual({ ok: true, tickets: [{ id: '108' }], incomplete: false })
+    expect(jira.searched.filter((jql) => jql.includes(' parent in ('))).toEqual([])
+  })
+
+  test('a query naming no epic is read with no search for what is beneath one', async () => {
+    const jira = nested([])
+    const connector = jiraConnector(CONNECTION, 'token', jira.transport, mustNotWait)
+
+    await connector.read('labels = checkout', SINCE)
+
+    expect(jira.searched.filter((jql) => jql.includes('key in (') || jql.includes('parent in ('))).toEqual([])
+  })
+})
+
+describe('Jira milestone choices searched past the limit', () => {
+  test('a fix version, which Jira gives all at once, is found among the unreleased ones, matching part of a word', async () => {
+    const versions = many(150, (n) => ({ id: String(n), name: `Release ${n}`, released: n === 14, archived: n === 140 }))
+    const connector = jiraConnector(CONNECTION, 'token', jiraListing({ versions }).transport, mustNotWait)
+
+    const found = await connector.searchChoices('fixVersion', 'ASE 14')
+
+    expect(found).toEqual({
+      ok: true,
+      choices: ['Release 141', 'Release 142', 'Release 143', 'Release 144', 'Release 145', 'Release 146', 'Release 147', 'Release 148', 'Release 149'].map(
+        (name) => ({ kind: 'fixVersion', name, query: `fixVersion = "${name}"` }),
+      ),
+    })
+  })
+
+  test("an epic is searched by the words of its summary, each a word's start, among the epics not done", async () => {
+    const asked: unknown[] = []
+    const jira = answeringPastTenant(async (_, init) => {
+      asked.push(JSON.parse(String(init?.body)))
+      return json(200, { issues: [{ id: '20140', key: 'SYN-140', fields: { summary: 'Card payments' } }], isLast: true })
+    })
+    const connector = jiraConnector(CONNECTION, 'token', jira.transport, mustNotWait)
+
+    expect(await connector.searchChoices('epic', 'card pay"ments*')).toEqual({ ok: true, choices: [{ kind: 'epic', name: 'Card payments', query: 'parent = SYN-140' }] })
+    // Search's special characters are left out, so none can make the JQL fail.
+    expect(asked).toEqual([
+      {
+        jql: 'project = "SYN" AND issuetype = Epic AND statusCategory != Done AND summary ~ "card*" AND summary ~ "pay*" AND summary ~ "ments*" ORDER BY created DESC',
+        fields: ['summary'],
+        maxResults: 100,
+      },
+    ])
+  })
+
+  test("a label is found by JQL's suggestions for the labels field", async () => {
+    const jira = answeringPastTenant(async (url) => {
+      const { pathname, searchParams } = new URL(url)
+      if (pathname.endsWith('/jql/autocompletedata/suggestions') && searchParams.get('fieldName') === 'labels' && searchParams.get('fieldValue') === 'pay') {
+        return json(200, { results: [{ value: 'payments', displayName: '<b>pay</b>ments' }, { value: 'pay"day', displayName: '<b>pay</b>"day' }] })
+      }
+      return json(404, {})
+    })
+    const connector = jiraConnector(CONNECTION, 'token', jira.transport, mustNotWait)
+
+    expect(await connector.searchChoices('label', 'pay')).toEqual({
+      ok: true,
+      choices: [
+        { kind: 'label', name: 'payments', query: 'labels = "payments"' },
+        { kind: 'label', name: 'pay"day', query: 'labels = "pay\\"day"' },
+      ],
+    })
+  })
+
+  test('a search the tracker fails is that failure', async () => {
+    const jira = answeringPastTenant(async () => json(502, {}))
+    const connector = jiraConnector(CONNECTION, 'token', jira.transport, mustNotWait)
+
+    for (const kind of ['fixVersion', 'epic', 'label'] as const) expect(await connector.searchChoices(kind, 'pay')).toEqual({ ok: false, failure: 'unavailable' })
   })
 })

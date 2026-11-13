@@ -12,7 +12,7 @@ import { openWebStorage } from '../../src/storage/webStorage.js'
 
 const TOKEN = 'github_pat_11ABCDEFG0123456789_secret'
 
-const CHOICES: CannedFixture['milestoneChoices'] = [{ kind: 'milestone', name: 'Checkout v2', query: 'milestone:"Checkout v2"' }]
+const CHOICES: CannedFixture['milestoneChoices'] = [{ kind: 'milestone', choices: [{ kind: 'milestone', name: 'Checkout v2', query: 'milestone:"Checkout v2"' }], pastLimit: false }]
 
 let app: RunningApp | undefined
 let storage: SqliteStorage | undefined
@@ -35,6 +35,8 @@ async function startConnecting(answer: Answer = CHOICES): Promise<{ app: Running
   const canned = { answer }
   const connecting: Connecting = {
     connections: storage,
+    reads: storage,
+    milestoneQueries: storage,
     secrets: openMemorySecrets(),
     connector: () => cannedConnector({ milestoneChoices: canned.answer, reads: {} }),
   }
@@ -64,14 +66,14 @@ describe('the Connect step', () => {
     expect(html).toContain('read:jira-work')
   })
 
-  test('a good connect comes back to the Inputs screen, connected, with the token kept in the secrets', async () => {
+  test('a good connect goes on to the Milestone step, connected, with the token kept in the secrets', async () => {
     const { app, connecting } = await startConnecting()
 
     const posted = await post(app, '/inputs/connect', github('shop-team/shop'))
     const html = await inputsPage(app)
 
     expect(posted.status).toBe(303)
-    expect(posted.headers.get('location')).toBe('/inputs#connect')
+    expect(posted.headers.get('location')).toBe('/inputs#milestone-tickets')
     expect(html).toContain('Connected to GitHub · <b>shop-team/shop</b>')
     expect(html).toContain('Disconnect')
     expect(html).not.toContain('Skip: type the inputs instead')

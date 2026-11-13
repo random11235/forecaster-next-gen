@@ -2,12 +2,51 @@
   {
     "request": {
       "method": "GET",
-      "url": "https://api.github.com/repos/random11235/forecaster-synthetic-unknown/milestones?state=open&per_page=100"
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic-unknown%20is%3Aissue%20is%3Aopen%20has%3Asub-issue%20no%3Aparent-issue&advanced_search=true&per_page=100"
     },
     "response": {
-      "status": 404,
+      "status": 422,
       "body": {
-        "message": "Not Found"
+        "message": "Validation Failed",
+        "errors": [
+          {
+            "message": "The listed users and repositories cannot be searched either because the resources do not exist or you do not have permission to view them."
+          }
+        ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic-unknown%20is%3Aissue%20is%3Aopen%20has%3Asub-issue%20no%3Aparent-issue%20in%3Atitle%20%22payment%22&advanced_search=true&per_page=100"
+    },
+    "response": {
+      "status": 422,
+      "body": {
+        "message": "Validation Failed",
+        "errors": [
+          {
+            "message": "The listed users and repositories cannot be searched either because the resources do not exist or you do not have permission to view them."
+          }
+        ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic-unknown%20is%3Aissue%20is%3Aopen%20has%3Asub-issue%20no%3Aparent-issue%20in%3Atitle%20%22zzqxnosuchchoice%22&advanced_search=true&per_page=100"
+    },
+    "response": {
+      "status": 422,
+      "body": {
+        "message": "Validation Failed",
+        "errors": [
+          {
+            "message": "The listed users and repositories cannot be searched either because the resources do not exist or you do not have permission to view them."
+          }
+        ]
       }
     }
   },
