@@ -7,7 +7,7 @@ import type { Choice, Connector, Ticket } from '../../src/connectors/connector.j
 import { narrowedToAFew, openCandidates, type Candidates } from '../../src/forecast/candidates.js'
 import { submitConnection, type Connecting } from '../../src/forecast/connection.js'
 import { submitInputs } from '../../src/forecast/inputs.js'
-import { COMPARABLE_WORK, milestoneStepView, submitMilestoneQuery } from '../../src/forecast/milestoneStep.js'
+import { COMPARABLE_WORK, milestoneStepView, searchedChoiceList, submitMilestoneQuery } from '../../src/forecast/milestoneStep.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
@@ -189,6 +189,25 @@ describe('a candidate’s read', () => {
         ],
       },
     ])
+  })
+})
+
+describe('this milestone, in the step’s lists', () => {
+  test('the choice that is the milestone query is marked, without reading it', async () => {
+    const step = await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)
+    const searched = await searchedChoiceList(using, TEAM, 'milestone', '', COMPARABLE_WORK)
+
+    expect(step.kind === 'milestoneStep' && step.lists.map((list) => list.thisMilestone)).toEqual([checkout.query, undefined])
+    expect(searched).toMatchObject({ thisMilestone: checkout.query })
+    expect(reads).toEqual([])
+  })
+
+  test('none is marked when the milestone query is more than one choice', async () => {
+    await submitMilestoneQuery(using, TEAM, { kind: 'addPick', choice: release }, READ_AT)
+
+    const step = await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)
+
+    expect(step.kind === 'milestoneStep' && step.lists.map((list) => list.thisMilestone)).toEqual([undefined, undefined])
   })
 })
 

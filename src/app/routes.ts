@@ -22,7 +22,7 @@ import { renderHowItWorksScreen } from './howItWorksScreen.js'
 import { INPUTS_FORMS, renderInputsScreen } from './inputsScreen.js'
 import { CAPACITY_OPEN, CAPACITY_OPEN_PATH, FORECAST_FORMS, renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
 import { comparableWorkPace, type ComparableWorkPace } from '../forecast/comparableWorkPace.js'
-import type { PaceReadsStorage } from '../forecast/paceReads.js'
+import { paceReadsStorage } from '../forecast/paceReads.js'
 import { choiceListHtml, COMPARABLE_WORK_STEP, CONFIRMING_BACK, KIND_FIELD, MILESTONE_STEP, OPEN_FIELD, STEP_SECTIONS, type StepSection } from './milestoneStepSection.js'
 import { CANDIDATES_PATH, candidatesHtml, choicesAsked, keepOpening, OPENING_FIELD, openingKept } from './candidatesSection.js'
 import { narrowedToAFew, openCandidates, type CandidatesAt } from '../forecast/candidates.js'
@@ -248,14 +248,13 @@ async function inputsWithStep(
  * The Comparable work step's pace, from the saved reads alone, so the tracker isn't asked again; each finish is
  * counted on its calendar day in the machine's time zone, as today is.
  */
-function stepPace({ storage, today }: AppContext, { milestoneQueries, reads }: Connecting, teamId: string): ComparableWorkPace | undefined {
-  const stored: PaceReadsStorage = {
-    milestoneInputs: (id) => storage.milestoneInputs(id),
-    milestoneQuery: (id) => milestoneQueries.milestoneQuery(id),
-    comparableWorkQuery: (id) => milestoneQueries.comparableWorkQuery(id),
-    savedRead: (teamQuery) => reads.savedRead(teamQuery),
-  }
-  return comparableWorkPace(stored, teamId, { today: today(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone })
+function stepPace({ storage, today }: AppContext, connecting: Connecting, teamId: string): ComparableWorkPace | undefined {
+  return comparableWorkPace(paceReadsStorage(storage, connecting), teamId, { today: today(), timeZone: localTimeZone() })
+}
+
+/** This computer's time zone, an IANA name: the EM's, which each finish is counted on its calendar day in. */
+function localTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone
 }
 
 /** `connecting`, but its connectors ask the tracker for the milestone choices once between them, however often asked. */
@@ -304,7 +303,7 @@ async function candidatesAsked({ context, connecting, team, searchParams }: Setu
 
 /** When candidates are read: now, today, in this computer's time zone. */
 function candidatesAt({ now, today }: AppContext): CandidatesAt {
-  return { readAt: now(), today: today(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }
+  return { readAt: now(), today: today(), timeZone: localTimeZone() }
 }
 
 /** The milestone's period, as candidates' paces are said in. */

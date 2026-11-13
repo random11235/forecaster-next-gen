@@ -742,7 +742,7 @@ describe('the step, for another of the team’s queries (#200)', () => {
     expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
     expect(view).toMatchObject({ picks: [bug], query: 'label:"bug"' })
     expect(view.kind === 'milestoneStep' && view.lists).toEqual([
-      { kind: 'milestone', choices: [payments, checkout], searchedInTracker: false },
+      { kind: 'milestone', choices: [payments, checkout], searchedInTracker: false, thisMilestone: payments.query },
       { kind: 'label', choices: [repay], searchedInTracker: false },
     ])
     expect(await searchedChoiceList(using, TEAM, 'label', '', other)).toEqual({ kind: 'label', choices: [repay], searchedInTracker: false })
@@ -773,7 +773,7 @@ describe('the Comparable work step', () => {
     const view = await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)
 
     expect(using.calls.reads).toEqual([])
-    expect(view).toMatchObject({ picks: [], query: '', onward: 'Skip' })
+    expect(view).toMatchObject({ picks: [], query: '', onward: 'skip' })
     expect(view.kind === 'milestoneStep' && view.read).toBeUndefined()
   })
 
@@ -794,7 +794,7 @@ describe('the Comparable work step', () => {
     ])
     expect(storage.comparableWorkQuery(TEAM)).toEqual({ picks: [payments, bug], query: 'milestone:"Payments v2" OR label:"bug"' })
     expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [checkout], query: 'milestone:"Checkout"' })
-    expect(view).toMatchObject({ picks: [payments, bug], query: 'milestone:"Payments v2" OR label:"bug"', onward: 'Next' })
+    expect(view).toMatchObject({ picks: [payments, bug], query: 'milestone:"Payments v2" OR label:"bug"', onward: 'next' })
   })
 
   test('its read line counts only the finished tickets in the window, its open tickets ignored', async () => {
@@ -816,7 +816,7 @@ describe('the Comparable work step', () => {
     expect(using.calls.reads).toEqual(['label:checkout -label:bug'])
     expect(storage.comparableWorkQuery(TEAM)).toEqual({ picks: [], query: 'label:checkout -label:bug' })
     expect(storage.milestoneQuery(TEAM)).toBeUndefined()
-    expect(await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)).toMatchObject({ onward: 'Next' })
+    expect(await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)).toMatchObject({ onward: 'next' })
   })
 
   test('removing the last chip leaves no comparable-work query, its button reading Skip again', async () => {
@@ -826,7 +826,7 @@ describe('the Comparable work step', () => {
     await submitMilestoneQuery(using, TEAM, remove(payments), READ_AT, COMPARABLE_WORK)
 
     expect(storage.comparableWorkQuery(TEAM)).toEqual({ picks: [], query: '' })
-    expect(await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)).toMatchObject({ picks: [], query: '', onward: 'Skip' })
+    expect(await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)).toMatchObject({ picks: [], query: '', onward: 'skip' })
   })
 
   test('Start afresh clears all of comparable work at once, reading nothing, and leaves the milestone query as it was', async () => {
@@ -842,7 +842,7 @@ describe('the Comparable work step', () => {
     expect(using.calls.reads).toEqual([])
     expect(storage.comparableWorkQuery(TEAM)).toEqual({ picks: [], query: '' })
     expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [checkout], query: 'milestone:"Checkout"' })
-    expect(await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)).toMatchObject({ query: '', onward: 'Skip' })
+    expect(await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)).toMatchObject({ query: '', onward: 'skip' })
   })
 
   test('Start afresh with nothing added changes nothing', async () => {
@@ -862,7 +862,7 @@ describe('the Comparable work step', () => {
 
     expect(storage.milestoneInputs(TEAM)).toMatchObject({ name: 'Loyalty', startDate: '2026-11-16' })
     expect(storage.comparableWorkQuery(TEAM)).toEqual({ picks: [payments, bug], query: 'milestone:"Payments v2" OR label:"bug"' })
-    expect(await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)).toMatchObject({ picks: [payments, bug], onward: 'Next' })
+    expect(await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)).toMatchObject({ picks: [payments, bug], onward: 'next' })
   })
 
   test('carries over: the milestone query following the milestone to its new name leaves comparable work as it was, even of the old milestone', async () => {
@@ -885,7 +885,7 @@ describe('the Comparable work step', () => {
 
 // The Comparable work step's flags and refusals (#202): the milestone query's, worded for comparable work.
 describe('the Comparable work step, flagged', () => {
-  test('matching nothing finished is accepted, but flagged, its open tickets ignored', async () => {
+  test('matching nothing finished is accepted, its open tickets ignored; whether it is used is the pace’s to flag', async () => {
     const using = await connected(reading('label:"wip"', { tickets: [{ id: 'w1' }, { id: 'w2' }], incomplete: false }))
 
     const submitted = await submitMilestoneQuery(using, TEAM, edit('label:"wip"'), READ_AT, COMPARABLE_WORK)
@@ -895,9 +895,9 @@ describe('the Comparable work step, flagged', () => {
     expect(storage.comparableWorkQuery(TEAM)?.query).toBe('label:"wip"')
     expect(view).toMatchObject({
       read: '0 finished in the last 8 weeks',
-      flag: 'This query matches nothing finished in the last 8 weeks, so pace comes from the milestone’s own tickets. Check it picks out work like the milestone’s.',
-      onward: 'Next',
+      onward: 'next',
     })
+    expect(view.kind === 'milestoneStep' && view.flag).toBeUndefined()
   })
 
   test('incomplete, shows no count, only the flag asking the EM to narrow the query', async () => {
@@ -936,7 +936,7 @@ describe('the Comparable work step, flagged', () => {
       query: 'milestone:"Payments v2"',
       read: '1 finished in the last 8 weeks',
       editing: { typed: 'closed:>2026-13-45', readIn: 'shop-team/shop', refusal },
-      onward: 'Next',
+      onward: 'next',
     })
   })
 
@@ -988,6 +988,6 @@ describe('the Comparable work step, flagged', () => {
 
     expect(submitted).toEqual({ kind: 'refused', query: 'labels == comparable', refusal: `Jira rejected this query: ${message}` })
     expect(storage.comparableWorkQuery(TEAM)).toBeUndefined()
-    expect(view).toMatchObject({ query: '', onward: 'Skip' })
+    expect(view).toMatchObject({ query: '', onward: 'skip' })
   })
 })

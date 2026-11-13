@@ -176,6 +176,22 @@ describe('the pace in use', () => {
     expect(comparableWorkPace(storage, TEAM, AT)?.comparison).toBeUndefined()
   })
 
+  test('a comparable-work query finishing nothing in the periods pace counts is flagged as not used', async () => {
+    await addComparable(idle)
+
+    expect(comparableWorkPace(storage, TEAM, AT)?.flag).toBe(
+      'This query matches nothing finished in the 7 whole weeks pace counts, so pace comes from the milestone’s own tickets. Check it picks out work like the milestone’s.',
+    )
+  })
+
+  test('a comparable-work query in use, or none, is not flagged', async () => {
+    expect(comparableWorkPace(storage, TEAM, AT)?.flag).toBeUndefined()
+
+    await addComparable(slow)
+
+    expect(comparableWorkPace(storage, TEAM, AT)?.flag).toBeUndefined()
+  })
+
   test('a sprint’s pace is said a sprint', async () => {
     submitInputs(storage, TEAM, DEFAULT_SETTINGS, TODAY, { kind: 'setCadence', cadenceDays: '14' })
     await addComparable(slow)
@@ -187,6 +203,22 @@ describe('the pace in use', () => {
     await submitMilestoneQuery(using, TEAM, { kind: 'removePick', query: checkout.query }, READ_AT)
 
     expect(comparableWorkPace(storage, TEAM, AT)).toBeUndefined()
+  })
+})
+
+describe('the milestone query’s read incomplete', () => {
+  test('pace comes from comparable work, compared with nothing, each period without the milestone’s own', async () => {
+    const capped: CannedFixture = { ...FIXTURE, reads: { ...FIXTURE.reads, [checkout.query]: { tickets: finished('m', OWN), incomplete: true } } }
+    using = { ...using, connector: () => cannedConnector(capped) }
+    await submitMilestoneQuery(using, TEAM, { kind: 'removePick', query: checkout.query }, READ_AT)
+    await submitMilestoneQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
+    await addComparable(slow)
+
+    const pace = comparableWorkPace(storage, TEAM, AT)
+
+    expect(pace).toMatchObject({ inUse: { from: 'comparableWork', median: 2 }, said: { inUse: '2 a week' } })
+    expect(pace?.comparison).toBeUndefined()
+    expect(pace?.periods).toEqual(WEEKS.map((start, at) => ({ start, comparableWork: SLOW[at], beforeStart: at === 0 })))
   })
 })
 
@@ -225,6 +257,15 @@ describe('each pick', () => {
       { query: slow.query, strip: SLOW, finished: 12, onlyHere: 10 },
       { query: shared.query, strip: [2, 0, 0, 1, 0, 0, 0], finished: 3, onlyHere: 1 },
     ])
+  })
+
+  test('a pick whose own read is incomplete has no chip pace, and only-here is unknown for the rest', async () => {
+    const capped: CannedFixture = { ...FIXTURE, reads: { ...FIXTURE.reads, [shared.query]: { tickets: SHARED_TICKETS, incomplete: true } } }
+    using = { ...using, connector: () => cannedConnector(capped) }
+    await addComparable(slow)
+    await addComparable(shared)
+
+    expect(comparableWorkPace(storage, TEAM, AT)?.picks).toEqual([{ query: slow.query, strip: SLOW, finished: 12 }])
   })
 
   test('removing a pick leaves the rest', async () => {
