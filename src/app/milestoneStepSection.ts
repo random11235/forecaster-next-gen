@@ -282,15 +282,16 @@ ${lists}
 }
 
 /**
- * One kind's list of choices to pick, each a form adding it to `section`'s query; a kind searched in the tracker is
- * marked for the script (`data-searched`), which asks for it again as the EM types rather than filtering it.
+ * One kind's list of choices to pick, each a form adding it to `section`'s query, the one that is the milestone query
+ * marked "this milestone"; a kind searched in the tracker is marked for the script (`data-searched`), which asks for it
+ * again as the EM types rather than filtering it.
  */
 export function choiceListHtml(list: ChoiceList, { paths, id, candidates }: StepSection): string {
   const choices = list.choices
     .map(
       (choice) => `              <form method="post" action="${paths.add}#${id}" data-name="${escapeHtml(choice.name.toLowerCase())}"${candidates ? ' class="candidate"' : ''}>
                 <input type="hidden" name="${CHOICE_FIELDS.kind}" value="${escapeHtml(choice.kind)}"><input type="hidden" name="${CHOICE_FIELDS.name}" value="${escapeHtml(choice.name)}"><input type="hidden" name="${CHOICE_FIELDS.query}" value="${escapeHtml(choice.query)}">
-                <button type="submit">${escapeHtml(choice.name)} <span class="kind">${escapeHtml(kindName(choice.kind))}</span></button>${candidates ? openLinkHtml(choice, id) : ''}
+                <button type="submit">${escapeHtml(choice.name)} <span class="kind">${escapeHtml(kindName(choice.kind))}</span>${choice.query === list.thisMilestone ? ' <span class="this">this milestone</span>' : ''}</button>${candidates ? openLinkHtml(choice, id) : ''}
               </form>`,
     )
     .join('\n')

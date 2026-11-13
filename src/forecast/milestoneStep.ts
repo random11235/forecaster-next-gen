@@ -79,6 +79,11 @@ export interface ChoiceList {
   kind: ChoiceKind
   choices: Choice[]
   searchedInTracker: boolean
+  /**
+   * The query of its choice that is the milestone query, when the milestone query is that one choice: marked "this
+   * milestone" in the Comparable work step's lists, as a candidate is, without reading it. None when no choice listed is.
+   */
+  thisMilestone?: string
   /** Why the tracker couldn't search this kind; none when it could. */
   failure?: string
 }
@@ -204,10 +209,11 @@ export async function milestoneStepView(
   if (!choices.ok) return { ...step, choicesFailure: CHOICES_FAILED }
   const typed = find.trim()
   const unpicked = notPicked(saved.picks)
+  const marked = markedThisMilestone(connecting.milestoneQueries, teamId)
   const lists: ChoiceList[] = []
   // A kind past the limit is searched once something is typed, one kind after another, to spare the rate limit.
   for (const kind of choices.kinds) {
-    lists.push(kind.pastLimit && typed !== '' ? await foundInTracker(connector, kind.kind, typed, unpicked) : listedHere(kind, typed, unpicked))
+    lists.push(marked(kind.pastLimit && typed !== '' ? await foundInTracker(connector, kind.kind, typed, unpicked) : listedHere(kind, typed, unpicked)))
   }
   return { ...step, lists }
 }
@@ -235,12 +241,22 @@ export async function searchedChoiceList(
   if (!connected) return undefined
   if (connected.connector === 'keychainFailed') return { kind, choices: [], searchedInTracker: true, failure: KEYCHAIN_FAILED }
   const unpicked = notPicked(stepQuery.saved(connecting.milestoneQueries, teamId)?.picks ?? [])
+  const marked = markedThisMilestone(connecting.milestoneQueries, teamId)
   const typed = find.trim()
-  if (typed !== '') return foundInTracker(connected.connector, kind, typed, unpicked)
+  if (typed !== '') return marked(await foundInTracker(connected.connector, kind, typed, unpicked))
   const choices = await connected.connector.milestoneChoices()
   if (!choices.ok) return { kind, choices: [], searchedInTracker: true, failure: CHOICES_FAILED }
   const listed = choices.kinds.find((each) => each.kind === kind)
-  return listed ? listedHere(listed, '', unpicked) : { kind, choices: [], searchedInTracker: true }
+  return listed ? marked(listedHere(listed, '', unpicked)) : { kind, choices: [], searchedInTracker: true }
+}
+
+/**
+ * A list, with the choice in it whose query is the milestone query marked (`thisMilestone`). The Milestone step never
+ * lists it, as it is picked there.
+ */
+function markedThisMilestone(queries: MilestoneQueryStorage, teamId: string): (list: ChoiceList) => ChoiceList {
+  const milestoneQuery = queries.milestoneQuery(teamId)?.query
+  return (list) => (list.choices.some((choice) => choice.query === milestoneQuery) ? { ...list, thisMilestone: milestoneQuery! } : list)
 }
 
 /** Whether a choice is none of `picks`. */
