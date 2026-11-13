@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, test } from 'vitest'
 import type { AmbiguityRanges } from '../../src/model/ambiguity.js'
 import type { CapacityEntry } from '../../src/model/capacity.js'
@@ -397,6 +398,18 @@ describe("SQLite storage's milestone query", () => {
     storage.saveMilestoneQuery('team', { picks: [handed], query: 'label:"payments"' })
 
     expect(reopen().milestoneQuery('team')!.picks).toStrictEqual([{ kind: 'label', name: 'payments', query: 'label:"payments"' }])
+  })
+
+  test('reads back no pick of a kind it doesn’t know, keeping the query and the other picks', () => {
+    const { storage, reopen } = sqliteFile()
+    storage.saveTeam(TEAM)
+    storage.saveMilestoneQuery('team', PICKED)
+    const db = new DatabaseSync(join(dir!, 'forecaster.db'))
+    const stored = [{ kind: 'component', name: 'Payments', query: 'component = Payments' }, ...PICKED.picks]
+    db.prepare('UPDATE milestone_queries SET picks = ?').run(JSON.stringify(stored))
+    db.close()
+
+    expect(reopen().milestoneQuery('team')).toEqual(PICKED)
   })
 })
 
