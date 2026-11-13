@@ -158,6 +158,16 @@ describe('the Milestone step', () => {
       expect(list).not.toContain('Payments v2')
       expect(list).not.toContain('<html')
     })
+
+    test('the picker asks for one kind searched with the find box cleared, and gets its first 100 again', async () => {
+      const running = await startConnected(PAST_LIMIT)
+
+      const list = await (await fetch(new URL('/inputs/milestone-choices?kind=epic&find=', running.url))).text()
+
+      expect(list).toContain('value="parent-issue:shop-team/shop#1"')
+      expect(list).toContain('value="parent-issue:shop-team/shop#100"')
+      expect(list).not.toContain('Card payments')
+    })
   })
 
   test('Edit as a query opens the query in a box, read within the connected repo', async () => {
