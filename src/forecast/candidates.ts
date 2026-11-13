@@ -98,7 +98,7 @@ export function openCandidates(
   const read = new Map<string, Promise<Candidate>>()
   let connected: ReturnType<typeof teamConnection> | undefined
   const own = paceReads(stored, teamId, at)
-  const ownCounts = own ? own.milestone.counts.slice(own.beforeStart) : []
+  const ownCounts = own?.milestone?.counts.slice(own.beforeStart) ?? []
   const milestoneQuery = stored.milestoneQuery(teamId)?.query
   const picked = finishedIds(stored, teamId, stored.comparableWorkQuery(teamId)?.query)
   const inputs = storage.milestoneInputs(teamId)

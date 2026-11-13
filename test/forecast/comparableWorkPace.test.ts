@@ -190,6 +190,22 @@ describe('the pace in use', () => {
   })
 })
 
+describe('the milestone query’s read incomplete', () => {
+  test('pace comes from comparable work, compared with nothing, each period without the milestone’s own', async () => {
+    const capped: CannedFixture = { ...FIXTURE, reads: { ...FIXTURE.reads, [checkout.query]: { tickets: finished('m', OWN), incomplete: true } } }
+    using = { ...using, connector: () => cannedConnector(capped) }
+    await submitMilestoneQuery(using, TEAM, { kind: 'removePick', query: checkout.query }, READ_AT)
+    await submitMilestoneQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
+    await addComparable(slow)
+
+    const pace = comparableWorkPace(storage, TEAM, AT)
+
+    expect(pace).toMatchObject({ inUse: { from: 'comparableWork', median: 2 }, said: { inUse: '2 a week' } })
+    expect(pace?.comparison).toBeUndefined()
+    expect(pace?.periods).toEqual(WEEKS.map((start, at) => ({ start, comparableWork: SLOW[at], beforeStart: at === 0 })))
+  })
+})
+
 describe('the periods paired', () => {
   test('comparable work beside the milestone’s own in each period, those before the milestone started marked', async () => {
     await addComparable(slow)
