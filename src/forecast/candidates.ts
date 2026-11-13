@@ -2,12 +2,12 @@ import type { Choice, Failure } from '../connectors/connector.js'
 import type { Connection } from '../model/connection.js'
 import type { SavedRead } from '../model/savedRead.js'
 import { DAY_MS } from '../model/time.js'
-import type { MilestoneQueryStorage, SavedReadStorage, Storage } from '../storage/storage.js'
+import type { SavedReadStorage, Storage } from '../storage/storage.js'
 import { daysBetween } from './calendarDate.js'
 import { teamConnection, type Connecting } from './connection.js'
 import { calendarDayIn, finishedPerPeriod, ticketsRemaining } from './finished.js'
 import { FINISHED_WEEKS, type ChoiceList } from './milestoneStep.js'
-import { firstWholePeriod, paceReads } from './paceReads.js'
+import { firstWholePeriod, paceReads, type PaceReadsStorage } from './paceReads.js'
 import type { DatedCounts } from './paceWindow.js'
 import { medianOf, paceVersusMilestoneOwn, type PaceVersus } from './paceVersusOwn.js'
 import { trackerOf } from './trackers.js'
@@ -84,16 +84,23 @@ export interface CandidatesAt {
  */
 export function openCandidates(
   connecting: Connecting,
-  storage: Storage & MilestoneQueryStorage & SavedReadStorage,
+  storage: Pick<Storage, 'milestoneInputs'>,
   teamId: string,
   at: CandidatesAt,
 ): CandidateOpening {
+  const { milestoneQueries, reads } = connecting
+  const stored: PaceReadsStorage = {
+    milestoneInputs: (team) => storage.milestoneInputs(team),
+    milestoneQuery: (team) => milestoneQueries.milestoneQuery(team),
+    comparableWorkQuery: (team) => milestoneQueries.comparableWorkQuery(team),
+    savedRead: (teamQuery) => reads.savedRead(teamQuery),
+  }
   const read = new Map<string, Promise<Candidate>>()
   let connected: ReturnType<typeof teamConnection> | undefined
-  const own = paceReads(storage, teamId, at)
+  const own = paceReads(stored, teamId, at)
   const ownCounts = own ? own.milestone.counts.slice(own.beforeStart) : []
-  const milestoneQuery = storage.milestoneQuery(teamId)?.query
-  const picked = finishedIds(storage, teamId, storage.comparableWorkQuery(teamId)?.query)
+  const milestoneQuery = stored.milestoneQuery(teamId)?.query
+  const picked = finishedIds(stored, teamId, stored.comparableWorkQuery(teamId)?.query)
   const inputs = storage.milestoneInputs(teamId)
   const laid = { startDate: inputs?.startDate ?? at.today, cadenceDays: inputs?.cadenceDays ?? 7 }
   const candidate = async (choice: Choice): Promise<Candidate> => {
@@ -146,7 +153,7 @@ function failureOf(connection: Connection, failure: Failure): string {
 }
 
 /** The finished tickets' ids in the query's saved read, when it has a complete one. */
-function finishedIds(reads: SavedReadStorage, teamId: string, query: string | undefined): Set<string> | undefined {
+function finishedIds(reads: Pick<SavedReadStorage, 'savedRead'>, teamId: string, query: string | undefined): Set<string> | undefined {
   const read = query ? reads.savedRead({ teamId, query }) : undefined
   if (!read || read.incomplete) return undefined
   return new Set(read.tickets.filter((ticket) => ticket.finishedAt !== undefined).map((ticket) => ticket.id))

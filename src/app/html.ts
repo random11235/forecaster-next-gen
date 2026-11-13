@@ -308,6 +308,29 @@ const STYLE = `
     .picker form.back { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border-top: 1px solid var(--hairline); padding-top: 12px; }
     .picker .warn { margin: 0; color: var(--risk); }
     .picker form.back a.keep { font-size: 13px; color: var(--link); }
+    /* Candidates for comparable work (#205): a pace link beside each choice, and those read, grouped against the milestone's own. */
+    .found form.candidate { display: flex; align-items: center; gap: 8px; }
+    .found form.candidate button { flex: 1; }
+    .found a.open { font-size: 12px; color: var(--link); padding: 0 8px; }
+    .candidates { display: flex; flex-direction: column; gap: 8px; max-width: 620px; margin-top: 16px; border-top: 1px solid var(--hairline); padding-top: 12px; }
+    .candidates h3 { margin: 0; }
+    .candidates .groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px 20px; }
+    .candidates h4 { margin: 4px 0; font-size: 13px; font-weight: 600; }
+    .candidates .slower h4, .candidates span.slower { color: var(--risk); }
+    .candidates .faster h4, .candidates span.faster { color: var(--good); }
+    .candidates span.same { color: var(--muted); }
+    .candidates ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+    .candidates li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 13px; }
+    .candidates li form { margin: 0; }
+    .candidates li button { border: 0; background: none; min-height: 0; padding: 0; font-size: 14px; font-weight: 600; cursor: pointer; text-align: left; }
+    .candidates li button:hover { text-decoration: underline; }
+    .candidates .kind { font-family: var(--mono); font-size: 11px; color: var(--faint); font-weight: 400; }
+    .candidates .strip { display: inline-flex; align-items: flex-end; gap: 1px; height: 14px; border-bottom: 1px solid var(--border); }
+    .candidates .strip i { display: block; width: 4px; min-height: 1px; background: var(--bar); }
+    .candidates .pace { font-family: var(--mono); font-size: 12px; }
+    .candidates .this { font-size: 11px; color: var(--link); border: 1px solid var(--border); border-radius: 999px; padding: 0 6px; }
+    .candidates p.facts { flex-basis: 100%; margin: 0; font-size: 12px; color: var(--muted); }
+    .candidates p.error { flex-basis: 100%; margin: 0; font-size: 12px; color: var(--risk); font-weight: 400; }
     details.change > summary { cursor: pointer; font-size: 13px; color: var(--link); }
     details.change[open] > summary { margin-bottom: 16px; }
     section.input > .label p.saved { color: var(--good); font-weight: 600; }
