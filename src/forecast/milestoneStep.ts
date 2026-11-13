@@ -264,13 +264,19 @@ function readLine(read: SavedRead, { countsOpen }: StepQuery): string {
   return countsOpen ? `${ticketsRemaining(read)} open · ${finished}` : finished
 }
 
-/** A read's flag: incomplete, asking to narrow the query; or matching nothing. None for a read with all its tickets. */
-function readFlag(read: SavedRead, trackerName: string, { picksOut }: StepQuery): { flag: string } | undefined {
+/**
+ * A read's flag: incomplete, asking to narrow the query; or matching nothing that counts, which for a query whose open
+ * tickets don't count is nothing finished in the weeks it reads back. None for a read with all its tickets.
+ */
+function readFlag(read: SavedRead, trackerName: string, { picksOut, countsOpen }: StepQuery): { flag: string } | undefined {
   if (read.incomplete) {
     return { flag: `${trackerName} gave only part of what this query matches, so its tickets aren’t counted. Narrow the query to read all of it.` }
   }
-  if (read.tickets.length === 0) {
+  if (countsOpen && read.tickets.length === 0) {
     return { flag: `This query matches nothing: no open tickets, and none finished in the last ${FINISHED_WEEKS} weeks. Check it picks out ${picksOut}.` }
+  }
+  if (!countsOpen && read.tickets.length === ticketsRemaining(read)) {
+    return { flag: `This query matches nothing finished in the last ${FINISHED_WEEKS} weeks, so it adds nothing to pace. Check it picks out ${picksOut}.` }
   }
   return undefined
 }
