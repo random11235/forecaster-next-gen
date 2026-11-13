@@ -156,7 +156,7 @@ function paceHtml(pace: ComparableWorkPace | undefined): string {
   const periods = pace.periods.map((period) => periodHtml(period, top)).join('\n')
   const legend = `${comparing ? '<i class="comparable"></i> comparable work ' : ''}<i class="own"></i> the milestone’s own${pace.periods.some((period) => period.beforeStart) ? ' <i class="before"></i> before it started' : ''}`
   return `
-          <div class="pace">
+          <div class="step-pace">
             <p class="headline">${escapeHtml(pace.said.inUse)} <small>${escapeHtml(pace.said.from ?? '')}</small></p>${delta}
             <ol class="pairs" aria-label="Tickets finished each period, oldest first">
 ${periods}
