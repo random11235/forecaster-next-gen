@@ -30,6 +30,10 @@ const jira: Transport = async (url, init) => {
     return json(200, [{ id: '10009', name: 'Story', subtask: false, statuses: [status('10003', 'To Do', 'new'), status('10004', 'Done', 'done')] }])
   }
   if (url.includes('/project/')) return unknown
+  if (url.endsWith('/label?maxResults=100')) return json(200, { values: ['comparable', 'ktlo'], isLast: true, maxResults: 100, startAt: 0, total: 2, self: 'https://x' })
+  if (url.includes('/jql/autocompletedata/suggestions?fieldName=labels&')) {
+    return json(200, { results: [{ value: 'comparable', displayName: '<b>compar</b>able by Someone' }] })
+  }
   if (url.endsWith('/changelog/bulkfetch')) {
     return json(200, {
       issueChangeLogs: [
@@ -51,6 +55,14 @@ const jira: Transport = async (url, init) => {
   // Like Jira, search on an unknown project matches nothing rather than failing; a refused query gets a 400.
   if (jql.includes('==')) return json(400, { errorMessages: ["Error in JQL Query: Expecting either a value, list or function but got '='."], errors: {}, warningMessages: [] })
   if (!jql.startsWith('project = "SYN" ') || jql.includes('no-such-label')) return json(200, { issues: [], isLast: true })
+  if (jql.includes('issuetype = Epic')) {
+    const fields = { summary: 'Payment methods', status: { name: 'In Progress' }, assignee: { displayName: 'Someone' } }
+    return json(200, { issues: [{ id: '10105', key: 'SYN-106', self: 'https://x', fields }], isLast: true })
+  }
+  if (jql.includes(' key in (SYN-106)')) {
+    const fields = { issuetype: { id: '10010', name: 'Epic', subtask: false, hierarchyLevel: 1 }, summary: 'Payment methods' }
+    return json(200, { issues: [{ id: '10105', key: 'SYN-106', self: 'https://x', fields }], isLast: true })
+  }
   if (jql.includes('subTaskIssueTypes()')) {
     const parent = { id: '10133', key: 'SYN-134', fields: { summary: 'Search leaf 1', status: { name: 'In Progress' } } }
     return json(200, { issues: [{ id: '10134', key: 'SYN-135', fields: { parent } }], isLast: true })
@@ -108,6 +120,12 @@ describe('the Jira recording script', () => {
       isLast: true,
     })
     expect(responses).toContainEqual({ issues: [{ id: '10134', fields: { parent: { id: '10133' } } }], isLast: true })
+    // An epic is read by its key, so the epics search keeps it.
+    expect(responses).toContainEqual({ issues: [{ id: '10105', key: 'SYN-106', fields: { summary: 'Payment methods' } }], isLast: true })
+    // A picked epic is looked up by its key, to find what is beneath it, so that search keeps it too.
+    expect(responses).toContainEqual({ issues: [{ id: '10105', key: 'SYN-106', fields: { issuetype: { hierarchyLevel: 1 } } }], isLast: true })
+    expect(responses).toContainEqual({ values: ['comparable', 'ktlo'], isLast: true })
+    expect(responses).toContainEqual({ results: [{ value: 'comparable' }] })
     expect(responses).toContainEqual([
       {
         statuses: [
@@ -141,6 +159,9 @@ describe('the Jira recording script', () => {
       if (url.endsWith('/_edge/tenant_info')) expect(url).toBe('https://ralphhockley.atlassian.net/_edge/tenant_info')
       // Changelogs are fetched by id, only for tickets the space's search found.
       else if (url.endsWith('/changelog/bulkfetch')) expect(JSON.parse(body!)).toMatchObject({ issueIdsOrKeys: ['10134'] })
+      // Jira keeps labels for the whole site, not per project.
+      else if (url.includes('/label?')) expect(url).toBe(`https://api.atlassian.com/ex/jira/${CLOUD}/rest/api/3/label?maxResults=100`)
+      else if (url.includes('/suggestions?')) expect(url).toMatch(new RegExp(`^https://api\\.atlassian\\.com/ex/jira/${CLOUD}/rest/api/3/jql/autocompletedata/suggestions\\?fieldName=labels&`))
       else expect(`${url} ${body ?? ''}`).toMatch(new RegExp(`^https://api\\.atlassian\\.com/ex/jira/${CLOUD}/.*SYN`))
     }
   })

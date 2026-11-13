@@ -2,6 +2,78 @@
   {
     "request": {
       "method": "GET",
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20is%3Aopen%20has%3Asub-issue%20no%3Aparent-issue&advanced_search=true&per_page=100"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "total_count": 1,
+        "incomplete_results": false,
+        "items": [
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-ee5w",
+            "number": 106,
+            "title": "Epic: payment methods",
+            "state": "open",
+            "closed_at": null
+          }
+        ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/repos/random11235/forecaster-synthetic/labels?per_page=100"
+    },
+    "response": {
+      "status": 200,
+      "body": [
+        {
+          "name": "accessibility"
+        },
+        {
+          "name": "bug"
+        },
+        {
+          "name": "comparable"
+        },
+        {
+          "name": "documentation"
+        },
+        {
+          "name": "duplicate"
+        },
+        {
+          "name": "enhancement"
+        },
+        {
+          "name": "epic"
+        },
+        {
+          "name": "good first issue"
+        },
+        {
+          "name": "help wanted"
+        },
+        {
+          "name": "invalid"
+        },
+        {
+          "name": "ktlo"
+        },
+        {
+          "name": "question"
+        },
+        {
+          "name": "wontfix"
+        }
+      ]
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
       "url": "https://api.github.com/repos/random11235/forecaster-synthetic/milestones?state=open&per_page=100"
     },
     "response": {
@@ -19,6 +91,87 @@
   {
     "request": {
       "method": "GET",
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20is%3Aopen%20has%3Asub-issue%20no%3Aparent-issue%20in%3Atitle%20%22payment%22&advanced_search=true&per_page=100"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "total_count": 1,
+        "incomplete_results": false,
+        "items": [
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-ee5w",
+            "number": 106,
+            "title": "Epic: payment methods",
+            "state": "open",
+            "closed_at": null
+          }
+        ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/repos/random11235/forecaster-synthetic"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "id": 1448018775
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/search/labels?repository_id=1448018775&q=comparable&per_page=100"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "name": "comparable"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/repos/random11235/forecaster-synthetic/milestones?state=open&per_page=100&page=1"
+    },
+    "response": {
+      "status": 200,
+      "body": [
+        {
+          "title": "Checkout v2"
+        },
+        {
+          "title": "Search revamp"
+        }
+      ]
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20is%3Aopen%20has%3Asub-issue%20no%3Aparent-issue%20in%3Atitle%20%22zzqxnosuchchoice%22&advanced_search=true&per_page=100"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "total_count": 0,
+        "incomplete_results": false,
+        "items": []
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
       "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20no%3Asub-issue%20(milestone%3A%22Search%20revamp%22)%20(is%3Aopen%20OR%20closed%3A%3E%3D1970-01-01T00%3A00%3A00%2B00%3A00)&advanced_search=true&per_page=100&page=1"
     },
     "response": {
@@ -29,26 +182,36 @@
         "items": [
           {
             "node_id": "I_kwDOVk8DV88AAAABc-fi7w",
+            "number": 137,
+            "title": "Search leaf 5",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-fhMQ",
+            "number": 136,
+            "title": "Search leaf 4",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-ffdQ",
+            "number": 135,
+            "title": "Search leaf 3",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-fdjA",
+            "number": 134,
+            "title": "Search leaf 2",
             "state": "closed",
             "closed_at": "2026-11-06T08:47:40Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-fbqw",
+            "number": 133,
+            "title": "Search leaf 1",
             "state": "closed",
             "closed_at": "2026-11-06T08:47:38Z"
           }
@@ -69,26 +232,36 @@
         "items": [
           {
             "node_id": "I_kwDOVk8DV88AAAABc-fi7w",
+            "number": 137,
+            "title": "Search leaf 5",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-fhMQ",
+            "number": 136,
+            "title": "Search leaf 4",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-ffdQ",
+            "number": 135,
+            "title": "Search leaf 3",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-fdjA",
+            "number": 134,
+            "title": "Search leaf 2",
             "state": "closed",
             "closed_at": "2026-11-06T08:47:40Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-fbqw",
+            "number": 133,
+            "title": "Search leaf 1",
             "state": "closed",
             "closed_at": "2026-11-06T08:47:38Z"
           }
@@ -109,501 +282,705 @@
         "items": [
           {
             "node_id": "I_kwDOVk8DV88AAAABc-fA9Q",
+            "number": 117,
+            "title": "In the milestone and comparable work",
             "state": "closed",
             "closed_at": "2026-11-06T08:47:35Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-e_Aw",
+            "number": 116,
+            "title": "Closed as duplicate",
             "state": "closed",
             "closed_at": "2026-11-06T08:47:30Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-e9Jw",
+            "number": 115,
+            "title": "Closed as not planned 2",
             "state": "closed",
             "closed_at": "2026-11-06T08:47:28Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-e7AA",
+            "number": 114,
+            "title": "Closed as not planned 1",
             "state": "closed",
             "closed_at": "2026-11-06T08:47:25Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-e5EA",
+            "number": 113,
+            "title": "Reopened and still open",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-e3Gw",
+            "number": 112,
+            "title": "Reopened then finished again",
             "state": "closed",
             "closed_at": "2026-11-06T08:47:53Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-epqA",
+            "number": 111,
+            "title": "Payment methods direct leaf",
             "state": "closed",
-            "closed_at": "2026-11-06T08:47:23Z"
+            "closed_at": "2026-11-06T08:47:23Z",
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/106"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eneg",
+            "number": 110,
+            "title": "Card payments child 3",
             "state": "open",
-            "closed_at": null
+            "closed_at": null,
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-elJQ",
+            "number": 109,
+            "title": "Card payments child 2",
             "state": "closed",
-            "closed_at": "2026-11-06T08:47:20Z"
+            "closed_at": "2026-11-06T08:47:20Z",
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-ei9g",
+            "number": 108,
+            "title": "Card payments child 1",
             "state": "closed",
-            "closed_at": "2026-11-06T08:47:18Z"
+            "closed_at": "2026-11-06T08:47:18Z",
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-ecrg",
+            "number": 105,
+            "title": "Checkout leaf 105",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eauw",
+            "number": 104,
+            "title": "Checkout leaf 104",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eY3A",
+            "number": 103,
+            "title": "Checkout leaf 103",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eW6g",
+            "number": 102,
+            "title": "Checkout leaf 102",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eU0g",
+            "number": 101,
+            "title": "Checkout leaf 101",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eSrw",
+            "number": 100,
+            "title": "Checkout leaf 100",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eQsQ",
+            "number": 99,
+            "title": "Checkout leaf 099",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eOxg",
+            "number": 98,
+            "title": "Checkout leaf 098",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eMsA",
+            "number": 97,
+            "title": "Checkout leaf 097",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eKpQ",
+            "number": 96,
+            "title": "Checkout leaf 096",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eIpA",
+            "number": 95,
+            "title": "Checkout leaf 095",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eG2A",
+            "number": 94,
+            "title": "Checkout leaf 094",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eFDA",
+            "number": 93,
+            "title": "Checkout leaf 093",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eDHg",
+            "number": 92,
+            "title": "Checkout leaf 092",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eBTg",
+            "number": 91,
+            "title": "Checkout leaf 091",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d_bQ",
+            "number": 90,
+            "title": "Checkout leaf 090",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d9nQ",
+            "number": 89,
+            "title": "Checkout leaf 089",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d7wQ",
+            "number": 88,
+            "title": "Checkout leaf 088",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d5rQ",
+            "number": 87,
+            "title": "Checkout leaf 087",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d3vQ",
+            "number": 86,
+            "title": "Checkout leaf 086",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d14w",
+            "number": 85,
+            "title": "Checkout leaf 085",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d0FA",
+            "number": 84,
+            "title": "Checkout leaf 084",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dyGA",
+            "number": 83,
+            "title": "Checkout leaf 083",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dv5w",
+            "number": 82,
+            "title": "Checkout leaf 082",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dtrg",
+            "number": 81,
+            "title": "Checkout leaf 081",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-drtA",
+            "number": 80,
+            "title": "Checkout leaf 080",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dpmw",
+            "number": 79,
+            "title": "Checkout leaf 079",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dnmw",
+            "number": 78,
+            "title": "Checkout leaf 078",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dlrw",
+            "number": 77,
+            "title": "Checkout leaf 077",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-djyA",
+            "number": 76,
+            "title": "Checkout leaf 076",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-diFQ",
+            "number": 75,
+            "title": "Checkout leaf 075",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dgSw",
+            "number": 74,
+            "title": "Checkout leaf 074",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-deOw",
+            "number": 73,
+            "title": "Checkout leaf 073",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dcSg",
+            "number": 72,
+            "title": "Checkout leaf 072",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dadg",
+            "number": 71,
+            "title": "Checkout leaf 071",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dYpA",
+            "number": 70,
+            "title": "Checkout leaf 070",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dWyQ",
+            "number": 69,
+            "title": "Checkout leaf 069",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dU-w",
+            "number": 68,
+            "title": "Checkout leaf 068",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dTOw",
+            "number": 67,
+            "title": "Checkout leaf 067",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dRNA",
+            "number": 66,
+            "title": "Checkout leaf 066",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dPaA",
+            "number": 65,
+            "title": "Checkout leaf 065",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dNcg",
+            "number": 64,
+            "title": "Checkout leaf 064",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dLhw",
+            "number": 63,
+            "title": "Checkout leaf 063",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dJTw",
+            "number": 62,
+            "title": "Checkout leaf 062",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dHPQ",
+            "number": 61,
+            "title": "Checkout leaf 061",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dFFg",
+            "number": 60,
+            "title": "Checkout leaf 060",
             "state": "closed",
             "closed_at": "2026-11-06T08:47:01Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dDAg",
+            "number": 59,
+            "title": "Checkout leaf 059",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:58Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dA6Q",
+            "number": 58,
+            "title": "Checkout leaf 058",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:56Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-c-1w",
+            "number": 57,
+            "title": "Checkout leaf 057",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:53Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-c8nA",
+            "number": 56,
+            "title": "Checkout leaf 056",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:51Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-c6Xg",
+            "number": 55,
+            "title": "Checkout leaf 055",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:48Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-c4cQ",
+            "number": 54,
+            "title": "Checkout leaf 054",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:46Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-c2bQ",
+            "number": 53,
+            "title": "Checkout leaf 053",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:43Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-c0Kg",
+            "number": 52,
+            "title": "Checkout leaf 052",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:41Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cyMA",
+            "number": 51,
+            "title": "Checkout leaf 051",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:38Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cwLA",
+            "number": 50,
+            "title": "Checkout leaf 050",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:36Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cuMw",
+            "number": 49,
+            "title": "Checkout leaf 049",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:33Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cr-Q",
+            "number": 48,
+            "title": "Checkout leaf 048",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:31Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cpog",
+            "number": 47,
+            "title": "Checkout leaf 047",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:28Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cnwA",
+            "number": 46,
+            "title": "Checkout leaf 046",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:26Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-clrQ",
+            "number": 45,
+            "title": "Checkout leaf 045",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:23Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cjsA",
+            "number": 44,
+            "title": "Checkout leaf 044",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:21Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-ch6w",
+            "number": 43,
+            "title": "Checkout leaf 043",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:18Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cf0Q",
+            "number": 42,
+            "title": "Checkout leaf 042",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:16Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-ceBQ",
+            "number": 41,
+            "title": "Checkout leaf 041",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:13Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cb5Q",
+            "number": 40,
+            "title": "Checkout leaf 040",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:11Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-caHw",
+            "number": 39,
+            "title": "Checkout leaf 039",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:08Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cYCQ",
+            "number": 38,
+            "title": "Checkout leaf 038",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:06Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cWCQ",
+            "number": 37,
+            "title": "Checkout leaf 037",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:04Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cUMg",
+            "number": 36,
+            "title": "Checkout leaf 036",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:01Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cSAg",
+            "number": 35,
+            "title": "Checkout leaf 035",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:59Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cQGA",
+            "number": 34,
+            "title": "Checkout leaf 034",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:56Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cOKA",
+            "number": 33,
+            "title": "Checkout leaf 033",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:54Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cMCQ",
+            "number": 32,
+            "title": "Checkout leaf 032",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:51Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cJ-A",
+            "number": 31,
+            "title": "Checkout leaf 031",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:49Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cIPA",
+            "number": 30,
+            "title": "Checkout leaf 030",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:46Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cGbw",
+            "number": 29,
+            "title": "Checkout leaf 029",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:44Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cERQ",
+            "number": 28,
+            "title": "Checkout leaf 028",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:42Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cB_w",
+            "number": 27,
+            "title": "Checkout leaf 027",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:39Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-b_7A",
+            "number": 26,
+            "title": "Checkout leaf 026",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:36Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-b-DQ",
+            "number": 25,
+            "title": "Checkout leaf 025",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:34Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-b8IA",
+            "number": 24,
+            "title": "Checkout leaf 024",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:31Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-b6Iw",
+            "number": 23,
+            "title": "Checkout leaf 023",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:29Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-b4NA",
+            "number": 22,
+            "title": "Checkout leaf 022",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:26Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-b2Kw",
+            "number": 21,
+            "title": "Checkout leaf 021",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:24Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-bz9Q",
+            "number": 20,
+            "title": "Checkout leaf 020",
             "state": "closed",
             "closed_at": "2026-11-06T08:42:04Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-bx_w",
+            "number": 19,
+            "title": "Checkout leaf 019",
             "state": "closed",
             "closed_at": "2026-11-06T08:42:02Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-bv-w",
+            "number": 18,
+            "title": "Checkout leaf 018",
             "state": "closed",
             "closed_at": "2026-11-06T08:41:59Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-buCQ",
+            "number": 17,
+            "title": "Checkout leaf 017",
             "state": "closed",
             "closed_at": "2026-11-06T08:41:57Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-bsMQ",
+            "number": 16,
+            "title": "Checkout leaf 016",
             "state": "closed",
             "closed_at": "2026-11-06T08:41:55Z"
           }
@@ -624,76 +1001,106 @@
         "items": [
           {
             "node_id": "I_kwDOVk8DV88AAAABc-bp7A",
+            "number": 15,
+            "title": "Checkout leaf 015",
             "state": "closed",
             "closed_at": "2026-11-06T08:41:52Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-bnqQ",
+            "number": 14,
+            "title": "Checkout leaf 014",
             "state": "closed",
             "closed_at": "2026-11-06T08:41:50Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-blnw",
+            "number": 13,
+            "title": "Checkout leaf 013",
             "state": "closed",
             "closed_at": "2026-11-06T08:41:47Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-bjcA",
+            "number": 12,
+            "title": "Checkout leaf 012",
             "state": "closed",
             "closed_at": "2026-11-06T08:41:45Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-bhfg",
+            "number": 11,
+            "title": "Checkout leaf 011",
             "state": "closed",
             "closed_at": "2026-11-06T08:41:42Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-bfpg",
+            "number": 10,
+            "title": "Checkout leaf 010",
             "state": "closed",
             "closed_at": "2026-11-06T08:41:40Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-bdnA",
+            "number": 9,
+            "title": "Checkout leaf 009",
             "state": "closed",
             "closed_at": "2026-11-06T08:41:37Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-bbjg",
+            "number": 8,
+            "title": "Checkout leaf 008",
             "state": "closed",
             "closed_at": "2026-11-06T08:41:35Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-bZnQ",
+            "number": 7,
+            "title": "Checkout leaf 007",
             "state": "closed",
             "closed_at": "2026-11-06T08:41:32Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-bX2A",
+            "number": 6,
+            "title": "Checkout leaf 006",
             "state": "closed",
             "closed_at": "2026-11-06T08:41:30Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-bV1A",
+            "number": 5,
+            "title": "Checkout leaf 005",
             "state": "closed",
             "closed_at": "2026-11-06T08:41:27Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-bTnw",
+            "number": 4,
+            "title": "Checkout leaf 004",
             "state": "closed",
             "closed_at": "2026-11-06T08:41:25Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-bRWA",
+            "number": 3,
+            "title": "Checkout leaf 003",
             "state": "closed",
             "closed_at": "2026-11-06T08:41:22Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-bPKA",
+            "number": 2,
+            "title": "Checkout leaf 002",
             "state": "closed",
             "closed_at": "2026-11-06T08:41:20Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-bNUg",
+            "number": 1,
+            "title": "Checkout leaf 001",
             "state": "closed",
             "closed_at": "2026-11-06T08:41:18Z"
           }
@@ -714,476 +1121,670 @@
         "items": [
           {
             "node_id": "I_kwDOVk8DV88AAAABc-fA9Q",
+            "number": 117,
+            "title": "In the milestone and comparable work",
             "state": "closed",
             "closed_at": "2026-11-06T08:47:35Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-e_Aw",
+            "number": 116,
+            "title": "Closed as duplicate",
             "state": "closed",
             "closed_at": "2026-11-06T08:47:30Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-e9Jw",
+            "number": 115,
+            "title": "Closed as not planned 2",
             "state": "closed",
             "closed_at": "2026-11-06T08:47:28Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-e7AA",
+            "number": 114,
+            "title": "Closed as not planned 1",
             "state": "closed",
             "closed_at": "2026-11-06T08:47:25Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-e5EA",
+            "number": 113,
+            "title": "Reopened and still open",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-e3Gw",
+            "number": 112,
+            "title": "Reopened then finished again",
             "state": "closed",
             "closed_at": "2026-11-06T08:47:53Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-epqA",
+            "number": 111,
+            "title": "Payment methods direct leaf",
             "state": "closed",
-            "closed_at": "2026-11-06T08:47:23Z"
+            "closed_at": "2026-11-06T08:47:23Z",
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/106"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eneg",
+            "number": 110,
+            "title": "Card payments child 3",
             "state": "open",
-            "closed_at": null
+            "closed_at": null,
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-elJQ",
+            "number": 109,
+            "title": "Card payments child 2",
             "state": "closed",
-            "closed_at": "2026-11-06T08:47:20Z"
+            "closed_at": "2026-11-06T08:47:20Z",
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-ei9g",
+            "number": 108,
+            "title": "Card payments child 1",
             "state": "closed",
-            "closed_at": "2026-11-06T08:47:18Z"
+            "closed_at": "2026-11-06T08:47:18Z",
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-ecrg",
+            "number": 105,
+            "title": "Checkout leaf 105",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eauw",
+            "number": 104,
+            "title": "Checkout leaf 104",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eY3A",
+            "number": 103,
+            "title": "Checkout leaf 103",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eW6g",
+            "number": 102,
+            "title": "Checkout leaf 102",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eU0g",
+            "number": 101,
+            "title": "Checkout leaf 101",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eSrw",
+            "number": 100,
+            "title": "Checkout leaf 100",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eQsQ",
+            "number": 99,
+            "title": "Checkout leaf 099",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eOxg",
+            "number": 98,
+            "title": "Checkout leaf 098",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eMsA",
+            "number": 97,
+            "title": "Checkout leaf 097",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eKpQ",
+            "number": 96,
+            "title": "Checkout leaf 096",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eIpA",
+            "number": 95,
+            "title": "Checkout leaf 095",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eG2A",
+            "number": 94,
+            "title": "Checkout leaf 094",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eFDA",
+            "number": 93,
+            "title": "Checkout leaf 093",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eDHg",
+            "number": 92,
+            "title": "Checkout leaf 092",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eBTg",
+            "number": 91,
+            "title": "Checkout leaf 091",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d_bQ",
+            "number": 90,
+            "title": "Checkout leaf 090",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d9nQ",
+            "number": 89,
+            "title": "Checkout leaf 089",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d7wQ",
+            "number": 88,
+            "title": "Checkout leaf 088",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d5rQ",
+            "number": 87,
+            "title": "Checkout leaf 087",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d3vQ",
+            "number": 86,
+            "title": "Checkout leaf 086",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d14w",
+            "number": 85,
+            "title": "Checkout leaf 085",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d0FA",
+            "number": 84,
+            "title": "Checkout leaf 084",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dyGA",
+            "number": 83,
+            "title": "Checkout leaf 083",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dv5w",
+            "number": 82,
+            "title": "Checkout leaf 082",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dtrg",
+            "number": 81,
+            "title": "Checkout leaf 081",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-drtA",
+            "number": 80,
+            "title": "Checkout leaf 080",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dpmw",
+            "number": 79,
+            "title": "Checkout leaf 079",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dnmw",
+            "number": 78,
+            "title": "Checkout leaf 078",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dlrw",
+            "number": 77,
+            "title": "Checkout leaf 077",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-djyA",
+            "number": 76,
+            "title": "Checkout leaf 076",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-diFQ",
+            "number": 75,
+            "title": "Checkout leaf 075",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dgSw",
+            "number": 74,
+            "title": "Checkout leaf 074",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-deOw",
+            "number": 73,
+            "title": "Checkout leaf 073",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dcSg",
+            "number": 72,
+            "title": "Checkout leaf 072",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dadg",
+            "number": 71,
+            "title": "Checkout leaf 071",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dYpA",
+            "number": 70,
+            "title": "Checkout leaf 070",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dWyQ",
+            "number": 69,
+            "title": "Checkout leaf 069",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dU-w",
+            "number": 68,
+            "title": "Checkout leaf 068",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dTOw",
+            "number": 67,
+            "title": "Checkout leaf 067",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dRNA",
+            "number": 66,
+            "title": "Checkout leaf 066",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dPaA",
+            "number": 65,
+            "title": "Checkout leaf 065",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dNcg",
+            "number": 64,
+            "title": "Checkout leaf 064",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dLhw",
+            "number": 63,
+            "title": "Checkout leaf 063",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dJTw",
+            "number": 62,
+            "title": "Checkout leaf 062",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dHPQ",
+            "number": 61,
+            "title": "Checkout leaf 061",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dFFg",
+            "number": 60,
+            "title": "Checkout leaf 060",
             "state": "closed",
             "closed_at": "2026-11-06T08:47:01Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dDAg",
+            "number": 59,
+            "title": "Checkout leaf 059",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:58Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dA6Q",
+            "number": 58,
+            "title": "Checkout leaf 058",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:56Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-c-1w",
+            "number": 57,
+            "title": "Checkout leaf 057",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:53Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-c8nA",
+            "number": 56,
+            "title": "Checkout leaf 056",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:51Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-c6Xg",
+            "number": 55,
+            "title": "Checkout leaf 055",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:48Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-c4cQ",
+            "number": 54,
+            "title": "Checkout leaf 054",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:46Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-c2bQ",
+            "number": 53,
+            "title": "Checkout leaf 053",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:43Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-c0Kg",
+            "number": 52,
+            "title": "Checkout leaf 052",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:41Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cyMA",
+            "number": 51,
+            "title": "Checkout leaf 051",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:38Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cwLA",
+            "number": 50,
+            "title": "Checkout leaf 050",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:36Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cuMw",
+            "number": 49,
+            "title": "Checkout leaf 049",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:33Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cr-Q",
+            "number": 48,
+            "title": "Checkout leaf 048",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:31Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cpog",
+            "number": 47,
+            "title": "Checkout leaf 047",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:28Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cnwA",
+            "number": 46,
+            "title": "Checkout leaf 046",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:26Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-clrQ",
+            "number": 45,
+            "title": "Checkout leaf 045",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:23Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cjsA",
+            "number": 44,
+            "title": "Checkout leaf 044",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:21Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-ch6w",
+            "number": 43,
+            "title": "Checkout leaf 043",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:18Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cf0Q",
+            "number": 42,
+            "title": "Checkout leaf 042",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:16Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-ceBQ",
+            "number": 41,
+            "title": "Checkout leaf 041",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:13Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cb5Q",
+            "number": 40,
+            "title": "Checkout leaf 040",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:11Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-caHw",
+            "number": 39,
+            "title": "Checkout leaf 039",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:08Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cYCQ",
+            "number": 38,
+            "title": "Checkout leaf 038",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:06Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cWCQ",
+            "number": 37,
+            "title": "Checkout leaf 037",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:04Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cUMg",
+            "number": 36,
+            "title": "Checkout leaf 036",
             "state": "closed",
             "closed_at": "2026-11-06T08:46:01Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cSAg",
+            "number": 35,
+            "title": "Checkout leaf 035",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:59Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cQGA",
+            "number": 34,
+            "title": "Checkout leaf 034",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:56Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cOKA",
+            "number": 33,
+            "title": "Checkout leaf 033",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:54Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cMCQ",
+            "number": 32,
+            "title": "Checkout leaf 032",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:51Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cJ-A",
+            "number": 31,
+            "title": "Checkout leaf 031",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:49Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cIPA",
+            "number": 30,
+            "title": "Checkout leaf 030",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:46Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cGbw",
+            "number": 29,
+            "title": "Checkout leaf 029",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:44Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cERQ",
+            "number": 28,
+            "title": "Checkout leaf 028",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:42Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-cB_w",
+            "number": 27,
+            "title": "Checkout leaf 027",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:39Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-b_7A",
+            "number": 26,
+            "title": "Checkout leaf 026",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:36Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-b-DQ",
+            "number": 25,
+            "title": "Checkout leaf 025",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:34Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-b8IA",
+            "number": 24,
+            "title": "Checkout leaf 024",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:31Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-b6Iw",
+            "number": 23,
+            "title": "Checkout leaf 023",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:29Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-b4NA",
+            "number": 22,
+            "title": "Checkout leaf 022",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:26Z"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-b2Kw",
+            "number": 21,
+            "title": "Checkout leaf 021",
             "state": "closed",
             "closed_at": "2026-11-06T08:45:24Z"
           }
@@ -1204,271 +1805,380 @@
         "items": [
           {
             "node_id": "I_kwDOVk8DV88AAAABc-fi7w",
+            "number": 137,
+            "title": "Search leaf 5",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-fhMQ",
+            "number": 136,
+            "title": "Search leaf 4",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-ffdQ",
+            "number": 135,
+            "title": "Search leaf 3",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-faAw",
+            "number": 132,
+            "title": "KTLO 3",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-fYkA",
+            "number": 131,
+            "title": "KTLO 2",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-fVRQ",
+            "number": 129,
+            "title": "Comparable work 12",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-fTng",
+            "number": 128,
+            "title": "Comparable work 11",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-e5EA",
+            "number": 113,
+            "title": "Reopened and still open",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eneg",
+            "number": 110,
+            "title": "Card payments child 3",
             "state": "open",
-            "closed_at": null
+            "closed_at": null,
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-ecrg",
+            "number": 105,
+            "title": "Checkout leaf 105",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eauw",
+            "number": 104,
+            "title": "Checkout leaf 104",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eY3A",
+            "number": 103,
+            "title": "Checkout leaf 103",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eW6g",
+            "number": 102,
+            "title": "Checkout leaf 102",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eU0g",
+            "number": 101,
+            "title": "Checkout leaf 101",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eSrw",
+            "number": 100,
+            "title": "Checkout leaf 100",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eQsQ",
+            "number": 99,
+            "title": "Checkout leaf 099",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eOxg",
+            "number": 98,
+            "title": "Checkout leaf 098",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eMsA",
+            "number": 97,
+            "title": "Checkout leaf 097",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eKpQ",
+            "number": 96,
+            "title": "Checkout leaf 096",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eIpA",
+            "number": 95,
+            "title": "Checkout leaf 095",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eG2A",
+            "number": 94,
+            "title": "Checkout leaf 094",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eFDA",
+            "number": 93,
+            "title": "Checkout leaf 093",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eDHg",
+            "number": 92,
+            "title": "Checkout leaf 092",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eBTg",
+            "number": 91,
+            "title": "Checkout leaf 091",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d_bQ",
+            "number": 90,
+            "title": "Checkout leaf 090",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d9nQ",
+            "number": 89,
+            "title": "Checkout leaf 089",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d7wQ",
+            "number": 88,
+            "title": "Checkout leaf 088",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d5rQ",
+            "number": 87,
+            "title": "Checkout leaf 087",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d3vQ",
+            "number": 86,
+            "title": "Checkout leaf 086",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d14w",
+            "number": 85,
+            "title": "Checkout leaf 085",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d0FA",
+            "number": 84,
+            "title": "Checkout leaf 084",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dyGA",
+            "number": 83,
+            "title": "Checkout leaf 083",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dv5w",
+            "number": 82,
+            "title": "Checkout leaf 082",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dtrg",
+            "number": 81,
+            "title": "Checkout leaf 081",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-drtA",
+            "number": 80,
+            "title": "Checkout leaf 080",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dpmw",
+            "number": 79,
+            "title": "Checkout leaf 079",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dnmw",
+            "number": 78,
+            "title": "Checkout leaf 078",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dlrw",
+            "number": 77,
+            "title": "Checkout leaf 077",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-djyA",
+            "number": 76,
+            "title": "Checkout leaf 076",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-diFQ",
+            "number": 75,
+            "title": "Checkout leaf 075",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dgSw",
+            "number": 74,
+            "title": "Checkout leaf 074",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-deOw",
+            "number": 73,
+            "title": "Checkout leaf 073",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dcSg",
+            "number": 72,
+            "title": "Checkout leaf 072",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dadg",
+            "number": 71,
+            "title": "Checkout leaf 071",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dYpA",
+            "number": 70,
+            "title": "Checkout leaf 070",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dWyQ",
+            "number": 69,
+            "title": "Checkout leaf 069",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dU-w",
+            "number": 68,
+            "title": "Checkout leaf 068",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dTOw",
+            "number": 67,
+            "title": "Checkout leaf 067",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dRNA",
+            "number": 66,
+            "title": "Checkout leaf 066",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dPaA",
+            "number": 65,
+            "title": "Checkout leaf 065",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dNcg",
+            "number": 64,
+            "title": "Checkout leaf 064",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dLhw",
+            "number": 63,
+            "title": "Checkout leaf 063",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dJTw",
+            "number": 62,
+            "title": "Checkout leaf 062",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dHPQ",
+            "number": 61,
+            "title": "Checkout leaf 061",
             "state": "open",
             "closed_at": null
           }
@@ -1489,271 +2199,380 @@
         "items": [
           {
             "node_id": "I_kwDOVk8DV88AAAABc-fi7w",
+            "number": 137,
+            "title": "Search leaf 5",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-fhMQ",
+            "number": 136,
+            "title": "Search leaf 4",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-ffdQ",
+            "number": 135,
+            "title": "Search leaf 3",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-faAw",
+            "number": 132,
+            "title": "KTLO 3",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-fYkA",
+            "number": 131,
+            "title": "KTLO 2",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-fVRQ",
+            "number": 129,
+            "title": "Comparable work 12",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-fTng",
+            "number": 128,
+            "title": "Comparable work 11",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-e5EA",
+            "number": 113,
+            "title": "Reopened and still open",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eneg",
+            "number": 110,
+            "title": "Card payments child 3",
             "state": "open",
-            "closed_at": null
+            "closed_at": null,
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-ecrg",
+            "number": 105,
+            "title": "Checkout leaf 105",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eauw",
+            "number": 104,
+            "title": "Checkout leaf 104",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eY3A",
+            "number": 103,
+            "title": "Checkout leaf 103",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eW6g",
+            "number": 102,
+            "title": "Checkout leaf 102",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eU0g",
+            "number": 101,
+            "title": "Checkout leaf 101",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eSrw",
+            "number": 100,
+            "title": "Checkout leaf 100",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eQsQ",
+            "number": 99,
+            "title": "Checkout leaf 099",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eOxg",
+            "number": 98,
+            "title": "Checkout leaf 098",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eMsA",
+            "number": 97,
+            "title": "Checkout leaf 097",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eKpQ",
+            "number": 96,
+            "title": "Checkout leaf 096",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eIpA",
+            "number": 95,
+            "title": "Checkout leaf 095",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eG2A",
+            "number": 94,
+            "title": "Checkout leaf 094",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eFDA",
+            "number": 93,
+            "title": "Checkout leaf 093",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eDHg",
+            "number": 92,
+            "title": "Checkout leaf 092",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-eBTg",
+            "number": 91,
+            "title": "Checkout leaf 091",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d_bQ",
+            "number": 90,
+            "title": "Checkout leaf 090",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d9nQ",
+            "number": 89,
+            "title": "Checkout leaf 089",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d7wQ",
+            "number": 88,
+            "title": "Checkout leaf 088",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d5rQ",
+            "number": 87,
+            "title": "Checkout leaf 087",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d3vQ",
+            "number": 86,
+            "title": "Checkout leaf 086",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d14w",
+            "number": 85,
+            "title": "Checkout leaf 085",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-d0FA",
+            "number": 84,
+            "title": "Checkout leaf 084",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dyGA",
+            "number": 83,
+            "title": "Checkout leaf 083",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dv5w",
+            "number": 82,
+            "title": "Checkout leaf 082",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dtrg",
+            "number": 81,
+            "title": "Checkout leaf 081",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-drtA",
+            "number": 80,
+            "title": "Checkout leaf 080",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dpmw",
+            "number": 79,
+            "title": "Checkout leaf 079",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dnmw",
+            "number": 78,
+            "title": "Checkout leaf 078",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dlrw",
+            "number": 77,
+            "title": "Checkout leaf 077",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-djyA",
+            "number": 76,
+            "title": "Checkout leaf 076",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-diFQ",
+            "number": 75,
+            "title": "Checkout leaf 075",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dgSw",
+            "number": 74,
+            "title": "Checkout leaf 074",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-deOw",
+            "number": 73,
+            "title": "Checkout leaf 073",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dcSg",
+            "number": 72,
+            "title": "Checkout leaf 072",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dadg",
+            "number": 71,
+            "title": "Checkout leaf 071",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dYpA",
+            "number": 70,
+            "title": "Checkout leaf 070",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dWyQ",
+            "number": 69,
+            "title": "Checkout leaf 069",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dU-w",
+            "number": 68,
+            "title": "Checkout leaf 068",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dTOw",
+            "number": 67,
+            "title": "Checkout leaf 067",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dRNA",
+            "number": 66,
+            "title": "Checkout leaf 066",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dPaA",
+            "number": 65,
+            "title": "Checkout leaf 065",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dNcg",
+            "number": 64,
+            "title": "Checkout leaf 064",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dLhw",
+            "number": 63,
+            "title": "Checkout leaf 063",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dJTw",
+            "number": 62,
+            "title": "Checkout leaf 062",
             "state": "open",
             "closed_at": null
           },
           {
             "node_id": "I_kwDOVk8DV88AAAABc-dHPQ",
+            "number": 61,
+            "title": "Checkout leaf 061",
             "state": "open",
             "closed_at": null
           }
@@ -1820,6 +2639,165 @@
             "message": "\"2026-13-45\" is not a recognized date/time format. Please provide an ISO 8601 date/time value, such as YYYY-MM-DD."
           }
         ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20has%3Asub-issue%20(parent-issue%3Arandom11235%2Fforecaster-synthetic%23106)&advanced_search=true&per_page=100&page=1"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "total_count": 1,
+        "incomplete_results": false,
+        "items": [
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eg3w",
+            "number": 107,
+            "title": "Parent: card payments",
+            "state": "open",
+            "closed_at": null,
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/106"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20has%3Asub-issue%20(parent-issue%3Arandom11235%2Fforecaster-synthetic%23107)&advanced_search=true&per_page=100&page=1"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "total_count": 0,
+        "incomplete_results": false,
+        "items": []
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20no%3Asub-issue%20((parent-issue%3Arandom11235%2Fforecaster-synthetic%23106%20OR%20parent-issue%3Arandom11235%2Fforecaster-synthetic%23107))%20(is%3Aopen%20OR%20closed%3A%3E%3D1970-01-01T00%3A00%3A00%2B00%3A00)&advanced_search=true&per_page=100&page=1"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "total_count": 4,
+        "incomplete_results": false,
+        "items": [
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-epqA",
+            "number": 111,
+            "title": "Payment methods direct leaf",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:23Z",
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/106"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eneg",
+            "number": 110,
+            "title": "Card payments child 3",
+            "state": "open",
+            "closed_at": null,
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-elJQ",
+            "number": 109,
+            "title": "Card payments child 2",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:20Z",
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-ei9g",
+            "number": 108,
+            "title": "Card payments child 1",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:18Z",
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20no%3Asub-issue%20((parent-issue%3Arandom11235%2Fforecaster-synthetic%23106%20OR%20parent-issue%3Arandom11235%2Fforecaster-synthetic%23107))%20(is%3Aopen%20OR%20closed%3A%3E%3D2026-11-06T08%3A44%3A52%2B00%3A00)&advanced_search=true&per_page=100&page=1"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "total_count": 4,
+        "incomplete_results": false,
+        "items": [
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-epqA",
+            "number": 111,
+            "title": "Payment methods direct leaf",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:23Z",
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/106"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-eneg",
+            "number": 110,
+            "title": "Card payments child 3",
+            "state": "open",
+            "closed_at": null,
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-elJQ",
+            "number": 109,
+            "title": "Card payments child 2",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:20Z",
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
+          },
+          {
+            "node_id": "I_kwDOVk8DV88AAAABc-ei9g",
+            "number": 108,
+            "title": "Card payments child 1",
+            "state": "closed",
+            "closed_at": "2026-11-06T08:47:18Z",
+            "parent_issue_url": "https://api.github.com/repos/random11235/forecaster-synthetic/issues/107"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20no%3Asub-issue%20(parent-issue%3A%23106)%20(is%3Aopen%20OR%20closed%3A%3E%3D1970-01-01T00%3A00%3A00%2B00%3A00)&advanced_search=true&per_page=100&page=1"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "total_count": 0,
+        "incomplete_results": false,
+        "items": []
+      }
+    }
+  },
+  {
+    "request": {
+      "method": "GET",
+      "url": "https://api.github.com/search/issues?q=repo%3Arandom11235%2Fforecaster-synthetic%20is%3Aissue%20no%3Asub-issue%20(parent-issue%3A%23106)%20(is%3Aopen%20OR%20closed%3A%3E%3D2026-11-06T08%3A44%3A52%2B00%3A00)&advanced_search=true&per_page=100&page=1"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "total_count": 0,
+        "incomplete_results": false,
+        "items": []
       }
     }
   }

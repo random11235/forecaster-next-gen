@@ -1,10 +1,12 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, test } from 'vitest'
 import type { AmbiguityRanges } from '../../src/model/ambiguity.js'
 import type { CapacityEntry } from '../../src/model/capacity.js'
 import type { Connection } from '../../src/model/connection.js'
+import type { MilestoneQuery } from '../../src/model/milestoneQuery.js'
 import type { SavedRead } from '../../src/model/savedRead.js'
 import type { MilestoneInputs } from '../../src/model/milestoneInputs.js'
 import type { Team } from '../../src/model/team.js'
@@ -329,6 +331,85 @@ describe("SQLite storage's saved reads", () => {
     storage.saveRead({ teamId: 'team', query: OPEN_TICKETS }, { ...READ, tickets: [handed] })
 
     expect(reopen().savedRead({ teamId: 'team', query: OPEN_TICKETS })!.tickets).toStrictEqual([{ id: 'I_1', finishedAt: '2026-11-06T22:30:00Z' }])
+  })
+})
+
+// Only the local server build keeps the milestone's picks and query: the browser build has no connectors (#190).
+describe("SQLite storage's milestone query", () => {
+  const PICKED: MilestoneQuery = {
+    picks: [
+      { kind: 'epic', name: 'Checkout redesign', query: 'parent-issue:acme/checkout#106' },
+      { kind: 'label', name: 'payments', query: 'label:"payments"' },
+    ],
+    query: 'parent-issue:acme/checkout#106 OR label:"payments"',
+  }
+
+  function sqliteFile(): { storage: SqliteStorage; reopen: () => SqliteStorage } {
+    dir = mkdtempSync(join(tmpdir(), 'forecaster-'))
+    const file = join(dir, 'forecaster.db')
+    const reopen = (): SqliteStorage => {
+      open?.close()
+      const storage = openSqliteStorage(file)
+      open = storage
+      return storage
+    }
+    return { storage: reopen(), reopen }
+  }
+
+  test("keeps the milestone's picks in order and its query, replacing both when saved again", () => {
+    const { storage, reopen } = sqliteFile()
+    storage.saveTeam(TEAM)
+    storage.saveMilestoneInputs(LAUNCH)
+
+    expect(storage.milestoneQuery('team')).toBeUndefined()
+    storage.saveMilestoneQuery('team', { picks: [{ kind: 'milestone', name: 'Beta', query: 'milestone:"Beta"' }], query: 'milestone:"Beta"' })
+    storage.saveMilestoneQuery('team', PICKED)
+
+    const again = reopen()
+    expect(again.milestoneQuery('team')).toEqual(PICKED)
+    expect(again.milestoneQuery('another')).toBeUndefined()
+    expect(again.milestoneInputs('team')).toEqual(LAUNCH)
+  })
+
+  test('keeps a hand-edited query as written, beside the picks it was edited from', () => {
+    const { storage, reopen } = sqliteFile()
+    storage.saveTeam(TEAM)
+    const edited: MilestoneQuery = { picks: PICKED.picks, query: 'label:checkout -label:bug' }
+
+    storage.saveMilestoneQuery('team', edited)
+
+    expect(reopen().milestoneQuery('team')).toEqual(edited)
+  })
+
+  test('keeps a milestone with no picks and an empty query', () => {
+    const { storage, reopen } = sqliteFile()
+    storage.saveTeam(TEAM)
+
+    storage.saveMilestoneQuery('team', { picks: [], query: '' })
+
+    expect(reopen().milestoneQuery('team')).toEqual({ picks: [], query: '' })
+  })
+
+  test('keeps nothing of a pick but its kind, name and query, whatever else it is handed', () => {
+    const { storage, reopen } = sqliteFile()
+    storage.saveTeam(TEAM)
+    const handed = { kind: 'label' as const, name: 'payments', query: 'label:"payments"', overHundred: true }
+
+    storage.saveMilestoneQuery('team', { picks: [handed], query: 'label:"payments"' })
+
+    expect(reopen().milestoneQuery('team')!.picks).toStrictEqual([{ kind: 'label', name: 'payments', query: 'label:"payments"' }])
+  })
+
+  test('reads back no pick of a kind it doesn’t know, keeping the query and the other picks', () => {
+    const { storage, reopen } = sqliteFile()
+    storage.saveTeam(TEAM)
+    storage.saveMilestoneQuery('team', PICKED)
+    const db = new DatabaseSync(join(dir!, 'forecaster.db'))
+    const stored = [{ kind: 'component', name: 'Payments', query: 'component = Payments' }, ...PICKED.picks]
+    db.prepare('UPDATE milestone_queries SET picks = ?').run(JSON.stringify(stored))
+    db.close()
+
+    expect(reopen().milestoneQuery('team')).toEqual(PICKED)
   })
 })
 

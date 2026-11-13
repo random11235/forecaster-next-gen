@@ -18,7 +18,7 @@ import type { Connector, Transport } from '../src/connectors/connector.ts'
 import type { Connection } from '../src/model/connection.ts'
 import { bodyOf } from '../src/connectors/remote.ts'
 import { describeRequest, requestOf, type Recording } from '../test/connectors/recording.ts'
-import { FROM_THE_START, GITHUB_CASES, JIRA_CASES, type Scenario, type TrackerCases } from '../test/connectors/scenarios.ts'
+import { FROM_THE_START, GITHUB_CASES, JIRA_CASES, NO_SUCH_CHOICE, type Scenario, type TrackerCases } from '../test/connectors/scenarios.ts'
 
 type GithubConnection = Extract<Connection, { tracker: 'github' }>
 type JiraConnection = Extract<Connection, { tracker: 'jira' }>
@@ -30,8 +30,8 @@ type Recorded = { ok: true; recordings: Record<Scenario, Recording[]> } | { ok: 
 
 type Body = Record<string, unknown>
 
-/** A response body cut to the fields the connector reads from `url`. */
-type Trim = (url: string, status: number, body: unknown) => unknown
+/** A response body cut to the fields the connector reads from `url`, asked for with `requestBody`, if it had one. */
+type Trim = (url: string, status: number, body: unknown, requestBody: string | undefined) => unknown
 
 function pick(body: unknown, fields: string[]): Body {
   if (typeof body !== 'object' || body === null) return {}
@@ -49,7 +49,7 @@ function recording(transport: Transport, trim: Trim): { transport: Transport; re
       const body = await bodyOf(response.clone())
       const request = requestOf(url, init)
       if (!recordings.some((each) => describeRequest(each.request) === describeRequest(request))) {
-        recordings.push({ request, response: { status: response.status, body: trim(url, response.status, body) } })
+        recordings.push({ request, response: { status: response.status, body: trim(url, response.status, body, request.body) } })
       }
       return response
     },
@@ -75,9 +75,12 @@ interface Tracker<C extends Connection> {
 }
 
 /**
- * Runs each scenario's requests through `transport`, recording them: its milestone choices, then each of its reads,
- * from the start and from the manifest's cut, the `finishedSince`s the contract cases read from.
- * Records nothing, saying why, when the synthetic tracker refuses the recording credential or can't give its choices.
+ * Runs each scenario's requests through `transport`, recording them: its milestone choices; each of its searches of
+ * choices, and its first for text that finds nothing; then each of its reads, from the start and from the manifest's
+ * cut, the `finishedSince`s the contract cases read from.
+ * Records nothing, saying why, when the synthetic tracker refuses the recording credential, can't give its choices, or
+ * fails a search or a read for any reason but the query being one it rejects: a recording with a gap fails the suite
+ * later, less plainly.
  */
 async function recordTracker<C extends Connection>(
   tracker: Tracker<C>,
@@ -86,7 +89,7 @@ async function recordTracker<C extends Connection>(
   connect: Connect<C>,
 ): Promise<Recorded> {
   const recordings = {} as Record<Scenario, Recording[]>
-  for (const [scenario, { connection, refused, reads }] of Object.entries(tracker.cases.scenarios) as [Scenario, TrackerCases<C>['scenarios'][Scenario]][]) {
+  for (const [scenario, { connection, refused, searches, reads }] of Object.entries(tracker.cases.scenarios) as [Scenario, TrackerCases<C>['scenarios'][Scenario]][]) {
     const recorder = recording(transport, tracker.trim)
     const connector = connect(connection, refused ? tracker.refusedCredential : credential, recorder.transport)
     const choices = await connector.milestoneChoices()
@@ -94,7 +97,18 @@ async function recordTracker<C extends Connection>(
       if (choices.failure === 'unauthorised') return { ok: false, message: tracker.refusedMessage }
       return { ok: false, message: `The synthetic tracker's milestone choices failed as ${choices.failure}. Nothing was recorded.` }
     }
-    for (const query of reads) for (const since of [FROM_THE_START, tracker.cut]) await connector.read(query, since)
+    const failed = (what: string, failure: string): Recorded => ({ ok: false, message: `The synthetic tracker's ${what} failed as ${failure}. Nothing was recorded.` })
+    const nothing = searches.slice(0, 1).map(({ kind }) => ({ kind, text: NO_SUCH_CHOICE }))
+    for (const { kind, text } of [...searches, ...nothing]) {
+      const found = await connector.searchChoices(kind, text)
+      if (scenario === 'synthetic' && !found.ok) return failed(`search of its ${kind} choices for "${text}"`, found.failure)
+    }
+    for (const query of reads) {
+      for (const since of [FROM_THE_START, tracker.cut]) {
+        const read = await connector.read(query, since)
+        if (scenario === 'synthetic' && !read.ok && read.failure !== 'invalidQuery') return failed(`read of ${query}`, read.failure)
+      }
+    }
     recordings[scenario] = recorder.recordings
   }
   return { ok: true, recordings }
@@ -116,9 +130,15 @@ const GITHUB: Tracker<GithubConnection> = {
       return error
     }
     if (url.includes('/milestones?')) return (body as Body[]).map((milestone) => pick(milestone, ['title']))
+    // A search of labels names its repo by id, and keeps each label's name.
+    if (/\/repos\/[^/]+\/[^/]+$/.test(url)) return pick(body, ['id'])
+    if (url.includes('/search/labels?')) return { items: ((body as Body).items as Body[]).map((label) => pick(label, ['name'])) }
+    if (url.includes('/labels?')) return (body as Body[]).map((label) => pick(label, ['name']))
     if (url.includes('/search/issues?')) {
       const found = pick(body, ['total_count', 'incomplete_results', 'items'])
-      found.items = (found.items as Body[]).map((item) => pick(item, ['node_id', 'state', 'closed_at']))
+      // A read keeps each ticket's id and finish; the epics among the milestone choices, their number and title; and a
+      // search for sub-epics, each one's parent.
+      found.items = (found.items as Body[]).map((item) => pick(item, ['node_id', 'number', 'title', 'state', 'closed_at', 'parent_issue_url']))
       return found
     }
     throw new Error(`The recording script doesn't know what the connector reads from ${url}`)
@@ -148,12 +168,14 @@ const JIRA: Tracker<JiraConnection> = {
   cases: JIRA_CASES,
   cut: cutOf('jira'),
   refusedCredential: 'forecaster-refused-token',
-  trim: (url, status, body) => {
+  trim: (url, status, body, requestBody) => {
     if (url.endsWith('/_edge/tenant_info')) return status === 200 ? pick(body, ['cloudId']) : {}
     if (status !== 200) return pick(body, ['errorMessages'])
     // The connector reads only whether the project is there, from the status.
     if (/\/project\/[^/]+$/.test(url)) return {}
     if (url.endsWith('/versions')) return (body as Body[]).map((version) => pick(version, ['id', 'name', 'released', 'archived']))
+    if (url.includes('/label?')) return pick(body, ['values', 'isLast'])
+    if (url.includes('/jql/autocompletedata/suggestions?')) return { results: ((body as Body).results as Body[]).map((suggested) => pick(suggested, ['value'])) }
     const categoryOf = (status: unknown) => ({ statusCategory: pick((status as Body).statusCategory, ['key']) })
     if (url.endsWith('/statuses')) {
       return (body as Body[]).map((issueType) => ({
@@ -162,9 +184,13 @@ const JIRA: Tracker<JiraConnection> = {
     }
     if (url.endsWith('/search/jql')) {
       const found = pick(body, ['issues', 'isLast', 'nextPageToken'])
+      // Each search asks for its own fields: a read's, a subtask's parent, when a ticket was made, or an epic's summary.
+      const { jql, fields: askedFields } = JSON.parse(requestBody ?? '{}') as { jql?: string; fields?: string[] }
+      const asked = new Set(askedFields ?? [])
+      // A picked epic, looked up by its key, is known by its key.
+      const byKey = jql?.includes(' key in (') === true
       found.issues = (found.issues as Body[]).map((issue) => {
-        const fields = issue.fields as Body
-        // Each search asks for its own fields: a read's, a subtask's parent, or when a ticket was made.
+        const fields = pick(issue.fields, [...asked])
         const kept: Body = {}
         if ('issuetype' in fields) kept.issuetype = pick(fields.issuetype, ['hierarchyLevel'])
         if ('status' in fields) kept.status = categoryOf(fields.status)
@@ -173,6 +199,9 @@ const JIRA: Tracker<JiraConnection> = {
         }
         if ('parent' in fields) kept.parent = pick(fields.parent, ['id'])
         if ('created' in fields) kept.created = fields.created
+        // An epic is listed by its summary and read by its key.
+        if ('summary' in fields) return { id: issue.id, key: issue.key, fields: { ...kept, summary: fields.summary } }
+        if (byKey) return { id: issue.id, key: issue.key, fields: kept }
         return { id: issue.id, fields: kept }
       })
       return found

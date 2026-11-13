@@ -271,6 +271,40 @@ const STYLE = `
     .connection form { display: inline; }
     .ok-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); display: inline-block; }
     button.linkish { border: 0; background: none; padding: 0; min-height: 0; color: var(--link); text-decoration: underline; font-size: 13px; }
+    /* The Milestone step: chips for the picks, a find box over the lists of choices, the query and its read. */
+    .picker { display: flex; flex-direction: column; gap: 12px; max-width: 620px; }
+    .picker form { margin: 0; }
+    ul.chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { display: inline-flex; gap: 6px; align-items: center; border: 1px solid var(--border); border-radius: 999px; padding: 2px 4px 2px 10px; font-size: 13px; background: #fff; }
+    .chip form { display: inline; }
+    .chip button.x { border: 0; background: none; min-height: 0; padding: 0 6px; font-size: 15px; line-height: 1; color: var(--muted); cursor: pointer; }
+    .picker .kind { font-family: var(--mono); font-size: 11px; color: var(--faint); }
+    .picker input[type=search] {
+      width: 100%; font-size: 15px; color: var(--ink); background: transparent;
+      border: 0; border-bottom: 1px solid var(--ink); border-radius: 0; padding: 6px 0;
+    }
+    .found { display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow-y: auto; }
+    .found h3 { margin: 6px 0 2px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .found button { display: block; width: 100%; text-align: left; border: 0; background: none; min-height: 30px; font-size: 14px; padding: 0 8px; border-radius: 4px; cursor: pointer; }
+    .found button:hover { background: var(--active); }
+    .picker .query { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--hairline); padding-top: 12px; }
+    .picker .query .label { font-size: 12px; font-weight: 600; color: var(--muted); }
+    .picker .query code { font-family: var(--mono); font-size: 13px; overflow-wrap: anywhere; }
+    .picker .query .none { color: var(--faint); }
+    .picker p.read { margin: 0; color: var(--good); font-weight: 600; }
+    .picker .query a.edit { margin-left: 8px; font-weight: 400; font-size: 13px; color: var(--link); }
+    /* The query open for editing: read on Enter, and Back to finding, with its warning when it clears the query, and asking to confirm that. */
+    .picker.editing .query { border-top: 0; padding-top: 0; }
+    .picker.editing .query b { font-family: var(--mono); font-weight: 500; }
+    .picker input[type=text] {
+      width: 100%; font-family: var(--mono); font-size: 14px; color: var(--ink); background: transparent;
+      border: 0; border-bottom: 1px solid var(--ink); border-radius: 0; padding: 6px 0;
+    }
+    .picker p.error { margin: 0; font-size: 13px; color: var(--risk); }
+    .picker code { font-family: var(--mono); font-size: 13px; overflow-wrap: anywhere; }
+    .picker form.back { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border-top: 1px solid var(--hairline); padding-top: 12px; }
+    .picker .warn { margin: 0; color: var(--risk); }
+    .picker form.back a.keep { font-size: 13px; color: var(--link); }
     details.change > summary { cursor: pointer; font-size: 13px; color: var(--link); }
     details.change[open] > summary { margin-bottom: 16px; }
     section.input > .label p.saved { color: var(--good); font-weight: 600; }
