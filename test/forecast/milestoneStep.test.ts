@@ -620,6 +620,20 @@ describe('a query the tracker rejects', () => {
     })
   })
 
+  test('joined from a pick, keeps the EM finding, with the chips of the last query that worked and the tracker’s message beside them', async () => {
+    const message = 'The listed users cannot be searched.'
+    const using = await connected(reading('milestone:"Payments v2" OR label:"bug"', { failure: 'invalidQuery', message }))
+    await submitMilestoneQuery(using, TEAM, add(payments), READ_AT)
+
+    const submitted = await submitMilestoneQuery(using, TEAM, add(bug), READ_AT)
+    const view = submitted.kind === 'refused' && (await milestoneStepView(using, TEAM, '', { refused: submitted }))
+
+    const refusal = `GitHub rejected this query: ${message}`
+    expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
+    expect(view).toMatchObject({ picks: [payments], query: 'milestone:"Payments v2"', read: '2 open · 1 finished in the last 8 weeks', refusal })
+    expect(view && view.kind === 'milestoneStep' && view.editing).toBeUndefined()
+  })
+
   test('on Jira, the message is Jira’s', async () => {
     const message = "Error in JQL Query: Expecting either a value, list or function but got '='."
     const using = await connectedToJira(reading('labels == comparable', { failure: 'invalidQuery', message }))

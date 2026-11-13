@@ -199,8 +199,9 @@ async function searchedChoices({ connecting, team, searchParams }: SetupRouting)
 
 /**
  * A change of the milestone query: read again, then back to the Milestone step, still open for editing after a hand
- * edit, finding otherwise. A refused hand edit shows the Inputs screen again with why and the query as typed; going
- * back to finding from a query it would clear asks the EM to confirm that first.
+ * edit, finding otherwise. A refused hand edit shows the Inputs screen again with why and the query as typed; a
+ * change of the picks the tracker rejects, the step still finding, with why beside the chips that worked; going back
+ * to finding from a query it would clear asks the EM to confirm that first.
  */
 async function queryEdited(setup: SetupRouting, readQueryEdit: (body: URLSearchParams) => MilestoneQueryEdit | undefined): Promise<Reply> {
   const edit = readQueryEdit(setup.request.form ?? new URLSearchParams())
