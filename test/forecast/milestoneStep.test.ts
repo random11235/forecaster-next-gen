@@ -889,7 +889,7 @@ describe('the Comparable work step, flagged', () => {
     expect(storage.comparableWorkQuery(TEAM)?.query).toBe('label:"wip"')
     expect(view).toMatchObject({
       read: '0 finished in the last 8 weeks',
-      flag: 'This query matches nothing finished in the last 8 weeks, so it adds nothing to pace. Check it picks out work like the milestone’s.',
+      flag: 'This query matches nothing finished in the last 8 weeks, so pace comes from the milestone’s own tickets. Check it picks out work like the milestone’s.',
       onward: 'Next',
     })
   })
