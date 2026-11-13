@@ -33,6 +33,9 @@ export interface PaceDay {
   timeZone: string
 }
 
+/** What `paceReads` reads of what is stored: the milestone's inputs, the team's two queries, and their saved reads. */
+export type PaceReadsStorage = Pick<Storage, 'milestoneInputs'> & Pick<MilestoneQueryStorage, 'milestoneQuery' | 'comparableWorkQuery'> & Pick<SavedReadStorage, 'savedRead'>
+
 /**
  * Seam B: the team's saved reads as pace counts them. Once a comparable-work query is added and its read finished
  * something, pace comes from comparable work's finished tickets alone; with no query, or one matching nothing finished
@@ -40,7 +43,7 @@ export interface PaceDay {
  * count once by id. A read that is incomplete isn't counted. None before the milestone has a start date and a complete
  * read of its query.
  */
-export function paceReads(storage: Storage & MilestoneQueryStorage & SavedReadStorage, teamId: string, { today, timeZone }: PaceDay): PaceReads | undefined {
+export function paceReads(storage: PaceReadsStorage, teamId: string, { today, timeZone }: PaceDay): PaceReads | undefined {
   const inputs = storage.milestoneInputs(teamId)
   const milestoneRead = completeRead(storage, teamId, storage.milestoneQuery(teamId)?.query)
   if (inputs?.startDate === undefined || milestoneRead === undefined) return undefined
@@ -66,7 +69,7 @@ function finishedAny(read: SavedRead): boolean {
 }
 
 /** The query's saved read, when there is a query and its read has all its tickets. */
-function completeRead(reads: SavedReadStorage, teamId: string, query: string | undefined): SavedRead | undefined {
+function completeRead(reads: Pick<SavedReadStorage, 'savedRead'>, teamId: string, query: string | undefined): SavedRead | undefined {
   const read = query ? reads.savedRead({ teamId, query }) : undefined
   return read && !read.incomplete ? read : undefined
 }
