@@ -1,6 +1,7 @@
 import { choiceKindOf } from '../connectors/connector.js'
 import { connectionView, submitConnection, type Connecting, type ConnectionEdit, type ConnectionView, type SetupStep } from '../forecast/connection.js'
 import { howItWorksView } from '../forecast/howItWorksView.js'
+import { followRenamedMilestone } from '../forecast/milestoneRenamed.js'
 import { milestoneStepView, searchedChoiceList, submitMilestoneQuery, type MilestoneQueryEdit, type MilestoneStepOpening } from '../forecast/milestoneStep.js'
 import { inputsView, submitInputs, type InputsView, type NextScreen } from '../forecast/inputs.js'
 import { milestoneForecastView, type MilestoneForecastView } from '../forecast/milestoneForecastView.js'
@@ -155,10 +156,28 @@ export function routeSetup(request: Request, context: AppContext): Promise<Reply
   if (readQueryEdit) return queryEdited(setup, readQueryEdit)
   const readConnect = request.method === 'POST' ? CONNECT_FORMS.get(pathname) : undefined
   if (readConnect) return connected(setup, readConnect)
+  const named = milestoneName(storage, team.id)
   const submitted = submitForm(request, context, setup)
-  if (submitted?.kind !== 'inputs') return undefined
+  if (!submitted) return undefined
+  return renamed(setup, named, submitted)
+}
+
+/**
+ * An Inputs or Milestone forecast form's reply, once a milestone renamed from `named` has moved the milestone query
+ * to the new name where it follows it (`followRenamedMilestone`).
+ */
+async function renamed(setup: SetupRouting, named: string | undefined, submitted: FormReply): Promise<Reply> {
+  const { connecting, context, team, request } = setup
+  const now = milestoneName(context.storage, team.id)
+  if (named !== undefined && now !== undefined) await followRenamedMilestone(connecting, team.id, { from: named, to: now }, context.now())
+  if (submitted.kind !== 'inputs') return submitted
   // a save in place replaces only the sections saved, not the Milestone step, so its choices aren't asked for
   return inputsWithStep(setup, { status: submitted.status, view: submitted.view, opening: { unlisted: request.saveInPlace === true } })
+}
+
+/** The milestone's name as saved; none until it has one. */
+function milestoneName(storage: Storage, teamId: string): string | undefined {
+  return storage.milestoneInputs(teamId)?.name
 }
 
 /** A setup step's request, in the local server build, with what it connects with. */
