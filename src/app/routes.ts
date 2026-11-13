@@ -1,8 +1,8 @@
 import { choiceKindOf } from '../connectors/connector.js'
-import { connectionView, submitConnection, type Connecting, type ConnectionView, type SetupStep } from '../forecast/connection.js'
+import { connectionView, submitConnection, type Connecting, type ConnectionEdit, type ConnectionView, type SetupStep } from '../forecast/connection.js'
 import { howItWorksView } from '../forecast/howItWorksView.js'
-import { milestoneStepView, searchedChoiceList, submitMilestoneQuery, type MilestoneStepOpening, type MilestoneStepView } from '../forecast/milestoneStep.js'
-import { inputsView, submitInputs, type NextScreen, type RefusedScreen } from '../forecast/inputs.js'
+import { milestoneStepView, searchedChoiceList, submitMilestoneQuery, type MilestoneQueryEdit, type MilestoneStepOpening } from '../forecast/milestoneStep.js'
+import { inputsView, submitInputs, type InputsView, type NextScreen } from '../forecast/inputs.js'
 import { milestoneForecastView, type MilestoneForecastView } from '../forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS, type ForecastSettings } from '../forecast/settings.js'
 import type { Team } from '../model/team.js'
@@ -11,7 +11,7 @@ import { CONNECT_FORMS } from './connectSection.js'
 import { renderHowItWorksScreen } from './howItWorksScreen.js'
 import { INPUTS_FORMS, renderInputsScreen } from './inputsScreen.js'
 import { CAPACITY_OPEN, CAPACITY_OPEN_PATH, FORECAST_FORMS, renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
-import { choiceListHtml, EDITING, FIND_FIELD, KIND_FIELD, MILESTONE_STEP_FORMS, MILESTONE_STEP_ID, MILESTONE_STEP_URLS, SEARCHED_CHOICES_PATH } from './milestoneStepSection.js'
+import { choiceListHtml, CONFIRMING_BACK, EDITING, FIND_FIELD, KIND_FIELD, MILESTONE_STEP_FORMS, MILESTONE_STEP_ID, MILESTONE_STEP_URLS, SEARCHED_CHOICES_PATH } from './milestoneStepSection.js'
 
 /** A request as the routes see it: the server has already read the form body. */
 export interface Request {
@@ -75,31 +75,29 @@ function localCalendarDate(at: Date): string {
   return `${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())}`
 }
 
-/** What every route reads first: the one team (none before it is added), the settings, and the path asked for. */
+/** What every route reads first: the settings, and the path asked for. */
 interface Routing {
-  team: Team | undefined
   settings: ForecastSettings
   pathname: string
   searchParams: URLSearchParams
-  /** The Inputs screen, with the Connect step `connection` first, then any Milestone step. */
-  inputsScreen: (teamId: string, connection: ConnectionView, milestoneStep?: MilestoneStepView) => string
 }
 
-function routing(request: Request, { storage, today }: AppContext): Routing {
-  const settings = DEFAULT_SETTINGS
+function routing(request: Request): Routing {
   const { pathname, searchParams } = new URL(request.path, 'http://app')
-  const inputsScreen = (teamId: string, connection: ConnectionView, milestoneStep?: MilestoneStepView): string =>
-    renderInputsScreen(inputsView(storage, teamId, settings, today()), connection, milestoneStep)
-  return { team: storage.teams()[0], settings, pathname, searchParams, inputsScreen }
+  return { settings: DEFAULT_SETTINGS, pathname, searchParams }
 }
+
+/** A request's routing once the one team is added. */
+type TeamRouting = Routing & { team: Team }
 
 /** The Milestone forecast screen at `/`, the Inputs screen at `/inputs` and How it works at `/how-it-works`; not found for everything else. */
 export function route(request: Request, context: AppContext): Reply {
   const { storage, today, connecting } = context
-  const { team, settings, pathname, searchParams, inputsScreen } = routing(request, context)
-  // the Capacity section's open state travels in the URL, and its forms carry it
-  const capacityOpen = searchParams.get(CAPACITY_OPEN.name) === CAPACITY_OPEN.value
+  const routed = routing(request)
+  const { settings, pathname, searchParams } = routed
+  const team = storage.teams()[0]
   if (request.method === 'GET' && pathname === '/') {
+    const capacityOpen = searchParams.get(CAPACITY_OPEN.name) === CAPACITY_OPEN.value
     const view: MilestoneForecastView = team ? milestoneForecastView(storage, team.id, settings, today(), { capacityOpen }) : { kind: 'empty' }
     return { kind: 'html', status: 200, html: renderMilestoneForecastScreen(view) }
   }
@@ -107,68 +105,118 @@ export function route(request: Request, context: AppContext): Reply {
     return { kind: 'html', status: 200, html: renderHowItWorksScreen(howItWorksView(settings)) }
   }
   if (!team) return { kind: 'notFound' }
-  const inputs = (): Reply & { kind: 'html' } => ({ kind: 'html', status: 200, html: inputsScreen(team.id, connectionView(connecting, team.id)) })
-  if (request.method === 'GET' && pathname === '/inputs') return inputs()
+  const connection = connectionView(connecting, team.id)
+  if (request.method === 'GET' && pathname === SCREEN_PATHS.inputs) {
+    return { kind: 'html', status: 200, html: renderInputsScreen(inputsView(storage, team.id, settings, today()), connection) }
+  }
+  const submitted = submitForm(request, context, { ...routed, team })
+  if (submitted?.kind !== 'inputs') return submitted ?? { kind: 'notFound' }
+  return { kind: 'html', status: submitted.status, html: renderInputsScreen(submitted.view, connection), path: SCREEN_PATHS.inputs }
+}
+
+/**
+ * What a post of an Inputs or Milestone forecast form is answered with: a redirect to the next screen, the Milestone
+ * forecast screen refused, or the Inputs screen's view to show (`inputs`), refused or saved in place, which the caller
+ * shows beside the setup steps it has. None for any other request.
+ */
+type FormReply = Reply | { kind: 'inputs'; status: number; view: InputsView }
+
+function submitForm(request: Request, { storage, today }: AppContext, { team, settings, pathname, searchParams }: TeamRouting): FormReply | undefined {
   const readForm = request.method === 'POST' ? (INPUTS_FORMS.get(pathname) ?? FORECAST_FORMS.get(pathname)) : undefined
-  if (!readForm) return { kind: 'notFound' }
+  if (!readForm) return undefined
+  // the Capacity section's open state travels in the URL, and its forms carry it
+  const capacityOpen = searchParams.get(CAPACITY_OPEN.name) === CAPACITY_OPEN.value
   const submitted = submitInputs(storage, team.id, settings, today(), readForm(request.form ?? new URLSearchParams()), { capacityOpen })
   // a form from the open Capacity section goes back to the screen with it open
   const pathOf = (screen: NextScreen): string => (screen === 'forecast' && capacityOpen ? CAPACITY_OPEN_PATH : SCREEN_PATHS[screen])
-  if (!submitted.saved) return { kind: 'html', status: 400, html: renderRefused(submitted, connectionView(connecting, team.id)), path: pathOf(submitted.screen) }
-  return request.saveInPlace ? { ...inputs(), path: SCREEN_PATHS.inputs } : { kind: 'redirect', location: pathOf(submitted.next) }
-}
-
-/** The screen a refused form names, shown again with its refusal; on the Inputs screen, beside the Connect step `connection`. */
-function renderRefused(refused: RefusedScreen, connection: ConnectionView): string {
-  return refused.screen === 'inputs' ? renderInputsScreen(refused.view, connection) : renderMilestoneForecastScreen(refused.view)
+  if (!submitted.saved) {
+    if (submitted.screen === 'inputs') return { kind: 'inputs', status: 400, view: submitted.view }
+    return { kind: 'html', status: 400, html: renderMilestoneForecastScreen(submitted.view), path: pathOf(submitted.screen) }
+  }
+  if (request.saveInPlace) return { kind: 'inputs', status: 200, view: inputsView(storage, team.id, settings, today()) }
+  return { kind: 'redirect', location: pathOf(submitted.next) }
 }
 
 /**
  * The setup steps' requests, in the local server build: the Inputs screen, whose Milestone step asks the tracker for
  * its choices as it opens, and the Connect and Milestone steps' posts, each answered once the tracker has been asked,
- * so later than every other route. None for any other request, nor in the browser build, which has nothing to connect
- * with. A refused connect shows the Inputs screen again with why, and the form as typed but for the token. A change of
- * the milestone query reads it again, then goes back to the Milestone step: still open for editing after a hand edit,
- * finding otherwise. A refused hand edit shows the Inputs screen again with why and the query as typed.
+ * so later than every other route; and the Inputs screen's own posts, so that the screen they answer with has the
+ * Milestone step too. None for any other request, nor in the browser build, which has nothing to connect with.
  */
 export function routeSetup(request: Request, context: AppContext): Promise<Reply> | undefined {
-  const { connecting, now } = context
-  const { team, pathname, searchParams, inputsScreen } = routing(request, context)
+  const { connecting, storage } = context
+  const team = storage.teams()[0]
   if (!connecting || !team) return undefined
-  const milestoneStep = (opening: MilestoneStepOpening = { editing: searchParams.get(EDITING.name) === EDITING.value }): Promise<MilestoneStepView> =>
-    milestoneStepView(connecting, team.id, searchParams.get(FIND_FIELD) ?? '', opening)
-  if (request.method === 'GET' && pathname === SCREEN_PATHS.inputs) {
-    return (async (): Promise<Reply> => ({ kind: 'html', status: 200, html: inputsScreen(team.id, connectionView(connecting, team.id), await milestoneStep()) }))()
-  }
-  if (request.method === 'GET' && pathname === SEARCHED_CHOICES_PATH) {
-    return (async (): Promise<Reply> => {
-      const kind = choiceKindOf(searchParams.get(KIND_FIELD) ?? '')
-      const list = kind && (await searchedChoiceList(connecting, team.id, kind, searchParams.get(FIND_FIELD) ?? ''))
-      return list ? { kind: 'html', status: 200, html: choiceListHtml(list) } : { kind: 'notFound' }
-    })()
-  }
-  const form = request.form ?? new URLSearchParams()
+  const setup: SetupRouting = { ...routing(request), team, request, context, connecting }
+  const { pathname } = setup
+  if (request.method === 'GET' && pathname === SCREEN_PATHS.inputs) return inputsWithStep(setup)
+  if (request.method === 'GET' && pathname === SEARCHED_CHOICES_PATH) return searchedChoices(setup)
   const readQueryEdit = request.method === 'POST' ? MILESTONE_STEP_FORMS.get(pathname) : undefined
-  if (readQueryEdit) {
-    return (async (): Promise<Reply> => {
-      const edit = readQueryEdit(form)
-      if (!edit) return { kind: 'notFound' }
-      const submitted = await submitMilestoneQuery(connecting, team.id, edit, now())
-      if (submitted.kind === 'refused') {
-        const html = inputsScreen(team.id, connectionView(connecting, team.id), await milestoneStep({ refused: submitted }))
-        return { kind: 'html', status: 400, html, path: SCREEN_PATHS.inputs }
-      }
-      // a query edited by hand stays open for editing; every other change goes back to finding
-      return { kind: 'redirect', location: edit.kind === 'editQuery' ? MILESTONE_STEP_URLS.editing : MILESTONE_STEP_URLS.finding }
-    })()
-  }
+  if (readQueryEdit) return queryEdited(setup, readQueryEdit)
   const readConnect = request.method === 'POST' ? CONNECT_FORMS.get(pathname) : undefined
-  if (!readConnect) return undefined
-  return (async (): Promise<Reply> => {
-    const submitted = await submitConnection(connecting, team.id, readConnect(form))
-    if (submitted.saved) return { kind: 'redirect', location: SETUP_STEP_PATHS[submitted.next] }
-    return { kind: 'html', status: 400, html: inputsScreen(team.id, submitted.view, await milestoneStep()), path: SCREEN_PATHS.inputs }
-  })()
+  if (readConnect) return connected(setup, readConnect)
+  const submitted = submitForm(request, context, setup)
+  if (submitted?.kind !== 'inputs') return undefined
+  // a save in place replaces only the sections saved, not the Milestone step, so its choices aren't asked for
+  return inputsWithStep(setup, { status: submitted.status, view: submitted.view, opening: { unlisted: request.saveInPlace === true } })
+}
+
+/** A setup step's request, in the local server build, with what it connects with. */
+interface SetupRouting extends TeamRouting {
+  request: Request
+  context: AppContext
+  connecting: Connecting
+}
+
+/**
+ * The Inputs screen, with the Connect step (`connection`: as connected unless given) and the Milestone step, opening
+ * as the request asks unless `opening` is given; served at `/inputs`, with `status` (200 unless given). `view` is the
+ * Inputs view to show, as saved unless given.
+ */
+async function inputsWithStep(
+  { request, context, connecting, team, settings, searchParams }: SetupRouting,
+  { status = 200, view, connection, opening }: { status?: number; view?: InputsView; connection?: ConnectionView; opening?: MilestoneStepOpening } = {},
+): Promise<Reply> {
+  const asked: MilestoneStepOpening = {
+    editing: searchParams.get(EDITING.name) === EDITING.value,
+    confirmingBack: searchParams.get(CONFIRMING_BACK.name) === CONFIRMING_BACK.value,
+  }
+  const step = await milestoneStepView(connecting, team.id, searchParams.get(FIND_FIELD) ?? '', opening ?? asked)
+  const html = renderInputsScreen(
+    view ?? inputsView(context.storage, team.id, settings, context.today()),
+    connection ?? connectionView(connecting, team.id),
+    step,
+  )
+  return { kind: 'html', status, html, ...(request.method === 'POST' && { path: SCREEN_PATHS.inputs }) }
+}
+
+/** One kind's choices searched in the tracker, as the Milestone step's script asks for them: that kind's list alone. */
+async function searchedChoices({ connecting, team, searchParams }: SetupRouting): Promise<Reply> {
+  const kind = choiceKindOf(searchParams.get(KIND_FIELD) ?? '')
+  const list = kind && (await searchedChoiceList(connecting, team.id, kind, searchParams.get(FIND_FIELD) ?? ''))
+  return list ? { kind: 'html', status: 200, html: choiceListHtml(list) } : { kind: 'notFound' }
+}
+
+/**
+ * A change of the milestone query: read again, then back to the Milestone step, still open for editing after a hand
+ * edit, finding otherwise. A refused hand edit shows the Inputs screen again with why and the query as typed; going
+ * back to finding from a query it would clear asks the EM to confirm that first.
+ */
+async function queryEdited(setup: SetupRouting, readQueryEdit: (body: URLSearchParams) => MilestoneQueryEdit | undefined): Promise<Reply> {
+  const edit = readQueryEdit(setup.request.form ?? new URLSearchParams())
+  if (!edit) return { kind: 'notFound' }
+  const submitted = await submitMilestoneQuery(setup.connecting, setup.team.id, edit, setup.context.now())
+  if (submitted.kind === 'refused') return inputsWithStep(setup, { status: 400, opening: { refused: submitted } })
+  if (submitted.kind === 'confirmClear') return { kind: 'redirect', location: MILESTONE_STEP_URLS.confirmingBack }
+  // a query edited by hand stays open for editing; every other change goes back to finding
+  return { kind: 'redirect', location: edit.kind === 'editQuery' ? MILESTONE_STEP_URLS.editing : MILESTONE_STEP_URLS.finding }
+}
+
+/** A connect: on to the next setup step once saved; refused, the Inputs screen again with why, and the form as typed but for the token. */
+async function connected(setup: SetupRouting, readConnect: (body: URLSearchParams) => ConnectionEdit): Promise<Reply> {
+  const submitted = await submitConnection(setup.connecting, setup.team.id, readConnect(setup.request.form ?? new URLSearchParams()))
+  if (submitted.saved) return { kind: 'redirect', location: SETUP_STEP_PATHS[submitted.next] }
+  return inputsWithStep(setup, { status: 400, connection: submitted.view })
 }
 
 /** Where each setup step is served. */
