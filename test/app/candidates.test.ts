@@ -121,6 +121,15 @@ describe('candidates for comparable work', () => {
     expect(step).toContain('this milestone: counts its own too')
   })
 
+  test('the milestone itself is marked in the step’s lists, unread', async () => {
+    const running = await startConnected()
+
+    const step = stepOf(await page(running, '/inputs'))
+
+    expect(reads).toEqual([])
+    expect(step).toMatch(/Checkout v2 <span class="kind">milestone<\/span> <span class="this">this milestone<\/span><\/button>/)
+  })
+
   test('narrowing the list to a few by typing reads those', async () => {
     const running = await startConnected()
 

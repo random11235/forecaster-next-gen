@@ -155,9 +155,10 @@ function paceHtml(pace: ComparableWorkPace | undefined): string {
       : comparing
         ? ''
         : '\n            <p class="delta">Add comparable work to measure pace from work like this milestone’s.</p>'
-  const top = Math.max(1, ...pace.periods.flatMap((period) => [period.milestone, period.comparableWork ?? 0]))
+  const top = Math.max(1, ...pace.periods.flatMap((period) => [period.milestone ?? 0, period.comparableWork ?? 0]))
   const periods = pace.periods.map((period) => periodHtml(period, top)).join('\n')
-  const legend = `${comparing ? '<i class="comparable"></i> comparable work ' : ''}<i class="own"></i> the milestone’s own${pace.periods.some((period) => period.beforeStart) ? ' <i class="before"></i> before it started' : ''}`
+  const own = pace.periods.some((period) => period.milestone !== undefined)
+  const legend = `${comparing ? '<i class="comparable"></i> comparable work ' : ''}${own ? '<i class="own"></i> the milestone’s own' : ''}${pace.periods.some((period) => period.beforeStart) ? ' <i class="before"></i> before it started' : ''}`
   return `
           <div class="step-pace">
             <p class="headline">${escapeHtml(pace.said.inUse)} <small>${escapeHtml(pace.said.from ?? '')}</small></p>${delta}
@@ -171,11 +172,17 @@ ${periods}
 /** Tallest bar's height, in pixels. */
 const PAIR_HEIGHT = 80
 
-/** One period's pair of bars: comparable work's, when it has a query, beside the milestone's own, hatched before it started. */
+/**
+ * One period's pair of bars: comparable work's, when it has a query, beside the milestone's own, when its read is
+ * complete, hatched before it started.
+ */
 function periodHtml({ start, milestone, comparableWork, beforeStart }: PairedPeriod, top: number): string {
   const bar = (count: number, kind: string): string => `<i class="${kind}" style="height:${Math.max(2, Math.round((count / top) * PAIR_HEIGHT))}px"></i>`
-  const said = `${dayMonth(start)}: ${comparableWork === undefined ? '' : `comparable work ${comparableWork}, `}the milestone’s own ${milestone}${beforeStart ? ', before it started' : ''}`
-  return `              <li class="period${beforeStart ? ' before' : ''}" title="${escapeHtml(said)}"><span class="two">${comparableWork === undefined ? '' : bar(comparableWork, 'comparable')}${bar(milestone, beforeStart ? 'before' : 'own')}</span><span class="when">${escapeHtml(dayMonth(start))}</span></li>`
+  const said = `${dayMonth(start)}: ${[
+    ...(comparableWork === undefined ? [] : [`comparable work ${comparableWork}`]),
+    ...(milestone === undefined ? [] : [`the milestone’s own ${milestone}`]),
+  ].join(', ')}${beforeStart ? ', before it started' : ''}`
+  return `              <li class="period${beforeStart ? ' before' : ''}" title="${escapeHtml(said)}"><span class="two">${comparableWork === undefined ? '' : bar(comparableWork, 'comparable')}${milestone === undefined ? '' : bar(milestone, beforeStart ? 'before' : 'own')}</span><span class="when">${escapeHtml(dayMonth(start))}</span></li>`
 }
 
 /** A pick's chip's own pace: its strip of the periods paired, how many it finished, and with several picks how many only it brings in. */
@@ -187,12 +194,19 @@ function pickPaceHtml(pick: PickPace | undefined): string {
   return ` <span class="strip" role="img" aria-label="Finished each period: ${pick.strip.join(', ')}">${strip}</span> <span class="kind">${pick.finished} finished${only}</span>`
 }
 
-/** The query's last read: its line, when it has one, and its flag beneath; nothing until it is read. */
-function readHtml(view: MilestoneStep): string {
+/**
+ * The query's last read: its line, when it has one, and its flag beneath, or its pace's, saying it isn't used; nothing
+ * until it is read.
+ */
+function readHtml(view: MilestoneStep, pace: ComparableWorkPace | undefined): string {
   const line = view.read === undefined ? '' : `\n          <p class="read">${escapeHtml(view.read)}</p>`
-  const flag = view.flag === undefined ? '' : `\n          <p class="note warn flag">⚠ ${escapeHtml(view.flag)}</p>`
+  const flagged = view.flag ?? pace?.flag
+  const flag = flagged === undefined ? '' : `\n          <p class="note warn flag">⚠ ${escapeHtml(flagged)}</p>`
   return line + flag
 }
+
+/** An optional step's main button's label, by where it goes. */
+const ONWARD_LABELS: Readonly<Record<NonNullable<MilestoneStep['onward']>, string>> = { skip: 'Skip', next: 'Next' }
 
 /**
  * An optional step's end: Start afresh, clearing all its picks and query at once, once it has a query; and its main
@@ -201,11 +215,11 @@ function readHtml(view: MilestoneStep): string {
 function onwardHtml(view: MilestoneStep, { paths, id, onwardTo }: StepSection): string {
   if (view.onward === undefined || onwardTo === undefined) return ''
   const afresh =
-    view.onward === 'Next'
+    view.onward === 'next'
       ? `<form method="post" action="${paths.afresh}#${id}"><button type="submit" class="linkish">Start afresh</button></form> `
       : ''
   return `
-          <div class="actions onward">${afresh}<a href="${onwardTo}" class="button primary">${view.onward}</a></div>`
+          <div class="actions onward">${afresh}<a href="${onwardTo}" class="button primary">${ONWARD_LABELS[view.onward]}</a></div>`
 }
 
 /**
@@ -229,7 +243,7 @@ function editingSection(view: MilestoneStep, editing: QueryEditing, section: Ste
             <label class="label" for="${inputId}">${escapeHtml(section.stepQuery.name)}, within <b>${escapeHtml(editing.readIn)}</b></label>
             <input type="text" id="${inputId}" name="${CHOICE_FIELDS.query}" value="${escapeHtml(editing.typed)}" autocomplete="off" spellcheck="false">
             <p class="note">Press Enter to read it. ${escapeHtml(view.note)}</p>
-          </form>${refusal}${inUse}${readHtml(view)}
+          </form>${refusal}${inUse}${readHtml(view, pace)}
           <form method="post" action="${paths.back}#${id}" class="back">
             ${clears}${back}
           </form>${onwardHtml(view, section)}
@@ -263,20 +277,21 @@ ${lists}
           <div class="query">
             <span class="label">${escapeHtml(section.stepQuery.name)} <a href="${urls.editing}" class="edit">Edit as a query</a></span> ${query}
             <p class="note">${escapeHtml(view.note)}</p>
-          </div>${readHtml(view)}${onwardHtml(view, section)}
+          </div>${readHtml(view, pace)}${onwardHtml(view, section)}
         </div>`
 }
 
 /**
- * One kind's list of choices to pick, each a form adding it to `section`'s query; a kind searched in the tracker is
- * marked for the script (`data-searched`), which asks for it again as the EM types rather than filtering it.
+ * One kind's list of choices to pick, each a form adding it to `section`'s query, the one that is the milestone query
+ * marked "this milestone"; a kind searched in the tracker is marked for the script (`data-searched`), which asks for it
+ * again as the EM types rather than filtering it.
  */
 export function choiceListHtml(list: ChoiceList, { paths, id, candidates }: StepSection): string {
   const choices = list.choices
     .map(
       (choice) => `              <form method="post" action="${paths.add}#${id}" data-name="${escapeHtml(choice.name.toLowerCase())}"${candidates ? ' class="candidate"' : ''}>
                 <input type="hidden" name="${CHOICE_FIELDS.kind}" value="${escapeHtml(choice.kind)}"><input type="hidden" name="${CHOICE_FIELDS.name}" value="${escapeHtml(choice.name)}"><input type="hidden" name="${CHOICE_FIELDS.query}" value="${escapeHtml(choice.query)}">
-                <button type="submit">${escapeHtml(choice.name)} <span class="kind">${escapeHtml(kindName(choice.kind))}</span></button>${candidates ? openLinkHtml(choice, id) : ''}
+                <button type="submit">${escapeHtml(choice.name)} <span class="kind">${escapeHtml(kindName(choice.kind))}</span>${choice.query === list.thisMilestone ? ' <span class="this">this milestone</span>' : ''}</button>${candidates ? openLinkHtml(choice, id) : ''}
               </form>`,
     )
     .join('\n')

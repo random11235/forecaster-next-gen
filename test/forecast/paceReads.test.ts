@@ -23,6 +23,7 @@ const AT = { today: TODAY, timeZone: 'UTC' }
 const checkout: Choice = { kind: 'milestone', name: 'Checkout v2', query: 'milestone:"Checkout v2"' }
 const payments: Choice = { kind: 'label', name: 'payments', query: 'label:"payments"' }
 const rewards: Choice = { kind: 'label', name: 'rewards', query: 'label:"rewards"' }
+const edges: Choice = { kind: 'label', name: 'edges', query: 'label:"edges"' }
 
 const MILESTONE_TICKETS = [
   { id: 'm1' },
@@ -53,6 +54,8 @@ const FIXTURE: CannedFixture = {
     // the tracker lists m4 under both parts here; it counts once
     [`${payments.query} OR ${checkout.query}`]: { tickets: [...PAYMENTS_TICKETS, ...MILESTONE_TICKETS, { id: 'm4', finishedAt: '2026-10-05T10:00:00Z' }], incomplete: false },
     [rewards.query]: { tickets: [{ id: 'r1' }], incomplete: false },
+    // finished only in the week the read reaches part of, and in the current week: none in a whole week pace counts
+    [edges.query]: { tickets: [PAYMENTS_TICKETS[3]!, PAYMENTS_TICKETS[4]!], incomplete: false },
   },
 }
 
@@ -166,6 +169,15 @@ describe('the milestone’s own pace', () => {
     })
   })
 
+  test('a comparable-work query finishing only outside the whole periods pace counts isn’t used either', async () => {
+    await addComparable(edges)
+
+    expect(paceReads(storage, TEAM, AT)).toEqual({
+      ...OWN,
+      comparableWork: { counts: [0, 0, 0, 0, 0, 0, 0], starts: WEEKS },
+    })
+  })
+
   test('a milestone started before the reads reach counts every period they reach whole', () => {
     submitInputs(storage, TEAM, DEFAULT_SETTINGS, TODAY, {
       kind: 'setMilestone',
@@ -216,6 +228,29 @@ describe('no reads to count', () => {
     await submitMilestoneQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
 
     expect(paceReads(storage, TEAM, AT)).toBeUndefined()
+  })
+
+  test('the milestone query’s read incomplete, pace still comes from comparable work’s; the milestone’s own and tickets remaining are unknown', async () => {
+    const partial: CannedFixture = {
+      ...FIXTURE,
+      reads: {
+        ...FIXTURE.reads,
+        [checkout.query]: { tickets: MILESTONE_TICKETS, incomplete: true },
+      },
+    }
+    using = { ...using, connector: () => cannedConnector(partial) }
+    storage.saveMilestoneQuery(TEAM, { picks: [], query: '' })
+    await submitMilestoneQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
+    await addComparable(payments)
+
+    expect(paceReads(storage, TEAM, AT)).toEqual({
+      from: 'comparableWork',
+      pace: { counts: PAYMENTS_COUNTS, starts: WEEKS },
+      milestone: undefined,
+      beforeStart: 1,
+      comparableWork: { counts: PAYMENTS_COUNTS, starts: WEEKS },
+      ticketsRemaining: undefined,
+    })
   })
 
   test('an incomplete comparable-work read isn’t counted: pace is the milestone’s own', async () => {

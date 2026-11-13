@@ -37,7 +37,7 @@ Thresholds and default ranges below (growth samples, pace weeks, stale weeks, fi
 | 3 | Forecast history | Every forecast is logged from the first run. The Forecaster reads its own log (`forecastLogGet`). |
 | 4 | Committing an epic | Manual. The EM commits an epic after kickoff (after spikes, the backlog and team alignment), which records its child count as the baseline. Optionally, a configured label in the ticketing tool commits it. A pull-back to not started resets the commit; the EM commits again on restart. A blocked epic keeps its commit, stays in scope and is flagged. The tool warns when an epic is in progress but isn't committed. The tool doesn't identify spikes ([ADR-0002](../adr/0002-no-spike-rule.md)). |
 | 5 | Growth | The EM sets each epic's ambiguity: low, medium (default) or high, each mapped to an editable growth range (`AmbiguityRanges`). Growth samples from finished committed epics, in the tool or by label, are pooled per team. Once `minGrowthSamples` exist, the measured range is suggested for medium and the EM decides whether to adopt it. Uncommitted epics are still forecast, labelled "not committed: wide range". |
-| 6 | Pace | Counts only tickets under this milestone's epics, so KTLO and unrelated work show up as slower pace rather than inflating it. Starts as a manual low–high range per week. Older data may pre-fill it, labelled as a suggestion. Nothing from before installation is used automatically. Once the milestone has `minMeasuredPaceWeeks` of its own throughput, measured pace is shown beside the manual range with an offer to switch. |
+| 6 | Pace | Once the EM adds comparable work, counts its finished tickets alone (the milestone's own only if it is picked in it); with none, or one matching nothing finished, the milestone's own since its start date. KTLO and unrelated work count only if a query picks them out, so time spent on them shows up as slower pace rather than inflating it. Starts as a manual low–high range per week. Older data may pre-fill it, labelled as a suggestion. Nothing from before installation is used automatically. Once the milestone has `minMeasuredPaceWeeks` of its own throughput, measured pace is shown beside the manual range with an offer to switch. |
 | 7 | Team change | The EM records the date. The measured window restarts, the EM is prompted to review the manual range, and pace is flagged stale until `staleWeeksAfterTeamChange` of new data exist. |
 | 8 | Capacity | Typed by the EM beside the forecast, as date ranges at a share of the team's usual; see Capacity above. |
 | 9 | Track record | One line on the forecast screen, under the pace lines: how often past "85% confident" dates were met. Shown only once `minResolvedMilestones` milestones have finished; before that, nothing is shown in its place. |
@@ -63,7 +63,7 @@ Checkout v2 · committed 18 Dec                 Jira data as of 13 Oct 07:10 [Re
                       15 Sep   22 Sep   6 Oct    13 Oct
 
  Pace: manual range 6–10 per week (measured pace available in 3 weeks)
- Pace counts tickets under this milestone's epics only
+ Pace counts comparable work's finished tickets
  ⚠ Refunds is in progress but isn't committed
 ─────────────────────────────────────────────────────────────────────────────
  Epics in this milestone   Items now   Ambiguity   Pace (4 wk)   Status

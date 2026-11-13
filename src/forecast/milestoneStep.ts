@@ -3,9 +3,8 @@ import type { Connection } from '../model/connection.js'
 import type { MilestoneQuery } from '../model/milestoneQuery.js'
 import type { SavedRead } from '../model/savedRead.js'
 import type { MilestoneQueryStorage } from '../storage/storage.js'
-import { DAY_MS } from '../model/time.js'
 import { teamConnection, type Connecting } from './connection.js'
-import { readQuery, ticketsRemaining, type QueryRead } from './finished.js'
+import { FINISHED_WEEKS, finishedSinceFor, readQuery, ticketsRemaining, type QueryRead } from './finished.js'
 import { trackerOf, type TrackerFacts } from './trackers.js'
 
 /**
@@ -79,6 +78,11 @@ export interface ChoiceList {
   kind: ChoiceKind
   choices: Choice[]
   searchedInTracker: boolean
+  /**
+   * The query of its choice that is the milestone query, when the milestone query is that one choice: marked "this
+   * milestone" in the Comparable work step's lists, as a candidate is, without reading it. None when no choice listed is.
+   */
+  thisMilestone?: string
   /** Why the tracker couldn't search this kind; none when it could. */
   failure?: string
 }
@@ -116,8 +120,8 @@ export interface MilestoneStep {
    * a query, or when the picker can't show it as chips. None while finding.
    */
   editing?: QueryEditing
-  /** An optional step's main button: Skip until something is added, then Next. None for a step that isn't optional. */
-  onward?: 'Skip' | 'Next'
+  /** An optional step's main button: `skip` until something is added, then `next`. None for a step that isn't optional. */
+  onward?: 'skip' | 'next'
 }
 
 /** The milestone query open for editing by hand. */
@@ -196,7 +200,7 @@ export async function milestoneStepView(
     ...(read && readFlag(read, tracker.name, stepQuery)),
     ...(!editing && opening.refused?.fromPicks && { refusal: opening.refused.refusal }),
     ...(editing && { editing }),
-    ...(stepQuery.optional && { onward: saved.query === '' ? 'Skip' : 'Next' }),
+    ...(stepQuery.optional && { onward: saved.query === '' ? 'skip' : 'next' }),
   }
   if (opening.unlisted) return step
   if (connector === 'keychainFailed') return { ...step, choicesFailure: KEYCHAIN_FAILED }
@@ -204,10 +208,11 @@ export async function milestoneStepView(
   if (!choices.ok) return { ...step, choicesFailure: CHOICES_FAILED }
   const typed = find.trim()
   const unpicked = notPicked(saved.picks)
+  const marked = markedThisMilestone(connecting.milestoneQueries, teamId)
   const lists: ChoiceList[] = []
   // A kind past the limit is searched once something is typed, one kind after another, to spare the rate limit.
   for (const kind of choices.kinds) {
-    lists.push(kind.pastLimit && typed !== '' ? await foundInTracker(connector, kind.kind, typed, unpicked) : listedHere(kind, typed, unpicked))
+    lists.push(marked(kind.pastLimit && typed !== '' ? await foundInTracker(connector, kind.kind, typed, unpicked) : listedHere(kind, typed, unpicked)))
   }
   return { ...step, lists }
 }
@@ -235,12 +240,22 @@ export async function searchedChoiceList(
   if (!connected) return undefined
   if (connected.connector === 'keychainFailed') return { kind, choices: [], searchedInTracker: true, failure: KEYCHAIN_FAILED }
   const unpicked = notPicked(stepQuery.saved(connecting.milestoneQueries, teamId)?.picks ?? [])
+  const marked = markedThisMilestone(connecting.milestoneQueries, teamId)
   const typed = find.trim()
-  if (typed !== '') return foundInTracker(connected.connector, kind, typed, unpicked)
+  if (typed !== '') return marked(await foundInTracker(connected.connector, kind, typed, unpicked))
   const choices = await connected.connector.milestoneChoices()
   if (!choices.ok) return { kind, choices: [], searchedInTracker: true, failure: CHOICES_FAILED }
   const listed = choices.kinds.find((each) => each.kind === kind)
-  return listed ? listedHere(listed, '', unpicked) : { kind, choices: [], searchedInTracker: true }
+  return listed ? marked(listedHere(listed, '', unpicked)) : { kind, choices: [], searchedInTracker: true }
+}
+
+/**
+ * A list, with the choice in it whose query is the milestone query marked (`thisMilestone`). The Milestone step never
+ * lists it, as it is picked there.
+ */
+function markedThisMilestone(queries: MilestoneQueryStorage, teamId: string): (list: ChoiceList) => ChoiceList {
+  const milestoneQuery = queries.milestoneQuery(teamId)?.query
+  return (list) => (list.choices.some((choice) => choice.query === milestoneQuery) ? { ...list, thisMilestone: milestoneQuery! } : list)
 }
 
 /** Whether a choice is none of `picks`. */
@@ -262,9 +277,6 @@ const KEYCHAIN_FAILED = 'This computer’s keychain couldn’t give the token, s
 
 const CHOICES_FAILED = 'The tracker couldn’t list what to pick from just now. Open the step again in a few minutes.'
 
-/** How far back a read of the milestone query counts finished tickets, in weeks. */
-export const FINISHED_WEEKS = 8
-
 /** A read's line: its open tickets, when they count, and those finished in the weeks it reads back. */
 function readLine(read: SavedRead, { countsOpen }: StepQuery): string {
   const finished = `${read.tickets.length - ticketsRemaining(read)} finished in the last ${FINISHED_WEEKS} weeks`
@@ -272,8 +284,9 @@ function readLine(read: SavedRead, { countsOpen }: StepQuery): string {
 }
 
 /**
- * A read's flag: incomplete, asking to narrow the query; or matching nothing that counts, which for a query whose open
- * tickets don't count is nothing finished in the weeks it reads back. None for a read with all its tickets.
+ * A read's flag: incomplete, asking to narrow the query; or, for a query whose open tickets count, matching nothing.
+ * None for a read with all its tickets. Whether comparable work's is used is its pace's to flag (`comparableWorkPace`),
+ * over the periods pace counts.
  */
 function readFlag(read: SavedRead, trackerName: string, { picksOut, countsOpen }: StepQuery): { flag: string } | undefined {
   if (read.incomplete) {
@@ -281,9 +294,6 @@ function readFlag(read: SavedRead, trackerName: string, { picksOut, countsOpen }
   }
   if (countsOpen && read.tickets.length === 0) {
     return { flag: `This query matches nothing: no open tickets, and none finished in the last ${FINISHED_WEEKS} weeks. Check it picks out ${picksOut}.` }
-  }
-  if (!countsOpen && read.tickets.length === ticketsRemaining(read)) {
-    return { flag: `This query matches nothing finished in the last ${FINISHED_WEEKS} weeks, so pace comes from the milestone’s own tickets. Check it picks out ${picksOut}.` }
   }
   return undefined
 }
@@ -341,7 +351,7 @@ export async function submitMilestoneQuery(
     save()
     return { kind: 'saved' }
   }
-  const finishedSince = new Date(Date.parse(readAt) - FINISHED_WEEKS * 7 * DAY_MS).toISOString()
+  const finishedSince = finishedSinceFor(readAt)
   const read = await readQuery(connector, connecting.reads, { teamId, query: after.query, finishedSince, readAt })
   const rejection = read.ok ? undefined : rejectionOf(connection, read)
   if (rejection) return { kind: 'refused', query: after.query, refusal: rejection, ...(edit.kind !== 'editQuery' && { fromPicks: true as const }) }

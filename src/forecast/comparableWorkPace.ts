@@ -1,7 +1,8 @@
 import type { SavedRead } from '../model/savedRead.js'
 import { periodName } from './cadence.js'
-import { finishedPerPeriod, ticketsRemaining } from './finished.js'
+import { completeRead, finishedPerPeriod } from './finished.js'
 import type { PeriodName } from './cadence.js'
+import { COMPARABLE_WORK } from './milestoneStep.js'
 import { paceReads, type PaceDay, type PaceFrom, type PaceReadsStorage } from './paceReads.js'
 import { medianOf, paceVersusMilestoneOwn, type PaceVersus } from './paceVersusOwn.js'
 
@@ -17,7 +18,8 @@ export interface PaceInUse {
 export interface PairedPeriod {
   /** The period's first day. */
   start: string
-  milestone: number
+  /** None while the milestone query's read is incomplete. */
+  milestone?: number
   /** None with no comparable-work query, or no complete read of it. */
   comparableWork?: number
   /** The period comes before the milestone's start date, so its own count isn't its pace. */
@@ -32,7 +34,7 @@ export interface PickPace {
   strip: number[]
   /** How many it finished in the weeks its read reaches back. */
   finished: number
-  /** With several picks, how many of those no other pick's read has. */
+  /** With several picks, how many of those no other pick's read has; none while any pick has no complete read. */
   onlyHere?: number
 }
 
@@ -54,10 +56,15 @@ export interface OwnComparison {
 export interface ComparableWorkPace {
   /** None until pace has a period to count. */
   inUse?: PaceInUse
-  /** How the pace in use compares with the milestone's own; none when it is the milestone's own. */
+  /** How the pace in use compares with the milestone's own; none when it is the milestone's own, or that is unknown. */
   comparison?: OwnComparison
   /** The last `PAIRED_PERIODS` whole periods the reads reach, oldest first. */
   periods: PairedPeriod[]
+  /**
+   * Why comparable work's query isn't used, beside its read: its complete read finished nothing in the whole periods
+   * pace counts. None when it is used, or has no complete read.
+   */
+  flag?: string
   /** Comparable work's picks, in the order picked, each that has a complete read of its own. */
   picks: PickPace[]
   said: {
@@ -82,21 +89,24 @@ export function comparableWorkPace(storage: PaceReadsStorage, teamId: string, da
   const counts = reads.pace.counts
   const inUse: PaceInUse | undefined =
     counts.length === 0 ? undefined : { from: reads.from, median: medianOf(counts), low: Math.min(...counts), high: Math.max(...counts) }
-  const own = reads.milestone.counts.slice(reads.beforeStart)
+  const own = reads.milestone?.counts.slice(reads.beforeStart) ?? []
   const comparison: OwnComparison | undefined =
-    inUse && reads.from === 'comparableWork'
+    inUse && reads.from === 'comparableWork' && reads.milestone
       ? { versus: paceVersusMilestoneOwn(inUse.median, own), ownPeriods: own.length, ...(own.length > 0 && { ownMedian: medianOf(own) }) }
       : undefined
   const { milestone, comparableWork, beforeStart } = reads
-  const periods = milestone.counts.map((count, at) => ({
-    start: milestone.starts[at]!,
-    milestone: count,
+  // the milestone's own read, or else comparable work's, lays out the periods; both reads are laid the same
+  const laid = (milestone ?? comparableWork)!
+  const periods = laid.starts.map((start, at) => ({
+    start,
+    ...(milestone && { milestone: milestone.counts[at]! }),
     ...(comparableWork && { comparableWork: comparableWork.counts[at]! }),
     beforeStart: at < beforeStart,
   }))
   return {
     ...(inUse && { inUse }),
     ...(comparison && { comparison }),
+    ...(comparableWork && reads.from === 'milestone' && { flag: notUsedFlag(periods.length, period) }),
     periods: periods.slice(-PAIRED_PERIODS),
     picks: picksPace(storage, teamId, (read) => finishedPerPeriod(read, { ...inputs, ...day, startDate: inputs.startDate!, periods: periods.length }).counts.slice(-PAIRED_PERIODS)),
     said: {
@@ -118,6 +128,12 @@ function comparisonSaid({ versus, ownPeriods, ownMedian = 0 }: OwnComparison, pe
   }
 }
 
+/** Why comparable work's query isn't used: "…nothing finished in the 7 whole weeks pace counts…". */
+function notUsedFlag(periods: number, period: PeriodName): string {
+  const counted = `${periods} whole ${period}${periods === 1 ? '' : 's'}`
+  return `This query matches nothing finished in the ${counted} pace counts, so pace comes from the milestone’s own tickets. Check it picks out ${COMPARABLE_WORK.picksOut}.`
+}
+
 /** A number of tickets a period, to one decimal place: "1.5 a week". */
 function perPeriod(tickets: number, period: PeriodName): string {
   return `${Math.round(tickets * 10) / 10} a ${period}`
@@ -130,21 +146,26 @@ function range({ low, high }: PaceInUse): string {
   return low === high ? `${low}` : `${low}–${high}`
 }
 
-/** Each of comparable work's picks with a complete read of its own, with its `strip` of the periods paired. */
+/**
+ * Each of comparable work's picks with a complete read of its own, with its `strip` of the periods paired. With several
+ * picks, each one's only-here count needs every other pick's read: with any unread, it is unknown for all of them, as
+ * a ticket the unread pick shares would count as only here.
+ */
 function picksPace(storage: PaceReadsStorage, teamId: string, strip: (read: SavedRead) => number[]): PickPace[] {
   const picks = storage.comparableWorkQuery(teamId)?.picks ?? []
   const read = picks.flatMap((pick) => {
-    const saved = storage.savedRead({ teamId, query: pick.query })
-    return saved && !saved.incomplete ? [{ query: pick.query, read: saved }] : []
+    const saved = completeRead(storage, teamId, pick.query)
+    return saved ? [{ query: pick.query, read: saved }] : []
   })
+  const comparing = picks.length > 1 && read.length === picks.length
   return read.map(({ query, read: own }) => {
     const elsewhere = new Set(read.filter((other) => other.query !== query).flatMap((other) => other.read.tickets.map((ticket) => ticket.id)))
     const finished = own.tickets.filter((ticket) => ticket.finishedAt !== undefined)
     return {
       query,
       strip: strip(own),
-      finished: own.tickets.length - ticketsRemaining(own),
-      ...(picks.length > 1 && { onlyHere: finished.filter((ticket) => !elsewhere.has(ticket.id)).length }),
+      finished: finished.length,
+      ...(comparing && { onlyHere: finished.filter((ticket) => !elsewhere.has(ticket.id)).length }),
     }
   })
 }
