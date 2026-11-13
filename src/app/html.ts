@@ -283,7 +283,7 @@ const STYLE = `
       width: 100%; font-size: 15px; color: var(--ink); background: transparent;
       border: 0; border-bottom: 1px solid var(--ink); border-radius: 0; padding: 6px 0;
     }
-    .found { display: flex; flex-direction: column; gap: 4px; }
+    .found { display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow-y: auto; }
     .found h3 { margin: 6px 0 2px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
     .found button { display: block; width: 100%; text-align: left; border: 0; background: none; min-height: 30px; font-size: 14px; padding: 0 8px; border-radius: 4px; cursor: pointer; }
     .found button:hover { background: var(--active); }
