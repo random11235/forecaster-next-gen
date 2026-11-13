@@ -7,7 +7,7 @@ import type { Choice, Connector, Ticket } from '../../src/connectors/connector.j
 import { narrowedToAFew, openCandidates, type Candidates } from '../../src/forecast/candidates.js'
 import { submitConnection, type Connecting } from '../../src/forecast/connection.js'
 import { submitInputs } from '../../src/forecast/inputs.js'
-import { COMPARABLE_WORK, milestoneStepView, searchedChoiceList, submitMilestoneQuery } from '../../src/forecast/milestoneStep.js'
+import { COMPARABLE_WORK, queryStepView, searchedChoiceList, submitStepQuery } from '../../src/forecast/queryStep.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
@@ -89,7 +89,7 @@ beforeEach(async () => {
   }
   await submitConnection(using, TEAM, { kind: 'connect', tracker: 'github', repo: 'shop-team/shop', site: '', projectKey: '', email: '', token: 'token' })
   submitInputs(storage, TEAM, DEFAULT_SETTINGS, TODAY, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-10-01', ticketsRemaining: '30' })
-  await submitMilestoneQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
+  await submitStepQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
   reads = []
 })
 
@@ -151,7 +151,7 @@ describe('a candidate’s read', () => {
   })
 
   test('how many it adds that the picks don’t already count', async () => {
-    await submitMilestoneQuery(using, TEAM, { kind: 'addPick', choice: rewards }, READ_AT, COMPARABLE_WORK)
+    await submitStepQuery(using, TEAM, { kind: 'addPick', choice: rewards }, READ_AT, COMPARABLE_WORK)
 
     const candidates = await open().read([loyalty])
 
@@ -194,27 +194,27 @@ describe('a candidate’s read', () => {
 
 describe('this milestone, in the step’s lists', () => {
   test('the choice that is the milestone query is marked, without reading it', async () => {
-    const step = await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)
+    const step = await queryStepView(using, TEAM, '', {}, COMPARABLE_WORK)
     const searched = await searchedChoiceList(using, TEAM, 'milestone', '', COMPARABLE_WORK)
 
-    expect(step.kind === 'milestoneStep' && step.lists.map((list) => list.thisMilestone)).toEqual([checkout.query, undefined])
+    expect(step.kind === 'queryStep' && step.lists.map((list) => list.thisMilestone)).toEqual([checkout.query, undefined])
     expect(searched).toMatchObject({ thisMilestone: checkout.query })
     expect(reads).toEqual([])
   })
 
   test('none is marked when the milestone query is more than one choice', async () => {
-    await submitMilestoneQuery(using, TEAM, { kind: 'addPick', choice: release }, READ_AT)
+    await submitStepQuery(using, TEAM, { kind: 'addPick', choice: release }, READ_AT)
 
-    const step = await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)
+    const step = await queryStepView(using, TEAM, '', {}, COMPARABLE_WORK)
 
-    expect(step.kind === 'milestoneStep' && step.lists.map((list) => list.thisMilestone)).toEqual([undefined, undefined])
+    expect(step.kind === 'queryStep' && step.lists.map((list) => list.thisMilestone)).toEqual([undefined, undefined])
   })
 })
 
 describe('reading on demand', () => {
   test('opening the step reads no candidate', async () => {
     open()
-    await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)
+    await queryStepView(using, TEAM, '', {}, COMPARABLE_WORK)
 
     expect(reads).toEqual([])
   })
@@ -245,8 +245,8 @@ describe('reading on demand', () => {
   })
 
   test('narrowing to a few by typing reads only those', async () => {
-    const step = await milestoneStepView(using, TEAM, 'r', {}, COMPARABLE_WORK)
-    if (step.kind !== 'milestoneStep') throw new Error('no step')
+    const step = await queryStepView(using, TEAM, 'r', {}, COMPARABLE_WORK)
+    if (step.kind !== 'queryStep') throw new Error('no step')
 
     await open().read(narrowedToAFew(step.lists, step.find))
 
@@ -254,10 +254,10 @@ describe('reading on demand', () => {
   })
 
   test('typing that leaves more than a few, or nothing typed, reads nothing', async () => {
-    const step = await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)
-    if (step.kind !== 'milestoneStep') throw new Error('no step')
-    const wide = await milestoneStepView(using, TEAM, 'e', {}, COMPARABLE_WORK)
-    if (wide.kind !== 'milestoneStep') throw new Error('no step')
+    const step = await queryStepView(using, TEAM, '', {}, COMPARABLE_WORK)
+    if (step.kind !== 'queryStep') throw new Error('no step')
+    const wide = await queryStepView(using, TEAM, 'e', {}, COMPARABLE_WORK)
+    if (wide.kind !== 'queryStep') throw new Error('no step')
 
     expect(narrowedToAFew(step.lists, step.find)).toEqual([])
     expect(narrowedToAFew(wide.lists, wide.find)).toEqual([])

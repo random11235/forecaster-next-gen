@@ -3,14 +3,14 @@ import { connectionView, submitConnection, type Connecting, type ConnectionEdit,
 import { howItWorksView } from '../forecast/howItWorksView.js'
 import { followRenamedMilestone } from '../forecast/milestoneRenamed.js'
 import {
-  milestoneStepView,
+  queryStepView,
   searchedChoiceList,
-  submitMilestoneQuery,
-  type MilestoneQueryEdit,
-  type MilestoneStepOpening,
-  type MilestoneStepView,
+  submitStepQuery,
+  type StepQueryEdit,
+  type QueryStepOpening,
+  type QueryStepView,
   type RefusedQuery,
-} from '../forecast/milestoneStep.js'
+} from '../forecast/queryStep.js'
 import type { Connector } from '../connectors/connector.js'
 import { inputsView, submitInputs, type InputsView, type NextScreen } from '../forecast/inputs.js'
 import { milestoneForecastView, type MilestoneForecastView } from '../forecast/milestoneForecastView.js'
@@ -23,7 +23,7 @@ import { INPUTS_FORMS, renderInputsScreen } from './inputsScreen.js'
 import { CAPACITY_OPEN, CAPACITY_OPEN_PATH, FORECAST_FORMS, renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
 import { comparableWorkPace, type ComparableWorkPace } from '../forecast/comparableWorkPace.js'
 import { paceReadsStorage } from '../forecast/paceReads.js'
-import { choiceListHtml, COMPARABLE_WORK_STEP, CONFIRMING_BACK, KIND_FIELD, MILESTONE_STEP, OPEN_FIELD, STEP_SECTIONS, type StepSection } from './milestoneStepSection.js'
+import { choiceListHtml, COMPARABLE_WORK_STEP, CONFIRMING_BACK, KIND_FIELD, MILESTONE_STEP, OPEN_FIELD, STEP_SECTIONS, type StepSection } from './queryStepSection.js'
 import { CANDIDATES_PATH, candidatesHtml, choicesAsked, keepOpening, OPENING_FIELD, openingKept } from './candidatesSection.js'
 import { narrowedToAFew, openCandidates, type CandidatesAt } from '../forecast/candidates.js'
 import { periodName, type PeriodName } from '../forecast/cadence.js'
@@ -227,12 +227,12 @@ async function inputsWithStep(
   const steps = []
   for (const section of STEP_SECTIONS) {
     const editing = searchParams.get(section.editing.name) === section.editing.value
-    const opening: MilestoneStepOpening =
+    const opening: QueryStepOpening =
       refused?.section === section
         ? { refused: refused.query }
         : { editing, confirmingBack: editing && searchParams.get(CONFIRMING_BACK.name) === CONFIRMING_BACK.value, unlisted }
     const find = searchParams.get(section.findField) ?? ''
-    const stepView = await milestoneStepView(listing, team.id, find, opening, section.stepQuery)
+    const stepView = await queryStepView(listing, team.id, find, opening, section.stepQuery)
     const pace = section.leadsWithPace ? stepPace(context, connecting, team.id) : undefined
     steps.push({ section, view: stepView, ...(pace && { pace }), ...(await candidatesShown({ context, connecting, team, searchParams }, section, stepView, find)) })
   }
@@ -281,10 +281,10 @@ function listingOnce(connecting: Connecting): Connecting {
 async function candidatesShown(
   { context, connecting, team, searchParams }: Pick<SetupRouting, 'context' | 'connecting' | 'team' | 'searchParams'>,
   section: StepSection,
-  view: MilestoneStepView,
+  view: QueryStepView,
   find: string,
 ): Promise<{ candidates?: string }> {
-  if (!section.candidates || view.kind !== 'milestoneStep' || view.editing) return {}
+  if (!section.candidates || view.kind !== 'queryStep' || view.editing) return {}
   const opening = openCandidates(connecting, context.storage, team.id, candidatesAt(context))
   const listed = view.lists.flatMap((list) => list.choices)
   const opened = searchParams.getAll(OPEN_FIELD).flatMap((query) => listed.filter((choice) => choice.query === query))
@@ -324,10 +324,10 @@ async function searchedChoices({ connecting, team, searchParams }: SetupRouting,
  * change of the picks the tracker rejects, the step still finding, with why beside the chips that worked; going back
  * to finding from a query it would clear asks the EM to confirm that first.
  */
-async function queryEdited(setup: SetupRouting, section: StepSection, readQueryEdit: (body: URLSearchParams) => MilestoneQueryEdit | undefined): Promise<Reply> {
+async function queryEdited(setup: SetupRouting, section: StepSection, readQueryEdit: (body: URLSearchParams) => StepQueryEdit | undefined): Promise<Reply> {
   const edit = readQueryEdit(setup.request.form ?? new URLSearchParams())
   if (!edit) return { kind: 'notFound' }
-  const submitted = await submitMilestoneQuery(setup.connecting, setup.team.id, edit, setup.context.now(), section.stepQuery)
+  const submitted = await submitStepQuery(setup.connecting, setup.team.id, edit, setup.context.now(), section.stepQuery)
   if (submitted.kind === 'refused') return inputsWithStep(setup, { status: 400, refused: { section, query: submitted } })
   if (submitted.kind === 'confirmClear') return { kind: 'redirect', location: section.urls.confirmingBack }
   // a query edited by hand stays open for editing; every other change goes back to finding

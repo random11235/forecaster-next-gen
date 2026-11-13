@@ -7,7 +7,7 @@ import type { Choice, Ticket } from '../../src/connectors/connector.js'
 import { comparableWorkPace } from '../../src/forecast/comparableWorkPace.js'
 import { submitConnection, type Connecting } from '../../src/forecast/connection.js'
 import { submitInputs } from '../../src/forecast/inputs.js'
-import { COMPARABLE_WORK, submitMilestoneQuery } from '../../src/forecast/milestoneStep.js'
+import { COMPARABLE_WORK, submitStepQuery } from '../../src/forecast/queryStep.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
@@ -93,7 +93,7 @@ beforeEach(async () => {
     token: 'token',
   })
   startOn('2026-10-01')
-  await submitMilestoneQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
+  await submitStepQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
 })
 
 afterEach(() => {
@@ -105,7 +105,7 @@ function startOn(startDate: string): void {
   submitInputs(storage, TEAM, DEFAULT_SETTINGS, TODAY, { kind: 'setMilestone', name: 'Checkout v2', startDate, ticketsRemaining: '30' })
 }
 
-const addComparable = (choice: Choice) => submitMilestoneQuery(using, TEAM, { kind: 'addPick', choice }, READ_AT, COMPARABLE_WORK)
+const addComparable = (choice: Choice) => submitStepQuery(using, TEAM, { kind: 'addPick', choice }, READ_AT, COMPARABLE_WORK)
 
 describe('the pace in use', () => {
   test('comparable work slower than the milestone’s own: its median and range, and how far below the milestone’s own', async () => {
@@ -200,7 +200,7 @@ describe('the pace in use', () => {
   })
 
   test('none before the milestone query is read', async () => {
-    await submitMilestoneQuery(using, TEAM, { kind: 'removePick', query: checkout.query }, READ_AT)
+    await submitStepQuery(using, TEAM, { kind: 'removePick', query: checkout.query }, READ_AT)
 
     expect(comparableWorkPace(storage, TEAM, AT)).toBeUndefined()
   })
@@ -210,8 +210,8 @@ describe('the milestone query’s read incomplete', () => {
   test('pace comes from comparable work, compared with nothing, each period without the milestone’s own', async () => {
     const capped: CannedFixture = { ...FIXTURE, reads: { ...FIXTURE.reads, [checkout.query]: { tickets: finished('m', OWN), incomplete: true } } }
     using = { ...using, connector: () => cannedConnector(capped) }
-    await submitMilestoneQuery(using, TEAM, { kind: 'removePick', query: checkout.query }, READ_AT)
-    await submitMilestoneQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
+    await submitStepQuery(using, TEAM, { kind: 'removePick', query: checkout.query }, READ_AT)
+    await submitStepQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
     await addComparable(slow)
 
     const pace = comparableWorkPace(storage, TEAM, AT)
@@ -271,7 +271,7 @@ describe('each pick', () => {
   test('removing a pick leaves the rest', async () => {
     await addComparable(slow)
     await addComparable(shared)
-    await submitMilestoneQuery(using, TEAM, { kind: 'removePick', query: slow.query }, READ_AT, COMPARABLE_WORK)
+    await submitStepQuery(using, TEAM, { kind: 'removePick', query: slow.query }, READ_AT, COMPARABLE_WORK)
 
     expect(comparableWorkPace(storage, TEAM, AT)?.picks).toEqual([{ query: shared.query, strip: [2, 0, 0, 1, 0, 0, 0], finished: 3 }])
   })
@@ -305,7 +305,7 @@ describe('what the tracker is asked', () => {
   test('the milestone query’s picks are not read one by one', async () => {
     asked = []
 
-    await submitMilestoneQuery(using, TEAM, { kind: 'addPick', choice: shared }, READ_AT)
+    await submitStepQuery(using, TEAM, { kind: 'addPick', choice: shared }, READ_AT)
 
     expect(asked).toEqual([`${checkout.query} OR ${shared.query}`])
   })

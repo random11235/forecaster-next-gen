@@ -2,7 +2,7 @@ import type { SavedRead } from '../model/savedRead.js'
 import { periodName } from './cadence.js'
 import { completeRead, finishedPerPeriod } from './finished.js'
 import type { PeriodName } from './cadence.js'
-import { COMPARABLE_WORK } from './milestoneStep.js'
+import { COMPARABLE_WORK } from './queryStep.js'
 import { paceReads, type PaceDay, type PaceFrom, type PaceReadsStorage } from './paceReads.js'
 import { medianOf, paceVersusMilestoneOwn, type PaceVersus } from './paceVersusOwn.js'
 

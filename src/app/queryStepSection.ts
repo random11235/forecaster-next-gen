@@ -1,12 +1,12 @@
-import type { ChoiceList, MilestoneQueryEdit, MilestoneStep, MilestoneStepView, QueryEditing, StepQuery } from '../forecast/milestoneStep.js'
-import { COMPARABLE_WORK, kindName, MILESTONE_QUERY } from '../forecast/milestoneStep.js'
+import type { ChoiceList, StepQueryEdit, QueryStep, QueryStepView, QueryEditing, StepQuery } from '../forecast/queryStep.js'
+import { COMPARABLE_WORK, kindName, MILESTONE_QUERY } from '../forecast/queryStep.js'
 import { choiceKindOf, type Choice } from '../connectors/connector.js'
 import { dayMonth } from '../forecast/calendarDate.js'
 import type { ComparableWorkPace, PairedPeriod, PickPace } from '../forecast/comparableWorkPace.js'
 import { escapeHtml } from './html.js'
 
 /** Reads a submitted step's form, by the field names this section gives them; none when it isn't one of its forms as sent. */
-type StepFormReader = (body: URLSearchParams) => MilestoneQueryEdit | undefined
+type StepFormReader = (body: URLSearchParams) => StepQueryEdit | undefined
 
 /**
  * One of the setup steps that picks or writes one of the team's queries, as the Inputs screen shows it: the Milestone
@@ -134,11 +134,11 @@ export const STEP_SECTIONS: readonly StepSection[] = [MILESTONE_STEP, COMPARABLE
 /**
  * A step picking or writing one of the team's queries (`section`), in the local server build once connected; none
  * otherwise. Each pick and each removal posts at once; the find box filters the lists as the EM types (see
- * `milestoneStepScript`), and without the script it submits to `/inputs` with what was typed. An optional step ends
+ * `queryStepScript`), and without the script it submits to `/inputs` with what was typed. An optional step ends
  * with its main button, Skip until something is added and Next after, and Start afresh once it has a query.
  */
-export function milestoneStepSection(view: MilestoneStepView, section: StepSection, pace?: ComparableWorkPace): string | undefined {
-  if (view.kind === 'noMilestoneStep') return undefined
+export function queryStepSection(view: QueryStepView, section: StepSection, pace?: ComparableWorkPace): string | undefined {
+  if (view.kind === 'noQueryStep') return undefined
   return view.editing ? editingSection(view, view.editing, section, pace) : findingSection(view, section, pace)
 }
 
@@ -198,7 +198,7 @@ function pickPaceHtml(pick: PickPace | undefined): string {
  * The query's last read: its line, when it has one, and its flag beneath, or its pace's, saying it isn't used; nothing
  * until it is read.
  */
-function readHtml(view: MilestoneStep, pace: ComparableWorkPace | undefined): string {
+function readHtml(view: QueryStep, pace: ComparableWorkPace | undefined): string {
   const line = view.read === undefined ? '' : `\n          <p class="read">${escapeHtml(view.read)}</p>`
   const flagged = view.flag ?? pace?.flag
   const flag = flagged === undefined ? '' : `\n          <p class="note warn flag">⚠ ${escapeHtml(flagged)}</p>`
@@ -206,13 +206,13 @@ function readHtml(view: MilestoneStep, pace: ComparableWorkPace | undefined): st
 }
 
 /** An optional step's main button's label, by where it goes. */
-const ONWARD_LABELS: Readonly<Record<NonNullable<MilestoneStep['onward']>, string>> = { skip: 'Skip', next: 'Next' }
+const ONWARD_LABELS: Readonly<Record<NonNullable<QueryStep['onward']>, string>> = { skip: 'Skip', next: 'Next' }
 
 /**
  * An optional step's end: Start afresh, clearing all its picks and query at once, once it has a query; and its main
  * button, on to the next section. Nothing for a step that isn't optional.
  */
-function onwardHtml(view: MilestoneStep, { paths, id, onwardTo }: StepSection): string {
+function onwardHtml(view: QueryStep, { paths, id, onwardTo }: StepSection): string {
   if (view.onward === undefined || onwardTo === undefined) return ''
   const afresh =
     view.onward === 'next'
@@ -227,7 +227,7 @@ function onwardHtml(view: MilestoneStep, { paths, id, onwardTo }: StepSection): 
  * only on Enter, so a half-typed query changes nothing. Back to finding says first when it will clear it, and then
  * asks the EM to confirm that, in a form of its own, so it works without the script.
  */
-function editingSection(view: MilestoneStep, editing: QueryEditing, section: StepSection, pace: ComparableWorkPace | undefined): string {
+function editingSection(view: QueryStep, editing: QueryEditing, section: StepSection, pace: ComparableWorkPace | undefined): string {
   const { paths, urls, id, inputId } = section
   const refusal = editing.refusal === undefined ? '' : `\n          <p class="error" role="alert">${escapeHtml(editing.refusal)}</p>`
   const inUse =
@@ -251,7 +251,7 @@ function editingSection(view: MilestoneStep, editing: QueryEditing, section: Ste
 }
 
 /** The step finding choices to pick: the chips, the find box over the lists, and the query, to edit as a query. */
-function findingSection(view: MilestoneStep, section: StepSection, pace: ComparableWorkPace | undefined): string {
+function findingSection(view: QueryStep, section: StepSection, pace: ComparableWorkPace | undefined): string {
   const { paths, urls, id, findField } = section
   const kinds = view.lists.map((list) => kindName(list.kind))
   const chips = view.picks
@@ -329,12 +329,12 @@ const SEARCH_DEBOUNCE_MS = 300
 
 /**
  * A step's script, for `section`: it filters the lists as the EM types in the find box, ignoring case and matching
- * part of a word, as `milestoneStepView` does for a find submitted without it. A kind searched in the tracker isn't
+ * part of a word, as `queryStepView` does for a find submitted without it. A kind searched in the tracker isn't
  * filtered: once typing pauses, its list is asked for again, searched for what is typed (or, cleared, its first 100 as
  * listed), and an answer to anything but the latest search is dropped. The lists show as the step opens, before
  * anything is typed.
  */
-export function milestoneStepScript({ id, findField, searchedChoicesPath }: StepSection): string {
+export function queryStepScript({ id, findField, searchedChoicesPath }: StepSection): string {
   return `
 (() => {
   const step = document.getElementById('${id}')
