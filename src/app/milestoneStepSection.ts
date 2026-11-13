@@ -1,6 +1,6 @@
 import type { ChoiceList, MilestoneQueryEdit, MilestoneStep, MilestoneStepView, QueryEditing, StepQuery } from '../forecast/milestoneStep.js'
 import { COMPARABLE_WORK, kindName, MILESTONE_QUERY } from '../forecast/milestoneStep.js'
-import { choiceKindOf } from '../connectors/connector.js'
+import { choiceKindOf, type Choice } from '../connectors/connector.js'
 import { dayMonth } from '../forecast/calendarDate.js'
 import type { ComparableWorkPace, PairedPeriod, PickPace } from '../forecast/comparableWorkPace.js'
 import { escapeHtml } from './html.js'
@@ -45,6 +45,8 @@ export interface StepSection {
   onwardTo?: string
   /** It leads with the pace in use, how far it is from the milestone's own, and the two paired per period. */
   leadsWithPace?: boolean
+  /** Its choices are candidates, each opened by a link beside it to read how it runs (#205): the Comparable work step's. */
+  candidates?: true
 }
 
 /** The field naming the kind searched, at a step's `searchedChoicesPath`. */
@@ -123,6 +125,7 @@ export const COMPARABLE_WORK_STEP: StepSection = stepSection({
   editingValue: 'comparable',
   onwardTo: '/inputs#milestone',
   leadsWithPace: true,
+  candidates: true,
 })
 
 /** The setup steps that pick or write a query, in the order the Inputs screen shows them. */
@@ -148,7 +151,7 @@ function paceHtml(pace: ComparableWorkPace | undefined): string {
   const comparing = pace.periods.some((period) => period.comparableWork !== undefined)
   const delta =
     pace.comparison !== undefined
-      ? `\n            <p class="delta ${pace.comparison.kind}">${escapeHtml(pace.said.comparison ?? '')}</p>`
+      ? `\n            <p class="delta ${pace.comparison.versus.kind}">${escapeHtml(pace.said.comparison ?? '')}</p>`
       : comparing
         ? ''
         : '\n            <p class="delta">Add comparable work to measure pace from work like this milestone’s.</p>'
@@ -268,12 +271,12 @@ ${lists}
  * One kind's list of choices to pick, each a form adding it to `section`'s query; a kind searched in the tracker is
  * marked for the script (`data-searched`), which asks for it again as the EM types rather than filtering it.
  */
-export function choiceListHtml(list: ChoiceList, { paths, id }: StepSection): string {
+export function choiceListHtml(list: ChoiceList, { paths, id, candidates }: StepSection): string {
   const choices = list.choices
     .map(
-      (choice) => `              <form method="post" action="${paths.add}#${id}" data-name="${escapeHtml(choice.name.toLowerCase())}">
+      (choice) => `              <form method="post" action="${paths.add}#${id}" data-name="${escapeHtml(choice.name.toLowerCase())}"${candidates ? ' class="candidate"' : ''}>
                 <input type="hidden" name="${CHOICE_FIELDS.kind}" value="${escapeHtml(choice.kind)}"><input type="hidden" name="${CHOICE_FIELDS.name}" value="${escapeHtml(choice.name)}"><input type="hidden" name="${CHOICE_FIELDS.query}" value="${escapeHtml(choice.query)}">
-                <button type="submit">${escapeHtml(choice.name)} <span class="kind">${escapeHtml(kindName(choice.kind))}</span></button>
+                <button type="submit">${escapeHtml(choice.name)} <span class="kind">${escapeHtml(kindName(choice.kind))}</span></button>${candidates ? openLinkHtml(choice, id) : ''}
               </form>`,
     )
     .join('\n')
@@ -282,6 +285,14 @@ export function choiceListHtml(list: ChoiceList, { paths, id }: StepSection): st
               <h3>${escapeHtml(capitalised(kindName(list.kind)))}s</h3>${failure}
 ${choices}
             </div>`
+}
+
+/** The field, at `/inputs`, opening a candidate without the page's script: `/inputs?comparableOpen=<query>` (#205). */
+export const OPEN_FIELD = 'comparableOpen'
+
+/** The link opening a choice as a candidate, beside it in the step's lists, to read how it runs. */
+function openLinkHtml(choice: Choice, id: string): string {
+  return `<a class="open" href="/inputs?${OPEN_FIELD}=${encodeURIComponent(choice.query)}#${id}" aria-label="How ${escapeHtml(choice.name)} runs">pace</a>`
 }
 
 function capitalised(text: string): string {
