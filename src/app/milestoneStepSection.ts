@@ -194,6 +194,9 @@ function readHtml(view: MilestoneStep): string {
   return line + flag
 }
 
+/** An optional step's main button's label, by where it goes. */
+const ONWARD_LABELS: Readonly<Record<NonNullable<MilestoneStep['onward']>, string>> = { skip: 'Skip', next: 'Next' }
+
 /**
  * An optional step's end: Start afresh, clearing all its picks and query at once, once it has a query; and its main
  * button, on to the next section. Nothing for a step that isn't optional.
@@ -201,11 +204,11 @@ function readHtml(view: MilestoneStep): string {
 function onwardHtml(view: MilestoneStep, { paths, id, onwardTo }: StepSection): string {
   if (view.onward === undefined || onwardTo === undefined) return ''
   const afresh =
-    view.onward === 'Next'
+    view.onward === 'next'
       ? `<form method="post" action="${paths.afresh}#${id}"><button type="submit" class="linkish">Start afresh</button></form> `
       : ''
   return `
-          <div class="actions onward">${afresh}<a href="${onwardTo}" class="button primary">${view.onward}</a></div>`
+          <div class="actions onward">${afresh}<a href="${onwardTo}" class="button primary">${ONWARD_LABELS[view.onward]}</a></div>`
 }
 
 /**

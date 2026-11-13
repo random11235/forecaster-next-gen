@@ -116,8 +116,8 @@ export interface MilestoneStep {
    * a query, or when the picker can't show it as chips. None while finding.
    */
   editing?: QueryEditing
-  /** An optional step's main button: Skip until something is added, then Next. None for a step that isn't optional. */
-  onward?: 'Skip' | 'Next'
+  /** An optional step's main button: `skip` until something is added, then `next`. None for a step that isn't optional. */
+  onward?: 'skip' | 'next'
 }
 
 /** The milestone query open for editing by hand. */
@@ -196,7 +196,7 @@ export async function milestoneStepView(
     ...(read && readFlag(read, tracker.name, stepQuery)),
     ...(!editing && opening.refused?.fromPicks && { refusal: opening.refused.refusal }),
     ...(editing && { editing }),
-    ...(stepQuery.optional && { onward: saved.query === '' ? 'Skip' : 'Next' }),
+    ...(stepQuery.optional && { onward: saved.query === '' ? 'skip' : 'next' }),
   }
   if (opening.unlisted) return step
   if (connector === 'keychainFailed') return { ...step, choicesFailure: KEYCHAIN_FAILED }
