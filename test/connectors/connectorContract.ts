@@ -4,7 +4,7 @@ import type { Connection } from '../../src/model/connection.js'
 import { noWait, recordingWait } from './backoff.js'
 import type { Recording } from './recording.js'
 import { replayTransport } from './replayTransport.js'
-import type { Queries, Scenario, TrackerCases } from './scenarios.js'
+import type { ChoiceSearch, Queries, Scenario, TrackerCases } from './scenarios.js'
 
 /**
  * A connector as the contract suite tests it (Seam C): built on its tracker's recorded raw responses, replayed, so the
@@ -38,6 +38,8 @@ export interface ContractSubject {
   invalidMessage: string
   /** Queries reaching outside the connection's repo or project, by what they name. */
   outOfScope: [names: string, query: string][]
+  /** A search of each kind the tracker has; the first fails on a repo or project that doesn't exist. */
+  searches: ChoiceSearch[]
   /** A synthetic ticket's id, by its role in the manifest. */
   idOf(role: string): string
   /** Every synthetic ticket's id in the manifest. */
@@ -48,8 +50,8 @@ export interface ContractSubject {
     checkout: string[]
     /** The tickets in "Checkout v2" with children of their own, which are never returned. */
     parents: string[]
-    /** Given with `queries.nestedEpic`: the leaves beneath that epic, at any depth, and those beneath its sub-epic. */
-    nestedEpic?: { leaves: string[]; underSubEpic: string[] }
+    /** The leaves beneath `queries.nestedEpic`'s epic, at any depth, and those beneath its sub-epic. */
+    nestedEpic: { leaves: string[]; underSubEpic: string[] }
   }
   /** When the seed script's batches of finishes ran: `cut` falls between the early and later ones. */
   batches: { laterStart: string; laterEnd: string; cut: string }
@@ -109,6 +111,7 @@ export function replayedSubject<C extends Connection>(tracker: {
     queries: cases.queries,
     invalidMessage: cases.invalidMessage,
     outOfScope: cases.outOfScope,
+    searches: cases.searches,
     roles: tracker.roles,
     ids: tracker.ids,
     idOf: (role) => {

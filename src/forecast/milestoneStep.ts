@@ -1,4 +1,4 @@
-import type { Choice, Connector, Failure } from '../connectors/connector.js'
+import type { Choice, ChoiceKind, Connector, Failure } from '../connectors/connector.js'
 import type { Connection } from '../model/connection.js'
 import type { MilestoneQuery } from '../model/milestoneQuery.js'
 import type { SavedRead } from '../model/savedRead.js'
@@ -10,11 +10,11 @@ import { trackerOf } from './trackers.js'
 export const LEAF_NOTE = 'Leaf tickets only. Epics include their sub-epics.'
 
 /** Each kind of choice as the screens name it, by the kind connectors give it. */
-const KIND_NAMES: Readonly<Record<string, string>> = { milestone: 'milestone', fixVersion: 'fix version', epic: 'epic', label: 'label' }
+const KIND_NAMES: Readonly<Record<ChoiceKind, string>> = { milestone: 'milestone', fixVersion: 'fix version', epic: 'epic', label: 'label' }
 
 /** A kind of choice as the screens name it: a chip is marked with it, and a list headed by it. */
-export function kindName(kind: string): string {
-  return KIND_NAMES[kind] ?? kind
+export function kindName(kind: ChoiceKind): string {
+  return KIND_NAMES[kind]
 }
 
 /**
@@ -23,7 +23,7 @@ export function kindName(kind: string): string {
  * here; the tracker's search may match whole words only.
  */
 export interface ChoiceList {
-  kind: string
+  kind: ChoiceKind
   choices: Choice[]
   searched: boolean
   /** Why the tracker couldn't search this kind; none when it could. */
@@ -140,7 +140,7 @@ export async function milestoneStepView(
  * Seam B: one kind past the limit, searched in the tracker for `find`, as the Milestone step's picker asks for it while
  * the EM types: the choices the tracker finds, less those already picked. None before the team connects.
  */
-export async function searchedChoiceList(connecting: Connecting, teamId: string, kind: string, find: string): Promise<ChoiceList | undefined> {
+export async function searchedChoiceList(connecting: Connecting, teamId: string, kind: ChoiceKind, find: string): Promise<ChoiceList | undefined> {
   const connector = await teamConnector(connecting, teamId)
   if (connector === 'notConnected') return undefined
   if (connector === 'keychainFailed') return { kind, choices: [], searched: true, failure: KEYCHAIN_FAILED }
@@ -154,7 +154,7 @@ function notPicked(picks: Choice[]): (choice: Choice) => boolean {
   return (choice) => !picked.has(choice.query)
 }
 
-async function searched(connector: Connector, kind: string, typed: string, unpicked: (choice: Choice) => boolean): Promise<ChoiceList> {
+async function searched(connector: Connector, kind: ChoiceKind, typed: string, unpicked: (choice: Choice) => boolean): Promise<ChoiceList> {
   const found = await connector.searchChoices(kind, typed)
   if (!found.ok) return { kind, choices: [], searched: true, failure: `The tracker couldn’t search its ${kindName(kind)}s just now. Try again in a few minutes.` }
   return { kind, choices: found.choices.filter(unpicked), searched: true }

@@ -392,7 +392,7 @@ describe("SQLite storage's milestone query", () => {
   test('keeps nothing of a pick but its kind, name and query, whatever else it is handed', () => {
     const { storage, reopen } = sqliteFile()
     storage.saveTeam(TEAM)
-    const handed = { kind: 'label', name: 'payments', query: 'label:"payments"', overHundred: true }
+    const handed = { kind: 'label' as const, name: 'payments', query: 'label:"payments"', overHundred: true }
 
     storage.saveMilestoneQuery('team', { picks: [handed], query: 'label:"payments"' })
 

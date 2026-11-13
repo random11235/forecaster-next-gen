@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'vitest'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
 import { openWebApp } from '../../src/app/webApp.js'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
-import type { ChoicesOfKind } from '../../src/connectors/connector.js'
+import type { Choice, ChoicesOfKind } from '../../src/connectors/connector.js'
 import type { Connecting } from '../../src/forecast/connection.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
@@ -118,7 +118,7 @@ describe('the Milestone step', () => {
   })
 
   describe('with more than 100 epics', () => {
-    const epic = (n: number, name = `Epic ${n}`) => ({ kind: 'epic', name, query: `parent-issue:shop-team/shop#${n}` })
+    const epic = (n: number, name = `Epic ${n}`): Choice => ({ kind: 'epic', name, query: `parent-issue:shop-team/shop#${n}` })
     const listed = Array.from({ length: 100 }, (_, i) => epic(i + 1))
     const PAST_LIMIT: CannedFixture = {
       ...FIXTURE,

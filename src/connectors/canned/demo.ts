@@ -21,6 +21,9 @@ const DEMO_FAILED_READS: CannedFixture['reads'] = {
   'repo:someone/else': { failure: 'outOfScope' },
 }
 
+/** The fixture. JSON types each choice's kind as any string, so `test/connectors/cannedConnector.test.ts` checks each is a kind. */
+const DEMO_FIXTURE = fixture as CannedFixture
+
 /**
  * Demo mode's connector: canned, from a committed synthetic fixture (made up for demos, holding no real team's data),
  * so demo screenshots and the launch smoke test need no tracker or token. Any connection and token connect, but for
@@ -29,7 +32,7 @@ const DEMO_FAILED_READS: CannedFixture['reads'] = {
  */
 export function demoConnector(connection: Connection, token: string): Connector {
   const failure = cuedFailure(connection, token)
-  if (!failure) return cannedConnector({ ...(fixture satisfies CannedFixture), reads: { ...fixture.reads, ...DEMO_FAILED_READS } })
+  if (!failure) return cannedConnector({ ...DEMO_FIXTURE, reads: { ...DEMO_FIXTURE.reads, ...DEMO_FAILED_READS } })
   // a refused token or an unknown repo fails every call, as it would on the tracker
   return {
     milestoneChoices: async () => ({ ok: false, ...failure }),
