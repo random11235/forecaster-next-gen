@@ -8,7 +8,7 @@ import {
   submitStepQuery,
   type StepQueryEdit,
   type QueryStepOpening,
-  type QueryStepView,
+  type QueryStepping,
   type RefusedQuery,
 } from '../forecast/queryStep.js'
 import type { Connector } from '../connectors/connector.js'
@@ -19,14 +19,11 @@ import type { Team } from '../model/team.js'
 import type { Storage } from '../storage/storage.js'
 import { CONNECT_FORMS } from './connectSection.js'
 import { renderHowItWorksScreen } from './howItWorksScreen.js'
-import { INPUTS_FORMS, renderInputsScreen } from './inputsScreen.js'
+import { INPUTS_FORMS, renderInputsScreen, type ShownStep } from './inputsScreen.js'
 import { CAPACITY_OPEN, CAPACITY_OPEN_PATH, FORECAST_FORMS, renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
-import { comparableWorkPace, type ComparableWorkPace } from '../forecast/comparableWorkPace.js'
-import { paceReadsStorage } from '../forecast/paceReads.js'
 import { choiceListHtml, COMPARABLE_WORK_STEP, CONFIRMING_BACK, KIND_FIELD, MILESTONE_STEP, OPEN_FIELD, STEP_SECTIONS, type StepSection } from './queryStepSection.js'
 import { CANDIDATES_PATH, candidatesHtml, choicesAsked, keepOpening, OPENING_FIELD, openingKept } from './candidatesSection.js'
-import { narrowedToAFew, openCandidates, type CandidatesAt } from '../forecast/candidates.js'
-import { periodName, type PeriodName } from '../forecast/cadence.js'
+import { openCandidates, type CandidatesAt } from '../forecast/candidates.js'
 
 /** A request as the routes see it: the server has already read the form body. */
 export interface Request {
@@ -223,18 +220,22 @@ async function inputsWithStep(
   { request, context, connecting, team, settings, searchParams }: SetupRouting,
   { status = 200, view, connection, unlisted = false, refused }: { status?: number; view?: InputsView; connection?: ConnectionView } & StepsOpening = {},
 ): Promise<Reply> {
-  const listing = listingOnce(connecting)
-  const steps = []
+  const stepping: QueryStepping = { ...listingOnce(connecting), milestoneInputs: context.storage, at: candidatesAt(context) }
+  const steps: ShownStep[] = []
   for (const section of STEP_SECTIONS) {
     const editing = searchParams.get(section.editing.name) === section.editing.value
     const opening: QueryStepOpening =
       refused?.section === section
         ? { refused: refused.query }
-        : { editing, confirmingBack: editing && searchParams.get(CONFIRMING_BACK.name) === CONFIRMING_BACK.value, unlisted }
-    const find = searchParams.get(section.findField) ?? ''
-    const stepView = await queryStepView(listing, team.id, find, opening, section.stepQuery)
-    const pace = section.leadsWithPace ? stepPace(context, connecting, team.id) : undefined
-    steps.push({ section, view: stepView, ...(pace && { pace }), ...(await candidatesShown({ context, connecting, team, searchParams }, section, stepView, find)) })
+        : {
+            editing,
+            confirmingBack: editing && searchParams.get(CONFIRMING_BACK.name) === CONFIRMING_BACK.value,
+            unlisted,
+            opened: searchParams.getAll(OPEN_FIELD),
+          }
+    const view = await queryStepView(stepping, team.id, searchParams.get(section.findField) ?? '', opening, section.stepQuery)
+    const candidates = view.kind === 'comparableWorkStep' && view.candidates
+    steps.push({ section, view, ...(candidates && { openingId: keepOpening(candidates.opening) }) })
   }
   const html = renderInputsScreen(
     view ?? inputsView(context.storage, team.id, settings, context.today()),
@@ -242,14 +243,6 @@ async function inputsWithStep(
     steps,
   )
   return { kind: 'html', status, html, ...(request.method === 'POST' && { path: SCREEN_PATHS.inputs }) }
-}
-
-/**
- * The Comparable work step's pace, from the saved reads alone, so the tracker isn't asked again; each finish is
- * counted on its calendar day in the machine's time zone, as today is.
- */
-function stepPace({ storage, today }: AppContext, connecting: Connecting, teamId: string): ComparableWorkPace | undefined {
-  return comparableWorkPace(paceReadsStorage(storage, connecting), teamId, { today: today(), timeZone: localTimeZone() })
 }
 
 /** This computer's time zone, an IANA name: the EM's, which each finish is counted on its calendar day in. */
@@ -273,42 +266,18 @@ function listingOnce(connecting: Connecting): Connecting {
   }
 }
 
-/**
- * The candidates for comparable work a step shows below its picker (#205), while it is finding choices to pick: those
- * opened (`OPEN_FIELD`) among its lists, and those its find box narrows them to when they are a few, read in a new
- * opening that the page's script asks in later. None for a step without candidates.
- */
-async function candidatesShown(
-  { context, connecting, team, searchParams }: Pick<SetupRouting, 'context' | 'connecting' | 'team' | 'searchParams'>,
-  section: StepSection,
-  view: QueryStepView,
-  find: string,
-): Promise<{ candidates?: string }> {
-  if (!section.candidates || view.kind !== 'queryStep' || view.editing) return {}
-  const opening = openCandidates(connecting, context.storage, team.id, candidatesAt(context))
-  const listed = view.lists.flatMap((list) => list.choices)
-  const opened = searchParams.getAll(OPEN_FIELD).flatMap((query) => listed.filter((choice) => choice.query === query))
-  const candidates = await opening.read([...opened, ...narrowedToAFew(view.lists, find)])
-  return { candidates: candidatesHtml(candidates, keepOpening(opening), candidatesPeriod(context, team.id), section) }
-}
-
 /** The candidates the Comparable work step's script asks for, in the opening it names: the candidates block alone. */
 async function candidatesAsked({ context, connecting, team, searchParams }: SetupRouting): Promise<Reply> {
   const choices = choicesAsked(searchParams, choiceKindOf)
   if (!choices) return { kind: 'notFound' }
   const opening = openingKept(searchParams.get(OPENING_FIELD) ?? '', () => openCandidates(connecting, context.storage, team.id, candidatesAt(context)))
   const candidates = await opening.read(choices)
-  return { kind: 'html', status: 200, html: candidatesHtml(candidates, searchParams.get(OPENING_FIELD) ?? '', candidatesPeriod(context, team.id), COMPARABLE_WORK_STEP) }
+  return { kind: 'html', status: 200, html: candidatesHtml(candidates, searchParams.get(OPENING_FIELD) ?? '', COMPARABLE_WORK_STEP) }
 }
 
-/** When candidates are read: now, today, in this computer's time zone. */
+/** When a query step opens, and its candidates are read: now, today, in this computer's time zone. */
 function candidatesAt({ now, today }: AppContext): CandidatesAt {
   return { readAt: now(), today: today(), timeZone: localTimeZone() }
-}
-
-/** The milestone's period, as candidates' paces are said in. */
-function candidatesPeriod({ storage }: AppContext, teamId: string): PeriodName {
-  return periodName(storage.milestoneInputs(teamId)?.cadenceDays ?? 7)
 }
 
 /** One kind's choices searched in the tracker, as a query step's script asks for them: that kind's list alone. */

@@ -2,6 +2,7 @@ import type { Choice, Failure } from '../connectors/connector.js'
 import type { Connection } from '../model/connection.js'
 import type { SavedRead } from '../model/savedRead.js'
 import type { SavedReadStorage, Storage } from '../storage/storage.js'
+import { periodName, type PeriodName } from './cadence.js'
 import { teamConnection, type Connecting } from './connection.js'
 import { calendarDayIn, completeRead, finishedPerPeriod, finishedSinceFor, ticketsRemaining } from './finished.js'
 import type { ChoiceList } from './queryStep.js'
@@ -60,6 +61,8 @@ export interface Candidates {
   /** The milestone's own median a period since its start date; none when it has too few periods to compare. */
   milestoneOwn?: number
   groups: CandidateGroup[]
+  /** What each strip counts by: the milestone's cadence, a week before it has one. */
+  period: PeriodName
 }
 
 /** One opening of the Comparable work step's candidates, which reads each at most once. */
@@ -109,7 +112,7 @@ export function openCandidates(
   return {
     async read(choices) {
       for (const choice of choices) if (!read.has(choice.query)) read.set(choice.query, candidate(choice))
-      return grouped(await Promise.all(read.values()), ownCounts)
+      return grouped(await Promise.all(read.values()), ownCounts, periodName(laid.cadenceDays))
     },
   }
 }
@@ -176,7 +179,7 @@ function candidateRead(
 const GROUP_ORDER: readonly CandidateGroupKind[] = ['slower', 'aboutTheSame', 'faster', 'byMedian', 'nothingFinished', 'readFailed']
 
 /** The candidates, grouped, each group slowest first and then by name. */
-function grouped(candidates: Candidate[], ownCounts: readonly number[]): Candidates {
+function grouped(candidates: Candidate[], ownCounts: readonly number[], period: PeriodName): Candidates {
   const comparing = paceVersusMilestoneOwn(0, ownCounts).kind !== 'tooFewToCompare'
   const groupOf = (candidate: Candidate): CandidateGroupKind => {
     if (!('read' in candidate)) return 'readFailed'
@@ -191,5 +194,5 @@ function grouped(candidates: Candidate[], ownCounts: readonly number[]): Candida
       .filter((candidate) => groupOf(candidate) === group)
       .sort((a, b) => median(a) - median(b) || a.choice.name.localeCompare(b.choice.name)),
   })).filter(({ candidates }) => candidates.length > 0)
-  return { ...(comparing && { milestoneOwn: medianOf(ownCounts) }), groups }
+  return { ...(comparing && { milestoneOwn: medianOf(ownCounts) }), groups, period }
 }

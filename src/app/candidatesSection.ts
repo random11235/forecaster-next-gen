@@ -54,7 +54,8 @@ const GROUP_TITLES: Record<CandidateGroupKind, string> = {
 }
 
 /** The candidates read in the step's `opening`, grouped, each with a form adding it to comparable work. */
-export function candidatesHtml(candidates: Candidates, opening: string, period: PeriodName, section: StepSection): string {
+export function candidatesHtml(candidates: Candidates, opening: string, section: StepSection): string {
+  const { period } = candidates
   const note =
     candidates.groups.length === 0
       ? `Open a candidate (its <b>pace</b> link), or type to narrow the list to ${FEW_CANDIDATES} or fewer, to see how it runs against the milestone’s own.`

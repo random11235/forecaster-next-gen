@@ -2,61 +2,14 @@ import type { Choice, ChoiceKind, ChoicesOfKind, Connector, Failure } from '../c
 import type { Connection } from '../model/connection.js'
 import type { MilestoneQuery } from '../model/milestoneQuery.js'
 import type { SavedRead } from '../model/savedRead.js'
-import type { MilestoneQueryStorage } from '../storage/storage.js'
+import type { MilestoneQueryStorage, Storage } from '../storage/storage.js'
+import { narrowedToAFew, openCandidates, type CandidateOpening, type Candidates, type CandidatesAt } from './candidates.js'
+import { comparableWorkPace, type ComparableWorkPace } from './comparableWorkPace.js'
 import { teamConnection, type Connecting } from './connection.js'
 import { FINISHED_WEEKS, finishedSinceFor, readQuery, ticketsRemaining, type QueryRead } from './finished.js'
+import { paceReadsStorage } from './paceReads.js'
+import { MILESTONE_QUERY, type StepQuery } from './stepQuery.js'
 import { trackerOf, type TrackerFacts } from './trackers.js'
-
-/**
- * Which of the team's queries a step edits, picked or written by hand the same way: the milestone query
- * (`MILESTONE_QUERY`), or comparable work's (`COMPARABLE_WORK`, #158). It says how the step names the query, whether
- * the step can be skipped, what of its read counts, and where its picks and query are kept.
- */
-export interface StepQuery {
-  /** The query as the step labels it: "Milestone query". */
-  name: string
-  /** What the query is to pick out, as the step says when it matches nothing: "the milestone’s tickets". */
-  picksOut: string
-  /** The step can be left with no query: its main button reads Skip until something is added, then Next. */
-  optional: boolean
-  /** Its read's open tickets count, as tickets remaining; comparable work's are ignored, only its finished ones count. */
-  countsOpen: boolean
-  /**
-   * Each of several picks is read too, whenever the query is, so the step can show what each brings: comparable work's
-   * chips each show their own pace.
-   */
-  readsEachPick: boolean
-  /** The team's picks and query, if the EM has picked or written one. */
-  saved(storage: MilestoneQueryStorage, teamId: string): MilestoneQuery | undefined
-  /** Saves the team's picks and query, replacing both. */
-  save(storage: MilestoneQueryStorage, teamId: string, query: MilestoneQuery): void
-}
-
-/** The milestone query, which picks out the milestone's tickets: what the Milestone step edits. */
-export const MILESTONE_QUERY: StepQuery = {
-  name: 'Milestone query',
-  picksOut: 'the milestone’s tickets',
-  optional: false,
-  countsOpen: true,
-  readsEachPick: false,
-  saved: (storage, teamId) => storage.milestoneQuery(teamId),
-  save: (storage, teamId, query) => storage.saveMilestoneQuery(teamId, query),
-}
-
-/**
- * Comparable work's query, which picks out recent work like the milestone's to measure its pace from: what the
- * Comparable work step edits. It is optional, and only its finished tickets count. Kept apart from the milestone query,
- * it carries over to the next milestone: nothing but the EM changes or clears it.
- */
-export const COMPARABLE_WORK: StepQuery = {
-  name: 'Comparable-work query',
-  picksOut: 'work like the milestone’s',
-  optional: true,
-  countsOpen: false,
-  readsEachPick: true,
-  saved: (storage, teamId) => storage.comparableWorkQuery(teamId),
-  save: (storage, teamId, query) => storage.saveComparableWorkQuery(teamId, query),
-}
 
 /** What the Milestone step says once, beside the milestone query: the only two things a read adds to it. */
 export const LEAF_NOTE = 'Leaf tickets only. Epics include their sub-epics.'
@@ -88,24 +41,60 @@ export interface ChoiceList {
 }
 
 /**
- * What the Milestone step shows, in the local server build once connected: the choices to pick from, by kind; the
- * picks, as chips; the milestone query they make, always shown, with `note` beside it; and the query's read.
+ * What a query step shows, in the local server build once connected: the choices to pick from, by kind; the picks, as
+ * chips; the query they make, always shown, with `note` beside it; and the query's read. The Milestone step shows no
+ * more (`MilestoneStep`); the Comparable work step adds its main button, its pace and its candidates
+ * (`ComparableWorkStep`).
  */
-export interface QueryStep {
-  kind: 'queryStep'
+export type QueryStep = MilestoneStep | ComparableWorkStep
+
+/** The Milestone step, editing the milestone query (`MILESTONE_QUERY`). */
+export interface MilestoneStep extends PickedQuery {
+  kind: 'milestoneStep'
+}
+
+/**
+ * The Comparable work step, editing comparable work's query (`COMPARABLE_WORK`): optional, its open tickets ignored,
+ * leading with the pace in use, and listing its choices as candidates to read.
+ */
+export interface ComparableWorkStep extends PickedQuery {
+  kind: 'comparableWorkStep'
+  /** Its main button: `skip` until something is added, then `next`. */
+  onward: 'skip' | 'next'
+  /**
+   * The pace it leads with (#204), from the saved reads alone, asking the tracker nothing; none until there is one.
+   * Its `flag`, that comparable work's query isn't used, goes beside the read when the step has none of its own.
+   */
+  pace?: ComparableWorkPace
+  /** Its candidates (#205), while it is finding choices to pick; none while its query is open for editing. */
+  candidates?: StepCandidates
+}
+
+/**
+ * The candidates a Comparable work step shows: those read so far in its `opening`, which the page keeps for its script
+ * to read more in. Those read as the step opens are the ones the EM opened (`QueryStepOpening.opened`) among its
+ * lists, and those its find box narrows them to when they are a few (`narrowedToAFew`).
+ */
+export interface StepCandidates {
+  opening: CandidateOpening
+  shown: Candidates
+}
+
+/** What both query steps show of the query they edit. */
+interface PickedQuery {
   /** What the EM typed to find a choice by. */
   find: string
   lists: ChoiceList[]
   /** Why the choices couldn't be listed; none when they were. */
   choicesFailure?: string
   picks: Choice[]
-  /** The milestone query: the picks joined with OR, or as edited by hand; empty until something is picked. */
+  /** The query: the picks joined with OR, or as edited by hand; empty until something is picked. */
   query: string
   note: string
   /**
-   * The query's last read, as one line: "50 open · 43 finished in the last 8 weeks", or for a query whose open tickets
-   * don't count, "43 finished in the last 8 weeks"; none until it is read, nor when that read is incomplete, as part
-   * of a count would pass for the count.
+   * The query's last read, as one line: "50 open · 43 finished in the last 8 weeks", or for comparable work's, whose
+   * open tickets don't count, "43 finished in the last 8 weeks"; none until it is read, nor when that read is
+   * incomplete, as part of a count would pass for the count.
    */
   read?: string
   /** What is wrong with that read: it matched nothing, beside its line; or is incomplete, in its place. None when it is fine. */
@@ -116,12 +105,10 @@ export interface QueryStep {
    */
   refusal?: string
   /**
-   * The milestone query open for editing by hand, in place of finding choices to pick: when the EM asks to edit it as
-   * a query, or when the picker can't show it as chips. None while finding.
+   * The query open for editing by hand, in place of finding choices to pick: when the EM asks to edit it as a query,
+   * or when the picker can't show it as chips. None while finding.
    */
   editing?: QueryEditing
-  /** An optional step's main button: `skip` until something is added, then `next`. None for a step that isn't optional. */
-  onward?: 'skip' | 'next'
 }
 
 /** The milestone query open for editing by hand. */
@@ -138,41 +125,91 @@ export interface QueryEditing {
   confirmingBack?: true
 }
 
-/** The Milestone step; none in the browser build, nor before the team connects (`noQueryStep`). */
+/** A query step; none in the browser build, nor before the team connects (`noQueryStep`). */
 export type QueryStepView = { kind: 'noQueryStep' } | QueryStep
 
 /**
- * How the Milestone step opens: on finding (the default), or with the milestone query open for editing; also open for
- * editing, with the query as typed and why, once a hand-edited query is `refused`, but still finding, with why beside
- * the chips, once the query a change of the picks joined into is; and `confirmingBack`, asking the EM
- * to confirm going back to finding from a query that it clears. `unlisted`, it asks the tracker nothing and lists no
- * choices: for a reply whose Milestone step is counted among the screen's sections but not shown.
+ * How a query step opens: on finding (the default), or with its query open for editing; also open for editing, with
+ * the query as typed and why, once a hand-edited query is `refused`, but still finding, with why beside the chips, once
+ * the query a change of the picks joined into is; and `confirmingBack`, asking the EM to confirm going back to finding
+ * from a query that it clears. `unlisted`, it asks the tracker nothing and lists no choices: for a reply whose steps
+ * are counted among the screen's sections but not shown. `opened`, the Comparable work step reads, as candidates, the
+ * choices in its lists with these queries.
  */
 export interface QueryStepOpening {
   editing?: boolean
   refused?: RefusedQuery
   confirmingBack?: boolean
   unlisted?: boolean
+  opened?: readonly string[]
+}
+
+/**
+ * What a query step opens with, in the local server build: what it connects with, the milestone's inputs, which the
+ * Comparable work step's pace and candidates are laid on, and when it opens (`at`): the instant its candidates are read
+ * at, and today in the EM's time zone, which each finish is counted on its calendar day in.
+ */
+export interface QueryStepping extends Connecting {
+  milestoneInputs: Pick<Storage, 'milestoneInputs'>
+  at: CandidatesAt
 }
 
 /** What the step says, editing a query the picker can't show, of going back to finding. */
 export const BACK_CLEARS = 'The picker can’t show this query, so going back to finding clears it.'
 
 /**
- * Seam B: the team's Milestone step, opened: the choices are asked for once, here, and kept nowhere, so each opening
- * lists them afresh. Each list holds the choices whose name holds `find`, ignoring case, less those already picked.
- * The milestone query is open for editing when `opening` asks, or when the picker can't show it. The step edits
- * `stepQuery`, the milestone query unless given.
+ * Seam B: the team's query step, opened, whole: the Milestone step for the milestone query (`stepQuery` unless given),
+ * the Comparable work step for comparable work's. The choices are asked for once, here, and kept nowhere, so each
+ * opening lists them afresh. Each list holds the choices whose name holds `find`, ignoring case, less those already
+ * picked. The query is open for editing when `opening` asks, or when the picker can't show it. The Comparable work
+ * step also leads with its pace (`comparableWorkPace`), and, while finding, opens its candidates (`openCandidates`),
+ * reading those `opening` names and those `find` narrows its lists to.
  */
 export async function queryStepView(
-  connecting: Connecting | undefined,
+  stepping: QueryStepping | undefined,
   teamId: string,
   find = '',
   opening: QueryStepOpening = {},
   stepQuery: StepQuery = MILESTONE_QUERY,
 ): Promise<QueryStepView> {
-  const connected = connecting && (await teamConnection(connecting, teamId))
-  if (!connected) return { kind: 'noQueryStep' }
+  const picked = stepping && (await pickedQuery(stepping, teamId, find, opening, stepQuery))
+  if (!picked) return { kind: 'noQueryStep' }
+  if (stepQuery.kind === 'milestoneQuery') return { kind: 'milestoneStep', ...picked }
+  return comparableWorkStep(stepping, teamId, picked, opening)
+}
+
+/**
+ * The Comparable work step: what it shows of its query (`picked`), with its main button, its pace and, while finding,
+ * its candidates.
+ */
+async function comparableWorkStep(
+  stepping: QueryStepping,
+  teamId: string,
+  picked: PickedQuery,
+  { opened = [] }: QueryStepOpening,
+): Promise<ComparableWorkStep> {
+  const { milestoneInputs, at } = stepping
+  const pace = comparableWorkPace(paceReadsStorage(milestoneInputs, stepping), teamId, at)
+  const onward = picked.query === '' ? 'skip' : 'next'
+  const step: ComparableWorkStep = { kind: 'comparableWorkStep', ...picked, onward, ...(pace && { pace }) }
+  if (picked.editing) return step
+  const opening = openCandidates(stepping, milestoneInputs, teamId, at)
+  const listed = picked.lists.flatMap((list) => list.choices)
+  const openedListed = opened.flatMap((query) => listed.filter((choice) => choice.query === query))
+  const shown = await opening.read([...openedListed, ...narrowedToAFew(picked.lists, picked.find)])
+  return { ...step, candidates: { opening, shown } }
+}
+
+/** What a query step shows of the query it edits (`stepQuery`); none before the team connects. */
+async function pickedQuery(
+  connecting: Connecting,
+  teamId: string,
+  find: string,
+  opening: QueryStepOpening,
+  stepQuery: StepQuery,
+): Promise<PickedQuery | undefined> {
+  const connected = await teamConnection(connecting, teamId)
+  if (!connected) return undefined
   const { connection, connector } = connected
   const tracker = trackerOf(connection)
   const saved = stepQuery.saved(connecting.milestoneQueries, teamId) ?? NO_QUERY
@@ -189,8 +226,7 @@ export async function queryStepView(
           ...(!shownAsChips && opening.confirmingBack && { confirmingBack: true }),
         }
       : undefined
-  const step: QueryStep = {
-    kind: 'queryStep',
+  const step: PickedQuery = {
     find,
     lists: [],
     picks: saved.picks,
@@ -200,7 +236,6 @@ export async function queryStepView(
     ...(read && readFlag(read, tracker.name, stepQuery)),
     ...(!editing && opening.refused?.fromPicks && { refusal: opening.refused.refusal }),
     ...(editing && { editing }),
-    ...(stepQuery.optional && { onward: saved.query === '' ? 'skip' : 'next' }),
   }
   if (opening.unlisted) return step
   if (connector === 'keychainFailed') return { ...step, choicesFailure: KEYCHAIN_FAILED }
@@ -278,29 +313,29 @@ const KEYCHAIN_FAILED = 'This computer’s keychain couldn’t give the token, s
 const CHOICES_FAILED = 'The tracker couldn’t list what to pick from just now. Open the step again in a few minutes.'
 
 /** A read's line: its open tickets, when they count, and those finished in the weeks it reads back. */
-function readLine(read: SavedRead, { countsOpen }: StepQuery): string {
+function readLine(read: SavedRead, { kind }: StepQuery): string {
   const finished = `${read.tickets.length - ticketsRemaining(read)} finished in the last ${FINISHED_WEEKS} weeks`
-  return countsOpen ? `${ticketsRemaining(read)} open · ${finished}` : finished
+  return kind === 'milestoneQuery' ? `${ticketsRemaining(read)} open · ${finished}` : finished
 }
 
 /**
- * A read's flag: incomplete, asking to narrow the query; or, for a query whose open tickets count, matching nothing.
+ * A read's flag: incomplete, asking to narrow the query; or, for the milestone query, whose open tickets count, matching nothing.
  * None for a read with all its tickets. Whether comparable work's is used is its pace's to flag (`comparableWorkPace`),
  * over the periods pace counts.
  */
-function readFlag(read: SavedRead, trackerName: string, { picksOut, countsOpen }: StepQuery): { flag: string } | undefined {
+function readFlag(read: SavedRead, trackerName: string, { picksOut, kind }: StepQuery): { flag: string } | undefined {
   if (read.incomplete) {
     return { flag: `${trackerName} gave only part of what this query matches, so its tickets aren’t counted. Narrow the query to read all of it.` }
   }
-  if (countsOpen && read.tickets.length === 0) {
+  if (kind === 'milestoneQuery' && read.tickets.length === 0) {
     return { flag: `This query matches nothing: no open tickets, and none finished in the last ${FINISHED_WEEKS} weeks. Check it picks out ${picksOut}.` }
   }
   return undefined
 }
 
 /**
- * The Milestone step's submits: add a choice as a pick, or remove the pick with this query (`PicksEdit`); edit the
- * milestone query by hand, as typed; go back to finding, which clears the query when the picker can't show it,
+ * A query step's submits: add a choice as a pick, or remove the pick with this query (`PicksEdit`); edit its query
+ * by hand, as typed; go back to finding, which clears the query when the picker can't show it,
  * once the EM has `confirmed` that; or, in the Comparable work step, start afresh, clearing the picks and query at once.
  */
 export type StepQueryEdit =
@@ -357,7 +392,7 @@ export async function submitStepQuery(
   if (rejection) return { kind: 'refused', query: after.query, refusal: rejection, ...(edit.kind !== 'editQuery' && { fromPicks: true as const }) }
   save()
   // one pick's read is the query's; a pick's own read failing leaves its chip without its pace, and nothing else
-  if (stepQuery.readsEachPick && after.picks.length > 1 && chipsShow(tracker, after)) {
+  if (stepQuery.kind === 'comparableWork' && after.picks.length > 1 && chipsShow(tracker, after)) {
     for (const pick of after.picks) await readQuery(connector, connecting.reads, { teamId, query: pick.query, finishedSince, readAt })
   }
   return { kind: 'saved', read }

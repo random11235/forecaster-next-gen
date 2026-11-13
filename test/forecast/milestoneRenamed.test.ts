@@ -4,9 +4,9 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
 import type { Choice, Connector } from '../../src/connectors/connector.js'
-import { submitConnection, type Connecting, type ConnectionEdit } from '../../src/forecast/connection.js'
+import { submitConnection, type ConnectionEdit } from '../../src/forecast/connection.js'
 import { followRenamedMilestone } from '../../src/forecast/milestoneRenamed.js'
-import { queryStepView, submitStepQuery } from '../../src/forecast/queryStep.js'
+import { queryStepView, submitStepQuery, type QueryStepping } from '../../src/forecast/queryStep.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
 
@@ -15,6 +15,7 @@ import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteS
 
 const TEAM = 'team'
 const READ_AT = '2026-11-12T09:00:00Z'
+const AT = { readAt: READ_AT, today: '2026-11-12', timeZone: 'UTC' }
 const RENAMED = { from: 'Checkout v2', to: 'Loyalty launch' }
 
 const checkout: Choice = { kind: 'milestone', name: 'Checkout v2', query: 'milestone:"Checkout v2"' }
@@ -58,7 +59,7 @@ afterEach(() => {
 })
 
 /** Connected on the canned connector answering from `fixture`, with the milestone query made of `picks`; then the reads counted. */
-async function pickedFrom(fixture: CannedFixture, connect: ConnectionEdit, picks: Choice[]): Promise<Connecting & { queriesRead: string[] }> {
+async function pickedFrom(fixture: CannedFixture, connect: ConnectionEdit, picks: Choice[]): Promise<QueryStepping & { queriesRead: string[] }> {
   const queriesRead: string[] = []
   const canned = cannedConnector(fixture)
   const connector = (): Connector => ({
@@ -69,7 +70,7 @@ async function pickedFrom(fixture: CannedFixture, connect: ConnectionEdit, picks
       return canned.read(query, since)
     },
   })
-  const using: Connecting = { connections: storage, reads: storage, milestoneQueries: storage, secrets: openMemorySecrets(), connector }
+  const using: QueryStepping = { connections: storage, reads: storage, milestoneQueries: storage, secrets: openMemorySecrets(), connector, milestoneInputs: storage, at: AT }
   await submitConnection(using, TEAM, connect)
   for (const choice of picks) await submitStepQuery(using, TEAM, { kind: 'addPick', choice }, READ_AT)
   queriesRead.length = 0

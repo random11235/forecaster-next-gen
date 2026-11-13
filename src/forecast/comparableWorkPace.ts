@@ -2,7 +2,7 @@ import type { SavedRead } from '../model/savedRead.js'
 import { periodName } from './cadence.js'
 import { completeRead, finishedPerPeriod } from './finished.js'
 import type { PeriodName } from './cadence.js'
-import { COMPARABLE_WORK } from './queryStep.js'
+import { COMPARABLE_WORK } from './stepQuery.js'
 import { paceReads, type PaceDay, type PaceFrom, type PaceReadsStorage } from './paceReads.js'
 import { medianOf, paceVersusMilestoneOwn, type PaceVersus } from './paceVersusOwn.js'
 
@@ -78,8 +78,8 @@ export interface ComparableWorkPace {
 }
 
 /**
- * Seam B: the Comparable work step's pace, from the team's saved reads (`paceReads`), asking the tracker nothing.
- * None before the milestone has a start date and a complete read of its query.
+ * The Comparable work step's pace, which its view leads with (`queryStepView`), from the team's saved reads
+ * (`paceReads`), asking the tracker nothing. None before the milestone has a start date and a complete read of its query.
  */
 export function comparableWorkPace(storage: PaceReadsStorage, teamId: string, day: PaceDay): ComparableWorkPace | undefined {
   const reads = paceReads(storage, teamId, day)
