@@ -43,8 +43,9 @@ export function choiceKindOf(text: string): ChoiceKind | undefined {
 }
 
 /**
- * Something the EM can pick a milestone's tickets by, with the query that reads them, built inside the connector
- * (the only place that knows the tracker's syntax).
+ * Something the EM can pick a milestone's tickets by, with the query that reads them, in the tracker's syntax, built
+ * only inside the connector. `forecast/` reads a query back, in that syntax, only to split a hand-edited one at its ORs
+ * and find what each part names (`forecast/queryLanguage.ts`), so it can show it as the picks' chips.
  */
 export interface Choice {
   kind: ChoiceKind
