@@ -1,8 +1,9 @@
+import type { ChoiceKind } from '../../src/connectors/connector.js'
 import type { Connection } from '../../src/model/connection.js'
 
 /**
  * What Seam C's recordings are made of, for each tracker: the scenarios `scripts/record.ts` records from the synthetic
- * trackers, and the queries read in them, which the contract suite replays.
+ * trackers, and the choices searched for and queries read in them, which the contract suite replays.
  *
  * `scripts/record.ts`, which node runs directly, imports this file: keep its runtime imports to none but `node:`.
  */
@@ -15,6 +16,9 @@ export type Scenario = 'synthetic' | 'refusedToken' | 'unknown'
  * `cut`, the two a contract case reads from.
  */
 export const FROM_THE_START = '1970-01-01T00:00:00Z'
+
+/** Text no synthetic choice has in its name: a search for it is recorded finding nothing. */
+export const NO_SUCH_CHOICE = 'zzqxnosuchchoice'
 
 /** Queries in the tracker's own syntax. */
 export interface Queries {
@@ -30,15 +34,26 @@ export interface Queries {
   invalid: string
   /**
    * The picked epic "Epic: payment methods", as its epic choice reads it: naming only the epic, though a sub-epic (on
-   * Jira, a story with subtasks) is nested beneath it. A tracker whose connector doesn't expand epics yet leaves it out.
+   * Jira, a story with subtasks) is nested beneath it.
    */
-  nestedEpic?: string
+  nestedEpic: string
 }
 
-/** One recording: the connection it is made on, whether with a credential the tracker refuses, and the queries read on it after the milestone choices. */
+/** A search of one kind's choices for `text`, which finds the choice named `finds`, one the milestone choices list too. */
+export interface ChoiceSearch {
+  kind: ChoiceKind
+  text: string
+  finds: string
+}
+
+/**
+ * One recording: the connection it is made on, whether with a credential the tracker refuses, and what is asked on it
+ * after the milestone choices: the choices searched for, then the queries read.
+ */
 export interface ScenarioSetup<C extends Connection> {
   connection: C
   refused: boolean
+  searches: ChoiceSearch[]
   reads: string[]
 }
 
@@ -51,27 +66,34 @@ export interface TrackerCases<C extends Connection> {
    * request, so none is recorded.
    */
   outOfScope: [names: string, query: string][]
+  /**
+   * A search of each kind the tracker has. The first is of a kind the tracker keeps by repo or project, so it fails on
+   * one that doesn't exist.
+   */
+  searches: ChoiceSearch[]
   scenarios: Record<Scenario, ScenarioSetup<C>>
 }
 
 /**
- * Every scenario but the synthetic one reads only "Search revamp", to record its failure. The synthetic one reads every
- * query, and `quirks`: the tracker's own queries, read by the tests in its folder.
+ * Every scenario but the synthetic one makes only the first search and reads only "Search revamp", to record their
+ * failures. The synthetic one makes every search and reads every query, and `quirks`: the tracker's own queries, read
+ * by the tests in its folder.
  */
 function cases<C extends Connection>(
   synthetic: C,
   unknown: C,
-  { queries, invalidMessage, outOfScope }: Pick<TrackerCases<C>, 'queries' | 'invalidMessage' | 'outOfScope'>,
+  { queries, invalidMessage, outOfScope, searches }: Pick<TrackerCases<C>, 'queries' | 'invalidMessage' | 'outOfScope' | 'searches'>,
   quirks: string[] = [],
 ): TrackerCases<C> {
   return {
     queries,
     invalidMessage,
     outOfScope,
+    searches,
     scenarios: {
-      synthetic: { connection: synthetic, refused: false, reads: [...Object.values(queries), ...quirks] },
-      refusedToken: { connection: synthetic, refused: true, reads: [queries.searchRevamp] },
-      unknown: { connection: unknown, refused: false, reads: [queries.searchRevamp] },
+      synthetic: { connection: synthetic, refused: false, searches, reads: [...Object.values(queries), ...quirks] },
+      refusedToken: { connection: synthetic, refused: true, searches: searches.slice(0, 1), reads: [queries.searchRevamp] },
+      unknown: { connection: unknown, refused: false, searches: searches.slice(0, 1), reads: [queries.searchRevamp] },
     },
   }
 }
@@ -102,6 +124,11 @@ export const GITHUB_CASES = cases<Extract<Connection, { tracker: 'github' }>>(
       ['another repo', 'repo:random11235/forecaster-next-gen'],
       ['an organisation', 'org:random11235'],
     ],
+    searches: [
+      { kind: 'epic', text: 'payment', finds: 'Epic: payment methods' },
+      { kind: 'label', text: 'comparable', finds: 'comparable' },
+      { kind: 'milestone', text: 'revamp', finds: 'Search revamp' },
+    ],
   },
   Object.values(GITHUB_QUIRKS),
 )
@@ -125,5 +152,10 @@ export const JIRA_CASES = cases<Extract<Connection, { tracker: 'jira' }>>(
     invalidMessage:
       "Error in JQL Query: Expecting either a value, list or function but got '='. You must surround '=' in quotation marks to use it as a value. (line 1, character 30)",
     outOfScope: [['another Jira project', 'project = KAN']],
+    searches: [
+      { kind: 'fixVersion', text: 'revamp', finds: 'Search revamp' },
+      { kind: 'epic', text: 'payment', finds: 'Epic: payment methods' },
+      { kind: 'label', text: 'compar', finds: 'comparable' },
+    ],
   },
 )

@@ -1,4 +1,4 @@
-import { CHOICES_LIMIT, type Choice, type ChoicesOfKind, type Connector, type Failure, type Ticket } from '../connector.js'
+import { CHOICES_LIMIT, type Choice, type ChoiceKind, type ChoicesOfKind, type Connector, type Failure, type Ticket } from '../connector.js'
 
 /** What a canned read answers: tickets in the shape a connector returns them, or a failure on cue. */
 export type CannedRead = { tickets: Ticket[]; incomplete: boolean } | Failure
@@ -11,7 +11,7 @@ export interface CannedFixture {
    * Every choice of each kind a search finds among, by kind, or a failure on cue; a kind it doesn't hold is searched
    * among its listed choices.
    */
-  searched?: Record<string, Choice[] | Failure>
+  searchable?: Partial<Record<ChoiceKind, Choice[] | Failure>>
   /** Keyed by query. */
   reads: Record<string, CannedRead>
 }
@@ -40,7 +40,7 @@ export function cannedConnector(fixture: CannedFixture): Connector {
     },
     searchChoices: async (kind, text) => {
       const listed = Array.isArray(fixture.milestoneChoices) ? (fixture.milestoneChoices.find((each) => each.kind === kind)?.choices ?? []) : []
-      const among = fixture.searched?.[kind] ?? listed
+      const among = fixture.searchable?.[kind] ?? listed
       if (!Array.isArray(among)) return { ok: false, ...among }
       return { ok: true, choices: among.filter((choice) => wordsMatch(choice.name, text)).slice(0, CHOICES_LIMIT) }
     },

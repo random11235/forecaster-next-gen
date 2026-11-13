@@ -1,9 +1,10 @@
-import type { FailedCall, Ticket, Transport } from './connector.js'
+import type { ChoiceKind, Connector, FailedCall, SearchedChoices, Ticket, Transport } from './connector.js'
 
 /**
  * What the connectors that reach a tracker over the network (GitHub, Jira) share: sending a request, backing off a
- * rate-limited tracker, the failures a response's status stands for, keeping a query inside the connection, and
- * leaving out tickets finished too long ago.
+ * rate-limited tracker, the failures a response's status stands for, what a step of a call gives, searching choices by
+ * kind, finding the picked epics a query names, keeping a query inside the connection, and leaving out tickets finished
+ * too long ago.
  *
  * `scripts/record.ts`, which node runs directly, imports this file: keep its runtime imports to none but `node:`.
  */
@@ -97,6 +98,45 @@ export function failureOf(status: number): FailedCall {
   if (status === 401) return { ok: false, failure: 'unauthorised' }
   if (status === 404) return { ok: false, failure: 'notFound' }
   return { ok: false, failure: 'unavailable' }
+}
+
+export const UNAVAILABLE: FailedCall = { ok: false, failure: 'unavailable' }
+
+/** What one step of a connector's call gives: its value, or the failure that stopped it, which stops the call. */
+export type Got<T> = { ok: true; value: T } | FailedCall
+
+export function got<T>(value: T): Got<T> {
+  return { ok: true, value }
+}
+
+/** A tracker's searches of its choices, by the kinds it has. */
+export type ChoiceSearches = Readonly<Partial<Record<ChoiceKind, (text: string) => Promise<SearchedChoices>>>>
+
+/** A connector's `searchChoices`, over its tracker's `searches`: a kind the tracker has none of finds nothing. */
+export function searchChoicesIn(searches: ChoiceSearches): Connector['searchChoices'] {
+  return async (kind, text) => (await searches[kind]?.(text)) ?? { ok: true, choices: [] }
+}
+
+/**
+ * A query with each picked epic it names read as itself or any epic beneath it; incomplete when the tracker didn't
+ * give all of those. Or the failure that stopped them being found.
+ */
+export type Expanded = { ok: true; query: string; incomplete: boolean } | FailedCall
+
+/**
+ * How a tracker's query names a picked epic, as its choice reads it: the epic is the pattern's one group. The pattern
+ * matches quoted values too, with no group, so a term inside quotes is never taken for a pick. Must be global.
+ */
+export type PickedEpics = RegExp
+
+/** Each picked epic `query` names, once, as `spelt` spells it. */
+export function pickedEpicsIn(query: string, picked: PickedEpics, spelt: (epic: string) => string = (epic) => epic): string[] {
+  return [...new Set([...query.matchAll(picked)].flatMap((match) => (match[1] === undefined ? [] : [spelt(match[1])])))]
+}
+
+/** `query` with each picked epic it names replaced by `clause`'s reading of it; left as written where that is none. */
+export function withPickedEpics(query: string, picked: PickedEpics, clause: (epic: string) => string | undefined): string {
+  return query.replace(picked, (term, epic: string | undefined) => (epic === undefined ? term : (clause(epic) ?? term)))
 }
 
 /** How a tracker's query language could reach past the connection it is wrapped in. */

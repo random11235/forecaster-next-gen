@@ -1,5 +1,5 @@
 import type { Connection } from '../model/connection.js'
-import { githubQueryRefusal, jqlRefusal } from './queryRefusal.js'
+import { githubNamed, githubOrParts, githubQueryRefusal, jqlNamed, jqlOrParts, jqlRefusal } from './queryRefusal.js'
 
 /** A tracker a team can connect to. */
 export type Tracker = Connection['tracker']
@@ -33,6 +33,13 @@ export interface TrackerFacts<C extends Connection = Connection> {
   notFound(connection: C): string
   /** Why a milestone query edited by hand is refused before reading, worded for the Milestone step; nothing when it is read. */
   queryRefusal(query: string): string | undefined
+  /**
+   * The parts a milestone query joins with OR at its top level, outside quotes and brackets, as the tracker reads OR:
+   * each as written, and repeated when the query repeats it. A query with no OR is one part.
+   */
+  orParts(query: string): string[]
+  /** What a part that is one plain clause names, which its choice is searched for by: `payments` of a label's; none otherwise. */
+  named(part: string): string | undefined
   /** Why a milestone query reaching outside the connection isn't read, worded for the Milestone step. */
   outOfScope(connection: C): string
 }
@@ -57,6 +64,8 @@ export const TRACKERS: { readonly [T in Tracker]: TrackerFacts<Extract<Connectio
     notFound: (connection) =>
       `GitHub can’t see ${TRACKERS.github.where(connection)} with this token. Check the repo’s name, and that the token covers it.`,
     queryRefusal: githubQueryRefusal,
+    orParts: githubOrParts,
+    named: githubNamed,
     outOfScope: (connection) =>
       `This query reaches outside ${TRACKERS.github.where(connection)}, the connected repo. Take out what names another repo, owner or organisation.`,
   },
@@ -83,6 +92,8 @@ export const TRACKERS: { readonly [T in Tracker]: TrackerFacts<Extract<Connectio
     notFound: ({ site, projectKey }) =>
       `Jira can’t find project ${projectKey} on ${site} with this token. Check the site and the project key, and that the account can see it.`,
     queryRefusal: jqlRefusal,
+    orParts: jqlOrParts,
+    named: jqlNamed,
     outOfScope: ({ projectKey }) => `This query reaches outside project ${projectKey}, the connected Jira project. Take out what names another project.`,
   },
 }

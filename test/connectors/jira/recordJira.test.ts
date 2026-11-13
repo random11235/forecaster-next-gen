@@ -31,6 +31,9 @@ const jira: Transport = async (url, init) => {
   }
   if (url.includes('/project/')) return unknown
   if (url.endsWith('/label?maxResults=100')) return json(200, { values: ['comparable', 'ktlo'], isLast: true, maxResults: 100, startAt: 0, total: 2, self: 'https://x' })
+  if (url.includes('/jql/autocompletedata/suggestions?fieldName=labels&')) {
+    return json(200, { results: [{ value: 'comparable', displayName: '<b>compar</b>able by Someone' }] })
+  }
   if (url.endsWith('/changelog/bulkfetch')) {
     return json(200, {
       issueChangeLogs: [
@@ -122,6 +125,7 @@ describe('the Jira recording script', () => {
     // A picked epic is looked up by its key, to find what is beneath it, so that search keeps it too.
     expect(responses).toContainEqual({ issues: [{ id: '10105', key: 'SYN-106', fields: { issuetype: { hierarchyLevel: 1 } } }], isLast: true })
     expect(responses).toContainEqual({ values: ['comparable', 'ktlo'], isLast: true })
+    expect(responses).toContainEqual({ results: [{ value: 'comparable' }] })
     expect(responses).toContainEqual([
       {
         statuses: [
@@ -157,6 +161,7 @@ describe('the Jira recording script', () => {
       else if (url.endsWith('/changelog/bulkfetch')) expect(JSON.parse(body!)).toMatchObject({ issueIdsOrKeys: ['10134'] })
       // Jira keeps labels for the whole site, not per project.
       else if (url.includes('/label?')) expect(url).toBe(`https://api.atlassian.com/ex/jira/${CLOUD}/rest/api/3/label?maxResults=100`)
+      else if (url.includes('/suggestions?')) expect(url).toMatch(new RegExp(`^https://api\\.atlassian\\.com/ex/jira/${CLOUD}/rest/api/3/jql/autocompletedata/suggestions\\?fieldName=labels&`))
       else expect(`${url} ${body ?? ''}`).toMatch(new RegExp(`^https://api\\.atlassian\\.com/ex/jira/${CLOUD}/.*SYN`))
     }
   })

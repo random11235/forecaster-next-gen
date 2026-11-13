@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'vitest'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
 import { openWebApp } from '../../src/app/webApp.js'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
-import type { ChoicesOfKind } from '../../src/connectors/connector.js'
+import type { Choice, ChoicesOfKind } from '../../src/connectors/connector.js'
 import type { Connecting } from '../../src/forecast/connection.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
@@ -118,12 +118,12 @@ describe('the Milestone step', () => {
   })
 
   describe('with more than 100 epics', () => {
-    const epic = (n: number, name = `Epic ${n}`) => ({ kind: 'epic', name, query: `parent-issue:shop-team/shop#${n}` })
+    const epic = (n: number, name = `Epic ${n}`): Choice => ({ kind: 'epic', name, query: `parent-issue:shop-team/shop#${n}` })
     const listed = Array.from({ length: 100 }, (_, i) => epic(i + 1))
     const PAST_LIMIT: CannedFixture = {
       ...FIXTURE,
       milestoneChoices: [{ kind: 'epic', choices: listed, pastLimit: true }, ...(FIXTURE.milestoneChoices as ChoicesOfKind[])],
-      searched: { epic: [...listed, epic(140, 'Card payments'), epic(141, 'Payouts')] },
+      searchable: { epic: [...listed, epic(140, 'Card payments'), epic(141, 'Payouts')] },
     }
 
     test('what is typed searches the epics in the tracker, and still filters the milestones', async () => {
@@ -217,7 +217,7 @@ describe('the Milestone step', () => {
     expect(stepOf(await page(running, '/inputs?edit=query'))).toMatch(flagged)
   })
 
-  test('Back to finding warns when it will clear a query the picker can’t show, and going back clears it', async () => {
+  test('Back to finding asks first when it will clear a query the picker can’t show, and once confirmed clears it', async () => {
     const running = await startConnected()
     await post(running, '/inputs/milestone-query/edit', { query: 'label:checkout -label:bug' })
 
@@ -226,10 +226,69 @@ describe('the Milestone step', () => {
 
     expect(editing).toContain('The picker can’t show this query, so going back to finding clears it.')
     expect(editing).toContain('action="/inputs/milestone-query/back#milestone-tickets"')
-    expect(back.headers.get('location')).toBe('/inputs#milestone-tickets')
+    expect(back.headers.get('location')).toBe('/inputs?edit=query&confirm=back#milestone-tickets')
+    const asking = stepOf(await page(running, '/inputs?edit=query&confirm=back'))
+    expect(asking).toContain('name="confirmed" value="yes"')
+    expect(asking).toContain('Clear the query and go back')
+    expect(asking).toContain('href="/inputs?edit=query#milestone-tickets"')
+    expect(stepOf(await page(running))).toContain('value="label:checkout -label:bug"')
+
+    const confirmed = await post(running, '/inputs/milestone-query/back', { confirmed: 'yes' })
+
+    expect(confirmed.headers.get('location')).toBe('/inputs#milestone-tickets')
     const finding = stepOf(await page(running))
     expect(finding).toContain('Nothing picked yet.')
     expect(finding).toContain('type="search"')
+  })
+
+  test('an incomplete read shows no count, only the flag asking to narrow the query', async () => {
+    const running = await startConnected({ ...FIXTURE, reads: { 'is:open': { tickets: [{ id: 'o1' }], incomplete: true } } })
+    await post(running, '/inputs/milestone-query/edit', { query: 'is:open' })
+
+    const step = stepOf(await page(running))
+
+    expect(step).toContain('class="note warn flag">⚠ GitHub gave only part of what this query matches')
+    expect(step).not.toContain('open ·')
+  })
+
+  test('the lists show as the step opens, before anything is typed', async () => {
+    const running = await startConnected()
+
+    const html = await page(running)
+
+    expect(html).not.toContain('.found:not(.finding)')
+    expect(stepOf(html)).toContain('<div class="found">')
+  })
+
+  describe('an Inputs form posted while connected', () => {
+    const sectionNumbers = (html: string): string[] => [...html.matchAll(/<section[^>]* id="([^"]+)"[^]*?class="number">(\d+)</g)].map(([, id, n]) => `${id} ${n}`)
+
+    test('refused, shows the screen again with the Milestone step, its sections numbered after it', async () => {
+      const running = await startConnected()
+      await post(running, '/inputs/milestone-query/add', { kind: 'milestone', name: 'Payments v2', query: 'milestone:"Payments v2"' })
+
+      const refused = await post(running, '/inputs/cadence', { cadenceDays: '0' })
+
+      expect(refused.status).toBe(400)
+      const html = await refused.text()
+      expect(stepOf(html)).toContain('class="chip"')
+      expect(stepOf(html)).toContain('Checkout')
+      expect(sectionNumbers(html).slice(0, 4)).toEqual(['connect 01', 'milestone-tickets 02', 'milestone 03', 'cadence 04'])
+    })
+
+    test('saved in place, answers with its sections numbered after the Milestone step', async () => {
+      const running = await startConnected()
+      await post(running, '/inputs/milestone', { name: 'Payments v2', startDate: '2026-10-01', ticketsRemaining: '20' })
+
+      const saved = await fetch(new URL('/inputs/cadence', running.url), {
+        method: 'POST',
+        body: new URLSearchParams({ cadenceDays: '14' }),
+        headers: { 'forecaster-save': 'in-place' },
+      })
+
+      expect(saved.status).toBe(200)
+      expect(sectionNumbers(await saved.text()).slice(0, 4)).toEqual(['connect 01', 'milestone-tickets 02', 'milestone 03', 'cadence 04'])
+    })
   })
 
   test('before connecting, there is none', async () => {

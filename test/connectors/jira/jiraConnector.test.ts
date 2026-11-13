@@ -617,6 +617,6 @@ describe('Jira milestone choices searched past the limit', () => {
     const jira = answeringPastTenant(async () => json(502, {}))
     const connector = jiraConnector(CONNECTION, 'token', jira.transport, mustNotWait)
 
-    for (const kind of ['fixVersion', 'epic', 'label']) expect(await connector.searchChoices(kind, 'pay')).toEqual({ ok: false, failure: 'unavailable' })
+    for (const kind of ['fixVersion', 'epic', 'label'] as const) expect(await connector.searchChoices(kind, 'pay')).toEqual({ ok: false, failure: 'unavailable' })
   })
 })

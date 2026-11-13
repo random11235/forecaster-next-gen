@@ -10,7 +10,27 @@ import {
   type Ticket,
   type Transport,
 } from '../connector.js'
-import { failureOf, finishedSince, send, sleep, staysInScope, type Backoff, type QueryScope, type Received, type Wait } from '../remote.js'
+import { DAY_MS } from '../../model/time.js'
+import {
+  failureOf,
+  finishedSince,
+  got,
+  pickedEpicsIn,
+  searchChoicesIn,
+  send,
+  sleep,
+  staysInScope,
+  UNAVAILABLE,
+  withPickedEpics,
+  type Backoff,
+  type ChoiceSearches,
+  type Expanded,
+  type Got,
+  type PickedEpics,
+  type QueryScope,
+  type Received,
+  type Wait,
+} from '../remote.js'
 
 /**
  * The Jira Cloud connector. A read is the project's open leaf tickets the query matches, plus those finished since
@@ -38,7 +58,6 @@ const ID_BATCH = 100
 const CHANGELOG_BATCH = 1000
 /** What a read needs of each ticket besides its id. */
 const FIELDS = ['issuetype', 'status', 'subtasks']
-const DAY_MS = 24 * 60 * 60 * 1000
 
 /**
  * A read's JQL is wrapped as `project = "KEY" AND (query)`; a clause naming a project would reach past it. JQL quotes
@@ -53,7 +72,7 @@ const SCOPE: QueryScope = {
  * Each picked epic a query names, as its choice reads it: `parent = KEY-N`, not negated by a `NOT` before it and not in
  * quotes. A quoted value is matched too, with no key, so a term inside quotes is kept as written.
  */
-const PICKED = /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|(?<!\bnot\s+)(?<=^|[\s(])parent\s*=\s*([a-z][a-z0-9_]*-\d+)(?=$|[\s)])/gi
+const PICKED: PickedEpics = /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|(?<!\bnot\s+)(?<=^|[\s(])parent\s*=\s*([a-z][a-z0-9_]*-\d+)(?=$|[\s)])/gi
 
 /** The characters JQL's text search (`~`) reads as its own syntax, and quotes. */
 const TEXT_SEARCH_SPECIALS = /[+\-&|!(){}[\]^"'~*?:\\/]/g
@@ -61,6 +80,23 @@ const TEXT_SEARCH_SPECIALS = /[+\-&|!(){}[\]^"'~*?:\\/]/g
 /** `value` as a JQL string: in double quotes, any quote or backslash in it escaped. */
 function jqlString(value: string): string {
   return `"${value.replace(/["\\]/g, '\\$&')}"`
+}
+
+// Each kind's choice is built here and nowhere else, so a choice listed and the same one searched for read alike.
+
+/** A fix version's choice, read by its name. */
+function fixVersionChoice(name: string): Choice {
+  return { kind: 'fixVersion', name, query: `fixVersion = ${jqlString(name)}` }
+}
+
+/** An epic's choice: named by its summary, and read by its children. */
+function epicChoice(epic: Found<{ summary: string }>): Choice {
+  return { kind: 'epic', name: epic.fields.summary, query: `parent = ${epic.key}` }
+}
+
+/** A label's choice. */
+function labelChoice(label: string): Choice {
+  return { kind: 'label', name: label, query: `labels = ${jqlString(label)}` }
 }
 
 /**
@@ -137,8 +173,6 @@ interface ErrorResponse {
   errors?: Record<string, string>
 }
 
-const UNAVAILABLE: FailedCall = { ok: false, failure: 'unavailable' }
-
 /** Jira answers a rate limit with a 429. */
 function rateLimited({ status }: Received): boolean {
   return status === 429
@@ -155,16 +189,27 @@ interface Page<T> {
 }
 
 /** Every page's items, each page asked for by the cursor the last gave; or the failure that stopped one. */
-async function everyPage<T>(pageAt: (nextPageToken: string | undefined) => Promise<Page<T> | FailedCall>): Promise<T[] | FailedCall> {
+async function everyPage<T>(pageAt: (nextPageToken: string | undefined) => Promise<Got<Page<T>>>): Promise<Got<T[]>> {
   const items: T[] = []
   let nextPageToken: string | undefined
   do {
     const page = await pageAt(nextPageToken)
-    if ('ok' in page) return page
-    items.push(...page.items)
-    nextPageToken = page.nextPageToken
+    if (!page.ok) return page
+    items.push(...page.value.items)
+    nextPageToken = page.value.nextPageToken
   } while (nextPageToken !== undefined)
-  return items
+  return got(items)
+}
+
+/** The failure an unsuccessful response stands for, other than a refused query. */
+function responseFailure({ status }: Received): FailedCall {
+  return failureOf(status)
+}
+
+/** The failure an unsuccessful search stands for: a JQL error, Jira's message with it, is invalidQuery. */
+function searchFailure(received: Received): FailedCall {
+  if (received.status !== 400) return responseFailure(received)
+  return { ok: false, failure: 'invalidQuery', message: (received.body as ErrorResponse).errorMessages?.join(' ') ?? '' }
 }
 
 /** A request body's cursor field, for every page but the first. */
@@ -186,8 +231,11 @@ export function jiraConnector(
   let cloudId: string | undefined
   let doneStatuses: Set<string> | undefined
 
-  /** A call to the site's REST API through the gateway, or the failure that stopped it reaching there. */
-  async function api(path: string, body?: unknown): Promise<Received | FailedCall> {
+  /**
+   * What the site's REST API answers at `path`, through the gateway, to `body` when given; or the failure that stopped
+   * the call reaching there, or that its answer stands for, as `failure` reads it.
+   */
+  async function api<T>(path: string, body?: unknown, failure: (received: Received) => FailedCall = responseFailure): Promise<Got<T>> {
     if (cloudId === undefined) {
       const tenant = await send(transport, `https://${connection.site}/_edge/tenant_info`, {}, backoff)
       if (!tenant) return UNAVAILABLE
@@ -197,19 +245,20 @@ export function jiraConnector(
     const headers: Record<string, string> = { authorization, accept: 'application/json' }
     const init: RequestInit =
       body === undefined ? { headers } : { method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify(body) }
-    return (await send(transport, `${GATEWAY}/${cloudId}/rest/api/3${path}`, init, backoff)) ?? UNAVAILABLE
+    const response = await send(transport, `${GATEWAY}/${cloudId}/rest/api/3${path}`, init, backoff)
+    if (!response) return UNAVAILABLE
+    return response.status === 200 ? got(response.body as T) : failure(response)
   }
 
   /** The ids of the project's statuses in the Done category, looked up once. */
-  async function doneStatusIds(): Promise<Set<string> | FailedCall> {
+  async function doneStatusIds(): Promise<Got<Set<string>>> {
     if (doneStatuses === undefined) {
-      const response = await api(`/project/${encodeURIComponent(key)}/statuses`)
-      if ('ok' in response) return response
-      if (response.status !== 200) return failureOf(response.status)
-      const statuses = (response.body as IssueTypeStatuses[]).flatMap((issueType) => issueType.statuses)
+      const issueTypes = await api<IssueTypeStatuses[]>(`/project/${encodeURIComponent(key)}/statuses`)
+      if (!issueTypes.ok) return issueTypes
+      const statuses = issueTypes.value.flatMap((issueType) => issueType.statuses)
       doneStatuses = new Set(statuses.filter(done).map((status) => status.id))
     }
-    return doneStatuses
+    return got(doneStatuses)
   }
 
   /**
@@ -217,83 +266,76 @@ export function jiraConnector(
    * change from a status outside Done to one in it. A move between two Done statuses (Done to Won't Do) isn't a
    * finish. Bulk fetch promises no order, so the latest is found, not taken from the end.
    */
-  async function lastMovesIntoDone(ids: string[]): Promise<Map<string, string> | FailedCall> {
-    if (ids.length === 0) return new Map()
+  async function lastMovesIntoDone(ids: string[]): Promise<Got<Map<string, string>>> {
+    if (ids.length === 0) return got(new Map())
     const doneIds = await doneStatusIds()
-    if (!(doneIds instanceof Set)) return doneIds
-    const intoDone = (item: ChangeItem) => item.fieldId === 'status' && doneIds.has(item.to ?? '') && !doneIds.has(item.from ?? '')
+    if (!doneIds.ok) return doneIds
+    const intoDone = (item: ChangeItem) => item.fieldId === 'status' && doneIds.value.has(item.to ?? '') && !doneIds.value.has(item.from ?? '')
     /** In milliseconds since the epoch, as bulk fetch gives them. */
     const lastMs = new Map<string, number>()
     for (let start = 0; start < ids.length; start += CHANGELOG_BATCH) {
       const issueIdsOrKeys = ids.slice(start, start + CHANGELOG_BATCH)
       const changelogs = await everyPage(async (nextPageToken) => {
-        const response = await api('/changelog/bulkfetch', { issueIdsOrKeys, fieldIds: ['status'], ...cursor(nextPageToken) })
-        if ('ok' in response) return response
-        if (response.status !== 200) return failureOf(response.status)
-        const page = response.body as ChangelogResponse
-        return { items: page.issueChangeLogs, nextPageToken: page.nextPageToken }
+        const page = await api<ChangelogResponse>('/changelog/bulkfetch', { issueIdsOrKeys, fieldIds: ['status'], ...cursor(nextPageToken) })
+        return page.ok ? got({ items: page.value.issueChangeLogs, nextPageToken: page.value.nextPageToken }) : page
       })
-      if (!Array.isArray(changelogs)) return changelogs
-      for (const { issueId, changeHistories } of changelogs) {
+      if (!changelogs.ok) return changelogs
+      for (const { issueId, changeHistories } of changelogs.value) {
         for (const { created, items } of changeHistories) {
           if (items.some(intoDone)) lastMs.set(issueId, Math.max(lastMs.get(issueId) ?? -Infinity, created))
         }
       }
     }
-    return new Map([...lastMs].map(([id, ms]) => [id, new Date(ms).toISOString()]))
+    return got(new Map([...lastMs].map(([id, ms]) => [id, new Date(ms).toISOString()])))
   }
 
-  /** Every page of what search finds for `jql`, with `fields`; a JQL error, Jira's message with it, is invalidQuery. */
-  function search<F>(jql: string, fields: string[]): Promise<Found<F>[] | FailedCall> {
+  /** Every page of what search finds for `jql`, with `fields`. */
+  function search<F>(jql: string, fields: string[]): Promise<Got<Found<F>[]>> {
     return everyPage(async (nextPageToken) => {
-      const response = await api('/search/jql', { jql, fields, maxResults: PAGE, ...cursor(nextPageToken) })
-      if ('ok' in response) return response
-      if (response.status === 400) {
-        return { ok: false, failure: 'invalidQuery', message: (response.body as ErrorResponse).errorMessages?.join(' ') ?? '' }
-      }
-      if (response.status !== 200) return failureOf(response.status)
-      const page = response.body as SearchResponse<F>
-      return { items: page.issues, nextPageToken: page.isLast === true ? undefined : page.nextPageToken }
+      const page = await api<SearchResponse<F>>('/search/jql', { jql, fields, maxResults: PAGE, ...cursor(nextPageToken) }, searchFailure)
+      if (!page.ok) return page
+      return got({ items: page.value.issues, nextPageToken: page.value.isLast === true ? undefined : page.value.nextPageToken })
     })
   }
 
   /** What search finds among the tickets `ids`, a batch at a time, by `jql` naming them. */
-  async function searchByIds<F>(ids: string[], jql: (idList: string) => string, fields: string[]): Promise<Found<F>[] | FailedCall> {
+  async function searchByIds<F>(ids: string[], jql: (idList: string) => string, fields: string[]): Promise<Got<Found<F>[]>> {
     const found: Found<F>[] = []
     for (let start = 0; start < ids.length; start += ID_BATCH) {
       const batch = await search<F>(jql(`id in (${ids.slice(start, start + ID_BATCH).join(', ')})`), fields)
-      if (!Array.isArray(batch)) return batch
-      found.push(...batch)
+      if (!batch.ok) return batch
+      found.push(...batch.value)
     }
-    return found
+    return got(found)
   }
 
   /** When each of the tickets `ids` was made, as a UTC instant. */
-  async function createdAt(ids: string[]): Promise<Map<string, string> | FailedCall> {
+  async function createdAt(ids: string[]): Promise<Got<Map<string, string>>> {
     const found = await searchByIds<{ created: string }>(ids, (idList) => `project = "${key}" AND ${idList}`, ['created'])
-    if (!Array.isArray(found)) return found
-    return new Map(found.map(({ id, fields }) => [id, new Date(jiraInstant(fields.created)).toISOString()]))
+    if (!found.ok) return found
+    return got(new Map(found.value.map(({ id, fields }) => [id, new Date(jiraInstant(fields.created)).toISOString()])))
   }
 
   /**
    * `query` with each picked epic it names read as itself or any ticket above level 0 beneath it, found level by level
-   * through `parent`: the picked tickets first, by key, then each level's children, while any is above level 1.
+   * through `parent`: the picked tickets first, by key, then each level's children, while any is above level 1. Jira's
+   * search gives every page, so it is never incomplete.
    */
-  async function expanded(query: string): Promise<string | FailedCall> {
-    const keys = [...new Set([...query.matchAll(PICKED)].flatMap((match) => (match[1] === undefined ? [] : [match[1].toUpperCase()])))]
-    if (keys.length === 0) return query
+  async function expanded(query: string): Promise<Expanded> {
+    const keys = pickedEpicsIn(query, PICKED, (epic) => epic.toUpperCase())
+    if (keys.length === 0) return { ok: true, query, incomplete: false }
     const picked = await search<LevelFields>(`project = "${key}" AND key in (${keys.join(', ')})`, ['issuetype'])
-    if (!Array.isArray(picked)) return picked
+    if (!picked.ok) return picked
     /** The picked epic each ticket found is beneath, by the ticket's id (a picked epic beneath itself). */
-    const pickedAbove = new Map(picked.map((ticket) => [ticket.id, ticket.key.toUpperCase()]))
+    const pickedAbove = new Map(picked.value.map((ticket) => [ticket.id, ticket.key.toUpperCase()]))
     const beneath = new Map<string, string[]>()
     // A level's children are a level below it, so the levels run out at the hierarchy's foot.
-    let level = picked.filter(({ fields }) => fields.issuetype.hierarchyLevel > 1)
+    let level = picked.value.filter(({ fields }) => fields.issuetype.hierarchyLevel > 1)
     while (level.length > 0) {
       const children = await search<LevelFields>(`project = "${key}" AND parent in (${level.map(({ id }) => id).join(', ')})`, ['issuetype', 'parent'])
-      if (!Array.isArray(children)) return children
+      if (!children.ok) return children
       level = []
-      for (const child of children) {
+      for (const child of children.value) {
         const above = child.fields.parent === undefined ? undefined : pickedAbove.get(child.fields.parent.id)
         if (above === undefined || pickedAbove.has(child.id) || child.fields.issuetype.hierarchyLevel < 1) continue
         pickedAbove.set(child.id, above)
@@ -302,56 +344,44 @@ export function jiraConnector(
       }
       level = level.filter(({ fields }) => fields.issuetype.hierarchyLevel > 1)
     }
-    return query.replace(PICKED, (term, epic: string | undefined) => {
-      const found = epic === undefined ? undefined : beneath.get(epic.toUpperCase())
-      return found === undefined ? term : `parent in (${[epic, ...found].join(', ')})`
+    const withEpicsBeneath = withPickedEpics(query, PICKED, (epic) => {
+      const found = beneath.get(epic.toUpperCase())
+      return found === undefined ? undefined : `parent in (${[epic, ...found].join(', ')})`
     })
+    return { ok: true, query: withEpicsBeneath, incomplete: false }
   }
 
-  /** Every one of the project's unreleased fix versions, each read by its name: Jira gives them all at once. */
-  async function unreleasedVersions(): Promise<Choice[] | FailedCall> {
-    const response = await api(`/project/${encodeURIComponent(key)}/versions`)
-    if ('ok' in response) return response
-    if (response.status !== 200) return failureOf(response.status)
-    return (response.body as Version[])
-      .filter((version) => !version.released && !version.archived)
-      .map((version) => ({ kind: 'fixVersion', name: version.name, query: `fixVersion = ${jqlString(version.name)}` }))
+  /** Every one of the project's unreleased fix versions: Jira gives them all at once. */
+  async function unreleasedVersions(): Promise<Got<Choice[]>> {
+    const versions = await api<Version[]>(`/project/${encodeURIComponent(key)}/versions`)
+    if (!versions.ok) return versions
+    return got(versions.value.filter((version) => !version.released && !version.archived).map((version) => fixVersionChoice(version.name)))
   }
 
   /** The project's unreleased fix versions; past the limit, the first are listed. */
-  async function fixVersions(): Promise<ChoicesOfKind | FailedCall> {
+  async function fixVersions(): Promise<Got<ChoicesOfKind>> {
     const choices = await unreleasedVersions()
-    if (!Array.isArray(choices)) return choices
-    return { kind: 'fixVersion', choices: choices.slice(0, CHOICES_LIMIT), pastLimit: choices.length > CHOICES_LIMIT }
+    if (!choices.ok) return choices
+    return got({ kind: 'fixVersion', choices: choices.value.slice(0, CHOICES_LIMIT), pastLimit: choices.value.length > CHOICES_LIMIT })
   }
 
   /** The unreleased fix versions with `text` in their names, ignoring case, up to the limit: matched here, as Jira gives them all. */
   async function searchedVersions(text: string): Promise<SearchedChoices> {
     const choices = await unreleasedVersions()
-    if (!Array.isArray(choices)) return choices
+    if (!choices.ok) return choices
     const typed = text.toLowerCase()
-    return { ok: true, choices: choices.filter((choice) => choice.name.toLowerCase().includes(typed)).slice(0, CHOICES_LIMIT) }
+    return { ok: true, choices: choices.value.filter((choice) => choice.name.toLowerCase().includes(typed)).slice(0, CHOICES_LIMIT) }
   }
 
   /**
-   * The first page of the project's epics not yet done, and matching `clause` too, if any; newest first, each named by
-   * its summary and read by its children.
+   * The project's epics not yet done, and matching `clause` too, when given, up to the limit: the first page, newest
+   * first, which says whether there are more.
    */
-  async function epicsPage(clause = ''): Promise<{ choices: Choice[]; isLast: boolean } | FailedCall> {
+  async function epics(clause = ''): Promise<Got<ChoicesOfKind>> {
     const jql = `project = "${key}" AND issuetype = Epic AND statusCategory != Done${clause} ORDER BY created DESC`
-    const response = await api('/search/jql', { jql, fields: ['summary'], maxResults: CHOICES_LIMIT })
-    if ('ok' in response) return response
-    if (response.status !== 200) return failureOf(response.status)
-    const page = response.body as SearchResponse<{ summary: string }>
-    const choices: Choice[] = page.issues.map((epic) => ({ kind: 'epic', name: epic.fields.summary, query: `parent = ${epic.key}` }))
-    return { choices, isLast: page.isLast === true }
-  }
-
-  /** The project's epics not yet done, up to the limit. */
-  async function epics(): Promise<ChoicesOfKind | FailedCall> {
-    const page = await epicsPage()
-    if ('ok' in page) return page
-    return { kind: 'epic', choices: page.choices, pastLimit: !page.isLast }
+    const page = await api<SearchResponse<{ summary: string }>>('/search/jql', { jql, fields: ['summary'], maxResults: CHOICES_LIMIT })
+    if (!page.ok) return page
+    return got({ kind: 'epic', choices: page.value.issues.map(epicChoice), pastLimit: page.value.isLast !== true })
   }
 
   /**
@@ -360,49 +390,35 @@ export function jiraConnector(
    */
   async function searchedEpics(text: string): Promise<SearchedChoices> {
     const words = text.replace(TEXT_SEARCH_SPECIALS, ' ').split(/\s+/).filter((word) => word !== '')
-    const page = await epicsPage(words.map((word) => ` AND summary ~ "${word}*"`).join(''))
-    if ('ok' in page) return page
-    return { ok: true, choices: page.choices }
+    const found = await epics(words.map((word) => ` AND summary ~ "${word}*"`).join(''))
+    return found.ok ? { ok: true, choices: found.value.choices } : found
   }
 
   /** The site's labels JQL suggests for `text`, as it autocompletes the labels field, up to the limit. */
   async function searchedLabels(text: string): Promise<SearchedChoices> {
-    const response = await api(`/jql/autocompletedata/suggestions?fieldName=labels&fieldValue=${encodeURIComponent(text)}`)
-    if ('ok' in response) return response
-    if (response.status !== 200) return failureOf(response.status)
-    const { results } = response.body as { results: { value: string }[] }
-    const choices: Choice[] = results.map(({ value }) => ({ kind: 'label', name: value, query: `labels = ${jqlString(value)}` }))
-    return { ok: true, choices: choices.slice(0, CHOICES_LIMIT) }
+    const suggested = await api<{ results: { value: string }[] }>(`/jql/autocompletedata/suggestions?fieldName=labels&fieldValue=${encodeURIComponent(text)}`)
+    if (!suggested.ok) return suggested
+    return { ok: true, choices: suggested.value.results.slice(0, CHOICES_LIMIT).map(({ value }) => labelChoice(value)) }
   }
 
-  const SEARCHES: Readonly<Record<string, (text: string) => Promise<SearchedChoices>>> = {
-    fixVersion: searchedVersions,
-    epic: searchedEpics,
-    label: searchedLabels,
-  }
+  const SEARCHES: ChoiceSearches = { fixVersion: searchedVersions, epic: searchedEpics, label: searchedLabels }
 
   /** The site's labels: Jira keeps labels for the whole site, not per project. */
-  async function labels(): Promise<ChoicesOfKind | FailedCall> {
-    const response = await api(`/label?maxResults=${CHOICES_LIMIT}`)
-    if ('ok' in response) return response
-    if (response.status !== 200) return failureOf(response.status)
-    const page = response.body as LabelsResponse
-    const choices: Choice[] = page.values.map((label) => ({ kind: 'label', name: label, query: `labels = ${jqlString(label)}` }))
-    return { kind: 'label', choices, pastLimit: page.isLast !== true }
+  async function labels(): Promise<Got<ChoicesOfKind>> {
+    const page = await api<LabelsResponse>(`/label?maxResults=${CHOICES_LIMIT}`)
+    if (!page.ok) return page
+    return got({ kind: 'label', choices: page.value.values.map(labelChoice), pastLimit: page.value.isLast !== true })
   }
 
   return {
-    searchChoices: async (kind, text) => {
-      const search = Object.hasOwn(SEARCHES, kind) ? SEARCHES[kind]! : undefined
-      return search ? search(text) : { ok: true, choices: [] }
-    },
+    searchChoices: searchChoicesIn(SEARCHES),
 
     milestoneChoices: async () => {
       const kinds: ChoicesOfKind[] = []
-      for (const list of [fixVersions, epics, labels]) {
-        const listed = await list()
-        if ('ok' in listed) return listed
-        kinds.push(listed)
+      for (const list of [fixVersions, () => epics(), labels]) {
+        const kind = await list()
+        if (!kind.ok) return kind
+        kinds.push(kind.value)
       }
       return { ok: true, kinds }
     },
@@ -410,27 +426,29 @@ export function jiraConnector(
     read: async (query, since): Promise<ReadResult> => {
       if (!staysInScope(query, SCOPE)) return { ok: false, failure: 'outOfScope' }
       const withEpicsBeneath = await expanded(query)
-      if (typeof withEpicsBeneath !== 'string') return withEpicsBeneath
+      if (!withEpicsBeneath.ok) return withEpicsBeneath
       const before = jqlBefore(since)
       const inWindow = `(statusCategory != Done OR status CHANGED AFTER "${before}" OR created >= "${before}")`
-      const matched = await search<ReadFields>(`project = "${key}" AND (${withEpicsBeneath}) AND ${inWindow}`, FIELDS)
-      if (!Array.isArray(matched)) return matched
+      const found = await search<ReadFields>(`project = "${key}" AND (${withEpicsBeneath.query}) AND ${inWindow}`, FIELDS)
+      if (!found.ok) return found
+      const matched = found.value
       if (matched.length === 0) {
         // Search matches nothing, rather than failing, on a project that doesn't exist or can't be seen.
         const project = await api(`/project/${encodeURIComponent(key)}`)
-        if ('ok' in project) return project
-        if (project.status !== 200) return failureOf(project.status)
+        if (!project.ok) return project
       }
 
       // A story the window leaves out (Done, unchanged since) can have a subtask open again, or finished since: its
       // subtasks still count. Its subtasks in the window name it; it is read if the query matches it.
       const subtasks = await search<{ parent?: { id: string } }>(`project = "${key}" AND issuetype in subTaskIssueTypes() AND ${inWindow}`, ['parent'])
-      if (!Array.isArray(subtasks)) return subtasks
+      if (!subtasks.ok) return subtasks
       const matchedIds = new Set(matched.map(({ id }) => id))
-      const storiesLeftOut = [...new Set(subtasks.flatMap(({ fields }) => (fields.parent === undefined || matchedIds.has(fields.parent.id) ? [] : [fields.parent.id])))]
-      const stories = await searchByIds<ReadFields>(storiesLeftOut, (idList) => `project = "${key}" AND (${withEpicsBeneath}) AND ${idList}`, FIELDS)
-      if (!Array.isArray(stories)) return stories
-      matched.push(...stories)
+      const storiesLeftOut = [
+        ...new Set(subtasks.value.flatMap(({ fields }) => (fields.parent === undefined || matchedIds.has(fields.parent.id) ? [] : [fields.parent.id]))),
+      ]
+      const stories = await searchByIds<ReadFields>(storiesLeftOut, (idList) => `project = "${key}" AND (${withEpicsBeneath.query}) AND ${idList}`, FIELDS)
+      if (!stories.ok) return stories
+      matched.push(...stories.value)
 
       // Whether each leaf is finished, by its id. A subtask can be matched both itself and under its story.
       const isFinished = new Map<string, boolean>()
@@ -443,18 +461,18 @@ export function jiraConnector(
       const finishedIds = [...isFinished].filter(([, finished]) => finished).map(([id]) => id)
 
       const movedIntoDone = await lastMovesIntoDone(finishedIds)
-      if (!(movedIntoDone instanceof Map)) return movedIntoDone
+      if (!movedIntoDone.ok) return movedIntoDone
       // In Done with no move into it, a ticket was made there: it finished when it was made.
-      const madeAt = await createdAt(finishedIds.filter((id) => !movedIntoDone.has(id)))
-      if (!(madeAt instanceof Map)) return madeAt
+      const madeAt = await createdAt(finishedIds.filter((id) => !movedIntoDone.value.has(id)))
+      if (!madeAt.ok) return madeAt
       const tickets: Ticket[] = []
       for (const [id, finished] of isFinished) {
-        const finishedAt = finished ? (movedIntoDone.get(id) ?? madeAt.get(id)) : undefined
+        const finishedAt = finished ? (movedIntoDone.value.get(id) ?? madeAt.value.get(id)) : undefined
         if (!finished) tickets.push({ id })
         else if (finishedAt !== undefined) tickets.push({ id, finishedAt })
       }
       // The JQL's lower bound is a day early; this keeps the window exact.
-      return { ok: true, tickets: finishedSince(tickets, since), incomplete: false }
+      return { ok: true, tickets: finishedSince(tickets, since), incomplete: withEpicsBeneath.incomplete }
     },
   }
 }

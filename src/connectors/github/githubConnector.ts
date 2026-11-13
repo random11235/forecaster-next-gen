@@ -2,6 +2,7 @@ import type { Connection } from '../../model/connection.js'
 import {
   CHOICES_LIMIT,
   type Choice,
+  type ChoiceKind,
   type ChoicesOfKind,
   type Connector,
   type FailedCall,
@@ -10,7 +11,26 @@ import {
   type Ticket,
   type Transport,
 } from '../connector.js'
-import { failureOf as statusFailure, finishedSince, send, sleep, staysInScope, type Backoff, type QueryScope, type Received, type Wait } from '../remote.js'
+import {
+  failureOf as statusFailure,
+  finishedSince,
+  got,
+  pickedEpicsIn,
+  searchChoicesIn,
+  send,
+  sleep,
+  staysInScope,
+  UNAVAILABLE,
+  withPickedEpics,
+  type Backoff,
+  type ChoiceSearches,
+  type Expanded,
+  type Got,
+  type PickedEpics,
+  type QueryScope,
+  type Received,
+  type Wait,
+} from '../remote.js'
 
 /**
  * The GitHub connector. It reads through GitHub's REST API: issue search, rather than GraphQL's, because only REST
@@ -42,10 +62,10 @@ function searchDate(since: string): string {
 }
 
 /**
- * Search's issues with sub-issues and no parent: the repo's top-level epics. A sub-epic isn't listed, as picking its
- * top-level epic picks it.
+ * Search's open issues with sub-issues and no parent: the repo's top-level epics still open. A sub-epic isn't listed,
+ * as picking its top-level epic picks it; nor is a closed epic, whose milestone is done.
  */
-const TOP_LEVEL_EPICS = 'is:issue has:sub-issue no:parent-issue'
+const TOP_LEVEL_EPICS = 'is:issue is:open has:sub-issue no:parent-issue'
 
 /**
  * The qualifier reading an epic's tickets: the repo named in full, as search's short forms (`parent-issue:#N`,
@@ -55,6 +75,23 @@ function epicQuery(repo: string, number: number): string {
   return `parent-issue:${repo}#${number}`
 }
 
+// Each kind's choice is built here and nowhere else, so a choice listed and the same one searched for read alike.
+
+/** An epic's choice: named by its title, and read by its sub-issues. */
+function epicChoice(repo: string, { number, title }: Pick<Issue, 'number' | 'title'>): Choice {
+  return { kind: 'epic', name: title, query: epicQuery(repo, number) }
+}
+
+/** A label's choice. Search quotes values in double quotes, with no escapes. */
+function labelChoice(name: string): Choice {
+  return { kind: 'label', name, query: `label:"${name}"` }
+}
+
+/** A milestone's choice, read by its title. */
+function milestoneChoice(title: string): Choice {
+  return { kind: 'milestone', name: title, query: `milestone:"${title}"` }
+}
+
 /** How many levels down a picked epic's sub-epics are looked for: as deep as GitHub nests sub-issues. */
 const EPIC_LEVELS = 8
 
@@ -62,7 +99,7 @@ const EPIC_LEVELS = 8
  * Each picked epic a query names, as its choice reads it: `parent-issue:` with the repo in full, not negated and not
  * in quotes. A quoted value is matched too, with no epic number, so a term inside quotes is kept as written.
  */
-function pickedEpics(repo: string): RegExp {
+function pickedEpics(repo: string): PickedEpics {
   const escaped = repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   return new RegExp(`"[^"]*"|(?<=^|[\\s(])parent-issue:${escaped}#(\\d+)(?=$|[\\s)])`, 'gi')
 }
@@ -120,9 +157,6 @@ function searchFailure(received: Received): FailedCall {
   return { ok: false, failure: 'invalidQuery', message }
 }
 
-/** One kind's choices, or the failure that stopped them being listed. */
-type Listed = ({ ok: true } & ChoicesOfKind) | FailedCall
-
 /** `wait` is how backoff on a rate limit waits: a timer, unless a test stands in for it. */
 export function githubConnector(
   connection: Extract<Connection, { tracker: 'github' }>,
@@ -135,55 +169,54 @@ export function githubConnector(
 
   const headers = { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28' }
 
-  /** The response, rate limits backed off, or `undefined` when the network failed. */
-  function get(path: string): Promise<Received | undefined> {
-    return send(transport, `${API}${path}`, { headers }, backoff)
+  /** What GitHub answers at `path`, rate limits backed off; or the failure its answer stands for, as `failure` reads it. */
+  async function get<T>(path: string, failure: (received: Received) => FailedCall = failureOf): Promise<Got<T>> {
+    const response = await send(transport, `${API}${path}`, { headers }, backoff)
+    if (!response) return UNAVAILABLE
+    return response.status === 200 ? got(response.body as T) : failure(response)
   }
 
-  /** The top-level epics, up to the limit: one search, whose count says whether there are more. */
-  async function epics(): Promise<Listed> {
-    const q = encodeURIComponent(`repo:${repo} ${TOP_LEVEL_EPICS}`)
-    const response = await get(`/search/issues?q=${q}&advanced_search=true&per_page=${CHOICES_LIMIT}`)
-    if (!response) return { ok: false, failure: 'unavailable' }
-    if (response.status !== 200) return searchFailure(response)
-    const found = response.body as SearchResponse
-    const choices = found.items.map(({ number, title }) => ({ kind: 'epic', name: title, query: epicQuery(repo, number) }))
-    return { ok: true, kind: 'epic', choices, pastLimit: found.total_count > CHOICES_LIMIT }
+  /** One page of what issue search finds for `q`, `paging` naming the page. */
+  function search(q: string, paging: string): Promise<Got<SearchResponse>> {
+    return get<SearchResponse>(`/search/issues?q=${encodeURIComponent(q)}&advanced_search=true&${paging}`, searchFailure)
   }
 
   /**
-   * The first `CHOICES_LIMIT` of a REST list (`path` with its own parameters, if any, ending in `?` or `&`), each a
-   * choice of `kind` named by `nameOf` and read by `qualifier`, its value quoted.
+   * The open top-level epics, those `matching` more search terms when given, up to the limit: one search, whose count
+   * says whether there are more.
    */
-  async function listed<T>(kind: string, path: string, nameOf: (item: T) => string, qualifier: string): Promise<Listed> {
-    const response = await get(`${path}per_page=${CHOICES_LIMIT}`)
-    if (!response) return { ok: false, failure: 'unavailable' }
-    if (response.status !== 200) return failureOf(response)
-    const items = response.body as T[]
-    const choices = items.map(nameOf).map((name) => ({ kind, name, query: `${qualifier}:"${name}"` }))
-    let pastLimit = false
-    if (items.length === CHOICES_LIMIT) {
-      // A full page may be all of them: whether there is one more is asked only then, as one item past the limit.
-      const next = await get(`${path}per_page=1&page=${CHOICES_LIMIT + 1}`)
-      if (!next) return { ok: false, failure: 'unavailable' }
-      if (next.status !== 200) return failureOf(next)
-      pastLimit = (next.body as unknown[]).length > 0
-    }
-    return { ok: true, kind, choices, pastLimit }
+  async function epics(matching = ''): Promise<Got<ChoicesOfKind>> {
+    const found = await search(`repo:${repo} ${TOP_LEVEL_EPICS}${matching}`, `per_page=${CHOICES_LIMIT}`)
+    if (!found.ok) return found
+    const { items, total_count } = found.value
+    return got({ kind: 'epic', choices: items.map((issue) => epicChoice(repo, issue)), pastLimit: total_count > CHOICES_LIMIT })
   }
 
   /**
-   * The top-level epics with every word of `text` in their titles, up to the limit. Each word is quoted, so none is
-   * read as a qualifier; search matches whole words only.
+   * The first `CHOICES_LIMIT` of a REST list (`path` with its own parameters, if any, ending in `?` or `&`), each of
+   * its items the choice of `kind` that `choiceOf` makes of it.
+   */
+  async function listed<T>(kind: ChoiceKind, path: string, choiceOf: (item: T) => Choice): Promise<Got<ChoicesOfKind>> {
+    const items = await get<T[]>(`${path}per_page=${CHOICES_LIMIT}`)
+    if (!items.ok) return items
+    let pastLimit = false
+    if (items.value.length === CHOICES_LIMIT) {
+      // A full page may be all of them: whether there is one more is asked only then, as one item past the limit.
+      const next = await get<unknown[]>(`${path}per_page=1&page=${CHOICES_LIMIT + 1}`)
+      if (!next.ok) return next
+      pastLimit = next.value.length > 0
+    }
+    return got({ kind, choices: items.value.map(choiceOf), pastLimit })
+  }
+
+  /**
+   * The open top-level epics with every word of `text` in their titles, up to the limit. Each word is quoted, so none
+   * is read as a qualifier; search matches whole words only.
    */
   async function searchedEpics(text: string): Promise<SearchedChoices> {
     const words = text.replace(/"/g, ' ').split(/\s+/).filter((word) => word !== '')
-    const q = encodeURIComponent(`repo:${repo} ${TOP_LEVEL_EPICS} in:title ${words.map((word) => `"${word}"`).join(' ')}`)
-    const response = await get(`/search/issues?q=${q}&advanced_search=true&per_page=${CHOICES_LIMIT}`)
-    if (!response) return { ok: false, failure: 'unavailable' }
-    if (response.status !== 200) return searchFailure(response)
-    const found = response.body as SearchResponse
-    return { ok: true, choices: found.items.map(({ number, title }) => ({ kind: 'epic', name: title, query: epicQuery(repo, number) })) }
+    const found = await epics(` in:title ${words.map((word) => `"${word}"`).join(' ')}`)
+    return found.ok ? { ok: true, choices: found.value.choices } : found
   }
 
   let repoId: number | undefined
@@ -191,16 +224,13 @@ export function githubConnector(
   /** The labels search finds for `text` in the repo, which it names by id, looked up once; up to the limit. */
   async function searchedLabels(text: string): Promise<SearchedChoices> {
     if (repoId === undefined) {
-      const found = await get(`/repos/${repo}`)
-      if (!found) return { ok: false, failure: 'unavailable' }
-      if (found.status !== 200) return failureOf(found)
-      repoId = (found.body as { id: number }).id
+      const found = await get<{ id: number }>(`/repos/${repo}`)
+      if (!found.ok) return found
+      repoId = found.value.id
     }
-    const response = await get(`/search/labels?repository_id=${repoId}&q=${encodeURIComponent(text)}&per_page=${CHOICES_LIMIT}`)
-    if (!response) return { ok: false, failure: 'unavailable' }
-    if (response.status !== 200) return searchFailure(response)
-    const { items } = response.body as { items: { name: string }[] }
-    return { ok: true, choices: items.map(({ name }) => ({ kind: 'label', name, query: `label:"${name}"` })) }
+    const path = `/search/labels?repository_id=${repoId}&q=${encodeURIComponent(text)}&per_page=${CHOICES_LIMIT}`
+    const found = await get<{ items: { name: string }[] }>(path, searchFailure)
+    return found.ok ? { ok: true, choices: found.value.items.map(({ name }) => labelChoice(name)) } : found
   }
 
   /**
@@ -211,36 +241,29 @@ export function githubConnector(
     const typed = text.toLowerCase()
     const choices: Choice[] = []
     for (let page = 1; ; page++) {
-      const response = await get(`/repos/${repo}/milestones?state=open&per_page=${PAGE}&page=${page}`)
-      if (!response) return { ok: false, failure: 'unavailable' }
-      if (response.status !== 200) return failureOf(response)
-      const milestones = response.body as { title: string }[]
-      for (const { title } of milestones) {
-        if (title.toLowerCase().includes(typed)) choices.push({ kind: 'milestone', name: title, query: `milestone:"${title}"` })
+      const milestones = await get<{ title: string }[]>(`/repos/${repo}/milestones?state=open&per_page=${PAGE}&page=${page}`)
+      if (!milestones.ok) return milestones
+      for (const { title } of milestones.value) {
+        if (title.toLowerCase().includes(typed)) choices.push(milestoneChoice(title))
       }
-      if (milestones.length < PAGE || choices.length >= CHOICES_LIMIT) break
+      if (milestones.value.length < PAGE || choices.length >= CHOICES_LIMIT) break
     }
     return { ok: true, choices: choices.slice(0, CHOICES_LIMIT) }
   }
 
-  const SEARCHES: Readonly<Record<string, (text: string) => Promise<SearchedChoices>>> = {
-    epic: searchedEpics,
-    label: searchedLabels,
-    milestone: searchedMilestones,
-  }
+  const SEARCHES: ChoiceSearches = { epic: searchedEpics, label: searchedLabels, milestone: searchedMilestones }
 
   /**
    * Every issue search finds for `q`, page by page, up to the 1,000 it gives: past that, or when search says it timed
    * out, they are incomplete.
    */
-  async function searched(q: string): Promise<{ ok: true; issues: Issue[]; incomplete: boolean } | FailedCall> {
+  async function everyIssue(q: string): Promise<{ ok: true; issues: Issue[]; incomplete: boolean } | FailedCall> {
     const issues: Issue[] = []
     let incomplete = false
     for (let page = 1; ; page++) {
-      const response = await get(`/search/issues?q=${encodeURIComponent(q)}&advanced_search=true&per_page=${PAGE}&page=${page}`)
-      if (!response) return { ok: false, failure: 'unavailable' }
-      if (response.status !== 200) return searchFailure(response)
-      const results = response.body as SearchResponse
+      const found = await search(q, `per_page=${PAGE}&page=${page}`)
+      if (!found.ok) return found
+      const results = found.value
       issues.push(...results.items)
       incomplete ||= results.incomplete_results
       const read = (page - 1) * PAGE + results.items.length
@@ -253,16 +276,16 @@ export function githubConnector(
    * `query` with each picked epic it names read as itself or any of its sub-epics, found level by level, one search a
    * level, at most `EPIC_LEVELS`. Incomplete when a level's search was.
    */
-  async function expanded(query: string): Promise<{ ok: true; query: string; incomplete: boolean } | FailedCall> {
+  async function expanded(query: string): Promise<Expanded> {
     const picked = pickedEpics(repo)
-    const epics = [...query.matchAll(picked)].flatMap((match) => (match[1] === undefined ? [] : [Number(match[1])]))
+    const epics = pickedEpicsIn(query, picked).map(Number)
     if (epics.length === 0) return { ok: true, query, incomplete: false }
     /** Each epic found, by the picked epic it is beneath (a picked epic beneath itself). */
     const pickedAbove = new Map(epics.map((epic) => [epic, epic]))
     let incomplete = false
-    let level = [...new Set(epics)]
+    let level = epics
     for (let depth = 0; depth < EPIC_LEVELS && level.length > 0; depth++) {
-      const found = await searched(`repo:${repo} is:issue has:sub-issue (${level.map((epic) => epicQuery(repo, epic)).join(' OR ')})`)
+      const found = await everyIssue(`repo:${repo} is:issue has:sub-issue (${level.map((epic) => epicQuery(repo, epic)).join(' OR ')})`)
       if (!found.ok) return found
       incomplete ||= found.incomplete
       level = []
@@ -273,32 +296,27 @@ export function githubConnector(
         level.push(number)
       }
     }
-    const withSubEpics = query.replace(picked, (term, epic: string | undefined) => {
-      if (epic === undefined) return term
+    const withSubEpics = withPickedEpics(query, picked, (epic) => {
       const beneath = [...pickedAbove].filter(([found, above]) => above === Number(epic) && found !== above).map(([found]) => found)
-      return beneath.length === 0 ? term : `(${[Number(epic), ...beneath].map((each) => epicQuery(repo, each)).join(' OR ')})`
+      return beneath.length === 0 ? undefined : `(${[Number(epic), ...beneath].map((each) => epicQuery(repo, each)).join(' OR ')})`
     })
     return { ok: true, query: withSubEpics, incomplete }
   }
 
   return {
-    searchChoices: async (kind, text) => {
-      const search = Object.hasOwn(SEARCHES, kind) ? SEARCHES[kind]! : undefined
-      return search ? search(text) : { ok: true, choices: [] }
-    },
+    searchChoices: searchChoicesIn(SEARCHES),
 
     milestoneChoices: async () => {
       const kinds: ChoicesOfKind[] = []
       // Asked one after another, stopping at the first failure: three requests, and one more for each full list.
       for (const list of [
-        epics,
-        () => listed<{ name: string }>('label', `/repos/${repo}/labels?`, ({ name }) => name, 'label'),
-        () => listed<{ title: string }>('milestone', `/repos/${repo}/milestones?state=open&`, ({ title }) => title, 'milestone'),
+        () => epics(),
+        () => listed<{ name: string }>('label', `/repos/${repo}/labels?`, ({ name }) => labelChoice(name)),
+        () => listed<{ title: string }>('milestone', `/repos/${repo}/milestones?state=open&`, ({ title }) => milestoneChoice(title)),
       ]) {
-        const result = await list()
-        if (!result.ok) return result
-        const { ok: _, ...kind } = result
-        kinds.push(kind)
+        const kind = await list()
+        if (!kind.ok) return kind
+        kinds.push(kind.value)
       }
       return { ok: true, kinds }
     },
@@ -307,7 +325,7 @@ export function githubConnector(
       if (!staysInScope(query, SCOPE)) return { ok: false, failure: 'outOfScope' }
       const withSubEpics = await expanded(query)
       if (!withSubEpics.ok) return withSubEpics
-      const leaves = await searched(`repo:${repo} is:issue no:sub-issue (${withSubEpics.query}) (is:open OR closed:>=${searchDate(since)})`)
+      const leaves = await everyIssue(`repo:${repo} is:issue no:sub-issue (${withSubEpics.query}) (is:open OR closed:>=${searchDate(since)})`)
       if (!leaves.ok) return leaves
       const tickets: Ticket[] = leaves.issues.map((issue) =>
         issue.state === 'closed' && issue.closed_at ? { id: issue.node_id, finishedAt: issue.closed_at } : { id: issue.node_id },

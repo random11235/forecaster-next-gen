@@ -1,5 +1,6 @@
 import type { ChoiceList, MilestoneQueryEdit, MilestoneStep, MilestoneStepView, QueryEditing } from '../forecast/milestoneStep.js'
 import { kindName } from '../forecast/milestoneStep.js'
+import { choiceKindOf } from '../connectors/connector.js'
 import { escapeHtml } from './html.js'
 
 /** Where the Milestone step is on the Inputs screen: its section's id. */
@@ -28,27 +29,40 @@ export const SEARCHED_CHOICES_PATH = '/inputs/milestone-choices'
 /** The field naming the kind searched, at `SEARCHED_CHOICES_PATH`. */
 export const KIND_FIELD = 'kind'
 
+/** The fields a choice's form sends, adding it as a pick: its kind, name and query; the query alone removes a pick or is edited by hand. */
+export const CHOICE_FIELDS = { kind: 'kind', name: 'name', query: 'query' } as const
+
+/** The field Back to finding sends, `yes` once the EM has confirmed it clears the query. */
+export const CONFIRMED = { name: 'confirmed', value: 'yes' } as const
+
 /** What opens the step with its query open for editing: `/inputs?edit=query`. */
 export const EDITING = { name: 'edit', value: 'query' } as const
 
-/** Where the step is served, finding choices to pick, and with its query open for editing. */
+/** What opens the step, editing, asking to confirm going back to finding clears the query: `/inputs?edit=query&confirm=back`. */
+export const CONFIRMING_BACK = { name: 'confirm', value: 'back' } as const
+
+/** Where the step is served: finding choices to pick; with its query open for editing; and asking to confirm going back clears it. */
 export const MILESTONE_STEP_URLS = {
   finding: `/inputs#${MILESTONE_STEP_ID}`,
   editing: `/inputs?${EDITING.name}=${EDITING.value}#${MILESTONE_STEP_ID}`,
+  confirmingBack: `/inputs?${EDITING.name}=${EDITING.value}&${CONFIRMING_BACK.name}=${CONFIRMING_BACK.value}#${MILESTONE_STEP_ID}`,
 } as const
 
-/** Reads a submitted Milestone step form, by the field names this section gives them. */
-type MilestoneStepFormReader = (body: URLSearchParams) => MilestoneQueryEdit
+/** Reads a submitted Milestone step form, by the field names this section gives them; none when it isn't one of its forms as sent. */
+type MilestoneStepFormReader = (body: URLSearchParams) => MilestoneQueryEdit | undefined
 
 /** Each form the Milestone step posts, by its action's path, and how its fields are read. */
 export const MILESTONE_STEP_FORMS: ReadonlyMap<string, MilestoneStepFormReader> = new Map<string, MilestoneStepFormReader>([
   [
     MILESTONE_STEP_PATHS.add,
-    (body) => ({ kind: 'addPick', choice: { kind: body.get('kind') ?? '', name: body.get('name') ?? '', query: body.get('query') ?? '' } }),
+    (body) => {
+      const kind = choiceKindOf(body.get(CHOICE_FIELDS.kind) ?? '')
+      return kind && { kind: 'addPick', choice: { kind, name: body.get(CHOICE_FIELDS.name) ?? '', query: body.get(CHOICE_FIELDS.query) ?? '' } }
+    },
   ],
-  [MILESTONE_STEP_PATHS.remove, (body) => ({ kind: 'removePick', query: body.get('query') ?? '' })],
-  [MILESTONE_STEP_PATHS.edit, (body) => ({ kind: 'editQuery', query: body.get('query') ?? '' })],
-  [MILESTONE_STEP_PATHS.back, () => ({ kind: 'backToFinding' })],
+  [MILESTONE_STEP_PATHS.remove, (body) => ({ kind: 'removePick', query: body.get(CHOICE_FIELDS.query) ?? '' })],
+  [MILESTONE_STEP_PATHS.edit, (body) => ({ kind: 'editQuery', query: body.get(CHOICE_FIELDS.query) ?? '' })],
+  [MILESTONE_STEP_PATHS.back, (body) => ({ kind: 'backToFinding', confirmed: body.get(CONFIRMED.name) === CONFIRMED.value })],
 ])
 
 /** What the section says in its label column. */
@@ -66,16 +80,17 @@ export function milestoneStepSection(view: MilestoneStepView): string | undefine
 
 const anchor = `#${MILESTONE_STEP_ID}`
 
-/** The query's last read, as its line, with its flag beneath when it has one; nothing until it is read. */
-function readLine(view: MilestoneStep): string {
-  if (view.read === undefined) return ''
+/** The query's last read: its line, when it has one, and its flag beneath; nothing until it is read. */
+function readHtml(view: MilestoneStep): string {
+  const line = view.read === undefined ? '' : `\n          <p class="read">${escapeHtml(view.read)}</p>`
   const flag = view.flag === undefined ? '' : `\n          <p class="note warn flag">⚠ ${escapeHtml(view.flag)}</p>`
-  return `\n          <p class="read">${escapeHtml(view.read)}</p>${flag}`
+  return line + flag
 }
 
 /**
  * The step with its milestone query open for editing by hand, within the connected repo or project: it is submitted
- * (and read) only on Enter, so a half-typed query changes nothing. Back to finding says first when it will clear it.
+ * (and read) only on Enter, so a half-typed query changes nothing. Back to finding says first when it will clear it,
+ * and then asks the EM to confirm that, in a form of its own, so it works without the script.
  */
 function editingSection(view: MilestoneStep, editing: QueryEditing): string {
   const refusal = editing.refusal === undefined ? '' : `\n          <p class="error" role="alert">${escapeHtml(editing.refusal)}</p>`
@@ -84,14 +99,17 @@ function editingSection(view: MilestoneStep, editing: QueryEditing): string {
       ? ''
       : `\n          <p class="note">Still reading <code>${escapeHtml(view.query)}</code></p>`
   const clears = editing.backClears === undefined ? '' : `<p class="note warn">${escapeHtml(editing.backClears)}</p> `
+  const back = editing.confirmingBack
+    ? `<input type="hidden" name="${CONFIRMED.name}" value="${CONFIRMED.value}"><button type="submit">Clear the query and go back</button> <a href="${MILESTONE_STEP_URLS.editing}" class="keep">Keep editing</a>`
+    : '<button type="submit" class="linkish">Back to finding</button>'
   return `        <div class="picker editing">
           <form method="post" action="${MILESTONE_STEP_PATHS.edit}${anchor}" class="query">
             <label class="label" for="milestone-query">Milestone query, within <b>${escapeHtml(editing.readIn)}</b></label>
-            <input type="text" id="milestone-query" name="query" value="${escapeHtml(editing.typed)}" autocomplete="off" spellcheck="false">
+            <input type="text" id="milestone-query" name="${CHOICE_FIELDS.query}" value="${escapeHtml(editing.typed)}" autocomplete="off" spellcheck="false">
             <p class="note">Press Enter to read it. ${escapeHtml(view.note)}</p>
-          </form>${refusal}${inUse}${readLine(view)}
+          </form>${refusal}${inUse}${readHtml(view)}
           <form method="post" action="${MILESTONE_STEP_PATHS.back}${anchor}" class="back">
-            ${clears}<button type="submit" class="linkish">Back to finding</button>
+            ${clears}${back}
           </form>
         </div>`
 }
@@ -102,7 +120,7 @@ function findingSection(view: MilestoneStep): string {
   const chips = view.picks
     .map(
       (pick) => `            <li class="chip">${escapeHtml(pick.name)} <span class="kind">${escapeHtml(kindName(pick.kind))}</span>
-              <form method="post" action="${MILESTONE_STEP_PATHS.remove}${anchor}"><input type="hidden" name="query" value="${escapeHtml(pick.query)}"><button type="submit" class="x" aria-label="Remove ${escapeHtml(pick.name)}">×</button></form>
+              <form method="post" action="${MILESTONE_STEP_PATHS.remove}${anchor}"><input type="hidden" name="${CHOICE_FIELDS.query}" value="${escapeHtml(pick.query)}"><button type="submit" class="x" aria-label="Remove ${escapeHtml(pick.name)}">×</button></form>
             </li>`,
     )
     .join('\n')
@@ -113,14 +131,14 @@ function findingSection(view: MilestoneStep): string {
           <form method="get" action="/inputs${anchor}" class="find">
             <input type="search" name="${FIND_FIELD}" value="${escapeHtml(view.find)}" placeholder="Find ${escapeHtml(article(alternatives(kinds)))}…" aria-label="Find a choice to pick" autocomplete="off" spellcheck="false">
           </form>
-          <div class="found${view.find.trim() === '' ? '' : ' finding'}">
+          <div class="found">
 ${lists}
             <p class="note none-found" hidden>Nothing matches.</p>
           </div>
           <div class="query">
             <span class="label">Milestone query <a href="${MILESTONE_STEP_URLS.editing}" class="edit">Edit as a query</a></span> ${query}
             <p class="note">${escapeHtml(view.note)}</p>
-          </div>${readLine(view)}
+          </div>${readHtml(view)}
         </div>`
 }
 
@@ -129,17 +147,16 @@ ${lists}
  * (`data-searched`), which asks for it again as the EM types rather than filtering it.
  */
 export function choiceListHtml(list: ChoiceList): string {
-  const anchor = `#${MILESTONE_STEP_ID}`
   const choices = list.choices
     .map(
       (choice) => `              <form method="post" action="${MILESTONE_STEP_PATHS.add}${anchor}" data-name="${escapeHtml(choice.name.toLowerCase())}">
-                <input type="hidden" name="kind" value="${escapeHtml(choice.kind)}"><input type="hidden" name="name" value="${escapeHtml(choice.name)}"><input type="hidden" name="query" value="${escapeHtml(choice.query)}">
+                <input type="hidden" name="${CHOICE_FIELDS.kind}" value="${escapeHtml(choice.kind)}"><input type="hidden" name="${CHOICE_FIELDS.name}" value="${escapeHtml(choice.name)}"><input type="hidden" name="${CHOICE_FIELDS.query}" value="${escapeHtml(choice.query)}">
                 <button type="submit">${escapeHtml(choice.name)} <span class="kind">${escapeHtml(kindName(choice.kind))}</span></button>
               </form>`,
     )
     .join('\n')
   const failure = list.failure === undefined ? '' : `\n              <p class="error" role="alert">${escapeHtml(list.failure)}</p>`
-  return `            <div class="kind-list" data-kind="${escapeHtml(list.kind)}"${list.searched ? ' data-searched' : ''}>
+  return `            <div class="kind-list" data-kind="${escapeHtml(list.kind)}"${list.searchedInTracker ? ' data-searched' : ''}>
               <h3>${escapeHtml(capitalised(kindName(list.kind)))}s</h3>${failure}
 ${choices}
             </div>`
@@ -166,7 +183,7 @@ const SEARCH_DEBOUNCE_MS = 300
  * The Milestone step's script: it filters the lists as the EM types in the find box, ignoring case and matching part of
  * a word, as `milestoneStepView` does for a find submitted without it. A kind searched in the tracker isn't filtered:
  * once typing pauses, its list is asked for again, searched for what is typed, and an answer to anything but the
- * latest search is dropped. The lists show only once something is typed.
+ * latest search is dropped. The lists show as the step opens, before anything is typed.
  */
 export const MILESTONE_STEP_SCRIPT = `
 (() => {
@@ -187,7 +204,6 @@ export const MILESTONE_STEP_SCRIPT = `
       list.hidden = shown === 0 && !list.querySelector('.error')
       any = any || !list.hidden
     }
-    found.classList.toggle('finding', typed !== '')
     found.querySelector('.none-found').hidden = any || typed === ''
   }
   let timer

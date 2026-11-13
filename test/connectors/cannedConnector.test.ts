@@ -106,6 +106,8 @@ describe("demo mode's connector", () => {
       { kind: 'milestone', count: 3, pastLimit: false },
       { kind: 'label', count: 4, pastLimit: false },
     ])
+    // The fixture is JSON, which types no kind: every choice is of its list's kind.
+    for (const { kind, choices: ofKind } of choices.kinds) expect(ofKind.map((choice) => choice.kind)).toEqual(ofKind.map(() => kind))
     const listed = choices.kinds.slice(1).flatMap((kind) => kind.choices)
     expect(listed.map((choice) => choice.name)).toEqual(['Synthetic launch', 'Synthetic beta', 'Payments v2', 'payments', 'repayments', 'checkout', 'bug'])
     await expectEachReadsTickets(connector, listed)
@@ -118,6 +120,7 @@ describe("demo mode's connector", () => {
 
     if (!found.ok) throw new Error(`search failed: ${found.failure}`)
     expect(found.choices.map((choice) => choice.name)).toEqual(['Epic: payment methods', 'Epic: card payments'])
+    expect(found.choices.map((choice) => choice.kind)).toEqual(['epic', 'epic'])
     await expectEachReadsTickets(connector, found.choices)
   })
 })

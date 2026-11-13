@@ -97,8 +97,8 @@ describe('opening the Milestone step', () => {
       kind: 'milestoneStep',
       find: '',
       lists: [
-        { kind: 'milestone', choices: [payments, checkout], searched: false },
-        { kind: 'label', choices: [repay, bug], searched: false },
+        { kind: 'milestone', choices: [payments, checkout], searchedInTracker: false },
+        { kind: 'label', choices: [repay, bug], searchedInTracker: false },
       ],
       picks: [],
       query: '',
@@ -112,8 +112,8 @@ describe('opening the Milestone step', () => {
     const view = await milestoneStepView(using, TEAM, 'PAY')
 
     expect(view.kind === 'milestoneStep' && view.lists).toEqual([
-      { kind: 'milestone', choices: [payments], searched: false },
-      { kind: 'label', choices: [repay], searched: false },
+      { kind: 'milestone', choices: [payments], searchedInTracker: false },
+      { kind: 'label', choices: [repay], searchedInTracker: false },
     ])
   })
 
@@ -139,7 +139,7 @@ describe('a kind with more than 100 entries', () => {
       { kind: 'epic', choices: listed, pastLimit: true },
       ...(FIXTURE.milestoneChoices as ChoicesOfKind[]),
     ],
-    searched: { epic: [...listed, cardPayments, payouts, ...Array.from({ length: 18 }, (_, i) => epic(142 + i))] },
+    searchable: { epic: [...listed, cardPayments, payouts, ...Array.from({ length: 18 }, (_, i) => epic(142 + i))] },
   }
 
   test('is searched in the tracker for what is typed, while the other kinds are filtered here', async () => {
@@ -149,9 +149,9 @@ describe('a kind with more than 100 entries', () => {
 
     expect(using.calls.searches).toEqual([['epic', 'Payments']])
     expect(view.kind === 'milestoneStep' && view.lists).toEqual([
-      { kind: 'epic', choices: [cardPayments], searched: true },
-      { kind: 'milestone', choices: [payments], searched: false },
-      { kind: 'label', choices: [repay], searched: false },
+      { kind: 'epic', choices: [cardPayments], searchedInTracker: true },
+      { kind: 'milestone', choices: [payments], searchedInTracker: false },
+      { kind: 'label', choices: [repay], searchedInTracker: false },
     ])
   })
 
@@ -161,7 +161,7 @@ describe('a kind with more than 100 entries', () => {
     const view = await milestoneStepView(using, TEAM)
 
     expect(using.calls.searches).toEqual([])
-    expect(view.kind === 'milestoneStep' && view.lists[0]).toEqual({ kind: 'epic', choices: listed, searched: true })
+    expect(view.kind === 'milestoneStep' && view.lists[0]).toEqual({ kind: 'epic', choices: listed, searchedInTracker: true })
   })
 
   test('leaves out of what the tracker finds the choices already picked', async () => {
@@ -170,20 +170,20 @@ describe('a kind with more than 100 entries', () => {
 
     const view = await milestoneStepView(using, TEAM, 'payments')
 
-    expect(view.kind === 'milestoneStep' && view.lists[0]).toEqual({ kind: 'epic', choices: [], searched: true })
+    expect(view.kind === 'milestoneStep' && view.lists[0]).toEqual({ kind: 'epic', choices: [], searchedInTracker: true })
   })
 
   test('says so when the tracker can’t search, still listing the other kinds', async () => {
-    const using = await connected({ ...PAST_LIMIT, searched: { epic: { failure: 'unavailable' } } })
+    const using = await connected({ ...PAST_LIMIT, searchable: { epic: { failure: 'unavailable' } } })
 
     const view = await milestoneStepView(using, TEAM, 'pay')
 
     expect(view.kind === 'milestoneStep' && view.choicesFailure).toBeUndefined()
     expect(view).toMatchObject({
       lists: [
-        { kind: 'epic', choices: [], searched: true, failure: 'The tracker couldn’t search its epics just now. Try again in a few minutes.' },
-        { kind: 'milestone', choices: [payments], searched: false },
-        { kind: 'label', choices: [repay], searched: false },
+        { kind: 'epic', choices: [], searchedInTracker: true, failure: 'The tracker couldn’t search its epics just now. Try again in a few minutes.' },
+        { kind: 'milestone', choices: [payments], searchedInTracker: false },
+        { kind: 'label', choices: [repay], searchedInTracker: false },
       ],
     })
   })
@@ -191,7 +191,7 @@ describe('a kind with more than 100 entries', () => {
   test('one kind searched on its own, as the picker asks for it while the EM types', async () => {
     const using = await connected(PAST_LIMIT)
 
-    expect(await searchedChoiceList(using, TEAM, 'epic', 'payouts')).toEqual({ kind: 'epic', choices: [payouts], searched: true })
+    expect(await searchedChoiceList(using, TEAM, 'epic', 'payouts')).toEqual({ kind: 'epic', choices: [payouts], searchedInTracker: true })
     expect(using.calls.choices).toBe(0)
   })
 })
@@ -220,8 +220,8 @@ describe('picking', () => {
       query: 'milestone:"Payments v2" OR label:"bug"',
       read: '3 open · 2 finished in the last 8 weeks',
       lists: [
-        { kind: 'milestone', choices: [checkout], searched: false },
-        { kind: 'label', choices: [repay], searched: false },
+        { kind: 'milestone', choices: [checkout], searchedInTracker: false },
+        { kind: 'label', choices: [repay], searchedInTracker: false },
       ],
     })
   })
@@ -350,6 +350,103 @@ describe('editing as a query', () => {
     })
     expect(finding.kind === 'milestoneStep' && finding.editing).toBeUndefined()
   })
+
+  test('a query naming one choice twice can’t be shown as chips, which would show it once', async () => {
+    const using = await connected()
+
+    await submitMilestoneQuery(using, TEAM, edit('label:"bug" OR milestone:"Payments v2" OR label:"bug"'), READ_AT)
+    const view = await milestoneStepView(using, TEAM)
+
+    expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [], query: 'label:"bug" OR milestone:"Payments v2" OR label:"bug"' })
+    expect(view.kind === 'milestoneStep' && view.editing?.backClears).toBeDefined()
+  })
+
+  test('an OR inside brackets or quotes splits nothing', async () => {
+    const using = await connected()
+
+    await submitMilestoneQuery(using, TEAM, edit('(label:"bug" OR milestone:"Payments v2")'), READ_AT)
+    await submitMilestoneQuery(using, TEAM, edit('label:"bug OR milestone"'), READ_AT)
+
+    expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [], query: 'label:"bug OR milestone"' })
+  })
+
+  describe('naming a choice of a kind with more than 100 entries', () => {
+    const zebra: Choice = { kind: 'label', name: 'zebra', query: 'label:"zebra"' }
+    const zebras: Choice = { kind: 'label', name: 'zebras', query: 'label:"zebras"' }
+    const cardPayments: Choice = { kind: 'epic', name: 'Card payments', query: 'parent-issue:shop-team/shop#140' }
+    /** More labels than are listed, "zebra" among those that aren't; and the milestones in full. */
+    const LABELS_PAST_LIMIT: CannedFixture = {
+      ...FIXTURE,
+      milestoneChoices: [
+        { kind: 'epic', choices: [], pastLimit: true },
+        { kind: 'milestone', choices: [payments, checkout], pastLimit: false },
+        { kind: 'label', choices: [repay, bug], pastLimit: true },
+      ],
+      searchable: { epic: [cardPayments], label: [repay, bug, zebras, zebra] },
+      reads: {
+        ...FIXTURE.reads,
+        'label:"zebra" OR milestone:"Payments v2"': { tickets: [{ id: 'z1' }], incomplete: false },
+        'parent-issue:shop-team/shop#140': { tickets: [{ id: 'e1' }], incomplete: false },
+        'label:"bug" OR parent-issue:shop-team/shop#140': { tickets: [{ id: 'e1' }], incomplete: false },
+      },
+    }
+
+    test('one the tracker doesn’t list is found by searching that kind for its name, and comes back as its chip', async () => {
+      const using = await connected(LABELS_PAST_LIMIT)
+
+      await submitMilestoneQuery(using, TEAM, edit('label:"zebra" OR milestone:"Payments v2"'), READ_AT)
+      const view = await milestoneStepView(using, TEAM)
+
+      expect(using.calls.searches).toContainEqual(['label', 'zebra'])
+      expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [zebra, payments], query: 'label:"zebra" OR milestone:"Payments v2"' })
+      expect(view.kind === 'milestoneStep' && view.editing).toBeUndefined()
+    })
+
+    test('nothing is searched for when the choices listed are enough', async () => {
+      const using = await connected(LABELS_PAST_LIMIT)
+
+      await submitMilestoneQuery(using, TEAM, edit('label:"bug" OR milestone:"Payments v2"'), READ_AT)
+
+      expect(using.calls.searches).toEqual([])
+      expect(storage.milestoneQuery(TEAM)?.picks).toEqual([bug, payments])
+    })
+
+    test('one already picked, though unlisted, keeps its chip without a search', async () => {
+      const using = await connected(LABELS_PAST_LIMIT)
+      await submitMilestoneQuery(using, TEAM, add(cardPayments), READ_AT)
+
+      await submitMilestoneQuery(using, TEAM, edit('label:"bug" OR parent-issue:shop-team/shop#140'), READ_AT)
+
+      expect(using.calls.searches).toEqual([])
+      expect(storage.milestoneQuery(TEAM)?.picks).toEqual([bug, cardPayments])
+    })
+
+    test('one no search finds leaves the query for editing by hand', async () => {
+      const using = await connected(LABELS_PAST_LIMIT)
+
+      await submitMilestoneQuery(using, TEAM, edit('label:"zebra" OR label:"no such label"'), READ_AT)
+
+      expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [], query: 'label:"zebra" OR label:"no such label"' })
+    })
+  })
+
+  test('on Jira, a query joined with a lower-case or comes back as chips', async () => {
+    const launch: Choice = { kind: 'fixVersion', name: 'Launch', query: 'fixVersion = "Launch"' }
+    const urgent: Choice = { kind: 'label', name: 'urgent', query: 'labels = "urgent"' }
+    const using = await connectedToJira({
+      milestoneChoices: [
+        { kind: 'fixVersion', choices: [launch], pastLimit: false },
+        { kind: 'label', choices: [urgent], pastLimit: false },
+      ],
+      reads: { 'fixVersion = "Launch" or labels = "urgent"': { tickets: [{ id: 'j1' }], incomplete: false } },
+    })
+
+    await submitMilestoneQuery(using, TEAM, edit('fixVersion = "Launch" or labels = "urgent"'), READ_AT)
+    const view = await milestoneStepView(using, TEAM)
+
+    expect(view).toMatchObject({ picks: [launch, urgent], query: 'fixVersion = "Launch" or labels = "urgent"' })
+    expect(view.kind === 'milestoneStep' && view.editing).toBeUndefined()
+  })
 })
 
 describe('a hand-edited query refused before reading', () => {
@@ -422,7 +519,8 @@ describe('a hand-edited query refused before reading', () => {
   })
 })
 
-const back = { kind: 'backToFinding' } as const
+const back = { kind: 'backToFinding', confirmed: false } as const
+const backConfirmed = { kind: 'backToFinding', confirmed: true } as const
 
 describe('going back to finding', () => {
   test('from a query the picker can show, it keeps the query and its chips, and reads nothing', async () => {
@@ -437,11 +535,37 @@ describe('going back to finding', () => {
     expect(view.kind === 'milestoneStep' && view.editing).toBeUndefined()
   })
 
-  test('from a query the picker can’t show, it clears the query, reading nothing', async () => {
+  test('from a query the picker can’t show, it asks first, clearing nothing', async () => {
     const using = await connected()
     await submitMilestoneQuery(using, TEAM, edit('label:checkout -label:bug'), READ_AT)
 
-    await submitMilestoneQuery(using, TEAM, back, READ_AT)
+    const submitted = await submitMilestoneQuery(using, TEAM, back, READ_AT)
+    const view = await milestoneStepView(using, TEAM, '', { confirmingBack: true })
+
+    expect(submitted).toEqual({ kind: 'confirmClear' })
+    expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [], query: 'label:checkout -label:bug' })
+    expect(view.kind === 'milestoneStep' && view.editing).toEqual({
+      typed: 'label:checkout -label:bug',
+      readIn: 'shop-team/shop',
+      backClears: 'The picker can’t show this query, so going back to finding clears it.',
+      confirmingBack: true,
+    })
+  })
+
+  test('nothing is asked of a query the picker can show, though the step is opened to ask', async () => {
+    const using = await connected()
+    await submitMilestoneQuery(using, TEAM, add(payments), READ_AT)
+
+    const view = await milestoneStepView(using, TEAM, '', { editing: true, confirmingBack: true })
+
+    expect(view.kind === 'milestoneStep' && view.editing).toEqual({ typed: 'milestone:"Payments v2"', readIn: 'shop-team/shop' })
+  })
+
+  test('once confirmed, from a query the picker can’t show, it clears the query, reading nothing', async () => {
+    const using = await connected()
+    await submitMilestoneQuery(using, TEAM, edit('label:checkout -label:bug'), READ_AT)
+
+    await submitMilestoneQuery(using, TEAM, backConfirmed, READ_AT)
     const view = await milestoneStepView(using, TEAM)
 
     expect(using.calls.reads).toEqual(['label:checkout -label:bug'])
@@ -540,16 +664,15 @@ describe('a read flagged', () => {
     })
   })
 
-  test('incomplete, asking the EM to narrow the query', async () => {
+  test('incomplete, shows no count, only the flag asking the EM to narrow the query', async () => {
     const using = await connected(reading('is:open', { tickets: [{ id: 'o1' }, { id: 'o2' }], incomplete: true }))
 
     await submitMilestoneQuery(using, TEAM, edit('is:open'), READ_AT)
     const view = await milestoneStepView(using, TEAM)
 
-    expect(view).toMatchObject({
-      read: '2 open · 0 finished in the last 8 weeks',
-      flag: 'This count is incomplete: GitHub gave only part of what the query matches. Narrow the query to read all of it.',
-    })
+    expect(view).toMatchObject({ flag: 'GitHub gave only part of what this query matches, so its tickets aren’t counted. Narrow the query to read all of it.' })
+    // Part of a count would pass for the count, so no line is shown.
+    expect(view.kind === 'milestoneStep' && view.read).toBeUndefined()
   })
 
   test('a read with tickets, all of them, is not flagged', async () => {

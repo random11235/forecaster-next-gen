@@ -171,7 +171,7 @@ describe('GitHub connector', () => {
           ok: true,
           choices: [{ kind: 'epic', name: 'Card payments', query: 'parent-issue:random11235/forecaster-synthetic#140' }],
         })
-        expect(searched).toEqual(['repo:random11235/forecaster-synthetic is:issue has:sub-issue no:parent-issue in:title "card" "payments"'])
+        expect(searched).toEqual(['repo:random11235/forecaster-synthetic is:issue is:open has:sub-issue no:parent-issue in:title "card" "payments"'])
         expect(github.sent[0]).toContain('advanced_search=true')
       })
 
@@ -213,7 +213,7 @@ describe('GitHub connector', () => {
         const github = answering(async () => json({ message: 'Server Error' }, 502))
         const connector = githubConnector(CONNECTION, 'token', github.transport, mustNotWait)
 
-        for (const kind of ['epic', 'label', 'milestone']) expect(await connector.searchChoices(kind, 'pay')).toEqual({ ok: false, failure: 'unavailable' })
+        for (const kind of ['epic', 'label', 'milestone'] as const) expect(await connector.searchChoices(kind, 'pay')).toEqual({ ok: false, failure: 'unavailable' })
       })
     })
 

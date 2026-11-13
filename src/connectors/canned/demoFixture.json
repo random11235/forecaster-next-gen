@@ -126,7 +126,7 @@
       "pastLimit": false
     }
   ],
-  "searched": {
+  "searchable": {
     "epic": [
       { "kind": "epic", "name": "Epic: onboarding 1", "query": "parent-issue:shop-team/shop#200" },
       { "kind": "epic", "name": "Epic: search 1", "query": "parent-issue:shop-team/shop#201" },
