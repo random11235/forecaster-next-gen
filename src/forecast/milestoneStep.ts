@@ -3,9 +3,8 @@ import type { Connection } from '../model/connection.js'
 import type { MilestoneQuery } from '../model/milestoneQuery.js'
 import type { SavedRead } from '../model/savedRead.js'
 import type { MilestoneQueryStorage } from '../storage/storage.js'
-import { DAY_MS } from '../model/time.js'
 import { teamConnection, type Connecting } from './connection.js'
-import { readQuery, ticketsRemaining, type QueryRead } from './finished.js'
+import { FINISHED_WEEKS, finishedSinceFor, readQuery, ticketsRemaining, type QueryRead } from './finished.js'
 import { trackerOf, type TrackerFacts } from './trackers.js'
 
 /**
@@ -278,9 +277,6 @@ const KEYCHAIN_FAILED = 'This computer’s keychain couldn’t give the token, s
 
 const CHOICES_FAILED = 'The tracker couldn’t list what to pick from just now. Open the step again in a few minutes.'
 
-/** How far back a read of the milestone query counts finished tickets, in weeks. */
-export const FINISHED_WEEKS = 8
-
 /** A read's line: its open tickets, when they count, and those finished in the weeks it reads back. */
 function readLine(read: SavedRead, { countsOpen }: StepQuery): string {
   const finished = `${read.tickets.length - ticketsRemaining(read)} finished in the last ${FINISHED_WEEKS} weeks`
@@ -355,7 +351,7 @@ export async function submitMilestoneQuery(
     save()
     return { kind: 'saved' }
   }
-  const finishedSince = new Date(Date.parse(readAt) - FINISHED_WEEKS * 7 * DAY_MS).toISOString()
+  const finishedSince = finishedSinceFor(readAt)
   const read = await readQuery(connector, connecting.reads, { teamId, query: after.query, finishedSince, readAt })
   const rejection = read.ok ? undefined : rejectionOf(connection, read)
   if (rejection) return { kind: 'refused', query: after.query, refusal: rejection, ...(edit.kind !== 'editQuery' && { fromPicks: true as const }) }

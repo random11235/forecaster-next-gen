@@ -1,9 +1,8 @@
 import type { SavedRead } from '../model/savedRead.js'
-import { DAY_MS } from '../model/time.js'
 import type { MilestoneQueryStorage, SavedReadStorage, Storage } from '../storage/storage.js'
 import { daysBetween } from './calendarDate.js'
-import { calendarDayIn, completeRead, finishedPerPeriod, ticketsRemaining } from './finished.js'
-import { FINISHED_WEEKS } from './milestoneStep.js'
+import type { Connecting } from './connection.js'
+import { calendarDayIn, completeRead, finishedPerPeriod, finishedSinceFor, ticketsRemaining, type FinishedPeriods } from './finished.js'
 import type { DatedCounts } from './paceWindow.js'
 
 /** Where pace's finished tickets come from: comparable work's read, or the milestone query's. */
@@ -42,6 +41,16 @@ export interface PaceDay {
 /** What `paceReads` reads of what is stored: the milestone's inputs, the team's two queries, and their saved reads. */
 export type PaceReadsStorage = Pick<Storage, 'milestoneInputs'> & Pick<MilestoneQueryStorage, 'milestoneQuery' | 'comparableWorkQuery'> & Pick<SavedReadStorage, 'savedRead'>
 
+/** What `paceReads` reads, in the local server build: the milestone's inputs from `storage`, the queries and reads from `connecting`. */
+export function paceReadsStorage(storage: Pick<Storage, 'milestoneInputs'>, { milestoneQueries, reads }: Pick<Connecting, 'milestoneQueries' | 'reads'>): PaceReadsStorage {
+  return {
+    milestoneInputs: (teamId) => storage.milestoneInputs(teamId),
+    milestoneQuery: (teamId) => milestoneQueries.milestoneQuery(teamId),
+    comparableWorkQuery: (teamId) => milestoneQueries.comparableWorkQuery(teamId),
+    savedRead: (teamQuery) => reads.savedRead(teamQuery),
+  }
+}
+
 /**
  * Seam B: the team's saved reads as pace counts them. Once a comparable-work query is added and its read finished
  * something, pace comes from comparable work's finished tickets alone; with no query, or one matching nothing finished
@@ -58,9 +67,7 @@ export function paceReads(storage: PaceReadsStorage, teamId: string, { today, ti
   const reads = [milestoneRead, comparableRead].filter((read) => read !== undefined)
   if (reads.length === 0) return undefined
   const { startDate, cadenceDays } = inputs
-  const current = Math.floor(daysBetween(startDate, today) / cadenceDays)
-  const first = Math.max(...reads.map((read) => firstWholePeriod(read, startDate, cadenceDays, timeZone)))
-  const periods = Math.max(0, current - first)
+  const { first, periods } = wholePeriods(reads, { startDate, cadenceDays, today, timeZone })
   const counted = (read: SavedRead): DatedCounts => finishedPerPeriod(read, { startDate, cadenceDays, today, timeZone, periods })
   const milestone = milestoneRead && counted(milestoneRead)
   const comparableWork = comparableRead && counted(comparableRead)
@@ -74,10 +81,17 @@ export function paceReads(storage: PaceReadsStorage, teamId: string, { today, ti
 }
 
 /**
- * The first period, counted from the start date, that the read reaches whole: the first starting after the day its
- * reach back of `FINISHED_WEEKS` weeks falls on, as a period it reaches only part of would pass for a quiet one.
+ * The periods the reads all reach whole, up to the current one, which is left out: the `first`, counted from the start
+ * date (negative before it), and how many (`periods`). A period a read reaches only part of would pass for a quiet one.
  */
-export function firstWholePeriod(read: SavedRead, startDate: string, cadenceDays: number, timeZone: string): number {
-  const reachedOn = calendarDayIn(timeZone)(new Date(Date.parse(read.readAt) - FINISHED_WEEKS * 7 * DAY_MS).toISOString())
+export function wholePeriods(reads: readonly SavedRead[], { startDate, cadenceDays, today, timeZone }: Omit<FinishedPeriods, 'periods'>): { first: number; periods: number } {
+  const current = Math.floor(daysBetween(startDate, today) / cadenceDays)
+  const first = Math.max(...reads.map((read) => firstWholePeriod(read, startDate, cadenceDays, timeZone)))
+  return { first, periods: Math.max(0, current - first) }
+}
+
+/** The first period the read reaches whole: the first starting after the day its reach back falls on. */
+function firstWholePeriod(read: SavedRead, startDate: string, cadenceDays: number, timeZone: string): number {
+  const reachedOn = calendarDayIn(timeZone)(finishedSinceFor(read.readAt))
   return Math.ceil((daysBetween(startDate, reachedOn) + 1) / cadenceDays)
 }
