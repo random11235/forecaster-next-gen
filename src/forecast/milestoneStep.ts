@@ -1,4 +1,4 @@
-import type { Choice, ChoiceKind, Connector, Failure } from '../connectors/connector.js'
+import type { Choice, ChoiceKind, ChoicesOfKind, Connector, Failure } from '../connectors/connector.js'
 import type { Connection } from '../model/connection.js'
 import type { MilestoneQuery } from '../model/milestoneQuery.js'
 import type { SavedRead } from '../model/savedRead.js'
@@ -141,23 +141,34 @@ export async function milestoneStepView(
   const unpicked = notPicked(saved.picks)
   const lists: ChoiceList[] = []
   // A kind past the limit is searched once something is typed, one kind after another, to spare the rate limit.
-  for (const { kind, choices: listed, pastLimit } of choices.kinds) {
-    if (pastLimit && typed !== '') lists.push(await foundInTracker(connector, kind, typed, unpicked))
-    else lists.push({ kind, choices: listed.filter((choice) => unpicked(choice) && choice.name.toLowerCase().includes(typed.toLowerCase())), searchedInTracker: pastLimit })
+  for (const kind of choices.kinds) {
+    lists.push(kind.pastLimit && typed !== '' ? await foundInTracker(connector, kind.kind, typed, unpicked) : listedHere(kind, typed, unpicked))
   }
   return { ...step, lists }
 }
 
+/** One kind's list as the tracker listed it, filtered here by what is `typed` and less the choices not `unpicked`. */
+function listedHere({ kind, choices, pastLimit }: ChoicesOfKind, typed: string, unpicked: (choice: Choice) => boolean): ChoiceList {
+  const matching = choices.filter((choice) => unpicked(choice) && choice.name.toLowerCase().includes(typed.toLowerCase()))
+  return { kind, choices: matching, searchedInTracker: pastLimit }
+}
+
 /**
  * Seam B: one kind past the limit, searched in the tracker for `find`, as the Milestone step's picker asks for it while
- * the EM types: the choices the tracker finds, less those already picked. None before the team connects.
+ * the EM types: the choices the tracker finds, less those already picked. With nothing typed (the find box cleared), it
+ * is the first 100 the tracker lists, searching nothing. None before the team connects.
  */
 export async function searchedChoiceList(connecting: Connecting, teamId: string, kind: ChoiceKind, find: string): Promise<ChoiceList | undefined> {
   const connected = await teamConnection(connecting, teamId)
   if (!connected) return undefined
   if (connected.connector === 'keychainFailed') return { kind, choices: [], searchedInTracker: true, failure: KEYCHAIN_FAILED }
-  const picks = connecting.milestoneQueries.milestoneQuery(teamId)?.picks ?? []
-  return foundInTracker(connected.connector, kind, find.trim(), notPicked(picks))
+  const unpicked = notPicked(connecting.milestoneQueries.milestoneQuery(teamId)?.picks ?? [])
+  const typed = find.trim()
+  if (typed !== '') return foundInTracker(connected.connector, kind, typed, unpicked)
+  const choices = await connected.connector.milestoneChoices()
+  if (!choices.ok) return { kind, choices: [], searchedInTracker: true, failure: CHOICES_FAILED }
+  const listed = choices.kinds.find((each) => each.kind === kind)
+  return listed ? listedHere(listed, '', unpicked) : { kind, choices: [], searchedInTracker: true }
 }
 
 /** Whether a choice is none of `picks`. */

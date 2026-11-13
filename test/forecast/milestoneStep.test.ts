@@ -194,6 +194,16 @@ describe('a kind with more than 100 entries', () => {
     expect(await searchedChoiceList(using, TEAM, 'epic', 'payouts')).toEqual({ kind: 'epic', choices: [payouts], searchedInTracker: true })
     expect(using.calls.choices).toBe(0)
   })
+
+  test('one kind asked for with nothing typed, once the find box is cleared, lists its first 100 again, searching nothing', async () => {
+    const using = await connected(PAST_LIMIT)
+    await submitMilestoneQuery(using, TEAM, add(epic(1)), READ_AT)
+
+    const list = await searchedChoiceList(using, TEAM, 'epic', '  ')
+
+    expect(using.calls.searches).toEqual([])
+    expect(list).toEqual({ kind: 'epic', choices: listed.slice(1), searchedInTracker: true })
+  })
 })
 
 describe('picking', () => {

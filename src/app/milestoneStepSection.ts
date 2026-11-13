@@ -182,8 +182,8 @@ const SEARCH_DEBOUNCE_MS = 300
 /**
  * The Milestone step's script: it filters the lists as the EM types in the find box, ignoring case and matching part of
  * a word, as `milestoneStepView` does for a find submitted without it. A kind searched in the tracker isn't filtered:
- * once typing pauses, its list is asked for again, searched for what is typed, and an answer to anything but the
- * latest search is dropped. The lists show as the step opens, before anything is typed.
+ * once typing pauses, its list is asked for again, searched for what is typed (or, cleared, its first 100 as listed),
+ * and an answer to anything but the latest search is dropped. The lists show as the step opens, before anything is typed.
  */
 export const MILESTONE_STEP_SCRIPT = `
 (() => {
@@ -211,7 +211,6 @@ export const MILESTONE_STEP_SCRIPT = `
   const search = () => {
     clearTimeout(timer)
     const typed = find.value.trim()
-    if (typed === '') return
     timer = setTimeout(() => {
       const asked = ++latest
       for (const list of found.querySelectorAll('.kind-list[data-searched]')) {
