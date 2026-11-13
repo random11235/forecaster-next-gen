@@ -309,7 +309,7 @@ const STYLE = `
     .picker .warn { margin: 0; color: var(--risk); }
     .picker form.back a.keep { font-size: 13px; color: var(--link); }
     /* Candidates for comparable work (#205): a pace link beside each choice, and those read, grouped against the milestone's own. */
-    .found form.candidate { display: flex; align-items: center; gap: 8px; }
+    .found form.candidate { flex-direction: row; align-items: center; gap: 8px; }
     .found form.candidate button { flex: 1; }
     .found a.open { font-size: 12px; color: var(--link); padding: 0 8px; }
     .candidates { display: flex; flex-direction: column; gap: 8px; max-width: 620px; margin-top: 16px; border-top: 1px solid var(--hairline); padding-top: 12px; }
@@ -321,7 +321,7 @@ const STYLE = `
     .candidates span.same { color: var(--muted); }
     .candidates ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
     .candidates li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 13px; }
-    .candidates li form { margin: 0; }
+    .candidates li form { margin: 0; display: inline; }
     .candidates li button { border: 0; background: none; min-height: 0; padding: 0; font-size: 14px; font-weight: 600; cursor: pointer; text-align: left; }
     .candidates li button:hover { text-decoration: underline; }
     .candidates .kind { font-family: var(--mono); font-size: 11px; color: var(--faint); font-weight: 400; }
