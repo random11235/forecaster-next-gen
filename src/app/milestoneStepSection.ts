@@ -124,10 +124,12 @@ function findingSection(view: MilestoneStep): string {
             </li>`,
     )
     .join('\n')
+  // a change of the picks the tracker rejected: why, beside the chips still in use
+  const refusal = view.refusal === undefined ? '' : `\n          <p class="error" role="alert">${escapeHtml(view.refusal)}</p>`
   const lists = view.lists.map(choiceListHtml).join('\n')
   const failure = view.choicesFailure === undefined ? '' : `\n          <p class="error" role="alert">${escapeHtml(view.choicesFailure)}</p>`
   const query = view.query === '' ? '<span class="none">Nothing picked yet.</span>' : `<code>${escapeHtml(view.query)}</code>`
-  return `        <div class="picker">${failure}${chips === '' ? '' : `\n          <ul class="chips">\n${chips}\n          </ul>`}
+  return `        <div class="picker">${failure}${chips === '' ? '' : `\n          <ul class="chips">\n${chips}\n          </ul>`}${refusal}
           <form method="get" action="/inputs${anchor}" class="find">
             <input type="search" name="${FIND_FIELD}" value="${escapeHtml(view.find)}" placeholder="Find ${escapeHtml(article(alternatives(kinds)))}…" aria-label="Find a choice to pick" autocomplete="off" spellcheck="false">
           </form>

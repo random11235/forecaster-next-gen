@@ -54,6 +54,11 @@ export interface MilestoneStep {
   /** What is wrong with that read: it matched nothing, beside its line; or is incomplete, in its place. None when it is fine. */
   flag?: string
   /**
+   * Why the query a change of the picks just joined into was refused, in the tracker's words, shown beside the chips
+   * while the EM stays finding: the last query that worked, and its chips, stay in use. None until one is.
+   */
+  refusal?: string
+  /**
    * The milestone query open for editing by hand, in place of finding choices to pick: when the EM asks to edit it as
    * a query, or when the picker can't show it as chips. None while finding.
    */
@@ -79,7 +84,8 @@ export type MilestoneStepView = { kind: 'noMilestoneStep' } | MilestoneStep
 
 /**
  * How the Milestone step opens: on finding (the default), or with the milestone query open for editing; also open for
- * editing, with the query as typed and why, once a hand-edited query is `refused`; and `confirmingBack`, asking the EM
+ * editing, with the query as typed and why, once a hand-edited query is `refused`, but still finding, with why beside
+ * the chips, once the query a change of the picks joined into is; and `confirmingBack`, asking the EM
  * to confirm going back to finding from a query that it clears. `unlisted`, it asks the tracker nothing and lists no
  * choices: for a reply whose Milestone step is counted among the screen's sections but not shown.
  */
@@ -111,7 +117,7 @@ export async function milestoneStepView(
   const saved = connecting.milestoneQueries.milestoneQuery(teamId) ?? NO_QUERY
   const read = saved.query === '' ? undefined : connecting.reads.savedRead({ teamId, query: saved.query })
   const shownAsChips = chipsShow(tracker, saved)
-  const { refused } = opening
+  const refused = opening.refused?.fromPicks ? undefined : opening.refused
   const editing: QueryEditing | undefined =
     opening.editing || refused || !shownAsChips
       ? {
@@ -131,6 +137,7 @@ export async function milestoneStepView(
     note: LEAF_NOTE,
     ...(read && !read.incomplete && { read: readLine(read) }),
     ...(read && readFlag(read, tracker.name)),
+    ...(!editing && opening.refused?.fromPicks && { refusal: opening.refused.refusal }),
     ...(editing && { editing }),
   }
   if (opening.unlisted) return step
@@ -259,7 +266,7 @@ export async function submitMilestoneQuery(
   const finishedSince = new Date(Date.parse(readAt) - FINISHED_WEEKS * 7 * DAY_MS).toISOString()
   const read = await readQuery(connector, connecting.reads, { teamId, query: after.query, finishedSince, readAt })
   const rejection = read.ok ? undefined : rejectionOf(connection, read)
-  if (rejection) return { kind: 'refused', query: after.query, refusal: rejection }
+  if (rejection) return { kind: 'refused', query: after.query, refusal: rejection, ...(edit.kind !== 'editQuery' && { fromPicks: true as const }) }
   save()
   return { kind: 'saved', read }
 }
@@ -287,10 +294,12 @@ export type MilestoneQuerySubmitted =
   | ({ kind: 'refused' } & RefusedQuery)
   | { kind: 'confirmClear' }
 
-/** A query refused: as typed, and why. */
+/** A query refused: as typed, or as the picks joined into (`fromPicks`), and why. */
 export interface RefusedQuery {
   query: string
   refusal: string
+  /** The query a change of the picks joined into, not one edited by hand: the EM stays finding, with the chips. */
+  fromPicks?: true
 }
 
 /** Nothing picked, and no milestone query. */

@@ -218,6 +218,21 @@ describe('the Milestone step', () => {
     expect(step).toContain('1 open · 1 finished in the last 8 weeks')
   })
 
+  test('a pick whose query the tracker rejects keeps the step finding, with the chips that worked and the tracker’s message beside them', async () => {
+    const joined = 'milestone:"Payments v2" OR milestone:"Checkout"'
+    const running = await startConnected({ ...FIXTURE, reads: { ...FIXTURE.reads, [joined]: { failure: 'invalidQuery', message: 'Too many milestones.' } } })
+    await post(running, '/inputs/milestone-query/add', { kind: 'milestone', name: 'Payments v2', query: 'milestone:"Payments v2"' })
+
+    const rejected = await post(running, '/inputs/milestone-query/add', { kind: 'milestone', name: 'Checkout', query: 'milestone:"Checkout"' })
+
+    expect(rejected.status).toBe(400)
+    const step = stepOf(await rejected.text())
+    expect(step).toMatch(/class="chip"[^]*Payments v2[^]*class="error" role="alert">GitHub rejected this query: Too many milestones\./)
+    expect(step).toContain('type="search"')
+    expect(step).not.toContain('id="milestone-query"')
+    expect(step).toContain('1 open · 1 finished in the last 8 weeks')
+  })
+
   test('a read matching nothing is flagged beside its line, while finding and editing', async () => {
     const running = await startConnected()
     await post(running, '/inputs/milestone-query/add', { kind: 'milestone', name: 'Checkout', query: 'milestone:"Checkout"' })
