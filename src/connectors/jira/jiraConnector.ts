@@ -12,11 +12,15 @@ import {
 } from '../connector.js'
 import { DAY_MS } from '../../model/time.js'
 import {
+  answered,
   failureOf,
   finishedSince,
   got,
+  milestoneChoicesOf,
   pickedEpicsIn,
+  pickedEpicsPattern,
   searchChoicesIn,
+  searchedIn,
   send,
   sleep,
   staysInScope,
@@ -72,7 +76,7 @@ const SCOPE: QueryScope = {
  * Each picked epic a query names, as its choice reads it: `parent = KEY-N`, not negated by a `NOT` before it and not in
  * quotes. A quoted value is matched too, with no key, so a term inside quotes is kept as written.
  */
-const PICKED: PickedEpics = /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|(?<!\bnot\s+)(?<=^|[\s(])parent\s*=\s*([a-z][a-z0-9_]*-\d+)(?=$|[\s)])/gi
+const PICKED: PickedEpics = pickedEpicsPattern(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|(?<!\bnot\s+)(?<=^|[\s(])parent\s*=\s*([a-z][a-z0-9_]*-\d+)(?=$|[\s)])/i)
 
 /** The characters JQL's text search (`~`) reads as its own syntax, and quotes. */
 const TEXT_SEARCH_SPECIALS = /[+\-&|!(){}[\]^"'~*?:\\/]/g
@@ -201,14 +205,9 @@ async function everyPage<T>(pageAt: (nextPageToken: string | undefined) => Promi
   return got(items)
 }
 
-/** The failure an unsuccessful response stands for, other than a refused query. */
-function responseFailure({ status }: Received): FailedCall {
-  return failureOf(status)
-}
-
 /** The failure an unsuccessful search stands for: a JQL error, Jira's message with it, is invalidQuery. */
 function searchFailure(received: Received): FailedCall {
-  if (received.status !== 400) return responseFailure(received)
+  if (received.status !== 400) return failureOf(received)
   return { ok: false, failure: 'invalidQuery', message: (received.body as ErrorResponse).errorMessages?.join(' ') ?? '' }
 }
 
@@ -235,19 +234,17 @@ export function jiraConnector(
    * What the site's REST API answers at `path`, through the gateway, to `body` when given; or the failure that stopped
    * the call reaching there, or that its answer stands for, as `failure` reads it.
    */
-  async function api<T>(path: string, body?: unknown, failure: (received: Received) => FailedCall = responseFailure): Promise<Got<T>> {
+  async function api<T>(path: string, body?: unknown, failure: (received: Received) => FailedCall = failureOf): Promise<Got<T>> {
     if (cloudId === undefined) {
       const tenant = await send(transport, `https://${connection.site}/_edge/tenant_info`, {}, backoff)
       if (!tenant) return UNAVAILABLE
-      if (tenant.status !== 200) return failureOf(tenant.status)
+      if (tenant.status !== 200) return failureOf(tenant)
       cloudId = (tenant.body as { cloudId: string }).cloudId
     }
     const headers: Record<string, string> = { authorization, accept: 'application/json' }
     const init: RequestInit =
       body === undefined ? { headers } : { method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify(body) }
-    const response = await send(transport, `${GATEWAY}/${cloudId}/rest/api/3${path}`, init, backoff)
-    if (!response) return UNAVAILABLE
-    return response.status === 200 ? got(response.body as T) : failure(response)
+    return answered(await send(transport, `${GATEWAY}/${cloudId}/rest/api/3${path}`, init, backoff), failure)
   }
 
   /** The ids of the project's statuses in the Done category, looked up once. */
@@ -390,8 +387,7 @@ export function jiraConnector(
    */
   async function searchedEpics(text: string): Promise<SearchedChoices> {
     const words = text.replace(TEXT_SEARCH_SPECIALS, ' ').split(/\s+/).filter((word) => word !== '')
-    const found = await epics(words.map((word) => ` AND summary ~ "${word}*"`).join(''))
-    return found.ok ? { ok: true, choices: found.value.choices } : found
+    return searchedIn(await epics(words.map((word) => ` AND summary ~ "${word}*"`).join('')))
   }
 
   /** The site's labels JQL suggests for `text`, as it autocompletes the labels field, up to the limit. */
@@ -413,15 +409,7 @@ export function jiraConnector(
   return {
     searchChoices: searchChoicesIn(SEARCHES),
 
-    milestoneChoices: async () => {
-      const kinds: ChoicesOfKind[] = []
-      for (const list of [fixVersions, () => epics(), labels]) {
-        const kind = await list()
-        if (!kind.ok) return kind
-        kinds.push(kind.value)
-      }
-      return { ok: true, kinds }
-    },
+    milestoneChoices: () => milestoneChoicesOf([fixVersions, () => epics(), labels]),
 
     read: async (query, since): Promise<ReadResult> => {
       if (!staysInScope(query, SCOPE)) return { ok: false, failure: 'outOfScope' }
