@@ -113,7 +113,7 @@ describe('the pace in use', () => {
 
     expect(comparableWorkPace(storage, TEAM, AT)).toMatchObject({
       inUse: { from: 'comparableWork', median: 2, low: 1, high: 2 },
-      comparison: { kind: 'slower', by: 1.5, own: 3.5 },
+      comparison: { versus: { kind: 'slower', by: 1.5 }, ownMedian: 3.5 },
       said: {
         inUse: '2 a week',
         from: 'pace, from comparable work, range 1–2',
@@ -127,7 +127,7 @@ describe('the pace in use', () => {
 
     expect(comparableWorkPace(storage, TEAM, AT)).toMatchObject({
       inUse: { from: 'comparableWork', median: 5, low: 5, high: 6 },
-      comparison: { kind: 'faster', by: 1.5, own: 3.5 },
+      comparison: { versus: { kind: 'faster', by: 1.5 }, ownMedian: 3.5 },
       said: { inUse: '5 a week', comparison: '↑ 1.5 a week faster than the milestone’s own so far (3.5 a week)' },
     })
   })
@@ -136,7 +136,7 @@ describe('the pace in use', () => {
     await addComparable(even)
 
     expect(comparableWorkPace(storage, TEAM, AT)).toMatchObject({
-      comparison: { kind: 'aboutTheSame', own: 3.5 },
+      comparison: { versus: { kind: 'aboutTheSame' }, ownMedian: 3.5 },
       said: { comparison: 'About the same as the milestone’s own so far (3.5 a week).' },
     })
   })
@@ -147,7 +147,7 @@ describe('the pace in use', () => {
 
     expect(comparableWorkPace(storage, TEAM, AT)).toMatchObject({
       inUse: { from: 'comparableWork', median: 2 },
-      comparison: { kind: 'tooFew', ownPeriods: 2 },
+      comparison: { versus: { kind: 'tooFewToCompare' }, ownPeriods: 2 },
       said: { comparison: 'The milestone has 2 weeks of its own so far: too few to compare.' },
     })
   })
@@ -156,7 +156,7 @@ describe('the pace in use', () => {
     startOn('2026-10-22')
     await addComparable(slow)
 
-    expect(comparableWorkPace(storage, TEAM, AT)).toMatchObject({ comparison: { kind: 'slower', by: 2, own: 4 } })
+    expect(comparableWorkPace(storage, TEAM, AT)).toMatchObject({ comparison: { versus: { kind: 'slower', by: 2 }, ownMedian: 4 } })
   })
 
   test('with no comparable-work query, the milestone’s own is the headline, compared with nothing', () => {

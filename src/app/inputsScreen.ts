@@ -11,6 +11,7 @@ import { CONNECT_HINT, connectSection } from './connectSection.js'
 import { escapeHtml, htmlPage } from './html.js'
 import { INPUTS_SCRIPT } from './inputsScript.js'
 import type { ComparableWorkPace } from '../forecast/comparableWorkPace.js'
+import { candidatesScript } from './candidatesSection.js'
 import { milestoneStepScript, milestoneStepSection, type StepSection } from './milestoneStepSection.js'
 import { renderPaceTrend } from './paceTrendGraph.js'
 
@@ -59,6 +60,8 @@ export interface ShownStep {
   view: MilestoneStepView
   /** The pace the step leads with: the Comparable work step's, once there is one. */
   pace?: ComparableWorkPace
+  /** Its candidates for comparable work, below its picker (`candidatesHtml`, #205); none for a step without them. */
+  candidates?: string
 }
 
 /**
@@ -70,9 +73,9 @@ export function renderInputsScreen(screen: InputsView, connection: ConnectionVie
   const { milestone, forms } = screen
   const error = (form: InputsForm): string | undefined => (screen.refusal?.form === form ? screen.refusal.error : undefined)
   const connect = connectSection(connection)
-  const pickers = steps.flatMap(({ section, view, pace }) => {
+  const pickers = steps.flatMap(({ section, view, pace, candidates }) => {
     const picker = milestoneStepSection(view, section, pace)
-    return picker === undefined ? [] : [{ section, picker }]
+    return picker === undefined ? [] : [{ section, picker: picker + (candidates ?? '') }]
   })
   const sections = [
     ...(connect === undefined ? [] : [inputSection('Connect', 'Connect', CONNECT_HINT, connect, { postsOnSubmit: true })]),
@@ -88,7 +91,10 @@ export function renderInputsScreen(screen: InputsView, connection: ConnectionVie
     heading: 'Inputs',
     lede: 'What drives the forecast: the milestone, the team’s pace, and how work grows.',
   }
-  const script = INPUTS_SCRIPT + pickers.map(({ section }) => milestoneStepScript(section)).join('')
+  const script =
+    INPUTS_SCRIPT +
+    pickers.map(({ section }) => milestoneStepScript(section)).join('') +
+    steps.filter(({ candidates }) => candidates !== undefined).map(({ section }) => candidatesScript(section)).join('')
   return htmlPage('/inputs', header, sections.map((section, index) => section(index + 1)).join('\n'), script)
 }
 
