@@ -194,10 +194,14 @@ function pickPaceHtml(pick: PickPace | undefined): string {
   return ` <span class="strip" role="img" aria-label="Finished each period: ${pick.strip.join(', ')}">${strip}</span> <span class="kind">${pick.finished} finished${only}</span>`
 }
 
-/** The query's last read: its line, when it has one, and its flag beneath; nothing until it is read. */
-function readHtml(view: MilestoneStep): string {
+/**
+ * The query's last read: its line, when it has one, and its flag beneath, or its pace's, saying it isn't used; nothing
+ * until it is read.
+ */
+function readHtml(view: MilestoneStep, pace: ComparableWorkPace | undefined): string {
   const line = view.read === undefined ? '' : `\n          <p class="read">${escapeHtml(view.read)}</p>`
-  const flag = view.flag === undefined ? '' : `\n          <p class="note warn flag">⚠ ${escapeHtml(view.flag)}</p>`
+  const flagged = view.flag ?? pace?.flag
+  const flag = flagged === undefined ? '' : `\n          <p class="note warn flag">⚠ ${escapeHtml(flagged)}</p>`
   return line + flag
 }
 
@@ -239,7 +243,7 @@ function editingSection(view: MilestoneStep, editing: QueryEditing, section: Ste
             <label class="label" for="${inputId}">${escapeHtml(section.stepQuery.name)}, within <b>${escapeHtml(editing.readIn)}</b></label>
             <input type="text" id="${inputId}" name="${CHOICE_FIELDS.query}" value="${escapeHtml(editing.typed)}" autocomplete="off" spellcheck="false">
             <p class="note">Press Enter to read it. ${escapeHtml(view.note)}</p>
-          </form>${refusal}${inUse}${readHtml(view)}
+          </form>${refusal}${inUse}${readHtml(view, pace)}
           <form method="post" action="${paths.back}#${id}" class="back">
             ${clears}${back}
           </form>${onwardHtml(view, section)}
@@ -273,7 +277,7 @@ ${lists}
           <div class="query">
             <span class="label">${escapeHtml(section.stepQuery.name)} <a href="${urls.editing}" class="edit">Edit as a query</a></span> ${query}
             <p class="note">${escapeHtml(view.note)}</p>
-          </div>${readHtml(view)}${onwardHtml(view, section)}
+          </div>${readHtml(view, pace)}${onwardHtml(view, section)}
         </div>`
 }
 

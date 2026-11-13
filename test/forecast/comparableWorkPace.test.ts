@@ -176,6 +176,22 @@ describe('the pace in use', () => {
     expect(comparableWorkPace(storage, TEAM, AT)?.comparison).toBeUndefined()
   })
 
+  test('a comparable-work query finishing nothing in the periods pace counts is flagged as not used', async () => {
+    await addComparable(idle)
+
+    expect(comparableWorkPace(storage, TEAM, AT)?.flag).toBe(
+      'This query matches nothing finished in the 7 whole weeks pace counts, so pace comes from the milestone’s own tickets. Check it picks out work like the milestone’s.',
+    )
+  })
+
+  test('a comparable-work query in use, or none, is not flagged', async () => {
+    expect(comparableWorkPace(storage, TEAM, AT)?.flag).toBeUndefined()
+
+    await addComparable(slow)
+
+    expect(comparableWorkPace(storage, TEAM, AT)?.flag).toBeUndefined()
+  })
+
   test('a sprint’s pace is said a sprint', async () => {
     submitInputs(storage, TEAM, DEFAULT_SETTINGS, TODAY, { kind: 'setCadence', cadenceDays: '14' })
     await addComparable(slow)

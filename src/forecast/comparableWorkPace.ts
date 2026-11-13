@@ -2,6 +2,7 @@ import type { SavedRead } from '../model/savedRead.js'
 import { periodName } from './cadence.js'
 import { finishedPerPeriod, ticketsRemaining } from './finished.js'
 import type { PeriodName } from './cadence.js'
+import { COMPARABLE_WORK } from './milestoneStep.js'
 import { paceReads, type PaceDay, type PaceFrom, type PaceReadsStorage } from './paceReads.js'
 import { medianOf, paceVersusMilestoneOwn, type PaceVersus } from './paceVersusOwn.js'
 
@@ -59,6 +60,11 @@ export interface ComparableWorkPace {
   comparison?: OwnComparison
   /** The last `PAIRED_PERIODS` whole periods the reads reach, oldest first. */
   periods: PairedPeriod[]
+  /**
+   * Why comparable work's query isn't used, beside its read: its complete read finished nothing in the whole periods
+   * pace counts. None when it is used, or has no complete read.
+   */
+  flag?: string
   /** Comparable work's picks, in the order picked, each that has a complete read of its own. */
   picks: PickPace[]
   said: {
@@ -100,6 +106,7 @@ export function comparableWorkPace(storage: PaceReadsStorage, teamId: string, da
   return {
     ...(inUse && { inUse }),
     ...(comparison && { comparison }),
+    ...(comparableWork && reads.from === 'milestone' && { flag: notUsedFlag(periods.length, period) }),
     periods: periods.slice(-PAIRED_PERIODS),
     picks: picksPace(storage, teamId, (read) => finishedPerPeriod(read, { ...inputs, ...day, startDate: inputs.startDate!, periods: periods.length }).counts.slice(-PAIRED_PERIODS)),
     said: {
@@ -119,6 +126,12 @@ function comparisonSaid({ versus, ownPeriods, ownMedian = 0 }: OwnComparison, pe
     default:
       return `${versus.kind === 'faster' ? '↑' : '↓'} ${perPeriod(versus.by, period)} ${versus.kind} than the milestone’s own so far (${perPeriod(ownMedian, period)})`
   }
+}
+
+/** Why comparable work's query isn't used: "…nothing finished in the 7 whole weeks pace counts…". */
+function notUsedFlag(periods: number, period: PeriodName): string {
+  const counted = `${periods} whole ${period}${periods === 1 ? '' : 's'}`
+  return `This query matches nothing finished in the ${counted} pace counts, so pace comes from the milestone’s own tickets. Check it picks out ${COMPARABLE_WORK.picksOut}.`
 }
 
 /** A number of tickets a period, to one decimal place: "1.5 a week". */
