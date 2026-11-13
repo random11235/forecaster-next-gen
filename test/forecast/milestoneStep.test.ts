@@ -6,7 +6,9 @@ import { cannedConnector, type CannedFixture } from '../../src/connectors/canned
 import type { Choice, ChoicesOfKind, Connector } from '../../src/connectors/connector.js'
 import { submitConnection, type Connecting } from '../../src/forecast/connection.js'
 import { milestoneStepView, searchedChoiceList, submitMilestoneQuery } from '../../src/forecast/milestoneStep.js'
-import type { StepQuery } from '../../src/forecast/milestoneStep.js'
+import { COMPARABLE_WORK, type StepQuery } from '../../src/forecast/milestoneStep.js'
+import { submitInputs } from '../../src/forecast/inputs.js'
+import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import type { MilestoneQuery } from '../../src/model/milestoneQuery.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
@@ -718,6 +720,8 @@ describe('the step, for another of the team’s queries (#200)', () => {
     return {
       name: 'Other query',
       picksOut: 'the other tickets',
+      optional: false,
+      countsOpen: true,
       saved: (_, teamId) => kept.get(teamId),
       save: (_, teamId, query) => void kept.set(teamId, query),
       kept,
@@ -754,5 +758,119 @@ describe('the step, for another of the team’s queries (#200)', () => {
     expect(view).toMatchObject({
       flag: 'This query matches nothing: no open tickets, and none finished in the last 8 weeks. Check it picks out the other tickets.',
     })
+  })
+})
+
+// The Comparable work step (#201): the same step, editing comparable work's query, kept apart from the milestone's.
+describe('the Comparable work step', () => {
+  test('opens with nothing added, reading nothing, its button reading Skip', async () => {
+    const using = await connected()
+    await submitMilestoneQuery(using, TEAM, add(payments), READ_AT)
+    using.calls.reads = []
+
+    const view = await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)
+
+    expect(using.calls.reads).toEqual([])
+    expect(view).toMatchObject({ picks: [], query: '', onward: 'Skip' })
+    expect(view.kind === 'milestoneStep' && view.read).toBeUndefined()
+  })
+
+  test('joins several picks with OR, saved apart from the milestone query, and reads them once, its button reading Next', async () => {
+    const using = await connected()
+    await submitMilestoneQuery(using, TEAM, add(checkout), READ_AT)
+    using.calls.reads = []
+
+    await submitMilestoneQuery(using, TEAM, add(payments), READ_AT, COMPARABLE_WORK)
+    await submitMilestoneQuery(using, TEAM, add(bug), READ_AT, COMPARABLE_WORK)
+    const view = await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)
+
+    expect(using.calls.reads).toEqual(['milestone:"Payments v2"', 'milestone:"Payments v2" OR label:"bug"'])
+    expect(storage.comparableWorkQuery(TEAM)).toEqual({ picks: [payments, bug], query: 'milestone:"Payments v2" OR label:"bug"' })
+    expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [checkout], query: 'milestone:"Checkout"' })
+    expect(view).toMatchObject({ picks: [payments, bug], query: 'milestone:"Payments v2" OR label:"bug"', onward: 'Next' })
+  })
+
+  test('its read line counts only the finished tickets in the window, its open tickets ignored', async () => {
+    const using = await connected()
+    await submitMilestoneQuery(using, TEAM, add(payments), READ_AT, COMPARABLE_WORK)
+    await submitMilestoneQuery(using, TEAM, add(bug), READ_AT, COMPARABLE_WORK)
+
+    const view = await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)
+
+    expect(view).toMatchObject({ read: '2 finished in the last 8 weeks' })
+  })
+
+  test('written by hand, is saved as written and read', async () => {
+    const using = await connected()
+
+    const submitted = await submitMilestoneQuery(using, TEAM, edit('label:checkout -label:bug'), READ_AT, COMPARABLE_WORK)
+
+    expect(submitted.kind).toBe('saved')
+    expect(using.calls.reads).toEqual(['label:checkout -label:bug'])
+    expect(storage.comparableWorkQuery(TEAM)).toEqual({ picks: [], query: 'label:checkout -label:bug' })
+    expect(storage.milestoneQuery(TEAM)).toBeUndefined()
+    expect(await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)).toMatchObject({ onward: 'Next' })
+  })
+
+  test('reaching into another repo is refused, keeping comparable work as it was', async () => {
+    const using = await connected(reading('repo:someone/else', { failure: 'outOfScope' }))
+    await submitMilestoneQuery(using, TEAM, add(payments), READ_AT, COMPARABLE_WORK)
+
+    const submitted = await submitMilestoneQuery(using, TEAM, edit('repo:someone/else'), READ_AT, COMPARABLE_WORK)
+
+    expect(submitted).toMatchObject({ kind: 'refused', refusal: expect.stringContaining('reaches outside shop-team/shop') })
+    expect(storage.comparableWorkQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
+  })
+
+  test('removing the last chip leaves no comparable-work query, its button reading Skip again', async () => {
+    const using = await connected()
+    await submitMilestoneQuery(using, TEAM, add(payments), READ_AT, COMPARABLE_WORK)
+
+    await submitMilestoneQuery(using, TEAM, remove(payments), READ_AT, COMPARABLE_WORK)
+
+    expect(storage.comparableWorkQuery(TEAM)).toEqual({ picks: [], query: '' })
+    expect(await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)).toMatchObject({ picks: [], query: '', onward: 'Skip' })
+  })
+
+  test('Start afresh clears all of comparable work at once, reading nothing, and leaves the milestone query as it was', async () => {
+    const using = await connected()
+    await submitMilestoneQuery(using, TEAM, add(checkout), READ_AT)
+    await submitMilestoneQuery(using, TEAM, add(payments), READ_AT, COMPARABLE_WORK)
+    await submitMilestoneQuery(using, TEAM, add(bug), READ_AT, COMPARABLE_WORK)
+    using.calls.reads = []
+
+    const submitted = await submitMilestoneQuery(using, TEAM, { kind: 'startAfresh' }, READ_AT, COMPARABLE_WORK)
+
+    expect(submitted).toEqual({ kind: 'saved' })
+    expect(using.calls.reads).toEqual([])
+    expect(storage.comparableWorkQuery(TEAM)).toEqual({ picks: [], query: '' })
+    expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [checkout], query: 'milestone:"Checkout"' })
+    expect(await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)).toMatchObject({ query: '', onward: 'Skip' })
+  })
+
+  test('Start afresh with nothing added changes nothing', async () => {
+    const using = await connected()
+
+    expect(await submitMilestoneQuery(using, TEAM, { kind: 'startAfresh' }, READ_AT, COMPARABLE_WORK)).toEqual({ kind: 'unchanged' })
+    expect(storage.comparableWorkQuery(TEAM)).toBeUndefined()
+  })
+
+  test('carries over: a new name or start date for the milestone leaves comparable work as it was', async () => {
+    const using = await connected()
+    submitInputs(storage, TEAM, DEFAULT_SETTINGS, '2026-11-12', { kind: 'setMilestone', name: 'Launch', startDate: '2026-09-01', ticketsRemaining: '30' })
+    await submitMilestoneQuery(using, TEAM, add(payments), READ_AT, COMPARABLE_WORK)
+    await submitMilestoneQuery(using, TEAM, add(bug), READ_AT, COMPARABLE_WORK)
+
+    submitInputs(storage, TEAM, DEFAULT_SETTINGS, '2026-11-12', { kind: 'setMilestone', name: 'Loyalty', startDate: '2026-11-16', ticketsRemaining: '30' })
+
+    expect(storage.milestoneInputs(TEAM)).toMatchObject({ name: 'Loyalty', startDate: '2026-11-16' })
+    expect(storage.comparableWorkQuery(TEAM)).toEqual({ picks: [payments, bug], query: 'milestone:"Payments v2" OR label:"bug"' })
+    expect(await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)).toMatchObject({ picks: [payments, bug], onward: 'Next' })
+  })
+
+  test('the Milestone step has no Skip or Next of its own', async () => {
+    const using = await connected()
+
+    expect(await milestoneStepView(using, TEAM)).not.toHaveProperty('onward')
   })
 })
