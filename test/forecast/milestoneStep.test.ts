@@ -6,6 +6,8 @@ import { cannedConnector, type CannedFixture } from '../../src/connectors/canned
 import type { Choice, ChoicesOfKind, Connector } from '../../src/connectors/connector.js'
 import { submitConnection, type Connecting } from '../../src/forecast/connection.js'
 import { milestoneStepView, searchedChoiceList, submitMilestoneQuery } from '../../src/forecast/milestoneStep.js'
+import type { StepQuery } from '../../src/forecast/milestoneStep.js'
+import type { MilestoneQuery } from '../../src/model/milestoneQuery.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
 
@@ -706,5 +708,51 @@ describe('a read flagged', () => {
     const view = await milestoneStepView(using, TEAM)
 
     expect(view.kind === 'milestoneStep' && view.flag).toBeUndefined()
+  })
+})
+
+describe('the step, for another of the team’s queries (#200)', () => {
+  /** A query kept apart from the milestone query, as comparable work's will be: its picks and query in a map of their own. */
+  function apart(): StepQuery & { kept: Map<string, MilestoneQuery> } {
+    const kept = new Map<string, MilestoneQuery>()
+    return {
+      name: 'Other query',
+      picksOut: 'the other tickets',
+      saved: (_, teamId) => kept.get(teamId),
+      save: (_, teamId, query) => void kept.set(teamId, query),
+      kept,
+    }
+  }
+
+  test('picks, reads and saves that query, leaving the milestone query as it was', async () => {
+    const using = await connected()
+    await submitMilestoneQuery(using, TEAM, add(payments), READ_AT)
+    const other = apart()
+
+    await submitMilestoneQuery(using, TEAM, add(bug), READ_AT, other)
+    const view = await milestoneStepView(using, TEAM, '', {}, other)
+
+    expect(other.kept.get(TEAM)).toEqual({ picks: [bug], query: 'label:"bug"' })
+    expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
+    expect(view).toMatchObject({ picks: [bug], query: 'label:"bug"' })
+    expect(view.kind === 'milestoneStep' && view.lists).toEqual([
+      { kind: 'milestone', choices: [payments, checkout], searchedInTracker: false },
+      { kind: 'label', choices: [repay], searchedInTracker: false },
+    ])
+    expect(await searchedChoiceList(using, TEAM, 'label', '', other)).toEqual({ kind: 'label', choices: [repay], searchedInTracker: false })
+  })
+
+  test('names what that query picks out when it matches nothing', async () => {
+    const using = await connected()
+    const other = apart()
+
+    await submitMilestoneQuery(using, TEAM, edit('label:"no such label"'), READ_AT, other)
+    const view = await milestoneStepView(using, TEAM, '', {}, other)
+
+    expect(other.kept.get(TEAM)?.query).toBe('label:"no such label"')
+    expect(storage.milestoneQuery(TEAM)).toBeUndefined()
+    expect(view).toMatchObject({
+      flag: 'This query matches nothing: no open tickets, and none finished in the last 8 weeks. Check it picks out the other tickets.',
+    })
   })
 })

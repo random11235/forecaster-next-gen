@@ -2,10 +2,35 @@ import type { Choice, ChoiceKind, ChoicesOfKind, Connector, Failure } from '../c
 import type { Connection } from '../model/connection.js'
 import type { MilestoneQuery } from '../model/milestoneQuery.js'
 import type { SavedRead } from '../model/savedRead.js'
+import type { MilestoneQueryStorage } from '../storage/storage.js'
 import { DAY_MS } from '../model/time.js'
 import { teamConnection, type Connecting } from './connection.js'
 import { readQuery, ticketsRemaining, type QueryRead } from './finished.js'
 import { trackerOf, type TrackerFacts } from './trackers.js'
+
+/**
+ * Which of the team's queries a step edits, picked or written by hand the same way: the milestone query
+ * (`MILESTONE_QUERY`), and comparable work's next (#158). It says how the step names the query, and where its picks and
+ * query are kept.
+ */
+export interface StepQuery {
+  /** The query as the step labels it: "Milestone query". */
+  name: string
+  /** What the query is to pick out, as the step says when it matches nothing: "the milestone’s tickets". */
+  picksOut: string
+  /** The team's picks and query, if the EM has picked or written one. */
+  saved(storage: MilestoneQueryStorage, teamId: string): MilestoneQuery | undefined
+  /** Saves the team's picks and query, replacing both. */
+  save(storage: MilestoneQueryStorage, teamId: string, query: MilestoneQuery): void
+}
+
+/** The milestone query, which picks out the milestone's tickets: what the Milestone step edits. */
+export const MILESTONE_QUERY: StepQuery = {
+  name: 'Milestone query',
+  picksOut: 'the milestone’s tickets',
+  saved: (storage, teamId) => storage.milestoneQuery(teamId),
+  save: (storage, teamId, query) => storage.saveMilestoneQuery(teamId, query),
+}
 
 /** What the Milestone step says once, beside the milestone query: the only two things a read adds to it. */
 export const LEAF_NOTE = 'Leaf tickets only. Epics include their sub-epics.'
@@ -102,19 +127,21 @@ export const BACK_CLEARS = 'The picker can’t show this query, so going back to
 /**
  * Seam B: the team's Milestone step, opened: the choices are asked for once, here, and kept nowhere, so each opening
  * lists them afresh. Each list holds the choices whose name holds `find`, ignoring case, less those already picked.
- * The milestone query is open for editing when `opening` asks, or when the picker can't show it.
+ * The milestone query is open for editing when `opening` asks, or when the picker can't show it. The step edits
+ * `stepQuery`, the milestone query unless given.
  */
 export async function milestoneStepView(
   connecting: Connecting | undefined,
   teamId: string,
   find = '',
   opening: MilestoneStepOpening = {},
+  stepQuery: StepQuery = MILESTONE_QUERY,
 ): Promise<MilestoneStepView> {
   const connected = connecting && (await teamConnection(connecting, teamId))
   if (!connected) return { kind: 'noMilestoneStep' }
   const { connection, connector } = connected
   const tracker = trackerOf(connection)
-  const saved = connecting.milestoneQueries.milestoneQuery(teamId) ?? NO_QUERY
+  const saved = stepQuery.saved(connecting.milestoneQueries, teamId) ?? NO_QUERY
   const read = saved.query === '' ? undefined : connecting.reads.savedRead({ teamId, query: saved.query })
   const shownAsChips = chipsShow(tracker, saved)
   const refused = opening.refused?.fromPicks ? undefined : opening.refused
@@ -136,7 +163,7 @@ export async function milestoneStepView(
     query: saved.query,
     note: LEAF_NOTE,
     ...(read && !read.incomplete && { read: readLine(read) }),
-    ...(read && readFlag(read, tracker.name)),
+    ...(read && readFlag(read, tracker.name, stepQuery)),
     ...(!editing && opening.refused?.fromPicks && { refusal: opening.refused.refusal }),
     ...(editing && { editing }),
   }
@@ -163,13 +190,20 @@ function listedHere({ kind, choices, pastLimit }: ChoicesOfKind, typed: string, 
 /**
  * Seam B: one kind past the limit, searched in the tracker for `find`, as the Milestone step's picker asks for it while
  * the EM types: the choices the tracker finds, less those already picked. With nothing typed (the find box cleared), it
- * is the first 100 the tracker lists, searching nothing. None before the team connects.
+ * is the first 100 the tracker lists, searching nothing. None before the team connects. Picked means picked for
+ * `stepQuery`, the milestone query unless given.
  */
-export async function searchedChoiceList(connecting: Connecting, teamId: string, kind: ChoiceKind, find: string): Promise<ChoiceList | undefined> {
+export async function searchedChoiceList(
+  connecting: Connecting,
+  teamId: string,
+  kind: ChoiceKind,
+  find: string,
+  stepQuery: StepQuery = MILESTONE_QUERY,
+): Promise<ChoiceList | undefined> {
   const connected = await teamConnection(connecting, teamId)
   if (!connected) return undefined
   if (connected.connector === 'keychainFailed') return { kind, choices: [], searchedInTracker: true, failure: KEYCHAIN_FAILED }
-  const unpicked = notPicked(connecting.milestoneQueries.milestoneQuery(teamId)?.picks ?? [])
+  const unpicked = notPicked(stepQuery.saved(connecting.milestoneQueries, teamId)?.picks ?? [])
   const typed = find.trim()
   if (typed !== '') return foundInTracker(connected.connector, kind, typed, unpicked)
   const choices = await connected.connector.milestoneChoices()
@@ -207,12 +241,12 @@ function readLine(read: SavedRead): string {
 }
 
 /** A read's flag: incomplete, asking to narrow the query; or matching nothing. None for a read with all its tickets. */
-function readFlag(read: SavedRead, trackerName: string): { flag: string } | undefined {
+function readFlag(read: SavedRead, trackerName: string, { picksOut }: StepQuery): { flag: string } | undefined {
   if (read.incomplete) {
     return { flag: `${trackerName} gave only part of what this query matches, so its tickets aren’t counted. Narrow the query to read all of it.` }
   }
   if (read.tickets.length === 0) {
-    return { flag: `This query matches nothing: no open tickets, and none finished in the last ${FINISHED_WEEKS} weeks. Check it picks out the milestone’s tickets.` }
+    return { flag: `This query matches nothing: no open tickets, and none finished in the last ${FINISHED_WEEKS} weeks. Check it picks out ${picksOut}.` }
   }
   return undefined
 }
@@ -234,13 +268,15 @@ type PicksEdit = { kind: 'addPick'; choice: Choice } | { kind: 'removePick'; que
  * Before any of that, a hand-edited query with free text or an empty qualifier is refused, changing nothing. The
  * query is saved only once read, unless its read says it is wrong: the tracker rejecting it, or it reaching outside
  * the connection, refuses it, and the last query that worked stays in use, with its saved read. Going back to finding
- * from a query the picker can't show changes nothing until confirmed.
+ * from a query the picker can't show changes nothing until confirmed. The query changed is `stepQuery`, the milestone
+ * query unless given.
  */
 export async function submitMilestoneQuery(
   connecting: Connecting,
   teamId: string,
   edit: MilestoneQueryEdit,
   readAt: string,
+  stepQuery: StepQuery = MILESTONE_QUERY,
 ): Promise<MilestoneQuerySubmitted> {
   const connected = await teamConnection(connecting, teamId)
   if (!connected) return { kind: 'unchanged' }
@@ -250,7 +286,7 @@ export async function submitMilestoneQuery(
     const refusal = tracker.queryRefusal(edit.query)
     if (refusal) return { kind: 'refused', query: edit.query, refusal }
   }
-  const before = connecting.milestoneQueries.milestoneQuery(teamId) ?? NO_QUERY
+  const before = stepQuery.saved(connecting.milestoneQueries, teamId) ?? NO_QUERY
   const clears = edit.kind === 'backToFinding' && !chipsShow(tracker, before)
   if (clears && !edit.confirmed) return { kind: 'confirmClear' }
   const after =
@@ -258,7 +294,7 @@ export async function submitMilestoneQuery(
     : edit.kind === 'backToFinding' ? (clears ? NO_QUERY : before)
     : picksChanged(before, edit)
   if (after === before) return { kind: 'unchanged' }
-  const save = (): void => connecting.milestoneQueries.saveMilestoneQuery(teamId, after)
+  const save = (): void => stepQuery.save(connecting.milestoneQueries, teamId, after)
   if (after.query === '' || connector === 'keychainFailed') {
     save()
     return { kind: 'saved' }
