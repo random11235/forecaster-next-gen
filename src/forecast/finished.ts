@@ -35,6 +35,12 @@ export async function readQuery(connector: Connector, reads: SavedReadStorage, {
   return { ok: true, read }
 }
 
+/** The query's saved read, when there is a query and its read has all its tickets. */
+export function completeRead(reads: Pick<SavedReadStorage, 'savedRead'>, teamId: string, query: string | undefined): SavedRead | undefined {
+  const read = query ? reads.savedRead({ teamId, query }) : undefined
+  return read && !read.incomplete ? read : undefined
+}
+
 /** A query's tickets remaining: its open tickets when it was read. */
 export function ticketsRemaining(read: SavedRead): number {
   return read.tickets.filter((ticket) => ticket.finishedAt === undefined).length

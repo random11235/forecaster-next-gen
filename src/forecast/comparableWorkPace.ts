@@ -1,6 +1,6 @@
 import type { SavedRead } from '../model/savedRead.js'
 import { periodName } from './cadence.js'
-import { finishedPerPeriod, ticketsRemaining } from './finished.js'
+import { completeRead, finishedPerPeriod } from './finished.js'
 import type { PeriodName } from './cadence.js'
 import { COMPARABLE_WORK } from './milestoneStep.js'
 import { paceReads, type PaceDay, type PaceFrom, type PaceReadsStorage } from './paceReads.js'
@@ -34,7 +34,7 @@ export interface PickPace {
   strip: number[]
   /** How many it finished in the weeks its read reaches back. */
   finished: number
-  /** With several picks, how many of those no other pick's read has. */
+  /** With several picks, how many of those no other pick's read has; none while any pick has no complete read. */
   onlyHere?: number
 }
 
@@ -146,21 +146,26 @@ function range({ low, high }: PaceInUse): string {
   return low === high ? `${low}` : `${low}–${high}`
 }
 
-/** Each of comparable work's picks with a complete read of its own, with its `strip` of the periods paired. */
+/**
+ * Each of comparable work's picks with a complete read of its own, with its `strip` of the periods paired. With several
+ * picks, each one's only-here count needs every other pick's read: with any unread, it is unknown for all of them, as
+ * a ticket the unread pick shares would count as only here.
+ */
 function picksPace(storage: PaceReadsStorage, teamId: string, strip: (read: SavedRead) => number[]): PickPace[] {
   const picks = storage.comparableWorkQuery(teamId)?.picks ?? []
   const read = picks.flatMap((pick) => {
-    const saved = storage.savedRead({ teamId, query: pick.query })
-    return saved && !saved.incomplete ? [{ query: pick.query, read: saved }] : []
+    const saved = completeRead(storage, teamId, pick.query)
+    return saved ? [{ query: pick.query, read: saved }] : []
   })
+  const comparing = picks.length > 1 && read.length === picks.length
   return read.map(({ query, read: own }) => {
     const elsewhere = new Set(read.filter((other) => other.query !== query).flatMap((other) => other.read.tickets.map((ticket) => ticket.id)))
     const finished = own.tickets.filter((ticket) => ticket.finishedAt !== undefined)
     return {
       query,
       strip: strip(own),
-      finished: own.tickets.length - ticketsRemaining(own),
-      ...(picks.length > 1 && { onlyHere: finished.filter((ticket) => !elsewhere.has(ticket.id)).length }),
+      finished: finished.length,
+      ...(comparing && { onlyHere: finished.filter((ticket) => !elsewhere.has(ticket.id)).length }),
     }
   })
 }

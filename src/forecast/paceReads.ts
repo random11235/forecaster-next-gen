@@ -2,7 +2,7 @@ import type { SavedRead } from '../model/savedRead.js'
 import { DAY_MS } from '../model/time.js'
 import type { MilestoneQueryStorage, SavedReadStorage, Storage } from '../storage/storage.js'
 import { daysBetween } from './calendarDate.js'
-import { calendarDayIn, finishedPerPeriod, ticketsRemaining } from './finished.js'
+import { calendarDayIn, completeRead, finishedPerPeriod, ticketsRemaining } from './finished.js'
 import { FINISHED_WEEKS } from './milestoneStep.js'
 import type { DatedCounts } from './paceWindow.js'
 
@@ -71,12 +71,6 @@ export function paceReads(storage: PaceReadsStorage, teamId: string, { today, ti
   const both = { milestone, beforeStart, comparableWork, ticketsRemaining: milestoneRead && ticketsRemaining(milestoneRead) }
   if (usesComparable) return { from: 'comparableWork', pace: comparableWork!, ...both }
   return { from: 'milestone', pace: { counts: milestone!.counts.slice(beforeStart), starts: milestone!.starts.slice(beforeStart) }, ...both }
-}
-
-/** The query's saved read, when there is a query and its read has all its tickets. */
-function completeRead(reads: Pick<SavedReadStorage, 'savedRead'>, teamId: string, query: string | undefined): SavedRead | undefined {
-  const read = query ? reads.savedRead({ teamId, query }) : undefined
-  return read && !read.incomplete ? read : undefined
 }
 
 /**

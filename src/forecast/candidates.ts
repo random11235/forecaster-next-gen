@@ -5,7 +5,7 @@ import { DAY_MS } from '../model/time.js'
 import type { SavedReadStorage, Storage } from '../storage/storage.js'
 import { daysBetween } from './calendarDate.js'
 import { teamConnection, type Connecting } from './connection.js'
-import { calendarDayIn, finishedPerPeriod, ticketsRemaining } from './finished.js'
+import { calendarDayIn, completeRead, finishedPerPeriod, ticketsRemaining } from './finished.js'
 import { FINISHED_WEEKS, type ChoiceList } from './milestoneStep.js'
 import { firstWholePeriod, paceReads, type PaceReadsStorage } from './paceReads.js'
 import type { DatedCounts } from './paceWindow.js'
@@ -154,9 +154,8 @@ function failureOf(connection: Connection, failure: Failure): string {
 
 /** The finished tickets' ids in the query's saved read, when it has a complete one. */
 function finishedIds(reads: Pick<SavedReadStorage, 'savedRead'>, teamId: string, query: string | undefined): Set<string> | undefined {
-  const read = query ? reads.savedRead({ teamId, query }) : undefined
-  if (!read || read.incomplete) return undefined
-  return new Set(read.tickets.filter((ticket) => ticket.finishedAt !== undefined).map((ticket) => ticket.id))
+  const read = completeRead(reads, teamId, query)
+  return read && new Set(read.tickets.filter((ticket) => ticket.finishedAt !== undefined).map((ticket) => ticket.id))
 }
 
 function candidateRead(

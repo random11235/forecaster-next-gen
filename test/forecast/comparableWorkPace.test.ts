@@ -259,6 +259,15 @@ describe('each pick', () => {
     ])
   })
 
+  test('a pick whose own read is incomplete has no chip pace, and only-here is unknown for the rest', async () => {
+    const capped: CannedFixture = { ...FIXTURE, reads: { ...FIXTURE.reads, [shared.query]: { tickets: SHARED_TICKETS, incomplete: true } } }
+    using = { ...using, connector: () => cannedConnector(capped) }
+    await addComparable(slow)
+    await addComparable(shared)
+
+    expect(comparableWorkPace(storage, TEAM, AT)?.picks).toEqual([{ query: slow.query, strip: SLOW, finished: 12 }])
+  })
+
   test('removing a pick leaves the rest', async () => {
     await addComparable(slow)
     await addComparable(shared)
