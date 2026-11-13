@@ -6,7 +6,7 @@
 // EM see it? Four variants, switchable via `?variant=A|B|C|D` (or ← → keys, or the bar at the bottom):
 //   A  Kept until changed: no new-milestone moment; comparable work stays until the EM edits or removes it.
 //   B  Cleared on rename: saving the milestone under a new name clears comparable work, with an Undo.
-//   C  Start a new milestone: an explicit action that says what resets (picks, comparable work) and what stays.
+//   C  Start a new milestone: an explicit action that says what resets (comparable work) and what stays.
 //   D  Carried over, flagged: kept, but marked "picked for <old milestone>" until the EM keeps or clears it.
 // The scene: the Shop team has finished "Checkout v2" and moves on to "Loyalty launch". All state is in memory;
 // reload to reset. Run: `npm run prototype:comparable` (builds, writes dist/prototype/comparable-carry-over.html, opens it).
@@ -95,7 +95,7 @@ function milestoneSection() {
   return '<section class="input" id="milestone"><div class="label"><span class="number">01</span><h2>Milestone</h2><p>What you\u2019re forecasting.</p></div><div class="body">' +
     '<form data-form="milestone"><label class="label">Name <input name="name" value="' + esc(m.name) + '"></label> ' +
     '<label class="label">Start date <input name="startDate" type="date" value="' + m.startDate + '"></label>' +
-    '<div class="actions"><button type="submit" class="primary">Save milestone</button></div></form>' + start + '</section>'
+    '<div class="actions"><button type="submit" class="primary">Save milestone</button></div></form>' + queryLine() + start + '</div></section>'
 }
 
 function startForm() {
@@ -103,10 +103,25 @@ function startForm() {
   return '<form data-form="start" class="stale"><b>Start a new milestone</b>' +
     '<div class="row"><label class="label">Name <input name="name" placeholder="Loyalty launch" required></label> ' +
     '<label class="label">Start date <input name="startDate" type="date" value="2026-11-16"></label></div>' +
-    '<table class="resets"><tr><td>Milestone’s tickets</td><td>pick again <span class="muted">(was ' + esc(state.milestonePicks.map((p) => p.name).join(', ') || 'nothing') + ')</span></td></tr>' +
+    '<table class="resets">' +
     '<tr><td>Comparable work</td><td>cleared <span class="muted">(was ' + esc(c.map((p) => p.name).join(', ') || 'nothing') + ')</span></td></tr>' +
-    '<tr><td>Connection, cadence, capacity</td><td>kept</td></tr></table>' +
+    '<tr><td>Milestone query</td><td>follows the tracker’s milestone of the new name</td></tr><tr><td>Connection, cadence, capacity</td><td>kept</td></tr></table>' +
     '<button type="submit" class="primary">Start Loyalty launch</button> <button type="button" data-act="start-cancel" class="linkish">Cancel</button></form>'
+}
+
+function queryLine() {
+  const p = state.milestonePicks
+  return '<p><span class="label">Milestone query</span> <code>' + esc(joined(p)) + '</code></p>' +
+    '<p class="read">' + sum(p, 'open') + ' open · ' + sum(p, 'finished') + ' finished in the last 8 weeks</p>'
+}
+
+// Moving on: a milestone query that is the tracker's milestone of the old name follows the new name.
+function followName(oldName, newName) {
+  const p = state.milestonePicks
+  if (p.length === 1 && p[0].query === 'milestone:"' + oldName + '"') {
+    state.milestonePicks = [CHOICES.find((c) => c.query === 'milestone:"' + newName + '"') ??
+      { kind: 'milestone', name: newName, query: 'milestone:"' + newName + '"', finished: 0, open: 0 }]
+  }
 }
 
 function milestoneTicketsSection() {
@@ -134,7 +149,7 @@ function comparableSection() {
   const read = '<p class="read">' + (own + comparableOnly) + ' finished in the last 8 weeks: ' + own + ' the milestone’s own' +
     (c.picks.length ? ', ' + comparableOnly + ' comparable' : '') + '</p>'
   const button = c.picks.length ? 'Next' : 'Skip'
-  return '<section class="input" id="comparable-work"><div class="label"><span class="number">03</span><h2>Comparable work</h2>' + owner + '<p>Optional. Work like this milestone’s, to measure its pace from. The milestone’s own finished tickets always count.</p></div><div class="body">' +
+  return '<section class="input" id="comparable-work"><div class="label"><span class="number">02</span><h2>Comparable work</h2>' + owner + '<p>Optional. Work like this milestone’s, to measure its pace from. The milestone’s own finished tickets always count.</p></div><div class="body">' +
     notice + flag + chips(c.picks, 'comparable') + pickable(c.picks, 'comparable') +
     '<p><span class="label">Comparable-work query</span> ' + (c.picks.length ? '<code>' + esc(joined(c.picks)) + '</code>' : '<span class="muted">None: pace comes from the milestone’s own tickets.</span>') + '</p>' +
     read + '<div class="actions"><button class="primary">' + button + '</button></div></div></section>'
@@ -143,7 +158,7 @@ function comparableSection() {
 function render() {
   const main = document.getElementById('proto')
   main.innerHTML = '<p class="proto-banner">PROTOTYPE · variant ' + variant + ': ' + VARIANTS[variant] + ' · try moving on from “Checkout v2” to “Loyalty launch” · reload to reset</p>' +
-    milestoneSection() + milestoneTicketsSection() + comparableSection() +
+    milestoneSection() + comparableSection() +
     '<pre class="state">state = ' + esc(JSON.stringify({
       milestone: state.milestone,
       milestoneQuery: joined(state.milestonePicks),
@@ -182,11 +197,12 @@ document.addEventListener('submit', (e) => {
       state.notice = state.comparable
       state.comparable = { picks: [], pickedFor: name }
     }
+    followName(state.milestone.name, name)
     state.milestone = { name, startDate }
   }
   if (e.target.dataset.form === 'start') {
+    followName(state.milestone.name, name)
     state.milestone = { name, startDate }
-    state.milestonePicks = []
     state.comparable = { picks: [], pickedFor: name }
     state.starting = false
   }
