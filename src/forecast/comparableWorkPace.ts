@@ -1,5 +1,7 @@
+import type { SavedRead } from '../model/savedRead.js'
 import type { MilestoneQueryStorage, SavedReadStorage, Storage } from '../storage/storage.js'
 import { periodName } from './cadence.js'
+import { finishedPerPeriod, ticketsRemaining } from './finished.js'
 import { comparedWithOwn, comparisonSaid, median, perPeriod, type PaceComparison } from './paceComparison.js'
 import { paceReads, type PaceDay, type PaceFrom } from './paceReads.js'
 
@@ -22,6 +24,18 @@ export interface PairedPeriod {
   beforeStart: boolean
 }
 
+/** One of comparable work's picks, by its own read: what its chip shows. */
+export interface PickPace {
+  /** The pick's query, which names it among the picks. */
+  query: string
+  /** Its finished tickets in each of the periods paired. */
+  strip: number[]
+  /** How many it finished in the weeks its read reaches back. */
+  finished: number
+  /** With several picks, how many of those no other pick's read has. */
+  onlyHere?: number
+}
+
 /** How many periods the step pairs, the most recent. */
 export const PAIRED_PERIODS = 8
 
@@ -36,6 +50,8 @@ export interface ComparableWorkPace {
   comparison?: PaceComparison
   /** The last `PAIRED_PERIODS` whole periods the reads reach, oldest first. */
   periods: PairedPeriod[]
+  /** Comparable work's picks, in the order picked, each that has a complete read of its own. */
+  picks: PickPace[]
   said: {
     /** "2 a week". */
     inUse?: string
@@ -71,6 +87,7 @@ export function comparableWorkPace(storage: Storage & MilestoneQueryStorage & Sa
     ...(inUse && { inUse }),
     ...(comparison && { comparison }),
     periods: periods.slice(-PAIRED_PERIODS),
+    picks: picksPace(storage, teamId, (read) => finishedPerPeriod(read, { ...inputs, ...day, startDate: inputs.startDate!, periods: periods.length }).counts.slice(-PAIRED_PERIODS)),
     said: {
       ...(inUse && { inUse: perPeriod(inUse.median, period), from: `pace, from ${FROM_SAID[inUse.from]}, range ${range(inUse)}` }),
       ...(comparison && { comparison: comparisonSaid(comparison, period) }),
@@ -83,4 +100,23 @@ const FROM_SAID: Readonly<Record<PaceFrom, string>> = { comparableWork: 'compara
 /** "1–2", or "2" when the range is one count. */
 function range({ low, high }: PaceInUse): string {
   return low === high ? `${low}` : `${low}–${high}`
+}
+
+/** Each of comparable work's picks with a complete read of its own, with its `strip` of the periods paired. */
+function picksPace(storage: MilestoneQueryStorage & SavedReadStorage, teamId: string, strip: (read: SavedRead) => number[]): PickPace[] {
+  const picks = storage.comparableWorkQuery(teamId)?.picks ?? []
+  const read = picks.flatMap((pick) => {
+    const saved = storage.savedRead({ teamId, query: pick.query })
+    return saved && !saved.incomplete ? [{ query: pick.query, read: saved }] : []
+  })
+  return read.map(({ query, read: own }) => {
+    const elsewhere = new Set(read.filter((other) => other.query !== query).flatMap((other) => other.read.tickets.map((ticket) => ticket.id)))
+    const finished = own.tickets.filter((ticket) => ticket.finishedAt !== undefined)
+    return {
+      query,
+      strip: strip(own),
+      finished: own.tickets.length - ticketsRemaining(own),
+      ...(picks.length > 1 && { onlyHere: finished.filter((ticket) => !elsewhere.has(ticket.id)).length }),
+    }
+  })
 }

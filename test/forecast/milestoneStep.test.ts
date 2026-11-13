@@ -723,6 +723,7 @@ describe('the step, for another of the team’s queries (#200)', () => {
       picksOut: 'the other tickets',
       optional: false,
       countsOpen: true,
+      readsEachPick: false,
       saved: (_, teamId) => kept.get(teamId),
       save: (_, teamId, query) => void kept.set(teamId, query),
       kept,
@@ -776,7 +777,7 @@ describe('the Comparable work step', () => {
     expect(view.kind === 'milestoneStep' && view.read).toBeUndefined()
   })
 
-  test('joins several picks with OR, saved apart from the milestone query, and reads them once, its button reading Next', async () => {
+  test('joins several picks with OR, saved apart from the milestone query, and reads it once and each pick once (#204), its button reading Next', async () => {
     const using = await connected()
     await submitMilestoneQuery(using, TEAM, add(checkout), READ_AT)
     using.calls.reads = []
@@ -785,7 +786,12 @@ describe('the Comparable work step', () => {
     await submitMilestoneQuery(using, TEAM, add(bug), READ_AT, COMPARABLE_WORK)
     const view = await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)
 
-    expect(using.calls.reads).toEqual(['milestone:"Payments v2"', 'milestone:"Payments v2" OR label:"bug"'])
+    expect(using.calls.reads).toEqual([
+      'milestone:"Payments v2"',
+      'milestone:"Payments v2" OR label:"bug"',
+      'milestone:"Payments v2"',
+      'label:"bug"',
+    ])
     expect(storage.comparableWorkQuery(TEAM)).toEqual({ picks: [payments, bug], query: 'milestone:"Payments v2" OR label:"bug"' })
     expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [checkout], query: 'milestone:"Checkout"' })
     expect(view).toMatchObject({ picks: [payments, bug], query: 'milestone:"Payments v2" OR label:"bug"', onward: 'Next' })
