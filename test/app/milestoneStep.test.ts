@@ -316,6 +316,24 @@ describe('the Milestone step', () => {
     })
   })
 
+  test('renaming the milestone, as posted or saved in place, moves a query of its tracker milestone to the new name', async () => {
+    const running = await startConnected()
+    await post(running, '/inputs/milestone', { name: 'Payments v2', startDate: '2026-10-01', ticketsRemaining: '20' })
+    await post(running, '/inputs/milestone-query/add', { kind: 'milestone', name: 'Payments v2', query: 'milestone:"Payments v2"' })
+
+    const renamed = await post(running, '/inputs/milestone', { name: 'Checkout', startDate: '2026-10-01', ticketsRemaining: '20' })
+
+    expect(renamed.status).toBe(303)
+    expect(stepOf(await page(running))).toMatch(/class="chip"[^]*Checkout[^]*This query matches nothing/)
+    const back = await fetch(new URL('/inputs/milestone', running.url), {
+      method: 'POST',
+      body: new URLSearchParams({ name: 'Payments v2', startDate: '2026-10-01', ticketsRemaining: '20' }),
+      headers: { 'forecaster-save': 'in-place' },
+    })
+    expect(back.status).toBe(200)
+    expect(stepOf(await page(running))).toContain('1 open · 1 finished in the last 8 weeks')
+  })
+
   test('before connecting, there is none', async () => {
     storage = openSqliteStorage(':memory:')
     const connecting: Connecting = { connections: storage, reads: storage, milestoneQueries: storage, secrets: openMemorySecrets(), connector: () => cannedConnector(FIXTURE) }
