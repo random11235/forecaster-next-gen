@@ -21,6 +21,8 @@ import { CONNECT_FORMS } from './connectSection.js'
 import { renderHowItWorksScreen } from './howItWorksScreen.js'
 import { INPUTS_FORMS, renderInputsScreen } from './inputsScreen.js'
 import { CAPACITY_OPEN, CAPACITY_OPEN_PATH, FORECAST_FORMS, renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
+import { comparableWorkPace, type ComparableWorkPace } from '../forecast/comparableWorkPace.js'
+import type { PaceReadsStorage } from '../forecast/paceReads.js'
 import { choiceListHtml, COMPARABLE_WORK_STEP, CONFIRMING_BACK, KIND_FIELD, MILESTONE_STEP, OPEN_FIELD, STEP_SECTIONS, type StepSection } from './milestoneStepSection.js'
 import { CANDIDATES_PATH, candidatesHtml, choicesAsked, keepOpening, OPENING_FIELD, openingKept } from './candidatesSection.js'
 import { narrowedToAFew, openCandidates, type CandidatesAt } from '../forecast/candidates.js'
@@ -231,7 +233,8 @@ async function inputsWithStep(
         : { editing, confirmingBack: editing && searchParams.get(CONFIRMING_BACK.name) === CONFIRMING_BACK.value, unlisted }
     const find = searchParams.get(section.findField) ?? ''
     const stepView = await milestoneStepView(listing, team.id, find, opening, section.stepQuery)
-    steps.push({ section, view: stepView, ...(await candidatesShown({ context, connecting, team, searchParams }, section, stepView, find)) })
+    const pace = section.leadsWithPace ? stepPace(context, connecting, team.id) : undefined
+    steps.push({ section, view: stepView, ...(pace && { pace }), ...(await candidatesShown({ context, connecting, team, searchParams }, section, stepView, find)) })
   }
   const html = renderInputsScreen(
     view ?? inputsView(context.storage, team.id, settings, context.today()),
@@ -239,6 +242,20 @@ async function inputsWithStep(
     steps,
   )
   return { kind: 'html', status, html, ...(request.method === 'POST' && { path: SCREEN_PATHS.inputs }) }
+}
+
+/**
+ * The Comparable work step's pace, from the saved reads alone, so the tracker isn't asked again; each finish is
+ * counted on its calendar day in the machine's time zone, as today is.
+ */
+function stepPace({ storage, today }: AppContext, { milestoneQueries, reads }: Connecting, teamId: string): ComparableWorkPace | undefined {
+  const stored: PaceReadsStorage = {
+    milestoneInputs: (id) => storage.milestoneInputs(id),
+    milestoneQuery: (id) => milestoneQueries.milestoneQuery(id),
+    comparableWorkQuery: (id) => milestoneQueries.comparableWorkQuery(id),
+    savedRead: (teamQuery) => reads.savedRead(teamQuery),
+  }
+  return comparableWorkPace(stored, teamId, { today: today(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone })
 }
 
 /** `connecting`, but its connectors ask the tracker for the milestone choices once between them, however often asked. */

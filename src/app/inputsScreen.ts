@@ -10,6 +10,7 @@ import type { PaceMode } from '../model/milestoneInputs.js'
 import { CONNECT_HINT, connectSection } from './connectSection.js'
 import { escapeHtml, htmlPage } from './html.js'
 import { INPUTS_SCRIPT } from './inputsScript.js'
+import type { ComparableWorkPace } from '../forecast/comparableWorkPace.js'
 import { candidatesScript } from './candidatesSection.js'
 import { milestoneStepScript, milestoneStepSection, type StepSection } from './milestoneStepSection.js'
 import { renderPaceTrend } from './paceTrendGraph.js'
@@ -57,6 +58,8 @@ export const INPUTS_FORMS: ReadonlyMap<string, FormReader> = new Map<string, For
 export interface ShownStep {
   section: StepSection
   view: MilestoneStepView
+  /** The pace the step leads with: the Comparable work step's, once there is one. */
+  pace?: ComparableWorkPace
   /** Its candidates for comparable work, below its picker (`candidatesHtml`, #205); none for a step without them. */
   candidates?: string
 }
@@ -70,8 +73,8 @@ export function renderInputsScreen(screen: InputsView, connection: ConnectionVie
   const { milestone, forms } = screen
   const error = (form: InputsForm): string | undefined => (screen.refusal?.form === form ? screen.refusal.error : undefined)
   const connect = connectSection(connection)
-  const pickers = steps.flatMap(({ section, view, candidates }) => {
-    const picker = milestoneStepSection(view, section)
+  const pickers = steps.flatMap(({ section, view, pace, candidates }) => {
+    const picker = milestoneStepSection(view, section, pace)
     return picker === undefined ? [] : [{ section, picker: picker + (candidates ?? '') }]
   })
   const sections = [

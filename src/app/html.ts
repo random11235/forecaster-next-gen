@@ -308,6 +308,27 @@ const STYLE = `
     .picker form.back { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border-top: 1px solid var(--hairline); padding-top: 12px; }
     .picker .warn { margin: 0; color: var(--risk); }
     .picker form.back a.keep { font-size: 13px; color: var(--link); }
+    /* The Comparable work step's pace: the pace in use, how far from the milestone's own, and the two paired per period. */
+    .step-pace { display: flex; flex-direction: column; gap: 4px; padding-bottom: 12px; border-bottom: 1px solid var(--hairline); }
+    .step-pace p { margin: 0; }
+    .step-pace .headline { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .step-pace .headline small { font-size: 14px; font-weight: 400; color: var(--muted); }
+    .step-pace .delta { font-size: 15px; color: var(--muted); }
+    .step-pace .delta.faster { color: var(--good); }
+    .step-pace .delta.slower { color: var(--risk); }
+    .step-pace .delta.aboutTheSame { color: var(--ink); }
+    ol.pairs { list-style: none; margin: 8px 0 0; padding: 0; display: flex; gap: 12px; align-items: flex-end; height: 100px; }
+    ol.pairs .period { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px; height: 100%; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+    ol.pairs .two { display: flex; gap: 2px; align-items: flex-end; }
+    ol.pairs i, .step-pace .legend i { display: block; width: 11px; }
+    .step-pace .comparable, .chip .strip i { background: var(--bar); }
+    .step-pace .own { background: var(--ink); }
+    .step-pace i.before { background: repeating-linear-gradient(45deg, var(--border) 0 3px, transparent 3px 6px); box-shadow: inset 0 0 0 1px var(--border); }
+    .step-pace .legend { font-size: 12px; color: var(--muted); }
+    .step-pace .legend i { display: inline-block; height: 10px; vertical-align: middle; margin: 0 3px 0 8px; }
+    .step-pace .legend i:first-child { margin-left: 0; }
+    .chip .strip { display: inline-flex; align-items: flex-end; gap: 1px; height: 12px; }
+    .chip .strip i { display: block; width: 3px; }
     /* Candidates for comparable work (#205): a pace link beside each choice, and those read, grouped against the milestone's own. */
     .found form.candidate { flex-direction: row; align-items: center; gap: 8px; }
     .found form.candidate button { flex: 1; }
