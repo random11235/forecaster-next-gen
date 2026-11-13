@@ -1,12 +1,12 @@
 /**
- * What the Milestone step reads of a milestone query edited by hand, in each tracker's language, each tracker's
- * through its one scanner (`githubTerms`, `jqlTokens`).
+ * Each tracker's query language, as the Milestone step reads a milestone query edited by hand: each tracker's through
+ * its one scanner (`githubTerms`, `jqlTokens`). This module changes only when how a query is read here does.
  *
- * Why it is refused before it is read: free text, which steers the EM to epics, labels and milestones (fix versions
- * on Jira), and an empty qualifier, such as `label:` (#136's defaults). Nothing else is checked: the query is read as
- * written, so a mistyped qualifier the tracker accepts goes unflagged, as it would in the tracker.
- *
- * And the parts it joins with OR, and what each names, by which the picker finds the choices a query is an OR of.
+ * It reads two things. Why a query is refused before it is read: free text, which steers the EM to epics, labels and
+ * milestones (fix versions on Jira), and an empty qualifier, such as `label:` (#136's defaults). Nothing else is
+ * checked: the query is read as written, so a mistyped qualifier the tracker accepts goes unflagged, as it would in
+ * the tracker. And the parts it joins with OR, and what each names, by which the picker finds the choices a query is
+ * an OR of; a choice's query is built by its connector, and only read back here.
  */
 
 /** A piece of a query as its scanner finds it, and where in the query it starts. */
