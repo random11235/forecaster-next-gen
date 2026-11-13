@@ -1,5 +1,5 @@
-import type { ChoiceList, MilestoneQueryEdit, MilestoneStep, MilestoneStepView, QueryEditing } from '../forecast/milestoneStep.js'
-import { kindName } from '../forecast/milestoneStep.js'
+import type { ChoiceList, MilestoneQueryEdit, MilestoneStep, MilestoneStepView, QueryEditing, StepQuery } from '../forecast/milestoneStep.js'
+import { kindName, MILESTONE_QUERY } from '../forecast/milestoneStep.js'
 import { choiceKindOf } from '../connectors/connector.js'
 import { escapeHtml } from './html.js'
 
@@ -71,11 +71,12 @@ export const MILESTONE_STEP_HINT = 'Which tickets are the milestone? Find and ad
 /**
  * The Milestone step, after the Connect step in the local server build once connected; none otherwise. Each pick and
  * each removal posts at once; the find box filters the lists as the EM types (see `MILESTONE_STEP_SCRIPT`), and without
- * the script it submits to `/inputs` with what was typed.
+ * the script it submits to `/inputs` with what was typed. The query is labelled as `stepQuery` names it, the milestone
+ * query unless given.
  */
-export function milestoneStepSection(view: MilestoneStepView): string | undefined {
+export function milestoneStepSection(view: MilestoneStepView, stepQuery: StepQuery = MILESTONE_QUERY): string | undefined {
   if (view.kind === 'noMilestoneStep') return undefined
-  return view.editing ? editingSection(view, view.editing) : findingSection(view)
+  return view.editing ? editingSection(view, view.editing, stepQuery) : findingSection(view, stepQuery)
 }
 
 const anchor = `#${MILESTONE_STEP_ID}`
@@ -92,7 +93,7 @@ function readHtml(view: MilestoneStep): string {
  * (and read) only on Enter, so a half-typed query changes nothing. Back to finding says first when it will clear it,
  * and then asks the EM to confirm that, in a form of its own, so it works without the script.
  */
-function editingSection(view: MilestoneStep, editing: QueryEditing): string {
+function editingSection(view: MilestoneStep, editing: QueryEditing, { name }: StepQuery): string {
   const refusal = editing.refusal === undefined ? '' : `\n          <p class="error" role="alert">${escapeHtml(editing.refusal)}</p>`
   const inUse =
     editing.refusal === undefined || view.query === ''
@@ -104,7 +105,7 @@ function editingSection(view: MilestoneStep, editing: QueryEditing): string {
     : '<button type="submit" class="linkish">Back to finding</button>'
   return `        <div class="picker editing">
           <form method="post" action="${MILESTONE_STEP_PATHS.edit}${anchor}" class="query">
-            <label class="label" for="milestone-query">Milestone query, within <b>${escapeHtml(editing.readIn)}</b></label>
+            <label class="label" for="milestone-query">${escapeHtml(name)}, within <b>${escapeHtml(editing.readIn)}</b></label>
             <input type="text" id="milestone-query" name="${CHOICE_FIELDS.query}" value="${escapeHtml(editing.typed)}" autocomplete="off" spellcheck="false">
             <p class="note">Press Enter to read it. ${escapeHtml(view.note)}</p>
           </form>${refusal}${inUse}${readHtml(view)}
@@ -115,7 +116,7 @@ function editingSection(view: MilestoneStep, editing: QueryEditing): string {
 }
 
 /** The step finding choices to pick: the chips, the find box over the lists, and the query, to edit as a query. */
-function findingSection(view: MilestoneStep): string {
+function findingSection(view: MilestoneStep, { name }: StepQuery): string {
   const kinds = view.lists.map((list) => kindName(list.kind))
   const chips = view.picks
     .map(
@@ -138,7 +139,7 @@ ${lists}
             <p class="note none-found" hidden>Nothing matches.</p>
           </div>
           <div class="query">
-            <span class="label">Milestone query <a href="${MILESTONE_STEP_URLS.editing}" class="edit">Edit as a query</a></span> ${query}
+            <span class="label">${escapeHtml(name)} <a href="${MILESTONE_STEP_URLS.editing}" class="edit">Edit as a query</a></span> ${query}
             <p class="note">${escapeHtml(view.note)}</p>
           </div>${readHtml(view)}
         </div>`
