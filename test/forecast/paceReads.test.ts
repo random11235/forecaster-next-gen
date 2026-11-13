@@ -6,7 +6,8 @@ import { cannedConnector, type CannedFixture } from '../../src/connectors/canned
 import type { Choice } from '../../src/connectors/connector.js'
 import { submitConnection, type Connecting } from '../../src/forecast/connection.js'
 import { submitInputs } from '../../src/forecast/inputs.js'
-import { COMPARABLE_WORK, submitMilestoneQuery } from '../../src/forecast/milestoneStep.js'
+import { submitStepQuery } from '../../src/forecast/queryStep.js'
+import { COMPARABLE_WORK } from '../../src/forecast/stepQuery.js'
 import { paceReads } from '../../src/forecast/paceReads.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
@@ -101,7 +102,7 @@ beforeEach(async () => {
     startDate: '2026-10-01',
     ticketsRemaining: '30',
   })
-  await submitMilestoneQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
+  await submitStepQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
 })
 
 afterEach(() => {
@@ -109,7 +110,7 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true })
 })
 
-const addComparable = (choice: Choice) => submitMilestoneQuery(using, TEAM, { kind: 'addPick', choice }, READ_AT, COMPARABLE_WORK)
+const addComparable = (choice: Choice) => submitStepQuery(using, TEAM, { kind: 'addPick', choice }, READ_AT, COMPARABLE_WORK)
 
 describe('with a comparable-work query', () => {
   test('pace comes from comparable work’s finished tickets alone: the milestone’s own that it doesn’t match aren’t counted', async () => {
@@ -225,7 +226,7 @@ describe('no reads to count', () => {
     }
     using = { ...using, connector: () => cannedConnector(partial) }
     storage.saveMilestoneQuery(TEAM, { picks: [], query: '' })
-    await submitMilestoneQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
+    await submitStepQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
 
     expect(paceReads(storage, TEAM, AT)).toBeUndefined()
   })
@@ -240,7 +241,7 @@ describe('no reads to count', () => {
     }
     using = { ...using, connector: () => cannedConnector(partial) }
     storage.saveMilestoneQuery(TEAM, { picks: [], query: '' })
-    await submitMilestoneQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
+    await submitStepQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
     await addComparable(payments)
 
     expect(paceReads(storage, TEAM, AT)).toEqual({
