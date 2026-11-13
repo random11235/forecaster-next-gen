@@ -8,6 +8,7 @@ import { submitConnection, type Connecting } from '../../src/forecast/connection
 import { milestoneStepView, searchedChoiceList, submitMilestoneQuery } from '../../src/forecast/milestoneStep.js'
 import { COMPARABLE_WORK, type StepQuery } from '../../src/forecast/milestoneStep.js'
 import { submitInputs } from '../../src/forecast/inputs.js'
+import { followRenamedMilestone } from '../../src/forecast/milestoneRenamed.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import type { MilestoneQuery } from '../../src/model/milestoneQuery.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
@@ -866,6 +867,17 @@ describe('the Comparable work step', () => {
     expect(storage.milestoneInputs(TEAM)).toMatchObject({ name: 'Loyalty', startDate: '2026-11-16' })
     expect(storage.comparableWorkQuery(TEAM)).toEqual({ picks: [payments, bug], query: 'milestone:"Payments v2" OR label:"bug"' })
     expect(await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)).toMatchObject({ picks: [payments, bug], onward: 'Next' })
+  })
+
+  test('carries over: the milestone query following the milestone to its new name leaves comparable work as it was, even of the old milestone', async () => {
+    const using = await connected()
+    await submitMilestoneQuery(using, TEAM, add(payments), READ_AT)
+    await submitMilestoneQuery(using, TEAM, add(payments), READ_AT, COMPARABLE_WORK)
+
+    await followRenamedMilestone(using, TEAM, { from: 'Payments v2', to: 'Checkout' }, READ_AT)
+
+    expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [checkout], query: 'milestone:"Checkout"' })
+    expect(storage.comparableWorkQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
   })
 
   test('the Milestone step has no Skip or Next of its own', async () => {
