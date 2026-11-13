@@ -1,13 +1,11 @@
 import type { Choice, Failure } from '../connectors/connector.js'
 import type { Connection } from '../model/connection.js'
 import type { SavedRead } from '../model/savedRead.js'
-import { DAY_MS } from '../model/time.js'
 import type { SavedReadStorage, Storage } from '../storage/storage.js'
-import { daysBetween } from './calendarDate.js'
 import { teamConnection, type Connecting } from './connection.js'
-import { calendarDayIn, completeRead, finishedPerPeriod, ticketsRemaining } from './finished.js'
-import { FINISHED_WEEKS, type ChoiceList } from './milestoneStep.js'
-import { firstWholePeriod, paceReads, type PaceReadsStorage } from './paceReads.js'
+import { calendarDayIn, completeRead, finishedPerPeriod, finishedSinceFor, ticketsRemaining } from './finished.js'
+import type { ChoiceList } from './milestoneStep.js'
+import { paceReads, paceReadsStorage, wholePeriods } from './paceReads.js'
 import type { DatedCounts } from './paceWindow.js'
 import { medianOf, paceVersusMilestoneOwn, type PaceVersus } from './paceVersusOwn.js'
 import { trackerOf } from './trackers.js'
@@ -88,13 +86,7 @@ export function openCandidates(
   teamId: string,
   at: CandidatesAt,
 ): CandidateOpening {
-  const { milestoneQueries, reads } = connecting
-  const stored: PaceReadsStorage = {
-    milestoneInputs: (team) => storage.milestoneInputs(team),
-    milestoneQuery: (team) => milestoneQueries.milestoneQuery(team),
-    comparableWorkQuery: (team) => milestoneQueries.comparableWorkQuery(team),
-    savedRead: (teamQuery) => reads.savedRead(teamQuery),
-  }
+  const stored = paceReadsStorage(storage, connecting)
   const read = new Map<string, Promise<Candidate>>()
   let connected: ReturnType<typeof teamConnection> | undefined
   const own = paceReads(stored, teamId, at)
@@ -108,8 +100,7 @@ export function openCandidates(
     const team = await (connected ??= teamConnection(connecting, teamId))
     if (!team) return { ...marked, failure: NOT_CONNECTED }
     if (team.connector === 'keychainFailed') return { ...marked, failure: KEYCHAIN_FAILED }
-    const finishedSince = new Date(Date.parse(at.readAt) - FINISHED_WEEKS * 7 * DAY_MS).toISOString()
-    const result = await team.connector.read(choice.query, finishedSince)
+    const result = await team.connector.read(choice.query, finishedSinceFor(at.readAt))
     if (!result.ok) return { ...marked, failure: failureOf(team.connection, result) }
     if (result.incomplete) return { ...marked, failure: `${trackerOf(team.connection).name} gave only part of what it matches, so it isn’t counted.` }
     const byId = new Map(result.tickets.map((ticket) => [ticket.id, ticket]))
@@ -165,8 +156,7 @@ function candidateRead(
   { startDate, cadenceDays }: { startDate: string; cadenceDays: number },
   { today, timeZone }: CandidatesAt,
 ): CandidateRead {
-  const current = Math.floor(daysBetween(startDate, today) / cadenceDays)
-  const periods = Math.min(STRIP_PERIODS, Math.max(0, current - firstWholePeriod(read, startDate, cadenceDays, timeZone)))
+  const periods = Math.min(STRIP_PERIODS, wholePeriods([read], { startDate, cadenceDays, today, timeZone }).periods)
   const strip = finishedPerPeriod(read, { startDate, cadenceDays, today, timeZone, periods })
   const median = strip.counts.length === 0 ? 0 : medianOf(strip.counts)
   const finished = read.tickets.filter((ticket) => ticket.finishedAt !== undefined)

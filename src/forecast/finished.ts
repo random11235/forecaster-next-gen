@@ -1,8 +1,17 @@
 import type { Connector, Failure } from '../connectors/connector.js'
 import type { SavedRead, TeamQuery } from '../model/savedRead.js'
+import { DAY_MS } from '../model/time.js'
 import type { SavedReadStorage } from '../storage/storage.js'
 import { addDays, daysBetween } from './calendarDate.js'
 import type { DatedCounts } from './paceWindow.js'
+
+/** How far back a read of one of the team's queries counts finished tickets, in weeks. */
+export const FINISHED_WEEKS = 8
+
+/** The UTC instant a read made at `readAt` counts finished tickets from: `FINISHED_WEEKS` weeks before it. */
+export function finishedSinceFor(readAt: string): string {
+  return new Date(Date.parse(readAt) - FINISHED_WEEKS * 7 * DAY_MS).toISOString()
+}
 
 /** A query read and saved; or a failed read, with the read saved before it, which is kept (none if it was never read). */
 export type QueryRead = { ok: true; read: SavedRead } | ({ ok: false; saved: SavedRead | undefined } & Failure)
