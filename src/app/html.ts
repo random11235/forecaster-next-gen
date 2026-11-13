@@ -233,7 +233,10 @@ const STYLE = `
       border: 1px solid var(--border); background: transparent;
     }
     .actions { display: flex; justify-content: flex-end; }
-    button.primary { min-height: 42px; padding: 0 20px; border: 0; background: var(--ink); color: var(--page); font-size: 14px; font-weight: 600; }
+    button.primary, a.button.primary { min-height: 42px; padding: 0 20px; border: 0; background: var(--ink); color: var(--page); font-size: 14px; font-weight: 600; }
+    a.button.primary { display: inline-flex; align-items: center; border-radius: 6px; text-decoration: none; }
+    .actions.onward { gap: 16px; align-items: center; margin-top: 16px; }
+    .actions.onward form { margin: 0; }
     .pace { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; }
     .pace label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
     .pace input[type=number] { font-size: 32px; width: 72px; text-align: center; padding: 2px 0; }

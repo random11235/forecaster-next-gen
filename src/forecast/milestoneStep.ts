@@ -10,14 +10,18 @@ import { trackerOf, type TrackerFacts } from './trackers.js'
 
 /**
  * Which of the team's queries a step edits, picked or written by hand the same way: the milestone query
- * (`MILESTONE_QUERY`), and comparable work's next (#158). It says how the step names the query, and where its picks and
- * query are kept.
+ * (`MILESTONE_QUERY`), or comparable work's (`COMPARABLE_WORK`, #158). It says how the step names the query, whether
+ * the step can be skipped, what of its read counts, and where its picks and query are kept.
  */
 export interface StepQuery {
   /** The query as the step labels it: "Milestone query". */
   name: string
   /** What the query is to pick out, as the step says when it matches nothing: "the milestone’s tickets". */
   picksOut: string
+  /** The step can be left with no query: its main button reads Skip until something is added, then Next. */
+  optional: boolean
+  /** Its read's open tickets count, as tickets remaining; comparable work's are ignored, only its finished ones count. */
+  countsOpen: boolean
   /** The team's picks and query, if the EM has picked or written one. */
   saved(storage: MilestoneQueryStorage, teamId: string): MilestoneQuery | undefined
   /** Saves the team's picks and query, replacing both. */
@@ -28,8 +32,24 @@ export interface StepQuery {
 export const MILESTONE_QUERY: StepQuery = {
   name: 'Milestone query',
   picksOut: 'the milestone’s tickets',
+  optional: false,
+  countsOpen: true,
   saved: (storage, teamId) => storage.milestoneQuery(teamId),
   save: (storage, teamId, query) => storage.saveMilestoneQuery(teamId, query),
+}
+
+/**
+ * Comparable work's query, which picks out recent work like the milestone's to measure its pace from: what the
+ * Comparable work step edits. It is optional, and only its finished tickets count. Kept apart from the milestone query,
+ * it carries over to the next milestone: nothing but the EM changes or clears it.
+ */
+export const COMPARABLE_WORK: StepQuery = {
+  name: 'Comparable-work query',
+  picksOut: 'work like the milestone’s',
+  optional: true,
+  countsOpen: false,
+  saved: (storage, teamId) => storage.comparableWorkQuery(teamId),
+  save: (storage, teamId, query) => storage.saveComparableWorkQuery(teamId, query),
 }
 
 /** What the Milestone step says once, beside the milestone query: the only two things a read adds to it. */
@@ -72,8 +92,9 @@ export interface MilestoneStep {
   query: string
   note: string
   /**
-   * The query's last read, as one line: "50 open · 43 finished in the last 8 weeks"; none until it is read, nor when
-   * that read is incomplete, as part of a count would pass for the count.
+   * The query's last read, as one line: "50 open · 43 finished in the last 8 weeks", or for a query whose open tickets
+   * don't count, "43 finished in the last 8 weeks"; none until it is read, nor when that read is incomplete, as part
+   * of a count would pass for the count.
    */
   read?: string
   /** What is wrong with that read: it matched nothing, beside its line; or is incomplete, in its place. None when it is fine. */
@@ -88,6 +109,8 @@ export interface MilestoneStep {
    * a query, or when the picker can't show it as chips. None while finding.
    */
   editing?: QueryEditing
+  /** An optional step's main button: Skip until something is added, then Next. None for a step that isn't optional. */
+  onward?: 'Skip' | 'Next'
 }
 
 /** The milestone query open for editing by hand. */
@@ -162,10 +185,11 @@ export async function milestoneStepView(
     picks: saved.picks,
     query: saved.query,
     note: LEAF_NOTE,
-    ...(read && !read.incomplete && { read: readLine(read) }),
+    ...(read && !read.incomplete && { read: readLine(read, stepQuery) }),
     ...(read && readFlag(read, tracker.name, stepQuery)),
     ...(!editing && opening.refused?.fromPicks && { refusal: opening.refused.refusal }),
     ...(editing && { editing }),
+    ...(stepQuery.optional && { onward: saved.query === '' ? 'Skip' : 'Next' }),
   }
   if (opening.unlisted) return step
   if (connector === 'keychainFailed') return { ...step, choicesFailure: KEYCHAIN_FAILED }
@@ -234,10 +258,10 @@ const CHOICES_FAILED = 'The tracker couldn’t list what to pick from just now. 
 /** How far back a read of the milestone query counts finished tickets, in weeks. */
 export const FINISHED_WEEKS = 8
 
-/** A read's line: its open tickets, and those finished in the weeks it reads back. */
-function readLine(read: SavedRead): string {
-  const finished = read.tickets.length - ticketsRemaining(read)
-  return `${ticketsRemaining(read)} open · ${finished} finished in the last ${FINISHED_WEEKS} weeks`
+/** A read's line: its open tickets, when they count, and those finished in the weeks it reads back. */
+function readLine(read: SavedRead, { countsOpen }: StepQuery): string {
+  const finished = `${read.tickets.length - ticketsRemaining(read)} finished in the last ${FINISHED_WEEKS} weeks`
+  return countsOpen ? `${ticketsRemaining(read)} open · ${finished}` : finished
 }
 
 /** A read's flag: incomplete, asking to narrow the query; or matching nothing. None for a read with all its tickets. */
@@ -253,10 +277,14 @@ function readFlag(read: SavedRead, trackerName: string, { picksOut }: StepQuery)
 
 /**
  * The Milestone step's submits: add a choice as a pick, or remove the pick with this query (`PicksEdit`); edit the
- * milestone query by hand, as typed; or go back to finding, which clears the query when the picker can't show it,
- * once the EM has `confirmed` that.
+ * milestone query by hand, as typed; go back to finding, which clears the query when the picker can't show it,
+ * once the EM has `confirmed` that; or, in the Comparable work step, start afresh, clearing the picks and query at once.
  */
-export type MilestoneQueryEdit = PicksEdit | { kind: 'editQuery'; query: string } | { kind: 'backToFinding'; confirmed: boolean }
+export type MilestoneQueryEdit =
+  | PicksEdit
+  | { kind: 'editQuery'; query: string }
+  | { kind: 'backToFinding'; confirmed: boolean }
+  | { kind: 'startAfresh' }
 
 type PicksEdit = { kind: 'addPick'; choice: Choice } | { kind: 'removePick'; query: string }
 
@@ -268,8 +296,8 @@ type PicksEdit = { kind: 'addPick'; choice: Choice } | { kind: 'removePick'; que
  * Before any of that, a hand-edited query with free text or an empty qualifier is refused, changing nothing. The
  * query is saved only once read, unless its read says it is wrong: the tracker rejecting it, or it reaching outside
  * the connection, refuses it, and the last query that worked stays in use, with its saved read. Going back to finding
- * from a query the picker can't show changes nothing until confirmed. The query changed is `stepQuery`, the milestone
- * query unless given.
+ * from a query the picker can't show changes nothing until confirmed. Starting afresh clears the picks and query
+ * together, reading nothing. The query changed is `stepQuery`, the milestone query unless given.
  */
 export async function submitMilestoneQuery(
   connecting: Connecting,
@@ -292,6 +320,7 @@ export async function submitMilestoneQuery(
   const after =
     edit.kind === 'editQuery' ? await editedQuery(tracker, before, edit.query, connector)
     : edit.kind === 'backToFinding' ? (clears ? NO_QUERY : before)
+    : edit.kind === 'startAfresh' ? (before.query === '' && before.picks.length === 0 ? before : NO_QUERY)
     : picksChanged(before, edit)
   if (after === before) return { kind: 'unchanged' }
   const save = (): void => stepQuery.save(connecting.milestoneQueries, teamId, after)
