@@ -179,3 +179,23 @@ describe('the pace in use', () => {
     expect(comparableWorkPace(storage, TEAM, AT)).toBeUndefined()
   })
 })
+
+describe('the periods paired', () => {
+  test('comparable work beside the milestone’s own in each period, those before the milestone started marked', async () => {
+    await addComparable(slow)
+
+    expect(comparableWorkPace(storage, TEAM, AT)?.periods).toEqual(
+      WEEKS.map((start, at) => ({ start, milestone: OWN[at], comparableWork: SLOW[at], beforeStart: at === 0 })),
+    )
+  })
+
+  test('with no comparable-work query, the milestone’s own alone', () => {
+    expect(comparableWorkPace(storage, TEAM, AT)?.periods).toEqual(WEEKS.map((start, at) => ({ start, milestone: OWN[at], beforeStart: at === 0 })))
+  })
+
+  test('the last 8 periods at most', () => {
+    submitInputs(storage, TEAM, DEFAULT_SETTINGS, TODAY, { kind: 'setCadence', cadenceDays: '3' })
+
+    expect(comparableWorkPace(storage, TEAM, AT)?.periods).toHaveLength(8)
+  })
+})
