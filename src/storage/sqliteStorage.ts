@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
-import type { Choice } from '../connectors/connector.js'
+import { choiceKindOf, type Choice } from '../connectors/connector.js'
 import type { Ambiguity, AmbiguityRanges } from '../model/ambiguity.js'
 import type { CapacityEntry } from '../model/capacity.js'
 import type { MilestoneInputs, PaceMode, PaceWindow } from '../model/milestoneInputs.js'
@@ -477,13 +477,26 @@ export function openSqliteStorage(file: string): SqliteStorage {
     milestoneQuery(teamId) {
       const row = selectMilestoneQuery.get(teamId)
       if (row === undefined) return undefined
-      return { picks: JSON.parse(String(row.picks)) as Choice[], query: String(row.query) } satisfies MilestoneQuery
+      return { picks: picksIn(String(row.picks)), query: String(row.query) } satisfies MilestoneQuery
     },
 
     close() {
       db.close()
     },
   }
+}
+
+/**
+ * The picks a row keeps, in order, less any of a kind this version doesn't know (written by a later one, say), which
+ * it couldn't show as a chip. The query is kept as written, so it stays in use: the step opens it for editing, as its
+ * picks no longer make it.
+ */
+function picksIn(json: string): Choice[] {
+  const stored = JSON.parse(json) as { kind: string; name: string; query: string }[]
+  return stored.flatMap(({ kind, name, query }) => {
+    const known = choiceKindOf(kind)
+    return known ? [{ kind: known, name, query }] : []
+  })
 }
 
 /** Brings the file up to the latest schema, one step per transaction, recording the version after each. */
