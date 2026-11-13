@@ -1,3 +1,4 @@
+import { choiceKindOf } from '../connectors/connector.js'
 import { connectionView, submitConnection, type Connecting, type ConnectionView, type SetupStep } from '../forecast/connection.js'
 import { howItWorksView } from '../forecast/howItWorksView.js'
 import { milestoneStepView, searchedChoiceList, submitMilestoneQuery, type MilestoneStepOpening, type MilestoneStepView } from '../forecast/milestoneStep.js'
@@ -141,7 +142,8 @@ export function routeSetup(request: Request, context: AppContext): Promise<Reply
   }
   if (request.method === 'GET' && pathname === SEARCHED_CHOICES_PATH) {
     return (async (): Promise<Reply> => {
-      const list = await searchedChoiceList(connecting, team.id, searchParams.get(KIND_FIELD) ?? '', searchParams.get(FIND_FIELD) ?? '')
+      const kind = choiceKindOf(searchParams.get(KIND_FIELD) ?? '')
+      const list = kind && (await searchedChoiceList(connecting, team.id, kind, searchParams.get(FIND_FIELD) ?? ''))
       return list ? { kind: 'html', status: 200, html: choiceListHtml(list) } : { kind: 'notFound' }
     })()
   }
@@ -150,6 +152,7 @@ export function routeSetup(request: Request, context: AppContext): Promise<Reply
   if (readQueryEdit) {
     return (async (): Promise<Reply> => {
       const edit = readQueryEdit(form)
+      if (!edit) return { kind: 'notFound' }
       const submitted = await submitMilestoneQuery(connecting, team.id, edit, now())
       if (submitted.kind === 'refused') {
         const html = inputsScreen(team.id, connectionView(connecting, team.id), await milestoneStep({ refused: submitted }))

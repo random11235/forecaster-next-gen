@@ -1,5 +1,6 @@
 import type { ChoiceList, MilestoneQueryEdit, MilestoneStep, MilestoneStepView, QueryEditing } from '../forecast/milestoneStep.js'
 import { kindName } from '../forecast/milestoneStep.js'
+import { choiceKindOf } from '../connectors/connector.js'
 import { escapeHtml } from './html.js'
 
 /** Where the Milestone step is on the Inputs screen: its section's id. */
@@ -37,14 +38,17 @@ export const MILESTONE_STEP_URLS = {
   editing: `/inputs?${EDITING.name}=${EDITING.value}#${MILESTONE_STEP_ID}`,
 } as const
 
-/** Reads a submitted Milestone step form, by the field names this section gives them. */
-type MilestoneStepFormReader = (body: URLSearchParams) => MilestoneQueryEdit
+/** Reads a submitted Milestone step form, by the field names this section gives them; none when it isn't one of its forms as sent. */
+type MilestoneStepFormReader = (body: URLSearchParams) => MilestoneQueryEdit | undefined
 
 /** Each form the Milestone step posts, by its action's path, and how its fields are read. */
 export const MILESTONE_STEP_FORMS: ReadonlyMap<string, MilestoneStepFormReader> = new Map<string, MilestoneStepFormReader>([
   [
     MILESTONE_STEP_PATHS.add,
-    (body) => ({ kind: 'addPick', choice: { kind: body.get('kind') ?? '', name: body.get('name') ?? '', query: body.get('query') ?? '' } }),
+    (body) => {
+      const kind = choiceKindOf(body.get('kind') ?? '')
+      return kind && { kind: 'addPick', choice: { kind, name: body.get('name') ?? '', query: body.get('query') ?? '' } }
+    },
   ],
   [MILESTONE_STEP_PATHS.remove, (body) => ({ kind: 'removePick', query: body.get('query') ?? '' })],
   [MILESTONE_STEP_PATHS.edit, (body) => ({ kind: 'editQuery', query: body.get('query') ?? '' })],

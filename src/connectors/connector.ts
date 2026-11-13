@@ -31,12 +31,23 @@ export type FailedCall = { ok: false } & Failure
 /** A read's tickets, flagged incomplete when the tracker didn't return them all; or one failure. Matching nothing is an empty list. */
 export type ReadResult = { ok: true; tickets: Ticket[]; incomplete: boolean } | FailedCall
 
+/** Every kind of choice, in no order: GitHub has epics, labels and milestones; Jira fix versions, epics and labels. */
+export const CHOICE_KINDS = ['epic', 'label', 'milestone', 'fixVersion'] as const
+
+/** What a choice picks a milestone's tickets by. */
+export type ChoiceKind = (typeof CHOICE_KINDS)[number]
+
+/** The kind of choice `text` names, as a form or URL sends it; none when it names no kind. */
+export function choiceKindOf(text: string): ChoiceKind | undefined {
+  return CHOICE_KINDS.find((kind) => kind === text)
+}
+
 /**
  * Something the EM can pick a milestone's tickets by, with the query that reads them, built inside the connector
- * (the only place that knows the tracker's syntax). Its kinds are specified with the picker.
+ * (the only place that knows the tracker's syntax).
  */
 export interface Choice {
-  kind: string
+  kind: ChoiceKind
   name: string
   query: string
 }
@@ -49,7 +60,7 @@ export const CHOICES_LIMIT = 100
  * kind, so the list isn't all of them.
  */
 export interface ChoicesOfKind {
-  kind: string
+  kind: ChoiceKind
   choices: Choice[]
   pastLimit: boolean
 }
@@ -67,9 +78,10 @@ export interface Connector {
   milestoneChoices(): Promise<ChoicesResult>
   /**
    * The choices of `kind` whose names match `text`, found by the tracker's own search, for a kind past the limit; each
-   * with its query built as `milestoneChoices()` builds it. The tracker's search may match whole words only.
+   * with its query built as `milestoneChoices()` builds it. The tracker's search may match whole words only. A kind the
+   * tracker has none of finds nothing.
    */
-  searchChoices(kind: string, text: string): Promise<SearchedChoices>
+  searchChoices(kind: ChoiceKind, text: string): Promise<SearchedChoices>
   /** The tickets the query matches that are open or finished at or after `finishedSince`, a UTC instant. */
   read(query: string, finishedSince: string): Promise<ReadResult>
 }
