@@ -276,7 +276,7 @@ function readFlag(read: SavedRead, trackerName: string, { picksOut, countsOpen }
     return { flag: `This query matches nothing: no open tickets, and none finished in the last ${FINISHED_WEEKS} weeks. Check it picks out ${picksOut}.` }
   }
   if (!countsOpen && read.tickets.length === ticketsRemaining(read)) {
-    return { flag: `This query matches nothing finished in the last ${FINISHED_WEEKS} weeks, so it adds nothing to pace. Check it picks out ${picksOut}.` }
+    return { flag: `This query matches nothing finished in the last ${FINISHED_WEEKS} weeks, so pace comes from the milestone’s own tickets. Check it picks out ${picksOut}.` }
   }
   return undefined
 }

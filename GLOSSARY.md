@@ -48,6 +48,9 @@ _Avoid_: integration, sync, account
 **Milestone query**: the query, in the connected tracker's own language (a GitHub search, or JQL on Jira), that picks out a milestone's tickets within the team's connection. The milestone is whatever it matches now. The EM writes it by picking epics, labels and milestones (fix versions on Jira), joined with OR, or by editing it by hand; a picked epic stands for every leaf beneath it, through any sub-epics.
 _Avoid_: selector, filter, scope
 
+**Comparable work** (of a milestone): recent work like the milestone's in type, capacity and ambiguity, picked out by a second, optional query the EM writes as the milestone query is written. Once added, it stands in for the milestone's own pace: pace comes from its finished tickets alone, and the milestone's own count only if the EM picks the milestone in it. KTLO usually isn't comparable work.
+_Avoid_: reference class, team throughput
+
 **Leaf**: a ticket in the tracker with no children of its own: never a pull request, a parent, an epic, or a story with subtasks. Only leaves count, as remaining or finished.
 _Avoid_: child ticket, work item
 
