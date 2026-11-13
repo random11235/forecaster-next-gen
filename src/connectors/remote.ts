@@ -1,4 +1,4 @@
-import type { ChoiceKind, Connector, FailedCall, SearchedChoices, Ticket, Transport } from './connector.js'
+import type { ChoiceKind, ChoicesOfKind, ChoicesResult, Connector, FailedCall, SearchedChoices, Ticket, Transport } from './connector.js'
 
 /**
  * What the connectors that reach a tracker over the network (GitHub, Jira) share: sending a request, backing off a
@@ -93,8 +93,8 @@ async function sendOnce(transport: Transport, url: string, init: RequestInit): P
   }
 }
 
-/** The failure an unsuccessful status stands for, other than a refused query. */
-export function failureOf(status: number): FailedCall {
+/** The failure an unsuccessful response's status stands for, other than a refused query. */
+export function failureOf({ status }: Pick<Received, 'status'>): FailedCall {
   if (status === 401) return { ok: false, failure: 'unauthorised' }
   if (status === 404) return { ok: false, failure: 'notFound' }
   return { ok: false, failure: 'unavailable' }
@@ -107,6 +107,31 @@ export type Got<T> = { ok: true; value: T } | FailedCall
 
 export function got<T>(value: T): Got<T> {
   return { ok: true, value }
+}
+
+/**
+ * What a request `received`: its body, when the tracker answered 200; else the failure its answer stands for, as
+ * `failure` reads it; or, when the network failed (nothing received), unavailable.
+ */
+export function answered<T>(received: Received | undefined, failure: (received: Received) => FailedCall): Got<T> {
+  if (!received) return UNAVAILABLE
+  return received.status === 200 ? got(received.body as T) : failure(received)
+}
+
+/** The milestone choices, each kind's list asked for one after another, stopping at the first failure. */
+export async function milestoneChoicesOf(lists: (() => Promise<Got<ChoicesOfKind>>)[]): Promise<ChoicesResult> {
+  const kinds: ChoicesOfKind[] = []
+  for (const list of lists) {
+    const kind = await list()
+    if (!kind.ok) return kind
+    kinds.push(kind.value)
+  }
+  return { ok: true, kinds }
+}
+
+/** The choices a search found, from one kind's list of them; or the failure that stopped it. */
+export function searchedIn(found: Got<ChoicesOfKind>): SearchedChoices {
+  return found.ok ? { ok: true, choices: found.value.choices } : found
 }
 
 /** A tracker's searches of its choices, by the kinds it has. */
@@ -123,11 +148,19 @@ export function searchChoicesIn(searches: ChoiceSearches): Connector['searchChoi
  */
 export type Expanded = { ok: true; query: string; incomplete: boolean } | FailedCall
 
+declare const PICKED_EPICS: unique symbol
+
 /**
  * How a tracker's query names a picked epic, as its choice reads it: the epic is the pattern's one group. The pattern
- * matches quoted values too, with no group, so a term inside quotes is never taken for a pick. Must be global.
+ * matches quoted values too, with no group, so a term inside quotes is never taken for a pick. Global, as every pick
+ * a query names is read: made only by `pickedEpicsPattern`.
  */
-export type PickedEpics = RegExp
+export type PickedEpics = RegExp & { readonly [PICKED_EPICS]: true }
+
+/** `pattern` as `PickedEpics`: with its own flags, and global. */
+export function pickedEpicsPattern(pattern: RegExp): PickedEpics {
+  return new RegExp(pattern.source, pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`) as PickedEpics
+}
 
 /** Each picked epic `query` names, once, as `spelt` spells it. */
 export function pickedEpicsIn(query: string, picked: PickedEpics, spelt: (epic: string) => string = (epic) => epic): string[] {

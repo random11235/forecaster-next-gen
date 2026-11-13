@@ -12,15 +12,18 @@ import {
   type Transport,
 } from '../connector.js'
 import {
+  answered,
   failureOf as statusFailure,
   finishedSince,
   got,
+  milestoneChoicesOf,
   pickedEpicsIn,
+  pickedEpicsPattern,
   searchChoicesIn,
+  searchedIn,
   send,
   sleep,
   staysInScope,
-  UNAVAILABLE,
   withPickedEpics,
   type Backoff,
   type ChoiceSearches,
@@ -101,7 +104,7 @@ const EPIC_LEVELS = 8
  */
 function pickedEpics(repo: string): PickedEpics {
   const escaped = repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return new RegExp(`"[^"]*"|(?<=^|[\\s(])parent-issue:${escaped}#(\\d+)(?=$|[\\s)])`, 'gi')
+  return pickedEpicsPattern(new RegExp(`"[^"]*"|(?<=^|[\\s(])parent-issue:${escaped}#(\\d+)(?=$|[\\s)])`, 'i'))
 }
 
 /** A searched issue's number, from the URL GitHub gives for it. */
@@ -142,7 +145,7 @@ function rateLimited({ status, headers }: Received): boolean {
 function failureOf(received: Received): FailedCall {
   if (rateLimited(received)) return { ok: false, failure: 'unavailable' }
   if (received.status === 403) return { ok: false, failure: 'unauthorised' }
-  return statusFailure(received.status)
+  return statusFailure(received)
 }
 
 /**
@@ -171,9 +174,7 @@ export function githubConnector(
 
   /** What GitHub answers at `path`, rate limits backed off; or the failure its answer stands for, as `failure` reads it. */
   async function get<T>(path: string, failure: (received: Received) => FailedCall = failureOf): Promise<Got<T>> {
-    const response = await send(transport, `${API}${path}`, { headers }, backoff)
-    if (!response) return UNAVAILABLE
-    return response.status === 200 ? got(response.body as T) : failure(response)
+    return answered(await send(transport, `${API}${path}`, { headers }, backoff), failure)
   }
 
   /** One page of what issue search finds for `q`, `paging` naming the page. */
@@ -215,8 +216,7 @@ export function githubConnector(
    */
   async function searchedEpics(text: string): Promise<SearchedChoices> {
     const words = text.replace(/"/g, ' ').split(/\s+/).filter((word) => word !== '')
-    const found = await epics(` in:title ${words.map((word) => `"${word}"`).join(' ')}`)
-    return found.ok ? { ok: true, choices: found.value.choices } : found
+    return searchedIn(await epics(` in:title ${words.map((word) => `"${word}"`).join(' ')}`))
   }
 
   let repoId: number | undefined
@@ -306,20 +306,13 @@ export function githubConnector(
   return {
     searchChoices: searchChoicesIn(SEARCHES),
 
-    milestoneChoices: async () => {
-      const kinds: ChoicesOfKind[] = []
-      // Asked one after another, stopping at the first failure: three requests, and one more for each full list.
-      for (const list of [
+    // Three requests, and one more for each full list.
+    milestoneChoices: () =>
+      milestoneChoicesOf([
         () => epics(),
         () => listed<{ name: string }>('label', `/repos/${repo}/labels?`, ({ name }) => labelChoice(name)),
         () => listed<{ title: string }>('milestone', `/repos/${repo}/milestones?state=open&`, ({ title }) => milestoneChoice(title)),
-      ]) {
-        const kind = await list()
-        if (!kind.ok) return kind
-        kinds.push(kind.value)
-      }
-      return { ok: true, kinds }
-    },
+      ]),
 
     read: async (query, since): Promise<ReadResult> => {
       if (!staysInScope(query, SCOPE)) return { ok: false, failure: 'outOfScope' }
