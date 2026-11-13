@@ -3,10 +3,10 @@ import type { PeriodName } from '../forecast/cadence.js'
 import { dayMonth } from '../forecast/calendarDate.js'
 import { FEW_CANDIDATES, type Candidate, type CandidateGroupKind, type CandidateOpening, type Candidates } from '../forecast/candidates.js'
 import { FINISHED_WEEKS } from '../forecast/finished.js'
-import { kindName } from '../forecast/milestoneStep.js'
+import { kindName } from '../forecast/queryStep.js'
 import type { PaceVersus } from '../forecast/paceVersusOwn.js'
 import { escapeHtml } from './html.js'
-import { CHOICE_FIELDS, type StepSection } from './milestoneStepSection.js'
+import { CHOICE_FIELDS, type StepSection } from './queryStepSection.js'
 
 /**
  * Candidates for comparable work (#205), as the Comparable work step shows them: below its picker, those read in this
@@ -54,7 +54,8 @@ const GROUP_TITLES: Record<CandidateGroupKind, string> = {
 }
 
 /** The candidates read in the step's `opening`, grouped, each with a form adding it to comparable work. */
-export function candidatesHtml(candidates: Candidates, opening: string, period: PeriodName, section: StepSection): string {
+export function candidatesHtml(candidates: Candidates, opening: string, section: StepSection): string {
+  const { period } = candidates
   const note =
     candidates.groups.length === 0
       ? `Open a candidate (its <b>pace</b> link), or type to narrow the list to ${FEW_CANDIDATES} or fewer, to see how it runs against the milestone’s own.`

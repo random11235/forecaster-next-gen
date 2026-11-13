@@ -3,16 +3,15 @@ import type { InputNote, MilestoneInput } from '../forecast/milestoneAssessment.
 import { MAX_CADENCE_DAYS, MAX_TICKETS_PER_PERIOD, MAX_TICKETS_REMAINING } from '../forecast/milestoneInputs.js'
 import { ambiguityName, MAX_GROWTH, type GrowthView, type TypedRange } from '../forecast/growth.js'
 import type { ConnectionView } from '../forecast/connection.js'
-import type { MilestoneStepView } from '../forecast/milestoneStep.js'
+import type { QueryStepView } from '../forecast/queryStep.js'
 import type { InputsEdit, InputsForm, InputsView, TypedForms } from '../forecast/inputs.js'
 import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
 import type { PaceMode } from '../model/milestoneInputs.js'
 import { CONNECT_HINT, connectSection } from './connectSection.js'
 import { escapeHtml, htmlPage } from './html.js'
 import { INPUTS_SCRIPT } from './inputsScript.js'
-import type { ComparableWorkPace } from '../forecast/comparableWorkPace.js'
-import { candidatesScript } from './candidatesSection.js'
-import { milestoneStepScript, milestoneStepSection, type StepSection } from './milestoneStepSection.js'
+import { candidatesHtml, candidatesScript } from './candidatesSection.js'
+import { queryStepScript, queryStepSection, type StepSection } from './queryStepSection.js'
 import { renderPaceTrend } from './paceTrendGraph.js'
 
 /** Each input of the milestone by its label on this screen, which notes about it are named by everywhere. */
@@ -57,11 +56,12 @@ export const INPUTS_FORMS: ReadonlyMap<string, FormReader> = new Map<string, For
 /** A step picking or writing one of the team's queries, as the Inputs screen shows it: its section, and its view. */
 export interface ShownStep {
   section: StepSection
-  view: MilestoneStepView
-  /** The pace the step leads with: the Comparable work step's, once there is one. */
-  pace?: ComparableWorkPace
-  /** Its candidates for comparable work, below its picker (`candidatesHtml`, #205); none for a step without them. */
-  candidates?: string
+  view: QueryStepView
+  /**
+   * The id its candidates' opening is kept by, for the page's script to read more in (`keepOpening`): the Comparable work
+   * step's, while it shows candidates (`ComparableWorkStep.candidates`, #205).
+   */
+  openingId?: string
 }
 
 /**
@@ -73,9 +73,10 @@ export function renderInputsScreen(screen: InputsView, connection: ConnectionVie
   const { milestone, forms } = screen
   const error = (form: InputsForm): string | undefined => (screen.refusal?.form === form ? screen.refusal.error : undefined)
   const connect = connectSection(connection)
-  const pickers = steps.flatMap(({ section, view, pace, candidates }) => {
-    const picker = milestoneStepSection(view, section, pace)
-    return picker === undefined ? [] : [{ section, picker: picker + (candidates ?? '') }]
+  const pickers = steps.flatMap(({ section, view, openingId }) => {
+    const picker = queryStepSection(view, section)
+    const candidates = view.kind === 'comparableWorkStep' && view.candidates && openingId !== undefined ? candidatesHtml(view.candidates.shown, openingId, section) : ''
+    return picker === undefined ? [] : [{ section, picker: picker + candidates }]
   })
   const sections = [
     ...(connect === undefined ? [] : [inputSection('Connect', 'Connect', CONNECT_HINT, connect, { postsOnSubmit: true })]),
@@ -93,8 +94,8 @@ export function renderInputsScreen(screen: InputsView, connection: ConnectionVie
   }
   const script =
     INPUTS_SCRIPT +
-    pickers.map(({ section }) => milestoneStepScript(section)).join('') +
-    steps.filter(({ candidates }) => candidates !== undefined).map(({ section }) => candidatesScript(section)).join('')
+    pickers.map(({ section }) => queryStepScript(section)).join('') +
+    steps.filter(({ openingId }) => openingId !== undefined).map(({ section }) => candidatesScript(section)).join('')
   return htmlPage('/inputs', header, sections.map((section, index) => section(index + 1)).join('\n'), script)
 }
 

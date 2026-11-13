@@ -4,10 +4,11 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
 import type { Choice, Connector, Ticket } from '../../src/connectors/connector.js'
-import { narrowedToAFew, openCandidates, type Candidates } from '../../src/forecast/candidates.js'
-import { submitConnection, type Connecting } from '../../src/forecast/connection.js'
+import { openCandidates, type Candidates }  from '../../src/forecast/candidates.js'
+import { submitConnection } from '../../src/forecast/connection.js'
 import { submitInputs } from '../../src/forecast/inputs.js'
-import { COMPARABLE_WORK, milestoneStepView, searchedChoiceList, submitMilestoneQuery } from '../../src/forecast/milestoneStep.js'
+import { queryStepView, searchedChoiceList, submitStepQuery, type QueryStepping, type StepCandidates } from '../../src/forecast/queryStep.js'
+import { COMPARABLE_WORK } from '../../src/forecast/stepQuery.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
@@ -72,7 +73,7 @@ const FIXTURE: CannedFixture = {
 
 let dir: string
 let storage: SqliteStorage
-let using: Connecting
+let using: QueryStepping
 let reads: string[]
 
 beforeEach(async () => {
@@ -86,10 +87,12 @@ beforeEach(async () => {
     milestoneQueries: storage,
     secrets: openMemorySecrets(),
     connector: () => counted(cannedConnector(FIXTURE)),
+    milestoneInputs: storage,
+    at: AT,
   }
   await submitConnection(using, TEAM, { kind: 'connect', tracker: 'github', repo: 'shop-team/shop', site: '', projectKey: '', email: '', token: 'token' })
   submitInputs(storage, TEAM, DEFAULT_SETTINGS, TODAY, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-10-01', ticketsRemaining: '30' })
-  await submitMilestoneQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
+  await submitStepQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
   reads = []
 })
 
@@ -151,7 +154,7 @@ describe('a candidate’s read', () => {
   })
 
   test('how many it adds that the picks don’t already count', async () => {
-    await submitMilestoneQuery(using, TEAM, { kind: 'addPick', choice: rewards }, READ_AT, COMPARABLE_WORK)
+    await submitStepQuery(using, TEAM, { kind: 'addPick', choice: rewards }, READ_AT, COMPARABLE_WORK)
 
     const candidates = await open().read([loyalty])
 
@@ -194,29 +197,68 @@ describe('a candidate’s read', () => {
 
 describe('this milestone, in the step’s lists', () => {
   test('the choice that is the milestone query is marked, without reading it', async () => {
-    const step = await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)
+    const step = await queryStepView(using, TEAM, '', {}, COMPARABLE_WORK)
     const searched = await searchedChoiceList(using, TEAM, 'milestone', '', COMPARABLE_WORK)
 
-    expect(step.kind === 'milestoneStep' && step.lists.map((list) => list.thisMilestone)).toEqual([checkout.query, undefined])
+    expect(step.kind !== 'noQueryStep' && step.lists.map((list) => list.thisMilestone)).toEqual([checkout.query, undefined])
     expect(searched).toMatchObject({ thisMilestone: checkout.query })
     expect(reads).toEqual([])
   })
 
   test('none is marked when the milestone query is more than one choice', async () => {
-    await submitMilestoneQuery(using, TEAM, { kind: 'addPick', choice: release }, READ_AT)
+    await submitStepQuery(using, TEAM, { kind: 'addPick', choice: release }, READ_AT)
 
-    const step = await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)
+    const step = await queryStepView(using, TEAM, '', {}, COMPARABLE_WORK)
 
-    expect(step.kind === 'milestoneStep' && step.lists.map((list) => list.thisMilestone)).toEqual([undefined, undefined])
+    expect(step.kind !== 'noQueryStep' && step.lists.map((list) => list.thisMilestone)).toEqual([undefined, undefined])
   })
 })
 
+/** The candidates the Comparable work step's view shows, opened with `find` typed and `opened`. */
+async function shownBy(find: string, opened: string[] = []): Promise<StepCandidates | undefined> {
+  const step = await queryStepView(using, TEAM, find, { opened }, COMPARABLE_WORK)
+  return step.kind === 'comparableWorkStep' ? step.candidates : undefined
+}
+
 describe('reading on demand', () => {
-  test('opening the step reads no candidate', async () => {
-    open()
-    await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)
+  test('opening the step reads no candidate, and shows none', async () => {
+    const candidates = await shownBy('')
 
     expect(reads).toEqual([])
+    expect(candidates?.shown).toEqual({ groups: [], milestoneOwn: 2, period: 'week' })
+  })
+
+  test('the step’s view reads the candidates the EM opened, among its lists, and shows them grouped', async () => {
+    const candidates = await shownBy('', [payments.query, 'label:"not listed"'])
+
+    expect(reads).toEqual([payments.query])
+    expect(candidates && named(candidates.shown)).toEqual([{ group: 'slower', names: ['payments'] }])
+  })
+
+  test('the step’s view reads those its find box narrows its lists to, when they are a few', async () => {
+    const candidates = await shownBy('r')
+
+    expect(reads).toEqual([rewards.query, broken.query, partial.query, release.query, refunds.query])
+    expect(candidates && named(candidates.shown).map(({ group }) => group)).toEqual(['aboutTheSame', 'nothingFinished', 'readFailed'])
+  })
+
+  test('the step’s opening reads more in, each once', async () => {
+    const candidates = await shownBy('', [payments.query])
+
+    const more = await candidates!.opening.read([payments, rewards])
+
+    expect(reads).toEqual([payments.query, rewards.query])
+    expect(named(more)).toEqual([
+      { group: 'slower', names: ['payments'] },
+      { group: 'aboutTheSame', names: ['rewards'] },
+    ])
+  })
+
+  test('with its query open for editing, the step shows no candidates and reads none', async () => {
+    const step = await queryStepView(using, TEAM, 'r', { editing: true }, COMPARABLE_WORK)
+
+    expect(reads).toEqual([])
+    expect(step).not.toHaveProperty('candidates')
   })
 
   test('opening one candidate reads only it', async () => {
@@ -244,22 +286,10 @@ describe('reading on demand', () => {
     expect(reads).toEqual([payments.query, payments.query])
   })
 
-  test('narrowing to a few by typing reads only those', async () => {
-    const step = await milestoneStepView(using, TEAM, 'r', {}, COMPARABLE_WORK)
-    if (step.kind !== 'milestoneStep') throw new Error('no step')
+  test('typing that leaves more than a few reads nothing', async () => {
+    const candidates = await shownBy('e')
 
-    await open().read(narrowedToAFew(step.lists, step.find))
-
-    expect(reads).toEqual([rewards.query, broken.query, partial.query, release.query, refunds.query])
-  })
-
-  test('typing that leaves more than a few, or nothing typed, reads nothing', async () => {
-    const step = await milestoneStepView(using, TEAM, '', {}, COMPARABLE_WORK)
-    if (step.kind !== 'milestoneStep') throw new Error('no step')
-    const wide = await milestoneStepView(using, TEAM, 'e', {}, COMPARABLE_WORK)
-    if (wide.kind !== 'milestoneStep') throw new Error('no step')
-
-    expect(narrowedToAFew(step.lists, step.find)).toEqual([])
-    expect(narrowedToAFew(wide.lists, wide.find)).toEqual([])
+    expect(reads).toEqual([])
+    expect(candidates?.shown.groups).toEqual([])
   })
 })
