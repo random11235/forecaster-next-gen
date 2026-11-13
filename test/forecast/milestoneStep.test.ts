@@ -885,7 +885,7 @@ describe('the Comparable work step', () => {
 
 // The Comparable work step's flags and refusals (#202): the milestone query's, worded for comparable work.
 describe('the Comparable work step, flagged', () => {
-  test('matching nothing finished is accepted, but flagged, its open tickets ignored', async () => {
+  test('matching nothing finished is accepted, its open tickets ignored; whether it is used is the pace’s to flag', async () => {
     const using = await connected(reading('label:"wip"', { tickets: [{ id: 'w1' }, { id: 'w2' }], incomplete: false }))
 
     const submitted = await submitMilestoneQuery(using, TEAM, edit('label:"wip"'), READ_AT, COMPARABLE_WORK)
@@ -895,9 +895,9 @@ describe('the Comparable work step, flagged', () => {
     expect(storage.comparableWorkQuery(TEAM)?.query).toBe('label:"wip"')
     expect(view).toMatchObject({
       read: '0 finished in the last 8 weeks',
-      flag: 'This query matches nothing finished in the last 8 weeks, so pace comes from the milestone’s own tickets. Check it picks out work like the milestone’s.',
       onward: 'next',
     })
+    expect(view.kind === 'milestoneStep' && view.flag).toBeUndefined()
   })
 
   test('incomplete, shows no count, only the flag asking the EM to narrow the query', async () => {

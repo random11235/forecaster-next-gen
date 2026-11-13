@@ -23,6 +23,7 @@ const AT = { today: TODAY, timeZone: 'UTC' }
 const checkout: Choice = { kind: 'milestone', name: 'Checkout v2', query: 'milestone:"Checkout v2"' }
 const payments: Choice = { kind: 'label', name: 'payments', query: 'label:"payments"' }
 const rewards: Choice = { kind: 'label', name: 'rewards', query: 'label:"rewards"' }
+const edges: Choice = { kind: 'label', name: 'edges', query: 'label:"edges"' }
 
 const MILESTONE_TICKETS = [
   { id: 'm1' },
@@ -53,6 +54,8 @@ const FIXTURE: CannedFixture = {
     // the tracker lists m4 under both parts here; it counts once
     [`${payments.query} OR ${checkout.query}`]: { tickets: [...PAYMENTS_TICKETS, ...MILESTONE_TICKETS, { id: 'm4', finishedAt: '2026-10-05T10:00:00Z' }], incomplete: false },
     [rewards.query]: { tickets: [{ id: 'r1' }], incomplete: false },
+    // finished only in the week the read reaches part of, and in the current week: none in a whole week pace counts
+    [edges.query]: { tickets: [PAYMENTS_TICKETS[3]!, PAYMENTS_TICKETS[4]!], incomplete: false },
   },
 }
 
@@ -159,6 +162,15 @@ describe('the milestone’s own pace', () => {
 
   test('a comparable-work query matching nothing finished in the window isn’t used: pace falls back to the milestone’s own', async () => {
     await addComparable(rewards)
+
+    expect(paceReads(storage, TEAM, AT)).toEqual({
+      ...OWN,
+      comparableWork: { counts: [0, 0, 0, 0, 0, 0, 0], starts: WEEKS },
+    })
+  })
+
+  test('a comparable-work query finishing only outside the whole periods pace counts isn’t used either', async () => {
+    await addComparable(edges)
 
     expect(paceReads(storage, TEAM, AT)).toEqual({
       ...OWN,

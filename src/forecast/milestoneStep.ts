@@ -272,8 +272,9 @@ function readLine(read: SavedRead, { countsOpen }: StepQuery): string {
 }
 
 /**
- * A read's flag: incomplete, asking to narrow the query; or matching nothing that counts, which for a query whose open
- * tickets don't count is nothing finished in the weeks it reads back. None for a read with all its tickets.
+ * A read's flag: incomplete, asking to narrow the query; or, for a query whose open tickets count, matching nothing.
+ * None for a read with all its tickets. Whether comparable work's is used is its pace's to flag (`comparableWorkPace`),
+ * over the periods pace counts.
  */
 function readFlag(read: SavedRead, trackerName: string, { picksOut, countsOpen }: StepQuery): { flag: string } | undefined {
   if (read.incomplete) {
@@ -281,9 +282,6 @@ function readFlag(read: SavedRead, trackerName: string, { picksOut, countsOpen }
   }
   if (countsOpen && read.tickets.length === 0) {
     return { flag: `This query matches nothing: no open tickets, and none finished in the last ${FINISHED_WEEKS} weeks. Check it picks out ${picksOut}.` }
-  }
-  if (!countsOpen && read.tickets.length === ticketsRemaining(read)) {
-    return { flag: `This query matches nothing finished in the last ${FINISHED_WEEKS} weeks, so pace comes from the milestone’s own tickets. Check it picks out ${picksOut}.` }
   }
   return undefined
 }
