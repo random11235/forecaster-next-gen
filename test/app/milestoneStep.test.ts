@@ -298,7 +298,7 @@ describe('the Milestone step', () => {
       const html = await refused.text()
       expect(stepOf(html)).toContain('class="chip"')
       expect(stepOf(html)).toContain('Checkout')
-      expect(sectionNumbers(html).slice(0, 4)).toEqual(['connect 01', 'milestone-tickets 02', 'milestone 03', 'cadence 04'])
+      expect(sectionNumbers(html).slice(0, 4)).toEqual(['connect 01', 'milestone-tickets 02', 'comparable-work 03', 'milestone 04'])
     })
 
     test('saved in place, answers with its sections numbered after the Milestone step', async () => {
@@ -312,7 +312,7 @@ describe('the Milestone step', () => {
       })
 
       expect(saved.status).toBe(200)
-      expect(sectionNumbers(await saved.text()).slice(0, 4)).toEqual(['connect 01', 'milestone-tickets 02', 'milestone 03', 'cadence 04'])
+      expect(sectionNumbers(await saved.text()).slice(0, 4)).toEqual(['connect 01', 'milestone-tickets 02', 'comparable-work 03', 'milestone 04'])
     })
   })
 

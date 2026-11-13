@@ -2,7 +2,15 @@ import { choiceKindOf } from '../connectors/connector.js'
 import { connectionView, submitConnection, type Connecting, type ConnectionEdit, type ConnectionView, type SetupStep } from '../forecast/connection.js'
 import { howItWorksView } from '../forecast/howItWorksView.js'
 import { followRenamedMilestone } from '../forecast/milestoneRenamed.js'
-import { milestoneStepView, searchedChoiceList, submitMilestoneQuery, type MilestoneQueryEdit, type MilestoneStepOpening } from '../forecast/milestoneStep.js'
+import {
+  milestoneStepView,
+  searchedChoiceList,
+  submitMilestoneQuery,
+  type MilestoneQueryEdit,
+  type MilestoneStepOpening,
+  type RefusedQuery,
+} from '../forecast/milestoneStep.js'
+import type { Connector } from '../connectors/connector.js'
 import { inputsView, submitInputs, type InputsView, type NextScreen } from '../forecast/inputs.js'
 import { milestoneForecastView, type MilestoneForecastView } from '../forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS, type ForecastSettings } from '../forecast/settings.js'
@@ -12,7 +20,7 @@ import { CONNECT_FORMS } from './connectSection.js'
 import { renderHowItWorksScreen } from './howItWorksScreen.js'
 import { INPUTS_FORMS, renderInputsScreen } from './inputsScreen.js'
 import { CAPACITY_OPEN, CAPACITY_OPEN_PATH, FORECAST_FORMS, renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
-import { choiceListHtml, CONFIRMING_BACK, EDITING, FIND_FIELD, KIND_FIELD, MILESTONE_STEP_FORMS, MILESTONE_STEP_ID, MILESTONE_STEP_URLS, SEARCHED_CHOICES_PATH } from './milestoneStepSection.js'
+import { choiceListHtml, CONFIRMING_BACK, KIND_FIELD, MILESTONE_STEP, STEP_SECTIONS, type StepSection } from './milestoneStepSection.js'
 
 /** A request as the routes see it: the server has already read the form body. */
 export interface Request {
@@ -151,9 +159,10 @@ export function routeSetup(request: Request, context: AppContext): Promise<Reply
   const setup: SetupRouting = { ...routing(request), team, request, context, connecting }
   const { pathname } = setup
   if (request.method === 'GET' && pathname === SCREEN_PATHS.inputs) return inputsWithStep(setup)
-  if (request.method === 'GET' && pathname === SEARCHED_CHOICES_PATH) return searchedChoices(setup)
-  const readQueryEdit = request.method === 'POST' ? MILESTONE_STEP_FORMS.get(pathname) : undefined
-  if (readQueryEdit) return queryEdited(setup, readQueryEdit)
+  const searchedFor = request.method === 'GET' ? STEP_SECTIONS.find((section) => section.searchedChoicesPath === pathname) : undefined
+  if (searchedFor) return searchedChoices(setup, searchedFor)
+  const editedIn = request.method === 'POST' ? STEP_SECTIONS.find((section) => section.forms.has(pathname)) : undefined
+  if (editedIn) return queryEdited(setup, editedIn, editedIn.forms.get(pathname)!)
   const readConnect = request.method === 'POST' ? CONNECT_FORMS.get(pathname) : undefined
   if (readConnect) return connected(setup, readConnect)
   const named = milestoneName(storage, team.id)
@@ -172,7 +181,7 @@ async function renamed(setup: SetupRouting, named: string | undefined, submitted
   if (named !== undefined && now !== undefined) await followRenamedMilestone(connecting, team.id, { from: named, to: now }, context.now())
   if (submitted.kind !== 'inputs') return submitted
   // a save in place replaces only the sections saved, not the Milestone step, so its choices aren't asked for
-  return inputsWithStep(setup, { status: submitted.status, view: submitted.view, opening: { unlisted: request.saveInPlace === true } })
+  return inputsWithStep(setup, { status: submitted.status, view: submitted.view, unlisted: request.saveInPlace === true })
 }
 
 /** The milestone's name as saved; none until it has one. */
@@ -188,48 +197,81 @@ interface SetupRouting extends TeamRouting {
 }
 
 /**
- * The Inputs screen, with the Connect step (`connection`: as connected unless given) and the Milestone step, opening
- * as the request asks unless `opening` is given; served at `/inputs`, with `status` (200 unless given). `view` is the
- * Inputs view to show, as saved unless given.
+ * How the Inputs screen opens its query steps, beyond what the request asks: `unlisted`, every step asks the tracker
+ * nothing (a save in place, which doesn't replace them); `refused`, the step whose query was just refused opens on
+ * that refusal.
+ */
+interface StepsOpening {
+  unlisted?: boolean
+  refused?: { section: StepSection; query: RefusedQuery }
+}
+
+/**
+ * The Inputs screen, with the Connect step (`connection`: as connected unless given) and the query steps (the
+ * Milestone step and the Comparable work step), each opening as the request asks, or as `unlisted` or `refused` say;
+ * served at `/inputs`, with `status` (200 unless given). `view` is the Inputs view to show, as saved unless given. The
+ * steps list the same choices, so the tracker is asked for them once.
  */
 async function inputsWithStep(
   { request, context, connecting, team, settings, searchParams }: SetupRouting,
-  { status = 200, view, connection, opening }: { status?: number; view?: InputsView; connection?: ConnectionView; opening?: MilestoneStepOpening } = {},
+  { status = 200, view, connection, unlisted = false, refused }: { status?: number; view?: InputsView; connection?: ConnectionView } & StepsOpening = {},
 ): Promise<Reply> {
-  const asked: MilestoneStepOpening = {
-    editing: searchParams.get(EDITING.name) === EDITING.value,
-    confirmingBack: searchParams.get(CONFIRMING_BACK.name) === CONFIRMING_BACK.value,
+  const listing = listingOnce(connecting)
+  const steps = []
+  for (const section of STEP_SECTIONS) {
+    const editing = searchParams.get(section.editing.name) === section.editing.value
+    const opening: MilestoneStepOpening =
+      refused?.section === section
+        ? { refused: refused.query }
+        : { editing, confirmingBack: editing && searchParams.get(CONFIRMING_BACK.name) === CONFIRMING_BACK.value, unlisted }
+    const find = searchParams.get(section.findField) ?? ''
+    steps.push({ section, view: await milestoneStepView(listing, team.id, find, opening, section.stepQuery) })
   }
-  const step = await milestoneStepView(connecting, team.id, searchParams.get(FIND_FIELD) ?? '', opening ?? asked)
   const html = renderInputsScreen(
     view ?? inputsView(context.storage, team.id, settings, context.today()),
     connection ?? connectionView(connecting, team.id),
-    step,
+    steps,
   )
   return { kind: 'html', status, html, ...(request.method === 'POST' && { path: SCREEN_PATHS.inputs }) }
 }
 
-/** One kind's choices searched in the tracker, as the Milestone step's script asks for them: that kind's list alone. */
-async function searchedChoices({ connecting, team, searchParams }: SetupRouting): Promise<Reply> {
+/** `connecting`, but its connectors ask the tracker for the milestone choices once between them, however often asked. */
+function listingOnce(connecting: Connecting): Connecting {
+  let listed: ReturnType<Connector['milestoneChoices']> | undefined
+  return {
+    ...connecting,
+    connector: (connection, token) => {
+      const connector = connecting.connector(connection, token)
+      return {
+        milestoneChoices: () => (listed ??= connector.milestoneChoices()),
+        searchChoices: (kind, text) => connector.searchChoices(kind, text),
+        read: (query, finishedSince) => connector.read(query, finishedSince),
+      }
+    },
+  }
+}
+
+/** One kind's choices searched in the tracker, as a query step's script asks for them: that kind's list alone. */
+async function searchedChoices({ connecting, team, searchParams }: SetupRouting, section: StepSection): Promise<Reply> {
   const kind = choiceKindOf(searchParams.get(KIND_FIELD) ?? '')
-  const list = kind && (await searchedChoiceList(connecting, team.id, kind, searchParams.get(FIND_FIELD) ?? ''))
-  return list ? { kind: 'html', status: 200, html: choiceListHtml(list) } : { kind: 'notFound' }
+  const list = kind && (await searchedChoiceList(connecting, team.id, kind, searchParams.get(section.findField) ?? '', section.stepQuery))
+  return list ? { kind: 'html', status: 200, html: choiceListHtml(list, section) } : { kind: 'notFound' }
 }
 
 /**
- * A change of the milestone query: read again, then back to the Milestone step, still open for editing after a hand
+ * A change of a step's query (`section`'s): read again, then back to the step, still open for editing after a hand
  * edit, finding otherwise. A refused hand edit shows the Inputs screen again with why and the query as typed; a
  * change of the picks the tracker rejects, the step still finding, with why beside the chips that worked; going back
  * to finding from a query it would clear asks the EM to confirm that first.
  */
-async function queryEdited(setup: SetupRouting, readQueryEdit: (body: URLSearchParams) => MilestoneQueryEdit | undefined): Promise<Reply> {
+async function queryEdited(setup: SetupRouting, section: StepSection, readQueryEdit: (body: URLSearchParams) => MilestoneQueryEdit | undefined): Promise<Reply> {
   const edit = readQueryEdit(setup.request.form ?? new URLSearchParams())
   if (!edit) return { kind: 'notFound' }
-  const submitted = await submitMilestoneQuery(setup.connecting, setup.team.id, edit, setup.context.now())
-  if (submitted.kind === 'refused') return inputsWithStep(setup, { status: 400, opening: { refused: submitted } })
-  if (submitted.kind === 'confirmClear') return { kind: 'redirect', location: MILESTONE_STEP_URLS.confirmingBack }
+  const submitted = await submitMilestoneQuery(setup.connecting, setup.team.id, edit, setup.context.now(), section.stepQuery)
+  if (submitted.kind === 'refused') return inputsWithStep(setup, { status: 400, refused: { section, query: submitted } })
+  if (submitted.kind === 'confirmClear') return { kind: 'redirect', location: section.urls.confirmingBack }
   // a query edited by hand stays open for editing; every other change goes back to finding
-  return { kind: 'redirect', location: edit.kind === 'editQuery' ? MILESTONE_STEP_URLS.editing : MILESTONE_STEP_URLS.finding }
+  return { kind: 'redirect', location: edit.kind === 'editQuery' ? section.urls.editing : section.urls.finding }
 }
 
 /** A connect: on to the next setup step once saved; refused, the Inputs screen again with why, and the form as typed but for the token. */
@@ -240,7 +282,7 @@ async function connected(setup: SetupRouting, readConnect: (body: URLSearchParam
 }
 
 /** Where each setup step is served. */
-const SETUP_STEP_PATHS: Record<SetupStep, string> = { connect: '/inputs#connect', milestone: MILESTONE_STEP_URLS.finding }
+const SETUP_STEP_PATHS: Record<SetupStep, string> = { connect: '/inputs#connect', milestone: MILESTONE_STEP.urls.finding }
 
 /** Where each screen is served. */
 const SCREEN_PATHS: Record<NextScreen, string> = { forecast: '/', inputs: '/inputs' }

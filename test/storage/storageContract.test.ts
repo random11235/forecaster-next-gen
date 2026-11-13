@@ -411,6 +411,41 @@ describe("SQLite storage's milestone query", () => {
 
     expect(reopen().milestoneQuery('team')).toEqual(PICKED)
   })
+
+  // Comparable work's picks and query (#201), kept beside the milestone's, in the same shape, apart from it.
+  test("keeps comparable work's picks in order and its query apart from the milestone's, replacing both when saved again", () => {
+    const { storage, reopen } = sqliteFile()
+    storage.saveTeam(TEAM)
+    const comparable: MilestoneQuery = {
+      picks: [
+        { kind: 'label', name: 'checkout', query: 'label:"checkout"' },
+        { kind: 'epic', name: 'Wallet', query: 'parent-issue:acme/checkout#88' },
+      ],
+      query: 'label:"checkout" OR parent-issue:acme/checkout#88',
+    }
+
+    expect(storage.comparableWorkQuery('team')).toBeUndefined()
+    storage.saveMilestoneQuery('team', PICKED)
+    storage.saveComparableWorkQuery('team', { picks: [], query: 'label:"beta"' })
+    storage.saveComparableWorkQuery('team', comparable)
+
+    const again = reopen()
+    expect(again.comparableWorkQuery('team')).toEqual(comparable)
+    expect(again.comparableWorkQuery('another')).toBeUndefined()
+    expect(again.milestoneQuery('team')).toEqual(PICKED)
+  })
+
+  test("reads back no comparable-work pick of a kind it doesn't know, keeping the query", () => {
+    const { storage, reopen } = sqliteFile()
+    storage.saveTeam(TEAM)
+    storage.saveComparableWorkQuery('team', PICKED)
+    const db = new DatabaseSync(join(dir!, 'forecaster.db'))
+    const stored = [{ kind: 'component', name: 'Payments', query: 'component = Payments' }, ...PICKED.picks]
+    db.prepare('UPDATE comparable_work_queries SET picks = ?').run(JSON.stringify(stored))
+    db.close()
+
+    expect(reopen().comparableWorkQuery('team')).toEqual(PICKED)
+  })
 })
 
 describe('browser storage the browser refuses', () => {
