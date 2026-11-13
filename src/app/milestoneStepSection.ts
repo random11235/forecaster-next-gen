@@ -155,9 +155,10 @@ function paceHtml(pace: ComparableWorkPace | undefined): string {
       : comparing
         ? ''
         : '\n            <p class="delta">Add comparable work to measure pace from work like this milestone’s.</p>'
-  const top = Math.max(1, ...pace.periods.flatMap((period) => [period.milestone, period.comparableWork ?? 0]))
+  const top = Math.max(1, ...pace.periods.flatMap((period) => [period.milestone ?? 0, period.comparableWork ?? 0]))
   const periods = pace.periods.map((period) => periodHtml(period, top)).join('\n')
-  const legend = `${comparing ? '<i class="comparable"></i> comparable work ' : ''}<i class="own"></i> the milestone’s own${pace.periods.some((period) => period.beforeStart) ? ' <i class="before"></i> before it started' : ''}`
+  const own = pace.periods.some((period) => period.milestone !== undefined)
+  const legend = `${comparing ? '<i class="comparable"></i> comparable work ' : ''}${own ? '<i class="own"></i> the milestone’s own' : ''}${pace.periods.some((period) => period.beforeStart) ? ' <i class="before"></i> before it started' : ''}`
   return `
           <div class="step-pace">
             <p class="headline">${escapeHtml(pace.said.inUse)} <small>${escapeHtml(pace.said.from ?? '')}</small></p>${delta}
@@ -171,11 +172,17 @@ ${periods}
 /** Tallest bar's height, in pixels. */
 const PAIR_HEIGHT = 80
 
-/** One period's pair of bars: comparable work's, when it has a query, beside the milestone's own, hatched before it started. */
+/**
+ * One period's pair of bars: comparable work's, when it has a query, beside the milestone's own, when its read is
+ * complete, hatched before it started.
+ */
 function periodHtml({ start, milestone, comparableWork, beforeStart }: PairedPeriod, top: number): string {
   const bar = (count: number, kind: string): string => `<i class="${kind}" style="height:${Math.max(2, Math.round((count / top) * PAIR_HEIGHT))}px"></i>`
-  const said = `${dayMonth(start)}: ${comparableWork === undefined ? '' : `comparable work ${comparableWork}, `}the milestone’s own ${milestone}${beforeStart ? ', before it started' : ''}`
-  return `              <li class="period${beforeStart ? ' before' : ''}" title="${escapeHtml(said)}"><span class="two">${comparableWork === undefined ? '' : bar(comparableWork, 'comparable')}${bar(milestone, beforeStart ? 'before' : 'own')}</span><span class="when">${escapeHtml(dayMonth(start))}</span></li>`
+  const said = `${dayMonth(start)}: ${[
+    ...(comparableWork === undefined ? [] : [`comparable work ${comparableWork}`]),
+    ...(milestone === undefined ? [] : [`the milestone’s own ${milestone}`]),
+  ].join(', ')}${beforeStart ? ', before it started' : ''}`
+  return `              <li class="period${beforeStart ? ' before' : ''}" title="${escapeHtml(said)}"><span class="two">${comparableWork === undefined ? '' : bar(comparableWork, 'comparable')}${milestone === undefined ? '' : bar(milestone, beforeStart ? 'before' : 'own')}</span><span class="when">${escapeHtml(dayMonth(start))}</span></li>`
 }
 
 /** A pick's chip's own pace: its strip of the periods paired, how many it finished, and with several picks how many only it brings in. */

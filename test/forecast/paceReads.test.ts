@@ -218,6 +218,29 @@ describe('no reads to count', () => {
     expect(paceReads(storage, TEAM, AT)).toBeUndefined()
   })
 
+  test('the milestone query’s read incomplete, pace still comes from comparable work’s; the milestone’s own and tickets remaining are unknown', async () => {
+    const partial: CannedFixture = {
+      ...FIXTURE,
+      reads: {
+        ...FIXTURE.reads,
+        [checkout.query]: { tickets: MILESTONE_TICKETS, incomplete: true },
+      },
+    }
+    using = { ...using, connector: () => cannedConnector(partial) }
+    storage.saveMilestoneQuery(TEAM, { picks: [], query: '' })
+    await submitMilestoneQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
+    await addComparable(payments)
+
+    expect(paceReads(storage, TEAM, AT)).toEqual({
+      from: 'comparableWork',
+      pace: { counts: PAYMENTS_COUNTS, starts: WEEKS },
+      milestone: undefined,
+      beforeStart: 1,
+      comparableWork: { counts: PAYMENTS_COUNTS, starts: WEEKS },
+      ticketsRemaining: undefined,
+    })
+  })
+
   test('an incomplete comparable-work read isn’t counted: pace is the milestone’s own', async () => {
     const partial: CannedFixture = {
       ...FIXTURE,

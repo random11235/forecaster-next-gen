@@ -17,14 +17,20 @@ export interface PaceReads {
   from: PaceFrom
   /** The finished tickets per period pace is measured from: the typed counts proposed. */
   pace: DatedCounts
-  /** The milestone's own finished tickets in each period, before its start date too, so the two can be paired. */
-  milestone: DatedCounts
+  /**
+   * The milestone's own finished tickets in each period, before its start date too, so the two can be paired; none
+   * while its read is incomplete.
+   */
+  milestone: DatedCounts | undefined
   /** How many of those periods come before the milestone's start date: its own pace counts only those after. */
   beforeStart: number
   /** Comparable work's finished tickets in each period; none with no query, or no complete read of it. */
   comparableWork: DatedCounts | undefined
-  /** The milestone query's open tickets; comparable work's never count. */
-  ticketsRemaining: number
+  /**
+   * The milestone query's open tickets; comparable work's never count. None while its read is incomplete, as the open
+   * tickets of part of what it matches would pass for all of them.
+   */
+  ticketsRemaining: number | undefined
 }
 
 /** Today, and the EM's time zone (an IANA name), which each finish is counted on its calendar day in. */
@@ -40,27 +46,30 @@ export type PaceReadsStorage = Pick<Storage, 'milestoneInputs'> & Pick<Milestone
  * Seam B: the team's saved reads as pace counts them. Once a comparable-work query is added and its read finished
  * something, pace comes from comparable work's finished tickets alone; with no query, or one matching nothing finished
  * in the weeks it reads back, from the milestone's own, over the periods since its start date. Each read's tickets
- * count once by id. A read that is incomplete isn't counted. None before the milestone has a start date and a complete
- * read of its query.
+ * count once by id. A read that is incomplete isn't counted: the milestone query's leaves its own counts and tickets
+ * remaining unknown, but not a pace from comparable work. None before the milestone has a start date, nor without a
+ * complete read to take pace from.
  */
 export function paceReads(storage: PaceReadsStorage, teamId: string, { today, timeZone }: PaceDay): PaceReads | undefined {
   const inputs = storage.milestoneInputs(teamId)
+  if (inputs?.startDate === undefined) return undefined
   const milestoneRead = completeRead(storage, teamId, storage.milestoneQuery(teamId)?.query)
-  if (inputs?.startDate === undefined || milestoneRead === undefined) return undefined
   const comparableRead = completeRead(storage, teamId, storage.comparableWorkQuery(teamId)?.query)
+  const usesComparable = comparableRead !== undefined && finishedAny(comparableRead)
+  if (milestoneRead === undefined && !usesComparable) return undefined
   const { startDate, cadenceDays } = inputs
   const current = Math.floor(daysBetween(startDate, today) / cadenceDays)
-  const reads = comparableRead === undefined ? [milestoneRead] : [milestoneRead, comparableRead]
+  const reads = [milestoneRead, comparableRead].filter((read) => read !== undefined)
   const first = Math.max(...reads.map((read) => firstWholePeriod(read, startDate, cadenceDays, timeZone)))
   const periods = Math.max(0, current - first)
   const counted = (read: SavedRead): DatedCounts => finishedPerPeriod(read, { startDate, cadenceDays, today, timeZone, periods })
-  const milestone = counted(milestoneRead)
+  const milestone = milestoneRead && counted(milestoneRead)
   const comparableWork = comparableRead && counted(comparableRead)
   const beforeStart = Math.min(periods, Math.max(0, -first))
-  const both = { milestone, beforeStart, comparableWork, ticketsRemaining: ticketsRemaining(milestoneRead) }
+  const both = { milestone, beforeStart, comparableWork, ticketsRemaining: milestoneRead && ticketsRemaining(milestoneRead) }
   // a query matching nothing finished is flagged as not used, so pace falls back to the milestone's own
-  if (comparableWork !== undefined && comparableRead !== undefined && finishedAny(comparableRead)) return { from: 'comparableWork', pace: comparableWork, ...both }
-  return { from: 'milestone', pace: { counts: milestone.counts.slice(beforeStart), starts: milestone.starts.slice(beforeStart) }, ...both }
+  if (usesComparable) return { from: 'comparableWork', pace: comparableWork!, ...both }
+  return { from: 'milestone', pace: { counts: milestone!.counts.slice(beforeStart), starts: milestone!.starts.slice(beforeStart) }, ...both }
 }
 
 /** Whether the read finished anything in the weeks it reads back. */

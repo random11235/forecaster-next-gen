@@ -17,7 +17,8 @@ export interface PaceInUse {
 export interface PairedPeriod {
   /** The period's first day. */
   start: string
-  milestone: number
+  /** None while the milestone query's read is incomplete. */
+  milestone?: number
   /** None with no comparable-work query, or no complete read of it. */
   comparableWork?: number
   /** The period comes before the milestone's start date, so its own count isn't its pace. */
@@ -54,7 +55,7 @@ export interface OwnComparison {
 export interface ComparableWorkPace {
   /** None until pace has a period to count. */
   inUse?: PaceInUse
-  /** How the pace in use compares with the milestone's own; none when it is the milestone's own. */
+  /** How the pace in use compares with the milestone's own; none when it is the milestone's own, or that is unknown. */
   comparison?: OwnComparison
   /** The last `PAIRED_PERIODS` whole periods the reads reach, oldest first. */
   periods: PairedPeriod[]
@@ -82,15 +83,17 @@ export function comparableWorkPace(storage: PaceReadsStorage, teamId: string, da
   const counts = reads.pace.counts
   const inUse: PaceInUse | undefined =
     counts.length === 0 ? undefined : { from: reads.from, median: medianOf(counts), low: Math.min(...counts), high: Math.max(...counts) }
-  const own = reads.milestone.counts.slice(reads.beforeStart)
+  const own = reads.milestone?.counts.slice(reads.beforeStart) ?? []
   const comparison: OwnComparison | undefined =
-    inUse && reads.from === 'comparableWork'
+    inUse && reads.from === 'comparableWork' && reads.milestone
       ? { versus: paceVersusMilestoneOwn(inUse.median, own), ownPeriods: own.length, ...(own.length > 0 && { ownMedian: medianOf(own) }) }
       : undefined
   const { milestone, comparableWork, beforeStart } = reads
-  const periods = milestone.counts.map((count, at) => ({
-    start: milestone.starts[at]!,
-    milestone: count,
+  // the milestone's own read, or else comparable work's, lays out the periods; both reads are laid the same
+  const laid = (milestone ?? comparableWork)!
+  const periods = laid.starts.map((start, at) => ({
+    start,
+    ...(milestone && { milestone: milestone.counts[at]! }),
     ...(comparableWork && { comparableWork: comparableWork.counts[at]! }),
     beforeStart: at < beforeStart,
   }))
