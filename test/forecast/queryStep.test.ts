@@ -4,9 +4,9 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
 import type { Choice, ChoicesOfKind, Connector } from '../../src/connectors/connector.js'
-import { submitConnection, type Connecting } from '../../src/forecast/connection.js'
-import { queryStepView, searchedChoiceList, submitStepQuery } from '../../src/forecast/queryStep.js'
-import { COMPARABLE_WORK, type StepQuery } from '../../src/forecast/queryStep.js'
+import { submitConnection } from '../../src/forecast/connection.js'
+import { queryStepView, searchedChoiceList, submitStepQuery, type QueryStepping } from '../../src/forecast/queryStep.js'
+import { COMPARABLE_WORK, type StepQuery } from '../../src/forecast/stepQuery.js'
 import { submitInputs } from '../../src/forecast/inputs.js'
 import { followRenamedMilestone } from '../../src/forecast/milestoneRenamed.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
@@ -18,6 +18,7 @@ import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteS
 
 const TEAM = 'team'
 const READ_AT = '2026-11-12T09:00:00Z'
+const AT = { readAt: READ_AT, today: '2026-11-12', timeZone: 'UTC' }
 
 const payments: Choice = { kind: 'milestone', name: 'Payments v2', query: 'milestone:"Payments v2"' }
 const checkout: Choice = { kind: 'milestone', name: 'Checkout', query: 'milestone:"Checkout"' }
@@ -59,7 +60,7 @@ afterEach(() => {
 })
 
 /** The local build's means to connect, on the canned connector answering from `fixture`, counting its calls. */
-function connecting(fixture: CannedFixture = FIXTURE): Connecting & { calls: { choices: number; reads: string[]; searches: [string, string][] } } {
+function connecting(fixture: CannedFixture = FIXTURE): QueryStepping & { calls: { choices: number; reads: string[]; searches: [string, string][] } } {
   const calls = { choices: 0, reads: [] as string[], searches: [] as [string, string][] }
   const canned = cannedConnector(fixture)
   const connector = (): Connector => ({
@@ -76,7 +77,7 @@ function connecting(fixture: CannedFixture = FIXTURE): Connecting & { calls: { c
       return canned.read(query, since)
     },
   })
-  return { connections: storage, reads: storage, milestoneQueries: storage, secrets: openMemorySecrets(), connector, calls }
+  return { connections: storage, reads: storage, milestoneQueries: storage, secrets: openMemorySecrets(), connector, milestoneInputs: storage, at: AT, calls }
 }
 
 /** Connected to a GitHub repo, with no calls counted yet. */
@@ -99,7 +100,7 @@ describe('opening the Milestone step', () => {
     expect(using.calls.choices).toBe(1)
     expect(using.calls.reads).toEqual([])
     expect(view).toEqual({
-      kind: 'queryStep',
+      kind: 'milestoneStep',
       find: '',
       lists: [
         { kind: 'milestone', choices: [payments, checkout], searchedInTracker: false },
@@ -116,7 +117,7 @@ describe('opening the Milestone step', () => {
 
     const view = await queryStepView(using, TEAM, 'PAY')
 
-    expect(view.kind === 'queryStep' && view.lists).toEqual([
+    expect(view.kind !== 'noQueryStep' && view.lists).toEqual([
       { kind: 'milestone', choices: [payments], searchedInTracker: false },
       { kind: 'label', choices: [repay], searchedInTracker: false },
     ])
@@ -153,7 +154,7 @@ describe('a kind with more than 100 entries', () => {
     const view = await queryStepView(using, TEAM, ' Payments ')
 
     expect(using.calls.searches).toEqual([['epic', 'Payments']])
-    expect(view.kind === 'queryStep' && view.lists).toEqual([
+    expect(view.kind !== 'noQueryStep' && view.lists).toEqual([
       { kind: 'epic', choices: [cardPayments], searchedInTracker: true },
       { kind: 'milestone', choices: [payments], searchedInTracker: false },
       { kind: 'label', choices: [repay], searchedInTracker: false },
@@ -166,7 +167,7 @@ describe('a kind with more than 100 entries', () => {
     const view = await queryStepView(using, TEAM)
 
     expect(using.calls.searches).toEqual([])
-    expect(view.kind === 'queryStep' && view.lists[0]).toEqual({ kind: 'epic', choices: listed, searchedInTracker: true })
+    expect(view.kind !== 'noQueryStep' && view.lists[0]).toEqual({ kind: 'epic', choices: listed, searchedInTracker: true })
   })
 
   test('leaves out of what the tracker finds the choices already picked', async () => {
@@ -175,7 +176,7 @@ describe('a kind with more than 100 entries', () => {
 
     const view = await queryStepView(using, TEAM, 'payments')
 
-    expect(view.kind === 'queryStep' && view.lists[0]).toEqual({ kind: 'epic', choices: [], searchedInTracker: true })
+    expect(view.kind !== 'noQueryStep' && view.lists[0]).toEqual({ kind: 'epic', choices: [], searchedInTracker: true })
   })
 
   test('says so when the tracker can’t search, still listing the other kinds', async () => {
@@ -183,7 +184,7 @@ describe('a kind with more than 100 entries', () => {
 
     const view = await queryStepView(using, TEAM, 'pay')
 
-    expect(view.kind === 'queryStep' && view.choicesFailure).toBeUndefined()
+    expect(view.kind !== 'noQueryStep' && view.choicesFailure).toBeUndefined()
     expect(view).toMatchObject({
       lists: [
         { kind: 'epic', choices: [], searchedInTracker: true, failure: 'The tracker couldn’t search its epics just now. Try again in a few minutes.' },
@@ -262,7 +263,7 @@ describe('picking', () => {
 
     expect(using.calls.reads).toEqual(['milestone:"Payments v2"'])
     expect(view).toMatchObject({ picks: [], query: '' })
-    expect(view.kind === 'queryStep' && view.read).toBeUndefined()
+    expect(view.kind !== 'noQueryStep' && view.read).toBeUndefined()
   })
 
   test('picking what is already picked changes nothing and reads nothing', async () => {
@@ -282,7 +283,7 @@ describe('picking', () => {
     storage.close()
 
     storage = openSqliteStorage(file)
-    const view = await queryStepView({ ...using, connections: storage, reads: storage, milestoneQueries: storage }, TEAM)
+    const view = await queryStepView({ ...using, connections: storage, reads: storage, milestoneQueries: storage, milestoneInputs: storage }, TEAM)
 
     expect(view).toMatchObject({
       picks: [payments, bug],
@@ -322,7 +323,7 @@ describe('editing as a query', () => {
 
     const view = await queryStepView(using, TEAM, '', { editing: true })
 
-    expect(view.kind === 'queryStep' && view.editing).toEqual({ typed: 'milestone:"Payments v2"', readIn: 'shop-team/shop' })
+    expect(view.kind !== 'noQueryStep' && view.editing).toEqual({ typed: 'milestone:"Payments v2"', readIn: 'shop-team/shop' })
   })
 
   test('the step opens on finding, not editing, until asked', async () => {
@@ -331,7 +332,7 @@ describe('editing as a query', () => {
 
     const view = await queryStepView(using, TEAM)
 
-    expect(view.kind === 'queryStep' && view.editing).toBeUndefined()
+    expect(view.kind !== 'noQueryStep' && view.editing).toBeUndefined()
   })
 
   test('a query the picker can’t show stays open for editing, warning that going back to finding clears it', async () => {
@@ -340,7 +341,7 @@ describe('editing as a query', () => {
 
     const view = await queryStepView(using, TEAM)
 
-    expect(view.kind === 'queryStep' && view.editing).toEqual({
+    expect(view.kind !== 'noQueryStep' && view.editing).toEqual({
       typed: 'label:checkout -label:bug',
       readIn: 'shop-team/shop',
       backClears: 'The picker can’t show this query, so going back to finding clears it.',
@@ -354,7 +355,7 @@ describe('editing as a query', () => {
     const editing = await queryStepView(using, TEAM, '', { editing: true })
     const finding = await queryStepView(using, TEAM)
 
-    expect(editing.kind === 'queryStep' && editing.editing).toEqual({ typed: 'label:"bug" OR milestone:"Payments v2"', readIn: 'shop-team/shop' })
+    expect(editing.kind !== 'noQueryStep' && editing.editing).toEqual({ typed: 'label:"bug" OR milestone:"Payments v2"', readIn: 'shop-team/shop' })
     expect(finding).toMatchObject({
       picks: [bug, payments],
       query: 'label:"bug" OR milestone:"Payments v2"',
@@ -363,7 +364,7 @@ describe('editing as a query', () => {
         { kind: 'label', choices: [repay] },
       ],
     })
-    expect(finding.kind === 'queryStep' && finding.editing).toBeUndefined()
+    expect(finding.kind !== 'noQueryStep' && finding.editing).toBeUndefined()
   })
 
   test('a query naming one choice twice can’t be shown as chips, which would show it once', async () => {
@@ -373,7 +374,7 @@ describe('editing as a query', () => {
     const view = await queryStepView(using, TEAM)
 
     expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [], query: 'label:"bug" OR milestone:"Payments v2" OR label:"bug"' })
-    expect(view.kind === 'queryStep' && view.editing?.backClears).toBeDefined()
+    expect(view.kind !== 'noQueryStep' && view.editing?.backClears).toBeDefined()
   })
 
   test('an OR inside brackets or quotes splits nothing', async () => {
@@ -414,7 +415,7 @@ describe('editing as a query', () => {
 
       expect(using.calls.searches).toContainEqual(['label', 'zebra'])
       expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [zebra, payments], query: 'label:"zebra" OR milestone:"Payments v2"' })
-      expect(view.kind === 'queryStep' && view.editing).toBeUndefined()
+      expect(view.kind !== 'noQueryStep' && view.editing).toBeUndefined()
     })
 
     test('nothing is searched for when the choices listed are enough', async () => {
@@ -460,7 +461,7 @@ describe('editing as a query', () => {
     const view = await queryStepView(using, TEAM)
 
     expect(view).toMatchObject({ picks: [launch, urgent], query: 'fixVersion = "Launch" or labels = "urgent"' })
-    expect(view.kind === 'queryStep' && view.editing).toBeUndefined()
+    expect(view.kind !== 'noQueryStep' && view.editing).toBeUndefined()
   })
 })
 
@@ -547,7 +548,7 @@ describe('going back to finding', () => {
 
     expect(using.calls.reads).toEqual(['milestone:"Payments v2"'])
     expect(view).toMatchObject({ picks: [payments], query: 'milestone:"Payments v2"' })
-    expect(view.kind === 'queryStep' && view.editing).toBeUndefined()
+    expect(view.kind !== 'noQueryStep' && view.editing).toBeUndefined()
   })
 
   test('from a query the picker can’t show, it asks first, clearing nothing', async () => {
@@ -559,7 +560,7 @@ describe('going back to finding', () => {
 
     expect(submitted).toEqual({ kind: 'confirmClear' })
     expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [], query: 'label:checkout -label:bug' })
-    expect(view.kind === 'queryStep' && view.editing).toEqual({
+    expect(view.kind !== 'noQueryStep' && view.editing).toEqual({
       typed: 'label:checkout -label:bug',
       readIn: 'shop-team/shop',
       backClears: 'The picker can’t show this query, so going back to finding clears it.',
@@ -573,7 +574,7 @@ describe('going back to finding', () => {
 
     const view = await queryStepView(using, TEAM, '', { editing: true, confirmingBack: true })
 
-    expect(view.kind === 'queryStep' && view.editing).toEqual({ typed: 'milestone:"Payments v2"', readIn: 'shop-team/shop' })
+    expect(view.kind !== 'noQueryStep' && view.editing).toEqual({ typed: 'milestone:"Payments v2"', readIn: 'shop-team/shop' })
   })
 
   test('once confirmed, from a query the picker can’t show, it clears the query, reading nothing', async () => {
@@ -586,7 +587,7 @@ describe('going back to finding', () => {
     expect(using.calls.reads).toEqual(['label:checkout -label:bug'])
     expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [], query: '' })
     expect(view).toMatchObject({ picks: [], query: '' })
-    expect(view.kind === 'queryStep' && (view.editing ?? view.read)).toBeUndefined()
+    expect(view.kind !== 'noQueryStep' && (view.editing ?? view.read)).toBeUndefined()
   })
 })
 
@@ -636,7 +637,7 @@ describe('a query the tracker rejects', () => {
     const refusal = `GitHub rejected this query: ${message}`
     expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
     expect(view).toMatchObject({ picks: [payments], query: 'milestone:"Payments v2"', read: '2 open · 1 finished in the last 8 weeks', refusal })
-    expect(view && view.kind === 'queryStep' && view.editing).toBeUndefined()
+    expect(view && view.kind !== 'noQueryStep' && view.editing).toBeUndefined()
   })
 
   test('on Jira, the message is Jira’s', async () => {
@@ -701,7 +702,7 @@ describe('a read flagged', () => {
 
     expect(view).toMatchObject({ flag: 'GitHub gave only part of what this query matches, so its tickets aren’t counted. Narrow the query to read all of it.' })
     // Part of a count would pass for the count, so no line is shown.
-    expect(view.kind === 'queryStep' && view.read).toBeUndefined()
+    expect(view.kind !== 'noQueryStep' && view.read).toBeUndefined()
   })
 
   test('a read with tickets, all of them, is not flagged', async () => {
@@ -710,7 +711,7 @@ describe('a read flagged', () => {
 
     const view = await queryStepView(using, TEAM)
 
-    expect(view.kind === 'queryStep' && view.flag).toBeUndefined()
+    expect(view.kind !== 'noQueryStep' && view.flag).toBeUndefined()
   })
 })
 
@@ -721,9 +722,7 @@ describe('the step, for another of the team’s queries (#200)', () => {
     return {
       name: 'Other query',
       picksOut: 'the other tickets',
-      optional: false,
-      countsOpen: true,
-      readsEachPick: false,
+      kind: 'milestoneQuery',
       saved: (_, teamId) => kept.get(teamId),
       save: (_, teamId, query) => void kept.set(teamId, query),
       kept,
@@ -741,7 +740,7 @@ describe('the step, for another of the team’s queries (#200)', () => {
     expect(other.kept.get(TEAM)).toEqual({ picks: [bug], query: 'label:"bug"' })
     expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
     expect(view).toMatchObject({ picks: [bug], query: 'label:"bug"' })
-    expect(view.kind === 'queryStep' && view.lists).toEqual([
+    expect(view.kind !== 'noQueryStep' && view.lists).toEqual([
       { kind: 'milestone', choices: [payments, checkout], searchedInTracker: false, thisMilestone: payments.query },
       { kind: 'label', choices: [repay], searchedInTracker: false },
     ])
@@ -774,7 +773,7 @@ describe('the Comparable work step', () => {
 
     expect(using.calls.reads).toEqual([])
     expect(view).toMatchObject({ picks: [], query: '', onward: 'skip' })
-    expect(view.kind === 'queryStep' && view.read).toBeUndefined()
+    expect(view.kind !== 'noQueryStep' && view.read).toBeUndefined()
   })
 
   test('joins several picks with OR, saved apart from the milestone query, and reads it once and each pick once (#204), its button reading Next', async () => {
@@ -897,7 +896,7 @@ describe('the Comparable work step, flagged', () => {
       read: '0 finished in the last 8 weeks',
       onward: 'next',
     })
-    expect(view.kind === 'queryStep' && view.flag).toBeUndefined()
+    expect(view.kind !== 'noQueryStep' && view.flag).toBeUndefined()
   })
 
   test('incomplete, shows no count, only the flag asking the EM to narrow the query', async () => {
@@ -907,7 +906,7 @@ describe('the Comparable work step, flagged', () => {
     const view = await queryStepView(using, TEAM, '', {}, COMPARABLE_WORK)
 
     expect(view).toMatchObject({ flag: 'GitHub gave only part of what this query matches, so its tickets aren’t counted. Narrow the query to read all of it.' })
-    expect(view.kind === 'queryStep' && view.read).toBeUndefined()
+    expect(view.kind !== 'noQueryStep' && view.read).toBeUndefined()
   })
 
   test('with finished tickets in the window, is not flagged', async () => {
@@ -917,7 +916,7 @@ describe('the Comparable work step, flagged', () => {
     const view = await queryStepView(using, TEAM, '', {}, COMPARABLE_WORK)
 
     expect(view).toMatchObject({ read: '1 finished in the last 8 weeks' })
-    expect(view.kind === 'queryStep' && view.flag).toBeUndefined()
+    expect(view.kind !== 'noQueryStep' && view.flag).toBeUndefined()
   })
 
   test('rejected by the tracker as edited by hand, stays open for editing as typed, with its message, the last query that worked in use', async () => {
@@ -951,7 +950,7 @@ describe('the Comparable work step, flagged', () => {
     const refusal = `GitHub rejected this query: ${message}`
     expect(storage.comparableWorkQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
     expect(view).toMatchObject({ picks: [payments], query: 'milestone:"Payments v2"', read: '1 finished in the last 8 weeks', refusal })
-    expect(view && view.kind === 'queryStep' && view.editing).toBeUndefined()
+    expect(view && view.kind !== 'noQueryStep' && view.editing).toBeUndefined()
   })
 
   test('reaching outside the connection as edited by hand, stays open for editing, naming the connected repo, the last query that worked in use', async () => {
@@ -976,7 +975,7 @@ describe('the Comparable work step, flagged', () => {
 
     expect(storage.comparableWorkQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
     expect(view).toMatchObject({ picks: [payments], refusal: expect.stringContaining('reaches outside shop-team/shop') })
-    expect(view && view.kind === 'queryStep' && view.editing).toBeUndefined()
+    expect(view && view.kind !== 'noQueryStep' && view.editing).toBeUndefined()
   })
 
   test('rejected as the first query, leaves no comparable work, its button still reading Skip', async () => {

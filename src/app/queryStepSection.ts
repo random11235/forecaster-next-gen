@@ -1,5 +1,6 @@
-import type { ChoiceList, StepQueryEdit, QueryStep, QueryStepView, QueryEditing, StepQuery } from '../forecast/queryStep.js'
-import { COMPARABLE_WORK, kindName, MILESTONE_QUERY } from '../forecast/queryStep.js'
+import type { ChoiceList, ComparableWorkStep, StepQueryEdit, QueryStep, QueryStepView, QueryEditing } from '../forecast/queryStep.js'
+import { kindName } from '../forecast/queryStep.js'
+import { COMPARABLE_WORK, MILESTONE_QUERY, type StepQuery } from '../forecast/stepQuery.js'
 import { choiceKindOf, type Choice } from '../connectors/connector.js'
 import { dayMonth } from '../forecast/calendarDate.js'
 import type { ComparableWorkPace, PairedPeriod, PickPace } from '../forecast/comparableWorkPace.js'
@@ -25,7 +26,7 @@ export interface StepSection {
   inputId: string
   /**
    * Where its forms post: add a choice as a pick, remove a pick, submit the query edited by hand, go back to finding,
-   * and, an optional step's only, start afresh.
+   * and, the Comparable work step's only, start afresh.
    */
   paths: { add: string; remove: string; edit: string; back: string; afresh: string }
   /** Each form it posts, by its action's path, and how its fields are read. */
@@ -41,12 +42,6 @@ export interface StepSection {
   editing: { name: string; value: string }
   /** Where it is served: finding choices to pick; with its query open for editing; and asking to confirm going back clears it. */
   urls: { finding: string; editing: string; confirmingBack: string }
-  /** Where an optional step's main button (Skip, or Next) goes on to: the next section. None for a step that isn't optional. */
-  onwardTo?: string
-  /** It leads with the pace in use, how far it is from the milestone's own, and the two paired per period. */
-  leadsWithPace?: boolean
-  /** Its choices are candidates, each opened by a link beside it to read how it runs (#205): the Comparable work step's. */
-  candidates?: true
 }
 
 /** The field naming the kind searched, at a step's `searchedChoicesPath`. */
@@ -82,7 +77,7 @@ function stepSection({ formsAt, editingValue, ...section }: StepSectionMade): St
     [paths.edit, (body) => ({ kind: 'editQuery', query: body.get(CHOICE_FIELDS.query) ?? '' })],
     [paths.back, (body) => ({ kind: 'backToFinding', confirmed: body.get(CONFIRMED.name) === CONFIRMED.value })],
   ])
-  if (section.stepQuery.optional) forms.set(paths.afresh, () => ({ kind: 'startAfresh' }))
+  if (section.stepQuery.kind === 'comparableWork') forms.set(paths.afresh, () => ({ kind: 'startAfresh' }))
   return {
     ...section,
     paths,
@@ -123,10 +118,10 @@ export const COMPARABLE_WORK_STEP: StepSection = stepSection({
   findField: 'comparableFind',
   searchedChoicesPath: '/inputs/comparable-work-choices',
   editingValue: 'comparable',
-  onwardTo: '/inputs#milestone',
-  leadsWithPace: true,
-  candidates: true,
 })
+
+/** Where the Comparable work step's main button (Skip, or Next) goes on to: the next section, the milestone. */
+const COMPARABLE_WORK_ONWARD = '/inputs#milestone'
 
 /** The setup steps that pick or write a query, in the order the Inputs screen shows them. */
 export const STEP_SECTIONS: readonly StepSection[] = [MILESTONE_STEP, COMPARABLE_WORK_STEP]
@@ -134,11 +129,13 @@ export const STEP_SECTIONS: readonly StepSection[] = [MILESTONE_STEP, COMPARABLE
 /**
  * A step picking or writing one of the team's queries (`section`), in the local server build once connected; none
  * otherwise. Each pick and each removal posts at once; the find box filters the lists as the EM types (see
- * `queryStepScript`), and without the script it submits to `/inputs` with what was typed. An optional step ends
- * with its main button, Skip until something is added and Next after, and Start afresh once it has a query.
+ * `queryStepScript`), and without the script it submits to `/inputs` with what was typed. The Comparable work step
+ * leads with its pace, and ends with its main button, Skip until something is added and Next after, and Start
+ * afresh once it has a query.
  */
-export function queryStepSection(view: QueryStepView, section: StepSection, pace?: ComparableWorkPace): string | undefined {
+export function queryStepSection(view: QueryStepView, section: StepSection): string | undefined {
   if (view.kind === 'noQueryStep') return undefined
+  const pace = view.kind === 'comparableWorkStep' ? view.pace : undefined
   return view.editing ? editingSection(view, view.editing, section, pace) : findingSection(view, section, pace)
 }
 
@@ -205,21 +202,21 @@ function readHtml(view: QueryStep, pace: ComparableWorkPace | undefined): string
   return line + flag
 }
 
-/** An optional step's main button's label, by where it goes. */
-const ONWARD_LABELS: Readonly<Record<NonNullable<QueryStep['onward']>, string>> = { skip: 'Skip', next: 'Next' }
+/** The Comparable work step's main button's label, by where it goes. */
+const ONWARD_LABELS: Readonly<Record<ComparableWorkStep['onward'], string>> = { skip: 'Skip', next: 'Next' }
 
 /**
- * An optional step's end: Start afresh, clearing all its picks and query at once, once it has a query; and its main
- * button, on to the next section. Nothing for a step that isn't optional.
+ * The Comparable work step's end: Start afresh, clearing all its picks and query at once, once it has a query; and
+ * its main button, on to the next section. Nothing for the Milestone step.
  */
-function onwardHtml(view: QueryStep, { paths, id, onwardTo }: StepSection): string {
-  if (view.onward === undefined || onwardTo === undefined) return ''
+function onwardHtml(view: QueryStep, { paths, id }: StepSection): string {
+  if (view.kind !== 'comparableWorkStep') return ''
   const afresh =
     view.onward === 'next'
       ? `<form method="post" action="${paths.afresh}#${id}"><button type="submit" class="linkish">Start afresh</button></form> `
       : ''
   return `
-          <div class="actions onward">${afresh}<a href="${onwardTo}" class="button primary">${ONWARD_LABELS[view.onward]}</a></div>`
+          <div class="actions onward">${afresh}<a href="${COMPARABLE_WORK_ONWARD}" class="button primary">${ONWARD_LABELS[view.onward]}</a></div>`
 }
 
 /**
@@ -286,7 +283,8 @@ ${lists}
  * marked "this milestone"; a kind searched in the tracker is marked for the script (`data-searched`), which asks for it
  * again as the EM types rather than filtering it.
  */
-export function choiceListHtml(list: ChoiceList, { paths, id, candidates }: StepSection): string {
+export function choiceListHtml(list: ChoiceList, { paths, id, stepQuery }: StepSection): string {
+  const candidates = stepQuery.kind === 'comparableWork'
   const choices = list.choices
     .map(
       (choice) => `              <form method="post" action="${paths.add}#${id}" data-name="${escapeHtml(choice.name.toLowerCase())}"${candidates ? ' class="candidate"' : ''}>

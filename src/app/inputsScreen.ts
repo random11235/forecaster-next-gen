@@ -10,8 +10,7 @@ import type { PaceMode } from '../model/milestoneInputs.js'
 import { CONNECT_HINT, connectSection } from './connectSection.js'
 import { escapeHtml, htmlPage } from './html.js'
 import { INPUTS_SCRIPT } from './inputsScript.js'
-import type { ComparableWorkPace } from '../forecast/comparableWorkPace.js'
-import { candidatesScript } from './candidatesSection.js'
+import { candidatesHtml, candidatesScript } from './candidatesSection.js'
 import { queryStepScript, queryStepSection, type StepSection } from './queryStepSection.js'
 import { renderPaceTrend } from './paceTrendGraph.js'
 
@@ -58,10 +57,11 @@ export const INPUTS_FORMS: ReadonlyMap<string, FormReader> = new Map<string, For
 export interface ShownStep {
   section: StepSection
   view: QueryStepView
-  /** The pace the step leads with: the Comparable work step's, once there is one. */
-  pace?: ComparableWorkPace
-  /** Its candidates for comparable work, below its picker (`candidatesHtml`, #205); none for a step without them. */
-  candidates?: string
+  /**
+   * The id its candidates' opening is kept by, for the page's script to read more in (`keepOpening`): the Comparable work
+   * step's, while it shows candidates (`ComparableWorkStep.candidates`, #205).
+   */
+  openingId?: string
 }
 
 /**
@@ -73,9 +73,10 @@ export function renderInputsScreen(screen: InputsView, connection: ConnectionVie
   const { milestone, forms } = screen
   const error = (form: InputsForm): string | undefined => (screen.refusal?.form === form ? screen.refusal.error : undefined)
   const connect = connectSection(connection)
-  const pickers = steps.flatMap(({ section, view, pace, candidates }) => {
-    const picker = queryStepSection(view, section, pace)
-    return picker === undefined ? [] : [{ section, picker: picker + (candidates ?? '') }]
+  const pickers = steps.flatMap(({ section, view, openingId }) => {
+    const picker = queryStepSection(view, section)
+    const candidates = view.kind === 'comparableWorkStep' && view.candidates && openingId !== undefined ? candidatesHtml(view.candidates.shown, openingId, section) : ''
+    return picker === undefined ? [] : [{ section, picker: picker + candidates }]
   })
   const sections = [
     ...(connect === undefined ? [] : [inputSection('Connect', 'Connect', CONNECT_HINT, connect, { postsOnSubmit: true })]),
@@ -94,7 +95,7 @@ export function renderInputsScreen(screen: InputsView, connection: ConnectionVie
   const script =
     INPUTS_SCRIPT +
     pickers.map(({ section }) => queryStepScript(section)).join('') +
-    steps.filter(({ candidates }) => candidates !== undefined).map(({ section }) => candidatesScript(section)).join('')
+    steps.filter(({ openingId }) => openingId !== undefined).map(({ section }) => candidatesScript(section)).join('')
   return htmlPage('/inputs', header, sections.map((section, index) => section(index + 1)).join('\n'), script)
 }
 
