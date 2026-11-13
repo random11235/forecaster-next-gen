@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { submitInputs } from '../../src/forecast/inputs.js'
 import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
+import type { MilestoneQuery } from '../../src/model/milestoneQuery.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
 
@@ -645,7 +646,7 @@ describe("a data file from schema version 14, before the milestone's picks and q
     })
     expect(storage.milestoneQuery(TEAM)).toBeUndefined()
 
-    const picked = { picks: [{ kind: 'milestone', name: 'Launch', query: 'milestone:"Launch"' }], query: 'milestone:"Launch"' }
+    const picked: MilestoneQuery = { picks: [{ kind: 'milestone', name: 'Launch', query: 'milestone:"Launch"' }], query: 'milestone:"Launch"' }
     storage.saveMilestoneQuery(TEAM, picked)
     storage.close()
 

@@ -7,6 +7,7 @@ import { recordGithub } from '../../../scripts/record.js'
 // recording token is refused. The live run is `npm run record:github`.
 
 const TOKEN = 'github_pat_recording-token-under-test'
+const REPO_ID = 4242
 
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'x-ratelimit-remaining': '4999' } })
@@ -18,6 +19,11 @@ const github: Transport = async (url, init) => {
     return json(401, { message: 'Bad credentials', documentation_url: 'https://docs.github.com/rest', status: '401' })
   }
   const known = url.includes('forecaster-synthetic/') || url.includes('forecaster-synthetic%20')
+  // A search of labels names the repo by its id, which the repo itself gives.
+  if (url.endsWith('/repos/random11235/forecaster-synthetic')) return json(200, { id: REPO_ID, name: 'forecaster-synthetic', owner: { login: 'someone' } })
+  if (url.includes(`/search/labels?repository_id=${REPO_ID}&`)) {
+    return json(200, { total_count: 1, incomplete_results: false, items: [{ id: 1, name: 'comparable', color: '0e8a16', description: 'Synthetic', score: 1 }] })
+  }
   if (url.includes('/milestones')) {
     return known
       ? json(200, [{ title: 'Search revamp', number: 2, description: 'Synthetic', creator: { login: 'someone' }, open_issues: 3 }])
@@ -49,6 +55,8 @@ describe('the GitHub recording script', () => {
     const responses = result.recordings.synthetic.map((recording) => recording.response.body)
     expect(responses).toContainEqual([{ title: 'Search revamp' }])
     expect(responses).toContainEqual([{ name: 'comparable' }])
+    expect(responses).toContainEqual({ id: REPO_ID })
+    expect(responses).toContainEqual({ items: [{ name: 'comparable' }] })
     expect(responses).toContainEqual({
       total_count: 1,
       incomplete_results: false,
@@ -69,15 +77,20 @@ describe('the GitHub recording script', () => {
     if (!result.ok) throw new Error(result.message)
     const urls = Object.values(result.recordings).flatMap((recordings) => recordings.map((recording) => decodeURIComponent(recording.request.url)))
     expect(urls.length).toBeGreaterThan(0)
-    for (const url of urls) expect(url).toMatch(/^https:\/\/api\.github\.com\/.*random11235\/forecaster-synthetic/)
+    for (const url of urls) {
+      // A search of labels names the synthetic repo by the id it gave.
+      if (url.includes('/search/labels?')) expect(url).toContain(`repository_id=${REPO_ID}&`)
+      else expect(url).toMatch(/^https:\/\/api\.github\.com\/.*random11235\/forecaster-synthetic/)
+    }
   })
 
   test('records each failure the tracker gives: a refused token and an unknown repo', async () => {
     const result = await recordGithub(TOKEN, github, githubConnector)
 
     if (!result.ok) throw new Error(result.message)
-    expect(result.recordings.refusedToken.map((recording) => recording.response.status)).toEqual([401, 401, 401])
-    expect(result.recordings.unknown.map((recording) => recording.response.status)).toEqual([422, 422, 422])
+    // The milestone choices, a search of choices and one for nothing, then the read from the start and from the cut.
+    expect(result.recordings.refusedToken.map((recording) => recording.response.status)).toEqual([401, 401, 401, 401, 401])
+    expect(result.recordings.unknown.map((recording) => recording.response.status)).toEqual([422, 422, 422, 422, 422])
   })
 
   test('says plainly when the recording token is refused, and records nothing', async () => {

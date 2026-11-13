@@ -283,8 +283,7 @@ const STYLE = `
       width: 100%; font-size: 15px; color: var(--ink); background: transparent;
       border: 0; border-bottom: 1px solid var(--ink); border-radius: 0; padding: 6px 0;
     }
-    .found { display: flex; flex-direction: column; gap: 4px; }
-    .saves-as-changed .found:not(.finding) { display: none; }
+    .found { display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow-y: auto; }
     .found h3 { margin: 6px 0 2px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
     .found button { display: block; width: 100%; text-align: left; border: 0; background: none; min-height: 30px; font-size: 14px; padding: 0 8px; border-radius: 4px; cursor: pointer; }
     .found button:hover { background: var(--active); }
@@ -294,7 +293,7 @@ const STYLE = `
     .picker .query .none { color: var(--faint); }
     .picker p.read { margin: 0; color: var(--good); font-weight: 600; }
     .picker .query a.edit { margin-left: 8px; font-weight: 400; font-size: 13px; color: var(--link); }
-    /* The query open for editing: read on Enter, and Back to finding, with its warning when it clears the query. */
+    /* The query open for editing: read on Enter, and Back to finding, with its warning when it clears the query, and asking to confirm that. */
     .picker.editing .query { border-top: 0; padding-top: 0; }
     .picker.editing .query b { font-family: var(--mono); font-weight: 500; }
     .picker input[type=text] {
@@ -305,6 +304,7 @@ const STYLE = `
     .picker code { font-family: var(--mono); font-size: 13px; overflow-wrap: anywhere; }
     .picker form.back { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border-top: 1px solid var(--hairline); padding-top: 12px; }
     .picker .warn { margin: 0; color: var(--risk); }
+    .picker form.back a.keep { font-size: 13px; color: var(--link); }
     details.change > summary { cursor: pointer; font-size: 13px; color: var(--link); }
     details.change[open] > summary { margin-bottom: 16px; }
     section.input > .label p.saved { color: var(--good); font-weight: 600; }

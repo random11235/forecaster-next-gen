@@ -175,21 +175,21 @@ function refusalOf(connection: Connection, { failure }: Failure): string {
   }
 }
 
-/**
- * The connector for the team's connection and its saved token: `notConnected` while the team has no connection, and
- * `keychainFailed` when this computer's keychain can't give the token.
- */
-export async function teamConnector(
-  { connections, secrets, connector }: Connecting,
-  teamId: string,
-): Promise<Connector | 'notConnected' | 'keychainFailed'> {
+/** A team's connection, and the connector for it and its saved token: `keychainFailed` when this computer's keychain can't give the token. */
+export interface TeamConnection {
+  connection: Connection
+  connector: Connector | 'keychainFailed'
+}
+
+/** The team's connection with its connector; none while the team has no connection. */
+export async function teamConnection({ connections, secrets, connector }: Connecting, teamId: string): Promise<TeamConnection | undefined> {
   const connection = connections.connection(teamId)
-  if (!connection) return 'notConnected'
+  if (!connection) return undefined
   try {
     const token = await secrets.token(teamId)
-    return token ? connector(connection, token) : 'keychainFailed'
+    return { connection, connector: token ? connector(connection, token) : 'keychainFailed' }
   } catch {
-    return 'keychainFailed'
+    return { connection, connector: 'keychainFailed' }
   }
 }
 
