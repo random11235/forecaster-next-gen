@@ -15,7 +15,7 @@ import {
 import type { Connector } from '../connectors/connector.js'
 import { inputsView, submitInputs, type InputsView, type NextScreen } from '../forecast/inputs.js'
 import { milestoneForecastView, type MilestoneForecastView } from '../forecast/milestoneForecastView.js'
-import { readPicks, setupView, submitSetup, type SettingUp, type SetupEdit } from '../forecast/setup.js'
+import { readPicks, setupView, submitSetup, throughDraft, type SettingUp, type SetupEdit } from '../forecast/setup.js'
 import type { TrackerReads } from '../forecast/trackerReads.js'
 import { DEFAULT_SETTINGS, type ForecastSettings } from '../forecast/settings.js'
 import type { Team } from '../model/team.js'
@@ -192,7 +192,7 @@ export function routeSetup(request: Request, context: AppContext): Promise<Reply
 async function renamed(setup: SetupRouting, named: string | undefined, submitted: FormReply): Promise<Reply> {
   const { reading, context, team, request } = setup
   const now = milestoneName(context.storage, team.id)
-  if (named !== undefined && now !== undefined) await followRenamedMilestone(reading, team.id, { from: named, to: now }, context.now())
+  if (named !== undefined && now !== undefined) await followRenamedMilestone(throughDraft(reading), team.id, { from: named, to: now }, context.now())
   if (submitted.kind !== 'inputs') return submitted
   // a save in place replaces only the sections saved, not the Milestone step, so its choices aren't asked for
   return inputsWithStep(setup, { status: submitted.status, view: submitted.view, unlisted: request.saveInPlace === true })
@@ -238,7 +238,8 @@ async function inputsWithStep(
   const setup = setupView(settingUp(context, connecting), team.id, asked)
   // each pick's count on the summary is read at Check, never as the screen opens
   if (setup.kind === 'steps' && setup.step === 'check') await readPicks(reading, team.id, context.now())
-  const stepping: QueryStepping = { ...listingOnce(connecting), milestoneInputs: context.storage, at: candidatesAt(context) }
+  // the steps show what setup's draft holds, before what is saved
+  const stepping: QueryStepping = { ...throughDraft(listingOnce(connecting)), milestoneInputs: context.storage, at: candidatesAt(context) }
   const steps: ShownStep[] = []
   // only the step shown is built, so the tracker is asked nothing once setup is closed
   for (const section of STEP_SECTIONS.filter(({ setupStep }) => setup.kind === 'steps' && setup.step === setupStep)) {
@@ -271,8 +272,8 @@ function settingUp(context: AppContext, connecting: Connecting): SettingUp {
 }
 
 /**
- * "Use these", Change or skipping connecting: back to the Inputs screen, at the Milestone step when the steps open
- * again with the team connected. "Use these" refused, from a page left open, goes back to the steps as they are.
+ * "Use these", Change, Cancel or skipping connecting: back to the Inputs screen, at the Milestone step when the steps
+ * open again with the team connected. Refused, from a page left open, it goes back to the steps as they are.
  */
 function setupSubmitted(setup: SetupRouting, edit: SetupEdit): Reply {
   const settingUpNow = settingUp(setup.context, setup.connecting)
@@ -311,7 +312,7 @@ function listingOnce(connecting: Connecting): Connecting {
 async function candidatesAsked({ context, connecting, team, searchParams }: SetupRouting): Promise<Reply> {
   const choices = choicesAsked(searchParams, choiceKindOf)
   if (!choices) return { kind: 'notFound' }
-  const opening = openingKept(searchParams.get(OPENING_FIELD) ?? '', () => openCandidates(connecting, context.storage, team.id, candidatesAt(context)))
+  const opening = openingKept(searchParams.get(OPENING_FIELD) ?? '', () => openCandidates(throughDraft(connecting), context.storage, team.id, candidatesAt(context)))
   const candidates = await opening.read(choices)
   return { kind: 'html', status: 200, html: candidatesHtml(candidates, searchParams.get(OPENING_FIELD) ?? '', COMPARABLE_WORK_STEP) }
 }
@@ -324,7 +325,7 @@ function candidatesAt({ now, today }: AppContext): CandidatesAt {
 /** One kind's choices searched in the tracker, as a query step's script asks for them: that kind's list alone. */
 async function searchedChoices({ connecting, team, searchParams }: SetupRouting, section: StepSection): Promise<Reply> {
   const kind = choiceKindOf(searchParams.get(KIND_FIELD) ?? '')
-  const list = kind && (await searchedChoiceList(connecting, team.id, kind, searchParams.get(section.findField) ?? '', section.stepQuery))
+  const list = kind && (await searchedChoiceList(throughDraft(connecting), team.id, kind, searchParams.get(section.findField) ?? '', section.stepQuery))
   return list ? { kind: 'html', status: 200, html: choiceListHtml(list, section) } : { kind: 'notFound' }
 }
 
@@ -337,7 +338,8 @@ async function searchedChoices({ connecting, team, searchParams }: SetupRouting,
 async function queryEdited(setup: SetupRouting, section: StepSection, readQueryEdit: (body: URLSearchParams) => StepQueryEdit | undefined): Promise<Reply> {
   const edit = readQueryEdit(setup.request.form ?? new URLSearchParams())
   if (!edit) return { kind: 'notFound' }
-  const submitted = await submitStepQuery(setup.reading, setup.team.id, edit, setup.context.now(), section.stepQuery)
+  // read at once, into setup's draft while setup is open
+  const submitted = await submitStepQuery(throughDraft(setup.reading), setup.team.id, edit, setup.context.now(), section.stepQuery)
   if (submitted.kind === 'refused') return inputsWithStep(setup, { status: 400, refused: { section, query: submitted } })
   if (submitted.kind === 'confirmClear') return { kind: 'redirect', location: section.urls.confirmingBack }
   // a query edited by hand stays open for editing; every other change goes back to finding

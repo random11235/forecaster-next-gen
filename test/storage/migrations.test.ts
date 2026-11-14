@@ -783,7 +783,7 @@ describe('a data file from schema version 17, before previous reads', () => {
     const again = openSqliteStorage(file)
     expect(again.previousRead({ teamId: TEAM, query })).toEqual(saved)
     again.close()
-    expect(versionOf(file)).toBe(20)
+    expect(versionOf(file)).toBe(21)
   })
 })
 
@@ -829,7 +829,7 @@ describe('a data file from schema version 18, before reads reached back past ski
     open(file).saveRead({ teamId: TEAM, query: 'milestone:"Launch"' }, read)
 
     expect(open(file).savedRead({ teamId: TEAM, query: 'milestone:"Launch"' })).toEqual(read)
-    expect(versionOf(file)).toBe(20)
+    expect(versionOf(file)).toBe(21)
   })
 })
 
@@ -856,7 +856,30 @@ describe('a data file from schema version 19, before setup closed to a summary',
 
     expect(open(file).setupClosed('sample-team')).toBe('skipped')
     expect(open(file).setupClosed(TEAM)).toBeUndefined()
-    expect(versionOf(file)).toBe(20)
+    expect(versionOf(file)).toBe(21)
+  })
+})
+
+/** Version 20's tables: version 19's, with how setup was closed as #217 shipped it. Kept verbatim: it is a past release. */
+const VERSION_20_SCHEMA = `${VERSION_19_SCHEMA}
+CREATE TABLE setups (
+  team_id TEXT PRIMARY KEY REFERENCES teams(id),
+  closed TEXT NOT NULL
+);
+INSERT INTO setups (team_id, closed)
+  SELECT connections.team_id, 'done' FROM connections JOIN milestone_queries ON milestone_queries.team_id = connections.team_id;
+`
+
+describe('a data file from schema version 20, before setup held a draft', () => {
+  test('has no setup draft, and takes one, which survives reopening', () => {
+    const file = writeFile('v20.db', VERSION_20_SCHEMA, 20)
+    expect(open(file).setupDraft(TEAM)).toBeUndefined()
+    expect(open(file).setupClosed(TEAM)).toBe('done')
+
+    open(file).saveSetupDraft(TEAM, { reads: [] })
+
+    expect(open(file).setupDraft(TEAM)).toEqual({ reads: [] })
+    expect(versionOf(file)).toBe(21)
   })
 })
 
