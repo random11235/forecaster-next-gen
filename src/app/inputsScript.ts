@@ -130,7 +130,7 @@ export const INPUTS_SCRIPT = `
   }, true)
   // a chip's Follow posts its own form, which has nothing typed to compare with what was last saved
   main.addEventListener('click', (event) => {
-    const follow = event.target.closest && event.target.closest('details.chip button[form]')
+    const follow = event.target.closest && event.target.closest('details.reads-differently button[form]')
     if (follow) lastSaved.delete(document.getElementById(follow.getAttribute('form')))
   })
   main.addEventListener('submit', (event) => {
