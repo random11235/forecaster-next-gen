@@ -44,6 +44,7 @@ async function startConnected(fixture: CannedFixture = FIXTURE): Promise<Running
     connections: storage,
     reads: storage,
     milestoneQueries: storage,
+    setup: storage,
     secrets: openMemorySecrets(),
     connector: () => cannedConnector(fixture),
   }
@@ -337,7 +338,7 @@ describe('the Milestone step', () => {
 
   test('before connecting, there is none', async () => {
     storage = openSqliteStorage(':memory:')
-    const connecting: Connecting = { connections: storage, reads: storage, milestoneQueries: storage, secrets: openMemorySecrets(), connector: () => cannedConnector(FIXTURE) }
+    const connecting: Connecting = { connections: storage, reads: storage, milestoneQueries: storage, setup: storage, secrets: openMemorySecrets(), connector: () => cannedConnector(FIXTURE) }
     app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage, connecting })
 
     expect(await page(app)).not.toContain('id="milestone-tickets"')

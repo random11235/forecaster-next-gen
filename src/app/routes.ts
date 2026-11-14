@@ -1,5 +1,5 @@
 import { choiceKindOf } from '../connectors/connector.js'
-import { connectionView, submitConnection, type Connecting, type ConnectionEdit, type ConnectionView, type SetupStep } from '../forecast/connection.js'
+import { connectionView, submitConnection, type Connecting, type ConnectionEdit, type ConnectionSubmitted, type ConnectionView } from '../forecast/connection.js'
 import { howItWorksView } from '../forecast/howItWorksView.js'
 import { followRenamedMilestone } from '../forecast/milestoneRenamed.js'
 import { submitSkip, type SkipEdit, type Skipping } from '../forecast/skippedPeriods.js'
@@ -336,7 +336,7 @@ async function connected(setup: SetupRouting, readConnect: (body: URLSearchParam
 }
 
 /** Where each setup step is served. */
-const SETUP_STEP_PATHS: Record<SetupStep, string> = { connect: '/inputs#connect', milestone: MILESTONE_STEP.urls.finding }
+const SETUP_STEP_PATHS: Record<Extract<ConnectionSubmitted, { saved: true }>['next'], string> = { connect: '/inputs#connect', milestone: MILESTONE_STEP.urls.finding }
 
 /** Where each screen is served. */
 const SCREEN_PATHS: Record<NextScreen, string> = { forecast: '/', inputs: '/inputs' }

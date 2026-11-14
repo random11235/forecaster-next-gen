@@ -38,6 +38,7 @@ async function startConnecting(answer: Answer = CHOICES): Promise<{ app: Running
     connections: storage,
     reads: storage,
     milestoneQueries: storage,
+    setup: storage,
     secrets: openMemorySecrets(),
     connector: () => cannedConnector({ milestoneChoices: canned.answer, reads: {} }),
   }

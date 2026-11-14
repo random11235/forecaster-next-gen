@@ -54,6 +54,7 @@ async function startConnected(): Promise<RunningApp> {
     connections: storage,
     reads: storage,
     milestoneQueries: storage,
+    setup: storage,
     secrets: openMemorySecrets(),
     connector: () => counted(cannedConnector(FIXTURE)),
   }

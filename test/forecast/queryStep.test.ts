@@ -78,7 +78,7 @@ function connecting(fixture: CannedFixture = FIXTURE): QueryStepping & { calls: 
       return canned.read(query, since)
     },
   })
-  return { connections: storage, reads: storage, milestoneQueries: storage, secrets: openMemorySecrets(), connector, milestoneInputs: storage, at: AT, calls }
+  return { connections: storage, reads: storage, milestoneQueries: storage, setup: storage, secrets: openMemorySecrets(), connector, milestoneInputs: storage, at: AT, calls }
 }
 
 /** Connected to a GitHub repo, with no calls counted yet. */
