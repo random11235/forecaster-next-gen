@@ -406,7 +406,7 @@ export async function submitStepQuery(
  * Why the tracker's failure to read a query rejects it, worded for the Milestone step: it reaches outside the
  * connection, or the tracker refused it, in its own words. None for a failure that says nothing of the query.
  */
-function rejectionOf(connection: Connection, failure: Failure): string | undefined {
+export function rejectionOf(connection: Connection, failure: Failure): string | undefined {
   const tracker = trackerOf(connection)
   if (failure.failure === 'outOfScope') return tracker.outOfScope(connection)
   if (failure.failure === 'invalidQuery') return `${tracker.name} rejected this query: ${failure.message}`
