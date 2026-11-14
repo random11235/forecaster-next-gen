@@ -60,8 +60,9 @@ export type ConnectionSubmitted = { saved: true; next: SetupStep } | { saved: fa
  * nothing changes, and the Connect step shows again with why and the form as typed, without the token. A missing name,
  * or a missing token with none saved, is refused before any connector is built.
  *
- * A disconnect removes the connection and forgets the token, going back to the Connect step. Nothing follows the
- * tracker yet, so there are no values to switch to their typed source.
+ * A disconnect removes the connection and forgets the token, going back to the Connect step. A value following the
+ * tracker is then typed, as with no connection it is (`measured`); its source is kept, so it follows again once the
+ * team reconnects.
  *
  * Should this computer's keychain or the data file fail, nothing changes: what was written is put back, and the
  * refusal says which failed, never quoting its error.
