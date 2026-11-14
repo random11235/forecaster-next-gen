@@ -205,6 +205,18 @@ const STYLE = `
     .pace-trend svg { width: 100%; overflow: visible; border-bottom: 1px solid var(--ink); }
     .pace-trend .trend-bars rect { fill: var(--bar); }
     .pace-trend .trend-line line { stroke: var(--ink); stroke-width: 2px; vector-effect: non-scaling-stroke; stroke-linecap: round; }
+    /* Paired with comparable work: comparable work's bars beside the milestone's own, as on the Comparable work step;
+       the series pace isn't drawn from faint, and the periods before the milestone started hatched. */
+    .pace-trend .trend-bars rect.own { fill: var(--ink); }
+    .pace-trend .trend-bars rect.comparable:not(.in-use), .pace-trend .trend-bars rect.own:not(.in-use) { opacity: 0.35; }
+    .pace-trend .trend-bars rect.before { fill: url(#pace-trend-before); stroke: var(--border); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+    .pace-trend pattern rect { fill: var(--border); }
+    .pace-trend .legend { margin: 0; font-size: 12px; color: var(--muted); }
+    .pace-trend .legend i { display: inline-block; width: 11px; height: 10px; vertical-align: middle; margin: 0 3px 0 8px; }
+    .pace-trend .legend i:first-child { margin-left: 0; }
+    .pace-trend .legend .comparable { background: var(--bar); }
+    .pace-trend .legend .own { background: var(--ink); }
+    .pace-trend .legend .before { background: repeating-linear-gradient(45deg, var(--border) 0 3px, transparent 3px 6px); box-shadow: inset 0 0 0 1px var(--border); }
     /* A plain caption, not a note: it says what the graph shows, with no verdict. */
     .pace-trend figcaption { font-size: 13px; line-height: 1.45; color: var(--text-2); }
 
