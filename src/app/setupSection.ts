@@ -1,11 +1,13 @@
-import type { FlaggedQuery, SetupEdit, SetupStep, SetupSteps, SetupSummary, SummaryFlag, SummaryRow } from '../forecast/setup.js'
+import type { FlaggedQuery, PaceCheck, SetupCheck, SetupEdit, SetupStep, SetupSteps, SetupSummary, SummaryFlag, SummaryRow, TicketsCheck } from '../forecast/setup.js'
+import type { PaceMode } from '../model/milestoneInputs.js'
 import { COMPARABLE_WORK, MILESTONE_QUERY } from '../forecast/stepQuery.js'
 import { escapeHtml } from './html.js'
 import { COMPARABLE_WORK_STEP, inputsAt, MILESTONE_STEP } from './queryStepSection.js'
 
 /**
  * Where setup's own forms post: "Use these", Change (or Connect a tracker, once skipped), Change from a refused
- * token's flag, which opens the Connect step (`changeConnection`), Cancel, Skip on the Connect step, and Read again.
+ * token's flag, which opens the Connect step (`changeConnection`), Cancel, Skip on the Connect step, Read again, and a
+ * source chosen at Check.
  */
 export const SETUP_PATHS = {
   useThese: '/inputs/setup/use-these',
@@ -14,15 +16,20 @@ export const SETUP_PATHS = {
   cancel: '/inputs/setup/cancel',
   skip: '/inputs/setup/skip',
   readAgain: '/inputs/setup/read-again',
+  source: '/inputs/setup/source',
 } as const
 
-/** Each form setup posts, by its action's path, and the edit it is: they send no fields of their own. Read again reads the tracker, so it is routed apart. */
-export const SETUP_FORMS: ReadonlyMap<string, SetupEdit> = new Map<string, SetupEdit>([
-  [SETUP_PATHS.useThese, { kind: 'useThese' }],
-  [SETUP_PATHS.change, { kind: 'change' }],
-  [SETUP_PATHS.changeConnection, { kind: 'change' }],
-  [SETUP_PATHS.cancel, { kind: 'cancel' }],
-  [SETUP_PATHS.skip, { kind: 'skipConnecting' }],
+/**
+ * Each form setup posts, by its action's path, and the edit it is, read from its fields: only Check's sources send
+ * any. Read again reads the tracker, so it is routed apart.
+ */
+export const SETUP_FORMS: ReadonlyMap<string, (body: URLSearchParams) => SetupEdit> = new Map<string, (body: URLSearchParams) => SetupEdit>([
+  [SETUP_PATHS.useThese, () => ({ kind: 'useThese' })],
+  [SETUP_PATHS.change, () => ({ kind: 'change' })],
+  [SETUP_PATHS.changeConnection, () => ({ kind: 'change' })],
+  [SETUP_PATHS.cancel, () => ({ kind: 'cancel' })],
+  [SETUP_PATHS.skip, () => ({ kind: 'skipConnecting' })],
+  [SETUP_PATHS.source, (body) => ({ kind: 'chooseSource', value: body.get('value') ?? '', source: body.get('source') ?? '' })],
 ])
 
 /** Where each setup step is served: the Milestone step, once connected, at the Inputs screen's own URL. */
@@ -64,13 +71,99 @@ ${steps}
 ${body}${nav}`
 }
 
-/** The Check step: for now, "Use these", closing setup to its summary. */
-export function checkStepHtml(): string {
-  return `        <p class="note">Nothing picked here changes the inputs below or the forecast until you use these.</p>
+/**
+ * The Check step: a row for tickets remaining and one for pace, each with the EM's value now, the tracker's reading
+ * from setup's reads, an incomplete read marked, and which source to use; then "Use these", closing setup to its
+ * summary. Each choice posts as it changes (`CHECK_SCRIPT`), or with its Choose button without the script.
+ */
+export function checkStepHtml(check: SetupCheck | undefined): string {
+  const table =
+    check === undefined
+      ? ''
+      : `        <p class="muted">A value following ${escapeHtml(check.tracker)} updates on each read; typed or a range, it stays yours. Each is kept while the other is used.</p>
+        <table class="check">
+          <thead>
+            <tr><th scope="col"></th><th scope="col">Yours now</th><th scope="col">From ${escapeHtml(check.tracker)}</th><th scope="col">Use</th></tr>
+          </thead>
+          <tbody>
+${ticketsRowHtml(check.tracker, check.ticketsRemaining)}
+${paceRowHtml(check.tracker, check.pace)}
+          </tbody>
+        </table>
+`
+  return `${table}        <p class="note">Nothing picked here changes the inputs below or the forecast until you use these.</p>
         <form method="post" action="${SETUP_PATHS.useThese}">
           <button type="submit" class="primary">Use these</button>
         </form>`
 }
+
+/** The tracker's partial read, marked on its row. */
+const partOf = (tracker: string): string => `${escapeHtml(tracker)} gave only part of what the query matches`
+
+/** Check's tickets remaining row. */
+function ticketsRowHtml(tracker: string, { yours, reading, incomplete, source }: TicketsCheck): string {
+  const read = reading === undefined ? '—' : `${reading}${incomplete ? ` <span class="note warn">${partOf(tracker)}</span>` : ''}`
+  const use = source === undefined ? NOTHING_TO_CHOOSE : sourceFormHtml('ticketsRemaining', 'Where tickets remaining comes from', ['tracker', 'typed'], source, (each) => (each === 'tracker' ? tracker : 'Typed'))
+  return `            <tr>
+              <th scope="row">Tickets remaining</th>
+              <td>${yours ?? '—'}</td>
+              <td>${read}</td>
+              <td>${use}</td>
+            </tr>`
+}
+
+/** The names of pace's sources at Check, the tracker's aside. */
+const PACE_NAMES: Readonly<Record<Exclude<PaceMode, 'tracker'>, string>> = { range: 'Range', counts: 'Typed counts' }
+
+/** Check's pace row: the EM's range or typed counts, the tracker's counts with its line. */
+function paceRowHtml(tracker: string, { yours, period, reading, incomplete, source, choices }: PaceCheck): string {
+  const own = yours.source === 'counts' ? (yours.counts.length === 0 ? '—' : yours.counts.join(', ')) : yours.range === undefined ? '—' : `${yours.range.low}–${yours.range.high} a ${period}`
+  const read = reading
+    ? `${reading.counts.length === 0 ? '—' : reading.counts.join(', ')} <span class="muted">${escapeHtml(reading.line)}</span>`
+    : incomplete
+      ? `<span class="note warn">None: ${partOf(tracker)}</span>`
+      : '—'
+  const use = source === undefined ? NOTHING_TO_CHOOSE : sourceFormHtml('pace', 'Pace the forecast uses', choices, source, (each) => (each === 'tracker' ? tracker : PACE_NAMES[each]))
+  return `            <tr>
+              <th scope="row">Pace</th>
+              <td>${own}</td>
+              <td>${read}</td>
+              <td>${use}</td>
+            </tr>`
+}
+
+/** With no milestone entered yet, there is no source to choose. */
+const NOTHING_TO_CHOOSE = '<span class="muted">Enter the milestone below to choose.</span>'
+
+/** A value's sources at Check, as radios posting the one chosen, with a Choose button for a browser without the script. */
+function sourceFormHtml<T extends string>(value: string, ariaLabel: string, sources: readonly T[], chosen: T, name: (source: T) => string): string {
+  const radios = sources
+    .map((source) => `<label><input type="radio" name="source" value="${source}"${source === chosen ? ' checked' : ''} required> ${escapeHtml(name(source))}</label>`)
+    .join('\n                  ')
+  return `<form method="post" action="${SETUP_PATHS.source}" class="source">
+                <input type="hidden" name="value" value="${value}">
+                <fieldset class="levels" aria-label="${ariaLabel}">
+                  ${radios}
+                </fieldset>
+                <button type="submit" class="choose">Choose</button>
+              </form>`
+}
+
+/**
+ * Check's script: a source chosen posts at once, so its Choose button is hidden. It starts with `;`, so the script
+ * before it, ending in a call, isn't taken to call it.
+ */
+export const CHECK_SCRIPT = `
+;(() => {
+  const check = document.getElementById('check')
+  if (!check) return
+  check.classList.add('chooses-as-changed')
+  check.addEventListener('change', (event) => {
+    const form = event.target.form
+    if (form && form.classList.contains('source')) form.submit()
+  })
+})()
+`
 
 /**
  * Setup done, above the inputs: the tracker, the repo or project, and when the milestone was read, with Read again,

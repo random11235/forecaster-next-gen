@@ -177,8 +177,8 @@ export function routeSetup(request: Request, context: AppContext): Promise<Reply
   if (readConnect) return connected(setup, readConnect)
   const readSkip = request.method === 'POST' ? SKIP_FORMS.get(pathname) : undefined
   if (readSkip) return skipped(setup, readSkip)
-  const setupEdit = request.method === 'POST' ? SETUP_FORMS.get(pathname) : undefined
-  if (setupEdit) return Promise.resolve(setupSubmitted(setup, setupEdit))
+  const readSetupEdit = request.method === 'POST' ? SETUP_FORMS.get(pathname) : undefined
+  if (readSetupEdit) return Promise.resolve(setupSubmitted(setup, readSetupEdit(request.form ?? new URLSearchParams())))
   if (request.method === 'POST' && pathname === SETUP_PATHS.readAgain) return readAgain(setup)
   const named = milestoneName(storage, team.id)
   const submitted = submitForm(request, context, setup)
@@ -267,19 +267,20 @@ async function inputsWithStep(
   return { kind: 'html', status, html, ...(request.method === 'POST' && { path: SCREEN_PATHS.inputs }) }
 }
 
-/** What setup reads and saves, its read dated in the EM's time zone. */
+/** What setup reads and saves, the milestone's inputs among them, its read dated in the EM's time zone. */
 function settingUp(context: AppContext, connecting: Connecting): SettingUp {
-  return { ...connecting, timeZone: localTimeZone() }
+  return { ...connecting, milestoneInputs: context.storage, today: context.today(), timeZone: localTimeZone() }
 }
 
 /**
  * "Use these", Change, Cancel or skipping connecting: back to the Inputs screen, at the Milestone step when the steps
  * open again with the team connected, or at the Connect step for Change from a refused token's flag. Refused, from a
- * page left open, it goes back to the steps as they are.
+ * page left open, it goes back to the steps as they are. A source chosen at Check goes back to Check, chosen or not.
  */
 function setupSubmitted(setup: SetupRouting, edit: SetupEdit): Reply {
   const settingUpNow = settingUp(setup.context, setup.connecting)
   submitSetup(settingUpNow, setup.team.id, edit)
+  if (edit.kind === 'chooseSource') return { kind: 'redirect', location: SETUP_STEP_PATHS.check }
   if (setup.pathname === SETUP_PATHS.changeConnection) return { kind: 'redirect', location: SETUP_STEP_PATHS.connect }
   const view = setupView(settingUpNow, setup.team.id)
   return { kind: 'redirect', location: view.kind === 'steps' && view.step === 'milestone' ? SETUP_STEP_PATHS.milestone : SCREEN_PATHS.inputs }
