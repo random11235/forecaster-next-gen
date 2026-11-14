@@ -2,13 +2,14 @@ import type { SetupEdit, SetupStep, SetupSteps, SetupSummary } from '../forecast
 import { escapeHtml } from './html.js'
 import { COMPARABLE_WORK_STEP, inputsAt, MILESTONE_STEP } from './queryStepSection.js'
 
-/** Where setup's own forms post: "Use these", Change (or Connect a tracker, once skipped), and Skip on the Connect step. */
-export const SETUP_PATHS = { useThese: '/inputs/setup/use-these', change: '/inputs/setup/change', skip: '/inputs/setup/skip' } as const
+/** Where setup's own forms post: "Use these", Change (or Connect a tracker, once skipped), Cancel, and Skip on the Connect step. */
+export const SETUP_PATHS = { useThese: '/inputs/setup/use-these', change: '/inputs/setup/change', cancel: '/inputs/setup/cancel', skip: '/inputs/setup/skip' } as const
 
 /** Each form setup posts, by its action's path, and the edit it is: they send no fields of their own. */
 export const SETUP_FORMS: ReadonlyMap<string, SetupEdit> = new Map<string, SetupEdit>([
   [SETUP_PATHS.useThese, { kind: 'useThese' }],
   [SETUP_PATHS.change, { kind: 'change' }],
+  [SETUP_PATHS.cancel, { kind: 'cancel' }],
   [SETUP_PATHS.skip, { kind: 'skipConnecting' }],
 ])
 
@@ -28,7 +29,8 @@ export const CHECK_STEP = { id: 'check', title: 'Check', hint: 'Check what the t
 
 /**
  * The setup step shown, as `body` within it: the steps' list above, each done step a link back to it and the current
- * one marked; then the step; then Back, and Next (or Skip) where the step can be left forward yet.
+ * one marked; then the step; then Cancel, once Change reopened the steps, Back, and Next (or Skip) where the step can
+ * be left forward yet.
  */
 export function setupStepHtml(view: SetupSteps, body: string): string {
   const steps = view.steps
@@ -42,7 +44,8 @@ export function setupStepHtml(view: SetupSteps, body: string): string {
     .join('\n')
   const back = view.back === undefined ? '' : `<a href="${escapeHtml(SETUP_STEP_PATHS[view.back])}" class="button">Back</a>`
   const next = view.next === undefined ? '' : `<a href="${escapeHtml(SETUP_STEP_PATHS[view.next.step])}" class="button primary">${view.next.label === 'skip' ? 'Skip' : 'Next'}</a>`
-  const nav = back === '' && next === '' ? '' : `\n        <div class="actions setup-nav">${back}${next}</div>`
+  const cancel = view.cancel ? `<form method="post" action="${SETUP_PATHS.cancel}">\n            <button type="submit">Cancel</button>\n          </form>` : ''
+  const nav = cancel === '' && back === '' && next === '' ? '' : `\n        <div class="actions setup-nav">${cancel}${back}${next}</div>`
   return `        <ol class="setup-steps" aria-label="Setup steps">
 ${steps}
         </ol>
@@ -51,7 +54,7 @@ ${body}${nav}`
 
 /** The Check step: for now, "Use these", closing setup to its summary. */
 export function checkStepHtml(): string {
-  return `        <p class="note">The inputs below follow what was picked from the tracker. Use these to close setup; Change opens the steps again.</p>
+  return `        <p class="note">Nothing picked here changes the inputs below or the forecast until you use these.</p>
         <form method="post" action="${SETUP_PATHS.useThese}">
           <button type="submit" class="primary">Use these</button>
         </form>`
