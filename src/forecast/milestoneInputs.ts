@@ -6,10 +6,11 @@ import { periodName } from './cadence.js'
 import { isCalendarDate } from './calendarDate.js'
 import { refuse, type EditResult, type Refusal } from './editResult.js'
 import { assessMilestone, type InputNote, type MilestoneAssessment } from './milestoneAssessment.js'
+import { paceInUse } from './paceInUse.js'
 import { paceTrend, type PaceTrend } from './paceTrend.js'
-import { paceSource, sameCounts } from './paceWindow.js'
+import { sameCounts } from './paceWindow.js'
 import type { ForecastSettings } from './settings.js'
-import type { Measured, PaceReading, TicketsReading, WasPace, WasTickets } from './trackerReads.js'
+import { paceReadingView, type Measured, type PaceReading, type PaceReadingView, type TicketsReading, type WasPace, type WasTickets } from './trackerReads.js'
 
 /** Far above any real team's pace in one period; keeps typos like 1000000 out of the forecast. */
 export const MAX_TICKETS_PER_PERIOD = 1000
@@ -73,7 +74,7 @@ export interface MilestoneInputsView {
   /** Which pace the forecast uses: the one chosen, but typed counts while following the tracker with no connection. */
   paceUsed: PaceMode
   /** What the tracker reads of pace, with a connection to follow it; none with none, where pace is typed or a range. */
-  paceSource: PaceSourceView | undefined
+  trackerPace: TrackerPaceView | undefined
   /** How many typed counts the settings need: at least `forForecast` for a forecast, and `reliable` to be reliable. */
   typedCountsNeeded: ForecastSettings['typedCounts']
   /** What stops a forecast, then the warnings, each beside its input; none before anything is entered. */
@@ -102,11 +103,11 @@ export interface ReadsDifferently {
 }
 
 /** The connected tracker's pace, offered as a source of pace. */
-export interface PaceSourceView {
+export interface TrackerPaceView {
   /** The connected tracker, which the source and its wording name: GitHub or Jira. */
   tracker: string
   /** The tracker's reading of pace, which the forecast uses while pace follows it; none until it is read. */
-  reading: PaceReading | undefined
+  reading: PaceReadingView | undefined
   /** No reading, as a read pace would come from is incomplete: marked so, not as unread. */
   incomplete: boolean
   /** While pace follows the tracker, the counts its latest read replaced, shown faintly; none otherwise. */
@@ -122,7 +123,8 @@ export interface PaceSourceView {
 export function milestoneInputsView(storage: Storage, teamId: string, settings: ForecastSettings, today: string, measured?: Measured): MilestoneInputsView {
   const saved = storage.milestoneInputs(teamId)
   const inputs = saved ?? newMilestone(teamId)
-  const assessment = saved && assessMilestone(saved, settings, today, measured)
+  const pace = paceInUse(inputs, today, measured)
+  const assessment = saved && assessMilestone(saved, settings, today, pace, measured)
   return {
     name: inputs.name,
     startDate: inputs.startDate ?? today,
@@ -139,17 +141,17 @@ export function milestoneInputsView(storage: Storage, teamId: string, settings: 
     paceRange: inputs.paceRange,
     paceCounts: inputs.paceCounts,
     paceMode: inputs.paceMode,
-    paceUsed: paceSource(inputs, measured),
-    paceSource: measured && {
+    paceUsed: pace.source,
+    trackerPace: measured && {
       tracker: measured.tracker,
-      reading: measured.pace,
+      reading: measured.pace && paceReadingView(measured.pace),
       incomplete: measured.paceIncomplete,
       was: inputs.paceMode === 'tracker' ? measured.pace?.was : undefined,
       readsDifferently: paceReadDifferently(inputs, measured.pace),
     },
     typedCountsNeeded: settings.typedCounts,
     notes: assessment ? notesBeside(assessment) : [],
-    paceTrend: paceTrend(inputs, settings, today, measured),
+    paceTrend: paceTrend(pace, settings, inputs.startDate),
   }
 }
 

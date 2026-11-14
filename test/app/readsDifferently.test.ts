@@ -1,9 +1,7 @@
 import { afterEach, describe, expect, test } from 'vitest'
-import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
-import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
-import type { Connecting } from '../../src/forecast/connection.js'
-import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
-import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
+import type { RunningApp } from '../../src/app/launch.js'
+import type { CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
+import { appOnTracker, inputsSection, post, type AppOnTracker } from './appOnTracker.js'
 
 // The "GitHub reads differently" chip on the Inputs screen (#215), through the local server as the EM's browser sees
 // it, on the canned connector: its dot, the reading it opens, and Follow.
@@ -24,54 +22,32 @@ const FIXTURE: CannedFixture = {
   reads: { [CHECKOUT.query]: { tickets: [...OPEN, ...FINISHED], incomplete: false }, [RELEASE.query]: { tickets: OPEN, incomplete: false } },
 }
 
-let app: RunningApp | undefined
-let storage: SqliteStorage | undefined
+let app: AppOnTracker | undefined
 
 afterEach(async () => {
   await app?.close()
   app = undefined
-  storage?.close()
-  storage = undefined
 })
 
 /** The app, its milestone entered with `ticketsRemaining` typed, connected to `tracker` with its tickets picked. */
 async function start({ ticketsRemaining = '30', tracker = 'github' } = {}): Promise<RunningApp> {
-  storage = openSqliteStorage(':memory:')
-  const connecting: Connecting = {
-    connections: storage,
-    reads: storage,
-    milestoneQueries: storage,
-    secrets: openMemorySecrets(),
-    connector: () => cannedConnector(FIXTURE),
-  }
-  app = await startAppAndOpenBrowser({
-    port: 0,
-    openBrowser: () => {},
-    storage,
-    connecting,
-    today: () => '2026-11-12',
-    now: () => '2026-11-12T09:00:00Z',
-  })
-  await post(app, '/inputs/milestone', { name: 'Checkout v2', startDate: '2026-10-05', ticketsRemaining })
+  app = await appOnTracker(FIXTURE)
+  const { running } = app
+  await post(running, '/inputs/milestone', { name: 'Checkout v2', startDate: '2026-10-05', ticketsRemaining })
   if (tracker === 'github') {
-    await post(app, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
-    await post(app, '/inputs/milestone-query/add', CHECKOUT)
+    await post(running, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
+    await post(running, '/inputs/milestone-query/add', CHECKOUT)
   } else {
-    await post(app, '/inputs/connect', { tracker: 'jira', site: 'shop.atlassian.net', projectKey: 'SHOP', email: 'em@shop.test', token: 'token' })
-    await post(app, '/inputs/milestone-query/add', RELEASE)
+    await post(running, '/inputs/connect', { tracker: 'jira', site: 'shop.atlassian.net', projectKey: 'SHOP', email: 'em@shop.test', token: 'token' })
+    await post(running, '/inputs/milestone-query/add', RELEASE)
   }
-  return app
+  return running
 }
 
-const post = (running: RunningApp, path: string, fields: Record<string, string>): Promise<Response> =>
-  fetch(new URL(path, running.url), { method: 'POST', body: new URLSearchParams(fields), redirect: 'manual' })
 
 /** The section of the Inputs screen with `id`. */
 async function section(running: RunningApp, id: string): Promise<string> {
-  const html = await (await fetch(new URL('/inputs', running.url))).text()
-  const start = html.indexOf(`id="${id}"`)
-  expect(start).toBeGreaterThan(-1)
-  return html.slice(start, html.indexOf('</section>', start))
+  return inputsSection(running, id)
 }
 
 /** The chip in `html`: its summary, from the `<details>` to its end. */

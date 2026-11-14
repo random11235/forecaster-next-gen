@@ -1,8 +1,8 @@
-import type { MilestoneInputs } from '../model/milestoneInputs.js'
+import type { PaceInUse } from './paceInUse.js'
 import type { PaceFrom } from './paceReads.js'
-import { paceSource, paceWindow, type DatedCounts } from './paceWindow.js'
+import type { DatedCounts } from './paceWindow.js'
 import type { ForecastSettings } from './settings.js'
-import type { Measured } from './trackerReads.js'
+import type { PaceReading } from './trackerReads.js'
 
 /**
  * The counts in use, typed or the tracker's, drawn as bars, oldest first, with a straight least-squares line fitted through them. Information
@@ -33,20 +33,18 @@ export interface PairedPace {
 }
 
 /**
- * The trend of the counts in use, typed or the tracker's (`measured`), those in the pace window on `today`, when they
- * are the pace and there are as many as a forecast needs; otherwise none, as with the range or too few counts.
+ * The trend of the counts in use (`pace`), typed or the tracker's, those in the pace window, when there are as many as
+ * a forecast needs; otherwise none, as with the range or too few counts. The milestone's start date (`startDate`)
+ * marks the periods before it.
  */
-export function paceTrend(inputs: MilestoneInputs, { typedCounts }: ForecastSettings, today: string, measured?: Measured): PaceTrend | undefined {
-  const source = paceSource(inputs, measured)
-  const { window } = paceWindow(inputs, today, measured)
-  const counts = window.counts
-  if (source === 'range' || counts.length < typedCounts.forForecast) return undefined
-  return { counts, ...fittedLine(counts), paired: source === 'tracker' ? paired(window, inputs.startDate, measured) : undefined }
+export function paceTrend(pace: PaceInUse, { typedCounts }: ForecastSettings, startDate: string | undefined): PaceTrend | undefined {
+  if (pace.source === 'range' || pace.window.counts.length < typedCounts.forForecast) return undefined
+  const { counts } = pace.window
+  return { counts, ...fittedLine(counts), paired: pace.source === 'tracker' ? paired(pace.window, startDate, pace.reading) : undefined }
 }
 
 /** Both reads' counts in each period of `window`, found by the period's start; none without a complete read of each. */
-function paired(window: DatedCounts, startDate: string | undefined, measured: Measured | undefined): PairedPace | undefined {
-  const reading = measured?.pace
+function paired(window: DatedCounts, startDate: string | undefined, reading: PaceReading | undefined): PairedPace | undefined {
   if (!reading?.comparableWork || !reading.milestone || startDate === undefined) return undefined
   const at = ({ counts, starts }: DatedCounts): number[] => window.starts.map((start) => counts[starts.indexOf(start)] ?? 0)
   // ISO calendar dates order as strings do

@@ -4,14 +4,15 @@ import type { CapacityEntry } from '../model/capacity.js'
 import type { Storage } from '../storage/storage.js'
 import { daysBetween } from './calendarDate.js'
 import { capacityFactors, capacityLine, capacityView, currentEntries, entryEffect, type CapacityUse, type CapacityView, type EntryEffect, type PacePeriods } from './capacity.js'
-import { periodName } from './cadence.js'
+import { periodName, type PeriodName } from './cadence.js'
+import { counted } from './counted.js'
 import { milestoneGrowth } from './growth.js'
-import { assessMilestone, type ForecastableInputs, type InputNote, type PaceInUse } from './milestoneAssessment.js'
+import { assessMilestone, type ForecastableInputs, type ForecastPace, type InputNote } from './milestoneAssessment.js'
 import { paceActionApplied, pacePattern, type PacePatternView } from './pacePattern.js'
-import { paceWindow } from './paceWindow.js'
+import { paceInUse, type PaceInUse } from './paceInUse.js'
 import { paceTrend, type PaceTrend } from './paceTrend.js'
 import type { ForecastSettings } from './settings.js'
-import { measure, type Measured, type ReadingTracker } from './trackerReads.js'
+import { measure, type ReadingTracker } from './trackerReads.js'
 
 /** The confidence level the headline states. */
 export const HEADLINE_PERCENT = 85
@@ -72,7 +73,9 @@ export type MilestoneForecastView =
       /** Days in one of the team's periods, which the pace is per. */
       cadenceDays: number
       /** The pace the dates come from. */
-      pace: PaceInUse
+      pace: ForecastPace
+      /** The pace the dates come from, as the forecast says it: "4–8 tickets per week (range)", "typed counts, 6 sprints", or "GitHub’s last 8 weeks, 2 skipped". */
+      paceSaid: string
       /** The milestone's ambiguity level and the growth range it used. */
       ambiguity: { level: Ambiguity } & GrowthRange
       warnings: InputNote[]
@@ -117,9 +120,10 @@ export function milestoneForecastView(
   const saved = storage.milestoneInputs(teamId)
   if (!saved) return { kind: 'empty' }
   const measured = measure(tracker, teamId, storage, today)
-  const assessment = assessMilestone(saved, settings, today, measured)
+  const inUse = paceInUse(saved, today, measured)
+  const assessment = assessMilestone(saved, settings, today, inUse, measured)
   if (!assessment.forecastable) {
-    const applied = paceActionApplied(saved, today, measured)
+    const applied = paceActionApplied(saved, inUse)
     return { kind: 'problems', name: saved.name, problems: assessment.problems, ...(applied && { paceApplied: applied }) }
   }
 
@@ -159,13 +163,14 @@ export function milestoneForecastView(
     horizonDate: periodEndDate(inputs.startDate, periodDays, maxPeriods),
     cadenceDays: inputs.cadenceDays,
     pace,
+    paceSaid: paceSaid(pace, period),
     ambiguity: { level: inputs.ambiguity, ...growth },
     warnings: assessment.warnings.map(({ input, message }) => ({ input, message })),
     finishGraph: finishGraph(result, simulationCase),
-    paceTrend: paceTrend(inputs, settings, today, measured),
+    paceTrend: paceTrend(inUse, settings, inputs.startDate),
     pacePattern:
-      pace.source !== 'range'
-        ? pacePattern(paceWindow(inputs, today, measured), inputs.paceWindow.action, periodDays, {
+      inUse.source !== 'range'
+        ? pacePattern(inUse, inputs.paceWindow.action, periodDays, {
             percent: HEADLINE_PERCENT,
             now: result.percentileDates[HEADLINE_PERCENT] ?? null,
             // from the same seed and capacity, so the two differ by the action alone
@@ -174,7 +179,7 @@ export function milestoneForecastView(
                 .percentileDates[HEADLINE_PERCENT] ?? null,
           })
         : undefined,
-    capacity: capacityView(storage, teamId, today, use, period, { open: capacityOpen, ...(effects && { effects }), pace: pacePeriods(inputs, pace, today, measured) }),
+    capacity: capacityView(storage, teamId, today, use, period, { open: capacityOpen, ...(effects && { effects }), pace: pacePeriods(inUse) }),
     comparison,
     capacityLine: capacityLine(use, period),
   }
@@ -187,9 +192,15 @@ function comparedDate(percent: number, withCapacity: ForecastResult, atUsual: Fo
   return { percent, withCapacity: dated, atUsual: usual, shift }
 }
 
+/** The pace the dates come from, said in the milestone's `period`. */
+function paceSaid(pace: ForecastPace, period: PeriodName): string {
+  if (pace.source === 'tracker') return `${pace.tracker}’s last ${pace.counts.length === 1 ? period : counted(pace.counts.length, period)}${pace.skipped > 0 ? `, ${pace.skipped} skipped` : ''}`
+  return pace.source === 'counts' ? `typed counts, ${counted(pace.counts.length, period)}` : `${pace.low}–${pace.high} tickets per ${period} (range)`
+}
+
 /** The periods the pace comes from, for the new-usual rule: each in the pace window, dated back from today's period. */
-function pacePeriods(inputs: ForecastableInputs, pace: PaceInUse, today: string, measured: Measured | undefined): PacePeriods {
-  return pace.source === 'range' ? { source: 'range' } : { source: pace.source, starts: paceWindow(inputs, today, measured).window.starts }
+function pacePeriods(pace: PaceInUse): PacePeriods {
+  return pace.source === 'range' ? { source: 'range' } : { source: pace.source, starts: pace.window.starts }
 }
 
 function forecastDate(percent: number, date: string | null, today: string): ForecastDate {
@@ -204,7 +215,7 @@ function forecastDate(percent: number, date: string | null, today: string): Fore
  */
 function milestoneCase(
   inputs: ForecastableInputs,
-  pace: PaceInUse,
+  pace: ForecastPace,
   growth: GrowthRange,
   settings: ForecastSettings,
   factors: number[] | undefined,
