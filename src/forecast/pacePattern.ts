@@ -3,8 +3,8 @@ import type { Storage } from '../storage/storage.js'
 import { periodName, type PeriodName } from './cadence.js'
 import { dayMonth, isCalendarDate } from './calendarDate.js'
 import { refuse, type EditResult } from './editResult.js'
-import { actionSaid, paceWindow, withAction, type DatedCounts } from './paceWindow.js'
-import type { Measured } from './trackerReads.js'
+import type { PaceCounts, PaceInUse } from './paceInUse.js'
+import { actionSaid, withAction, type DatedCounts } from './paceWindow.js'
 
 // The rule is the research classifier's, trimmed (docs/research/pace-stability/classify.mjs).
 
@@ -93,7 +93,7 @@ export interface PacePatternView {
  * the action applied to the counts pace is drawn from to make that window, if any.
  */
 export function pacePattern(
-  { all, window }: { all: DatedCounts; window: DatedCounts },
+  { all, window }: PaceCounts,
   applied: PaceAction | undefined,
   cadenceDays: number,
   headline: HeadlineDates,
@@ -116,11 +116,11 @@ export function pacePattern(
 
 /**
  * The milestone's applied action, said, as the forecast shows it with undo even when the window it leaves is too short
- * to forecast from; none with none applied.
+ * to forecast from; none with none applied, nor with the range in use (`pace`), which no action touches.
  */
-export function paceActionApplied(inputs: MilestoneInputs, today: string, measured?: Measured): string | undefined {
+export function paceActionApplied(inputs: MilestoneInputs, pace: PaceInUse): string | undefined {
   const action = inputs.paceWindow.action
-  return action && appliedLine(paceWindow(inputs, today, measured).all, action, periodName(inputs.cadenceDays))
+  return action && pace.source !== 'range' ? appliedLine(pace.all, action, periodName(inputs.cadenceDays)) : undefined
 }
 
 /** The applied action, said: what the pace is counted from, and why. */
