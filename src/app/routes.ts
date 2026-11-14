@@ -263,9 +263,9 @@ async function inputsWithStep(
   return { kind: 'html', status, html, ...(request.method === 'POST' && { path: SCREEN_PATHS.inputs }) }
 }
 
-/** What setup reads and saves, its read dated in the EM's time zone. */
+/** What setup reads and saves, the milestone's inputs among them, its read dated in the EM's time zone. */
 function settingUp(context: AppContext, connecting: Connecting): SettingUp {
-  return { ...connecting, timeZone: localTimeZone() }
+  return { ...connecting, milestoneInputs: context.storage, today: context.today(), timeZone: localTimeZone() }
 }
 
 /**
