@@ -1,5 +1,11 @@
+import type { Storage } from '../storage/storage.js'
+import { periodName } from './cadence.js'
+import { dayMonth } from './calendarDate.js'
 import type { Connecting } from './connection.js'
+import { counted } from './counted.js'
 import { ticketsRemaining } from './finished.js'
+import { paceReads, paceReadsStorage, type PaceFrom } from './paceReads.js'
+import { TRACKER_PERIODS, trackerWindow, type DatedCounts } from './paceWindow.js'
 import { trackerOf } from './trackers.js'
 
 /**
@@ -20,6 +26,28 @@ export interface Measured {
   tracker: string
   /** The milestone query's latest read, as tickets remaining; none until the query is read. */
   ticketsRemaining: TicketsReading | undefined
+  /** Pace as the tracker's reads count it; none until a complete read reaches a whole period of the milestone's. */
+  pace: PaceReading | undefined
+}
+
+/**
+ * The tracker's reading of pace: up to the 8 most recent whole periods its reads reach, at the milestone's cadence,
+ * the current one left out and quiet ones 0, leaving out the quiet periods before the first finished ticket.
+ */
+export interface PaceReading {
+  /** The finished tickets in each period counted, oldest first; empty with nothing finished in any period read. */
+  window: DatedCounts
+  /** Whose finished tickets they are: comparable work's, or the milestone's own. */
+  from: PaceFrom
+  /**
+   * The periods counted, as the source says them: "last 8 weeks"; "7 weeks · GitHub has nothing before w/c 21 Sep"
+   * when its reads run out first.
+   */
+  periods: string
+  /** With the quiet periods before the first finished ticket left out, from when: "From the first finished ticket, 3 Nov." */
+  firstFinished: string | undefined
+  /** When the read pace comes from was read, in the EM's time zone: "4 Nov 09:12". */
+  readOn: string
 }
 
 /** The tracker's reading of tickets remaining: the milestone query's open tickets when it was read. */
@@ -31,15 +59,49 @@ export interface TicketsReading {
   readOn: string
 }
 
-/** Seam B, behind the views: what the team's tracker measures; none with no connection, nor in the browser build. */
-export function measured(reads: TrackerReads | undefined, teamId: string): Measured | undefined {
+/**
+ * Seam B, behind the views: what the team's tracker measures, for the milestone in `storage` on `today`; none with no
+ * connection, nor in the browser build.
+ */
+export function measured(reads: TrackerReads | undefined, teamId: string, storage: Pick<Storage, 'milestoneInputs'>, today: string): Measured | undefined {
   const connection = reads?.connections.connection(teamId)
   if (!reads || !connection) return undefined
-  const query = reads.milestoneQueries.milestoneQuery(teamId)?.query
-  const read = query ? reads.reads.savedRead({ teamId, query }) : undefined
+  const tracker = trackerOf(connection).name
+  const read = savedReadOf(reads, teamId, reads.milestoneQueries.milestoneQuery(teamId)?.query)
   return {
-    tracker: trackerOf(connection).name,
+    tracker,
     ticketsRemaining: read && { count: ticketsRemaining(read), incomplete: read.incomplete, readOn: readOn(read.readAt, reads.timeZone) },
+    pace: paceReading(reads, teamId, storage, today, tracker),
+  }
+}
+
+function savedReadOf(reads: TrackerReads, teamId: string, query: string | undefined) {
+  return query ? reads.reads.savedRead({ teamId, query }) : undefined
+}
+
+/** The tracker's reading of pace, from `paceReads`: the periods it counts and how they are bounded. */
+function paceReading(reads: TrackerReads, teamId: string, storage: Pick<Storage, 'milestoneInputs'>, today: string, tracker: string): PaceReading | undefined {
+  const inputs = storage.milestoneInputs(teamId)
+  const read = paceReads(paceReadsStorage(storage, reads), teamId, { today, timeZone: reads.timeZone })
+  if (!inputs || !read) return undefined
+  const query = read.from === 'milestone' ? reads.milestoneQueries.milestoneQuery(teamId) : reads.milestoneQueries.comparableWorkQuery(teamId)
+  const paceRead = savedReadOf(reads, teamId, query?.query)
+  const { window, bound } = trackerWindow(read.pace)
+  const period = periodName(inputs.cadenceDays)
+  const first = window.starts[0]
+  const periods =
+    bound === 'nothingFinished' ? `nothing finished in the ${counted(read.pace.counts.length, period)} ${tracker} reads`
+    : bound === 'full' ? `last ${counted(TRACKER_PERIODS, period)}`
+    : bound === 'firstFinished' ? counted(window.counts.length, period)
+    // the milestone's own pace counts only the periods since its start date
+    : read.from === 'milestone' && read.beforeStart > 0 ? `${counted(window.counts.length, period)} · since the start date`
+    : `${counted(window.counts.length, period)} · ${tracker} has nothing before ${period === 'week' ? 'w/c' : 'the sprint of'} ${dayMonth(first!)}`
+  return {
+    window,
+    from: read.from,
+    periods,
+    firstFinished: bound === 'firstFinished' ? `From the first finished ticket, ${dayMonth(first!)}.` : undefined,
+    readOn: paceRead ? readOn(paceRead.readAt, reads.timeZone) : '',
   }
 }
 
