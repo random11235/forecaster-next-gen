@@ -7,7 +7,8 @@ import { submitInputs } from '../../src/forecast/inputs.js'
 import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import type { MilestoneQuery } from '../../src/model/milestoneQuery.js'
-import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
+import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
+import type { MilestoneQueryStorage, SavedReadStorage, Storage } from '../../src/storage/storage.js'
 
 const TEAM = 'ACME'
 const CREATED = '2026-09-01T09:00:00Z'
@@ -47,10 +48,13 @@ INSERT INTO milestone_epics VALUES ('ACME', 'M1', 0, 'E1');
 INSERT INTO pace_settings VALUES ('ACME', 'M1', 'manual', 3, 7);
 `
 
+/** What these tests read back from a migrated file: its inputs, and the milestone's query and saved reads. */
+type Opened = Storage & MilestoneQueryStorage & SavedReadStorage
+
 const AN_ISO_TIMESTAMP = expect.stringMatching(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/)
 
 let dir: string
-let storage: SqliteStorage | undefined
+let storage: Opened | undefined
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'forecaster-migrations-'))
@@ -72,7 +76,7 @@ function writeFile(name: string, sql: string, version = 0): string {
   return file
 }
 
-function open(file: string): SqliteStorage {
+function open(file: string): Opened {
   storage?.close()
   storage = openSqliteStorage(file)
   return storage
