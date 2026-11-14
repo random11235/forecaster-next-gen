@@ -458,7 +458,7 @@ describe('Read again', () => {
     expect(scenario!.forecast()).toMatchObject({ kind: 'forecast', ticketsRemaining: 7 })
   })
 
-  test('reads each of several picks again, so each keeps its count on the summary', async () => {
+  test('reads the queries alone, not each of several picks: their counts show none until Check reads them again', async () => {
     const BUG: Choice = { kind: 'label', name: 'bug', query: 'label:bug' }
     const { fixture } = await setUp()
     fixture.reads[BUG.query] = { tickets: open(2, 'b'), incomplete: false }
@@ -467,13 +467,14 @@ describe('Read again', () => {
     await scenario!.pick(READ_AT, BUG)
     await readPicks(scenario!.using, TEAM, READ_AT)
     submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
-    fixture.reads[BUG.query] = { tickets: open(4, 'b'), incomplete: false }
     fixture.reads[`${CHECKOUT.query} OR ${BUG.query}`] = { tickets: [...open(3), ...open(4, 'b')], incomplete: false }
+    scenario!.asked.length = 0
 
     await readAgain()
-    expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({
-      milestone: { picks: [{ name: 'Checkout v2', count: 3 }, { name: 'bug', count: 4 }] },
-    })
+    expect(scenario!.asked).toHaveLength(2)
+    const view = setupView(settingUp(scenario!), TEAM)
+    expect(view).toMatchObject({ milestone: { picks: [{ name: 'Checkout v2' }, { name: 'bug' }] } })
+    expect(view.kind === 'summary' && 'picks' in view.milestone && view.milestone.picks.some((pick) => 'count' in pick)).toBe(false)
   })
 
   test('reads nothing until setup is done', async () => {
