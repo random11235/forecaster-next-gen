@@ -387,15 +387,8 @@ describe('the summary’s flags', () => {
     expect(view).toMatchObject({ flags: [{ of: 'milestoneQuery', flag }, { of: 'comparableWork', flag }] })
   })
 
-  test('say when comparable work’s query matches nothing finished, so pace is the milestone’s own', async () => {
-    expect(await summaryWith({ tickets: open(3), incomplete: false }, { tickets: open(2, 'c'), incomplete: false })).toMatchObject({
-      flags: [
-        {
-          of: 'comparableWork',
-          flag: 'This query matches nothing finished in the last 9 weeks, so pace comes from the milestone’s own tickets. Check it picks out work like the milestone’s.',
-        },
-      ],
-    })
+  test('are only the query flags, an incomplete read and a failed read: none for comparable work finishing nothing', async () => {
+    expect(await summaryWith({ tickets: open(3), incomplete: false }, { tickets: open(2, 'c'), incomplete: false })).toMatchObject({ flags: [] })
   })
 })
 
