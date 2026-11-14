@@ -14,6 +14,7 @@ import {
 import type { Connector } from '../connectors/connector.js'
 import { inputsView, submitInputs, type InputsView, type NextScreen } from '../forecast/inputs.js'
 import { milestoneForecastView, type MilestoneForecastView } from '../forecast/milestoneForecastView.js'
+import type { TrackerReads } from '../forecast/trackerReads.js'
 import { DEFAULT_SETTINGS, type ForecastSettings } from '../forecast/settings.js'
 import type { Team } from '../model/team.js'
 import type { Storage } from '../storage/storage.js'
@@ -110,7 +111,7 @@ export function route(request: Request, context: AppContext): Reply {
   const team = storage.teams()[0]
   if (request.method === 'GET' && pathname === '/') {
     const capacityOpen = searchParams.get(CAPACITY_OPEN.name) === CAPACITY_OPEN.value
-    const view: MilestoneForecastView = team ? milestoneForecastView(storage, team.id, settings, today(), { capacityOpen }) : { kind: 'empty' }
+    const view: MilestoneForecastView = team ? milestoneForecastView(storage, team.id, settings, today(), { capacityOpen, tracker: trackerReads(context) }) : { kind: 'empty' }
     return { kind: 'html', status: 200, html: renderMilestoneForecastScreen(view) }
   }
   if (request.method === 'GET' && pathname === '/how-it-works') {
@@ -119,7 +120,7 @@ export function route(request: Request, context: AppContext): Reply {
   if (!team) return { kind: 'notFound' }
   const connection = connectionView(connecting, team.id)
   if (request.method === 'GET' && pathname === SCREEN_PATHS.inputs) {
-    return { kind: 'html', status: 200, html: renderInputsScreen(inputsView(storage, team.id, settings, today()), connection) }
+    return { kind: 'html', status: 200, html: renderInputsScreen(inputsView(storage, team.id, settings, today(), { tracker: trackerReads(context) }), connection) }
   }
   const submitted = submitForm(request, context, { ...routed, team })
   if (submitted?.kind !== 'inputs') return submitted ?? { kind: 'notFound' }
@@ -133,19 +134,21 @@ export function route(request: Request, context: AppContext): Reply {
  */
 type FormReply = Reply | { kind: 'inputs'; status: number; view: InputsView }
 
-function submitForm(request: Request, { storage, today }: AppContext, { team, settings, pathname, searchParams }: TeamRouting): FormReply | undefined {
+function submitForm(request: Request, context: AppContext, { team, settings, pathname, searchParams }: TeamRouting): FormReply | undefined {
+  const { storage, today } = context
+  const tracker = trackerReads(context)
   const readForm = request.method === 'POST' ? (INPUTS_FORMS.get(pathname) ?? FORECAST_FORMS.get(pathname)) : undefined
   if (!readForm) return undefined
   // the Capacity section's open state travels in the URL, and its forms carry it
   const capacityOpen = searchParams.get(CAPACITY_OPEN.name) === CAPACITY_OPEN.value
-  const submitted = submitInputs(storage, team.id, settings, today(), readForm(request.form ?? new URLSearchParams()), { capacityOpen })
+  const submitted = submitInputs(storage, team.id, settings, today(), readForm(request.form ?? new URLSearchParams()), { capacityOpen, tracker })
   // a form from the open Capacity section goes back to the screen with it open
   const pathOf = (screen: NextScreen): string => (screen === 'forecast' && capacityOpen ? CAPACITY_OPEN_PATH : SCREEN_PATHS[screen])
   if (!submitted.saved) {
     if (submitted.screen === 'inputs') return { kind: 'inputs', status: 400, view: submitted.view }
     return { kind: 'html', status: 400, html: renderMilestoneForecastScreen(submitted.view), path: pathOf(submitted.screen) }
   }
-  if (request.saveInPlace) return { kind: 'inputs', status: 200, view: inputsView(storage, team.id, settings, today()) }
+  if (request.saveInPlace) return { kind: 'inputs', status: 200, view: inputsView(storage, team.id, settings, today(), { tracker }) }
   return { kind: 'redirect', location: pathOf(submitted.next) }
 }
 
@@ -238,11 +241,16 @@ async function inputsWithStep(
     steps.push({ section, view, ...(candidates && { openingId: keepOpening(candidates.opening) }) })
   }
   const html = renderInputsScreen(
-    view ?? inputsView(context.storage, team.id, settings, context.today()),
+    view ?? inputsView(context.storage, team.id, settings, context.today(), { tracker: trackerReads(context) }),
     connection ?? connectionView(connecting, team.id),
     steps,
   )
   return { kind: 'html', status, html, ...(request.method === 'POST' && { path: SCREEN_PATHS.inputs }) }
+}
+
+/** What the views read of the team's tracker: its connection and saved reads, dated in the EM's time zone; none in the browser build. */
+function trackerReads({ connecting }: AppContext): TrackerReads | undefined {
+  return connecting && { ...connecting, timeZone: localTimeZone() }
 }
 
 /** This computer's time zone, an IANA name: the EM's, which each finish is counted on its calendar day in. */
