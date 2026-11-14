@@ -4,7 +4,8 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
 import { finishedPerPeriod, readQuery, ticketsRemaining } from '../../src/forecast/finished.js'
-import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
+import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
+import type { TeamStorage } from '../trackerScenario.js'
 
 // Finished tickets per period and tickets remaining, from a query's saved read (#187).
 
@@ -14,7 +15,7 @@ const READ_AT = '2026-10-26T09:00:00Z'
 const SINCE = '2026-09-01T00:00:00Z'
 
 let dir: string
-let storage: SqliteStorage
+let storage: TeamStorage
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'forecaster-finished-'))

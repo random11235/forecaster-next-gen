@@ -1,9 +1,7 @@
 import { afterEach, describe, expect, test } from 'vitest'
-import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
-import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
-import type { Connecting } from '../../src/forecast/connection.js'
-import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
-import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
+import type { RunningApp } from '../../src/app/launch.js'
+import type { CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
+import { appOnTracker, inputsSection, post, type AppOnTracker } from './appOnTracker.js'
 
 // Tickets remaining's source on the Inputs screen (#211), through the local server as the EM's browser sees it, on
 // the canned connector.
@@ -15,51 +13,29 @@ const FIXTURE: CannedFixture = {
   reads: { [CHECKOUT.query]: { tickets: [{ id: 'm1' }, { id: 'm2' }, { id: 'm3' }], incomplete: false } },
 }
 
-let app: RunningApp | undefined
-let storage: SqliteStorage | undefined
+let app: AppOnTracker | undefined
 
 afterEach(async () => {
   await app?.close()
   app = undefined
-  storage?.close()
-  storage = undefined
 })
 
 /** The app, its milestone entered with 30 tickets typed; connected to GitHub with them picked, unless `connect` is false. */
 async function start({ connect = true, fixture = FIXTURE } = {}): Promise<RunningApp> {
-  storage = openSqliteStorage(':memory:')
-  const connecting: Connecting = {
-    connections: storage,
-    reads: storage,
-    milestoneQueries: storage,
-    secrets: openMemorySecrets(),
-    connector: () => cannedConnector(fixture),
-  }
-  app = await startAppAndOpenBrowser({
-    port: 0,
-    openBrowser: () => {},
-    storage,
-    connecting,
-    today: () => '2026-11-12',
-    now: () => '2026-11-12T09:00:00Z',
-  })
-  await post(app, '/inputs/milestone', { name: 'Checkout v2', startDate: '2026-11-16', ticketsRemaining: '30' })
+  app = await appOnTracker(fixture)
+  const { running } = app
+  await post(running, '/inputs/milestone', { name: 'Checkout v2', startDate: '2026-11-16', ticketsRemaining: '30' })
   if (connect) {
-    await post(app, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
-    await post(app, '/inputs/milestone-query/add', CHECKOUT)
+    await post(running, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
+    await post(running, '/inputs/milestone-query/add', CHECKOUT)
   }
-  return app
+  return running
 }
 
-const post = (running: RunningApp, path: string, fields: Record<string, string>): Promise<Response> =>
-  fetch(new URL(path, running.url), { method: 'POST', body: new URLSearchParams(fields), redirect: 'manual' })
 
 /** The Milestone section of the Inputs screen. */
 async function milestoneSection(running: RunningApp): Promise<string> {
-  const html = await (await fetch(new URL('/inputs', running.url))).text()
-  const start = html.indexOf('id="milestone"')
-  expect(start).toBeGreaterThan(-1)
-  return html.slice(start, html.indexOf('</section>', start))
+  return inputsSection(running, 'milestone')
 }
 
 describe('tickets remaining’s source', () => {

@@ -1,85 +1,43 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
-import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
 import type { Choice, Ticket } from '../../src/connectors/connector.js'
 import { submitConnection } from '../../src/forecast/connection.js'
-import { finishedSinceFor, readQuery } from '../../src/forecast/finished.js'
-import { inputsView, submitInputs, type InputsEdit } from '../../src/forecast/inputs.js'
-import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
-import { submitStepQuery, type StepReading } from '../../src/forecast/queryStep.js'
-import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
-import type { TrackerReads } from '../../src/forecast/trackerReads.js'
-import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
-import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
+import type { InputsEdit } from '../../src/forecast/inputs.js'
+import { CHECKOUT, TEAM, trackerScenario, type Shown, type TrackerScenario } from '../trackerScenario.js'
 
 // Tickets remaining's source (#211): following the tracker's latest read of the milestone query, or typed.
 
-const TEAM = 'team'
-const TODAY = '2026-11-12'
+// on Thursday 12 Nov, today
 const READ_AT = '2026-11-12T09:00:00Z'
 const NEXT_READ_AT = '2026-11-12T14:30:00Z'
-
-const checkout: Choice = { kind: 'milestone', name: 'Checkout v2', query: 'milestone:"Checkout v2"' }
 
 const open = (...ids: string[]): Ticket[] => ids.map((id) => ({ id }))
 const FINISHED: Ticket[] = [{ id: 'f1', finishedAt: '2026-10-20T10:00:00Z' }]
 
-let fixture: CannedFixture
-let dir: string
-let storage: SqliteStorage
-let using: StepReading
-/** What the views read of the tracker: the team's connection and saved reads, in UTC. */
-let tracker: TrackerReads
+const OFFLINE = { connected: false }
 
-beforeEach(async () => {
-  dir = mkdtempSync(join(tmpdir(), 'forecaster-tickets-source-'))
-  storage = openSqliteStorage(join(dir, 'forecaster.db'))
-  storage.saveTeam({ id: TEAM, name: 'My team', source: 'manual', sourceRef: '', installedAt: '2026-01-01T00:00:00Z' })
-  fixture = {
-    milestoneChoices: [{ kind: 'milestone', choices: [checkout], pastLimit: false }],
-    reads: { [checkout.query]: { tickets: [...open('m1', 'm2', 'm3'), ...FINISHED], incomplete: false } },
-  }
-  using = {
-    connections: storage,
-    milestoneInputs: storage,
-    reads: storage,
-    milestoneQueries: storage,
-    secrets: openMemorySecrets(),
-    // the fixture as it is when read, so a test can change what the next read finds
-    connector: () => cannedConnector(fixture),
-  }
-  tracker = { ...using, timeZone: 'UTC' }
+let scenario: TrackerScenario
+
+beforeEach(() => {
+  scenario = trackerScenario({ tickets: [...open('m1', 'm2', 'm3'), ...FINISHED] })
 })
 
-afterEach(() => {
-  storage.close()
-  rmSync(dir, { recursive: true, force: true })
-})
+afterEach(() => scenario.close())
 
-async function connectGitHub(): Promise<void> {
-  await submitConnection(using, TEAM, { kind: 'connect', tracker: 'github', repo: 'shop-team/shop', site: '', projectKey: '', email: '', token: 'token' })
-}
+const connectGitHub = () => scenario.connect()
 
 /** The milestone, 30 tickets typed, at 4–8 a week, with its tickets picked in the Milestone step and read. */
 async function enterAndPick(): Promise<void> {
   submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-11-16', ticketsRemaining: '30' })
   submit({ kind: 'setPaceRange', low: '4', high: '8' })
-  await submitStepQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
+  await scenario.pick(READ_AT)
 }
 
-const submit = (edit: InputsEdit, reads: TrackerReads | undefined = tracker) =>
-  submitInputs(storage, TEAM, DEFAULT_SETTINGS, TODAY, edit, { tracker: reads })
+// each as the local server build shows it, with the tracker's reads; `OFFLINE` as the browser build does
+const submit = (edit: InputsEdit, shown?: Shown) => scenario.submit(edit, shown)
 
-const inputs = (reads: TrackerReads | undefined = tracker) => inputsView(storage, TEAM, DEFAULT_SETTINGS, TODAY, { tracker: reads })
+const inputs = (shown?: Shown) => scenario.inputs(shown)
 
-const forecast = (reads: TrackerReads | undefined = tracker) => milestoneForecastView(storage, TEAM, DEFAULT_SETTINGS, TODAY, { tracker: reads })
-
-/** Reads the milestone query again at `readAt`, as a later read of the tracker does. */
-async function readAgain(readAt: string): Promise<void> {
-  await readQuery(cannedConnector(fixture), storage, { teamId: TEAM, query: checkout.query, finishedSince: finishedSinceFor(readAt, storage.milestoneInputs(TEAM)), readAt })
-}
+const forecast = (shown?: Shown) => scenario.forecast(shown)
 
 describe('following the tracker', () => {
   beforeEach(async () => {
@@ -110,9 +68,9 @@ describe('following the tracker', () => {
 
   test('each read updates it, with no question asked', async () => {
     submit({ kind: 'setTicketsSource', ticketsSource: 'tracker' })
-    fixture.reads[checkout.query] = { tickets: open('m1', 'm2', 'm3', 'm4', 'm5'), incomplete: false }
+    scenario.fixture.reads[CHECKOUT.query] = { tickets: open('m1', 'm2', 'm3', 'm4', 'm5'), incomplete: false }
 
-    await readAgain(NEXT_READ_AT)
+    await scenario.readAgain(NEXT_READ_AT)
 
     expect(inputs().milestone.ticketsSource).toMatchObject({ source: 'tracker', reading: { count: 5, readOn: '12 Nov 14:30' } })
     expect(forecast()).toMatchObject({ kind: 'forecast', ticketsRemaining: 5 })
@@ -160,7 +118,7 @@ describe('a read that can’t be followed', () => {
   beforeEach(connectGitHub)
 
   test('an incomplete read’s count is marked incomplete, and the forecast doesn’t use it as if whole', async () => {
-    fixture.reads[checkout.query] = { tickets: open('m1', 'm2'), incomplete: true }
+    scenario.fixture.reads[CHECKOUT.query] = { tickets: open('m1', 'm2'), incomplete: true }
     await enterAndPick()
 
     submit({ kind: 'setTicketsSource', ticketsSource: 'tracker' })
@@ -189,15 +147,15 @@ describe('a read that can’t be followed', () => {
 
 describe('with no connection', () => {
   test('tickets remaining is typed, as in the MVP, with no source to choose', () => {
-    submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-11-16', ticketsRemaining: '30' }, undefined)
+    submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-11-16', ticketsRemaining: '30' }, OFFLINE)
 
-    expect(inputs(undefined).milestone).toMatchObject({ ticketsRemaining: 30, ticketsSource: undefined })
+    expect(inputs(OFFLINE).milestone).toMatchObject({ ticketsRemaining: 30, ticketsSource: undefined })
   })
 
   test('the tracker can’t be chosen', () => {
-    submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-11-16', ticketsRemaining: '30' }, undefined)
+    submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-11-16', ticketsRemaining: '30' }, OFFLINE)
 
-    expect(submit({ kind: 'setTicketsSource', ticketsSource: 'tracker' }, undefined)).toMatchObject({
+    expect(submit({ kind: 'setTicketsSource', ticketsSource: 'tracker' }, OFFLINE)).toMatchObject({
       saved: false,
       view: { refusal: { form: 'ticketsSource', error: 'Connect a tracker to follow it.' } },
     })
@@ -208,7 +166,7 @@ describe('with no connection', () => {
     await enterAndPick()
     submit({ kind: 'setTicketsSource', ticketsSource: 'tracker' })
 
-    await submitConnection(using, TEAM, { kind: 'disconnect' })
+    await submitConnection(scenario.using, TEAM, { kind: 'disconnect' })
 
     expect(inputs().milestone.ticketsSource).toBeUndefined()
     expect(forecast()).toMatchObject({ kind: 'forecast', ticketsRemaining: 30 })
@@ -219,11 +177,11 @@ describe('on Jira', () => {
   const release: Choice = { kind: 'milestone', name: 'Checkout v2', query: 'fixVersion = "Checkout v2"' }
 
   beforeEach(async () => {
-    await submitConnection(using, TEAM, { kind: 'connect', tracker: 'jira', repo: '', site: 'shop.atlassian.net', projectKey: 'SHOP', email: 'em@shop.test', token: 'token' })
-    fixture.reads[release.query] = { tickets: open('j1', 'j2'), incomplete: true }
+    await scenario.connect('jira')
+    scenario.fixture.reads[release.query] = { tickets: open('j1', 'j2'), incomplete: true }
     submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-11-16', ticketsRemaining: '30' })
     submit({ kind: 'setPaceRange', low: '4', high: '8' })
-    await submitStepQuery(using, TEAM, { kind: 'addPick', choice: release }, READ_AT)
+    await scenario.pick(READ_AT, release)
   })
 
   test('the sources and their wording name Jira', () => {
