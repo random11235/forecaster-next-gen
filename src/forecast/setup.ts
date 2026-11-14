@@ -4,6 +4,7 @@ import type { SetupDraft } from '../model/setupDraft.js'
 import type { Storage } from '../storage/storage.js'
 import { periodName, type PeriodName } from './cadence.js'
 import { submitConnection } from './connection.js'
+import { newMilestone } from './milestoneInputs.js'
 import type { StepReading } from './queryStep.js'
 import { hasQuery, readPicks, summaryOf, type SetupSummary } from './setupSummary.js'
 import { isAfter, SETUP_STEPS, setupStepOf, type SetupStep } from './setupSteps.js'
@@ -67,12 +68,13 @@ export interface TicketsCheck {
   reading: number | undefined
   /** The tracker didn't return every ticket the query matched, so `reading` is part of them. */
   incomplete: boolean
-  /** None with no milestone entered yet, which has no source to choose. */
-  source?: TicketsSource
+  /** A new milestone's, typed, with no milestone entered yet. */
+  source: TicketsSource
 }
 
-/** Check's row for pace: the tracker, or the EM's own pace, the range or, when that is what they use, the typed counts. */
+/** Check's row for pace: the tracker, or the EM's own pace, the range or, when that is what they use, the typed counts too. */
 export interface PaceCheck {
+  /** The EM's own pace: the one chosen at Check, else the one they use, else the range. */
   yours: { source: 'range'; range: ThroughputRange | undefined } | { source: 'counts'; counts: number[] }
   /** The milestone's period, which the range is per. */
   period: PeriodName
@@ -80,10 +82,10 @@ export interface PaceCheck {
   reading?: PaceReadingView
   /** No reading, as a read pace would come from is incomplete. */
   incomplete: boolean
-  /** None with no milestone entered yet, which has no source to choose. */
-  source?: PaceMode
-  /** The tracker, then the EM's own. */
-  choices: readonly [PaceMode, PaceMode]
+  /** A new milestone's, the range, with no milestone entered yet. */
+  source: PaceMode
+  /** The tracker, then the range, then the typed counts when they are what the EM uses. */
+  choices: readonly PaceMode[]
 }
 
 /**
@@ -173,45 +175,47 @@ function nextOf(step: SetupStep, picked: boolean, comparable: boolean): SetupSte
 function checkOf(settingUp: SettingUp, teamId: string): SetupCheck | undefined {
   const measured = measure(throughDraft(settingUp), teamId, settingUp.milestoneInputs, settingUp.today)
   if (!measured) return undefined
-  const inputs = settingUp.milestoneInputs.milestoneInputs(teamId)
+  // with no milestone entered yet, a new one's inputs: its sources are chosen at Check before it has a name
+  const inputs = settingUp.milestoneInputs.milestoneInputs(teamId) ?? newMilestone(teamId)
   const chosen = settingUp.setup.setupDraft(teamId)?.sources
   const tickets = measured.ticketsRemaining
   const pace = measured.pace
-  const own = ownPace(inputs)
+  const paceSource = chosen?.pace ?? inputs.paceMode
+  const own = paceSource === 'tracker' ? inputs.paceMode : paceSource
   return {
     tracker: measured.tracker,
     ticketsRemaining: {
-      yours: inputs?.ticketsRemaining,
+      yours: inputs.ticketsRemaining,
       reading: tickets?.count,
       incomplete: tickets?.incomplete ?? false,
-      ...(inputs && { source: chosen?.ticketsRemaining ?? inputs.ticketsSource }),
+      source: chosen?.ticketsRemaining ?? inputs.ticketsSource,
     },
     pace: {
-      yours: own === 'counts' ? { source: 'counts', counts: inputs?.paceCounts ?? [] } : { source: 'range', range: inputs?.paceRange },
-      period: periodName(inputs?.cadenceDays ?? 7),
+      yours: own === 'counts' ? { source: 'counts', counts: inputs.paceCounts } : { source: 'range', range: inputs.paceRange },
+      period: periodName(inputs.cadenceDays),
       ...(pace && { reading: paceReadingView(pace) }),
       incomplete: measured.paceIncomplete,
-      ...(inputs && { source: chosen?.pace ?? inputs.paceMode }),
-      choices: ['tracker', own],
+      source: paceSource,
+      choices: paceChoices(inputs),
     },
   }
 }
 
-/** The EM's own pace, offered at Check beside the tracker's: the typed counts when they use them, else the range. */
-function ownPace(inputs: MilestoneInputs | undefined): 'range' | 'counts' {
-  return inputs?.paceMode === 'counts' ? 'counts' : 'range'
+/** The paces Check offers: the tracker and the range, and the typed counts when they are what the EM uses. */
+function paceChoices(inputs: MilestoneInputs): readonly PaceMode[] {
+  return inputs.paceMode === 'counts' ? ['tracker', 'range', 'counts'] : ['tracker', 'range']
 }
 
 /**
- * The draft with a value's source chosen at Check, or none when it isn't offered: the team must be connected, setup
- * open and the milestone entered, the value tickets remaining or pace, and the source one Check offers it.
+ * The draft with a value's source chosen at Check, or none when it isn't offered: the team must be connected and setup
+ * open, the value tickets remaining or pace, and the source one Check offers it.
  */
 function withSource(settingUp: SettingUp, teamId: string, chosen: ChosenSource): SetupDraft | undefined {
-  const inputs = settingUp.milestoneInputs.milestoneInputs(teamId)
-  if (!inputs || !settingUp.connections.connection(teamId) || !isOpen(settingUp.setup, teamId)) return undefined
+  if (!settingUp.connections.connection(teamId) || !isOpen(settingUp.setup, teamId)) return undefined
   const draft = settingUp.setup.setupDraft(teamId) ?? NO_DRAFT
   if (chosen.value === 'ticketsRemaining') return { ...draft, sources: { ...draft.sources, ticketsRemaining: chosen.source } }
-  if (chosen.source !== 'tracker' && chosen.source !== ownPace(inputs)) return undefined
+  const inputs = settingUp.milestoneInputs.milestoneInputs(teamId) ?? newMilestone(teamId)
+  if (!paceChoices(inputs).includes(chosen.source)) return undefined
   return { ...draft, sources: { ...draft.sources, pace: chosen.source } }
 }
 
@@ -272,11 +276,16 @@ function nextAfter(settingUp: SettingUp, teamId: string, edit: SetupEdit): Setup
   return view.kind === 'steps' && view.step === 'milestone' ? 'milestone' : undefined
 }
 
-/** Saves the sources chosen at Check into the milestone's inputs, each value's own kept for whichever source is used. */
+/**
+ * Saves the sources chosen at Check into the milestone's inputs, each value's own kept for whichever source is used.
+ * With no milestone entered yet, a new one takes them, entered only when they aren't a new milestone's own.
+ */
 function applySources({ milestoneInputs, setup }: SettingUp, teamId: string): void {
   const sources = setup.setupDraft(teamId)?.sources
-  const inputs = milestoneInputs.milestoneInputs(teamId)
-  if (!sources || !inputs) return
-  milestoneInputs.saveMilestoneInputs({ ...inputs, ticketsSource: sources.ticketsRemaining ?? inputs.ticketsSource, paceMode: sources.pace ?? inputs.paceMode })
+  const saved = milestoneInputs.milestoneInputs(teamId)
+  const inputs = saved ?? newMilestone(teamId)
+  if (!sources) return
+  const applied = { ...inputs, ticketsSource: sources.ticketsRemaining ?? inputs.ticketsSource, paceMode: sources.pace ?? inputs.paceMode }
+  if (saved || applied.ticketsSource !== inputs.ticketsSource || applied.paceMode !== inputs.paceMode) milestoneInputs.saveMilestoneInputs(applied)
 }
 

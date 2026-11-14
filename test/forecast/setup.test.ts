@@ -759,12 +759,16 @@ describe('Check', () => {
     })
   })
 
-  test('offers the typed counts, not the range, when pace is the EM’s typed counts', async () => {
-    const { submit } = await changedInSetup()
+  test('offers the range beside the typed counts when pace is the EM’s typed counts, Yours showing the one chosen', async () => {
+    const { submit, storage } = await changedInSetup()
     submit({ kind: 'setPaceCounts', counts: '5 6 7' })
     submit({ kind: 'setPaceMode', paceMode: 'counts' })
 
-    expect(check()).toMatchObject({ pace: { yours: { source: 'counts', counts: [5, 6, 7] }, source: 'counts', choices: ['tracker', 'counts'] } })
+    expect(check()).toMatchObject({ pace: { yours: { source: 'counts', counts: [5, 6, 7] }, source: 'counts', choices: ['tracker', 'range', 'counts'] } })
+    expect(await choose('pace', 'range')).toMatchObject({ saved: true })
+    expect(check()).toMatchObject({ pace: { yours: { source: 'range', range: { low: 4, high: 8 } }, source: 'range' } })
+    await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
+    expect(storage.milestoneInputs(TEAM)).toMatchObject({ paceMode: 'range', paceCounts: [5, 6, 7] })
   })
 
   test('is shown only at Check', async () => {
@@ -844,14 +848,27 @@ describe('Check', () => {
     expect(check()).toMatchObject({ tracker: 'Jira' })
   })
 
-  test('with no milestone entered yet, shows the reading but offers no choice', async () => {
-    const { connect } = team()
+  test('with no milestone entered yet, starts on a new milestone’s sources, and "Use these" saves those chosen', async () => {
+    const { connect, storage } = team()
     await connect()
     await scenario!.pick(READ_AT)
 
-    expect(check()).toMatchObject({ ticketsRemaining: { reading: 0 } })
-    expect(check()).not.toHaveProperty('ticketsRemaining.source')
-    expect(check()).not.toHaveProperty('pace.source')
-    expect(await choose('ticketsRemaining', 'tracker')).toMatchObject({ saved: false })
+    expect(check()).toMatchObject({ ticketsRemaining: { reading: 0, source: 'typed' }, pace: { source: 'range', choices: ['tracker', 'range'] } })
+    expect(await choose('ticketsRemaining', 'tracker')).toMatchObject({ saved: true })
+    expect(await choose('pace', 'tracker')).toMatchObject({ saved: true })
+    expect(storage.milestoneInputs(TEAM)).toBeUndefined()
+
+    await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
+    expect(storage.milestoneInputs(TEAM)).toMatchObject({ name: '', ticketsSource: 'tracker', paceMode: 'tracker' })
+  })
+
+  test('with no milestone entered yet and its sources left as they start, "Use these" enters no milestone', async () => {
+    const { connect, storage } = team()
+    await connect()
+    await scenario!.pick(READ_AT)
+    await choose('ticketsRemaining', 'typed')
+
+    await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
+    expect(storage.milestoneInputs(TEAM)).toBeUndefined()
   })
 })

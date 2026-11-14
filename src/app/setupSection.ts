@@ -118,7 +118,7 @@ const partOf = (tracker: string): string => `${escapeHtml(tracker)} gave only pa
 /** Check's tickets remaining row. */
 function ticketsRowHtml(tracker: string, { yours, reading, incomplete, source }: TicketsCheck): string {
   const read = reading === undefined ? '—' : `${reading}${incomplete ? ` <span class="note warn">${partOf(tracker)}</span>` : ''}`
-  const use = source === undefined ? NOTHING_TO_CHOOSE : sourceFormHtml('ticketsRemaining', 'Where tickets remaining comes from', ['tracker', 'typed'], source, (each) => (each === 'tracker' ? tracker : 'Typed'))
+  const use = sourceFormHtml('ticketsRemaining', 'Where tickets remaining comes from', ['tracker', 'typed'], source, (each) => (each === 'tracker' ? tracker : 'Typed'))
   return `            <tr>
               <th scope="row">Tickets remaining</th>
               <td>${yours ?? '—'}</td>
@@ -138,7 +138,7 @@ function paceRowHtml(tracker: string, { yours, period, reading, incomplete, sour
     : incomplete
       ? `<span class="note warn">None: ${partOf(tracker)}</span>`
       : '—'
-  const use = source === undefined ? NOTHING_TO_CHOOSE : sourceFormHtml('pace', 'Pace the forecast uses', choices, source, (each) => (each === 'tracker' ? tracker : PACE_NAMES[each]))
+  const use = sourceFormHtml('pace', 'Pace the forecast uses', choices, source, (each) => (each === 'tracker' ? tracker : PACE_NAMES[each]))
   return `            <tr>
               <th scope="row">Pace</th>
               <td>${own}</td>
@@ -149,9 +149,6 @@ function paceRowHtml(tracker: string, { yours, period, reading, incomplete, sour
 
 /** Pace's counts, a period each: "4, 6, 5", or "—" for none. */
 const countsHtml = (counts: readonly number[]): string => (counts.length === 0 ? '—' : counts.join(', '))
-
-/** With no milestone entered yet, there is no source to choose. */
-const NOTHING_TO_CHOOSE = '<span class="muted">Enter the milestone below to choose.</span>'
 
 /** A value's sources at Check, as radios posting the one chosen, with a Choose button for a browser without the script. */
 function sourceFormHtml<T extends string>(value: string, ariaLabel: string, sources: readonly T[], chosen: T, name: (source: T) => string): string {
