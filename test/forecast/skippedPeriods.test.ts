@@ -103,9 +103,25 @@ describe('skipping a period', () => {
 
     await scenario.readAgain(NEXT_READ_AT)
 
+    // the Milestone step's read reaches 11 weeks back, past the skips, as the skip's own did
+    expect(asked).toEqual(['2026-08-27T14:30:00.000Z'])
     expect(reading()).toMatchObject({
       counts: [4, 6, 3, 5, 6, 4, 6, 9],
       line: 'last 8 weeks · read 12 Nov 14:30',
+      skipped: { starts: HOLIDAYS },
+    })
+  })
+
+  test('when GitHub can’t be read further back, the skip is kept and the last read stays in use', async () => {
+    scenario.fixture.reads[CHECKOUT.query] = { failure: 'unavailable' }
+
+    expect(await skip(HOLIDAYS)).toEqual({ saved: true, next: 'inputs' })
+
+    expect(asked).toEqual(['2026-08-27T09:00:00.000Z'])
+    // the read of 09:00 reaches whole from 14 Sep: 6 weeks counted around the 2 skipped, and the line says where it runs out
+    expect(reading()).toMatchObject({
+      counts: [3, 5, 6, 4, 6, 8],
+      line: '6 weeks · GitHub has nothing before w/c 14 Sep · read 12 Nov 09:00',
       skipped: { starts: HOLIDAYS },
     })
   })
