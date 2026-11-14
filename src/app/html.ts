@@ -266,6 +266,8 @@ const STYLE = `
     /* Pace following the tracker: its counts as bars, a quiet period a red stub, its periods behind Show weeks. */
     .pace-following { display: flex; flex-direction: column; gap: 6px; }
     .pace-following .reading-line { margin: 0; font-size: 12px; color: var(--muted); }
+    /* The value the latest read replaced, faint beneath a value following the tracker. */
+    .tickets-source .reading-line.was, .pace-following .reading-line.was { color: var(--faint); }
     .pace-bars { display: flex; align-items: flex-end; gap: 4px; height: 64px; max-width: 320px; padding-top: 16px; border-bottom: 1px solid var(--ink); }
     .pace-bars .bar { position: relative; flex: 1 1 0; min-width: 0; background: var(--bar); }
     .pace-bars .bar.zero { height: 2px; background: var(--risk); }
