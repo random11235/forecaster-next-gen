@@ -233,7 +233,10 @@ const STYLE = `
       border: 1px solid var(--border); background: transparent;
     }
     .actions { display: flex; justify-content: flex-end; }
-    button.primary { min-height: 42px; padding: 0 20px; border: 0; background: var(--ink); color: var(--page); font-size: 14px; font-weight: 600; }
+    button.primary, a.button.primary { min-height: 42px; padding: 0 20px; border: 0; background: var(--ink); color: var(--page); font-size: 14px; font-weight: 600; }
+    a.button.primary { display: inline-flex; align-items: center; border-radius: 6px; text-decoration: none; }
+    .actions.onward { gap: 16px; align-items: center; margin-top: 16px; }
+    .actions.onward form { margin: 0; }
     .pace { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; }
     .pace label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
     .pace input[type=number] { font-size: 32px; width: 72px; text-align: center; padding: 2px 0; }
@@ -305,6 +308,50 @@ const STYLE = `
     .picker form.back { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border-top: 1px solid var(--hairline); padding-top: 12px; }
     .picker .warn { margin: 0; color: var(--risk); }
     .picker form.back a.keep { font-size: 13px; color: var(--link); }
+    /* The Comparable work step's pace: the pace in use, how far from the milestone's own, and the two paired per period. */
+    .step-pace { display: flex; flex-direction: column; gap: 4px; padding-bottom: 12px; border-bottom: 1px solid var(--hairline); }
+    .step-pace p { margin: 0; }
+    .step-pace .headline { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .step-pace .headline small { font-size: 14px; font-weight: 400; color: var(--muted); }
+    .step-pace .delta { font-size: 15px; color: var(--muted); }
+    .step-pace .delta.faster { color: var(--good); }
+    .step-pace .delta.slower { color: var(--risk); }
+    .step-pace .delta.aboutTheSame { color: var(--ink); }
+    ol.pairs { list-style: none; margin: 8px 0 0; padding: 0; display: flex; gap: 12px; align-items: flex-end; height: 100px; }
+    ol.pairs .period { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px; height: 100%; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+    ol.pairs .two { display: flex; gap: 2px; align-items: flex-end; }
+    ol.pairs i, .step-pace .legend i { display: block; width: 11px; }
+    .step-pace .comparable, .chip .strip i { background: var(--bar); }
+    .step-pace .own { background: var(--ink); }
+    .step-pace i.before { background: repeating-linear-gradient(45deg, var(--border) 0 3px, transparent 3px 6px); box-shadow: inset 0 0 0 1px var(--border); }
+    .step-pace .legend { font-size: 12px; color: var(--muted); }
+    .step-pace .legend i { display: inline-block; height: 10px; vertical-align: middle; margin: 0 3px 0 8px; }
+    .step-pace .legend i:first-child { margin-left: 0; }
+    .chip .strip { display: inline-flex; align-items: flex-end; gap: 1px; height: 12px; }
+    .chip .strip i { display: block; width: 3px; }
+    /* Candidates for comparable work (#205): a pace link beside each choice, and those read, grouped against the milestone's own. */
+    .found form.candidate { flex-direction: row; align-items: center; gap: 8px; }
+    .found form.candidate button { flex: 1; }
+    .found a.open { font-size: 12px; color: var(--link); padding: 0 8px; }
+    .candidates { display: flex; flex-direction: column; gap: 8px; max-width: 620px; margin-top: 16px; border-top: 1px solid var(--hairline); padding-top: 12px; }
+    .candidates h3 { margin: 0; }
+    .candidates .groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px 20px; }
+    .candidates h4 { margin: 4px 0; font-size: 13px; font-weight: 600; }
+    .candidates .slower h4, .candidates span.slower { color: var(--risk); }
+    .candidates .faster h4, .candidates span.faster { color: var(--good); }
+    .candidates span.same { color: var(--muted); }
+    .candidates ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+    .candidates li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 13px; }
+    .candidates li form { margin: 0; display: inline; }
+    .candidates li button { border: 0; background: none; min-height: 0; padding: 0; font-size: 14px; font-weight: 600; cursor: pointer; text-align: left; }
+    .candidates li button:hover { text-decoration: underline; }
+    .candidates .kind { font-family: var(--mono); font-size: 11px; color: var(--faint); font-weight: 400; }
+    .candidates .strip { display: inline-flex; align-items: flex-end; gap: 1px; height: 14px; border-bottom: 1px solid var(--border); }
+    .candidates .strip i { display: block; width: 4px; min-height: 1px; background: var(--bar); }
+    .candidates .pace { font-family: var(--mono); font-size: 12px; }
+    .candidates .this, .kind-list .this { font-size: 11px; color: var(--link); border: 1px solid var(--border); border-radius: 999px; padding: 0 6px; }
+    .candidates p.facts { flex-basis: 100%; margin: 0; font-size: 12px; color: var(--muted); }
+    .candidates p.error { flex-basis: 100%; margin: 0; font-size: 12px; color: var(--risk); font-weight: 400; }
     details.change > summary { cursor: pointer; font-size: 13px; color: var(--link); }
     details.change[open] > summary { margin-bottom: 16px; }
     section.input > .label p.saved { color: var(--good); font-weight: 600; }

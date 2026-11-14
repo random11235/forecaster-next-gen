@@ -3,14 +3,15 @@ import type { InputNote, MilestoneInput } from '../forecast/milestoneAssessment.
 import { MAX_CADENCE_DAYS, MAX_TICKETS_PER_PERIOD, MAX_TICKETS_REMAINING } from '../forecast/milestoneInputs.js'
 import { ambiguityName, MAX_GROWTH, type GrowthView, type TypedRange } from '../forecast/growth.js'
 import type { ConnectionView } from '../forecast/connection.js'
-import type { MilestoneStepView } from '../forecast/milestoneStep.js'
+import type { QueryStepView } from '../forecast/queryStep.js'
 import type { InputsEdit, InputsForm, InputsView, TypedForms } from '../forecast/inputs.js'
 import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
 import type { PaceMode } from '../model/milestoneInputs.js'
 import { CONNECT_HINT, connectSection } from './connectSection.js'
 import { escapeHtml, htmlPage } from './html.js'
 import { INPUTS_SCRIPT } from './inputsScript.js'
-import { MILESTONE_STEP_HINT, MILESTONE_STEP_ID, MILESTONE_STEP_SCRIPT, milestoneStepSection } from './milestoneStepSection.js'
+import { candidatesHtml, candidatesScript } from './candidatesSection.js'
+import { queryStepScript, queryStepSection, type StepSection } from './queryStepSection.js'
 import { renderPaceTrend } from './paceTrendGraph.js'
 
 /** Each input of the milestone by its label on this screen, which notes about it are named by everywhere. */
@@ -52,24 +53,34 @@ export const INPUTS_FORMS: ReadonlyMap<string, FormReader> = new Map<string, For
   ],
 ])
 
+/** A step picking or writing one of the team's queries, as the Inputs screen shows it: its section, and its view. */
+export interface ShownStep {
+  section: StepSection
+  view: QueryStepView
+  /**
+   * The id its candidates' opening is kept by, for the page's script to read more in (`keepOpening`): the Comparable work
+   * step's, while it shows candidates (`ComparableWorkStep.candidates`, #205).
+   */
+  openingId?: string
+}
+
 /**
- * The Inputs screen: in the local server build the Connect step first, and once connected the Milestone step picking
- * the milestone's tickets; then the milestone, its pace and the team's growth.
+ * The Inputs screen: in the local server build the Connect step first, and once connected the `steps` picking the
+ * team's queries, the Milestone step and then the Comparable work step; then the milestone, its pace and the team's
+ * growth.
  */
-export function renderInputsScreen(
-  screen: InputsView,
-  connection: ConnectionView,
-  milestoneStep: MilestoneStepView = { kind: 'noMilestoneStep' },
-): string {
+export function renderInputsScreen(screen: InputsView, connection: ConnectionView, steps: readonly ShownStep[] = []): string {
   const { milestone, forms } = screen
   const error = (form: InputsForm): string | undefined => (screen.refusal?.form === form ? screen.refusal.error : undefined)
   const connect = connectSection(connection)
-  const picker = milestoneStepSection(milestoneStep)
+  const pickers = steps.flatMap(({ section, view, openingId }) => {
+    const picker = queryStepSection(view, section)
+    const candidates = view.kind === 'comparableWorkStep' && view.candidates && openingId !== undefined ? candidatesHtml(view.candidates.shown, openingId, section) : ''
+    return picker === undefined ? [] : [{ section, picker: picker + candidates }]
+  })
   const sections = [
     ...(connect === undefined ? [] : [inputSection('Connect', 'Connect', CONNECT_HINT, connect, { postsOnSubmit: true })]),
-    ...(picker === undefined
-      ? []
-      : [inputSection('Milestone’s tickets', 'Milestone’s tickets', MILESTONE_STEP_HINT, picker, { postsOnSubmit: true, id: MILESTONE_STEP_ID })]),
+    ...pickers.map(({ section, picker }) => inputSection(section.title, section.title, section.hint, picker, { postsOnSubmit: true, id: section.id })),
     milestoneSection(forms.milestone, error('milestone'), milestone.notes),
     cadenceSection(forms.cadence, error('cadence'), milestone.cadenceDays),
     paceSection(screen, error, periodName(milestone.cadenceDays)),
@@ -81,7 +92,10 @@ export function renderInputsScreen(
     heading: 'Inputs',
     lede: 'What drives the forecast: the milestone, the team’s pace, and how work grows.',
   }
-  const script = picker === undefined ? INPUTS_SCRIPT : INPUTS_SCRIPT + MILESTONE_STEP_SCRIPT
+  const script =
+    INPUTS_SCRIPT +
+    pickers.map(({ section }) => queryStepScript(section)).join('') +
+    steps.filter(({ openingId }) => openingId !== undefined).map(({ section }) => candidatesScript(section)).join('')
   return htmlPage('/inputs', header, sections.map((section, index) => section(index + 1)).join('\n'), script)
 }
 

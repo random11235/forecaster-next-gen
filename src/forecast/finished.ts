@@ -1,8 +1,17 @@
 import type { Connector, Failure } from '../connectors/connector.js'
 import type { SavedRead, TeamQuery } from '../model/savedRead.js'
+import { DAY_MS } from '../model/time.js'
 import type { SavedReadStorage } from '../storage/storage.js'
 import { addDays, daysBetween } from './calendarDate.js'
 import type { DatedCounts } from './paceWindow.js'
+
+/** How far back a read of one of the team's queries counts finished tickets, in weeks. */
+export const FINISHED_WEEKS = 8
+
+/** The UTC instant a read made at `readAt` counts finished tickets from: `FINISHED_WEEKS` weeks before it. */
+export function finishedSinceFor(readAt: string): string {
+  return new Date(Date.parse(readAt) - FINISHED_WEEKS * 7 * DAY_MS).toISOString()
+}
 
 /** A query read and saved; or a failed read, with the read saved before it, which is kept (none if it was never read). */
 export type QueryRead = { ok: true; read: SavedRead } | ({ ok: false; saved: SavedRead | undefined } & Failure)
@@ -17,8 +26,8 @@ export interface QueryReading extends TeamQuery {
 
 /**
  * Seam B: reads the query through the connector, open tickets and those finished at or after `finishedSince`, and
- * saves the read as made at `readAt`, replacing the query's last one. A failed read saves nothing, so the last saved
- * read stays in use.
+ * saves the read as made at `readAt`, each ticket once by id, replacing the query's last one. A failed read saves
+ * nothing, so the last saved read stays in use.
  */
 export async function readQuery(connector: Connector, reads: SavedReadStorage, { teamId, query, finishedSince, readAt }: QueryReading): Promise<QueryRead> {
   const teamQuery = { teamId, query }
@@ -27,11 +36,18 @@ export async function readQuery(connector: Connector, reads: SavedReadStorage, {
     const { ok: _, ...failure } = result
     return { ok: false, ...failure, saved: reads.savedRead(teamQuery) }
   }
-  // only ids and finish times are kept
-  const tickets = result.tickets.map(({ id, finishedAt }) => (finishedAt === undefined ? { id } : { id, finishedAt }))
+  // only ids and finish times are kept, each ticket once however many parts of the query match it
+  const byId = new Map(result.tickets.map(({ id, finishedAt }) => [id, finishedAt === undefined ? { id } : { id, finishedAt }]))
+  const tickets = [...byId.values()]
   const read: SavedRead = { tickets, incomplete: result.incomplete, readAt }
   reads.saveRead(teamQuery, read)
   return { ok: true, read }
+}
+
+/** The query's saved read, when there is a query and its read has all its tickets. */
+export function completeRead(reads: Pick<SavedReadStorage, 'savedRead'>, teamId: string, query: string | undefined): SavedRead | undefined {
+  const read = query ? reads.savedRead({ teamId, query }) : undefined
+  return read && !read.incomplete ? read : undefined
 }
 
 /** A query's tickets remaining: its open tickets when it was read. */
@@ -71,7 +87,7 @@ export function finishedPerPeriod(read: SavedRead, { startDate, cadenceDays, tod
 }
 
 /** The calendar day, `YYYY-MM-DD`, a UTC instant falls on in `timeZone`. */
-function calendarDayIn(timeZone: string): (instant: string) => string {
+export function calendarDayIn(timeZone: string): (instant: string) => string {
   // en-CA writes dates as YYYY-MM-DD
   const format = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' })
   return (instant) => format.format(new Date(instant))

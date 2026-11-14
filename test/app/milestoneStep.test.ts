@@ -298,7 +298,7 @@ describe('the Milestone step', () => {
       const html = await refused.text()
       expect(stepOf(html)).toContain('class="chip"')
       expect(stepOf(html)).toContain('Checkout')
-      expect(sectionNumbers(html).slice(0, 4)).toEqual(['connect 01', 'milestone-tickets 02', 'milestone 03', 'cadence 04'])
+      expect(sectionNumbers(html).slice(0, 4)).toEqual(['connect 01', 'milestone-tickets 02', 'comparable-work 03', 'milestone 04'])
     })
 
     test('saved in place, answers with its sections numbered after the Milestone step', async () => {
@@ -312,8 +312,26 @@ describe('the Milestone step', () => {
       })
 
       expect(saved.status).toBe(200)
-      expect(sectionNumbers(await saved.text()).slice(0, 4)).toEqual(['connect 01', 'milestone-tickets 02', 'milestone 03', 'cadence 04'])
+      expect(sectionNumbers(await saved.text()).slice(0, 4)).toEqual(['connect 01', 'milestone-tickets 02', 'comparable-work 03', 'milestone 04'])
     })
+  })
+
+  test('renaming the milestone, as posted or saved in place, moves a query of its tracker milestone to the new name', async () => {
+    const running = await startConnected()
+    await post(running, '/inputs/milestone', { name: 'Payments v2', startDate: '2026-10-01', ticketsRemaining: '20' })
+    await post(running, '/inputs/milestone-query/add', { kind: 'milestone', name: 'Payments v2', query: 'milestone:"Payments v2"' })
+
+    const renamed = await post(running, '/inputs/milestone', { name: 'Checkout', startDate: '2026-10-01', ticketsRemaining: '20' })
+
+    expect(renamed.status).toBe(303)
+    expect(stepOf(await page(running))).toMatch(/class="chip"[^]*Checkout[^]*This query matches nothing/)
+    const back = await fetch(new URL('/inputs/milestone', running.url), {
+      method: 'POST',
+      body: new URLSearchParams({ name: 'Payments v2', startDate: '2026-10-01', ticketsRemaining: '20' }),
+      headers: { 'forecaster-save': 'in-place' },
+    })
+    expect(back.status).toBe(200)
+    expect(stepOf(await page(running))).toContain('1 open · 1 finished in the last 8 weeks')
   })
 
   test('before connecting, there is none', async () => {

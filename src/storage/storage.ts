@@ -63,12 +63,18 @@ export interface SavedReadStorage {
 }
 
 /**
- * Where the local server build keeps the milestone's picks and query, beside its inputs, so they outlast restarts.
- * The browser build has no connectors, so it keeps neither.
+ * Where the local server build keeps the milestone's picks and query, and comparable work's, beside its inputs, so
+ * they outlast restarts. Comparable work's are kept apart from the milestone's, and nothing but the EM clears them: a
+ * new name or start date for the milestone leaves them as they are (#158). The browser build has no connectors, so it
+ * keeps none.
  */
 export interface MilestoneQueryStorage {
   /** Saves the milestone's picks and query, replacing both. */
   saveMilestoneQuery(teamId: string, milestoneQuery: MilestoneQuery): void
   /** The milestone's picks and query, if the EM has picked or written one. */
   milestoneQuery(teamId: string): MilestoneQuery | undefined
+  /** Saves comparable work's picks and query, replacing both. */
+  saveComparableWorkQuery(teamId: string, comparableWorkQuery: MilestoneQuery): void
+  /** Comparable work's picks and query, if the EM has picked or written one. */
+  comparableWorkQuery(teamId: string): MilestoneQuery | undefined
 }
