@@ -168,12 +168,17 @@ function milestoneSection(
 const TICKETS_SOURCE_FORM = 'tickets-source'
 const TICKETS_SOURCES: readonly TicketsSource[] = ['tracker', 'typed']
 
-/** Tickets remaining as the tracker last read it, and when; marked incomplete when the read was part of the tickets. */
-function trackerTickets({ tracker, reading }: TicketsSourceView): string {
+/**
+ * Tickets remaining as the tracker last read it, and when; marked incomplete when the read was part of the tickets.
+ * Faintly beneath, the value the read replaced.
+ */
+function trackerTickets({ tracker, reading, was }: TicketsSourceView): string {
   if (!reading) return `<p class="reading"><span class="reading-line">tickets remaining · ${escapeHtml(tracker)}, not read yet</span></p>`
   const incomplete = reading.incomplete ? ' <span class="incomplete">incomplete</span>' : ''
   return `<p class="reading"><span class="reading-value">${reading.count}</span>${incomplete}
-              <span class="reading-line">tickets remaining · ${escapeHtml(tracker)}, read ${escapeHtml(reading.readOn)}</span></p>`
+              <span class="reading-line">tickets remaining · ${escapeHtml(tracker)}, read ${escapeHtml(reading.readOn)}</span>${
+                was ? `\n              <span class="reading-line was">was ${was.count} on ${escapeHtml(was.readOn)}</span>` : ''
+              }</p>`
 }
 
 /** The notes about one input, shown beside it. */
@@ -274,14 +279,17 @@ ${radios('paceMode', 'Pace the forecast uses', modes, paceMode, name)}
 
 /**
  * The tracker's pace: its counts as bars, oldest first, a quiet period a red stub, with the periods counted and when
- * they were read. While pace follows it (`following`), its periods sit behind Show weeks as blocks to type into, each
- * holding its count: typing into one posts them all as typed counts, which switches pace to them.
+ * they were read, and faintly, the counts the read replaced. While pace follows it (`following`), its periods sit behind
+ * Show weeks as blocks to type into, each holding its count: typing into one posts them all as typed counts, which
+ * switches pace to them.
  */
-function trackerPace({ tracker, reading }: PaceSourceView, period: PeriodName, following: boolean): string {
+function trackerPace({ tracker, reading, was }: PaceSourceView, period: PeriodName, following: boolean): string {
   if (!reading) return `\n          <p class="reading-line">${period}s finished · ${escapeHtml(tracker)}, not read yet</p>`
   const { window, periods, firstFinished, readOn } = reading
   const lines = `
-          <p class="reading-line">${escapeHtml(periods)} · read ${escapeHtml(readOn)}</p>${firstFinished ? `\n          <p class="reading-line">${escapeHtml(firstFinished)}</p>` : ''}`
+          <p class="reading-line">${escapeHtml(periods)} · read ${escapeHtml(readOn)}</p>${firstFinished ? `\n          <p class="reading-line">${escapeHtml(firstFinished)}</p>` : ''}${
+            was ? `\n          <p class="reading-line was">was ${was.counts.join(', ')} on ${escapeHtml(was.readOn)}</p>` : ''
+          }`
   if (window.counts.length === 0) return lines
   const tallest = Math.max(1, ...window.counts)
   const bars = window.counts

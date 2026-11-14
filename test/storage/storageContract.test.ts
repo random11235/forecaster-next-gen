@@ -331,6 +331,29 @@ describe("SQLite storage's saved reads", () => {
     expect(again.savedRead({ teamId: 'another', query: OPEN_TICKETS })).toEqual(READ)
   })
 
+  // the faint previous value comes from the read the latest replaced (#214)
+  test("keeps the read a query's latest replaced as its previous read, one back, apart from other queries'", () => {
+    const { storage, reopen } = sqliteFile()
+    storage.saveTeam(TEAM)
+    const otherQuery = 'repo:acme/checkout is:issue milestone:"Beta"'
+    const later: SavedRead = { tickets: [{ id: 'I_2', finishedAt: '2026-11-12T10:00:00Z' }], incomplete: true, readAt: '2026-11-12T11:00:00Z' }
+    const latest: SavedRead = { tickets: [], incomplete: false, readAt: '2026-11-13T11:00:00Z' }
+
+    storage.saveRead({ teamId: 'team', query: OPEN_TICKETS }, READ)
+    storage.saveRead({ teamId: 'team', query: otherQuery }, READ)
+    expect(storage.previousRead({ teamId: 'team', query: OPEN_TICKETS })).toBeUndefined()
+
+    storage.saveRead({ teamId: 'team', query: OPEN_TICKETS }, later)
+    const reopened = reopen()
+    expect(reopened.previousRead({ teamId: 'team', query: OPEN_TICKETS })).toEqual(READ)
+
+    reopened.saveRead({ teamId: 'team', query: OPEN_TICKETS }, latest)
+    const again = reopen()
+    expect(again.savedRead({ teamId: 'team', query: OPEN_TICKETS })).toEqual(latest)
+    expect(again.previousRead({ teamId: 'team', query: OPEN_TICKETS })).toEqual(later)
+    expect(again.previousRead({ teamId: 'team', query: otherQuery })).toBeUndefined()
+  })
+
   test('keeps a read that matched nothing as an empty list', () => {
     const { storage, reopen } = sqliteFile()
     storage.saveTeam(TEAM)

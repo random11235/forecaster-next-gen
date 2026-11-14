@@ -746,7 +746,35 @@ describe("a data file from schema version 16, before the values' sources, skips 
     storage.saveMilestoneInputs(following)
 
     expect(open(file).milestoneInputs(TEAM)).toEqual(following)
-    expect(versionOf(file)).toBe(17)
+    expect(versionOf(file)).toBeGreaterThan(16)
+  })
+})
+
+/** Version 17's tables: version 16's, with the values' sources and reads seen as #210 shipped them, and a saved read. Kept verbatim: it is a past release. */
+const VERSION_17_SCHEMA = `${VERSION_16_SCHEMA}
+ALTER TABLE milestone_inputs ADD COLUMN tickets_source TEXT NOT NULL DEFAULT 'typed';
+ALTER TABLE milestone_inputs ADD COLUMN seen_reads TEXT NOT NULL DEFAULT '{}';
+INSERT INTO saved_reads VALUES ('${TEAM}', 'milestone:"Launch"', 0, '2026-10-28T09:05:00Z');
+INSERT INTO saved_read_tickets VALUES ('${TEAM}', 'milestone:"Launch"', 0, 'I_1', '2026-10-27T10:00:00Z');
+INSERT INTO saved_read_tickets VALUES ('${TEAM}', 'milestone:"Launch"', 1, 'I_2', NULL);
+`
+
+describe('a data file from schema version 17, before previous reads', () => {
+  test('keeps its saved read with no previous read, and its next read keeps it as the previous one, which survives reopening', () => {
+    const file = writeFile('v17.db', VERSION_17_SCHEMA, 17)
+    const query = 'milestone:"Launch"'
+    const storage = openSqliteStorage(file)
+    const saved = { tickets: [{ id: 'I_1', finishedAt: '2026-10-27T10:00:00Z' }, { id: 'I_2' }], incomplete: false, readAt: '2026-10-28T09:05:00Z' }
+    expect(storage.savedRead({ teamId: TEAM, query })).toEqual(saved)
+    expect(storage.previousRead({ teamId: TEAM, query })).toBeUndefined()
+
+    storage.saveRead({ teamId: TEAM, query }, { tickets: [{ id: 'I_2' }], incomplete: false, readAt: '2026-11-04T09:12:00Z' })
+    storage.close()
+
+    const again = openSqliteStorage(file)
+    expect(again.previousRead({ teamId: TEAM, query })).toEqual(saved)
+    again.close()
+    expect(versionOf(file)).toBe(18)
   })
 })
 

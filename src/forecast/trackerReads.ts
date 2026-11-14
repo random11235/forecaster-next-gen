@@ -1,9 +1,10 @@
+import type { SavedRead, TeamQuery } from '../model/savedRead.js'
 import type { Storage } from '../storage/storage.js'
 import { periodName } from './cadence.js'
 import { dayMonth } from './calendarDate.js'
 import type { Connecting } from './connection.js'
 import { counted } from './counted.js'
-import { ticketsRemaining } from './finished.js'
+import { calendarDayIn, ticketsRemaining } from './finished.js'
 import { paceReads, paceReadsStorage, type PaceFrom } from './paceReads.js'
 import { TRACKER_PERIODS, trackerWindow, type DatedCounts } from './paceWindow.js'
 import { trackerOf } from './trackers.js'
@@ -55,6 +56,25 @@ export interface PaceReading {
   firstFinished: string | undefined
   /** When the read pace comes from was read, in the EM's time zone: "4 Nov 09:12". */
   readOn: string
+  /**
+   * The counts pace showed before the latest read replaced the one before it, on the day that one was read; none
+   * before a second read, nor when the read changed nothing.
+   */
+  was: WasPace | undefined
+}
+
+/** The pace the latest read replaced: "was 5, 6, 8 on 28 Oct 09:05". */
+export interface WasPace {
+  counts: number[]
+  /** When the read it came from was made, in the EM's time zone: "28 Oct 09:05". */
+  readOn: string
+}
+
+/** The tickets remaining the latest read replaced: "was 34 on 28 Oct 09:05". */
+export interface WasTickets {
+  count: number
+  /** When the read it came from was made, in the EM's time zone: "28 Oct 09:05". */
+  readOn: string
 }
 
 /** The tracker's reading of tickets remaining: the milestone query's open tickets when it was read. */
@@ -64,6 +84,8 @@ export interface TicketsReading {
   incomplete: boolean
   /** When it was read, in the EM's time zone: "4 Nov 09:12". */
   readOn: string
+  /** What the read before it gave; none before a second read, nor when the read changed it nothing. */
+  was: WasTickets | undefined
 }
 
 /**
@@ -74,16 +96,51 @@ export function measured(reads: TrackerReads | undefined, teamId: string, storag
   const connection = reads?.connections.connection(teamId)
   if (!reads || !connection) return undefined
   const tracker = trackerOf(connection).name
-  const read = savedReadOf(reads, teamId, reads.milestoneQueries.milestoneQuery(teamId)?.query)
+  const query = reads.milestoneQueries.milestoneQuery(teamId)?.query
+  const read = savedReadOf(reads, teamId, query)
   return {
     tracker,
-    ticketsRemaining: read && { count: ticketsRemaining(read), incomplete: read.incomplete, readOn: readOn(read.readAt, reads.timeZone) },
+    ticketsRemaining: read && { count: ticketsRemaining(read), incomplete: read.incomplete, readOn: readOn(read.readAt, reads.timeZone), was: wasTickets(reads, teamId, query, ticketsRemaining(read)) },
     pace: paceReading(reads, teamId, storage, today, tracker),
   }
 }
 
 function savedReadOf(reads: TrackerReads, teamId: string, query: string | undefined) {
   return query ? reads.reads.savedRead({ teamId, query }) : undefined
+}
+
+/** The tickets remaining the query's read before its latest gave, when it differs from `count`. */
+function wasTickets(reads: TrackerReads, teamId: string, query: string | undefined, count: number): WasTickets | undefined {
+  const previous = query ? reads.reads.previousRead({ teamId, query }) : undefined
+  if (!previous || ticketsRemaining(previous) === count) return undefined
+  return { count: ticketsRemaining(previous), readOn: readOn(previous.readAt, reads.timeZone) }
+}
+
+/**
+ * The counts pace showed before its query's latest read: from the read that one replaced, as pace counted them on the
+ * day it was made. None when they are the counts pace shows, nor when the latest read, on its own day, counts the same:
+ * the read changed nothing. Pace that came from the other query then gives none.
+ */
+function wasPace(reads: TrackerReads, teamId: string, storage: Pick<Storage, 'milestoneInputs'>, from: PaceFrom, query: string | undefined, counts: number[]): WasPace | undefined {
+  if (!query) return undefined
+  const latest = reads.reads.savedRead({ teamId, query })
+  const previous = reads.reads.previousRead({ teamId, query })
+  if (!latest || !previous) return undefined
+  const was = countsAsThen(reads, teamId, storage, from, query, previous)
+  if (!was || sameCounts(was, counts) || sameCounts(was, countsAsThen(reads, teamId, storage, from, query, latest))) return undefined
+  return { counts: was, readOn: readOn(previous.readAt, reads.timeZone) }
+}
+
+/** The counts pace showed with `read` as the query's, on the day it was made; none had pace come from the other query. */
+function countsAsThen(reads: TrackerReads, teamId: string, storage: Pick<Storage, 'milestoneInputs'>, from: PaceFrom, query: string, read: SavedRead): number[] | undefined {
+  const saved = paceReadsStorage(storage, reads)
+  const asThen = { ...saved, savedRead: (teamQuery: TeamQuery) => (teamQuery.query === query ? read : saved.savedRead(teamQuery)) }
+  const then = paceReads(asThen, teamId, { today: calendarDayIn(reads.timeZone)(read.readAt), timeZone: reads.timeZone })
+  return then && then.from === from ? trackerWindow(then.pace).window.counts : undefined
+}
+
+function sameCounts(some: number[], others: number[] | undefined): boolean {
+  return others !== undefined && some.length === others.length && some.every((count, period) => count === others[period])
 }
 
 /** The tracker's reading of pace, from `paceReads`: the periods it counts and how they are bounded. */
@@ -111,6 +168,7 @@ function paceReading(reads: TrackerReads, teamId: string, storage: Pick<Storage,
     periods,
     firstFinished: bound === 'firstFinished' ? `From the first finished ticket, ${dayMonth(first!)}.` : undefined,
     readOn: paceRead ? readOn(paceRead.readAt, reads.timeZone) : '',
+    was: wasPace(reads, teamId, storage, read.from, query?.query, window.counts),
   }
 }
 
