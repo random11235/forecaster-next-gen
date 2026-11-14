@@ -308,7 +308,7 @@ function paceSection(screen: InputsView, error: (form: InputsForm) => string | u
   const tracker = paceSource
     ? `
         <div class="pace-following" id="pace-tracker">
-          <h3>${escapeHtml(paceSource.tracker)}</h3>${trackerPace(paceSource, period, inUse === 'tracker')}${notesIfUsed('tracker')}${trendIfUsed('tracker')}
+          <h3>${escapeHtml(paceSource.tracker)}</h3>${errorLine(error('paceSkip'))}${trackerPace(paceSource, period, inUse === 'tracker')}${notesIfUsed('tracker')}${trendIfUsed('tracker')}
         </div>`
     : ''
   return inputSection(

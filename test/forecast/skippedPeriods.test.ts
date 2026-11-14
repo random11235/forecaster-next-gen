@@ -87,7 +87,9 @@ const reading = () => inputsView(storage, TEAM, DEFAULT_SETTINGS, TODAY, { track
 
 const forecast = () => milestoneForecastView(storage, TEAM, DEFAULT_SETTINGS, TODAY, { tracker })
 
-const skip = (periods: string[], readAt = READ_AT) => submitSkip(using, TEAM, { kind: 'skip', periods }, readAt)
+const at = (readAt = READ_AT) => ({ settings: DEFAULT_SETTINGS, today: TODAY, readAt, timeZone: 'UTC' })
+
+const skip = (periods: string[], readAt = READ_AT) => submitSkip(using, TEAM, { kind: 'skip', periods }, at(readAt))
 
 describe('skipping a period', () => {
   test('keeps 8 counted by reaching back past the skipped weeks, reading GitHub further back to do so', async () => {
@@ -137,12 +139,36 @@ describe('skipping a period', () => {
   })
 })
 
+describe('a skip submitted', () => {
+  test('saved, it goes back to the Inputs screen', async () => {
+    expect(await skip(HOLIDAYS)).toEqual({ saved: true, next: 'inputs' })
+  })
+
+  test('with no period, or one that isn’t a date, it is refused, saying why, and nothing is skipped', async () => {
+    for (const periods of [[], ['next Tuesday']]) {
+      expect(await skip(periods)).toMatchObject({
+        saved: false,
+        screen: 'inputs',
+        view: { milestone: { paceMode: 'tracker' }, refusal: { form: 'paceSkip', error: 'Choose a week to skip.' } },
+      })
+    }
+    expect(storage.milestoneInputs(TEAM)?.paceWindow.skippedPeriods).toEqual([])
+    expect(asked).toEqual([])
+  })
+
+  test('with no milestone, it is refused', async () => {
+    const other = 'other-team'
+
+    expect(await submitSkip(using, other, { kind: 'skip', periods: HOLIDAYS }, at())).toMatchObject({ saved: false, view: { refusal: { form: 'paceSkip', error: 'Enter the milestone first.' } } })
+  })
+})
+
 describe('counting skipped periods again', () => {
   test('one counted again counts in the window again, reading nothing', async () => {
     await skip(HOLIDAYS)
     asked = []
 
-    await submitSkip(using, TEAM, { kind: 'countAgain', periods: ['2026-10-19'] }, READ_AT)
+    await submitSkip(using, TEAM, { kind: 'countAgain', periods: ['2026-10-19'] }, at())
 
     expect(asked).toEqual([])
     expect(reading()).toMatchObject({
@@ -154,7 +180,7 @@ describe('counting skipped periods again', () => {
 
   test('all counted again, the window is the last 8 weeks as before, and skipping one already reached reads nothing', async () => {
     await skip(HOLIDAYS)
-    await submitSkip(using, TEAM, { kind: 'countAgain', periods: HOLIDAYS }, READ_AT)
+    await submitSkip(using, TEAM, { kind: 'countAgain', periods: HOLIDAYS }, at())
 
     expect(reading()).toMatchObject({ window: { counts: [3, 5, 6, 4, 7, 5, 6, 8] }, skipped: { counts: [] }, skippedLine: undefined })
 

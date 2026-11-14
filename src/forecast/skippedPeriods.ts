@@ -1,29 +1,55 @@
 import type { Storage } from '../storage/storage.js'
+import { periodName } from './cadence.js'
+import { isCalendarDate } from './calendarDate.js'
 import { teamConnection, type Connecting } from './connection.js'
 import { finishedSinceFor, readQuery } from './finished.js'
+import { inputsView, type Submitted } from './inputs.js'
+import type { ForecastSettings } from './settings.js'
 
-/** What skipping reads and saves: the team's connection, queries and reads, and the milestone's inputs. */
+/** What skipping reads and saves: the team's connection, queries and reads, and what is stored, the milestone's inputs among it. */
 export interface Skipping extends Connecting {
-  milestoneInputs: Pick<Storage, 'milestoneInputs' | 'saveMilestoneInputs'>
+  milestoneInputs: Storage
 }
 
 /** Skip tracker periods, or count skipped ones again: each by the date it starts on. */
 export type SkipEdit = { kind: 'skip'; periods: string[] } | { kind: 'countAgain'; periods: string[] }
 
 /**
- * Seam B: skips the milestone's tracker periods, or counts skipped ones again, keeping pace on the tracker. Skips
- * belong to the milestone, so they outlast reads. A skip reads the pace's queries again, as at `readAt`, where their
- * saved reads don't reach back past the skipped periods (`finishedSinceFor`), so the window can keep up to 8 counted;
- * a read that fails leaves the last one in use. Nothing before the milestone is entered.
+ * When a skip is submitted: `readAt`, the instant a read it needs is made at; `today`, and the EM's time zone (an IANA
+ * name), which a refused skip's Inputs screen is dated in, its notes judged against `settings`.
  */
-export async function submitSkip(skipping: Skipping, teamId: string, edit: SkipEdit, readAt: string): Promise<void> {
+export interface SkipAt {
+  settings: ForecastSettings
+  today: string
+  readAt: string
+  timeZone: string
+}
+
+/**
+ * Seam B: skips the milestone's tracker periods, or counts skipped ones again, keeping pace on the tracker; saved, the
+ * Inputs screen comes next. Skips belong to the milestone, so they outlast reads. A skip reads the pace's queries
+ * again, as at `readAt`, where their saved reads don't reach back past the skipped periods (`finishedSinceFor`), so
+ * the window can keep up to 8 counted; a read that fails leaves the last one in use. Refused, with no period, a period
+ * that isn't a date, or no milestone, nothing changes, and the Inputs screen is shown again saying why.
+ */
+export async function submitSkip(skipping: Skipping, teamId: string, edit: SkipEdit, at: SkipAt): Promise<Submitted> {
   const saved = skipping.milestoneInputs.milestoneInputs(teamId)
-  if (!saved) return
+  if (!saved) return refused(skipping, teamId, at, 'Enter the milestone first.')
+  if (edit.periods.length === 0 || !edit.periods.every(isCalendarDate)) {
+    return refused(skipping, teamId, at, `Choose a ${periodName(saved.cadenceDays)} to ${edit.kind === 'skip' ? 'skip' : 'count again'}.`)
+  }
   const before = saved.paceWindow.skippedPeriods
   const skippedPeriods = edit.kind === 'skip' ? [...new Set([...before, ...edit.periods])].sort() : before.filter((start) => !edit.periods.includes(start))
   const inputs = { ...saved, paceWindow: { ...saved.paceWindow, skippedPeriods } }
   skipping.milestoneInputs.saveMilestoneInputs(inputs)
-  if (edit.kind === 'skip') await reachBackPast(skipping, teamId, finishedSinceFor(readAt, inputs), readAt)
+  if (edit.kind === 'skip') await reachBackPast(skipping, teamId, finishedSinceFor(at.readAt, inputs), at.readAt)
+  return { saved: true, next: 'inputs' }
+}
+
+/** A refused skip: the Inputs screen again, as saved, saying why beside the tracker's pace. */
+function refused(skipping: Skipping, teamId: string, { settings, today, timeZone }: SkipAt, error: string): Submitted {
+  const view = inputsView(skipping.milestoneInputs, teamId, settings, today, { tracker: { ...skipping, timeZone } })
+  return { saved: false, screen: 'inputs', view: { ...view, refusal: { form: 'paceSkip', error } } }
 }
 
 /** Reads the pace's queries again, the milestone query and comparable work's, where their reads reach less far back than `finishedSince`. */

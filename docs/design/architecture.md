@@ -68,6 +68,7 @@ src/
     calendarDate.ts       # ISO calendar dates: checking and counting days between
     counted.ts            # a count with its words: "1 ticket", "40 tickets"
     editResult.ts         # an edit saved, or refused saying why
+    skippedPeriods.ts     # Seam B: the tracker's periods skipped or counted again, read further back where a skip needs it
     queryStep.ts          # Seam B: a query step's view, whole (the Milestone step, or the Comparable work step with its pace and candidates); its searched choices; its submits
     stepQuery.ts          # which of the team's queries a query step edits: the milestone query, or comparable work's
     candidates.ts         # Seam B: comparable work's candidates, read on demand in an opening
@@ -124,6 +125,7 @@ test/
   - `milestoneForecastView`: the Milestone forecast screen, through the engine.
   - `inputsView`, `submitInputs`: the Inputs screen; a form as typed (`InputsEdit`) saved, saying which screen comes next, or refused, with the screen to show again (Capacity's forms are on the Milestone forecast screen) and its view.
   - These three take the team's tracker reads (`TrackerReads`) in the local server build: its connection and saved reads, which a value following the tracker takes (`measured`), and a typed one is compared with for its chip (`readsDifferently`). With none, or no connection, every value is typed, as in the MVP.
+  - `submitSkip`: the tracker's periods skipped or counted again, reading the tracker further back where a skip needs it; saved, or refused with the Inputs screen to show again (`Submitted`, as `submitInputs` gives).
   - `connectionView`, `submitConnection`: the Connect step; a connect checked through a connector, then saved or refused; disconnect.
   - `queryStepView`: a query step whole, for the query it edits (`StepQuery`): the Milestone step, or the Comparable work step with its pace and its candidates.
   - `searchedChoiceList`: one kind of a query step's choices searched in the tracker, as its script asks.
