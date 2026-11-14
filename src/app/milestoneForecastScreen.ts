@@ -419,7 +419,7 @@ function editFold(id: number, refusal: string | undefined, fields: string): stri
 /** The pace the dates come from: "4–8 tickets per week (range)", "typed counts, 6 sprints", or "GitHub’s last 8 weeks". */
 function paceUsed({ pace, cadenceDays }: Forecast): string {
   const period = periodName(cadenceDays)
-  if (pace.source === 'tracker') return `${pace.tracker}’s last ${pace.counts.length === 1 ? period : counted(pace.counts.length, period)}`
+  if (pace.source === 'tracker') return `${pace.tracker}’s last ${pace.counts.length === 1 ? period : counted(pace.counts.length, period)}${pace.skipped > 0 ? `, ${pace.skipped} skipped` : ''}`
   return pace.source === 'counts' ? `typed counts, ${counted(pace.counts.length, period)}` : `${pace.low}–${pace.high} tickets per ${period} (range)`
 }
 

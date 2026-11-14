@@ -21,8 +21,11 @@ export interface Warning extends InputNote {
   beside: string
 }
 
-/** The pace the forecast uses: the range, the typed counts, or the counts the connected `tracker` reads, whichever the EM chose. */
-export type PaceInUse = ({ source: 'range' } & ThroughputRange) | { source: 'counts'; counts: number[] } | { source: 'tracker'; tracker: string; counts: number[] }
+/**
+ * The pace the forecast uses: the range, the typed counts, or the counts the connected `tracker` reads, with how many
+ * periods the EM skipped among them, whichever the EM chose.
+ */
+export type PaceInUse = ({ source: 'range' } & ThroughputRange) | { source: 'counts'; counts: number[] } | { source: 'tracker'; tracker: string; counts: number[]; skipped: number }
 
 /** A milestone with every input its forecast needs, its tickets remaining the ones in use, from the source the EM chose. */
 export type ForecastableInputs = MilestoneInputs & { startDate: string; ticketsRemaining: number }
@@ -98,7 +101,7 @@ function ticketsInUse(inputs: MilestoneInputs, measured: Measured | undefined): 
  */
 function paceInUse(inputs: MilestoneInputs, source: PaceMode, inWindow: number[], measured: Measured | undefined): PaceInUse | undefined {
   if (source === 'counts') return { source: 'counts', counts: inWindow }
-  if (source === 'tracker') return { source: 'tracker', tracker: measured!.tracker, counts: inWindow }
+  if (source === 'tracker') return { source: 'tracker', tracker: measured!.tracker, counts: inWindow, skipped: measured!.pace?.skipped.starts.length ?? 0 }
   return inputs.paceRange && { source: 'range', ...inputs.paceRange }
 }
 
@@ -111,6 +114,9 @@ function trackerPaceNotes(inputs: MilestoneInputs, inUse: number, { forForecast,
   const instead = 'Type counts, or switch pace to the range.'
   const problem = (message: string) => ({ problems: [{ input: 'pace' as const, message }], warnings: [] })
   if (!pace) return problem(`${tracker} hasn’t read the milestone’s finished tickets yet. Pick them in the Milestone step, or ${instead.toLowerCase()}`)
+  if (pace.window.counts.length === 0 && pace.skipped.counts.some((count) => count > 0)) {
+    return problem(`Every ${period} is skipped, so ${tracker} gives no pace. Count a ${period} again, or use typed counts or the range.`)
+  }
   if (pace.window.counts.length === 0) return problem(`${tracker} has no finished tickets in the ${period}s it read, so there is no pace. ${instead}`)
   const counting = `${tracker}’s pace: ${pace.periods}${inUse === pace.window.counts.length ? '' : `, ${counted(inUse, period)} counted`}.`
   if (inUse < forForecast) return problem(`${counting} The forecast needs at least ${forForecast}. ${instead}`)

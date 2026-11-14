@@ -2,6 +2,7 @@ import { choiceKindOf } from '../connectors/connector.js'
 import { connectionView, submitConnection, type Connecting, type ConnectionEdit, type ConnectionView, type SetupStep } from '../forecast/connection.js'
 import { howItWorksView } from '../forecast/howItWorksView.js'
 import { followRenamedMilestone } from '../forecast/milestoneRenamed.js'
+import { submitSkip, type SkipEdit } from '../forecast/skippedPeriods.js'
 import {
   queryStepView,
   searchedChoiceList,
@@ -20,7 +21,7 @@ import type { Team } from '../model/team.js'
 import type { Storage } from '../storage/storage.js'
 import { CONNECT_FORMS } from './connectSection.js'
 import { renderHowItWorksScreen } from './howItWorksScreen.js'
-import { INPUTS_FORMS, renderInputsScreen, type ShownStep } from './inputsScreen.js'
+import { INPUTS_FORMS, PACE_TRACKER_PATH, renderInputsScreen, SKIP_FORMS, type ShownStep } from './inputsScreen.js'
 import { CAPACITY_OPEN, CAPACITY_OPEN_PATH, FORECAST_FORMS, renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
 import { choiceListHtml, COMPARABLE_WORK_STEP, CONFIRMING_BACK, KIND_FIELD, MILESTONE_STEP, OPEN_FIELD, STEP_SECTIONS, type StepSection } from './queryStepSection.js'
 import { CANDIDATES_PATH, candidatesHtml, choicesAsked, keepOpening, OPENING_FIELD, openingKept } from './candidatesSection.js'
@@ -172,6 +173,8 @@ export function routeSetup(request: Request, context: AppContext): Promise<Reply
   if (editedIn) return queryEdited(setup, editedIn, editedIn.forms.get(pathname)!)
   const readConnect = request.method === 'POST' ? CONNECT_FORMS.get(pathname) : undefined
   if (readConnect) return connected(setup, readConnect)
+  const readSkip = request.method === 'POST' ? SKIP_FORMS.get(pathname) : undefined
+  if (readSkip) return skipped(setup, readSkip)
   const named = milestoneName(storage, team.id)
   const submitted = submitForm(request, context, setup)
   if (!submitted) return undefined
@@ -309,6 +312,13 @@ async function queryEdited(setup: SetupRouting, section: StepSection, readQueryE
   if (submitted.kind === 'confirmClear') return { kind: 'redirect', location: section.urls.confirmingBack }
   // a query edited by hand stays open for editing; every other change goes back to finding
   return { kind: 'redirect', location: edit.kind === 'editQuery' ? section.urls.editing : section.urls.finding }
+}
+
+/** The tracker's periods skipped, or counted again, which may read the tracker further back; then back to its pace. */
+async function skipped(setup: SetupRouting, readSkip: (body: URLSearchParams) => SkipEdit): Promise<Reply> {
+  const { connecting, context, team, request } = setup
+  await submitSkip({ ...connecting, milestoneInputs: context.storage }, team.id, readSkip(request.form ?? new URLSearchParams()), context.now())
+  return { kind: 'redirect', location: PACE_TRACKER_PATH }
 }
 
 /** A connect: on to the next setup step once saved; refused, the Inputs screen again with why, and the form as typed but for the token. */
