@@ -6,6 +6,7 @@ import type { SetupDraft } from '../model/setupDraft.js'
 import type { MilestoneQueryStorage, SavedReadStorage, SetupStorage, Storage } from '../storage/storage.js'
 import type { Connecting } from './connection.js'
 import type { SavedRead } from '../model/savedRead.js'
+import { periodName, type PeriodName } from './cadence.js'
 import { weeksRead } from './finished.js'
 import { chipsShow, kindName, LEAF_NOTE, readFlag } from './queryStep.js'
 import { COMPARABLE_WORK, MILESTONE_QUERY, type StepQuery } from './stepQuery.js'
@@ -113,6 +114,8 @@ export interface TicketsCheck {
 /** Check's row for pace: the tracker, or the EM's own pace, the range or, when that is what they use, the typed counts. */
 export interface PaceCheck {
   yours: { source: 'range'; range: ThroughputRange | undefined } | { source: 'counts'; counts: number[] }
+  /** The milestone's period, which the range is per. */
+  period: PeriodName
   /** The tracker's pace from the draft reads; none until a complete read reaches a whole period. */
   reading?: PaceReadingView
   /** No reading, as a read pace would come from is incomplete. */
@@ -194,6 +197,7 @@ function checkOf(settingUp: SettingUp, teamId: string): SetupCheck | undefined {
     },
     pace: {
       yours: own === 'counts' ? { source: 'counts', counts: inputs?.paceCounts ?? [] } : { source: 'range', range: inputs?.paceRange },
+      period: periodName(inputs?.cadenceDays ?? 7),
       ...(pace && { reading: paceReadingView(pace) }),
       incomplete: measured.paceIncomplete,
       ...(inputs && { source: chosen?.pace ?? inputs.paceMode }),

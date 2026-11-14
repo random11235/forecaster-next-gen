@@ -177,8 +177,8 @@ export function routeSetup(request: Request, context: AppContext): Promise<Reply
   if (readConnect) return connected(setup, readConnect)
   const readSkip = request.method === 'POST' ? SKIP_FORMS.get(pathname) : undefined
   if (readSkip) return skipped(setup, readSkip)
-  const setupEdit = request.method === 'POST' ? SETUP_FORMS.get(pathname) : undefined
-  if (setupEdit) return Promise.resolve(setupSubmitted(setup, setupEdit))
+  const readSetupEdit = request.method === 'POST' ? SETUP_FORMS.get(pathname) : undefined
+  if (readSetupEdit) return Promise.resolve(setupSubmitted(setup, readSetupEdit(request.form ?? new URLSearchParams())))
   const named = milestoneName(storage, team.id)
   const submitted = submitForm(request, context, setup)
   if (!submitted) return undefined
@@ -270,11 +270,13 @@ function settingUp(context: AppContext, connecting: Connecting): SettingUp {
 
 /**
  * "Use these", Change, Cancel or skipping connecting: back to the Inputs screen, at the Milestone step when the steps
- * open again with the team connected. Refused, from a page left open, it goes back to the steps as they are.
+ * open again with the team connected. Refused, from a page left open, it goes back to the steps as they are. A source
+ * chosen at Check goes back to Check, chosen or not.
  */
 function setupSubmitted(setup: SetupRouting, edit: SetupEdit): Reply {
   const settingUpNow = settingUp(setup.context, setup.connecting)
   submitSetup(settingUpNow, setup.team.id, edit)
+  if (edit.kind === 'chooseSource') return { kind: 'redirect', location: SETUP_STEP_PATHS.check }
   const view = setupView(settingUpNow, setup.team.id)
   return { kind: 'redirect', location: view.kind === 'steps' && view.step === 'milestone' ? SETUP_STEP_PATHS.milestone : SCREEN_PATHS.inputs }
 }

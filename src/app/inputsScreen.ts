@@ -17,7 +17,7 @@ import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
 import type { PaceMode, TicketsSource } from '../model/milestoneInputs.js'
 import { CONNECT_HINT, connectSection } from './connectSection.js'
 import type { SetupView } from '../forecast/setup.js'
-import { CHECK_STEP, checkStepHtml, setupSkippedHtml, setupStepHtml, setupSummaryHtml } from './setupSection.js'
+import { CHECK_SCRIPT, CHECK_STEP, checkStepHtml, setupSkippedHtml, setupStepHtml, setupSummaryHtml } from './setupSection.js'
 import { dayMonth } from '../forecast/calendarDate.js'
 import { escapeHtml, htmlPage } from './html.js'
 import { INPUTS_SCRIPT } from './inputsScript.js'
@@ -118,6 +118,7 @@ export function renderInputsScreen(screen: InputsView, connection: ConnectionVie
   }
   const script =
     INPUTS_SCRIPT +
+    (setup.kind === 'steps' && setup.step === 'check' ? CHECK_SCRIPT : '') +
     pickers.map(({ section }) => queryStepScript(section)).join('') +
     steps.filter(({ openingId }) => openingId !== undefined).map(({ section }) => candidatesScript(section)).join('')
   const closed = setup.kind === 'summary' ? setupSummaryHtml(setup) : setup.kind === 'skipped' ? setupSkippedHtml() : ''
@@ -134,7 +135,7 @@ function setupStepSection(setup: SetupView, connection: ConnectionView, pickers:
       return connect === undefined ? [] : step('Connect', CONNECT_HINT, connect, 'connect')
     }
     case 'check':
-      return step(CHECK_STEP.title, CHECK_STEP.hint, checkStepHtml(), CHECK_STEP.id)
+      return step(CHECK_STEP.title, CHECK_STEP.hint, checkStepHtml(setup.check), CHECK_STEP.id)
     case 'milestone':
     case 'comparableWork': {
       const shown = pickers.find(({ section }) => section.setupStep === setup.step)
