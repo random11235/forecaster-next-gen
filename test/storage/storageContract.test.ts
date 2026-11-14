@@ -517,6 +517,27 @@ describe("SQLite storage's setup", () => {
     reopen().reopenSetup('team')
     expect(reopen().setupClosed('team')).toBeUndefined()
   })
+
+  // What the EM chooses inside setup (#218): the Milestone and Comparable work steps' picks and queries and their reads,
+  // held apart from the saved ones until "Use these" applies them.
+  test('keeps the setup draft whole, replacing it, until it is discarded', () => {
+    const { storage, reopen } = sqliteFile()
+    storage.saveTeam(TEAM)
+    const read = { tickets: [{ id: 'I_1' }, { id: 'I_2', finishedAt: '2026-10-20T10:00:00Z' }], incomplete: true, readAt: '2026-11-12T09:00:00Z', finishedSince: '2026-09-17T09:00:00Z' }
+    const draft = {
+      milestoneQuery: { picks: [{ kind: 'milestone' as const, name: 'Launch', query: 'milestone:"Launch"' }], query: 'milestone:"Launch"' },
+      reads: [{ query: 'milestone:"Launch"', read }],
+    }
+
+    expect(storage.setupDraft('team')).toBeUndefined()
+    storage.saveSetupDraft('team', { reads: [] })
+    storage.saveSetupDraft('team', draft)
+    expect(reopen().setupDraft('team')).toEqual(draft)
+    expect(reopen().setupDraft('another')).toBeUndefined()
+
+    reopen().discardSetupDraft('team')
+    expect(reopen().setupDraft('team')).toBeUndefined()
+  })
 })
 
 describe('browser storage the browser refuses', () => {
