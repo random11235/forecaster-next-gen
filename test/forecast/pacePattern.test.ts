@@ -388,6 +388,7 @@ describe('from the tracker’s weeks (#213)', () => {
       milestoneInputs: opened,
       reads: opened,
       milestoneQueries: opened,
+      setup: opened,
       secrets: openMemorySecrets(),
       connector: () => cannedConnector(fixture),
     }
