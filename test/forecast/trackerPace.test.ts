@@ -4,10 +4,10 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
 import type { Choice, Ticket } from '../../src/connectors/connector.js'
-import { submitConnection, type Connecting } from '../../src/forecast/connection.js'
+import { submitConnection } from '../../src/forecast/connection.js'
 import { inputsView, submitInputs, type InputsEdit } from '../../src/forecast/inputs.js'
 import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
-import { submitStepQuery } from '../../src/forecast/queryStep.js'
+import { submitStepQuery, type StepReading } from '../../src/forecast/queryStep.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import { COMPARABLE_WORK } from '../../src/forecast/stepQuery.js'
 import type { TrackerReads } from '../../src/forecast/trackerReads.js'
@@ -18,14 +18,15 @@ import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteS
 // ones 0, leaving out quiet periods before the first finished ticket.
 
 const TEAM = 'team'
-// Thursday; the read reaches back 8 weeks, to 09:00 on Thursday 17 Sep.
+// Thursday; at the weekly cadence, with nothing skipped, the read reaches back 9 weeks, to 09:00 on Thursday 10 Sep:
+// the 8 whole weeks pace counts, and the current one.
 const TODAY = '2026-11-12'
 const READ_AT = '2026-11-12T09:00:00Z'
 // a Monday, long before the read reaches, so the milestone's own pace counts every week the read reaches whole
 const START = '2026-08-31'
 
-// The weeks the read reaches whole, from Monday 21 Sep; the current week, of 9 Nov, is left out.
-const WEEKS = ['2026-09-21', '2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26', '2026-11-02']
+// The weeks the read reaches whole, from Monday 14 Sep; the current week, of 9 Nov, is left out.
+const WEEKS = ['2026-09-14', '2026-09-21', '2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26', '2026-11-02']
 
 const checkout: Choice = { kind: 'milestone', name: 'Checkout v2', query: 'milestone:"Checkout v2"' }
 
@@ -45,7 +46,7 @@ const OPEN: Ticket[] = [{ id: 'o1' }, { id: 'o2' }, { id: 'o3' }]
 let fixture: CannedFixture
 let dir: string
 let storage: SqliteStorage
-let using: Connecting
+let using: StepReading
 let tracker: TrackerReads
 
 beforeEach(async () => {
@@ -54,10 +55,11 @@ beforeEach(async () => {
   storage.saveTeam({ id: TEAM, name: 'My team', source: 'manual', sourceRef: '', installedAt: '2026-01-01T00:00:00Z' })
   fixture = {
     milestoneChoices: [{ kind: 'milestone', choices: [checkout], pastLimit: false }],
-    reads: { [checkout.query]: { tickets: [...OPEN, ...finishedInWeeks([5, 6, 4, 7, 5, 6, 8])], incomplete: false } },
+    reads: { [checkout.query]: { tickets: [...OPEN, ...finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8])], incomplete: false } },
   }
   using = {
     connections: storage,
+    milestoneInputs: storage,
     reads: storage,
     milestoneQueries: storage,
     secrets: openMemorySecrets(),
@@ -98,7 +100,7 @@ describe('following GitHub', () => {
     await connectGitHub()
   })
 
-  test('pace can follow GitHub: its counts of the weeks it reads whole, the current one left out, which the forecast uses', async () => {
+  test('pace can follow GitHub: its counts of the last 8 weeks, the current one left out, which the forecast uses', async () => {
     await enterAndPick()
 
     expect(submit({ kind: 'setPaceMode', paceMode: 'tracker' })).toEqual({ saved: true, next: 'forecast' })
@@ -108,14 +110,14 @@ describe('following GitHub', () => {
       paceSource: {
         tracker: 'GitHub',
         reading: {
-          window: { counts: [5, 6, 4, 7, 5, 6, 8], starts: WEEKS },
-          periods: '7 weeks · GitHub has nothing before w/c 21 Sep',
+          window: { counts: [3, 5, 6, 4, 7, 5, 6, 8], starts: WEEKS },
+          periods: 'last 8 weeks',
           firstFinished: undefined,
           readOn: '12 Nov 09:00',
         },
       },
     })
-    expect(forecast()).toMatchObject({ kind: 'forecast', pace: { source: 'tracker', tracker: 'GitHub', counts: [5, 6, 4, 7, 5, 6, 8] } })
+    expect(forecast()).toMatchObject({ kind: 'forecast', pace: { source: 'tracker', tracker: 'GitHub', counts: [3, 5, 6, 4, 7, 5, 6, 8] } })
   })
 })
 
@@ -132,12 +134,12 @@ describe('the window', () => {
   }
 
   test('it counts the 8 most recent whole periods, quiet ones 0, leaving out older ones and the current one', async () => {
-    // 5-day sprints from 31 Aug: the read reaches whole from the sprint of 20 Sep; the current one, of 9 Nov, is left out
+    // 5-day sprints from 31 Aug: the read reaches back 7 weeks, to 24 Sep, so whole from the sprint of 25 Sep; the
+    // current one, of 9 Nov, is left out
     const sprints = ['2026-09-30', '2026-10-05', '2026-10-10', '2026-10-15', '2026-10-20', '2026-10-25', '2026-10-30', '2026-11-04']
     const counts = [2, 3, 1, 0, 4, 2, 5, 3]
     await following(
       [
-        ...finishedOn('older', '2026-09-21', 9),
         ...finishedOn('older', '2026-09-26', 9),
         ...counts.flatMap((count, sprint) => finishedOn('s', sprints[sprint]!, count)),
         ...finishedOn('current', '2026-11-10', 7),
@@ -150,10 +152,10 @@ describe('the window', () => {
   })
 
   test('quiet weeks before the first finished ticket are left out, and those after it count 0', async () => {
-    await following(finishedInWeeks([0, 0, 0, 2, 3, 0, 4]))
+    await following(finishedInWeeks([0, 0, 0, 0, 2, 3, 0, 4]))
 
     expect(inputs().milestone.paceSource?.reading).toMatchObject({
-      window: { counts: [2, 3, 0, 4], starts: WEEKS.slice(3) },
+      window: { counts: [2, 3, 0, 4], starts: WEEKS.slice(4) },
       periods: '4 weeks',
       firstFinished: 'From the first finished ticket, 12 Oct.',
     })
@@ -166,7 +168,7 @@ describe('the window', () => {
   })
 
   test('fewer than 4 weeks stop the forecast, as typed counts do', async () => {
-    await following(finishedInWeeks([0, 0, 0, 0, 2, 0, 3]))
+    await following(finishedInWeeks([0, 0, 0, 0, 0, 2, 0, 3]))
 
     expect(forecast()).toMatchObject({
       kind: 'problems',
@@ -182,7 +184,7 @@ describe('the window', () => {
   })
 
   test('the pace pattern reads GitHub’s counts as it reads typed counts', async () => {
-    await following(finishedInWeeks([5, 6, 4, 7, 5, 6, 8]))
+    await following(finishedInWeeks([5, 5, 6, 4, 7, 5, 6, 8]))
 
     const view = forecast()
     expect(view.kind === 'forecast' && view.pacePattern?.pattern).toBe('steady')
@@ -208,10 +210,10 @@ describe('switching pace', () => {
   })
 
   test('typing into the opened weeks switches pace to the typed counts, as typed from GitHub’s', () => {
-    expect(submit({ kind: 'setPaceCounts', counts: '5, 6, 4, 7, 5, 6, 9' })).toEqual({ saved: true, next: 'inputs' })
+    expect(submit({ kind: 'setPaceCounts', counts: '3, 5, 6, 4, 7, 5, 6, 9' })).toEqual({ saved: true, next: 'inputs' })
 
-    expect(inputs().milestone).toMatchObject({ paceMode: 'counts', paceCounts: [5, 6, 4, 7, 5, 6, 9] })
-    expect(forecast()).toMatchObject({ kind: 'forecast', pace: { source: 'counts', counts: [5, 6, 4, 7, 5, 6, 9] } })
+    expect(inputs().milestone).toMatchObject({ paceMode: 'counts', paceCounts: [3, 5, 6, 4, 7, 5, 6, 9] })
+    expect(forecast()).toMatchObject({ kind: 'forecast', pace: { source: 'counts', counts: [3, 5, 6, 4, 7, 5, 6, 9] } })
   })
 
   test('with no connection, pace falls back to the typed counts, and GitHub is not offered', () => {
@@ -225,7 +227,7 @@ describe('switching pace', () => {
 
 describe('the pace graph', () => {
   const like: Choice = { kind: 'label', name: 'checkout-like', query: 'label:"checkout-like"' }
-  // the milestone started on Monday 5 Oct, so the weeks of 21 and 28 Sep come before it
+  // the milestone started on Monday 5 Oct, so the weeks of 14, 21 and 28 Sep come before it
   const STARTED = '2026-10-05'
   const OWN = [5, 6, 4, 7, 5, 6, 8]
   const LIKE = [2, 3, 2, 3, 2, 3, 2]
@@ -250,9 +252,11 @@ describe('the pace graph', () => {
   test('with comparable work, it pairs its finished tickets with the milestone’s own each week, marking the weeks before the milestone started and the series pace comes from', async () => {
     await following(LIKE)
 
-    const paired = { from: 'comparableWork', comparableWork: LIKE, milestone: OWN, beforeStart: 2 }
-    expect(inputs().milestone.paceTrend).toMatchObject({ counts: LIKE, paired })
-    expect(trendOf(forecast())).toMatchObject({ counts: LIKE, paired })
+    // the read reaches 8 whole weeks, from 14 Sep: comparable work finished nothing in the last
+    const counts = [...LIKE, 0]
+    const paired = { from: 'comparableWork', comparableWork: counts, milestone: [3, ...OWN], beforeStart: 3 }
+    expect(inputs().milestone.paceTrend).toMatchObject({ counts, paired })
+    expect(trendOf(forecast())).toMatchObject({ counts, paired })
   })
 
   test('with no comparable-work query, it shows the milestone’s own alone', async () => {

@@ -4,11 +4,11 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
 import type { Choice, Ticket } from '../../src/connectors/connector.js'
-import { submitConnection, type Connecting } from '../../src/forecast/connection.js'
+import { submitConnection } from '../../src/forecast/connection.js'
 import { finishedSinceFor, readQuery } from '../../src/forecast/finished.js'
 import { inputsView, submitInputs, type InputsEdit } from '../../src/forecast/inputs.js'
 import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
-import { submitStepQuery } from '../../src/forecast/queryStep.js'
+import { submitStepQuery, type StepReading } from '../../src/forecast/queryStep.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import type { TrackerReads } from '../../src/forecast/trackerReads.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
@@ -29,7 +29,7 @@ const FINISHED: Ticket[] = [{ id: 'f1', finishedAt: '2026-10-20T10:00:00Z' }]
 let fixture: CannedFixture
 let dir: string
 let storage: SqliteStorage
-let using: Connecting
+let using: StepReading
 /** What the views read of the tracker: the team's connection and saved reads, in UTC. */
 let tracker: TrackerReads
 
@@ -43,6 +43,7 @@ beforeEach(async () => {
   }
   using = {
     connections: storage,
+    milestoneInputs: storage,
     reads: storage,
     milestoneQueries: storage,
     secrets: openMemorySecrets(),
@@ -77,7 +78,7 @@ const forecast = (reads: TrackerReads | undefined = tracker) => milestoneForecas
 
 /** Reads the milestone query again at `readAt`, as a later read of the tracker does. */
 async function readAgain(readAt: string): Promise<void> {
-  await readQuery(cannedConnector(fixture), storage, { teamId: TEAM, query: checkout.query, finishedSince: finishedSinceFor(readAt), readAt })
+  await readQuery(cannedConnector(fixture), storage, { teamId: TEAM, query: checkout.query, finishedSince: finishedSinceFor(readAt, storage.milestoneInputs(TEAM)), readAt })
 }
 
 describe('following the tracker', () => {
