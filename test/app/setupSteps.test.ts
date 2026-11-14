@@ -172,6 +172,36 @@ describe('Change', () => {
   })
 })
 
+describe('the draft (#218)', () => {
+  test('a pick in setup leaves the Inputs values alone until "Use these"', async () => {
+    const running = await start()
+    await post(running, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
+
+    await post(running, '/inputs/milestone-query/add', { ...CHECKOUT })
+
+    expect(storage!.milestoneQuery('team')).toBeUndefined()
+    expect(await page(running, '/inputs')).toContain('Checkout v2')
+    await post(running, '/inputs/setup/use-these', {})
+    expect(storage!.milestoneQuery('team')?.query).toBe(CHECKOUT.query)
+  })
+
+  test('Cancel, offered once Change reopens the steps, throws the draft away, back to the summary', async () => {
+    const running = await picked()
+    await post(running, '/inputs/setup/use-these', {})
+    expect(await page(running, '/inputs')).not.toContain('/inputs/setup/cancel')
+    await post(running, '/inputs/setup/change', {})
+    await post(running, '/inputs/milestone-query/remove', { query: CHECKOUT.query })
+
+    const html = await page(running, '/inputs')
+    expect(html).toMatch(/<form method="post" action="\/inputs\/setup\/cancel">\s*<button type="submit">Cancel<\/button>/)
+    const cancelled = await post(running, '/inputs/setup/cancel', {})
+
+    expect(cancelled.headers.get('location')).toBe('/inputs')
+    expect(await page(running, '/inputs')).toContain('id="setup-summary"')
+    expect(storage!.milestoneQuery('team')?.query).toBe(CHECKOUT.query)
+  })
+})
+
 describe('skipping connecting', () => {
   test('shows the inputs as the MVP has them, with a way to connect a tracker after all', async () => {
     const running = await start()

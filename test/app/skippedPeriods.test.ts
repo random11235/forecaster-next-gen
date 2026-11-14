@@ -38,6 +38,7 @@ async function following(): Promise<RunningApp> {
   await post(running, '/inputs/milestone', { name: 'Checkout v2', startDate: '2026-08-31', ticketsRemaining: '30' })
   await post(running, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
   await post(running, '/inputs/milestone-query/add', CHECKOUT)
+  await post(running, '/inputs/setup/use-these', {})
   await post(running, '/inputs/pace-mode', { paceMode: 'tracker' })
   return running
 }

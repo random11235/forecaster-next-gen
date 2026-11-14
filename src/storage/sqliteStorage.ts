@@ -7,6 +7,7 @@ import type { CapacityEntry } from '../model/capacity.js'
 import type { MilestoneInputs, PaceMode, PaceWindow, SeenReads, TicketsSource } from '../model/milestoneInputs.js'
 import type { MilestoneQuery } from '../model/milestoneQuery.js'
 import type { SavedRead } from '../model/savedRead.js'
+import type { SetupDraft } from '../model/setupDraft.js'
 import type { Team } from '../model/team.js'
 import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage, SetupClosed, SetupStorage, Storage } from './storage.js'
 
@@ -290,6 +291,14 @@ CREATE TABLE setups (
 INSERT INTO setups (team_id, closed)
   SELECT connections.team_id, 'done' FROM connections JOIN milestone_queries ON milestone_queries.team_id = connections.team_id;
 `,
+  // 21: what the EM has chosen inside setup and not yet applied (#218), as JSON: the steps' picks and queries and their
+  // reads. A file from before has none.
+  `
+CREATE TABLE setup_drafts (
+  team_id TEXT PRIMARY KEY REFERENCES teams(id),
+  draft TEXT NOT NULL
+);
+`,
 ]
 
 type Row = Record<string, SQLInputValue>
@@ -387,6 +396,10 @@ export function openSqliteStorage(file: string): SqliteStorage {
     INSERT INTO setups (team_id, closed) VALUES (?, ?) ON CONFLICT (team_id) DO UPDATE SET closed = excluded.closed`)
   const selectSetup = db.prepare('SELECT closed FROM setups WHERE team_id = ?')
   const deleteSetup = db.prepare('DELETE FROM setups WHERE team_id = ?')
+  const upsertSetupDraft = db.prepare(`
+    INSERT INTO setup_drafts (team_id, draft) VALUES (?, ?) ON CONFLICT (team_id) DO UPDATE SET draft = excluded.draft`)
+  const selectSetupDraft = db.prepare('SELECT draft FROM setup_drafts WHERE team_id = ?')
+  const deleteSetupDraft = db.prepare('DELETE FROM setup_drafts WHERE team_id = ?')
 
   return {
     isEmpty() {
@@ -571,6 +584,19 @@ export function openSqliteStorage(file: string): SqliteStorage {
 
     reopenSetup(teamId) {
       deleteSetup.run(teamId)
+    },
+
+    setupDraft(teamId) {
+      const row = selectSetupDraft.get(teamId)
+      return row === undefined ? undefined : (JSON.parse(String(row.draft)) as SetupDraft)
+    },
+
+    saveSetupDraft(teamId, draft) {
+      upsertSetupDraft.run(teamId, JSON.stringify(draft))
+    },
+
+    discardSetupDraft(teamId) {
+      deleteSetupDraft.run(teamId)
     },
 
     close() {

@@ -28,6 +28,7 @@ async function start({ connect = true, fixture = FIXTURE } = {}): Promise<Runnin
   if (connect) {
     await post(running, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
     await post(running, '/inputs/milestone-query/add', CHECKOUT)
+    await post(running, '/inputs/setup/use-these', {})
   }
   return running
 }
