@@ -252,6 +252,26 @@ CREATE TABLE comparable_work_queries (
 ALTER TABLE milestone_inputs ADD COLUMN tickets_source TEXT NOT NULL DEFAULT 'typed';
 ALTER TABLE milestone_inputs ADD COLUMN seen_reads TEXT NOT NULL DEFAULT '{}';
 `,
+  // 18: the read each query's latest replaced (#214), in the saved read's shape, which the faint previous value comes
+  // from. A file from before has none: its next read keeps the one it replaces.
+  `
+CREATE TABLE previous_reads (
+  team_id TEXT NOT NULL REFERENCES teams(id),
+  query TEXT NOT NULL,
+  incomplete INTEGER NOT NULL,
+  read_at TEXT NOT NULL,
+  PRIMARY KEY (team_id, query)
+);
+CREATE TABLE previous_read_tickets (
+  team_id TEXT NOT NULL,
+  query TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  id TEXT NOT NULL,
+  finished_at TEXT,
+  PRIMARY KEY (team_id, query, position),
+  FOREIGN KEY (team_id, query) REFERENCES previous_reads(team_id, query) ON DELETE CASCADE
+);
+`,
 ]
 
 type Row = Record<string, SQLInputValue>
@@ -325,6 +345,17 @@ export function openSqliteStorage(file: string): SqliteStorage {
   const selectSavedRead = db.prepare('SELECT incomplete, read_at FROM saved_reads WHERE team_id = ? AND query = ?')
   const selectSavedReadTickets = db.prepare(
     'SELECT id, finished_at FROM saved_read_tickets WHERE team_id = ? AND query = ? ORDER BY position',
+  )
+  const deletePreviousRead = db.prepare('DELETE FROM previous_reads WHERE team_id = ? AND query = ?')
+  const keepPreviousRead = db.prepare(
+    'INSERT INTO previous_reads (team_id, query, incomplete, read_at) SELECT team_id, query, incomplete, read_at FROM saved_reads WHERE team_id = ? AND query = ?',
+  )
+  const keepPreviousReadTickets = db.prepare(`
+    INSERT INTO previous_read_tickets (team_id, query, position, id, finished_at)
+    SELECT team_id, query, position, id, finished_at FROM saved_read_tickets WHERE team_id = ? AND query = ?`)
+  const selectPreviousRead = db.prepare('SELECT incomplete, read_at FROM previous_reads WHERE team_id = ? AND query = ?')
+  const selectPreviousReadTickets = db.prepare(
+    'SELECT id, finished_at FROM previous_read_tickets WHERE team_id = ? AND query = ? ORDER BY position',
   )
   const upsertMilestoneQuery = db.prepare(`
     INSERT INTO milestone_queries (team_id, query, picks) VALUES (?, ?, ?)
@@ -471,6 +502,10 @@ export function openSqliteStorage(file: string): SqliteStorage {
 
     saveRead({ teamId, query }, read) {
       transaction(() => {
+        // the read this one replaces is kept as the previous read, replacing the one before it
+        deletePreviousRead.run(teamId, query)
+        keepPreviousRead.run(teamId, query)
+        keepPreviousReadTickets.run(teamId, query)
         deleteSavedRead.run(teamId, query)
         insertSavedRead.run(teamId, query, read.incomplete ? 1 : 0, read.readAt)
         read.tickets.forEach((ticket, position) => {
@@ -480,18 +515,11 @@ export function openSqliteStorage(file: string): SqliteStorage {
     },
 
     savedRead({ teamId, query }) {
-      const row = selectSavedRead.get(teamId, query)
-      if (row === undefined) return undefined
-      return {
-        tickets: selectSavedReadTickets
-          .all(teamId, query)
-          .map((ticket: Row) => ({
-            id: String(ticket.id),
-            ...(ticket.finished_at !== null && { finishedAt: String(ticket.finished_at) }),
-          })),
-        incomplete: Number(row.incomplete) === 1,
-        readAt: String(row.read_at),
-      } satisfies SavedRead
+      return readRow(selectSavedRead.get(teamId, query), () => selectSavedReadTickets.all(teamId, query))
+    },
+
+    previousRead({ teamId, query }) {
+      return readRow(selectPreviousRead.get(teamId, query), () => selectPreviousReadTickets.all(teamId, query))
     },
 
     saveMilestoneQuery(teamId, milestoneQuery) {
@@ -538,6 +566,19 @@ function picksIn(json: string): Choice[] {
     const known = choiceKindOf(kind)
     return known ? [{ kind: known, name, query }] : []
   })
+}
+
+/** A saved or previous read from its row and its tickets' rows; none without a row. */
+function readRow(row: Row | undefined, tickets: () => Row[]): SavedRead | undefined {
+  if (row === undefined) return undefined
+  return {
+    tickets: tickets().map((ticket) => ({
+      id: String(ticket.id),
+      ...(ticket.finished_at !== null && { finishedAt: String(ticket.finished_at) }),
+    })),
+    incomplete: Number(row.incomplete) === 1,
+    readAt: String(row.read_at),
+  }
 }
 
 /** Brings the file up to the latest schema, one step per transaction, recording the version after each. */
