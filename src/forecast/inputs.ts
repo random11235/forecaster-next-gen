@@ -7,7 +7,7 @@ import { milestoneForecastView, type ForecastViewOptions, type MilestoneForecast
 import { editGrowth, growthView, type GrowthEdit, type GrowthView, type TypedRange } from './growth.js'
 import { editMilestoneInputs, milestoneInputsView, type MilestoneInputsEdit, type MilestoneInputsView } from './milestoneInputs.js'
 import type { ForecastSettings } from './settings.js'
-import { measured, type ReadingTracker } from './trackerReads.js'
+import { measure, type ReadingTracker } from './trackerReads.js'
 
 /**
  * A form the EM submits, as typed: on the Inputs screen, to the milestone and its pace, or to the team's ambiguity
@@ -16,7 +16,7 @@ import { measured, type ReadingTracker } from './trackerReads.js'
 export type InputsEdit = MilestoneInputsEdit | GrowthEdit | CapacityEdit | PaceActionEdit
 
 /** A form on the Inputs screen, which a refusal is shown on. The typed counts' list, add and remove share one. */
-export type InputsForm = 'milestone' | 'ticketsSource' | 'readingOpened' | 'cadence' | 'paceMode' | 'paceRange' | 'paceCounts' | 'ambiguity' | 'growth'
+export type InputsForm = 'milestone' | 'ticketsSource' | 'readingOpened' | 'cadence' | 'paceMode' | 'paceSkip' | 'paceRange' | 'paceCounts' | 'ambiguity' | 'growth'
 
 /** What the forms with typed fields show: as saved, or as typed when refused. The choices show what is saved. */
 export interface TypedForms {
@@ -61,7 +61,7 @@ export type Submitted = { saved: true; next: NextScreen } | ({ saved: false } & 
  * With the team's `tracker` reads (the local server build), the values it measures can follow it.
  */
 export function inputsView(storage: Storage, teamId: string, settings: ForecastSettings, today: string, { tracker }: ReadingTracker = {}): InputsView {
-  const milestone = milestoneInputsView(storage, teamId, settings, today, measured(tracker, teamId, storage, today))
+  const milestone = milestoneInputsView(storage, teamId, settings, today, measure(tracker, teamId, storage, today))
   const growth = growthView(storage, teamId)
   return { milestone, growth, forms: savedForms(milestone, growth) }
 }
@@ -84,7 +84,7 @@ export function submitInputs(
   if (isPaceActionEdit(edit)) return submitPaceAction(storage, teamId, settings, today, edit, shown)
   const { form, next, typed } = submission(edit)
   const result: EditResult =
-    edit.kind === 'setAmbiguityRanges' ? editGrowth(storage, teamId, edit) : editMilestoneInputs(storage, teamId, edit, measured(shown.tracker, teamId, storage, today))
+    edit.kind === 'setAmbiguityRanges' ? editGrowth(storage, teamId, edit) : editMilestoneInputs(storage, teamId, edit, measure(shown.tracker, teamId, storage, today))
   if (result.ok) return { saved: true, next }
   const screen = inputsView(storage, teamId, settings, today, shown)
   const view = { ...screen, forms: { ...screen.forms, ...typed(screen.forms) }, refusal: { form, error: result.error } }

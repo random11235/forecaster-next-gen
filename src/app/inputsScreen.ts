@@ -193,9 +193,13 @@ const TICKETS_SOURCES: readonly TicketsSource[] = ['tracker', 'typed']
 /** Tickets remaining typed, with its chip when the tracker reads it differently. */
 function ticketsChip({ tracker, reading, readsDifferently }: TicketsSourceView): string {
   if (!readsDifferently || !reading) return ''
-  const incomplete = reading.incomplete ? ' <span class="incomplete">incomplete</span>' : ''
   return `
-              ${chip(TICKETS_CHIP, tracker, readsDifferently, `<p>${escapeHtml(tracker)} reads <b>${reading.count}</b> tickets remaining, read ${escapeHtml(reading.readOn)}.${incomplete}</p>`)}`
+              ${chip(TICKETS_CHIP, tracker, readsDifferently, `<p>${escapeHtml(tracker)} reads <b>${reading.count}</b> tickets remaining, read ${escapeHtml(reading.readOn)}.${incompleteMark(reading.incomplete)}</p>`)}`
+}
+
+/** A value's mark when the read it is from was part of what its query matched; nothing when whole. */
+function incompleteMark(incomplete: boolean): string {
+  return incomplete ? ' <span class="incomplete">incomplete</span>' : ''
 }
 
 /** A chip: what its forms are ids from, and which value's reading it opens. */
@@ -245,8 +249,7 @@ function chipForms({ id, reading }: Chip, action: string, fields: Record<string,
  */
 function trackerTickets({ tracker, reading, was }: TicketsSourceView): string {
   if (!reading) return `<p class="reading"><span class="reading-line">tickets remaining · ${escapeHtml(tracker)}, not read yet</span></p>`
-  const incomplete = reading.incomplete ? ' <span class="incomplete">incomplete</span>' : ''
-  return `<p class="reading"><span class="reading-value">${reading.count}</span>${incomplete}
+  return `<p class="reading"><span class="reading-value">${reading.count}</span>${incompleteMark(reading.incomplete)}
               <span class="reading-line">tickets remaining · ${escapeHtml(tracker)}, read ${escapeHtml(reading.readOn)}</span>${
                 was ? `\n              <span class="reading-line was">was ${was.count} on ${escapeHtml(was.readOn)}</span>` : ''
               }</p>`
@@ -295,9 +298,7 @@ const PACE_MODE_NAMES: Record<Exclude<PaceMode, 'tracker'>, string> = { range: '
  * and the trend beside the one in use.
  */
 function paceSection(screen: InputsView, error: (form: InputsForm) => string | undefined, period: PeriodName): Section {
-  const { paceMode, paceSource, notes, typedCountsNeeded: typedCounts, paceTrend } = screen.milestone
-  // with no connection to follow, pace following the tracker uses the typed counts
-  const inUse: PaceMode = paceMode === 'tracker' && !paceSource ? 'counts' : paceMode
+  const { paceMode, paceUsed: inUse, paceSource, notes, typedCountsNeeded: typedCounts, paceTrend } = screen.milestone
   const notesIfUsed = (mode: PaceMode): string => (mode === inUse ? notesFor('pace', notes) + notesFor('typedCounts', notes) : '')
   const trendIfUsed = (mode: PaceMode): string => (mode === inUse ? renderPaceTrend(paceTrend, period, '          ') : '')
   const { paceRange: range, paceCounts: counts } = screen.forms
@@ -307,7 +308,7 @@ function paceSection(screen: InputsView, error: (form: InputsForm) => string | u
   const tracker = paceSource
     ? `
         <div class="pace-following" id="pace-tracker">
-          <h3>${escapeHtml(paceSource.tracker)}</h3>${trackerPace(paceSource, period, inUse === 'tracker')}${notesIfUsed('tracker')}${trendIfUsed('tracker')}
+          <h3>${escapeHtml(paceSource.tracker)}</h3>${errorLine(error('paceSkip'))}${trackerPace(paceSource, period, inUse === 'tracker')}${notesIfUsed('tracker')}${trendIfUsed('tracker')}
         </div>`
     : ''
   return inputSection(
@@ -363,16 +364,15 @@ function paceChip(paceSource: PaceSourceView | undefined, period: PeriodName): s
  * Show weeks as blocks to type into, each holding its count: typing into one posts them all as typed counts, which
  * switches pace to them.
  */
-function trackerPace({ tracker, reading, was }: PaceSourceView, period: PeriodName, following: boolean): string {
-  if (!reading) return `\n          <p class="reading-line">${period}s finished · ${escapeHtml(tracker)}, not read yet</p>`
-  const { window, skipped, periods, skippedLine, firstFinished, readOn } = reading
-  const everySkipped = window.counts.length === 0 && skipped.counts.some((count) => count > 0)
-  // with every period skipped, the pace's note says so, and how to have a pace again
+function trackerPace({ tracker, reading, incomplete, was }: PaceSourceView, period: PeriodName, following: boolean): string {
+  if (!reading) return `\n          <p class="reading-line">${period}s finished · ${escapeHtml(tracker)}, ${incomplete ? `read in part${incompleteMark(true)}` : 'not read yet'}</p>`
+  const { window, bound, skipped, periods, skippedLine, firstFinished, readOn } = reading
   const lines = `
           <p class="reading-line">${escapeHtml(periods)} · read ${escapeHtml(readOn)}</p>${firstFinished ? `\n          <p class="reading-line">${escapeHtml(firstFinished)}</p>` : ''}${
             was ? `\n          <p class="reading-line was">was ${was.counts.join(', ')} on ${escapeHtml(was.readOn)}</p>` : ''
           }${skippedLine ? countAgainLine(skippedLine, skipped.starts) : ''}`
-  if (window.counts.length === 0 && !everySkipped) return lines
+  // with nothing finished there are no bars; with every period skipped, they show the gaps to count again
+  if (bound === 'nothingFinished') return lines
   // the periods counted and those skipped, oldest first: a skipped one is a gap
   const shown = [...window.starts.map((start, at) => ({ start, count: window.counts[at]!, skipped: false })), ...skipped.starts.map((start, at) => ({ start, count: skipped.counts[at]!, skipped: true }))].sort((a, b) =>
     a.start.localeCompare(b.start),

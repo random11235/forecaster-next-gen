@@ -62,13 +62,13 @@ export interface CapacityEntryView extends CapacityEntry {
 }
 
 /**
- * A lasting entry against the pace. With typed counts: `after` of the `of` periods the pace comes from start on or after
+ * A lasting entry against the pace. With counts, typed or the tracker's: `after` of the `of` periods the pace comes from start on or after
  * it, or, once all of them do, proposed as the new usual (until kept). With a pace range: "End it today".
  */
 export type NewUsual = { kind: 'counting'; after: number; of: number } | { kind: 'proposed' } | { kind: 'endToday' }
 
-/** The periods the pace comes from, for the new-usual rule: a range has none; typed counts, each period's first day. */
-export type PacePeriods = { source: 'range' } | { source: 'counts'; starts: string[] }
+/** The periods the pace comes from, for the new-usual rule: a range has none; typed counts or the tracker's, each period's first day. */
+export type PacePeriods = { source: 'range' } | { source: 'counts' | 'tracker'; starts: string[] }
 
 /**
  * An entry's own effect on the 85% date: the shift, in periods (later when positive), between the forecast with

@@ -107,6 +107,7 @@ describe('following GitHub', () => {
 
     expect(inputs().milestone).toMatchObject({
       paceMode: 'tracker',
+      paceUsed: 'tracker',
       paceSource: {
         tracker: 'GitHub',
         reading: {
@@ -167,6 +168,24 @@ describe('the window', () => {
     expect(inputs().milestone.notes).toContainEqual({ input: 'pace', message: '4 of 8 needed for reliable results' })
   })
 
+  test('the first finished ticket is the first either read returns: comparable work’s quiet weeks after the milestone’s first finish count 0', async () => {
+    const like: Choice = { kind: 'label', name: 'checkout-like', query: 'label:"checkout-like"' }
+    fixture.milestoneChoices = [
+      { kind: 'milestone', choices: [checkout], pastLimit: false },
+      { kind: 'label', choices: [like], pastLimit: false },
+    ]
+    fixture.reads[like.query] = { tickets: finishedInWeeks([0, 0, 0, 0, 2, 3, 2, 3]).map((ticket) => ({ ...ticket, id: `like-${ticket.id}` })), incomplete: false }
+    await following(finishedInWeeks([0, 0, 1, 0, 0, 0, 0, 0]))
+    await submitStepQuery(using, TEAM, { kind: 'addPick', choice: like }, READ_AT, COMPARABLE_WORK)
+
+    expect(inputs().milestone.paceSource?.reading).toMatchObject({
+      from: 'comparableWork',
+      window: { counts: [0, 0, 2, 3, 2, 3], starts: WEEKS.slice(2) },
+      periods: '6 weeks',
+      firstFinished: 'From the first finished ticket, 28 Sep.',
+    })
+  })
+
   test('fewer than 4 weeks stop the forecast, as typed counts do', async () => {
     await following(finishedInWeeks([0, 0, 0, 0, 0, 2, 0, 3]))
 
@@ -188,6 +207,30 @@ describe('the window', () => {
 
     const view = forecast()
     expect(view.kind === 'forecast' && view.pacePattern?.pattern).toBe('steady')
+  })
+})
+
+describe('an incomplete read', () => {
+  test('with no other read to take pace from, pace is marked incomplete, and the forecast doesn’t use part of a pace', async () => {
+    await connectGitHub()
+    fixture.reads[checkout.query] = { tickets: [...OPEN, ...finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8])], incomplete: true }
+    await enterAndPick()
+    submit({ kind: 'setPaceMode', paceMode: 'tracker' })
+
+    expect(inputs().milestone.paceSource).toMatchObject({ tracker: 'GitHub', reading: undefined, incomplete: true })
+    expect(forecast()).toMatchObject({
+      kind: 'problems',
+      problems: expect.arrayContaining([
+        { input: 'pace', message: 'GitHub gave only part of the finished tickets its queries match, so its pace isn’t known. Narrow the query, or type counts, or switch pace to the range.' },
+      ]),
+    })
+  })
+
+  test('with a complete read, pace is not marked incomplete', async () => {
+    await connectGitHub()
+    await enterAndPick()
+
+    expect(inputs().milestone.paceSource).toMatchObject({ incomplete: false })
   })
 })
 
@@ -218,7 +261,7 @@ describe('switching pace', () => {
 
   test('with no connection, pace falls back to the typed counts, and GitHub is not offered', () => {
     expect(forecast(OFFLINE)).toMatchObject({ kind: 'forecast', pace: { source: 'counts', counts: [1, 2, 3, 4] } })
-    expect(inputs(OFFLINE).milestone.paceSource).toBeUndefined()
+    expect(inputs(OFFLINE).milestone).toMatchObject({ paceMode: 'tracker', paceUsed: 'counts', paceSource: undefined })
 
     submit({ kind: 'setPaceMode', paceMode: 'range' })
     expect(submit({ kind: 'setPaceMode', paceMode: 'tracker' }, OFFLINE)).toMatchObject({ saved: false, view: { refusal: { error: 'Choose the range or typed counts.' } } })

@@ -36,14 +36,14 @@ afterEach(async () => {
 })
 
 /** The app, its milestone entered with typed counts kept; connected to GitHub with its tickets picked, unless `connect` is false. */
-async function start({ connect = true } = {}): Promise<RunningApp> {
+async function start({ connect = true, fixture = FIXTURE } = {}): Promise<RunningApp> {
   storage = openSqliteStorage(':memory:')
   const connecting: Connecting = {
     connections: storage,
     reads: storage,
     milestoneQueries: storage,
     secrets: openMemorySecrets(),
-    connector: () => cannedConnector(FIXTURE),
+    connector: () => cannedConnector(fixture),
   }
   app = await startAppAndOpenBrowser({
     port: 0,
@@ -76,6 +76,17 @@ async function paceSection(running: RunningApp): Promise<string> {
 }
 
 describe('pace following GitHub', () => {
+  test('from an incomplete read, pace is marked incomplete, not unread', async () => {
+    const running = await start({ fixture: { ...FIXTURE, reads: { [CHECKOUT.query]: { tickets: finished, incomplete: true } } } })
+
+    await post(running, '/inputs/pace-mode', { paceMode: 'tracker' })
+
+    const section = await paceSection(running)
+    expect(section).toMatch(/weeks finished · GitHub, read in part <span class="incomplete">incomplete<\/span>/)
+    expect(section).not.toContain('not read yet')
+    expect(section).toContain('GitHub gave only part of the finished tickets its queries match')
+  })
+
   test('connected, pace offers GitHub beside typed counts and the range', async () => {
     const running = await start()
 

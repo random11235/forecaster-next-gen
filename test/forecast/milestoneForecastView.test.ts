@@ -864,6 +864,7 @@ describe('the milestone on the Inputs screen', () => {
       paceRange: undefined,
       paceCounts: [],
       paceMode: 'range',
+      paceUsed: 'range',
       typedCountsNeeded: { forForecast: 4, reliable: 8 },
       notes: [],
     })
@@ -907,6 +908,7 @@ describe('the milestone on the Inputs screen', () => {
       paceRange: { low: 0, high: 0 },
       paceCounts: [],
       paceMode: 'range',
+      paceUsed: 'range',
       typedCountsNeeded: { forForecast: 4, reliable: 8 },
       notes: [{ input: 'pace', message: 'At 0 tickets a week, the work never finishes.' }],
     })

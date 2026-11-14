@@ -314,10 +314,15 @@ async function queryEdited(setup: SetupRouting, section: StepSection, readQueryE
   return { kind: 'redirect', location: edit.kind === 'editQuery' ? section.urls.editing : section.urls.finding }
 }
 
-/** The tracker's periods skipped, or counted again, which may read the tracker further back; then back to its pace. */
+/**
+ * The tracker's periods skipped, or counted again, which may read the tracker further back; then back to its pace.
+ * Refused, the Inputs screen again, saying why.
+ */
 async function skipped(setup: SetupRouting, readSkip: (body: URLSearchParams) => SkipEdit): Promise<Reply> {
-  const { connecting, context, team, request } = setup
-  await submitSkip({ ...connecting, milestoneInputs: context.storage }, team.id, readSkip(request.form ?? new URLSearchParams()), context.now())
+  const { connecting, context, team, request, settings } = setup
+  const at = { settings, today: context.today(), readAt: context.now(), timeZone: localTimeZone() }
+  const submitted = await submitSkip({ ...connecting, milestoneInputs: context.storage }, team.id, readSkip(request.form ?? new URLSearchParams()), at)
+  if (!submitted.saved) return inputsWithStep(setup, { status: 400, ...(submitted.screen === 'inputs' && { view: submitted.view }) })
   return { kind: 'redirect', location: PACE_TRACKER_PATH }
 }
 
