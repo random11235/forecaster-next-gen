@@ -22,7 +22,7 @@ Thresholds and default ranges below (growth samples, pace weeks, stale weeks, fi
 ## Principles
 
 1. **Only the essential.** Every element answers a question the EM must answer.
-2. **Measured, not guessed, and earned before it's used.** Every number is counted from the ticketing tool or entered by the EM. Measured data replaces an EM input only when the EM accepts it.
+2. **Measured, not guessed, and earned before it's used.** Every number is counted from the ticketing tool or entered by the EM. Measured data replaces an EM input only when the EM chooses the tracker as its source; a typed value the tracker reads differently carries a chip that offers to follow it, and is never overwritten.
 3. **Say when the data is thin.** Too little data is reported as exactly that, never hidden behind a confident-looking date.
 4. **Nothing outside the architecture.** No feature that needs a component the diagram does not have (e.g. LLM suggestions, HR calendar sync).
 
@@ -93,6 +93,7 @@ Once connected, two query steps follow the Connect step, each picking or writing
 - **Comparable work** is optional. Its read line counts finished tickets only, and nothing extra is read without a query. It leads with its pace: the pace in use, how far it is from the milestone's own, and the two paired per period, with each pick's own strip on its chip; its pace flags it as not used when it finished nothing in the periods pace counts. Its main button reads Skip, then Next once it has a query, and goes on to the milestone; Start afresh clears its picks and query at once.
 - **Candidates.** The Comparable work step's choices are candidates, read on demand (#205): opening the step reads none; each the EM opens (its **pace** link), or the few its typing narrows the lists to, is read once per opening and never saved, then shown below the picker grouped slower, about the same or faster than the milestone's own, by median when the milestone has too few periods of its own, then nothing finished and reads that failed, each with why. The page keeps its opening by an id, so its script reads more in the same one. The choice that is the milestone query is marked "this milestone".
 - **A renamed milestone.** When the EM renames the milestone on this screen, a milestone query that is just the tracker's milestone or Jira fix version of the old name, one chip, moves to the one of the new name, when the tracker has one, and is read again; any other milestone query is left as it was.
+- **Reads differently** (#215). A typed value, tickets remaining or the typed counts or range in use, that differs from the tracker's latest reading carries a small chip, "GitHub reads differently" (Jira on Jira); typed counts differ unless they are the reading's counts, and a range unless it spans them, slowest to best. The chip takes no space until opened: it opens on the reading and "Follow GitHub", which switches the value's source back to the tracker, keeping the typed value. A dot on it marks a read the EM hasn't opened; opening it clears the dot (the page's script posts it, keeping the read's `readAt` in `seenReads`) until the next read. No chip while the value follows the tracker, equals the reading, or the reading counts no periods.
 
 | Section | Shows | Source |
 |---|---|---|
