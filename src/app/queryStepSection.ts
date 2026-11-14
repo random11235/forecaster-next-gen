@@ -4,8 +4,9 @@ import { COMPARABLE_WORK, MILESTONE_QUERY, type StepQuery } from '../forecast/st
 import { choiceKindOf, type Choice } from '../connectors/connector.js'
 import { dayMonth } from '../forecast/calendarDate.js'
 import type { ComparableWorkPace, PairedPeriod, PickPace } from '../forecast/comparableWorkPace.js'
-import type { SetupStep } from '../forecast/setup.js'
+import type { SetupStep } from '../forecast/setupSteps.js'
 import { escapeHtml } from './html.js'
+import { inputsAt, SETUP_STEP_IDS, STEP_FIELD } from './setupSection.js'
 
 /** Reads a submitted step's form, by the field names this section gives them; none when it isn't one of its forms as sent. */
 type StepFormReader = (body: URLSearchParams) => StepQueryEdit | undefined
@@ -56,20 +57,6 @@ export const CHOICE_FIELDS = { kind: 'kind', name: 'name', query: 'query' } as c
 /** The field Back to finding sends, `yes` once the EM has confirmed it clears the query. */
 export const CONFIRMED = { name: 'confirmed', value: 'yes' } as const
 
-/** The field naming the setup step the Inputs screen opens at: `/inputs?step=comparableWork`; Milestone, once connected, without it. */
-export const STEP_FIELD = 'step'
-
-/** The URL query opening the Inputs screen at `step`, `step=comparableWork`; none for the Milestone step, its default. */
-export function stepParam(step: SetupStep): string {
-  return step === 'milestone' ? '' : `${STEP_FIELD}=${step}`
-}
-
-/** The Inputs screen opened at `step`, with `params` beside it, at the section `id`. */
-export function inputsAt(step: SetupStep, id: string, ...params: string[]): string {
-  const query = [stepParam(step), ...params].filter((param) => param !== '').join('&')
-  return `/inputs${query === '' ? '' : `?${query}`}#${id}`
-}
-
 /** The field naming which step's query is open for editing: `/inputs?edit=query`. */
 const EDIT_FIELD = 'edit'
 
@@ -112,7 +99,7 @@ function stepSection({ formsAt, editingValue, ...section }: StepSectionMade): St
 export const MILESTONE_STEP: StepSection = stepSection({
   stepQuery: MILESTONE_QUERY,
   setupStep: 'milestone',
-  id: 'milestone-tickets',
+  id: SETUP_STEP_IDS.milestone,
   title: 'Milestone’s tickets',
   hint: 'Which tickets are the milestone? Find and add one or more: several epics, say, or a label.',
   inputId: 'milestone-query',
@@ -126,7 +113,7 @@ export const MILESTONE_STEP: StepSection = stepSection({
 export const COMPARABLE_WORK_STEP: StepSection = stepSection({
   stepQuery: COMPARABLE_WORK,
   setupStep: 'comparableWork',
-  id: 'comparable-work',
+  id: SETUP_STEP_IDS.comparableWork,
   title: 'Comparable work',
   hint: 'Optional. Recent work like this milestone’s: once added, pace is measured from it instead of the milestone’s own. Pick this milestone too to count its own tickets.',
   inputId: 'comparable-work-query',
@@ -216,10 +203,10 @@ function readHtml(view: QueryStep, pace: ComparableWorkPace | undefined): string
 }
 
 /** The Comparable work step's end, once it has a query: Start afresh, clearing all its picks and query at once. Nothing for the Milestone step. */
-function afreshHtml(view: QueryStep, { paths, urls }: StepSection): string {
+function afreshHtml(view: QueryStep, { paths, id }: StepSection): string {
   if (view.kind !== 'comparableWorkStep' || view.query === '') return ''
   return `
-          <div class="actions afresh"><form method="post" action="${paths.afresh}${urls.finding.slice(urls.finding.indexOf('#'))}"><button type="submit" class="linkish">Start afresh</button></form></div>`
+          <div class="actions afresh"><form method="post" action="${paths.afresh}#${id}"><button type="submit" class="linkish">Start afresh</button></form></div>`
 }
 
 /**

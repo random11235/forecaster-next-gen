@@ -61,6 +61,14 @@ describe('the Check step', () => {
     expect(await inputsSection(running.running, 'milestone')).not.toContain('name="ticketsRemaining"')
   })
 
+  test('a source Check doesn’t name, as from a form changed by hand, is not found, and changes nothing', async () => {
+    const running = await atCheck()
+
+    expect((await post(running.running, '/inputs/setup/source', { value: 'ticketsRemaining', source: 'range' })).status).toBe(404)
+    expect((await post(running.running, '/inputs/setup/source', { value: 'ambiguity', source: 'tracker' })).status).toBe(404)
+    expect(running.storage.setupDraft('team')?.sources).toBeUndefined()
+  })
+
   test('marks an incomplete read on its row', async () => {
     const html = await check(await atCheck({ incomplete: true }))
 
