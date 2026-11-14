@@ -256,8 +256,16 @@ const STYLE = `
     .actions.setup-nav { gap: 12px; align-items: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--hairline); }
     .actions.setup-nav a.button:not(.primary) { margin-right: auto; font-size: 14px; color: var(--link); }
     .setup-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 24px; padding: 12px 16px; border: 1px solid var(--hairline); border-radius: 8px; font-size: 14px; }
-    .setup-summary .read, .setup-summary .muted { font-size: 13px; color: var(--muted); }
+    .setup-summary .read, .setup-summary .muted, .setup-summary .kind { font-size: 13px; color: var(--muted); }
     .setup-summary form { margin: 0 0 0 auto; }
+    /* Set up: the tracker line, then the Milestone and Comparable rows, the leaf-and-epics line, and only problem flags. */
+    .setup-summary .setup-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; flex-basis: 100%; }
+    .setup-summary dl.setup-rows { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; flex-basis: 100%; }
+    .setup-summary dt { color: var(--muted); }
+    .setup-summary dd { margin: 0; overflow-wrap: anywhere; }
+    .setup-summary code { font-family: var(--mono); font-size: 13px; }
+    .setup-summary p.note { flex-basis: 100%; }
+    .setup-summary p.flag { color: var(--risk); }
     .pace { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; }
     .pace label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
     .pace input[type=number] { font-size: 32px; width: 72px; text-align: center; padding: 2px 0; }
