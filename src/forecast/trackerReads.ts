@@ -6,7 +6,7 @@ import type { Connecting } from './connection.js'
 import { counted } from './counted.js'
 import { calendarDayIn, ticketsRemaining } from './finished.js'
 import { paceReads, paceReadsStorage, type PaceFrom } from './paceReads.js'
-import { TRACKER_PERIODS, trackerWindow, type DatedCounts } from './paceWindow.js'
+import { sameCounts, TRACKER_PERIODS, trackerWindow, type DatedCounts, type TrackerWindowBound } from './paceWindow.js'
 import { trackerOf } from './trackers.js'
 
 /**
@@ -29,6 +29,11 @@ export interface Measured {
   ticketsRemaining: TicketsReading | undefined
   /** Pace as the tracker's reads count it; none until a complete read reaches a whole period of the milestone's. */
   pace: PaceReading | undefined
+  /**
+   * With no pace, because a read it would be taken from is incomplete: the tracker didn't return every finished ticket
+   * the query matched, so a pace from it would be part of one.
+   */
+  paceIncomplete: boolean
 }
 
 /**
@@ -38,6 +43,8 @@ export interface Measured {
 export interface PaceReading {
   /** The finished tickets in each period counted, oldest first; empty with nothing finished in any period read. */
   window: DatedCounts
+  /** What bounds the window: its reach, the first finished ticket, or, empty, nothing finished or every period skipped. */
+  bound: TrackerWindowBound
   /** Whose finished tickets they are: comparable work's, or the milestone's own. */
   from: PaceFrom
   /**
@@ -103,16 +110,19 @@ export interface TicketsReading {
  * Seam B, behind the views: what the team's tracker measures, for the milestone in `storage` on `today`; none with no
  * connection, nor in the browser build.
  */
-export function measured(reads: TrackerReads | undefined, teamId: string, storage: Pick<Storage, 'milestoneInputs'>, today: string): Measured | undefined {
+export function measure(reads: TrackerReads | undefined, teamId: string, storage: Pick<Storage, 'milestoneInputs'>, today: string): Measured | undefined {
   const connection = reads?.connections.connection(teamId)
   if (!reads || !connection) return undefined
   const tracker = trackerOf(connection).name
   const query = reads.milestoneQueries.milestoneQuery(teamId)?.query
   const read = savedReadOf(reads, teamId, query)
+  const pace = paceReading(reads, teamId, storage, today, tracker)
+  const comparableWorkRead = savedReadOf(reads, teamId, reads.milestoneQueries.comparableWorkQuery(teamId)?.query)
   return {
     tracker,
     ticketsRemaining: read && { count: ticketsRemaining(read), incomplete: read.incomplete, readOn: readOn(read.readAt, reads.timeZone), readAt: read.readAt, was: wasTickets(reads, teamId, query, ticketsRemaining(read)) },
-    pace: paceReading(reads, teamId, storage, today, tracker),
+    pace,
+    paceIncomplete: !pace && [read, comparableWorkRead].some((each) => each?.incomplete === true),
   }
 }
 
@@ -147,11 +157,7 @@ function countsAsThen(reads: TrackerReads, teamId: string, storage: Pick<Storage
   const saved = paceReadsStorage(storage, reads)
   const asThen = { ...saved, savedRead: (teamQuery: TeamQuery) => (teamQuery.query === query ? read : saved.savedRead(teamQuery)) }
   const then = paceReads(asThen, teamId, { today: calendarDayIn(reads.timeZone)(read.readAt), timeZone: reads.timeZone })
-  return then && then.from === from ? trackerWindow(then.pace, storage.milestoneInputs(teamId)?.paceWindow.skippedPeriods).window.counts : undefined
-}
-
-function sameCounts(some: number[], others: number[] | undefined): boolean {
-  return others !== undefined && some.length === others.length && some.every((count, period) => count === others[period])
+  return then && then.from === from ? trackerWindow(then, storage.milestoneInputs(teamId)?.paceWindow.skippedPeriods).window.counts : undefined
 }
 
 /** The tracker's reading of pace, from `paceReads`: the periods it counts and how they are bounded. */
@@ -161,19 +167,21 @@ function paceReading(reads: TrackerReads, teamId: string, storage: Pick<Storage,
   if (!inputs || !read) return undefined
   const query = read.from === 'milestone' ? reads.milestoneQueries.milestoneQuery(teamId) : reads.milestoneQueries.comparableWorkQuery(teamId)
   const paceRead = savedReadOf(reads, teamId, query?.query)
-  const { window, skipped, bound } = trackerWindow(read.pace, inputs.paceWindow.skippedPeriods)
+  const { window, skipped, bound } = trackerWindow(read, inputs.paceWindow.skippedPeriods)
   const period = periodName(inputs.cadenceDays)
   const first = window.starts[0]
   const periods =
     bound === 'nothingFinished' ? `nothing finished in the ${counted(read.pace.counts.length, period)} ${tracker} reads`
     : bound === 'everySkipped' ? `every ${period} skipped`
+    : bound === 'everyFinishedSkipped' ? `every ${period} that finished something skipped`
     : bound === 'full' ? `last ${counted(TRACKER_PERIODS, period)}`
     : bound === 'firstFinished' ? counted(window.counts.length, period)
     // the milestone's own pace counts only the periods since its start date
     : read.from === 'milestone' && read.beforeStart > 0 ? `${counted(window.counts.length, period)} · since the start date`
-    : `${counted(window.counts.length, period)} · ${tracker} has nothing before ${period === 'week' ? 'w/c' : 'the sprint of'} ${dayMonth(first!)}`
+    : `${counted(window.counts.length, period)} · ${tracker} has nothing before ${periodOf(period, first!)}`
   return {
     window,
+    bound,
     from: read.from,
     milestone: read.milestone,
     comparableWork: read.comparableWork,
@@ -197,7 +205,12 @@ function skippedLine(skipped: DatedCounts, window: DatedCounts, period: PeriodNa
   const first = window.starts[0]
   if (first === undefined) return `${which}, so no ${period}s count`
   if (window.starts.length < TRACKER_PERIODS) return `${which}, and ${tracker} has no earlier ${period}s to count instead`
-  return `${which}, reaching back to ${period === 'week' ? 'w/c' : 'the sprint of'} ${dayMonth(first)}`
+  return `${which}, reaching back to ${periodOf(period, first)}`
+}
+
+/** The period starting on `start`, as the reading's lines name it: "w/c 31 Aug", "the sprint of 31 Aug". */
+function periodOf(period: PeriodName, start: string): string {
+  return `${period === 'week' ? 'w/c' : 'the sprint of'} ${dayMonth(start)}`
 }
 
 /** A UTC instant as the screens date a read, in `timeZone`: "4 Nov 09:12". */

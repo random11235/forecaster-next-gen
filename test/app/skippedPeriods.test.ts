@@ -119,6 +119,17 @@ describe('skipping GitHub’s weeks', () => {
     expect(section).toContain('oldest first: 3, 5, 6, 4, 7, 5, 6, 8"')
   })
 
+  test('a skip with no week is refused, saying why beside GitHub’s pace', async () => {
+    const running = await following()
+
+    const response = await post(running, '/inputs/pace-skip', periods([]))
+
+    expect(response.status).toBe(400)
+    const html = await response.text()
+    const section = html.slice(html.indexOf('id="pace-tracker"'))
+    expect(section).toMatch(/^id="pace-tracker">\s*<h3>GitHub<\/h3>\s*<p class="error" role="alert">Choose a week to skip.<\/p>/)
+  })
+
   test('the forecast’s pace says how many weeks are skipped', async () => {
     const running = await following()
     await post(running, '/inputs/pace-skip', periods(['2026-10-12', '2026-10-19']))
