@@ -50,8 +50,19 @@ export interface SetupSummary {
   flags: SummaryFlag[]
 }
 
-/** A summary row: the picks, each named with its kind as the screens name it ("epic", "fix version"), or the query as written by hand. */
-export type SummaryRow = { picks: { name: string; kind: string }[] } | { query: string }
+/**
+ * A summary row: the picks, each named with its kind as the screens name it ("epic", "fix version") and with its count
+ * of matches, open and finished, where it has one (`pickCount`); or the query as written by hand, with no counts.
+ */
+export type SummaryRow = { picks: SummaryPick[] } | { query: string }
+
+/** A pick on a summary row: "#41 Checkout v2 (epic) · 32". */
+export interface SummaryPick {
+  name: string
+  kind: string
+  /** The tickets the pick's own query matches; none until it is read whole since its query was. */
+  count?: number
+}
 
 /**
  * What is wrong with a query's saved read, and which query's it is; or, with no query named, why a read just asked for
@@ -161,7 +172,7 @@ export type ReadAgainSubmitted = { kind: 'read' } | { kind: 'unchanged' } | { ki
 /**
  * Seam B: reads the milestone query again, and comparable work's when it has one, as at `readAt`, as far back as the
  * milestone's inputs need (`finishedSinceFor`); values following the tracker take each new read, typed ones stay as
- * typed. Read only once setup is done. A read that fails saves nothing, so its saved read stays in use, and the
+ * typed, and each of several picks is read again for its count (`readPicks`). Read only once setup is done. A read that fails saves nothing, so its saved read stays in use, and the
  * summary to show says why: for the tracker unreachable or rate-limited, or the token or repo refused (offering
  * Change), once, reading no further; for a query the tracker now rejects or that reaches outside the connection, as
  * that query's flag, the other still read.
@@ -187,6 +198,8 @@ export async function submitReadAgain(reading: ReadingAgain, teamId: string, rea
     if (rejection === undefined) return failed([failedRead(connection, read)])
     flags.push({ of, flag: rejection })
   }
+  // a pick shows its count only while its own read is as new as its query's, so several picks are read again too
+  await readPicks(reading, teamId, readAt)
   return flags.length === 0 ? { kind: 'read' } : failed(flags)
 }
 
@@ -217,8 +230,8 @@ function summaryOf(settingUp: SettingUp, teamId: string, connection: Connection)
     tracker: tracker.name,
     where: tracker.where(connection),
     ...(read && { readOn: readOn(read.readAt, settingUp.timeZone) }),
-    milestone: rowOf(tracker, settingUp.milestoneQueries.milestoneQuery(teamId) ?? { picks: [], query: '' }),
-    ...(comparable && hasQuery(comparable) && { comparable: rowOf(tracker, comparable) }),
+    milestone: rowOf(settingUp, teamId, tracker, settingUp.milestoneQueries.milestoneQuery(teamId) ?? { picks: [], query: '' }),
+    ...(comparable && hasQuery(comparable) && { comparable: rowOf(settingUp, teamId, tracker, comparable) }),
     note: LEAF_NOTE,
     flags: [...flagOf('milestone', read, tracker.name, MILESTONE_QUERY), ...flagOf('comparable', comparableRead, tracker.name, COMPARABLE_WORK)],
   }
@@ -239,9 +252,50 @@ function comparableUnused(read: SavedRead): string {
   return `This query matches nothing finished in the last ${weeksRead(read)} weeks, so pace comes from the milestone’s own tickets. Check it picks out ${COMPARABLE_WORK.picksOut}.`
 }
 
-/** A query's row: its picks with their kinds when the picker shows it as their chips, else the query as written. */
-function rowOf(tracker: TrackerFacts, saved: MilestoneQuery): SummaryRow {
-  return chipsShow(tracker, saved) ? { picks: saved.picks.map(({ name, kind }) => ({ name, kind: kindName(kind) })) } : { query: saved.query }
+/** A query's row: its picks with their kinds and counts when the picker shows it as their chips, else the query as written. */
+function rowOf(settingUp: SettingUp, teamId: string, tracker: TrackerFacts, saved: MilestoneQuery): SummaryRow {
+  if (!chipsShow(tracker, saved)) return { query: saved.query }
+  const queryRead = settingUp.reads.savedRead({ teamId, query: saved.query })
+  return {
+    picks: saved.picks.map(({ name, kind, query }) => {
+      const count = queryRead && pickCount(settingUp.reads.savedRead({ teamId, query }), queryRead)
+      return { name, kind: kindName(kind), ...(count !== undefined && { count }) }
+    }),
+  }
+}
+
+/**
+ * A pick's count: the tickets its own read matched, open and finished. A lone pick's read is its query's. None for a
+ * pick not read since its query was (its count could be of other picks than these), nor for one read in part.
+ */
+function pickCount(pickRead: SavedRead | undefined, queryRead: SavedRead): number | undefined {
+  if (!pickRead || pickRead.incomplete || Date.parse(pickRead.readAt) < Date.parse(queryRead.readAt)) return undefined
+  return pickRead.tickets.length
+}
+
+/**
+ * Seam B, at Check: reads, as at `readAt`, each pick of the milestone query and of comparable work's that has no read
+ * since its query's, saving it, so the summary can give each pick its count. Ticket reads say nothing of which pick
+ * matched them, so a query of several picks needs one read per pick; a lone pick's read is its query's, and comparable
+ * work's picks are read when picked, so neither is read again. A query written by hand has no picks to read; a read
+ * that fails leaves that pick without its count. The steps' draft is read from and saved into, as the steps are.
+ */
+export async function readPicks(reading: StepReading, teamId: string, readAt: string): Promise<void> {
+  const connected = await teamConnection(reading, teamId)
+  if (!connected || connected.connector === 'keychainFailed') return
+  const { connection, connector } = connected
+  // setup is open at Check, so the picks' reads are held in its draft, with the queries they are of, until "Use these"
+  const { milestoneQueries, reads, milestoneInputs } = throughDraft(reading)
+  const finishedSince = finishedSinceFor(readAt, milestoneInputs.milestoneInputs(teamId))
+  for (const saved of [milestoneQueries.milestoneQuery(teamId), milestoneQueries.comparableWorkQuery(teamId)]) {
+    if (!saved || !hasQuery(saved) || !chipsShow(trackerOf(connection), saved)) continue
+    const queryRead = reads.savedRead({ teamId, query: saved.query })
+    if (!queryRead) continue
+    for (const { query } of saved.picks) {
+      const pickRead = reads.savedRead({ teamId, query })
+      if (!pickRead || Date.parse(pickRead.readAt) < Date.parse(queryRead.readAt)) await readQuery(connector, reads, { teamId, query, finishedSince, readAt })
+    }
+  }
 }
 
 /**

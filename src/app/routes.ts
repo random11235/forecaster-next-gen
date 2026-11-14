@@ -15,7 +15,7 @@ import {
 import type { Connector } from '../connectors/connector.js'
 import { inputsView, submitInputs, type InputsView, type NextScreen } from '../forecast/inputs.js'
 import { milestoneForecastView, type MilestoneForecastView } from '../forecast/milestoneForecastView.js'
-import { setupView, submitReadAgain, submitSetup, throughDraft, type SettingUp, type SetupEdit, type SetupView } from '../forecast/setup.js'
+import { readPicks, setupView, submitReadAgain, submitSetup, throughDraft, type SettingUp, type SetupEdit, type SetupView } from '../forecast/setup.js'
 import type { TrackerReads } from '../forecast/trackerReads.js'
 import { DEFAULT_SETTINGS, type ForecastSettings } from '../forecast/settings.js'
 import type { Team } from '../model/team.js'
@@ -227,15 +227,18 @@ interface StepsOpening {
  * The Inputs screen, with the Connect step (`connection`: as connected unless given) and the query steps (the
  * Milestone step and the Comparable work step), each opening as the request asks, or as `unlisted` or `refused` say;
  * served at `/inputs`, with `status` (200 unless given). `view` is the Inputs view to show, as saved unless given. The
- * steps list the same choices, so the tracker is asked for them once.
+ * steps list the same choices, so the tracker is asked for them once. The Check step reads the picks the summary has no
+ * count for yet (`readPicks`).
  */
 async function inputsWithStep(
-  { request, context, connecting, team, settings, searchParams }: SetupRouting,
+  { request, context, connecting, reading, team, settings, searchParams }: SetupRouting,
   { status = 200, view, connection, unlisted = false, refused, setup: shownSetup }: { status?: number; view?: InputsView; connection?: ConnectionView; setup?: SetupView } & StepsOpening = {},
 ): Promise<Reply> {
   // a refusal opens the step refused; otherwise the step the URL asks for
   const asked = refused?.section.setupStep ?? (connection?.kind !== 'noConnect' && connection?.refusal !== undefined ? 'connect' : (searchParams.get(STEP_FIELD) ?? undefined))
   const setup = shownSetup ?? setupView(settingUp(context, connecting), team.id, asked)
+  // each pick's count on the summary is read at Check, never as the screen opens
+  if (setup.kind === 'steps' && setup.step === 'check') await readPicks(reading, team.id, context.now())
   // the steps show what setup's draft holds, before what is saved
   const stepping: QueryStepping = { ...throughDraft(listingOnce(connecting)), milestoneInputs: context.storage, at: candidatesAt(context) }
   const steps: ShownStep[] = []
