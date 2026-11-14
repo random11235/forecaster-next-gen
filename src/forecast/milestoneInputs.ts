@@ -8,7 +8,7 @@ import { refuse, type EditResult, type Refusal } from './editResult.js'
 import { assessMilestone, type InputNote, type MilestoneAssessment } from './milestoneAssessment.js'
 import { paceTrend, type PaceTrend } from './paceTrend.js'
 import type { ForecastSettings } from './settings.js'
-import type { Measured, PaceReading, TicketsReading } from './trackerReads.js'
+import type { Measured, PaceReading, TicketsReading, WasPace, WasTickets } from './trackerReads.js'
 
 /** Far above any real team's pace in one period; keeps typos like 1000000 out of the forecast. */
 export const MAX_TICKETS_PER_PERIOD = 1000
@@ -81,6 +81,8 @@ export interface TicketsSourceView {
   tracker: string
   /** The tracker's latest reading, which tickets remaining is while it follows the tracker; none until it is read. */
   reading: TicketsReading | undefined
+  /** While it follows the tracker, the value its latest read replaced, shown faintly; none otherwise. */
+  was: WasTickets | undefined
 }
 
 /** The connected tracker's pace, offered as a source of pace. */
@@ -89,6 +91,8 @@ export interface PaceSourceView {
   tracker: string
   /** The tracker's reading of pace, which the forecast uses while pace follows it; none until it is read. */
   reading: PaceReading | undefined
+  /** While pace follows the tracker, the counts its latest read replaced, shown faintly; none otherwise. */
+  was: WasPace | undefined
 }
 
 /**
@@ -103,13 +107,18 @@ export function milestoneInputsView(storage: Storage, teamId: string, settings: 
     name: inputs.name,
     startDate: inputs.startDate ?? today,
     ticketsRemaining: inputs.ticketsRemaining,
-    ticketsSource: measured && { source: inputs.ticketsSource, tracker: measured.tracker, reading: measured.ticketsRemaining },
+    ticketsSource: measured && {
+      source: inputs.ticketsSource,
+      tracker: measured.tracker,
+      reading: measured.ticketsRemaining,
+      was: inputs.ticketsSource === 'tracker' ? measured.ticketsRemaining?.was : undefined,
+    },
     ambiguity: inputs.ambiguity,
     cadenceDays: inputs.cadenceDays,
     paceRange: inputs.paceRange,
     paceCounts: inputs.paceCounts,
     paceMode: inputs.paceMode,
-    paceSource: measured && { tracker: measured.tracker, reading: measured.pace },
+    paceSource: measured && { tracker: measured.tracker, reading: measured.pace, was: inputs.paceMode === 'tracker' ? measured.pace?.was : undefined },
     typedCountsNeeded: settings.typedCounts,
     notes: assessment ? notesBeside(assessment) : [],
     paceTrend: paceTrend(inputs, settings, today, measured),
