@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import type { Choice, Ticket } from '../../src/connectors/connector.js'
-import { setupView, submitSetup, type SettingUp } from '../../src/forecast/setup.js'
+import { setupView, submitReadAgain, submitSetup, type SettingUp } from '../../src/forecast/setup.js'
 import { submitStepQuery } from '../../src/forecast/queryStep.js'
 import { COMPARABLE_WORK } from '../../src/forecast/stepQuery.js'
 import { CHECKOUT, finishedOn, open, TEAM, trackerScenario, type TrackerScenario } from '../trackerScenario.js'
@@ -268,6 +268,137 @@ describe('Change', () => {
     expect(storage.connection(TEAM)).toMatchObject({ tracker: 'github', repo: 'shop' })
     expect(storage.milestoneQuery(TEAM)?.query).toBe('milestone:"Checkout v2"')
     expect(storage.comparableWorkQuery(TEAM)?.query).toBe('milestone:"Q3 polish"')
+  })
+})
+
+describe('Read again', () => {
+  const LATER = '2026-11-12T14:30:00Z'
+
+  /** Connected, the milestone entered with 30 tickets typed and picked (3 open), comparable work picked, and "Use these". */
+  async function setUp(): Promise<TrackerScenario> {
+    const { connect, pick, fixture, submit } = team()
+    fixture.reads[CHECKOUT.query] = { tickets: open(3), incomplete: false }
+    fixture.reads[Q3_POLISH.query] = { tickets: finishedOn('q', '2026-11-10', 2), incomplete: false }
+    await connect()
+    submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-11-02', ticketsRemaining: '30' })
+    submit({ kind: 'setPaceRange', low: '4', high: '8' })
+    await pick(READ_AT)
+    await pick(READ_AT, Q3_POLISH, COMPARABLE_WORK)
+    submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
+    return scenario!
+  }
+  const readAgain = () => submitReadAgain({ ...scenario!.using, timeZone: 'UTC' }, TEAM, LATER)
+
+  test('reads the milestone query and comparable work’s, and the summary’s read time updates', async () => {
+    const { fixture, storage } = await setUp()
+    fixture.reads[CHECKOUT.query] = { tickets: open(5), incomplete: false }
+    fixture.reads[Q3_POLISH.query] = { tickets: finishedOn('q', '2026-11-11', 4), incomplete: false }
+
+    expect(await readAgain()).toEqual({ kind: 'read' })
+    expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({ kind: 'summary', readOn: '12 Nov 14:30', flags: [] })
+    expect(storage.savedRead({ teamId: TEAM, query: Q3_POLISH.query })).toMatchObject({ readAt: LATER, tickets: { length: 4 } })
+  })
+
+  test('updates a value following the tracker, and leaves a typed one as typed', async () => {
+    const { fixture, submit } = await setUp()
+    fixture.reads[CHECKOUT.query] = { tickets: open(5), incomplete: false }
+
+    await readAgain()
+    expect(scenario!.inputs().milestone.ticketsSource).toMatchObject({ source: 'typed', reading: { count: 5, readOn: '12 Nov 14:30' } })
+    expect(scenario!.forecast()).toMatchObject({ kind: 'forecast', ticketsRemaining: 30 })
+
+    submit({ kind: 'setTicketsSource', ticketsSource: 'tracker' })
+    fixture.reads[CHECKOUT.query] = { tickets: open(7), incomplete: false }
+    await readAgain()
+    expect(scenario!.forecast()).toMatchObject({ kind: 'forecast', ticketsRemaining: 7 })
+  })
+
+  test('reads nothing until setup is done', async () => {
+    const { connect, pick } = team()
+    await connect()
+    await pick(READ_AT)
+    scenario!.asked.length = 0
+
+    expect(await readAgain()).toEqual({ kind: 'unchanged' })
+    expect(scenario!.asked).toEqual([])
+  })
+})
+
+describe('a failed read', () => {
+  const LATER = '2026-11-12T14:30:00Z'
+
+  async function setUp(): Promise<TrackerScenario> {
+    const { connect, pick, fixture } = team()
+    fixture.reads[CHECKOUT.query] = { tickets: open(3), incomplete: false }
+    fixture.reads[Q3_POLISH.query] = { tickets: finishedOn('q', '2026-11-10', 2), incomplete: false }
+    await connect()
+    await pick(READ_AT)
+    await pick(READ_AT, Q3_POLISH, COMPARABLE_WORK)
+    submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
+    return scenario!
+  }
+  const readAgain = () => submitReadAgain({ ...scenario!.using, timeZone: 'UTC' }, TEAM, LATER)
+
+  test('of a tracker unreachable or rate-limited keeps the saved read in use, and the summary says why', async () => {
+    const { fixture, storage } = await setUp()
+    fixture.reads[CHECKOUT.query] = { failure: 'unavailable' }
+
+    expect(await readAgain()).toEqual({
+      kind: 'failed',
+      view: expect.objectContaining({
+        kind: 'summary',
+        readOn: '12 Nov 09:05',
+        flags: [{ flag: 'GitHub can’t be reached just now, or is limiting requests, so the last read stays in use. Try again in a few minutes.' }],
+      }),
+    })
+    expect(storage.savedRead({ teamId: TEAM, query: CHECKOUT.query })).toMatchObject({ readAt: READ_AT, tickets: { length: 3 } })
+    expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({ readOn: '12 Nov 09:05', flags: [] })
+  })
+
+  test('of a token refused says so, and offers Change, which opens the Connect step', async () => {
+    const { fixture } = await setUp()
+    fixture.reads[CHECKOUT.query] = { failure: 'unauthorised' }
+
+    expect(await readAgain()).toMatchObject({
+      kind: 'failed',
+      view: {
+        flags: [
+          {
+            flag: 'GitHub refused the token. Check it hasn’t expired, and that it has Issues: read on this repo.',
+            change: 'connect',
+          },
+        ],
+      },
+    })
+    expect(submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })).toEqual({ saved: true })
+    expect(setupView(settingUp(scenario!), TEAM, 'connect')).toMatchObject({ kind: 'steps', step: 'connect' })
+  })
+
+  test('with this computer’s keychain failing reads nothing, and the summary says why', async () => {
+    await setUp()
+    scenario!.asked.length = 0
+    const keychainFailing = { ...scenario!.using, secrets: { ...scenario!.using.secrets, token: () => Promise.reject(new Error('locked')) } }
+
+    expect(await submitReadAgain({ ...keychainFailing, timeZone: 'UTC' }, TEAM, LATER)).toMatchObject({
+      kind: 'failed',
+      view: { flags: [{ flag: expect.stringContaining('keychain couldn’t be used') }] },
+    })
+    expect(scenario!.asked).toEqual([])
+  })
+
+  test('of a query the tracker now rejects, or that reaches outside the repo, flags that query, keeping its saved read', async () => {
+    const { fixture, storage } = await setUp()
+    fixture.reads[CHECKOUT.query] = { tickets: open(5), incomplete: false }
+    fixture.reads[Q3_POLISH.query] = { failure: 'invalidQuery', message: 'The milestone Q3 polish doesn’t exist.' }
+
+    expect(await readAgain()).toMatchObject({
+      kind: 'failed',
+      view: { readOn: '12 Nov 14:30', flags: [{ of: 'comparable', flag: 'GitHub rejected this query: The milestone Q3 polish doesn’t exist.' }] },
+    })
+    expect(storage.savedRead({ teamId: TEAM, query: Q3_POLISH.query })).toMatchObject({ readAt: READ_AT })
+
+    fixture.reads[CHECKOUT.query] = { failure: 'outOfScope' }
+    expect(await readAgain()).toMatchObject({ view: { flags: [{ of: 'milestone', flag: expect.stringContaining('outside') }, { of: 'comparable' }] } })
   })
 })
 

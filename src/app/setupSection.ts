@@ -1,15 +1,25 @@
-import type { SetupEdit, SetupStep, SetupSteps, SetupSummary, SummaryFlag, SummaryRow } from '../forecast/setup.js'
+import type { FlaggedQuery, SetupEdit, SetupStep, SetupSteps, SetupSummary, SummaryFlag, SummaryRow } from '../forecast/setup.js'
 import { COMPARABLE_WORK, MILESTONE_QUERY } from '../forecast/stepQuery.js'
 import { escapeHtml } from './html.js'
 import { COMPARABLE_WORK_STEP, inputsAt, MILESTONE_STEP } from './queryStepSection.js'
 
-/** Where setup's own forms post: "Use these", Change (or Connect a tracker, once skipped), and Skip on the Connect step. */
-export const SETUP_PATHS = { useThese: '/inputs/setup/use-these', change: '/inputs/setup/change', skip: '/inputs/setup/skip' } as const
+/**
+ * Where setup's own forms post: "Use these", Change (or Connect a tracker, once skipped), Change from a refused
+ * token's flag, which opens the Connect step (`changeConnection`), Skip on the Connect step, and Read again.
+ */
+export const SETUP_PATHS = {
+  useThese: '/inputs/setup/use-these',
+  change: '/inputs/setup/change',
+  changeConnection: '/inputs/setup/change-connection',
+  skip: '/inputs/setup/skip',
+  readAgain: '/inputs/setup/read-again',
+} as const
 
-/** Each form setup posts, by its action's path, and the edit it is: they send no fields of their own. */
+/** Each form setup posts, by its action's path, and the edit it is: they send no fields of their own. Read again reads the tracker, so it is routed apart. */
 export const SETUP_FORMS: ReadonlyMap<string, SetupEdit> = new Map<string, SetupEdit>([
   [SETUP_PATHS.useThese, { kind: 'useThese' }],
   [SETUP_PATHS.change, { kind: 'change' }],
+  [SETUP_PATHS.changeConnection, { kind: 'change' }],
   [SETUP_PATHS.skip, { kind: 'skipConnecting' }],
 ])
 
@@ -59,8 +69,8 @@ export function checkStepHtml(): string {
 }
 
 /**
- * Setup done, above the inputs: the tracker, the repo or project, and when the milestone was read, with Change to open
- * the steps again; the Milestone row, and the Comparable row when there is comparable work, each naming its picks with
+ * Setup done, above the inputs: the tracker, the repo or project, and when the milestone was read, with Read again,
+ * and Change to open the steps again; the Milestone row, and the Comparable row when there is comparable work, each naming its picks with
  * their kinds or showing the query written by hand; the leaf-and-epics line; and beneath, only problem flags.
  */
 export function setupSummaryHtml({ tracker, where, readOn, milestone, comparable, note, flags }: SetupSummary): string {
@@ -70,6 +80,9 @@ export function setupSummaryHtml({ tracker, where, readOn, milestone, comparable
       <div class="setup-head">
         <span class="ok-dot" aria-hidden="true"></span>
         <span>${escapeHtml(tracker)} · <b>${escapeHtml(where)}</b></span>${read}
+        <form method="post" action="${SETUP_PATHS.readAgain}">
+          <button type="submit" class="linkish">Read again</button>
+        </form>
         <form method="post" action="${SETUP_PATHS.change}">
           <button type="submit" class="linkish">Change</button>
         </form>
@@ -93,11 +106,20 @@ function rowHtml(name: string, row: SummaryRow): string {
 }
 
 /** Each query flagged, named as its step names it. */
-const FLAGGED_QUERY: Readonly<Record<SummaryFlag['of'], string>> = { milestone: MILESTONE_QUERY.name, comparable: COMPARABLE_WORK.name }
+const FLAGGED_QUERY: Readonly<Record<FlaggedQuery, string>> = { milestone: MILESTONE_QUERY.name, comparable: COMPARABLE_WORK.name }
 
-/** A problem flag beneath the summary: "⚠ Milestone query: This query matches nothing…". */
-function flagHtml({ of, flag }: SummaryFlag): string {
-  return `\n      <p class="note warn flag">⚠ ${FLAGGED_QUERY[of]}: ${escapeHtml(flag)}</p>`
+/**
+ * A problem flag beneath the summary: "⚠ Milestone query: This query matches nothing…", or, of a read failing as a
+ * whole, its reason alone; a refused token's with Change, opening the Connect step.
+ */
+function flagHtml({ of, flag, change }: SummaryFlag): string {
+  const text = `⚠ ${of === undefined ? '' : `${FLAGGED_QUERY[of]}: `}${escapeHtml(flag)}`
+  if (change === undefined) return `\n      <p class="note warn flag">${text}</p>`
+  return `\n      <div class="note warn flag">${text}
+        <form method="post" action="${SETUP_PATHS.changeConnection}">
+          <button type="submit" class="linkish">Change</button>
+        </form>
+      </div>`
 }
 
 /** Connecting skipped: the inputs typed, as the MVP has them, with a way to connect a tracker after all; above the inputs. */
