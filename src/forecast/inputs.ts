@@ -16,7 +16,7 @@ import { measured, type ReadingTracker } from './trackerReads.js'
 export type InputsEdit = MilestoneInputsEdit | GrowthEdit | CapacityEdit | PaceActionEdit
 
 /** A form on the Inputs screen, which a refusal is shown on. The typed counts' list, add and remove share one. */
-export type InputsForm = 'milestone' | 'ticketsSource' | 'cadence' | 'paceMode' | 'paceRange' | 'paceCounts' | 'ambiguity' | 'growth'
+export type InputsForm = 'milestone' | 'ticketsSource' | 'readingOpened' | 'cadence' | 'paceMode' | 'paceRange' | 'paceCounts' | 'ambiguity' | 'growth'
 
 /** What the forms with typed fields show: as saved, or as typed when refused. The choices show what is saved. */
 export interface TypedForms {
@@ -147,6 +147,8 @@ function submission(edit: Exclude<InputsEdit, CapacityEdit | PaceActionEdit>): S
     }
     case 'setTicketsSource':
       return { form: 'ticketsSource', next: 'inputs', typed: asSaved }
+    case 'openReading':
+      return { form: 'readingOpened', next: 'inputs', typed: asSaved }
     case 'setCadence':
       return { form: 'cadence', next: 'inputs', typed: () => ({ cadence: { cadenceDays: edit.cadenceDays } }) }
     case 'setPaceRange':

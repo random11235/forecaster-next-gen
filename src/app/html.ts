@@ -263,6 +263,17 @@ const STYLE = `
     .tickets-source .reading-value { font-size: 32px; line-height: 1.1; font-variant-numeric: tabular-nums; }
     .tickets-source .reading-line { flex-basis: 100%; font-size: 12px; color: var(--muted); }
     .tickets-source .incomplete { font-size: 12px; font-weight: 600; color: var(--risk); }
+    /* A typed value the tracker reads differently: a chip, dotted for an unopened read, opening on the reading and Follow. */
+    details.chip { position: relative; align-self: flex-start; }
+    details.chip > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; padding: 2px 10px; border: 1px solid var(--hairline); border-radius: 999px; font-size: 12px; color: var(--muted); }
+    details.chip > summary::-webkit-details-marker { display: none; }
+    details.chip[open] > summary { border-color: var(--ink); color: var(--ink); }
+    details.chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--risk); }
+    .chip-panel { position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; width: min(420px, 80vw); display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; background: var(--page); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); font-size: 13px; color: var(--ink); white-space: normal; }
+    .chip-panel p { margin: 0; }
+    .chip-panel .reading-line { margin: 0; font-size: 12px; color: var(--muted); }
+    .chip-panel .incomplete { font-size: 12px; font-weight: 600; color: var(--risk); }
+    .chip-actions { display: flex; gap: 8px; }
     /* Pace following the tracker: its counts as bars, a quiet period a red stub, its periods behind Show weeks. */
     .pace-following { display: flex; flex-direction: column; gap: 6px; }
     .pace-following .reading-line { margin: 0; font-size: 12px; color: var(--muted); }

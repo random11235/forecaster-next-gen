@@ -48,6 +48,8 @@ export interface PaceReading {
   firstFinished: string | undefined
   /** When the read pace comes from was read, in the EM's time zone: "4 Nov 09:12". */
   readOn: string
+  /** The same instant in UTC, as the EM's opening of the reading is kept by (`SeenReads`). */
+  readAt: string
 }
 
 /** The tracker's reading of tickets remaining: the milestone query's open tickets when it was read. */
@@ -57,6 +59,8 @@ export interface TicketsReading {
   incomplete: boolean
   /** When it was read, in the EM's time zone: "4 Nov 09:12". */
   readOn: string
+  /** The same instant in UTC, as the EM's opening of the reading is kept by (`SeenReads`). */
+  readAt: string
 }
 
 /**
@@ -70,7 +74,7 @@ export function measured(reads: TrackerReads | undefined, teamId: string, storag
   const read = savedReadOf(reads, teamId, reads.milestoneQueries.milestoneQuery(teamId)?.query)
   return {
     tracker,
-    ticketsRemaining: read && { count: ticketsRemaining(read), incomplete: read.incomplete, readOn: readOn(read.readAt, reads.timeZone) },
+    ticketsRemaining: read && { count: ticketsRemaining(read), incomplete: read.incomplete, readOn: readOn(read.readAt, reads.timeZone), readAt: read.readAt },
     pace: paceReading(reads, teamId, storage, today, tracker),
   }
 }
@@ -102,6 +106,7 @@ function paceReading(reads: TrackerReads, teamId: string, storage: Pick<Storage,
     periods,
     firstFinished: bound === 'firstFinished' ? `From the first finished ticket, ${dayMonth(first!)}.` : undefined,
     readOn: paceRead ? readOn(paceRead.readAt, reads.timeZone) : '',
+    readAt: paceRead?.readAt ?? '',
   }
 }
 

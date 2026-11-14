@@ -46,6 +46,11 @@ export type MilestoneInputsEdit =
    * while following the tracker switches pace to typed counts.
    */
   | { kind: 'setPaceMode'; paceMode: string }
+  /**
+   * The EM opened the tracker's latest reading of a value, `ticketsRemaining` or `pace`, from its chip: its dot clears
+   * until the next read.
+   */
+  | { kind: 'openReading'; reading: string }
 
 /** The milestone as the Inputs screen shows it, with the start date pre-filled with today until one is entered. */
 export interface MilestoneInputsView {
@@ -81,6 +86,14 @@ export interface TicketsSourceView {
   tracker: string
   /** The tracker's latest reading, which tickets remaining is while it follows the tracker; none until it is read. */
   reading: TicketsReading | undefined
+  /** Typed and different from the reading: the chip saying the tracker reads it differently. None otherwise. */
+  readsDifferently: ReadsDifferently | undefined
+}
+
+/** The chip on a typed value that the tracker's latest reading differs from, which opens the reading and offers Follow. */
+export interface ReadsDifferently {
+  /** The EM hasn't opened this reading yet: the chip carries a dot. */
+  unseen: boolean
 }
 
 /** The connected tracker's pace, offered as a source of pace. */
@@ -89,6 +102,8 @@ export interface PaceSourceView {
   tracker: string
   /** The tracker's reading of pace, which the forecast uses while pace follows it; none until it is read. */
   reading: PaceReading | undefined
+  /** The typed counts or the range in use, different from the reading: the chip. None otherwise. */
+  readsDifferently: ReadsDifferently | undefined
 }
 
 /**
@@ -103,17 +118,43 @@ export function milestoneInputsView(storage: Storage, teamId: string, settings: 
     name: inputs.name,
     startDate: inputs.startDate ?? today,
     ticketsRemaining: inputs.ticketsRemaining,
-    ticketsSource: measured && { source: inputs.ticketsSource, tracker: measured.tracker, reading: measured.ticketsRemaining },
+    ticketsSource: measured && {
+      source: inputs.ticketsSource,
+      tracker: measured.tracker,
+      reading: measured.ticketsRemaining,
+      readsDifferently: ticketsReadDifferently(inputs, measured.ticketsRemaining),
+    },
     ambiguity: inputs.ambiguity,
     cadenceDays: inputs.cadenceDays,
     paceRange: inputs.paceRange,
     paceCounts: inputs.paceCounts,
     paceMode: inputs.paceMode,
-    paceSource: measured && { tracker: measured.tracker, reading: measured.pace },
+    paceSource: measured && { tracker: measured.tracker, reading: measured.pace, readsDifferently: paceReadDifferently(inputs, measured.pace) },
     typedCountsNeeded: settings.typedCounts,
     notes: assessment ? notesBeside(assessment) : [],
     paceTrend: paceTrend(inputs, settings, today, measured),
   }
+}
+
+/** Tickets remaining typed, and different from the tracker's latest reading: its chip, dotted until that read is opened. */
+function ticketsReadDifferently(inputs: MilestoneInputs, reading: TicketsReading | undefined): ReadsDifferently | undefined {
+  if (!reading || inputs.ticketsSource !== 'typed' || inputs.ticketsRemaining === reading.count) return undefined
+  return { unseen: inputs.seenReads.ticketsRemaining !== reading.readAt }
+}
+
+/**
+ * The typed counts or the range in use, and different from the tracker's reading of pace: its chip, dotted until that
+ * read is opened. Typed counts differ unless they are the reading's counts; a range, unless it spans them, from the
+ * slowest period to the best. A reading with no periods counted has nothing to follow.
+ */
+function paceReadDifferently(inputs: MilestoneInputs, reading: PaceReading | undefined): ReadsDifferently | undefined {
+  const counts = reading?.window.counts ?? []
+  if (!reading || counts.length === 0 || inputs.paceMode === 'tracker') return undefined
+  const same =
+    inputs.paceMode === 'counts'
+      ? inputs.paceCounts.length === counts.length && inputs.paceCounts.every((count, at) => count === counts[at])
+      : inputs.paceRange?.low === Math.min(...counts) && inputs.paceRange.high === Math.max(...counts)
+  return same ? undefined : { unseen: inputs.seenReads.pace !== reading.readAt }
 }
 
 /** What stops a forecast, then the warnings, each worded as it reads beside its input. */
@@ -132,6 +173,7 @@ export function editMilestoneInputs(storage: Storage, teamId: string, edit: Mile
   if (!saved) return refuse('Enter the milestone first.')
   if (edit.kind === 'setTicketsSource') return save(storage, withTicketsSource(saved, edit.ticketsSource, measured))
   if (edit.kind === 'setPaceMode') return save(storage, withPaceMode(saved, edit.paceMode, measured))
+  if (edit.kind === 'openReading') return save(storage, withReadingOpened(saved, edit.reading, measured))
   return save(storage, edited(saved, edit))
 }
 
@@ -141,6 +183,15 @@ function withPaceMode(saved: MilestoneInputs, paceMode: string, measured: Measur
   const chosen = offered.find((mode) => mode === paceMode)
   if (chosen === undefined) return refuse(measured ? `Choose ${measured.tracker}, typed counts or the range.` : 'Choose the range or typed counts.')
   return { ...saved, paceMode: chosen }
+}
+
+/** The milestone with the tracker's latest reading of a value marked opened, so its chip's dot clears until the next read. */
+function withReadingOpened(saved: MilestoneInputs, reading: string, measured: Measured | undefined): Edited {
+  if (!measured) return refuse('Connect a tracker to see its reading.')
+  if (reading !== 'ticketsRemaining' && reading !== 'pace') return refuse('Choose tickets remaining or pace.')
+  const latest = measured[reading]
+  if (!latest) return refuse(`${measured.tracker} hasn’t read it yet.`)
+  return { ...saved, seenReads: { ...saved.seenReads, [reading]: latest.readAt } }
 }
 
 /** The source tickets remaining comes from: the tracker only with a connection. */
@@ -176,7 +227,7 @@ function withMilestone(inputs: MilestoneInputs, edit: Extract<MilestoneInputsEdi
 }
 
 /** A saved milestone as any edit but the milestone's own leaves it. */
-function edited(saved: MilestoneInputs, edit: Exclude<MilestoneInputsEdit, { kind: 'setMilestone' | 'setTicketsSource' | 'setPaceMode' }>): Edited {
+function edited(saved: MilestoneInputs, edit: Exclude<MilestoneInputsEdit, { kind: 'setMilestone' | 'setTicketsSource' | 'setPaceMode' | 'openReading' }>): Edited {
   switch (edit.kind) {
     case 'setPaceRange': {
       const [low, high] = [wholeNumber(edit.low), wholeNumber(edit.high)]

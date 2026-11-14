@@ -24,6 +24,9 @@ _Avoid_: velocity, throughput
 
 **Typed counts** (of a milestone): the tickets the team finished in each of its past periods, oldest first, as the EM types them.
 
+**Source** (of a value): where tickets remaining or pace comes from: the tracker, which the value follows, updated on each read; or the EM, typed (for pace, typed counts or a range). Each source's value is kept while another is used. Nothing the tracker reads is accepted into a typed value: a typed value it reads differently carries a chip offering to follow it.
+_Avoid_: accepted value, measured copy
+
 **Capacity** (of a period): how much of the team's usual capacity it has, as a percentage: 100% is a usual period. It belongs to the team, not the milestone.
 _Avoid_: headcount, availability, allocation
 
