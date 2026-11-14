@@ -3,7 +3,7 @@ import type { Connection } from '../model/connection.js'
 import type { MilestoneQuery } from '../model/milestoneQuery.js'
 import type { SavedRead } from '../model/savedRead.js'
 import { teamConnection, type Connecting } from './connection.js'
-import { finishedSinceFor, readQuery, weeksRead } from './finished.js'
+import { finishedSinceFor, readQuery } from './finished.js'
 import { chipsShow, kindName, LEAF_NOTE, readFlag, rejectionOf, type StepReading } from './queryStep.js'
 import { COMPARABLE_WORK, MILESTONE_QUERY, type StepQuery } from './stepQuery.js'
 import { throughDraft } from './throughDraft.js'
@@ -85,18 +85,11 @@ export function summaryOf(reading: SummaryReading, teamId: string, connection: C
 
 /**
  * What is wrong with a query's saved read, as its step says it (`readFlag`): incomplete, or the milestone's matching
- * nothing; or comparable work's finishing nothing, so pace is the milestone's own. None for a read that is fine, or none.
+ * nothing. None for a read that is fine, or none.
  */
 function flagOf(read: SavedRead | undefined, trackerName: string, stepQuery: StepQuery): SummaryFlag[] {
-  if (!read) return []
-  const unused = stepQuery.kind === 'comparableWork' && !read.tickets.some((ticket) => ticket.finishedAt !== undefined)
-  const flag = readFlag(read, trackerName, stepQuery)?.flag ?? (unused ? comparableUnused(read) : undefined)
+  const flag = read && readFlag(read, trackerName, stepQuery)?.flag
   return flag === undefined ? [] : [{ of: stepQuery.kind, flag }]
-}
-
-/** Comparable work's read finishing nothing: "…nothing finished in the last 9 weeks, so pace comes from the milestone’s own tickets…". */
-function comparableUnused(read: SavedRead): string {
-  return `This query matches nothing finished in the last ${weeksRead(read)} weeks, so pace comes from the milestone’s own tickets. Check it picks out ${COMPARABLE_WORK.picksOut}.`
 }
 
 /** A query's row: its picks with their kinds and counts when the picker shows it as their chips, else the query as written. */
