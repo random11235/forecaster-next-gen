@@ -161,7 +161,8 @@ export type ReadAgainSubmitted = { kind: 'read' } | { kind: 'unchanged' } | { ki
 /**
  * Seam B: reads the milestone query again, and comparable work's when it has one, as at `readAt`, as far back as the
  * milestone's inputs need (`finishedSinceFor`); values following the tracker take each new read, typed ones stay as
- * typed, and each of several picks is read again for its count (`readPicks`). Read only once setup is done. A read
+ * typed. Each of several picks is read at Check alone (`readPicks`), so its count shows none until then, its read now
+ * older than its query's. Read only once setup is done. A read
  * that fails saves nothing, so its saved read stays in use, and the summary to show says why: for the tracker
  * unreachable or rate-limited, or the token or repo refused (offering Change), once, reading no further; for a query
  * the tracker now rejects or that reaches outside the connection, as that query's flag, the other still read.
@@ -184,8 +185,6 @@ export async function submitReadAgain(reading: ReadingAgain, teamId: string, rea
     if (rejection === undefined) return failed([failedRead(connection, read)])
     flags.push({ of: stepQuery.kind, flag: rejection })
   }
-  // a pick shows its count only while its own read is as new as its query's, so several picks are read again too
-  await readPicks(reading, teamId, readAt)
   return flags.length === 0 ? { kind: 'read' } : failed(flags)
 }
 
