@@ -117,10 +117,9 @@ function trackerPaceNotes(inputs: MilestoneInputs, inUse: number, { forForecast,
     return problem(`${tracker} gave only part of the finished tickets its queries match, so its pace isn’t known. Narrow the query, or ${instead.toLowerCase()}`)
   }
   if (!pace) return problem(`${tracker} hasn’t read the milestone’s finished tickets yet. Pick them in the Milestone step, or ${instead.toLowerCase()}`)
-  if (pace.window.counts.length === 0 && pace.skipped.counts.some((count) => count > 0)) {
-    return problem(`Every ${period} is skipped, so ${tracker} gives no pace. Count a ${period} again, or use typed counts or the range.`)
-  }
-  if (pace.window.counts.length === 0) return problem(`${tracker} has no finished tickets in the ${period}s it read, so there is no pace. ${instead}`)
+  const skippedEvery = pace.bound === 'everySkipped' ? `Every ${period} is skipped` : pace.bound === 'everyFinishedSkipped' ? `Every ${period} that finished something is skipped` : undefined
+  if (skippedEvery) return problem(`${skippedEvery}, so ${tracker} gives no pace. Count a ${period} again, or use typed counts or the range.`)
+  if (pace.bound === 'nothingFinished') return problem(`${tracker} has no finished tickets in the ${period}s it read, so there is no pace. ${instead}`)
   const counting = `${tracker}’s pace: ${pace.periods}${inUse === pace.window.counts.length ? '' : `, ${counted(inUse, period)} counted`}.`
   if (inUse < forForecast) return problem(`${counting} The forecast needs at least ${forForecast}. ${instead}`)
   if (inUse >= reliable) return { problems: [], warnings: [] }

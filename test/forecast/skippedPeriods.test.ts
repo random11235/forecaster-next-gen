@@ -166,12 +166,26 @@ describe('counting skipped periods again', () => {
 
 describe('every period skipped', () => {
   test('there is no pace, and no forecast: count a week again, or use typed counts or the range', async () => {
+    // started on the first week GitHub finished anything in, so its pace counts no earlier weeks
+    submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: WEEKS[0]!, ticketsRemaining: '30' })
+
     await skip(WEEKS)
 
-    expect(reading()).toMatchObject({ window: { counts: [] }, periods: 'every week skipped', skippedLine: expect.stringMatching(/^10 skipped \(31 Aug, .*, 2 Nov\), so no weeks count$/) })
+    expect(reading()).toMatchObject({ window: { counts: [] }, bound: 'everySkipped', periods: 'every week skipped', skippedLine: expect.stringMatching(/^10 skipped \(31 Aug, .*, 2 Nov\), so no weeks count$/) })
     expect(forecast()).toMatchObject({
       kind: 'problems',
       problems: [{ input: 'pace', message: 'Every week is skipped, so GitHub gives no pace. Count a week again, or use typed counts or the range.' }],
+    })
+  })
+
+  test('with every week that finished something skipped, and quiet ones before them not, it says so: there is no pace', async () => {
+    // started 10 Aug: the quiet weeks before 31 Aug are read, and not skipped
+    await skip(WEEKS)
+
+    expect(reading()).toMatchObject({ window: { counts: [] }, bound: 'everyFinishedSkipped', periods: 'every week that finished something skipped' })
+    expect(forecast()).toMatchObject({
+      kind: 'problems',
+      problems: [{ input: 'pace', message: 'Every week that finished something is skipped, so GitHub gives no pace. Count a week again, or use typed counts or the range.' }],
     })
   })
 })
