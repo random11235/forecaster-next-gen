@@ -5,6 +5,7 @@ import { daysBetween } from './calendarDate.js'
 import { counted } from './counted.js'
 import { actionSaid, paceWindow } from './paceWindow.js'
 import type { ForecastSettings } from './settings.js'
+import type { Measured } from './trackerReads.js'
 
 /** An input of the milestone on the Inputs screen. */
 export type MilestoneInput = 'name' | 'startDate' | 'ticketsRemaining' | 'pace' | 'typedCounts'
@@ -23,7 +24,7 @@ export interface Warning extends InputNote {
 /** The pace the forecast uses: the range, or the typed counts, whichever the EM chose. */
 export type PaceInUse = ({ source: 'range' } & ThroughputRange) | { source: 'counts'; counts: number[] }
 
-/** A milestone with every input its forecast needs. */
+/** A milestone with every input its forecast needs, its tickets remaining the ones in use, from the source the EM chose. */
 export type ForecastableInputs = MilestoneInputs & { startDate: string; ticketsRemaining: number }
 
 /**
@@ -35,26 +36,56 @@ export type MilestoneAssessment =
   | { forecastable: false; problems: InputNote[]; warnings: Warning[] }
   | { forecastable: true; inputs: ForecastableInputs; pace: PaceInUse; warnings: Warning[] }
 
-/** Seam B, behind both views: assesses the milestone's inputs against `settings` on `today`. */
-export function assessMilestone(inputs: MilestoneInputs, settings: ForecastSettings, today: string): MilestoneAssessment {
+/**
+ * Seam B, behind both views: assesses the milestone's inputs against `settings` on `today`, with what the team's
+ * tracker measures (`measured`; none with no connection, when every value is typed, as in the MVP).
+ */
+export function assessMilestone(inputs: MilestoneInputs, settings: ForecastSettings, today: string, measured?: Measured): MilestoneAssessment {
   const { typedCounts } = settings
   // the typed counts the pace is drawn from: those in its window
   const inWindow = paceWindow(inputs, today).window.counts
   const pace = paceInUse(inputs, inWindow)
-  const warnings = [...startDateWarnings(inputs, today), ...paceWarnings(inputs, pace), ...paceCadenceWarnings(inputs), ...typedCountsWarnings(inputs, inWindow.length, typedCounts)]
+  const tickets = ticketsInUse(inputs, measured)
+  const warnings = [
+    ...startDateWarnings(inputs, today),
+    ...paceWarnings(inputs, tickets.count, pace),
+    ...paceCadenceWarnings(inputs),
+    ...typedCountsWarnings(inputs, inWindow.length, typedCounts),
+  ]
   const problems = [
     ...(inputs.startDate === undefined ? [{ input: 'startDate', message: 'No start date is saved yet.' } as const] : []),
-    ...(inputs.ticketsRemaining === undefined
-      ? [{ input: 'ticketsRemaining', message: 'Enter how many tickets are left.' } as const]
-      : []),
+    ...(tickets.problem ? [{ input: 'ticketsRemaining', message: tickets.problem } as const] : []),
     ...(pace === undefined ? [{ input: 'pace', message: 'Enter a pace range.' } as const] : []),
     ...typedCountsShort(inputs, inWindow.length, typedCounts),
   ]
-  const { startDate, ticketsRemaining } = inputs
+  const { startDate } = inputs
+  const ticketsRemaining = tickets.count
   if (problems.length > 0 || pace === undefined || startDate === undefined || ticketsRemaining === undefined) {
     return { forecastable: false, problems, warnings }
   }
   return { forecastable: true, inputs: { ...inputs, startDate, ticketsRemaining }, pace, warnings }
+}
+
+/**
+ * The tickets remaining the forecast uses, from the source the EM chose: typed, or, with a connection, the tracker's
+ * latest reading of the milestone query. Or why there are none: nothing typed, nothing read, or a read that is
+ * incomplete, whose count is only part of the tickets.
+ */
+function ticketsInUse(inputs: MilestoneInputs, measured: Measured | undefined): { count: number | undefined; problem?: string } {
+  if (!measured || inputs.ticketsSource === 'typed') {
+    return inputs.ticketsRemaining === undefined ? { count: undefined, problem: 'Enter how many tickets are left.' } : { count: inputs.ticketsRemaining }
+  }
+  const { tracker, ticketsRemaining: reading } = measured
+  if (!reading) {
+    return { count: undefined, problem: `${tracker} hasn’t read the milestone’s tickets yet. Pick them in the Milestone step, or type tickets remaining.` }
+  }
+  if (reading.incomplete) {
+    return {
+      count: undefined,
+      problem: `${tracker} gave only part of the milestone’s tickets, so tickets remaining isn’t known. Narrow the milestone query, or type tickets remaining.`,
+    }
+  }
+  return { count: reading.count }
 }
 
 /**
@@ -110,8 +141,8 @@ function startDateWarnings(inputs: MilestoneInputs, today: string): Warning[] {
   return [worded('startDate', `Start date is ${counted(daysBefore, 'day')} before today; tickets remaining are still today's count.`)]
 }
 
-function paceWarnings(inputs: MilestoneInputs, pace: PaceInUse | undefined): Warning[] {
-  const workLeft = (inputs.ticketsRemaining ?? 0) > 0
+function paceWarnings(inputs: MilestoneInputs, ticketsRemaining: number | undefined, pace: PaceInUse | undefined): Warning[] {
+  const workLeft = (ticketsRemaining ?? 0) > 0
   // with no counts typed yet, the too-few-counts problem says what to do
   const zeroPace =
     pace?.source === 'counts' ? pace.counts.length > 0 && pace.counts.every((count) => count === 0) : pace?.high === 0

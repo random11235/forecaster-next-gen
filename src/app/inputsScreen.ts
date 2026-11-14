@@ -1,12 +1,12 @@
 import { periodName, type PeriodName } from '../forecast/cadence.js'
 import type { InputNote, MilestoneInput } from '../forecast/milestoneAssessment.js'
-import { MAX_CADENCE_DAYS, MAX_TICKETS_PER_PERIOD, MAX_TICKETS_REMAINING } from '../forecast/milestoneInputs.js'
+import { MAX_CADENCE_DAYS, MAX_TICKETS_PER_PERIOD, MAX_TICKETS_REMAINING, type TicketsSourceView } from '../forecast/milestoneInputs.js'
 import { ambiguityName, MAX_GROWTH, type GrowthView, type TypedRange } from '../forecast/growth.js'
 import type { ConnectionView } from '../forecast/connection.js'
 import type { QueryStepView } from '../forecast/queryStep.js'
 import type { InputsEdit, InputsForm, InputsView, TypedForms } from '../forecast/inputs.js'
 import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
-import type { PaceMode } from '../model/milestoneInputs.js'
+import type { PaceMode, TicketsSource } from '../model/milestoneInputs.js'
 import { CONNECT_HINT, connectSection } from './connectSection.js'
 import { escapeHtml, htmlPage } from './html.js'
 import { INPUTS_SCRIPT } from './inputsScript.js'
@@ -34,9 +34,11 @@ export const INPUTS_FORMS: ReadonlyMap<string, FormReader> = new Map<string, For
       kind: 'setMilestone',
       name: body.get('name') ?? '',
       startDate: body.get('startDate')?.trim() ?? '',
-      ticketsRemaining: body.get('ticketsRemaining')?.trim() ?? '',
+      // no field while tickets remaining follows the tracker
+      ticketsRemaining: body.get('ticketsRemaining')?.trim(),
     }),
   ],
+  ['/inputs/tickets-source', (body) => ({ kind: 'setTicketsSource', ticketsSource: body.get('ticketsSource') ?? '' })],
   ['/inputs/cadence', (body) => ({ kind: 'setCadence', cadenceDays: body.get('cadenceDays')?.trim() ?? '' })],
   ['/inputs/pace', (body) => ({ kind: 'setPaceRange', low: body.get('low')?.trim() ?? '', high: body.get('high')?.trim() ?? '' })],
   ['/inputs/pace-mode', (body) => ({ kind: 'setPaceMode', paceMode: body.get('paceMode') ?? '' })],
@@ -81,7 +83,7 @@ export function renderInputsScreen(screen: InputsView, connection: ConnectionVie
   const sections = [
     ...(connect === undefined ? [] : [inputSection('Connect', 'Connect', CONNECT_HINT, connect, { postsOnSubmit: true })]),
     ...pickers.map(({ section, picker }) => inputSection(section.title, section.title, section.hint, picker, { postsOnSubmit: true, id: section.id })),
-    milestoneSection(forms.milestone, error('milestone'), milestone.notes),
+    milestoneSection(forms.milestone, milestone.ticketsSource, error, milestone.notes),
     cadenceSection(forms.cadence, error('cadence'), milestone.cadenceDays),
     paceSection(screen, error, periodName(milestone.cadenceDays)),
     ambiguitySection(milestone.ambiguity, screen.growth.ranges, error('ambiguity')),
@@ -119,20 +121,56 @@ ${body}
     </section>`
 }
 
-function milestoneSection(form: TypedForms['milestone'], error: string | undefined, notes: readonly InputNote[]): Section {
+/**
+ * The milestone's name, start date and tickets remaining. With a connection, tickets remaining has a source to choose
+ * (`ticketsSource`): following the tracker, it shows the latest read's count, with no field to type in; typed, the
+ * field as in the MVP. The source's radios sit by the field but post their own form, saved as soon as one is chosen.
+ */
+function milestoneSection(
+  form: TypedForms['milestone'],
+  ticketsSource: TicketsSourceView | undefined,
+  error: (form: InputsForm) => string | undefined,
+  notes: readonly InputNote[],
+): Section {
+  const following = ticketsSource?.source === 'tracker'
+  const typedField = `<label>${INPUT_LABELS.ticketsRemaining} <input type="number" name="ticketsRemaining" min="0" max="${MAX_TICKETS_REMAINING}" step="1" value="${escapeHtml(form.ticketsRemaining)}" required></label>`
+  const tickets = ticketsSource
+    ? `<div class="tickets-source">
+              ${radios('ticketsSource', `Where ${INPUT_LABELS.ticketsRemaining.toLowerCase()} comes from`, TICKETS_SOURCES, ticketsSource.source, (source) => (source === 'tracker' ? escapeHtml(ticketsSource.tracker) : 'Typed'), { form: TICKETS_SOURCE_FORM }).trim()}
+              ${following ? trackerTickets(ticketsSource) : typedField}
+            </div>`
+    : typedField
   return inputSection(
     'Milestone',
     'Milestone',
     'Name the milestone, the date work on it starts, and how many tickets are left.',
-    `        <form method="post" action="/inputs/milestone#milestone">${errorLine(error)}
+    `        <form method="post" action="/inputs/milestone#milestone">${errorLine(error('milestone'))}
           <div class="fields">
             <label class="wide">${INPUT_LABELS.name} <input type="text" name="name" value="${escapeHtml(form.name)}" required></label>${notesFor('name', notes)}
             <label>${INPUT_LABELS.startDate} <input type="date" name="startDate" value="${escapeHtml(form.startDate)}" required></label>${notesFor('startDate', notes)}
-            <label>${INPUT_LABELS.ticketsRemaining} <input type="number" name="ticketsRemaining" min="0" max="${MAX_TICKETS_REMAINING}" step="1" value="${escapeHtml(form.ticketsRemaining)}" required></label>${notesFor('ticketsRemaining', notes)}
+            ${tickets}${notesFor('ticketsRemaining', notes)}
           </div>
           <div class="actions"><button type="submit" class="primary">Save milestone</button></div>
-        </form>`,
+        </form>${
+          ticketsSource
+            ? `
+        <form method="post" action="/inputs/tickets-source#milestone" id="${TICKETS_SOURCE_FORM}">${errorLine(error('ticketsSource'))}
+          <div class="actions"><button type="submit">Use this source</button></div>
+        </form>`
+            : ''
+        }`,
   )
+}
+
+const TICKETS_SOURCE_FORM = 'tickets-source'
+const TICKETS_SOURCES: readonly TicketsSource[] = ['tracker', 'typed']
+
+/** Tickets remaining as the tracker last read it, and when; marked incomplete when the read was part of the tickets. */
+function trackerTickets({ tracker, reading }: TicketsSourceView): string {
+  if (!reading) return `<p class="reading"><span class="reading-line">tickets remaining · ${escapeHtml(tracker)}, not read yet</span></p>`
+  const incomplete = reading.incomplete ? ' <span class="incomplete">incomplete</span>' : ''
+  return `<p class="reading"><span class="reading-value">${reading.count}</span>${incomplete}
+              <span class="reading-line">tickets remaining · ${escapeHtml(tracker)}, read ${escapeHtml(reading.readOn)}</span></p>`
 }
 
 /** The notes about one input, shown beside it. */
@@ -217,11 +255,22 @@ ${radios('paceMode', 'Pace the forecast uses', ['range', 'counts'], paceMode, (m
   )
 }
 
-/** One of `options` to choose, as radio buttons named `name` with the chosen one checked; `label` is each one's HTML. */
-function radios<T extends string>(name: string, ariaLabel: string, options: readonly T[], chosen: T, label: (option: T) => string): string {
+/**
+ * One of `options` to choose, as radio buttons named `name` with the chosen one checked; `label` is each one's HTML.
+ * They post the form they are in, or the one whose id is `form`.
+ */
+function radios<T extends string>(
+  name: string,
+  ariaLabel: string,
+  options: readonly T[],
+  chosen: T,
+  label: (option: T) => string,
+  { form }: { form?: string } = {},
+): string {
+  const owner = form === undefined ? '' : ` form="${form}"`
   const buttons = options.map(
     (option) =>
-      `            <label><input type="radio" name="${name}" value="${option}"${option === chosen ? ' checked' : ''} required> ${label(option)}</label>`,
+      `            <label><input type="radio" name="${name}" value="${option}"${option === chosen ? ' checked' : ''}${owner} required> ${label(option)}</label>`,
   )
   return `          <fieldset class="levels" aria-label="${ariaLabel}">
 ${buttons.join('\n')}

@@ -1,6 +1,6 @@
 import type { ThroughputRange } from '../engine/index.js'
 import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
-import { PACE_MODES, type MilestoneInputs, type PaceMode } from '../model/milestoneInputs.js'
+import { PACE_MODES, type MilestoneInputs, type PaceMode, type TicketsSource } from '../model/milestoneInputs.js'
 import type { Storage } from '../storage/storage.js'
 import { periodName } from './cadence.js'
 import { isCalendarDate } from './calendarDate.js'
@@ -8,6 +8,7 @@ import { refuse, type EditResult, type Refusal } from './editResult.js'
 import { assessMilestone, type InputNote, type MilestoneAssessment } from './milestoneAssessment.js'
 import { paceTrend, type PaceTrend } from './paceTrend.js'
 import type { ForecastSettings } from './settings.js'
+import type { Measured, TicketsReading } from './trackerReads.js'
 
 /** Far above any real team's pace in one period; keeps typos like 1000000 out of the forecast. */
 export const MAX_TICKETS_PER_PERIOD = 1000
@@ -23,7 +24,13 @@ const OFFERED_PACE_MODES: readonly PaceMode[] = PACE_MODES.filter((mode) => mode
 
 /** A change the EM makes to the milestone on the Inputs screen, as typed. */
 export type MilestoneInputsEdit =
-  | { kind: 'setMilestone'; name: string; startDate: string; ticketsRemaining: string }
+  /**
+   * Tickets remaining typed switches it to typed. It is undefined when the form has no field for it, as while it follows
+   * the tracker; it then follows on.
+   */
+  | { kind: 'setMilestone'; name: string; startDate: string; ticketsRemaining: string | undefined }
+  /** Where tickets remaining comes from, `tracker` or `typed`; the typed number is kept either way. */
+  | { kind: 'setTicketsSource'; ticketsSource: string }
   /** Whole tickets per period, low ≤ high. */
   | { kind: 'setPaceRange'; low: string; high: string }
   /** One level for the whole milestone: `low`, `medium` or `high`. */
@@ -43,7 +50,10 @@ export type MilestoneInputsEdit =
 export interface MilestoneInputsView {
   name: string
   startDate: string
+  /** As typed: kept while the tracker's is used. */
   ticketsRemaining: number | undefined
+  /** Where tickets remaining comes from; none with no connection, where it is typed, as in the MVP. */
+  ticketsSource: TicketsSourceView | undefined
   /** How well the work is understood: medium until the EM chooses. */
   ambiguity: Ambiguity
   /** Days in one of the team's periods, which pace is entered in. */
@@ -61,15 +71,28 @@ export interface MilestoneInputsView {
   paceTrend: PaceTrend | undefined
 }
 
-/** The milestone's inputs as the Inputs screen shows them: blank, but for the start date, until the EM enters one. */
-export function milestoneInputsView(storage: Storage, teamId: string, settings: ForecastSettings, today: string): MilestoneInputsView {
+/** Where tickets remaining comes from, with a connection to choose the tracker from. */
+export interface TicketsSourceView {
+  source: TicketsSource
+  /** The connected tracker, which the sources and their wording name: GitHub or Jira. */
+  tracker: string
+  /** The tracker's latest reading, which tickets remaining is while it follows the tracker; none until it is read. */
+  reading: TicketsReading | undefined
+}
+
+/**
+ * The milestone's inputs as the Inputs screen shows them: blank, but for the start date, until the EM enters one. With
+ * a connection, `measured` is what the tracker reads.
+ */
+export function milestoneInputsView(storage: Storage, teamId: string, settings: ForecastSettings, today: string, measured?: Measured): MilestoneInputsView {
   const saved = storage.milestoneInputs(teamId)
   const inputs = saved ?? newMilestone(teamId)
-  const assessment = saved && assessMilestone(saved, settings, today)
+  const assessment = saved && assessMilestone(saved, settings, today, measured)
   return {
     name: inputs.name,
     startDate: inputs.startDate ?? today,
     ticketsRemaining: inputs.ticketsRemaining,
+    ticketsSource: measured && { source: inputs.ticketsSource, tracker: measured.tracker, reading: measured.ticketsRemaining },
     ambiguity: inputs.ambiguity,
     cadenceDays: inputs.cadenceDays,
     paceRange: inputs.paceRange,
@@ -87,12 +110,23 @@ function notesBeside(assessment: MilestoneAssessment): InputNote[] {
   return [...problems, ...assessment.warnings.map(({ input, beside }) => ({ input, message: beside }))]
 }
 
-/** Seam B, through `submitInputs`: saves the EM's edit to the milestone. A refused edit changes nothing and says why. */
-export function editMilestoneInputs(storage: Storage, teamId: string, edit: MilestoneInputsEdit): EditResult {
+/**
+ * Seam B, through `submitInputs`: saves the EM's edit to the milestone. A refused edit changes nothing and says why.
+ * With a connection, `measured` is what the tracker reads: the tracker is offered as a source only then.
+ */
+export function editMilestoneInputs(storage: Storage, teamId: string, edit: MilestoneInputsEdit, measured?: Measured): EditResult {
   const saved = storage.milestoneInputs(teamId)
   if (edit.kind === 'setMilestone') return save(storage, withMilestone(saved ?? newMilestone(teamId), edit))
   if (!saved) return refuse('Enter the milestone first.')
+  if (edit.kind === 'setTicketsSource') return save(storage, withTicketsSource(saved, edit.ticketsSource, measured))
   return save(storage, edited(saved, edit))
+}
+
+/** The source tickets remaining comes from: the tracker only with a connection. */
+function withTicketsSource(saved: MilestoneInputs, source: string, measured: Measured | undefined): Edited {
+  if (!measured) return source === 'typed' ? { ...saved, ticketsSource: 'typed' } : refuse('Connect a tracker to follow it.')
+  if (source !== 'tracker' && source !== 'typed') return refuse(`Choose ${measured.tracker} or typed.`)
+  return { ...saved, ticketsSource: source }
 }
 
 /** The milestone as an edit leaves it, or why the edit was refused. */
@@ -104,18 +138,24 @@ function save(storage: Storage, inputs: Edited): EditResult {
   return { ok: true }
 }
 
-function withMilestone(inputs: MilestoneInputs, edit: { name: string; startDate: string; ticketsRemaining: string }): Edited {
+/**
+ * The milestone named, dated and with tickets remaining as typed, which switches it to typed. With none typed, it
+ * follows the tracker on as it did; a milestone typing its tickets needs them.
+ */
+function withMilestone(inputs: MilestoneInputs, edit: Extract<MilestoneInputsEdit, { kind: 'setMilestone' }>): Edited {
   const name = edit.name.trim()
   if (name === '') return refuse('Give the milestone a name.')
   if (!isCalendarDate(edit.startDate.trim())) return refuse('Enter the start date as a calendar date.')
-  const tickets = wholeNumber(edit.ticketsRemaining)
+  const named = { ...inputs, name, startDate: edit.startDate.trim() }
+  if (edit.ticketsRemaining === undefined && inputs.ticketsSource === 'tracker') return named
+  const tickets = wholeNumber(edit.ticketsRemaining ?? '')
   if (tickets === undefined) return refuse('Enter tickets remaining as a whole number, 0 or more.')
   if (tickets > MAX_TICKETS_REMAINING) return refuse(`Enter at most ${MAX_TICKETS_REMAINING} tickets remaining.`)
-  return { ...inputs, name, startDate: edit.startDate.trim(), ticketsRemaining: tickets }
+  return { ...named, ticketsRemaining: tickets, ticketsSource: 'typed' }
 }
 
 /** A saved milestone as any edit but the milestone's own leaves it. */
-function edited(saved: MilestoneInputs, edit: Exclude<MilestoneInputsEdit, { kind: 'setMilestone' }>): Edited {
+function edited(saved: MilestoneInputs, edit: Exclude<MilestoneInputsEdit, { kind: 'setMilestone' | 'setTicketsSource' }>): Edited {
   switch (edit.kind) {
     case 'setPaceRange': {
       const [low, high] = [wholeNumber(edit.low), wholeNumber(edit.high)]
