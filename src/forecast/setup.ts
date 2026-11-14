@@ -1,13 +1,15 @@
+import type { ThroughputRange } from '../engine/index.js'
 import type { Connection } from '../model/connection.js'
+import type { MilestoneInputs, PaceMode, TicketsSource } from '../model/milestoneInputs.js'
 import type { MilestoneQuery } from '../model/milestoneQuery.js'
 import type { SetupDraft } from '../model/setupDraft.js'
-import type { MilestoneQueryStorage, SavedReadStorage, SetupStorage } from '../storage/storage.js'
+import type { MilestoneQueryStorage, SavedReadStorage, SetupStorage, Storage } from '../storage/storage.js'
 import type { Connecting } from './connection.js'
 import type { SavedRead } from '../model/savedRead.js'
 import { weeksRead } from './finished.js'
 import { chipsShow, kindName, LEAF_NOTE, readFlag } from './queryStep.js'
 import { COMPARABLE_WORK, MILESTONE_QUERY, type StepQuery } from './stepQuery.js'
-import { readOn } from './trackerReads.js'
+import { measure, paceReadingView, readOn, type PaceReadingView } from './trackerReads.js'
 import { trackerOf, type TrackerFacts } from './trackers.js'
 
 /** The setup steps, in order: connect a tracker, pick the milestone's tickets, pick comparable work, check what they give. */
@@ -16,8 +18,17 @@ export const SETUP_STEPS = ['connect', 'milestone', 'comparableWork', 'check'] a
 /** A setup step. */
 export type SetupStep = (typeof SETUP_STEPS)[number]
 
-/** What setup reads and saves: the team's connection and queries, the milestone query's read, how setup was closed, and the EM's time zone, which the read is dated in. */
-export type SettingUp = Pick<Connecting, 'connections' | 'milestoneQueries' | 'reads'> & { setup: SetupStorage; timeZone: string }
+/**
+ * What setup reads and saves: the team's connection and queries, the milestone query's read, how setup was closed, the
+ * milestone's inputs, whose sources Check chooses, today, which the tracker's pace is counted to, and the EM's time
+ * zone, which the read is dated in.
+ */
+export type SettingUp = Pick<Connecting, 'connections' | 'milestoneQueries' | 'reads'> & {
+  setup: SetupStorage
+  milestoneInputs: Pick<Storage, 'milestoneInputs' | 'saveMilestoneInputs'>
+  today: string
+  timeZone: string
+}
 
 /** Where a step stands from the one shown: before it (`done`), it, or after it (`ahead`). */
 export type StepMark = 'done' | 'current' | 'ahead'
@@ -72,13 +83,57 @@ export interface SetupSteps {
    * which closes with "Use these" instead. Comparable work's is Skip until it has a query.
    */
   next?: { step: SetupStep; label: 'next' | 'skip' }
+  /** At Check, its rows; none at any other step. */
+  check?: SetupCheck
+}
+
+/**
+ * Check (#220): for each value the tracker can supply, the EM's value now, the tracker's reading from the setup
+ * draft's reads, and which source to use, starting on the value's current source until chosen there.
+ */
+export interface SetupCheck {
+  /** The connected tracker, which the rows and their wording name: GitHub or Jira. */
+  tracker: string
+  ticketsRemaining: TicketsCheck
+  pace: PaceCheck
+}
+
+/** Check's row for tickets remaining: the tracker or typed. */
+export interface TicketsCheck {
+  /** As typed, kept while the tracker's is used; none until typed. */
+  yours: number | undefined
+  /** The milestone query's open tickets in its draft read; none until it is read. */
+  reading: number | undefined
+  /** The tracker didn't return every ticket the query matched, so `reading` is part of them. */
+  incomplete: boolean
+  /** None with no milestone entered yet, which has no source to choose. */
+  source?: TicketsSource
+}
+
+/** Check's row for pace: the tracker, or the EM's own pace, the range or, when that is what they use, the typed counts. */
+export interface PaceCheck {
+  yours: { source: 'range'; range: ThroughputRange | undefined } | { source: 'counts'; counts: number[] }
+  /** The tracker's pace from the draft reads; none until a complete read reaches a whole period. */
+  reading?: PaceReadingView
+  /** No reading, as a read pace would come from is incomplete. */
+  incomplete: boolean
+  /** None with no milestone entered yet, which has no source to choose. */
+  source?: PaceMode
+  /** The tracker, then the EM's own. */
+  choices: readonly [PaceMode, PaceMode]
 }
 
 /**
  * Closes setup with "Use these" (`useThese`), by skipping connecting (`skipConnecting`), or, opened again from its
  * summary, with Cancel (`cancel`); or opens its steps again (`change`).
  */
-export type SetupEdit = { kind: 'useThese' } | { kind: 'skipConnecting' } | { kind: 'change' } | { kind: 'cancel' }
+export type SetupEdit =
+  | { kind: 'useThese' }
+  | { kind: 'skipConnecting' }
+  | { kind: 'change' }
+  | { kind: 'cancel' }
+  /** At Check, the source of a value, `ticketsRemaining` (`tracker` or `typed`) or `pace` (`tracker` or the EM's own), held in the draft. */
+  | { kind: 'chooseSource'; value: string; source: string }
 
 /**
  * Whether setup changed: "Use these" is refused until the team is connected and its milestone has a query; Cancel,
@@ -108,6 +163,7 @@ export function setupView(settingUp: SettingUp | undefined, teamId: string, aske
   const at = SETUP_STEPS.indexOf(step)
   const back = SETUP_STEPS[at - 1]
   const next = connection && nextOf(step, picked, hasQuery(drafted.milestoneQueries.comparableWorkQuery(teamId)))
+  const check = step === 'check' ? checkOf(settingUp, teamId) : undefined
   return {
     kind: 'steps',
     step,
@@ -115,7 +171,60 @@ export function setupView(settingUp: SettingUp | undefined, teamId: string, aske
     ...(back && { back }),
     ...(reopened && { cancel: true as const }),
     ...(next && { next }),
+    ...(check && { check }),
   }
+}
+
+/** Check's rows: the saved values and sources, the draft's choices over them, and what the draft reads measure. */
+function checkOf(settingUp: SettingUp, teamId: string): SetupCheck | undefined {
+  const measured = measure(throughDraft(settingUp), teamId, settingUp.milestoneInputs, settingUp.today)
+  if (!measured) return undefined
+  const inputs = settingUp.milestoneInputs.milestoneInputs(teamId)
+  const chosen = settingUp.setup.setupDraft(teamId)?.sources
+  const tickets = measured.ticketsRemaining
+  const pace = measured.pace
+  const own = ownPace(inputs)
+  return {
+    tracker: measured.tracker,
+    ticketsRemaining: {
+      yours: inputs?.ticketsRemaining,
+      reading: tickets?.count,
+      incomplete: tickets?.incomplete ?? false,
+      ...(inputs && { source: chosen?.ticketsRemaining ?? inputs.ticketsSource }),
+    },
+    pace: {
+      yours: own === 'counts' ? { source: 'counts', counts: inputs?.paceCounts ?? [] } : { source: 'range', range: inputs?.paceRange },
+      ...(pace && { reading: paceReadingView(pace) }),
+      incomplete: measured.paceIncomplete,
+      ...(inputs && { source: chosen?.pace ?? inputs.paceMode }),
+      choices: ['tracker', own],
+    },
+  }
+}
+
+/** The EM's own pace, offered at Check beside the tracker's: the typed counts when they use them, else the range. */
+function ownPace(inputs: MilestoneInputs | undefined): 'range' | 'counts' {
+  return inputs?.paceMode === 'counts' ? 'counts' : 'range'
+}
+
+/** Whether setup's steps are open: in a first setup, or opened again from its summary with Change. */
+function isOpen(setup: SetupStorage, teamId: string): boolean {
+  const closed = setup.setupClosed(teamId)
+  return closed === undefined || (closed === 'done' && setup.setupDraft(teamId) !== undefined)
+}
+
+/**
+ * The draft with a value's source chosen at Check, or none when it isn't offered: the team must be connected, setup
+ * open and the milestone entered, the value tickets remaining or pace, and the source one Check offers it.
+ */
+function withSource(settingUp: SettingUp, teamId: string, { value, source }: { value: string; source: string }): SetupDraft | undefined {
+  const inputs = settingUp.milestoneInputs.milestoneInputs(teamId)
+  if (!inputs || !settingUp.connections.connection(teamId) || !isOpen(settingUp.setup, teamId)) return undefined
+  const draft = settingUp.setup.setupDraft(teamId) ?? NO_DRAFT
+  if (value === 'ticketsRemaining' && (source === 'tracker' || source === 'typed')) return { ...draft, sources: { ...draft.sources, ticketsRemaining: source } }
+  const pace = (['tracker', ownPace(inputs)] as const).find((offered) => offered === source)
+  if (value === 'pace' && pace) return { ...draft, sources: { ...draft.sources, pace } }
+  return undefined
 }
 
 /** Whether `asked` names a step after Milestone. */
@@ -192,9 +301,16 @@ export function submitSetup(settingUp: SettingUp, teamId: string, edit: SetupEdi
   switch (edit.kind) {
     case 'useThese':
       if (!settingUp.connections.connection(teamId) || !hasQuery(throughDraft(settingUp).milestoneQueries.milestoneQuery(teamId))) return { saved: false }
+      applySources(settingUp, teamId)
       applyDraft(settingUp, teamId)
       setup.closeSetup(teamId, 'done')
       return { saved: true }
+    case 'chooseSource': {
+      const draft = withSource(settingUp, teamId, edit)
+      if (!draft) return { saved: false }
+      setup.saveSetupDraft(teamId, draft)
+      return { saved: true }
+    }
     case 'skipConnecting':
       setup.discardSetupDraft(teamId)
       setup.closeSetup(teamId, 'skipped')
@@ -212,6 +328,14 @@ export function submitSetup(settingUp: SettingUp, teamId: string, edit: SetupEdi
 
 /** A draft with nothing chosen yet: the steps show the saved queries and reads. */
 const NO_DRAFT: SetupDraft = { reads: [] }
+
+/** Saves the sources chosen at Check into the milestone's inputs, each value's own kept for whichever source is used. */
+function applySources({ milestoneInputs, setup }: SettingUp, teamId: string): void {
+  const sources = setup.setupDraft(teamId)?.sources
+  const inputs = milestoneInputs.milestoneInputs(teamId)
+  if (!sources || !inputs) return
+  milestoneInputs.saveMilestoneInputs({ ...inputs, ticketsSource: sources.ticketsRemaining ?? inputs.ticketsSource, paceMode: sources.pace ?? inputs.paceMode })
+}
 
 /** Saves the draft's queries and reads over the saved ones, and discards it. */
 function applyDraft({ milestoneQueries, reads, setup }: DraftedThrough, teamId: string): void {
@@ -235,10 +359,7 @@ type DraftedThrough = Pick<Connecting, 'milestoneQueries' | 'reads'> & { setup: 
  */
 export function throughDraft<T extends DraftedThrough>(connecting: T): T {
   const { milestoneQueries: saved, reads: savedReads, setup } = connecting
-  const open = (teamId: string): boolean => {
-    const closed = setup.setupClosed(teamId)
-    return closed === undefined || (closed === 'done' && setup.setupDraft(teamId) !== undefined)
-  }
+  const open = (teamId: string): boolean => isOpen(setup, teamId)
   const draftOf = (teamId: string): SetupDraft | undefined => (open(teamId) ? setup.setupDraft(teamId) : undefined)
   const redraft = (teamId: string, change: (draft: SetupDraft) => SetupDraft): boolean => {
     if (!open(teamId)) return false
