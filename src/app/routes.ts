@@ -180,7 +180,7 @@ export function routeSetup(request: Request, context: AppContext): Promise<Reply
   const readSkip = request.method === 'POST' ? SKIP_FORMS.get(pathname) : undefined
   if (readSkip) return skipped(setup, readSkip)
   const readSetupEdit = request.method === 'POST' ? SETUP_FORMS.get(pathname) : undefined
-  if (readSetupEdit) return Promise.resolve(setupSubmitted(setup, readSetupEdit(request.form ?? new URLSearchParams())))
+  if (readSetupEdit) return setupSubmitted(setup, readSetupEdit(request.form ?? new URLSearchParams()))
   if (request.method === 'POST' && pathname === SETUP_PATHS.readAgain) return readAgain(setup)
   const named = milestoneName(storage, team.id)
   const submitted = submitForm(request, context, setup)
@@ -275,9 +275,9 @@ function settingUp(context: AppContext, connecting: Connecting): SettingUp {
  * "Use these", Change, Cancel, skipping connecting or a source chosen at Check: back to the Inputs screen, at the step
  * setup goes on to (`submitSetup`), made or refused. Not found for a form Check never sends.
  */
-function setupSubmitted(setup: SetupRouting, edit: SetupEdit | undefined): Reply {
+async function setupSubmitted(setup: SetupRouting, edit: SetupEdit | undefined): Promise<Reply> {
   if (!edit) return { kind: 'notFound' }
-  const { next } = submitSetup(settingUp(setup.context, setup.connecting), setup.team.id, edit)
+  const { next } = await submitSetup(settingUp(setup.context, setup.connecting), setup.team.id, edit)
   return { kind: 'redirect', location: next ? SETUP_STEP_PATHS[next] : SCREEN_PATHS.inputs }
 }
 
