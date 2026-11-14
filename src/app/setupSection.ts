@@ -82,12 +82,12 @@ ${rows}
 `
 }
 
-/** A summary row: its picks, "Checkout v2 (epic), Search revamp (epic)", or the query written by hand. */
+/** A summary row: its picks, each with its count where it has one, "Checkout v2 (epic) · 32, Search revamp (epic) · 7", or the query written by hand. */
 function rowHtml(name: string, row: SummaryRow): string {
   const shown =
     'query' in row
       ? `<code>${escapeHtml(row.query)}</code>`
-      : row.picks.map((pick) => `${escapeHtml(pick.name)} <span class="kind">(${escapeHtml(pick.kind)})</span>`).join(', ')
+      : row.picks.map((pick) => `${escapeHtml(pick.name)} <span class="kind">(${escapeHtml(pick.kind)})</span>${pick.count === undefined ? '' : ` · ${pick.count}`}`).join(', ')
   return `        <dt>${name}</dt>
         <dd>${shown}</dd>`
 }
