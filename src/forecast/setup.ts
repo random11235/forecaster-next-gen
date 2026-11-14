@@ -3,6 +3,7 @@ import type { MilestoneInputs, PaceMode, TicketsSource } from '../model/mileston
 import type { SetupDraft } from '../model/setupDraft.js'
 import type { Storage } from '../storage/storage.js'
 import { periodName, type PeriodName } from './cadence.js'
+import { submitConnection } from './connection.js'
 import type { StepReading } from './queryStep.js'
 import { hasQuery, readPicks, summaryOf, type SetupSummary } from './setupSummary.js'
 import { isAfter, SETUP_STEPS, setupStepOf, type SetupStep } from './setupSteps.js'
@@ -38,8 +39,6 @@ export interface SetupSteps {
   steps: { step: SetupStep; mark: StepMark }[]
   /** None on Connect. */
   back?: SetupStep
-  /** Setup opened again from its summary, with Change: Cancel throws its draft away, back to the summary. None in a first setup. */
-  cancel?: true
   /**
    * None until the step can be left forward: Connect until connected, Milestone until it has a query, and Check,
    * which closes with "Use these" instead. Comparable work's is Skip until it has a query.
@@ -158,7 +157,6 @@ export function setupView(settingUp: SettingUp | undefined, teamId: string, aske
     step,
     steps: SETUP_STEPS.map((each, index) => ({ step: each, mark: index < at ? 'done' : index === at ? 'current' : 'ahead' })),
     ...(back && { back }),
-    ...(reopened && { cancel: true as const }),
     ...(next && { next }),
     ...(check && { check }),
   }
@@ -223,7 +221,7 @@ function withSource(settingUp: SettingUp, teamId: string, chosen: ChosenSource):
  * "Use these" applies the setup draft, its queries and their reads together, then closes setup to its summary; it is
  * refused, changing nothing, until the team is connected and its milestone has a query. Change, from the summary, opens
  * the steps on a new draft, so nothing chosen in them changes the forecast until "Use these"; Cancel throws that draft
- * away, back to the summary as it was, and is refused in a first setup, which has no summary to go back to. Connecting
+ * away, back to the summary as it was; in a first setup it disconnects too, back to Connect as before setup. Connecting
  * skipped, Change opens the steps at Connect.
  */
 export async function submitSetup(settingUp: SettingUp, teamId: string, edit: SetupEdit): Promise<SetupSubmitted> {
@@ -256,9 +254,10 @@ async function edited(settingUp: SettingUp, teamId: string, edit: SetupEdit): Pr
       else setup.reopenSetup(teamId)
       return true
     case 'cancel':
-      if (setup.setupClosed(teamId) !== 'done') return false
       setup.discardSetupDraft(teamId)
-      return true
+      // a first setup started unconnected, so the connection made in it goes too; one opened again keeps its connection
+      if (setup.setupClosed(teamId) === 'done' || !settingUp.connections.connection(teamId)) return true
+      return (await submitConnection(settingUp, teamId, { kind: 'disconnect' })).saved
   }
 }
 

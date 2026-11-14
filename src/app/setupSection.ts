@@ -78,8 +78,8 @@ export function setupStepHtml(view: SetupSteps, body: string): string {
     .join('\n')
   const back = view.back === undefined ? '' : `<a href="${escapeHtml(SETUP_STEP_PATHS[view.back])}" class="button">Back</a>`
   const next = view.next === undefined ? '' : `<a href="${escapeHtml(SETUP_STEP_PATHS[view.next.step])}" class="button primary">${view.next.label === 'skip' ? 'Skip' : 'Next'}</a>`
-  const cancel = view.cancel ? `<form method="post" action="${SETUP_PATHS.cancel}">\n            <button type="submit">Cancel</button>\n          </form>` : ''
-  const nav = cancel === '' && back === '' && next === '' ? '' : `\n        <div class="actions setup-nav">${cancel}${back}${next}</div>`
+  const cancel = `<form method="post" action="${SETUP_PATHS.cancel}">\n            <button type="submit">Cancel</button>\n          </form>`
+  const nav = `\n        <div class="actions setup-nav">${cancel}${back}${next}</div>`
   return `        <ol class="setup-steps" aria-label="Setup steps">
 ${steps}
         </ol>

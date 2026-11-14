@@ -263,6 +263,21 @@ describe('the draft (#218)', () => {
     expect(storage!.milestoneQuery('team')?.query).toBe(CHECKOUT.query)
   })
 
+  test('Cancel is offered on every step of a first setup, and throws away what was started there', async () => {
+    const cancelForm = /<form method="post" action="\/inputs\/setup\/cancel">\s*<button type="submit">Cancel<\/button>/
+    const running = await start()
+    expect(await page(running, '/inputs')).toMatch(cancelForm)
+    await post(running, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
+    await post(running, '/inputs/milestone-query/add', { ...CHECKOUT })
+    expect(await page(running, '/inputs?step=check')).toMatch(cancelForm)
+
+    const cancelled = await post(running, '/inputs/setup/cancel', {})
+
+    expect(cancelled.headers.get('location')).toBe('/inputs')
+    expect(storage!.connection('team')).toBeUndefined()
+    expect(storage!.setupDraft('team')).toBeUndefined()
+  })
+
   test('Cancel, offered once Change reopens the steps, throws the draft away, back to the summary', async () => {
     const running = await picked()
     await post(running, '/inputs/setup/use-these', {})
