@@ -2,6 +2,7 @@ import { choiceKindOf } from '../connectors/connector.js'
 import { connectionView, submitConnection, type Connecting, type ConnectionEdit, type ConnectionView, type SetupStep } from '../forecast/connection.js'
 import { howItWorksView } from '../forecast/howItWorksView.js'
 import { followRenamedMilestone } from '../forecast/milestoneRenamed.js'
+import { submitSkip, type SkipEdit } from '../forecast/skippedPeriods.js'
 import {
   queryStepView,
   searchedChoiceList,
@@ -20,7 +21,7 @@ import type { Team } from '../model/team.js'
 import type { Storage } from '../storage/storage.js'
 import { CONNECT_FORMS } from './connectSection.js'
 import { renderHowItWorksScreen } from './howItWorksScreen.js'
-import { INPUTS_FORMS, renderInputsScreen, type ShownStep } from './inputsScreen.js'
+import { INPUTS_FORMS, PACE_TRACKER_PATH, renderInputsScreen, SKIP_FORMS, type ShownStep } from './inputsScreen.js'
 import { CAPACITY_OPEN, CAPACITY_OPEN_PATH, FORECAST_FORMS, renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
 import { choiceListHtml, COMPARABLE_WORK_STEP, CONFIRMING_BACK, KIND_FIELD, MILESTONE_STEP, OPEN_FIELD, STEP_SECTIONS, type StepSection } from './queryStepSection.js'
 import { CANDIDATES_PATH, candidatesHtml, choicesAsked, keepOpening, OPENING_FIELD, openingKept } from './candidatesSection.js'
@@ -172,6 +173,8 @@ export function routeSetup(request: Request, context: AppContext): Promise<Reply
   if (editedIn) return queryEdited(setup, editedIn, editedIn.forms.get(pathname)!)
   const readConnect = request.method === 'POST' ? CONNECT_FORMS.get(pathname) : undefined
   if (readConnect) return connected(setup, readConnect)
+  const readSkip = request.method === 'POST' ? SKIP_FORMS.get(pathname) : undefined
+  if (readSkip) return skipped(setup, readSkip)
   const named = milestoneName(storage, team.id)
   const submitted = submitForm(request, context, setup)
   if (!submitted) return undefined
@@ -185,7 +188,7 @@ export function routeSetup(request: Request, context: AppContext): Promise<Reply
 async function renamed(setup: SetupRouting, named: string | undefined, submitted: FormReply): Promise<Reply> {
   const { connecting, context, team, request } = setup
   const now = milestoneName(context.storage, team.id)
-  if (named !== undefined && now !== undefined) await followRenamedMilestone(connecting, team.id, { from: named, to: now }, context.now())
+  if (named !== undefined && now !== undefined) await followRenamedMilestone({ ...connecting, milestoneInputs: context.storage }, team.id, { from: named, to: now }, context.now())
   if (submitted.kind !== 'inputs') return submitted
   // a save in place replaces only the sections saved, not the Milestone step, so its choices aren't asked for
   return inputsWithStep(setup, { status: submitted.status, view: submitted.view, unlisted: request.saveInPlace === true })
@@ -304,11 +307,18 @@ async function searchedChoices({ connecting, team, searchParams }: SetupRouting,
 async function queryEdited(setup: SetupRouting, section: StepSection, readQueryEdit: (body: URLSearchParams) => StepQueryEdit | undefined): Promise<Reply> {
   const edit = readQueryEdit(setup.request.form ?? new URLSearchParams())
   if (!edit) return { kind: 'notFound' }
-  const submitted = await submitStepQuery(setup.connecting, setup.team.id, edit, setup.context.now(), section.stepQuery)
+  const submitted = await submitStepQuery({ ...setup.connecting, milestoneInputs: setup.context.storage }, setup.team.id, edit, setup.context.now(), section.stepQuery)
   if (submitted.kind === 'refused') return inputsWithStep(setup, { status: 400, refused: { section, query: submitted } })
   if (submitted.kind === 'confirmClear') return { kind: 'redirect', location: section.urls.confirmingBack }
   // a query edited by hand stays open for editing; every other change goes back to finding
   return { kind: 'redirect', location: edit.kind === 'editQuery' ? section.urls.editing : section.urls.finding }
+}
+
+/** The tracker's periods skipped, or counted again, which may read the tracker further back; then back to its pace. */
+async function skipped(setup: SetupRouting, readSkip: (body: URLSearchParams) => SkipEdit): Promise<Reply> {
+  const { connecting, context, team, request } = setup
+  await submitSkip({ ...connecting, milestoneInputs: context.storage }, team.id, readSkip(request.form ?? new URLSearchParams()), context.now())
+  return { kind: 'redirect', location: PACE_TRACKER_PATH }
 }
 
 /** A connect: on to the next setup step once saved; refused, the Inputs screen again with why, and the form as typed but for the token. */

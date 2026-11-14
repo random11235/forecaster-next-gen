@@ -18,13 +18,13 @@ import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteS
 
 const TEAM = 'team'
 const TODAY = '2026-11-12'
-// Thursday; each read reaches back 8 weeks, to 09:00 on Thursday 17 Sep.
+// Thursday; each read reaches back 9 weeks (8 whole weeks and the current one), to 09:00 on Thursday 10 Sep.
 const READ_AT = '2026-11-12T09:00:00Z'
 const AT = { readAt: READ_AT, today: TODAY, timeZone: 'UTC' }
 
-// The weeks both reads reach whole, from the milestone's start on Thursday 1 Oct: the week of 24 Sep, before it
-// started, then six of its own; the current week, of 12 Nov, is left out.
-const WEEKS = ['2026-09-24', '2026-10-01', '2026-10-08', '2026-10-15', '2026-10-22', '2026-10-29', '2026-11-05']
+// The weeks both reads reach whole, from the milestone's start on Thursday 1 Oct: the weeks of 17 and 24 Sep, before
+// it started, then six of its own; the current week, of 12 Nov, is left out.
+const WEEKS = ['2026-09-17', '2026-09-24', '2026-10-01', '2026-10-08', '2026-10-15', '2026-10-22', '2026-10-29', '2026-11-05']
 
 /** Tickets finished `counts[i]` times in the week starting `WEEKS[i]`, on its Friday, with ids `prefix1`, `prefix2`… */
 function finished(prefix: string, counts: number[]): Ticket[] {
@@ -41,11 +41,11 @@ const idle: Choice = { kind: 'label', name: 'idle', query: 'label:"idle"' }
 const shared: Choice = { kind: 'label', name: 'shared', query: 'label:"shared"' }
 
 // the milestone's own: 0 before it started, then 3.5 a week over its six weeks
-const OWN = [0, 3, 4, 3, 4, 3, 4]
-const SLOW = [2, 2, 1, 2, 2, 1, 2]
-const FAST = [5, 6, 5, 6, 5, 6, 5]
-const EVEN = [3, 4, 3, 3, 4, 4, 3]
-// two of slow's tickets, s1 and s2 (in the weeks of 24 Sep), and one of its own in the week of 15 Oct
+const OWN = [0, 0, 3, 4, 3, 4, 3, 4]
+const SLOW = [2, 2, 2, 1, 2, 2, 1, 2]
+const FAST = [5, 5, 6, 5, 6, 5, 6, 5]
+const EVEN = [3, 3, 4, 3, 3, 4, 4, 3]
+// two of slow's tickets, s1 and s2 (in the week of 17 Sep), and one of its own in the week of 15 Oct
 const SHARED_TICKETS = [...finished('s', SLOW).slice(0, 2), { id: 'h1', finishedAt: '2026-10-16T10:00:00Z' }]
 
 const FIXTURE: CannedFixture = {
@@ -189,7 +189,7 @@ describe('the pace in use', () => {
     await addComparable(idle)
 
     expect((await paceOf())?.flag).toBe(
-      'This query matches nothing finished in the 7 whole weeks pace counts, so pace comes from the milestone’s own tickets. Check it picks out work like the milestone’s.',
+      'This query matches nothing finished in the 8 whole weeks pace counts, so pace comes from the milestone’s own tickets. Check it picks out work like the milestone’s.',
     )
   })
 
@@ -227,7 +227,7 @@ describe('the milestone query’s read incomplete', () => {
 
     expect(pace).toMatchObject({ inUse: { from: 'comparableWork', median: 2 }, said: { inUse: '2 a week' } })
     expect(pace?.comparison).toBeUndefined()
-    expect(pace?.periods).toEqual(WEEKS.map((start, at) => ({ start, comparableWork: SLOW[at], beforeStart: at === 0 })))
+    expect(pace?.periods).toEqual(WEEKS.map((start, at) => ({ start, comparableWork: SLOW[at], beforeStart: at <= 1 })))
   })
 })
 
@@ -236,12 +236,12 @@ describe('the periods paired', () => {
     await addComparable(slow)
 
     expect((await paceOf())?.periods).toEqual(
-      WEEKS.map((start, at) => ({ start, milestone: OWN[at], comparableWork: SLOW[at], beforeStart: at === 0 })),
+      WEEKS.map((start, at) => ({ start, milestone: OWN[at], comparableWork: SLOW[at], beforeStart: at <= 1 })),
     )
   })
 
   test('with no comparable-work query, the milestone’s own alone', async () => {
-    expect((await paceOf())?.periods).toEqual(WEEKS.map((start, at) => ({ start, milestone: OWN[at], beforeStart: at === 0 })))
+    expect((await paceOf())?.periods).toEqual(WEEKS.map((start, at) => ({ start, milestone: OWN[at], beforeStart: at <= 1 })))
   })
 
   test('the last 8 periods at most', async () => {
@@ -255,7 +255,7 @@ describe('each pick', () => {
   test('one pick: its strip of the periods paired, and how many it finished', async () => {
     await addComparable(slow)
 
-    expect((await paceOf())?.picks).toEqual([{ query: slow.query, strip: SLOW, finished: 12 }])
+    expect((await paceOf())?.picks).toEqual([{ query: slow.query, strip: SLOW, finished: 14 }])
   })
 
   test('several picks: each one’s, and how many only it brings in; a ticket two share is only here for neither', async () => {
@@ -263,8 +263,8 @@ describe('each pick', () => {
     await addComparable(shared)
 
     expect((await paceOf())?.picks).toEqual([
-      { query: slow.query, strip: SLOW, finished: 12, onlyHere: 10 },
-      { query: shared.query, strip: [2, 0, 0, 1, 0, 0, 0], finished: 3, onlyHere: 1 },
+      { query: slow.query, strip: SLOW, finished: 14, onlyHere: 12 },
+      { query: shared.query, strip: [2, 0, 0, 0, 1, 0, 0, 0], finished: 3, onlyHere: 1 },
     ])
   })
 
@@ -274,7 +274,7 @@ describe('each pick', () => {
     await addComparable(slow)
     await addComparable(shared)
 
-    expect((await paceOf())?.picks).toEqual([{ query: slow.query, strip: SLOW, finished: 12 }])
+    expect((await paceOf())?.picks).toEqual([{ query: slow.query, strip: SLOW, finished: 14 }])
   })
 
   test('removing a pick leaves the rest', async () => {
@@ -282,7 +282,7 @@ describe('each pick', () => {
     await addComparable(shared)
     await submitStepQuery(using, TEAM, { kind: 'removePick', query: slow.query }, READ_AT, COMPARABLE_WORK)
 
-    expect((await paceOf())?.picks).toEqual([{ query: shared.query, strip: [2, 0, 0, 1, 0, 0, 0], finished: 3 }])
+    expect((await paceOf())?.picks).toEqual([{ query: shared.query, strip: [2, 0, 0, 0, 1, 0, 0, 0], finished: 3 }])
   })
 })
 

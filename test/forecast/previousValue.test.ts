@@ -4,10 +4,10 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
 import type { Choice, Ticket } from '../../src/connectors/connector.js'
-import { submitConnection, type Connecting } from '../../src/forecast/connection.js'
+import { submitConnection } from '../../src/forecast/connection.js'
 import { finishedSinceFor, readQuery } from '../../src/forecast/finished.js'
 import { inputsView, submitInputs, type InputsEdit } from '../../src/forecast/inputs.js'
-import { submitStepQuery } from '../../src/forecast/queryStep.js'
+import { submitStepQuery, type StepReading } from '../../src/forecast/queryStep.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import type { TrackerReads } from '../../src/forecast/trackerReads.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
@@ -40,7 +40,7 @@ const tuesdayOf = (monday: string): string => new Date(Date.parse(`${monday}T00:
 let fixture: CannedFixture
 let dir: string
 let storage: SqliteStorage
-let using: Connecting
+let using: StepReading
 let tracker: TrackerReads
 
 beforeEach(async () => {
@@ -55,6 +55,7 @@ beforeEach(async () => {
     connections: storage,
     reads: storage,
     milestoneQueries: storage,
+    milestoneInputs: storage,
     secrets: openMemorySecrets(),
     // the fixture as it is when read, so a test can change what the next read finds
     connector: () => cannedConnector(fixture),
@@ -103,7 +104,7 @@ describe('a value following the tracker', () => {
     await readAgain()
 
     expect(inputs().paceSource).toMatchObject({
-      reading: { window: { counts: [6, 8, 5, 7, 6, 4, 3], starts: WEEKS.slice(1) }, readOn: '12 Nov 09:12' },
+      reading: { window: { counts: [5, 6, 8, 5, 7, 6, 4, 3], starts: WEEKS }, readOn: '12 Nov 09:12' },
       // read on 5 Nov, pace counted the weeks it reached whole, up to w/c 26 Oct
       was: { counts: [5, 6, 8, 5, 7, 6, 4], readOn: '5 Nov 09:05' },
     })

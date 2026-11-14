@@ -6,7 +6,7 @@ import type { MilestoneQueryStorage, Storage } from '../storage/storage.js'
 import { narrowedToAFew, openCandidates, type CandidateOpening, type Candidates, type CandidatesAt } from './candidates.js'
 import { comparableWorkPace, type ComparableWorkPace } from './comparableWorkPace.js'
 import { teamConnection, type Connecting } from './connection.js'
-import { FINISHED_WEEKS, finishedSinceFor, readQuery, ticketsRemaining, type QueryRead } from './finished.js'
+import { finishedSinceFor, readQuery, ticketsRemaining, weeksRead, type QueryRead } from './finished.js'
 import { paceReadsStorage } from './paceReads.js'
 import { MILESTONE_QUERY, type StepQuery } from './stepQuery.js'
 import { trackerOf, type TrackerFacts } from './trackers.js'
@@ -145,12 +145,19 @@ export interface QueryStepOpening {
 }
 
 /**
- * What a query step opens with, in the local server build: what it connects with, the milestone's inputs, which the
- * Comparable work step's pace and candidates are laid on, and when it opens (`at`): the instant its candidates are read
- * at, and today in the EM's time zone, which each finish is counted on its calendar day in.
+ * What a query step reads with, in the local server build: what it connects with, and the milestone's inputs, whose
+ * cadence and skipped periods set how far back a read reaches (`finishedSinceFor`).
  */
-export interface QueryStepping extends Connecting {
+export interface StepReading extends Connecting {
   milestoneInputs: Pick<Storage, 'milestoneInputs'>
+}
+
+/**
+ * What a query step opens with: what it reads with, the milestone's inputs also laying out the Comparable work step's
+ * pace and candidates, and when it opens (`at`): the instant its candidates are read at, and today in the EM's time
+ * zone, which each finish is counted on its calendar day in.
+ */
+export interface QueryStepping extends StepReading {
   at: CandidatesAt
 }
 
@@ -314,7 +321,7 @@ const CHOICES_FAILED = 'The tracker couldn’t list what to pick from just now. 
 
 /** A read's line: its open tickets, when they count, and those finished in the weeks it reads back. */
 function readLine(read: SavedRead, { kind }: StepQuery): string {
-  const finished = `${read.tickets.length - ticketsRemaining(read)} finished in the last ${FINISHED_WEEKS} weeks`
+  const finished = `${read.tickets.length - ticketsRemaining(read)} finished in the last ${weeksRead(read)} weeks`
   return kind === 'milestoneQuery' ? `${ticketsRemaining(read)} open · ${finished}` : finished
 }
 
@@ -328,7 +335,7 @@ function readFlag(read: SavedRead, trackerName: string, { picksOut, kind }: Step
     return { flag: `${trackerName} gave only part of what this query matches, so its tickets aren’t counted. Narrow the query to read all of it.` }
   }
   if (kind === 'milestoneQuery' && read.tickets.length === 0) {
-    return { flag: `This query matches nothing: no open tickets, and none finished in the last ${FINISHED_WEEKS} weeks. Check it picks out ${picksOut}.` }
+    return { flag: `This query matches nothing: no open tickets, and none finished in the last ${weeksRead(read)} weeks. Check it picks out ${picksOut}.` }
   }
   return undefined
 }
@@ -348,7 +355,7 @@ type PicksEdit = { kind: 'addPick'; choice: Choice } | { kind: 'removePick'; que
 
 /**
  * Seam B: changes the milestone query and saves it, then reads it once, as at `readAt`, open tickets and those
- * finished in the last `FINISHED_WEEKS` weeks. A change of the picks saves them with the query they join into (with
+ * finished as far back as the milestone's cadence and skipped periods need (`finishedSinceFor`). A change of the picks saves them with the query they join into (with
  * OR, in the order picked); a query edited by hand is saved as written. A change that changes nothing (a pick already
  * picked, a removal of none, the query as it was) saves and reads nothing; nor does an empty query read anything.
  * Before any of that, a hand-edited query with free text or an empty qualifier is refused, changing nothing. The
@@ -358,7 +365,7 @@ type PicksEdit = { kind: 'addPick'; choice: Choice } | { kind: 'removePick'; que
  * together, reading nothing. The query changed is `stepQuery`, the milestone query unless given.
  */
 export async function submitStepQuery(
-  connecting: Connecting,
+  connecting: StepReading,
   teamId: string,
   edit: StepQueryEdit,
   readAt: string,
@@ -386,7 +393,7 @@ export async function submitStepQuery(
     save()
     return { kind: 'saved' }
   }
-  const finishedSince = finishedSinceFor(readAt)
+  const finishedSince = finishedSinceFor(readAt, connecting.milestoneInputs.milestoneInputs(teamId))
   const read = await readQuery(connector, connecting.reads, { teamId, query: after.query, finishedSince, readAt })
   const rejection = read.ok ? undefined : rejectionOf(connection, read)
   if (rejection) return { kind: 'refused', query: after.query, refusal: rejection, ...(edit.kind !== 'editQuery' && { fromPicks: true as const }) }

@@ -2,7 +2,7 @@ import type { SavedRead } from '../model/savedRead.js'
 import type { MilestoneQueryStorage, SavedReadStorage, Storage } from '../storage/storage.js'
 import { daysBetween } from './calendarDate.js'
 import type { Connecting } from './connection.js'
-import { calendarDayIn, completeRead, finishedPerPeriod, finishedSinceFor, ticketsRemaining, type FinishedPeriods } from './finished.js'
+import { calendarDayIn, completeRead, finishedPerPeriod, ticketsRemaining, type FinishedPeriods } from './finished.js'
 import type { DatedCounts } from './paceWindow.js'
 
 /** Where pace's finished tickets come from: comparable work's read, or the milestone query's. */
@@ -92,6 +92,6 @@ export function wholePeriods(reads: readonly SavedRead[], { startDate, cadenceDa
 
 /** The first period the read reaches whole: the first starting after the day its reach back falls on. */
 function firstWholePeriod(read: SavedRead, startDate: string, cadenceDays: number, timeZone: string): number {
-  const reachedOn = calendarDayIn(timeZone)(finishedSinceFor(read.readAt))
+  const reachedOn = calendarDayIn(timeZone)(read.finishedSince)
   return Math.ceil((daysBetween(startDate, reachedOn) + 1) / cadenceDays)
 }

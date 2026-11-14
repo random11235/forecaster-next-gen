@@ -11,6 +11,7 @@ import {
 import { ambiguityName, MAX_GROWTH, type GrowthView, type TypedRange } from '../forecast/growth.js'
 import type { ConnectionView } from '../forecast/connection.js'
 import type { QueryStepView } from '../forecast/queryStep.js'
+import type { SkipEdit } from '../forecast/skippedPeriods.js'
 import type { InputsEdit, InputsForm, InputsView, TypedForms } from '../forecast/inputs.js'
 import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
 import type { PaceMode, TicketsSource } from '../model/milestoneInputs.js'
@@ -65,6 +66,15 @@ export const INPUTS_FORMS: ReadonlyMap<string, FormReader> = new Map<string, For
       return { kind: 'setAmbiguityRanges', low: typed('low'), medium: typed('medium'), high: typed('high') }
     },
   ],
+])
+
+/** Where the tracker's pace is shown, which skipping its periods goes back to. */
+export const PACE_TRACKER_PATH = '/inputs#pace-tracker'
+
+/** The tracker's periods skipped, or counted again, each by the date it starts on, by its form's path: in the local server build. */
+export const SKIP_FORMS: ReadonlyMap<string, (body: URLSearchParams) => SkipEdit> = new Map<string, (body: URLSearchParams) => SkipEdit>([
+  ['/inputs/pace-skip', (body) => ({ kind: 'skip', periods: body.getAll('period') })],
+  ['/inputs/pace-count-again', (body) => ({ kind: 'countAgain', periods: body.getAll('period') })],
 ])
 
 /** A step picking or writing one of the team's queries, as the Inputs screen shows it: its section, and its view. */
@@ -355,40 +365,57 @@ function paceChip(paceSource: PaceSourceView | undefined, period: PeriodName): s
  */
 function trackerPace({ tracker, reading, was }: PaceSourceView, period: PeriodName, following: boolean): string {
   if (!reading) return `\n          <p class="reading-line">${period}s finished · ${escapeHtml(tracker)}, not read yet</p>`
-  const { window, periods, firstFinished, readOn } = reading
+  const { window, skipped, periods, skippedLine, firstFinished, readOn } = reading
+  const everySkipped = window.counts.length === 0 && skipped.counts.some((count) => count > 0)
+  // with every period skipped, the pace's note says so, and how to have a pace again
   const lines = `
           <p class="reading-line">${escapeHtml(periods)} · read ${escapeHtml(readOn)}</p>${firstFinished ? `\n          <p class="reading-line">${escapeHtml(firstFinished)}</p>` : ''}${
             was ? `\n          <p class="reading-line was">was ${was.counts.join(', ')} on ${escapeHtml(was.readOn)}</p>` : ''
-          }`
-  if (window.counts.length === 0) return lines
+          }${skippedLine ? countAgainLine(skippedLine, skipped.starts) : ''}`
+  if (window.counts.length === 0 && !everySkipped) return lines
+  // the periods counted and those skipped, oldest first: a skipped one is a gap
+  const shown = [...window.starts.map((start, at) => ({ start, count: window.counts[at]!, skipped: false })), ...skipped.starts.map((start, at) => ({ start, count: skipped.counts[at]!, skipped: true }))].sort((a, b) =>
+    a.start.localeCompare(b.start),
+  )
   const tallest = Math.max(1, ...window.counts)
-  const bars = window.counts
-    .map((count, at) =>
-      count === 0
-        ? `<span class="bar zero" title="${period} of ${dayMonth(window.starts[at]!)}: 0"><span class="v">0</span></span>`
-        : `<span class="bar" style="height: ${Math.round((count / tallest) * 100)}%" title="${period} of ${dayMonth(window.starts[at]!)}: ${count}"><span class="v">${count}</span></span>`,
+  const bars = shown
+    .map(({ start, count, skipped }) =>
+      skipped ? `<span class="bar gap" title="${period} of ${dayMonth(start)}: ${count}, skipped"><span class="v">–</span></span>`
+      : count === 0 ? `<span class="bar zero" title="${period} of ${dayMonth(start)}: 0"><span class="v">0</span></span>`
+      : `<span class="bar" style="height: ${Math.round((count / tallest) * 100)}%" title="${period} of ${dayMonth(start)}: ${count}"><span class="v">${count}</span></span>`,
     )
     .join('')
+  const said = shown.map(({ count, skipped }) => (skipped ? 'skipped' : String(count))).join(', ')
   const graph = `
-          <div class="pace-bars" role="img" aria-label="Finished tickets per ${period}, oldest first: ${window.counts.join(', ')}">${bars}</div>`
+          <div class="pace-bars" role="img" aria-label="Finished tickets per ${period}, oldest first: ${said}">${bars}</div>`
   if (!following) return graph + lines
-  const blocks = window.counts
-    .map(
-      (count, at) =>
-        `<label>${dayMonth(window.starts[at]!)} <input type="number" name="week" min="0" max="${MAX_TICKETS_PER_PERIOD}" step="1" value="${count}" required></label>`,
+  const button = (path: string, start: string, label: string): string =>
+    `<button type="submit" formaction="${path}#pace-tracker" formnovalidate name="period" value="${start}" class="linkish">${label}</button>`
+  const blocks = shown
+    .map(({ start, count, skipped }) =>
+      skipped ? `<span class="block skipped"><s>${count}</s> ${dayMonth(start)} ${button('/inputs/pace-count-again', start, 'count')}</span>`
+      : `<span class="block"><label>${dayMonth(start)} <input type="number" name="week" min="0" max="${MAX_TICKETS_PER_PERIOD}" step="1" value="${count}" required></label> ${button('/inputs/pace-skip', start, 'skip')}</span>`,
     )
     .join('\n              ')
+  // kept open once a period is skipped, so what was skipped, and counting it again, stay in view
   return `${graph}${lines}
-          <details class="week-blocks">
+          <details class="week-blocks"${skipped.starts.length > 0 ? ' open' : ''}>
             <summary>Show ${period}s</summary>
             <form method="post" action="/inputs/pace-weeks#pace-counts">
-              <p class="hint">Typing into a ${period} switches pace to typed counts, starting from these.</p>
+              <p class="hint">Typing into a ${period} switches pace to typed counts, starting from these. Skip a ${period} that says nothing about the pace ahead (a holiday, say), and the one before counts instead.</p>
               <div class="blocks">
               ${blocks}
               </div>
-              <div class="actions"><button type="submit">Use as typed counts</button></div>
+              ${window.counts.length > 0 ? '<div class="actions"><button type="submit">Use as typed counts</button></div>' : ''}
             </form>
           </details>`
+}
+
+/** The skipped periods, as `trackerReads` says them, with a button to count them all again. */
+function countAgainLine(line: string, starts: readonly string[]): string {
+  const periods = starts.map((start) => `<input type="hidden" name="period" value="${start}">`).join('')
+  return `
+          <form method="post" action="/inputs/pace-count-again#pace-tracker" class="reading-line skipped-line">${escapeHtml(line)} ${periods}<button type="submit" class="linkish">count ${starts.length === 1 ? 'it' : 'them'} again</button></form>`
 }
 
 /**

@@ -78,10 +78,10 @@ describe('finished tickets per period', () => {
 })
 
 describe('reading a query', () => {
-  test('saves the read, with when it was read, replacing the last one', async () => {
+  test('saves the read, with when it was read and how far back, replacing the last one', async () => {
     await readOf([{ id: 'a' }])
     const read = await readOf([{ id: 'b', finishedAt: '2026-10-05T10:00:00Z' }])
-    expect(read).toEqual({ tickets: [{ id: 'b', finishedAt: '2026-10-05T10:00:00Z' }], incomplete: false, readAt: READ_AT })
+    expect(read).toEqual({ tickets: [{ id: 'b', finishedAt: '2026-10-05T10:00:00Z' }], incomplete: false, readAt: READ_AT, finishedSince: SINCE })
     expect(storage.savedRead({ teamId: TEAM, query: QUERY })).toEqual(read)
   })
 

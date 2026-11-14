@@ -302,6 +302,12 @@ const STYLE = `
     .week-blocks .blocks { display: flex; flex-wrap: wrap; gap: 6px; }
     .week-blocks .blocks label { display: flex; flex-direction: column; gap: 2px; font-size: 11px; color: var(--muted); }
     .week-blocks .blocks input { width: 56px; text-align: center; }
+    .pace-bars .bar.gap { height: 2px; background: var(--hairline); }
+    .pace-bars .bar.gap .v { color: var(--muted); }
+    .week-blocks .blocks .block { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; font-size: 11px; color: var(--muted); }
+    .week-blocks .blocks .block.skipped { width: 56px; padding: 4px; border: 1px dashed var(--hairline); }
+    .week-blocks .blocks .block.skipped s { font-family: var(--mono); font-size: 16px; color: var(--muted); }
+    section.input form.skipped-line { display: block; }
     fieldset.levels .range { font-family: var(--mono); font-size: 13px; color: var(--muted); }
     table.growth { border-collapse: collapse; }
     table.growth th { padding: 0 24px 6px 0; text-align: left; font-size: 12px; font-weight: 500; color: var(--faint); }

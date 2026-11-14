@@ -1,6 +1,6 @@
 import type { SavedRead, TeamQuery } from '../model/savedRead.js'
 import type { Storage } from '../storage/storage.js'
-import { periodName } from './cadence.js'
+import { periodName, type PeriodName } from './cadence.js'
 import { dayMonth } from './calendarDate.js'
 import type { Connecting } from './connection.js'
 import { counted } from './counted.js'
@@ -52,6 +52,13 @@ export interface PaceReading {
    * when its reads run out first.
    */
   periods: string
+  /** The periods the EM skipped that the window reaches back past, oldest first, with what each finished. */
+  skipped: DatedCounts
+  /**
+   * With periods skipped, which, and what the window counts instead: "2 skipped (12 Oct, 19 Oct), reaching back to
+   * w/c 31 Aug"; none with none skipped.
+   */
+  skippedLine: string | undefined
   /** With the quiet periods before the first finished ticket left out, from when: "From the first finished ticket, 3 Nov." */
   firstFinished: string | undefined
   /** When the read pace comes from was read, in the EM's time zone: "4 Nov 09:12". */
@@ -140,7 +147,7 @@ function countsAsThen(reads: TrackerReads, teamId: string, storage: Pick<Storage
   const saved = paceReadsStorage(storage, reads)
   const asThen = { ...saved, savedRead: (teamQuery: TeamQuery) => (teamQuery.query === query ? read : saved.savedRead(teamQuery)) }
   const then = paceReads(asThen, teamId, { today: calendarDayIn(reads.timeZone)(read.readAt), timeZone: reads.timeZone })
-  return then && then.from === from ? trackerWindow(then.pace).window.counts : undefined
+  return then && then.from === from ? trackerWindow(then.pace, storage.milestoneInputs(teamId)?.paceWindow.skippedPeriods).window.counts : undefined
 }
 
 function sameCounts(some: number[], others: number[] | undefined): boolean {
@@ -154,11 +161,12 @@ function paceReading(reads: TrackerReads, teamId: string, storage: Pick<Storage,
   if (!inputs || !read) return undefined
   const query = read.from === 'milestone' ? reads.milestoneQueries.milestoneQuery(teamId) : reads.milestoneQueries.comparableWorkQuery(teamId)
   const paceRead = savedReadOf(reads, teamId, query?.query)
-  const { window, bound } = trackerWindow(read.pace)
+  const { window, skipped, bound } = trackerWindow(read.pace, inputs.paceWindow.skippedPeriods)
   const period = periodName(inputs.cadenceDays)
   const first = window.starts[0]
   const periods =
     bound === 'nothingFinished' ? `nothing finished in the ${counted(read.pace.counts.length, period)} ${tracker} reads`
+    : bound === 'everySkipped' ? `every ${period} skipped`
     : bound === 'full' ? `last ${counted(TRACKER_PERIODS, period)}`
     : bound === 'firstFinished' ? counted(window.counts.length, period)
     // the milestone's own pace counts only the periods since its start date
@@ -170,11 +178,26 @@ function paceReading(reads: TrackerReads, teamId: string, storage: Pick<Storage,
     milestone: read.milestone,
     comparableWork: read.comparableWork,
     periods,
+    skipped,
+    skippedLine: skippedLine(skipped, window, period, tracker),
     firstFinished: bound === 'firstFinished' ? `From the first finished ticket, ${dayMonth(first!)}.` : undefined,
     readOn: paceRead ? readOn(paceRead.readAt, reads.timeZone) : '',
     was: wasPace(reads, teamId, storage, read.from, query?.query, window.counts),
     readAt: paceRead?.readAt ?? '',
   }
+}
+
+/**
+ * The skipped periods the window reaches back past, and what it counts instead: "2 skipped (12 Oct, 19 Oct), reaching
+ * back to w/c 31 Aug"; "…, and GitHub has no earlier weeks to count instead" short of 8; "…, so no weeks count".
+ */
+function skippedLine(skipped: DatedCounts, window: DatedCounts, period: PeriodName, tracker: string): string | undefined {
+  if (skipped.starts.length === 0) return undefined
+  const which = `${skipped.starts.length} skipped (${skipped.starts.map(dayMonth).join(', ')})`
+  const first = window.starts[0]
+  if (first === undefined) return `${which}, so no ${period}s count`
+  if (window.starts.length < TRACKER_PERIODS) return `${which}, and ${tracker} has no earlier ${period}s to count instead`
+  return `${which}, reaching back to ${period === 'week' ? 'w/c' : 'the sprint of'} ${dayMonth(first)}`
 }
 
 /** A UTC instant as the screens date a read, in `timeZone`: "4 Nov 09:12". */

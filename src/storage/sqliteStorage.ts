@@ -271,6 +271,14 @@ CREATE TABLE previous_read_tickets (
   PRIMARY KEY (team_id, query, position),
   FOREIGN KEY (team_id, query) REFERENCES previous_reads(team_id, query) ON DELETE CASCADE
 );
+  `,
+  // 19: how far back each saved read counts finished tickets (#213), which now reaches past the skipped periods. A read
+  // saved before reached back 8 weeks from when it was made.
+  `
+ALTER TABLE saved_reads ADD COLUMN finished_since TEXT;
+UPDATE saved_reads SET finished_since = strftime('%Y-%m-%dT%H:%M:%fZ', read_at, '-56 days');
+ALTER TABLE previous_reads ADD COLUMN finished_since TEXT;
+UPDATE previous_reads SET finished_since = strftime('%Y-%m-%dT%H:%M:%fZ', read_at, '-56 days');
 `,
 ]
 
@@ -338,22 +346,22 @@ export function openSqliteStorage(file: string): SqliteStorage {
   const selectConnection = db.prepare('SELECT * FROM connections WHERE team_id = ?')
   const deleteConnection = db.prepare('DELETE FROM connections WHERE team_id = ?')
   const deleteSavedRead = db.prepare('DELETE FROM saved_reads WHERE team_id = ? AND query = ?')
-  const insertSavedRead = db.prepare('INSERT INTO saved_reads (team_id, query, incomplete, read_at) VALUES (?, ?, ?, ?)')
+  const insertSavedRead = db.prepare('INSERT INTO saved_reads (team_id, query, incomplete, read_at, finished_since) VALUES (?, ?, ?, ?, ?)')
   const insertSavedReadTicket = db.prepare(
     'INSERT INTO saved_read_tickets (team_id, query, position, id, finished_at) VALUES (?, ?, ?, ?, ?)',
   )
-  const selectSavedRead = db.prepare('SELECT incomplete, read_at FROM saved_reads WHERE team_id = ? AND query = ?')
+  const selectSavedRead = db.prepare('SELECT incomplete, read_at, finished_since FROM saved_reads WHERE team_id = ? AND query = ?')
   const selectSavedReadTickets = db.prepare(
     'SELECT id, finished_at FROM saved_read_tickets WHERE team_id = ? AND query = ? ORDER BY position',
   )
   const deletePreviousRead = db.prepare('DELETE FROM previous_reads WHERE team_id = ? AND query = ?')
   const keepPreviousRead = db.prepare(
-    'INSERT INTO previous_reads (team_id, query, incomplete, read_at) SELECT team_id, query, incomplete, read_at FROM saved_reads WHERE team_id = ? AND query = ?',
+    'INSERT INTO previous_reads (team_id, query, incomplete, read_at, finished_since) SELECT team_id, query, incomplete, read_at, finished_since FROM saved_reads WHERE team_id = ? AND query = ?',
   )
   const keepPreviousReadTickets = db.prepare(`
     INSERT INTO previous_read_tickets (team_id, query, position, id, finished_at)
     SELECT team_id, query, position, id, finished_at FROM saved_read_tickets WHERE team_id = ? AND query = ?`)
-  const selectPreviousRead = db.prepare('SELECT incomplete, read_at FROM previous_reads WHERE team_id = ? AND query = ?')
+  const selectPreviousRead = db.prepare('SELECT incomplete, read_at, finished_since FROM previous_reads WHERE team_id = ? AND query = ?')
   const selectPreviousReadTickets = db.prepare(
     'SELECT id, finished_at FROM previous_read_tickets WHERE team_id = ? AND query = ? ORDER BY position',
   )
@@ -507,7 +515,7 @@ export function openSqliteStorage(file: string): SqliteStorage {
         keepPreviousRead.run(teamId, query)
         keepPreviousReadTickets.run(teamId, query)
         deleteSavedRead.run(teamId, query)
-        insertSavedRead.run(teamId, query, read.incomplete ? 1 : 0, read.readAt)
+        insertSavedRead.run(teamId, query, read.incomplete ? 1 : 0, read.readAt, read.finishedSince)
         read.tickets.forEach((ticket, position) => {
           insertSavedReadTicket.run(teamId, query, position, ticket.id, ticket.finishedAt ?? null)
         })
@@ -578,7 +586,8 @@ function readRow(row: Row | undefined, tickets: () => Row[]): SavedRead | undefi
     })),
     incomplete: Number(row.incomplete) === 1,
     readAt: String(row.read_at),
-  }
+    finishedSince: String(row.finished_since),
+  } satisfies SavedRead
 }
 
 /** Brings the file up to the latest schema, one step per transaction, recording the version after each. */
