@@ -284,6 +284,20 @@ const STYLE = `
     .counts { display: flex; align-items: end; gap: 12px; }
     .counts .fields { flex-wrap: nowrap; }
     .counts button { white-space: nowrap; }
+    table.check { border-collapse: collapse; font-size: 14px; margin-bottom: 12px; }
+    table.check th[scope=col] { padding: 0 18px 6px 0; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--faint); border-bottom: 1px solid var(--ink); }
+    table.check th[scope=row] { padding: 10px 18px 10px 0; text-align: left; font-weight: 500; }
+    table.check td { padding: 10px 18px 10px 0; border-bottom: 1px solid var(--hairline); vertical-align: middle; font-variant-numeric: tabular-nums; }
+    table.check th[scope=row] { border-bottom: 1px solid var(--hairline); }
+    table.check .muted { font-size: 12px; }
+    table.check .note.warn { margin: 0; font-size: 12px; }
+    table.check form.source { display: flex; gap: 8px; align-items: center; }
+    table.check fieldset.levels { gap: 0; flex-wrap: nowrap; }
+    table.check fieldset.levels label { flex-direction: row; padding: 4px 12px; font-size: 13px; color: var(--text-2); border-radius: 0; }
+    table.check fieldset.levels label:first-child { border-radius: 6px 0 0 6px; }
+    table.check fieldset.levels label:last-child { border-radius: 0 6px 6px 0; margin-left: -1px; }
+    table.check fieldset.levels input { position: absolute; opacity: 0; }
+    .chooses-as-changed table.check .choose { display: none; }
     .tickets-source { flex: 1 1 200px; display: flex; flex-direction: column; gap: 6px; }
     .tickets-source fieldset.levels { gap: 0; align-self: flex-start; flex-wrap: nowrap; }
     .tickets-source fieldset.levels label { flex: 0 0 auto; flex-direction: row; padding: 4px 12px; font-size: 13px; color: var(--text-2); border-radius: 0; }
