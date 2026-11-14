@@ -61,7 +61,7 @@ export type Submitted = { saved: true; next: NextScreen } | ({ saved: false } & 
  * With the team's `tracker` reads (the local server build), the values it measures can follow it.
  */
 export function inputsView(storage: Storage, teamId: string, settings: ForecastSettings, today: string, { tracker }: ReadingTracker = {}): InputsView {
-  const milestone = milestoneInputsView(storage, teamId, settings, today, measured(tracker, teamId))
+  const milestone = milestoneInputsView(storage, teamId, settings, today, measured(tracker, teamId, storage, today))
   const growth = growthView(storage, teamId)
   return { milestone, growth, forms: savedForms(milestone, growth) }
 }
@@ -84,7 +84,7 @@ export function submitInputs(
   if (isPaceActionEdit(edit)) return submitPaceAction(storage, teamId, settings, today, edit, shown)
   const { form, next, typed } = submission(edit)
   const result: EditResult =
-    edit.kind === 'setAmbiguityRanges' ? editGrowth(storage, teamId, edit) : editMilestoneInputs(storage, teamId, edit, measured(shown.tracker, teamId))
+    edit.kind === 'setAmbiguityRanges' ? editGrowth(storage, teamId, edit) : editMilestoneInputs(storage, teamId, edit, measured(shown.tracker, teamId, storage, today))
   if (result.ok) return { saved: true, next }
   const screen = inputsView(storage, teamId, settings, today, shown)
   const view = { ...screen, forms: { ...screen.forms, ...typed(screen.forms) }, refusal: { form, error: result.error } }
