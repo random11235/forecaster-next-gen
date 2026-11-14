@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import type { Choice, Ticket } from '../../src/connectors/connector.js'
-import { setupView, submitSetup, throughDraft, type SettingUp } from '../../src/forecast/setup.js'
+import { readPicks, setupView, submitSetup, throughDraft, type SettingUp } from '../../src/forecast/setup.js'
 import { queryStepView, submitStepQuery, type StepQueryEdit } from '../../src/forecast/queryStep.js'
 import { COMPARABLE_WORK, MILESTONE_QUERY, type StepQuery } from '../../src/forecast/stepQuery.js'
 import { CHECKOUT, finishedOn, open, TEAM, TODAY, trackerScenario, type TrackerScenario } from '../trackerScenario.js'
@@ -132,7 +132,7 @@ describe('"Use these"', () => {
       tracker: 'GitHub',
       where: 'shop-team/shop',
       readOn: '12 Nov 20:05',
-      milestone: { picks: [{ name: 'Checkout v2', kind: 'milestone' }] },
+      milestone: { picks: [{ name: 'Checkout v2', kind: 'milestone', count: 3 }] },
       note: 'Leaf tickets only. Epics include their sub-epics.',
       flags: [],
     })
@@ -207,6 +207,124 @@ describe('the summary’s rows', () => {
     expect(summary()).toMatchObject({
       milestone: { picks: [{ name: '2.4', kind: 'fix version' }, { name: 'SHOP-41 Checkout v2', kind: 'epic' }, { name: 'checkout', kind: 'label' }] },
     })
+  })
+})
+
+describe('each pick’s count on the summary', () => {
+  const SEARCH: Choice = { kind: 'epic', name: '#57 Search revamp', query: 'parent-issue:shop-team/shop#57' }
+  const BUG: Choice = { kind: 'label', name: 'bug', query: 'label:bug' }
+  const FINISHED = finishedOn('f', '2026-11-10', 2)
+
+  /**
+   * Connected, each of `choices` picked a minute after the one before, from 08:00, with its own `tickets`: so the
+   * milestone query, their OR, is read with all of theirs, and a pick read on its own as the query once was is older.
+   */
+  async function picked(choices: [Choice, Ticket[]][], to: 'github' | 'jira' = 'github'): Promise<TrackerScenario> {
+    const { connect, pick, fixture } = team()
+    for (const [choice, tickets] of choices) fixture.reads[choice.query] = { tickets, incomplete: false }
+    await connect(to)
+    for (let at = 0; at < choices.length; at++) {
+      const sofar = choices.slice(0, at + 1)
+      fixture.reads[sofar.map(([choice]) => choice.query).join(' OR ')] = { tickets: sofar.flatMap(([, tickets]) => tickets), incomplete: false }
+      await pick(`2026-11-12T08:0${at}:00Z`, choices[at]![0])
+    }
+    return scenario!
+  }
+  const summary = () => (submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' }), setupView(settingUp(scenario!), TEAM))
+
+  test('come from the milestone query’s own read for a single pick, open and finished alike, with no extra read', async () => {
+    await picked([[CHECKOUT, [...open(3), ...FINISHED]]])
+    scenario!.asked.length = 0
+    await readPicks(scenario!.using, TEAM, READ_AT)
+
+    expect(scenario!.asked).toEqual([])
+    expect(summary()).toMatchObject({ milestone: { picks: [{ name: 'Checkout v2', kind: 'milestone', count: 5 }] } })
+  })
+
+  test('come, for several picks, from a read of each pick at Check: epics, labels and milestones', async () => {
+    await picked([
+      [CHECKOUT, open(3, 'c')],
+      [SEARCH, [...open(1, 's'), ...FINISHED]],
+      [BUG, open(4, 'b')],
+    ])
+    const before = summary()
+    submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })
+    await readPicks(scenario!.using, TEAM, READ_AT)
+
+    expect(before).toMatchObject({ milestone: { picks: [{ name: 'Checkout v2' }, { name: '#57 Search revamp' }, { name: 'bug' }] } })
+    expect(before.kind === 'summary' && 'picks' in before.milestone && before.milestone.picks.some((pick) => 'count' in pick)).toBe(false)
+    expect(summary()).toMatchObject({
+      milestone: {
+        picks: [
+          { name: 'Checkout v2', kind: 'milestone', count: 3 },
+          { name: '#57 Search revamp', kind: 'epic', count: 3 },
+          { name: 'bug', kind: 'label', count: 4 },
+        ],
+      },
+    })
+  })
+
+  test('are held in setup’s draft with the rest until "Use these": Cancel leaves the summary without them', async () => {
+    await picked([[CHECKOUT, open(3, 'c')], [SEARCH, open(1, 's')]])
+    summary()
+    submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })
+    await readPicks(scenario!.using, TEAM, READ_AT)
+    submitSetup(settingUp(scenario!), TEAM, { kind: 'cancel' })
+
+    const view = setupView(settingUp(scenario!), TEAM)
+    expect(view.kind === 'summary' && 'picks' in view.milestone && view.milestone.picks.some((pick) => 'count' in pick)).toBe(false)
+  })
+
+  test('come for Jira’s fix versions too', async () => {
+    const VERSION: Choice = { kind: 'fixVersion', name: '2.4', query: 'fixVersion = "2.4"' }
+    const EPIC: Choice = { kind: 'epic', name: 'SHOP-41 Checkout v2', query: 'parent = SHOP-41' }
+    await picked([[VERSION, open(2, 'v')], [EPIC, open(6, 'e')]], 'jira')
+    await readPicks(scenario!.using, TEAM, READ_AT)
+
+    expect(summary()).toMatchObject({ milestone: { picks: [{ name: '2.4', kind: 'fix version', count: 2 }, { name: 'SHOP-41 Checkout v2', kind: 'epic', count: 6 }] } })
+  })
+
+  test('are read once at Check: a pick read since its query was is not read again, as comparable work’s picks are when picked', async () => {
+    await picked([[CHECKOUT, open(3, 'c')], [SEARCH, open(1, 's')]])
+    scenario!.fixture.reads[BUG.query] = { tickets: FINISHED, incomplete: false }
+    scenario!.fixture.reads[Q3_POLISH.query] = { tickets: finishedOn('q', '2026-11-09', 1), incomplete: false }
+    await scenario!.pick(READ_AT, BUG, COMPARABLE_WORK)
+    await scenario!.pick(READ_AT, Q3_POLISH, COMPARABLE_WORK)
+    scenario!.asked.length = 0
+    await readPicks(scenario!.using, TEAM, READ_AT)
+    const atCheck = scenario!.asked.length
+    await readPicks(scenario!.using, TEAM, READ_AT)
+
+    expect(atCheck).toBe(2)
+    expect(scenario!.asked.length).toBe(atCheck)
+    expect(summary()).toMatchObject({ comparable: { picks: [{ name: 'bug', count: 2 }, { name: 'Q3 polish', count: 1 }] } })
+  })
+
+  test('are not read as the Inputs screen opens, and a pick whose read failed or is incomplete has none', async () => {
+    await picked([[CHECKOUT, open(3, 'c')], [SEARCH, open(1, 's')]])
+    scenario!.fixture.reads[CHECKOUT.query] = { tickets: open(9, 'c'), incomplete: true }
+    scenario!.fixture.reads[SEARCH.query] = { failure: 'unavailable' }
+    scenario!.asked.length = 0
+    summary()
+    scenario!.inputs()
+
+    expect(scenario!.asked).toEqual([])
+    await readPicks(scenario!.using, TEAM, READ_AT)
+    const view = summary()
+    expect(view).toMatchObject({ milestone: { picks: [{ name: 'Checkout v2' }, { name: '#57 Search revamp' }] } })
+    expect(view.kind === 'summary' && 'picks' in view.milestone && view.milestone.picks.some((pick) => 'count' in pick)).toBe(false)
+  })
+
+  test('are none for a query written by hand', async () => {
+    await picked([[CHECKOUT, open(3, 'c')]])
+    const written = 'milestone:"Checkout v2" -label:wontfix'
+    scenario!.fixture.reads[written] = { tickets: open(3), incomplete: false }
+    await submitStepQuery(scenario!.using, TEAM, { kind: 'editQuery', query: written }, READ_AT)
+    scenario!.asked.length = 0
+    await readPicks(scenario!.using, TEAM, READ_AT)
+
+    expect(scenario!.asked).toEqual([])
+    expect(summary()).toMatchObject({ milestone: { query: written } })
   })
 })
 
