@@ -114,6 +114,25 @@ export const INPUTS_SCRIPT = `
     const form = event.target.form
     if (form && sectionOf(form)) queue(form)
   })
+  // a chip opened on a read not opened before: says so, clearing its dot, with no reply to show
+  main.addEventListener('toggle', (event) => {
+    const chip = event.target
+    if (!(chip instanceof HTMLDetailsElement) || !chip.open || !chip.dataset.opens) return
+    const form = document.getElementById(chip.dataset.opens)
+    delete chip.dataset.opens
+    chip.querySelector('.dot')?.remove()
+    if (!form) return
+    fetch(form.getAttribute('action').split('#')[0], {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', '${SAVE_IN_PLACE.header}': '${SAVE_IN_PLACE.value}' },
+      body: bodyOf(form),
+    }).catch(() => {})
+  }, true)
+  // a chip's Follow posts its own form, which has nothing typed to compare with what was last saved
+  main.addEventListener('click', (event) => {
+    const follow = event.target.closest && event.target.closest('details.reads-differently button[form]')
+    if (follow) lastSaved.delete(document.getElementById(follow.getAttribute('form')))
+  })
   main.addEventListener('submit', (event) => {
     if (!sectionOf(event.target)) return
     event.preventDefault()

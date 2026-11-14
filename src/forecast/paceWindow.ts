@@ -1,6 +1,7 @@
-import type { MilestoneInputs, PaceAction } from '../model/milestoneInputs.js'
-import { addDays, dayMonth, daysBetween } from './calendarDate.js'
+import type { PaceAction } from '../model/milestoneInputs.js'
+import { dayMonth } from './calendarDate.js'
 import type { PeriodName } from './cadence.js'
+import type { PaceReads } from './paceReads.js'
 
 /** Counts, oldest first, each period starting on the date at the same place in `starts`. */
 export interface DatedCounts {
@@ -8,26 +9,57 @@ export interface DatedCounts {
   starts: string[]
 }
 
+/** The same counts, in the same order; never with none to compare. */
+export function sameCounts(some: readonly number[], others: readonly number[] | undefined): boolean {
+  return others !== undefined && some.length === others.length && some.every((count, period) => count === others[period])
+}
+
+/** The most periods the tracker's pace counts. */
+export const TRACKER_PERIODS = 8
+
 /**
- * The milestone's typed counts dated back from the current period on `today`, the last being the most recent whole
- * one, and those of them the pace is drawn from once its action is applied.
+ * What bounds the tracker's window: it is `full`, at `TRACKER_PERIODS`; or shorter, as the periods the reads reach run
+ * out (`reach`), or as the quiet periods before the first finished ticket are left out (`firstFinished`); or empty,
+ * with every period the reads reach skipped (`everySkipped`), with every one that finished something skipped
+ * (`everyFinishedSkipped`), or with `nothingFinished` in any of them.
  */
-export function paceWindow(inputs: MilestoneInputs, today: string): { typed: DatedCounts; window: DatedCounts } {
-  const counts = inputs.paceCounts
-  const starts = inputs.startDate === undefined ? [] : typedCountStarts(counts.length, inputs.startDate, inputs.cadenceDays, today)
-  const typed = { counts: [...counts], starts }
-  const action = inputs.paceWindow.action
-  if (action === undefined || inputs.startDate === undefined) return { typed, window: typed }
-  return { typed, window: withAction(typed, action) }
+export type TrackerWindowBound = 'full' | 'reach' | 'firstFinished' | 'nothingFinished' | 'everySkipped' | 'everyFinishedSkipped'
+
+/** The tracker's window (`trackerWindow`): the periods counted, the skipped ones it reaches back past, and what bounds it. */
+export interface TrackerWindow {
+  window: DatedCounts
+  /** The periods the EM skipped that the window reaches back past, oldest first, with what each finished. */
+  skipped: DatedCounts
+  bound: TrackerWindowBound
 }
 
 /**
- * The first day of each typed count's period, oldest first. They are dated back from the current period (the one
- * holding `today`, in periods counted from the start date): the last count is the most recent whole period.
+ * The tracker's periods the pace counts, oldest first: of `pace` (every whole period its reads reach, the current one
+ * left out), up to the `TRACKER_PERIODS` most recent, quiet ones 0, leaving out the quiet periods before the first
+ * with a ticket finished in either read, the milestone's or comparable work's. A period the EM skipped (its start in
+ * `skipped`) isn't counted: the window reaches back past it, so the one before counts instead. And what bounds it.
  */
-function typedCountStarts(counts: number, startDate: string, periodDays: number, today: string): string[] {
-  const current = Math.floor(daysBetween(startDate, today) / periodDays)
-  return Array.from({ length: counts }, (_, count) => addDays(startDate, (current - counts + count) * periodDays))
+export function trackerWindow({ pace, milestone, comparableWork }: Pick<PaceReads, 'pace' | 'milestone' | 'comparableWork'>, skipped: readonly string[] = []): TrackerWindow {
+  const { counts, starts } = pace
+  const isSkipped = (period: number): boolean => skipped.includes(starts[period]!)
+  const finished = new Set([pace, milestone, comparableWork].flatMap((read) => read?.starts.filter((_, at) => read.counts[at]! > 0) ?? []))
+  const finishedIn = (period: number): boolean => finished.has(starts[period]!)
+  const first = starts.findIndex((_, period) => finishedIn(period) && !isSkipped(period))
+  const passed: number[] = []
+  const kept: number[] = []
+  // the most recent first, back to the first finished ticket's period, passing over skipped ones
+  for (let period = counts.length - 1; period >= Math.max(first, 0) && kept.length < TRACKER_PERIODS; period--) {
+    if (isSkipped(period)) passed.unshift(period)
+    else if (first >= 0) kept.unshift(period)
+  }
+  const dated = (periods: number[]): DatedCounts => ({ counts: periods.map((period) => counts[period]!), starts: periods.map((period) => starts[period]!) })
+  const skips = dated(passed)
+  if (first < 0) {
+    const bound = passed.length > 0 && passed.length === counts.length ? 'everySkipped' : passed.some(finishedIn) ? 'everyFinishedSkipped' : 'nothingFinished'
+    return { window: dated([]), skipped: skips, bound }
+  }
+  const bound = kept.length === TRACKER_PERIODS ? 'full' : first > 0 ? 'firstFinished' : 'reach'
+  return { window: dated(kept), skipped: skips, bound }
 }
 
 /** The counts the pace is drawn from once `action` is applied: those from its period on, or all but its period. */

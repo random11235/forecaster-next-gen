@@ -10,8 +10,8 @@ import type { MilestoneQuery } from '../../src/model/milestoneQuery.js'
 import type { SavedRead } from '../../src/model/savedRead.js'
 import type { MilestoneInputs } from '../../src/model/milestoneInputs.js'
 import type { Team } from '../../src/model/team.js'
-import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
-import type { Storage } from '../../src/storage/storage.js'
+import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
+import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage, Storage } from '../../src/storage/storage.js'
 import { openWebStorage, type KeyValueStore } from '../../src/storage/webStorage.js'
 
 // What every Storage keeps, whatever it keeps it in: the local app's SQLite file and the web build's browser storage.
@@ -23,13 +23,15 @@ const LAUNCH: MilestoneInputs = {
   name: 'Launch',
   startDate: '2026-11-02',
   ticketsRemaining: 30,
+  ticketsSource: 'typed',
   ambiguity: 'high',
   cadenceDays: 14,
   paceMode: 'counts',
   paceRange: { low: 5, high: 10 },
   paceCounts: [4, 7, 6],
   paceCadenceDays: 14,
-  paceWindow: { action: { kind: 'startFrom', date: '2026-10-12' } },
+  paceWindow: { action: { kind: 'startFrom', date: '2026-10-12' }, skippedPeriods: [] },
+  seenReads: { ticketsRemaining: undefined, pace: undefined },
 }
 
 const RANGES: AmbiguityRanges = {
@@ -140,7 +142,7 @@ describe.each(kinds)('%s storage', (_, opened) => {
       ticketsRemaining: undefined,
       paceRange: undefined,
       paceCounts: [],
-      paceWindow: { action: undefined },
+      paceWindow: { action: undefined, skippedPeriods: [] },
     }
 
     storage.saveMilestoneInputs(bare)
@@ -151,11 +153,27 @@ describe.each(kinds)('%s storage', (_, opened) => {
   test('keeps either pace action: counting from a date, or leaving out a period', () => {
     const { storage } = opened()
     storage.saveTeam(TEAM)
-    const leftOut: MilestoneInputs = { ...LAUNCH, paceWindow: { action: { kind: 'leaveOut', period: '2026-10-12' } } }
+    const leftOut: MilestoneInputs = { ...LAUNCH, paceWindow: { action: { kind: 'leaveOut', period: '2026-10-12' }, skippedPeriods: [] } }
 
     storage.saveMilestoneInputs(leftOut)
 
     expect(storage.milestoneInputs('team')).toEqual(leftOut)
+  })
+
+  test("keeps each value's source following the tracker, the skipped periods and the reads seen, opened again", () => {
+    const { storage, reopen } = opened()
+    storage.saveTeam(TEAM)
+    const following: MilestoneInputs = {
+      ...LAUNCH,
+      ticketsSource: 'tracker',
+      paceMode: 'tracker',
+      paceWindow: { action: undefined, skippedPeriods: ['2026-12-21', '2026-12-28'] },
+      seenReads: { ticketsRemaining: '2026-10-28T09:05:00Z', pace: undefined },
+    }
+
+    storage.saveMilestoneInputs(following)
+
+    expect(reopen().milestoneInputs('team')).toEqual(following)
   })
 
   test("keeps the team's ambiguity ranges, replacing them when saved again", () => {
@@ -215,10 +233,10 @@ describe.each(kinds)('%s storage', (_, opened) => {
 // Only the local server build keeps a connection: the browser build has no connectors (#155), so its Storage has no
 // place for one.
 describe("SQLite storage's connection", () => {
-  function sqliteFile(): { storage: SqliteStorage; reopen: () => SqliteStorage } {
+  function sqliteFile(): { storage: Storage & ConnectionStorage; reopen: () => Storage & ConnectionStorage } {
     dir = mkdtempSync(join(tmpdir(), 'forecaster-'))
     const file = join(dir, 'forecaster.db')
-    const reopen = (): SqliteStorage => {
+    const reopen = (): Storage & ConnectionStorage => {
       open?.close()
       const storage = openSqliteStorage(file)
       open = storage
@@ -271,12 +289,13 @@ describe("SQLite storage's saved reads", () => {
     tickets: [{ id: 'I_1', finishedAt: '2026-11-06T22:30:00Z' }, { id: 'I_2' }, { id: 'I_3', finishedAt: '2026-10-30T09:00:00Z' }],
     incomplete: false,
     readAt: '2026-11-11T08:15:00Z',
+    finishedSince: '2026-09-09T08:15:00Z',
   }
 
-  function sqliteFile(): { storage: SqliteStorage; reopen: () => SqliteStorage } {
+  function sqliteFile(): { storage: Storage & SavedReadStorage; reopen: () => Storage & SavedReadStorage } {
     dir = mkdtempSync(join(tmpdir(), 'forecaster-'))
     const file = join(dir, 'forecaster.db')
-    const reopen = (): SqliteStorage => {
+    const reopen = (): Storage & SavedReadStorage => {
       open?.close()
       const storage = openSqliteStorage(file)
       open = storage
@@ -285,7 +304,7 @@ describe("SQLite storage's saved reads", () => {
     return { storage: reopen(), reopen }
   }
 
-  test("keeps a query's last read, with its tickets in order, whether it was incomplete, and when it was read", () => {
+  test("keeps a query's last read, with its tickets in order, whether it was incomplete, when it was read, and how far back", () => {
     const { storage, reopen } = sqliteFile()
     storage.saveTeam(TEAM)
 
@@ -304,7 +323,7 @@ describe("SQLite storage's saved reads", () => {
     storage.saveRead({ teamId: 'team', query: otherQuery }, READ)
     storage.saveRead({ teamId: 'another', query: OPEN_TICKETS }, READ)
 
-    const later: SavedRead = { tickets: [{ id: 'I_2', finishedAt: '2026-11-12T10:00:00Z' }], incomplete: true, readAt: '2026-11-12T11:00:00Z' }
+    const later: SavedRead = { tickets: [{ id: 'I_2', finishedAt: '2026-11-12T10:00:00Z' }], incomplete: true, readAt: '2026-11-12T11:00:00Z', finishedSince: '2026-09-10T11:00:00Z' }
     storage.saveRead({ teamId: 'team', query: OPEN_TICKETS }, later)
 
     const again = reopen()
@@ -313,10 +332,33 @@ describe("SQLite storage's saved reads", () => {
     expect(again.savedRead({ teamId: 'another', query: OPEN_TICKETS })).toEqual(READ)
   })
 
+  // the faint previous value comes from the read the latest replaced (#214)
+  test("keeps the read a query's latest replaced as its previous read, one back, apart from other queries'", () => {
+    const { storage, reopen } = sqliteFile()
+    storage.saveTeam(TEAM)
+    const otherQuery = 'repo:acme/checkout is:issue milestone:"Beta"'
+    const later: SavedRead = { tickets: [{ id: 'I_2', finishedAt: '2026-11-12T10:00:00Z' }], incomplete: true, readAt: '2026-11-12T11:00:00Z', finishedSince: '2026-09-10T11:00:00Z' }
+    const latest: SavedRead = { tickets: [], incomplete: false, readAt: '2026-11-13T11:00:00Z', finishedSince: '2026-09-11T11:00:00Z' }
+
+    storage.saveRead({ teamId: 'team', query: OPEN_TICKETS }, READ)
+    storage.saveRead({ teamId: 'team', query: otherQuery }, READ)
+    expect(storage.previousRead({ teamId: 'team', query: OPEN_TICKETS })).toBeUndefined()
+
+    storage.saveRead({ teamId: 'team', query: OPEN_TICKETS }, later)
+    const reopened = reopen()
+    expect(reopened.previousRead({ teamId: 'team', query: OPEN_TICKETS })).toEqual(READ)
+
+    reopened.saveRead({ teamId: 'team', query: OPEN_TICKETS }, latest)
+    const again = reopen()
+    expect(again.savedRead({ teamId: 'team', query: OPEN_TICKETS })).toEqual(latest)
+    expect(again.previousRead({ teamId: 'team', query: OPEN_TICKETS })).toEqual(later)
+    expect(again.previousRead({ teamId: 'team', query: otherQuery })).toBeUndefined()
+  })
+
   test('keeps a read that matched nothing as an empty list', () => {
     const { storage, reopen } = sqliteFile()
     storage.saveTeam(TEAM)
-    const empty: SavedRead = { tickets: [], incomplete: false, readAt: '2026-11-11T08:15:00Z' }
+    const empty: SavedRead = { tickets: [], incomplete: false, readAt: '2026-11-11T08:15:00Z', finishedSince: '2026-09-16T08:15:00Z' }
 
     storage.saveRead({ teamId: 'team', query: OPEN_TICKETS }, empty)
 
@@ -344,10 +386,10 @@ describe("SQLite storage's milestone query", () => {
     query: 'parent-issue:acme/checkout#106 OR label:"payments"',
   }
 
-  function sqliteFile(): { storage: SqliteStorage; reopen: () => SqliteStorage } {
+  function sqliteFile(): { storage: Storage & MilestoneQueryStorage; reopen: () => Storage & MilestoneQueryStorage } {
     dir = mkdtempSync(join(tmpdir(), 'forecaster-'))
     const file = join(dir, 'forecaster.db')
-    const reopen = (): SqliteStorage => {
+    const reopen = (): Storage & MilestoneQueryStorage => {
       open?.close()
       const storage = openSqliteStorage(file)
       open = storage
@@ -478,7 +520,24 @@ describe('browser storage the browser refuses', () => {
     const stored = { teams: [TEAM], milestoneInputs: { team: before }, ambiguityRanges: {}, capacityEntries: {}, capacityOff: [] }
     store.setItem('forecaster', JSON.stringify(stored))
 
-    expect(openWebStorage(store).milestoneInputs('team')).toEqual({ ...LAUNCH, paceWindow: { action: undefined } })
+    expect(openWebStorage(store).milestoneInputs('team')).toEqual({ ...LAUNCH, paceWindow: { action: undefined, skippedPeriods: [] } })
+  })
+
+  test('with a milestone stored before sources, reads it with tickets typed, its pace mode, no skips and nothing seen', () => {
+    const store = memoryStore()
+    const { ticketsSource: _, seenReads: __, ...before } = LAUNCH
+    const stored = {
+      teams: [TEAM],
+      milestoneInputs: { team: { ...before, paceWindow: { action: LAUNCH.paceWindow.action } } },
+      ambiguityRanges: {},
+      capacityEntries: {},
+      capacityOff: [],
+    }
+    store.setItem('forecaster', JSON.stringify(stored))
+
+    const read = openWebStorage(store).milestoneInputs('team')
+    expect(read).toEqual(LAUNCH)
+    expect(read).toHaveProperty('seenReads', { ticketsRemaining: undefined, pace: undefined })
   })
 
   test('with stored data it cannot read, starts empty', () => {

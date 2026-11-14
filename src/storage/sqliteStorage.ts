@@ -4,7 +4,7 @@ import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import { choiceKindOf, type Choice } from '../connectors/connector.js'
 import type { Ambiguity, AmbiguityRanges } from '../model/ambiguity.js'
 import type { CapacityEntry } from '../model/capacity.js'
-import type { MilestoneInputs, PaceMode, PaceWindow } from '../model/milestoneInputs.js'
+import type { MilestoneInputs, PaceMode, PaceWindow, SeenReads, TicketsSource } from '../model/milestoneInputs.js'
 import type { MilestoneQuery } from '../model/milestoneQuery.js'
 import type { SavedRead } from '../model/savedRead.js'
 import type { Team } from '../model/team.js'
@@ -245,6 +245,41 @@ CREATE TABLE comparable_work_queries (
   picks TEXT NOT NULL
 );
 `,
+  // 17: where tickets remaining comes from (#210), and which of each value's tracker readings the EM has opened, as
+  // JSON. The pace window's JSON gains the skipped periods, needing no column. A file from before has tickets typed, its
+  // pace mode as it was, no skips and nothing seen.
+  `
+ALTER TABLE milestone_inputs ADD COLUMN tickets_source TEXT NOT NULL DEFAULT 'typed';
+ALTER TABLE milestone_inputs ADD COLUMN seen_reads TEXT NOT NULL DEFAULT '{}';
+`,
+  // 18: the read each query's latest replaced (#214), in the saved read's shape, which the faint previous value comes
+  // from. A file from before has none: its next read keeps the one it replaces.
+  `
+CREATE TABLE previous_reads (
+  team_id TEXT NOT NULL REFERENCES teams(id),
+  query TEXT NOT NULL,
+  incomplete INTEGER NOT NULL,
+  read_at TEXT NOT NULL,
+  PRIMARY KEY (team_id, query)
+);
+CREATE TABLE previous_read_tickets (
+  team_id TEXT NOT NULL,
+  query TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  id TEXT NOT NULL,
+  finished_at TEXT,
+  PRIMARY KEY (team_id, query, position),
+  FOREIGN KEY (team_id, query) REFERENCES previous_reads(team_id, query) ON DELETE CASCADE
+);
+  `,
+  // 19: how far back each saved read counts finished tickets (#213), which now reaches past the skipped periods. A read
+  // saved before reached back 8 weeks from when it was made.
+  `
+ALTER TABLE saved_reads ADD COLUMN finished_since TEXT;
+UPDATE saved_reads SET finished_since = strftime('%Y-%m-%dT%H:%M:%fZ', read_at, '-56 days');
+ALTER TABLE previous_reads ADD COLUMN finished_since TEXT;
+UPDATE previous_reads SET finished_since = strftime('%Y-%m-%dT%H:%M:%fZ', read_at, '-56 days');
+`,
 ]
 
 type Row = Record<string, SQLInputValue>
@@ -277,13 +312,14 @@ export function openSqliteStorage(file: string): SqliteStorage {
   const upsertMilestoneInputs = db.prepare(`
     INSERT INTO milestone_inputs
       (team_id, name, start_date, tickets_remaining, ambiguity, cadence_days, pace_mode, pace_low, pace_high, pace_counts,
-       pace_cadence_days, pace_window)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       pace_cadence_days, pace_window, tickets_source, seen_reads)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (team_id) DO UPDATE SET
       name = excluded.name, start_date = excluded.start_date, tickets_remaining = excluded.tickets_remaining,
       ambiguity = excluded.ambiguity, cadence_days = excluded.cadence_days, pace_mode = excluded.pace_mode,
       pace_low = excluded.pace_low, pace_high = excluded.pace_high, pace_counts = excluded.pace_counts,
-      pace_cadence_days = excluded.pace_cadence_days, pace_window = excluded.pace_window`)
+      pace_cadence_days = excluded.pace_cadence_days, pace_window = excluded.pace_window,
+      tickets_source = excluded.tickets_source, seen_reads = excluded.seen_reads`)
   const selectMilestoneInputs = db.prepare('SELECT * FROM milestone_inputs WHERE team_id = ?')
   // medium_measured is left as it is: nothing reads it since measured growth went with the MVP (#84)
   const upsertAmbiguityRanges = db.prepare(`
@@ -310,13 +346,24 @@ export function openSqliteStorage(file: string): SqliteStorage {
   const selectConnection = db.prepare('SELECT * FROM connections WHERE team_id = ?')
   const deleteConnection = db.prepare('DELETE FROM connections WHERE team_id = ?')
   const deleteSavedRead = db.prepare('DELETE FROM saved_reads WHERE team_id = ? AND query = ?')
-  const insertSavedRead = db.prepare('INSERT INTO saved_reads (team_id, query, incomplete, read_at) VALUES (?, ?, ?, ?)')
+  const insertSavedRead = db.prepare('INSERT INTO saved_reads (team_id, query, incomplete, read_at, finished_since) VALUES (?, ?, ?, ?, ?)')
   const insertSavedReadTicket = db.prepare(
     'INSERT INTO saved_read_tickets (team_id, query, position, id, finished_at) VALUES (?, ?, ?, ?, ?)',
   )
-  const selectSavedRead = db.prepare('SELECT incomplete, read_at FROM saved_reads WHERE team_id = ? AND query = ?')
+  const selectSavedRead = db.prepare('SELECT incomplete, read_at, finished_since FROM saved_reads WHERE team_id = ? AND query = ?')
   const selectSavedReadTickets = db.prepare(
     'SELECT id, finished_at FROM saved_read_tickets WHERE team_id = ? AND query = ? ORDER BY position',
+  )
+  const deletePreviousRead = db.prepare('DELETE FROM previous_reads WHERE team_id = ? AND query = ?')
+  const keepPreviousRead = db.prepare(
+    'INSERT INTO previous_reads (team_id, query, incomplete, read_at, finished_since) SELECT team_id, query, incomplete, read_at, finished_since FROM saved_reads WHERE team_id = ? AND query = ?',
+  )
+  const keepPreviousReadTickets = db.prepare(`
+    INSERT INTO previous_read_tickets (team_id, query, position, id, finished_at)
+    SELECT team_id, query, position, id, finished_at FROM saved_read_tickets WHERE team_id = ? AND query = ?`)
+  const selectPreviousRead = db.prepare('SELECT incomplete, read_at, finished_since FROM previous_reads WHERE team_id = ? AND query = ?')
+  const selectPreviousReadTickets = db.prepare(
+    'SELECT id, finished_at FROM previous_read_tickets WHERE team_id = ? AND query = ? ORDER BY position',
   )
   const upsertMilestoneQuery = db.prepare(`
     INSERT INTO milestone_queries (team_id, query, picks) VALUES (?, ?, ?)
@@ -363,6 +410,8 @@ export function openSqliteStorage(file: string): SqliteStorage {
         JSON.stringify(inputs.paceCounts),
         inputs.paceCadenceDays ?? null,
         JSON.stringify(inputs.paceWindow),
+        inputs.ticketsSource,
+        JSON.stringify(inputs.seenReads),
       )
     },
 
@@ -380,7 +429,9 @@ export function openSqliteStorage(file: string): SqliteStorage {
         paceRange: row.pace_low === null ? undefined : { low: Number(row.pace_low), high: Number(row.pace_high) },
         paceCounts: JSON.parse(String(row.pace_counts)) as number[],
         paceCadenceDays: row.pace_cadence_days === null ? undefined : Number(row.pace_cadence_days),
-        paceWindow: { action: (JSON.parse(String(row.pace_window)) as Partial<PaceWindow>).action },
+        paceWindow: paceWindowOf(String(row.pace_window)),
+        ticketsSource: String(row.tickets_source) as TicketsSource,
+        seenReads: seenReadsOf(String(row.seen_reads)),
       } satisfies MilestoneInputs
     },
 
@@ -459,8 +510,12 @@ export function openSqliteStorage(file: string): SqliteStorage {
 
     saveRead({ teamId, query }, read) {
       transaction(() => {
+        // the read this one replaces is kept as the previous read, replacing the one before it
+        deletePreviousRead.run(teamId, query)
+        keepPreviousRead.run(teamId, query)
+        keepPreviousReadTickets.run(teamId, query)
         deleteSavedRead.run(teamId, query)
-        insertSavedRead.run(teamId, query, read.incomplete ? 1 : 0, read.readAt)
+        insertSavedRead.run(teamId, query, read.incomplete ? 1 : 0, read.readAt, read.finishedSince)
         read.tickets.forEach((ticket, position) => {
           insertSavedReadTicket.run(teamId, query, position, ticket.id, ticket.finishedAt ?? null)
         })
@@ -468,18 +523,11 @@ export function openSqliteStorage(file: string): SqliteStorage {
     },
 
     savedRead({ teamId, query }) {
-      const row = selectSavedRead.get(teamId, query)
-      if (row === undefined) return undefined
-      return {
-        tickets: selectSavedReadTickets
-          .all(teamId, query)
-          .map((ticket: Row) => ({
-            id: String(ticket.id),
-            ...(ticket.finished_at !== null && { finishedAt: String(ticket.finished_at) }),
-          })),
-        incomplete: Number(row.incomplete) === 1,
-        readAt: String(row.read_at),
-      } satisfies SavedRead
+      return readRow(selectSavedRead.get(teamId, query), () => selectSavedReadTickets.all(teamId, query))
+    },
+
+    previousRead({ teamId, query }) {
+      return readRow(selectPreviousRead.get(teamId, query), () => selectPreviousReadTickets.all(teamId, query))
     },
 
     saveMilestoneQuery(teamId, milestoneQuery) {
@@ -528,6 +576,20 @@ function picksIn(json: string): Choice[] {
   })
 }
 
+/** A saved or previous read from its row and its tickets' rows; none without a row. */
+function readRow(row: Row | undefined, tickets: () => Row[]): SavedRead | undefined {
+  if (row === undefined) return undefined
+  return {
+    tickets: tickets().map((ticket) => ({
+      id: String(ticket.id),
+      ...(ticket.finished_at !== null && { finishedAt: String(ticket.finished_at) }),
+    })),
+    incomplete: Number(row.incomplete) === 1,
+    readAt: String(row.read_at),
+    finishedSince: String(row.finished_since),
+  } satisfies SavedRead
+}
+
 /** Brings the file up to the latest schema, one step per transaction, recording the version after each. */
 function migrate(db: DatabaseSync, file: string, transaction: (work: () => void) => void): void {
   const version = Number(db.prepare('PRAGMA user_version').get()?.user_version)
@@ -544,4 +606,16 @@ function migrate(db: DatabaseSync, file: string, transaction: (work: () => void)
       db.exec(`PRAGMA user_version = ${next + 1}`)
     })
   }
+}
+
+/** The pace window as saved: a file from before #161 has no action, and one from before #210 no skipped periods. */
+function paceWindowOf(json: string): PaceWindow {
+  const { action, skippedPeriods } = JSON.parse(json) as Partial<PaceWindow>
+  return { action, skippedPeriods: skippedPeriods ?? [] }
+}
+
+/** The reads seen as saved: JSON drops an undefined `readAt`, and a file from before #210 has seen none. */
+function seenReadsOf(json: string): SeenReads {
+  const { ticketsRemaining, pace } = JSON.parse(json) as Partial<SeenReads>
+  return { ticketsRemaining, pace }
 }

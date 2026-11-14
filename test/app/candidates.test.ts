@@ -4,7 +4,8 @@ import { cannedConnector, type CannedFixture } from '../../src/connectors/canned
 import type { Choice, Connector } from '../../src/connectors/connector.js'
 import type { Connecting } from '../../src/forecast/connection.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
-import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
+import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
+import type { TeamStorage } from '../trackerScenario.js'
 
 // Candidates for comparable work on the Inputs screen (#205), through the local server, on the canned connector.
 
@@ -22,15 +23,21 @@ const FIXTURE: CannedFixture = {
     { kind: 'label', choices: [payments, bug, broken], pastLimit: false },
   ],
   reads: {
-    // 2 a week, the weeks of 1, 8, 15 and 22 Oct
-    [checkout.query]: { tickets: [{ id: 'm-open' }, ...finishedOn('m', ['2026-10-02', '2026-10-03', '2026-10-09', '2026-10-10', '2026-10-16', '2026-10-17', '2026-10-23', '2026-10-24'])], incomplete: false },
+    // 2 a week, every week from its start on 1 Oct; the reads reach whole from the week of 17 Sep, two weeks before
+    [checkout.query]: {
+      tickets: [
+        { id: 'm-open' },
+        ...finishedOn('m', ['2026-10-02', '2026-10-03', '2026-10-09', '2026-10-10', '2026-10-16', '2026-10-17', '2026-10-23', '2026-10-24', '2026-10-30', '2026-10-31', '2026-11-06', '2026-11-07']),
+      ],
+      incomplete: false,
+    },
     [payments.query]: { tickets: [{ id: 'p-open' }, ...finishedOn('p', ['2026-10-02', '2026-10-30'])], incomplete: false },
     [broken.query]: { failure: 'unavailable' },
   },
 }
 
 let app: RunningApp | undefined
-let storage: SqliteStorage | undefined
+let storage: TeamStorage | undefined
 let reads: string[] = []
 
 afterEach(async () => {

@@ -8,7 +8,8 @@ import { submitConnection, type ConnectionEdit } from '../../src/forecast/connec
 import { followRenamedMilestone } from '../../src/forecast/milestoneRenamed.js'
 import { queryStepView, submitStepQuery, type QueryStepping } from '../../src/forecast/queryStep.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
-import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
+import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
+import type { TeamStorage } from '../trackerScenario.js'
 
 // Moving on to the next milestone by renaming it (#207): a milestone query that is just the tracker's milestone of the
 // old name follows the new name, and is read again.
@@ -45,7 +46,7 @@ const GITHUB_REPO: ConnectionEdit = { kind: 'connect', tracker: 'github', repo: 
 const JIRA_PROJECT: ConnectionEdit = { kind: 'connect', tracker: 'jira', repo: '', site: 'shop.atlassian.net', projectKey: 'SHOP', email: 'em@shop.test', token: 'token' }
 
 let dir: string
-let storage: SqliteStorage
+let storage: TeamStorage
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'forecaster-milestone-renamed-'))
@@ -88,7 +89,7 @@ describe('renaming the milestone', () => {
     expect(await queryStepView(using, TEAM, '', { unlisted: true })).toMatchObject({
       picks: [loyalty],
       query: 'milestone:"Loyalty launch"',
-      read: '3 open · 0 finished in the last 8 weeks',
+      read: '3 open · 0 finished in the last 9 weeks',
     })
   })
 
