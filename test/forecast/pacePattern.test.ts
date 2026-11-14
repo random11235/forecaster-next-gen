@@ -410,7 +410,7 @@ describe('from the tracker’s weeks (#213)', () => {
     const { storage, using, tracker } = await followingGitHub([5, 4, 6, 5, 5, 4, 0, 0, 5, 6])
     expect(trackerForecast(storage, tracker).pacePattern?.pattern).not.toBe('steady')
 
-    await submitSkip(using, TEAM, { kind: 'skip', periods: ['2026-10-12', '2026-10-19'] }, READ_AT)
+    await submitSkip(using, TEAM, { kind: 'skip', periods: ['2026-10-12', '2026-10-19'] }, { settings: DEFAULT_SETTINGS, today: TODAY, readAt: READ_AT, timeZone: 'UTC' })
 
     expect(trackerForecast(storage, tracker).pacePattern).toMatchObject({ pattern: 'steady', line: 'Steady · 4 to 6 a week' })
   })
