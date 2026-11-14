@@ -91,6 +91,20 @@ describe('launch smoke test', () => {
     expect(await response.text()).toContain('Milestone forecast')
   }, 15_000)
 
+  test('in demo mode, setup closes to a summary served from the committed fixture', async () => {
+    const url = await printedUrl(runEntry({ PORT: '0', FORECASTER_DEMO: '1' }))
+    const post = (path: string, fields: Record<string, string>) =>
+      fetch(new URL(path, url), { method: 'POST', body: new URLSearchParams(fields), redirect: 'manual' })
+
+    await post('/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'demo' })
+    await post('/inputs/milestone-query/add', { kind: 'epic', name: 'Epic: onboarding 1', query: 'parent-issue:shop-team/shop#200' })
+    const used = await post('/inputs/setup/use-these', {})
+    const html = await (await fetch(new URL('/inputs', url))).text()
+
+    expect(used.status).toBe(303)
+    expect(html).toMatch(/id="setup-summary"[^]*GitHub · <b>shop-team\/shop<\/b>[^]*<span class="read">read /)
+  }, 15_000)
+
   test.each(['abc', '5180.5', '-1', '65536'])('refuses PORT=%j, naming the bad value', async (port) => {
     const { code, stderr } = await failure(runEntry({ PORT: port }))
 

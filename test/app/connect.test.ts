@@ -46,7 +46,7 @@ async function startConnecting(answer: Answer = CHOICES): Promise<{ app: Running
   return { app, connecting, answerWith: (next) => void (canned.answer = next) }
 }
 
-const inputsPage = async (running: RunningApp): Promise<string> => (await fetch(new URL('/inputs', running.url))).text()
+const inputsPage = async (running: RunningApp): Promise<string> => (await fetch(new URL('/inputs?step=connect', running.url))).text()
 
 const post = (running: RunningApp, path: string, fields: Record<string, string>): Promise<Response> =>
   fetch(new URL(path, running.url), { method: 'POST', body: new URLSearchParams(fields), redirect: 'manual' })
@@ -162,7 +162,7 @@ describe('the Connect step', () => {
     const posted = await post(app, '/inputs/connect/disconnect', {})
     const html = await inputsPage(app)
 
-    expect(posted.headers.get('location')).toBe('/inputs#connect')
+    expect(posted.headers.get('location')).toBe('/inputs?step=connect#connect')
     expect(html).not.toContain('Connected to')
     expect(html).toContain('Skip: type the inputs instead')
     expect(await connecting.secrets.token('team')).toBeUndefined()

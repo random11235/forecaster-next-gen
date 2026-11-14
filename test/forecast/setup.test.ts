@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import type { Choice } from '../../src/connectors/connector.js'
 import { setupView, submitSetup, type SettingUp } from '../../src/forecast/setup.js'
+import { submitStepQuery } from '../../src/forecast/queryStep.js'
 import { COMPARABLE_WORK } from '../../src/forecast/stepQuery.js'
 import { CHECKOUT, TEAM, trackerScenario, type TrackerScenario } from '../trackerScenario.js'
 
@@ -87,6 +88,21 @@ describe('the setup steps', () => {
 
     await pick(READ_AT, Q3_POLISH, COMPARABLE_WORK)
     expect(at('comparableWork')).toMatchObject({ next: { step: 'check', label: 'next' } })
+  })
+
+  test('read Skip again once comparable work is started afresh, and stay at Milestone once its last pick is removed', async () => {
+    const { connect, pick } = team()
+    await connect()
+    await pick(READ_AT)
+    await pick(READ_AT, Q3_POLISH, COMPARABLE_WORK)
+    const at = (step: string) => setupView(settingUp(scenario!), TEAM, step)
+
+    await submitStepQuery(scenario!.using, TEAM, { kind: 'startAfresh' }, READ_AT, COMPARABLE_WORK)
+    expect(at('comparableWork')).toMatchObject({ next: { step: 'check', label: 'skip' } })
+
+    await submitStepQuery(scenario!.using, TEAM, { kind: 'removePick', query: CHECKOUT.query }, READ_AT)
+    expect(at('check')).toMatchObject({ step: 'milestone' })
+    expect(at('milestone')).not.toHaveProperty('next')
   })
 
   test('stay at Milestone, asked for a later step, until the milestone has a query', async () => {
