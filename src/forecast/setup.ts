@@ -226,14 +226,14 @@ function withSource(settingUp: SettingUp, teamId: string, chosen: ChosenSource):
  * away, back to the summary as it was, and is refused in a first setup, which has no summary to go back to. Connecting
  * skipped, Change opens the steps at Connect.
  */
-export function submitSetup(settingUp: SettingUp, teamId: string, edit: SetupEdit): SetupSubmitted {
-  const saved = edited(settingUp, teamId, edit)
+export async function submitSetup(settingUp: SettingUp, teamId: string, edit: SetupEdit): Promise<SetupSubmitted> {
+  const saved = await edited(settingUp, teamId, edit)
   const next = nextAfter(settingUp, teamId, edit)
   return { saved, ...(next && { next }) }
 }
 
 /** Makes `edit`, if it can be made: whether it was. */
-function edited(settingUp: SettingUp, teamId: string, edit: SetupEdit): boolean {
+async function edited(settingUp: SettingUp, teamId: string, edit: SetupEdit): Promise<boolean> {
   const { setup } = settingUp
   switch (edit.kind) {
     case 'useThese':
