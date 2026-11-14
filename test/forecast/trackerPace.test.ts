@@ -128,7 +128,7 @@ describe('following GitHub', () => {
         },
       },
     })
-    expect(forecast()).toMatchObject({ kind: 'forecast', pace: { source: 'tracker', tracker: 'GitHub', counts: [3, 5, 6, 4, 7, 5, 6, 8] } })
+    expect(forecast()).toMatchObject({ kind: 'forecast', pace: { source: 'tracker', tracker: 'GitHub', counts: [3, 5, 6, 4, 7, 5, 6, 8] }, paceSaid: 'GitHub’s last 8 weeks' })
   })
 })
 

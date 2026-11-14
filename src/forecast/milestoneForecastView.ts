@@ -4,7 +4,8 @@ import type { CapacityEntry } from '../model/capacity.js'
 import type { Storage } from '../storage/storage.js'
 import { daysBetween } from './calendarDate.js'
 import { capacityFactors, capacityLine, capacityView, currentEntries, entryEffect, type CapacityUse, type CapacityView, type EntryEffect, type PacePeriods } from './capacity.js'
-import { periodName } from './cadence.js'
+import { periodName, type PeriodName } from './cadence.js'
+import { counted } from './counted.js'
 import { milestoneGrowth } from './growth.js'
 import { assessMilestone, type ForecastableInputs, type ForecastPace, type InputNote } from './milestoneAssessment.js'
 import { paceActionApplied, pacePattern, type PacePatternView } from './pacePattern.js'
@@ -73,6 +74,8 @@ export type MilestoneForecastView =
       cadenceDays: number
       /** The pace the dates come from. */
       pace: ForecastPace
+      /** The pace the dates come from, as the forecast says it: "4–8 tickets per week (range)", "typed counts, 6 sprints", or "GitHub’s last 8 weeks, 2 skipped". */
+      paceSaid: string
       /** The milestone's ambiguity level and the growth range it used. */
       ambiguity: { level: Ambiguity } & GrowthRange
       warnings: InputNote[]
@@ -160,6 +163,7 @@ export function milestoneForecastView(
     horizonDate: periodEndDate(inputs.startDate, periodDays, maxPeriods),
     cadenceDays: inputs.cadenceDays,
     pace,
+    paceSaid: paceSaid(pace, period),
     ambiguity: { level: inputs.ambiguity, ...growth },
     warnings: assessment.warnings.map(({ input, message }) => ({ input, message })),
     finishGraph: finishGraph(result, simulationCase),
@@ -186,6 +190,12 @@ function comparedDate(percent: number, withCapacity: ForecastResult, atUsual: Fo
   const usual = atUsual.percentileDates[percent] ?? null
   const shift = dated === null || usual === null ? null : daysBetween(usual, dated) / periodDays
   return { percent, withCapacity: dated, atUsual: usual, shift }
+}
+
+/** The pace the dates come from, said in the milestone's `period`. */
+function paceSaid(pace: ForecastPace, period: PeriodName): string {
+  if (pace.source === 'tracker') return `${pace.tracker}’s last ${pace.counts.length === 1 ? period : counted(pace.counts.length, period)}${pace.skipped > 0 ? `, ${pace.skipped} skipped` : ''}`
+  return pace.source === 'counts' ? `typed counts, ${counted(pace.counts.length, period)}` : `${pace.low}–${pace.high} tickets per ${period} (range)`
 }
 
 /** The periods the pace comes from, for the new-usual rule: each in the pace window, dated back from today's period. */

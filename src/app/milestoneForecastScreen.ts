@@ -244,7 +244,7 @@ function renderPaceSide(view: Forecast): string {
   return `
       <aside class="side" aria-label="Pace">
         <div class="heading"><h2>Pace</h2><a href="/inputs#pace">Change</a></div>
-        <p class="note">${paceUsed(view)}</p>${renderPaceTrend(view.paceTrend, period, '        ')}${renderPacePattern(view.pacePattern, view.paceActionRefusal, view.horizonDate)}${renderCapacity(view.capacity, period)}
+        <p class="note">${escapeHtml(view.paceSaid)}</p>${renderPaceTrend(view.paceTrend, period, '        ')}${renderPacePattern(view.pacePattern, view.paceActionRefusal, view.horizonDate)}${renderCapacity(view.capacity, period)}
       </aside>`
 }
 
@@ -414,13 +414,6 @@ function editFold(id: number, refusal: string | undefined, fields: string): stri
             <span class="actions"><button type="submit">Save</button> <a href="${CAPACITY_OPEN_PATH}#capacity">Cancel</a></span>
             </form>
           </details>`
-}
-
-/** The pace the dates come from: "4–8 tickets per week (range)", "typed counts, 6 sprints", or "GitHub’s last 8 weeks". */
-function paceUsed({ pace, cadenceDays }: Forecast): string {
-  const period = periodName(cadenceDays)
-  if (pace.source === 'tracker') return `${pace.tracker}’s last ${pace.counts.length === 1 ? period : counted(pace.counts.length, period)}${pace.skipped > 0 ? `, ${pace.skipped} skipped` : ''}`
-  return pace.source === 'counts' ? `typed counts, ${counted(pace.counts.length, period)}` : `${pace.low}–${pace.high} tickets per ${period} (range)`
 }
 
 /**
