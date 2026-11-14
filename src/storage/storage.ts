@@ -4,6 +4,7 @@ import type { Connection } from '../model/connection.js'
 import type { MilestoneInputs } from '../model/milestoneInputs.js'
 import type { MilestoneQuery } from '../model/milestoneQuery.js'
 import type { SavedRead, TeamQuery } from '../model/savedRead.js'
+import type { ReadFailures } from '../model/readFailures.js'
 import type { SetupDraft } from '../model/setupDraft.js'
 import type { Team } from '../model/team.js'
 
@@ -89,7 +90,8 @@ export type SetupClosed = 'done' | 'skipped'
 /**
  * How the team's setup steps were closed (#217), if they were: the Inputs screen shows the summary, or the inputs typed,
  * instead of the steps. Open until closed, and open again when the EM changes them. Beside it, the setup draft: what
- * the EM has chosen in the steps and not yet applied (#218). The browser build has no setup steps.
+ * the EM has chosen in the steps and not yet applied (#218), and why the last reads failed (#222). The browser build has
+ * no setup steps.
  */
 export interface SetupStorage {
   /** How the team's setup was closed, if it was. */
@@ -104,4 +106,10 @@ export interface SetupStorage {
   saveSetupDraft(teamId: string, draft: SetupDraft): void
   /** Throws the team's setup draft away, if it has one. */
   discardSetupDraft(teamId: string): void
+  /** Why the team's last reads failed (#222), if they did: the summary says so, the saved reads in use. */
+  readFailures(teamId: string): ReadFailures | undefined
+  /** Replaces why the team's reads failed whole. */
+  saveReadFailures(teamId: string, failures: ReadFailures): void
+  /** Forgets why the team's reads failed, once they are read. */
+  clearReadFailures(teamId: string): void
 }

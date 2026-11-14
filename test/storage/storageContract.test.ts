@@ -538,6 +538,22 @@ describe("SQLite storage's setup", () => {
     reopen().discardSetupDraft('team')
     expect(reopen().setupDraft('team')).toBeUndefined()
   })
+
+  // Why the last reads failed (#222), so the summary still says why after a reload; none once read again.
+  test('keeps why the reads failed whole, replacing it, until it is cleared', () => {
+    const { storage, reopen } = sqliteFile()
+    storage.saveTeam(TEAM)
+    const failures = { queries: { 'milestone:"Q3"': { failure: 'invalidQuery' as const, message: 'No such milestone.', at: '2026-11-12T09:00:00Z' }, 'label:bug': { failure: 'unavailable' as const, at: '2026-11-12T09:00:00Z' } } }
+
+    expect(storage.readFailures('team')).toBeUndefined()
+    storage.saveReadFailures('team', { whole: { failure: 'keychainFailed', at: '2026-11-12T08:00:00Z' } })
+    storage.saveReadFailures('team', failures)
+    expect(reopen().readFailures('team')).toEqual(failures)
+    expect(reopen().readFailures('another')).toBeUndefined()
+
+    reopen().clearReadFailures('team')
+    expect(reopen().readFailures('team')).toBeUndefined()
+  })
 })
 
 describe('browser storage the browser refuses', () => {
