@@ -91,7 +91,8 @@ describe('following the tracker', () => {
     expect(inputs().milestone.ticketsSource).toEqual({
       source: 'typed',
       tracker: 'GitHub',
-      reading: { count: 3, incomplete: false, readOn: '12 Nov 09:00' },
+      reading: { count: 3, incomplete: false, readOn: '12 Nov 09:00', readAt: READ_AT },
+      readsDifferently: { unseen: true },
     })
     expect(forecast()).toMatchObject({ kind: 'forecast', ticketsRemaining: 30 })
   })
@@ -102,7 +103,7 @@ describe('following the tracker', () => {
     expect(inputs().milestone.ticketsSource).toEqual({
       source: 'tracker',
       tracker: 'GitHub',
-      reading: { count: 3, incomplete: false, readOn: '12 Nov 09:00' },
+      reading: { count: 3, incomplete: false, readOn: '12 Nov 09:00', readAt: READ_AT },
     })
     expect(forecast()).toMatchObject({ kind: 'forecast', ticketsRemaining: 3 })
   })

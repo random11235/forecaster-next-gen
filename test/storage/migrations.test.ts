@@ -754,33 +754,78 @@ describe("a data file from schema version 16, before the values' sources, skips 
   })
 })
 
-/** Version 17's tables: version 16's, plus the values' sources and reads seen as #210 shipped them, and a saved read. Kept verbatim: it is a past release. */
+/** Version 17's tables: version 16's, with the values' sources and reads seen as #210 shipped them, and a saved read. Kept verbatim: it is a past release. */
 const VERSION_17_SCHEMA = `${VERSION_16_SCHEMA}
 ALTER TABLE milestone_inputs ADD COLUMN tickets_source TEXT NOT NULL DEFAULT 'typed';
 ALTER TABLE milestone_inputs ADD COLUMN seen_reads TEXT NOT NULL DEFAULT '{}';
-INSERT INTO saved_reads (team_id, query, incomplete, read_at) VALUES ('${TEAM}', 'milestone:"Launch"', 0, '2026-11-12T09:00:00.000Z');
-INSERT INTO saved_read_tickets (team_id, query, position, id, finished_at) VALUES ('${TEAM}', 'milestone:"Launch"', 0, 'I_1', '2026-11-03T10:00:00Z');
+INSERT INTO saved_reads VALUES ('${TEAM}', 'milestone:"Launch"', 0, '2026-10-28T09:05:00Z');
+INSERT INTO saved_read_tickets VALUES ('${TEAM}', 'milestone:"Launch"', 0, 'I_1', '2026-10-27T10:00:00Z');
+INSERT INTO saved_read_tickets VALUES ('${TEAM}', 'milestone:"Launch"', 1, 'I_2', NULL);
 `
 
-describe('a data file from schema version 17, before reads reached back past skipped periods', () => {
-  test('keeps its saved read, reaching back the 8 weeks it was read with', () => {
+describe('a data file from schema version 17, before previous reads', () => {
+  test('keeps its saved read with no previous read, and its next read keeps it as the previous one, which survives reopening', () => {
     const file = writeFile('v17.db', VERSION_17_SCHEMA, 17)
+    const query = 'milestone:"Launch"'
+    const storage = openSqliteStorage(file)
+    // reaching back the 8 weeks it was read with (#213)
+    const saved = { tickets: [{ id: 'I_1', finishedAt: '2026-10-27T10:00:00Z' }, { id: 'I_2' }], incomplete: false, readAt: '2026-10-28T09:05:00Z', finishedSince: '2026-09-02T09:05:00.000Z' }
+    expect(storage.savedRead({ teamId: TEAM, query })).toEqual(saved)
+    expect(storage.previousRead({ teamId: TEAM, query })).toBeUndefined()
 
-    expect(open(file).savedRead({ teamId: TEAM, query: 'milestone:"Launch"' })).toEqual({
-      tickets: [{ id: 'I_1', finishedAt: '2026-11-03T10:00:00Z' }],
+    storage.saveRead({ teamId: TEAM, query }, { tickets: [{ id: 'I_2' }], incomplete: false, readAt: '2026-11-04T09:12:00Z', finishedSince: '2026-09-02T09:12:00Z' })
+    storage.close()
+
+    const again = openSqliteStorage(file)
+    expect(again.previousRead({ teamId: TEAM, query })).toEqual(saved)
+    again.close()
+    expect(versionOf(file)).toBe(19)
+  })
+})
+
+/** Version 18's tables: version 17's, plus the previous reads as #214 shipped them, and a previous read. Kept verbatim: it is a past release. */
+const VERSION_18_SCHEMA = `${VERSION_17_SCHEMA}
+CREATE TABLE previous_reads (
+  team_id TEXT NOT NULL REFERENCES teams(id),
+  query TEXT NOT NULL,
+  incomplete INTEGER NOT NULL,
+  read_at TEXT NOT NULL,
+  PRIMARY KEY (team_id, query)
+);
+CREATE TABLE previous_read_tickets (
+  team_id TEXT NOT NULL,
+  query TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  id TEXT NOT NULL,
+  finished_at TEXT,
+  PRIMARY KEY (team_id, query, position),
+  FOREIGN KEY (team_id, query) REFERENCES previous_reads(team_id, query) ON DELETE CASCADE
+);
+INSERT INTO previous_reads VALUES ('${TEAM}', 'milestone:"Launch"', 0, '2026-10-21T09:00:00Z');
+INSERT INTO previous_read_tickets VALUES ('${TEAM}', 'milestone:"Launch"', 0, 'I_1', NULL);
+`
+
+describe('a data file from schema version 18, before reads reached back past skipped periods', () => {
+  test('keeps its saved and previous reads, each reaching back the 8 weeks it was read with', () => {
+    const file = writeFile('v18.db', VERSION_18_SCHEMA, 18)
+    const storage = open(file)
+
+    expect(storage.savedRead({ teamId: TEAM, query: 'milestone:"Launch"' })).toMatchObject({ readAt: '2026-10-28T09:05:00Z', finishedSince: '2026-09-02T09:05:00.000Z' })
+    expect(storage.previousRead({ teamId: TEAM, query: 'milestone:"Launch"' })).toEqual({
+      tickets: [{ id: 'I_1' }],
       incomplete: false,
-      readAt: '2026-11-12T09:00:00.000Z',
-      finishedSince: '2026-09-17T09:00:00.000Z',
+      readAt: '2026-10-21T09:00:00Z',
+      finishedSince: '2026-08-26T09:00:00.000Z',
     })
   })
 
   test('takes a read reaching further back, which survives reopening', () => {
-    const file = writeFile('v17.db', VERSION_17_SCHEMA, 17)
-    const read = { tickets: [{ id: 'I_2', finishedAt: '2026-09-15T10:00:00Z' }], incomplete: false, readAt: '2026-11-13T09:00:00Z', finishedSince: '2026-09-04T09:00:00Z' }
+    const file = writeFile('v18.db', VERSION_18_SCHEMA, 18)
+    const read = { tickets: [{ id: 'I_2', finishedAt: '2026-09-15T10:00:00Z' }], incomplete: false, readAt: '2026-11-13T09:00:00Z', finishedSince: '2026-08-27T09:00:00Z' }
     open(file).saveRead({ teamId: TEAM, query: 'milestone:"Launch"' }, read)
 
     expect(open(file).savedRead({ teamId: TEAM, query: 'milestone:"Launch"' })).toEqual(read)
-    expect(versionOf(file)).toBe(18)
+    expect(versionOf(file)).toBe(19)
   })
 })
 
