@@ -44,6 +44,7 @@ async function startConnected(fixture: CannedFixture = FIXTURE): Promise<Running
     connections: storage,
     reads: storage,
     milestoneQueries: storage,
+    setup: storage,
     secrets: openMemorySecrets(),
     connector: () => cannedConnector(fixture),
   }
@@ -299,7 +300,7 @@ describe('the Milestone step', () => {
       const html = await refused.text()
       expect(stepOf(html)).toContain('class="chip"')
       expect(stepOf(html)).toContain('Checkout')
-      expect(sectionNumbers(html).slice(0, 4)).toEqual(['connect 01', 'milestone-tickets 02', 'comparable-work 03', 'milestone 04'])
+      expect(sectionNumbers(html).slice(0, 2)).toEqual(['milestone-tickets 01', 'milestone 02'])
     })
 
     test('saved in place, answers with its sections numbered after the Milestone step', async () => {
@@ -313,7 +314,7 @@ describe('the Milestone step', () => {
       })
 
       expect(saved.status).toBe(200)
-      expect(sectionNumbers(await saved.text()).slice(0, 4)).toEqual(['connect 01', 'milestone-tickets 02', 'comparable-work 03', 'milestone 04'])
+      expect(sectionNumbers(await saved.text()).slice(0, 2)).toEqual(['milestone-tickets 01', 'milestone 02'])
     })
   })
 
@@ -337,7 +338,7 @@ describe('the Milestone step', () => {
 
   test('before connecting, there is none', async () => {
     storage = openSqliteStorage(':memory:')
-    const connecting: Connecting = { connections: storage, reads: storage, milestoneQueries: storage, secrets: openMemorySecrets(), connector: () => cannedConnector(FIXTURE) }
+    const connecting: Connecting = { connections: storage, reads: storage, milestoneQueries: storage, setup: storage, secrets: openMemorySecrets(), connector: () => cannedConnector(FIXTURE) }
     app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage, connecting })
 
     expect(await page(app)).not.toContain('id="milestone-tickets"')

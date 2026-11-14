@@ -86,6 +86,7 @@ beforeEach(async () => {
     milestoneInputs: storage,
     reads: storage,
     milestoneQueries: storage,
+    setup: storage,
     secrets: openMemorySecrets(),
     connector: () => cannedConnector(FIXTURE),
   }

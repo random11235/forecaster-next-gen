@@ -11,7 +11,7 @@ import type { SavedRead } from '../../src/model/savedRead.js'
 import type { MilestoneInputs } from '../../src/model/milestoneInputs.js'
 import type { Team } from '../../src/model/team.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
-import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage, Storage } from '../../src/storage/storage.js'
+import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage, SetupStorage, Storage } from '../../src/storage/storage.js'
 import { openWebStorage, type KeyValueStore } from '../../src/storage/webStorage.js'
 
 // What every Storage keeps, whatever it keeps it in: the local app's SQLite file and the web build's browser storage.
@@ -487,6 +487,35 @@ describe("SQLite storage's milestone query", () => {
     db.close()
 
     expect(reopen().comparableWorkQuery('team')).toEqual(PICKED)
+  })
+})
+
+describe("SQLite storage's setup", () => {
+  function sqliteFile(): { storage: Storage & SetupStorage; reopen: () => Storage & SetupStorage } {
+    dir = mkdtempSync(join(tmpdir(), 'forecaster-'))
+    const file = join(dir, 'forecaster.db')
+    const reopen = (): Storage & SetupStorage => {
+      open?.close()
+      const storage = openSqliteStorage(file)
+      open = storage
+      return storage
+    }
+    return { storage: reopen(), reopen }
+  }
+
+  // How the team's setup steps were closed (#217): done with "Use these", or connecting skipped; open until either.
+  test('keeps how setup was closed, replacing it when closed again, until it is reopened', () => {
+    const { storage, reopen } = sqliteFile()
+    storage.saveTeam(TEAM)
+
+    expect(storage.setupClosed('team')).toBeUndefined()
+    storage.closeSetup('team', 'skipped')
+    storage.closeSetup('team', 'done')
+    expect(reopen().setupClosed('team')).toBe('done')
+    expect(reopen().setupClosed('another')).toBeUndefined()
+
+    reopen().reopenSetup('team')
+    expect(reopen().setupClosed('team')).toBeUndefined()
   })
 })
 

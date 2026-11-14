@@ -8,7 +8,7 @@ import type { MilestoneInputs, PaceMode, PaceWindow, SeenReads, TicketsSource } 
 import type { MilestoneQuery } from '../model/milestoneQuery.js'
 import type { SavedRead } from '../model/savedRead.js'
 import type { Team } from '../model/team.js'
-import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage, Storage } from './storage.js'
+import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage, SetupClosed, SetupStorage, Storage } from './storage.js'
 
 /**
  * The schema, as the steps that build it. The file records how many it has applied (`PRAGMA user_version`), and
@@ -280,12 +280,22 @@ UPDATE saved_reads SET finished_since = strftime('%Y-%m-%dT%H:%M:%fZ', read_at, 
 ALTER TABLE previous_reads ADD COLUMN finished_since TEXT;
 UPDATE previous_reads SET finished_since = strftime('%Y-%m-%dT%H:%M:%fZ', read_at, '-56 days');
 `,
+  // 20: how each team's setup steps were closed (#217): done or skipped; no row while they are open. A team already
+  // connected with a milestone query has finished setting up, so it is done; any other team's steps are open.
+  `
+CREATE TABLE setups (
+  team_id TEXT PRIMARY KEY REFERENCES teams(id),
+  closed TEXT NOT NULL
+);
+INSERT INTO setups (team_id, closed)
+  SELECT connections.team_id, 'done' FROM connections JOIN milestone_queries ON milestone_queries.team_id = connections.team_id;
+`,
 ]
 
 type Row = Record<string, SQLInputValue>
 
-/** The local server build's storage: everything, and the team's connection, saved reads, milestone query and comparable work's. */
-export type SqliteStorage = Storage & ConnectionStorage & SavedReadStorage & MilestoneQueryStorage
+/** The local server build's storage: everything, and the team's connection, saved reads, milestone query and comparable work's, and how its setup was closed. */
+export type SqliteStorage = Storage & ConnectionStorage & SavedReadStorage & MilestoneQueryStorage & SetupStorage
 
 /** Opens (creating if needed) the SQLite file at `file`. `':memory:'` keeps everything in memory. */
 export function openSqliteStorage(file: string): SqliteStorage {
@@ -373,6 +383,10 @@ export function openSqliteStorage(file: string): SqliteStorage {
     INSERT INTO comparable_work_queries (team_id, query, picks) VALUES (?, ?, ?)
     ON CONFLICT (team_id) DO UPDATE SET query = excluded.query, picks = excluded.picks`)
   const selectComparableWorkQuery = db.prepare('SELECT query, picks FROM comparable_work_queries WHERE team_id = ?')
+  const upsertSetup = db.prepare(`
+    INSERT INTO setups (team_id, closed) VALUES (?, ?) ON CONFLICT (team_id) DO UPDATE SET closed = excluded.closed`)
+  const selectSetup = db.prepare('SELECT closed FROM setups WHERE team_id = ?')
+  const deleteSetup = db.prepare('DELETE FROM setups WHERE team_id = ?')
 
   return {
     isEmpty() {
@@ -546,11 +560,27 @@ export function openSqliteStorage(file: string): SqliteStorage {
       return queryIn(selectComparableWorkQuery.get(teamId))
     },
 
+    setupClosed(teamId) {
+      const closed = (selectSetup.get(teamId) as { closed: string } | undefined)?.closed
+      return SETUP_CLOSED.find((known) => known === closed)
+    },
+
+    closeSetup(teamId, closed) {
+      upsertSetup.run(teamId, closed)
+    },
+
+    reopenSetup(teamId) {
+      deleteSetup.run(teamId)
+    },
+
     close() {
       db.close()
     },
   }
 }
+
+/** How setup can be closed: a row naming anything else, from a newer release, reads back as open. */
+const SETUP_CLOSED: readonly SetupClosed[] = ['done', 'skipped']
 
 /** The picks as a row keeps them: a JSON array of each one's kind, name and query, in order, and nothing else of it. */
 function picksKept(picks: readonly Choice[]): string {

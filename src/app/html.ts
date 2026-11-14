@@ -247,8 +247,17 @@ const STYLE = `
     .actions { display: flex; justify-content: flex-end; }
     button.primary, a.button.primary { min-height: 42px; padding: 0 20px; border: 0; background: var(--ink); color: var(--page); font-size: 14px; font-weight: 600; }
     a.button.primary { display: inline-flex; align-items: center; border-radius: 6px; text-decoration: none; }
-    .actions.onward { gap: 16px; align-items: center; margin-top: 16px; }
-    .actions.onward form { margin: 0; }
+    /* The setup steps (#217): their list, the step shown marked; Back and Next beneath it; and, set up, the summary above the inputs. */
+    ol.setup-steps { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 0 0 20px; padding: 0; list-style: none; counter-reset: step; font-size: 13px; color: var(--faint); }
+    ol.setup-steps li { counter-increment: step; }
+    ol.setup-steps li::before { content: counter(step) ". "; font-family: var(--mono); }
+    ol.setup-steps li[aria-current="step"] { color: var(--ink); font-weight: 600; }
+    ol.setup-steps li.done, ol.setup-steps li.done a { color: var(--muted); }
+    .actions.setup-nav { gap: 12px; align-items: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--hairline); }
+    .actions.setup-nav a.button:not(.primary) { margin-right: auto; font-size: 14px; color: var(--link); }
+    .setup-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 24px; padding: 12px 16px; border: 1px solid var(--hairline); border-radius: 8px; font-size: 14px; }
+    .setup-summary .read, .setup-summary .muted { font-size: 13px; color: var(--muted); }
+    .setup-summary form { margin: 0 0 0 auto; }
     .pace { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; }
     .pace label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
     .pace input[type=number] { font-size: 32px; width: 72px; text-align: center; padding: 2px 0; }

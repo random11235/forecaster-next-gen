@@ -59,8 +59,6 @@ export interface MilestoneStep extends PickedQuery {
  */
 export interface ComparableWorkStep extends PickedQuery {
   kind: 'comparableWorkStep'
-  /** Its main button: `skip` until something is added, then `next`. */
-  onward: 'skip' | 'next'
   /**
    * The pace it leads with (#204), from the saved reads alone, asking the tracker nothing; none until there is one.
    * Its `flag`, that comparable work's query isn't used, goes beside the read when the step has none of its own.
@@ -197,8 +195,7 @@ async function comparableWorkStep(
 ): Promise<ComparableWorkStep> {
   const { milestoneInputs, at } = stepping
   const pace = comparableWorkPace(paceReadsStorage(milestoneInputs, stepping), teamId, at)
-  const onward = picked.query === '' ? 'skip' : 'next'
-  const step: ComparableWorkStep = { kind: 'comparableWorkStep', ...picked, onward, ...(pace && { pace }) }
+  const step: ComparableWorkStep = { kind: 'comparableWorkStep', ...picked, ...(pace && { pace }) }
   if (picked.editing) return step
   const opening = openCandidates(stepping, milestoneInputs, teamId, at)
   const listed = picked.lists.flatMap((list) => list.choices)

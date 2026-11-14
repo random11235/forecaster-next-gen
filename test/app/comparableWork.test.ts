@@ -44,6 +44,7 @@ async function startConnected(): Promise<RunningApp> {
     connections: storage,
     reads: storage,
     milestoneQueries: storage,
+    setup: storage,
     secrets: openMemorySecrets(),
     connector: () => cannedConnector(FIXTURE),
   }
@@ -56,13 +57,18 @@ async function startConnected(): Promise<RunningApp> {
     now: () => '2026-11-12T09:00:00Z',
   })
   await post(app, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
+  // the Comparable work step follows the milestone's: its query, read of nothing here
+  storage.saveMilestoneQuery('team', { picks: [], query: 'label:"launch"' })
   return app
 }
 
-const page = async (running: RunningApp, path = '/inputs'): Promise<string> => (await fetch(new URL(path, running.url))).text()
+const page = async (running: RunningApp, path = STEP): Promise<string> => (await fetch(new URL(path, running.url))).text()
 
 const post = (running: RunningApp, path: string, fields: Record<string, string>): Promise<Response> =>
   fetch(new URL(path, running.url), { method: 'POST', body: new URLSearchParams(fields), redirect: 'manual' })
+
+/** The Inputs screen at the Comparable work step (#217). */
+const STEP = '/inputs?step=comparableWork'
 
 /** The section of the Inputs screen with this id. */
 function sectionOf(html: string, id: string): string {
@@ -74,18 +80,18 @@ function sectionOf(html: string, id: string): string {
 const stepOf = (html: string): string => sectionOf(html, 'comparable-work')
 
 describe('the Comparable work step', () => {
-  test('follows the Milestone step, before the milestone, listing the choices, its button reading Skip on to the milestone', async () => {
+  test('follows the Milestone step, the step shown, before the milestone, listing the choices, Skip going on to Check', async () => {
     const running = await startConnected()
 
     const html = await page(running)
 
     const numbers = [...html.matchAll(/<section[^>]* id="([^"]+)"[^]*?class="number">(\d+)</g)].map(([, id, n]) => `${id} ${n}`)
-    expect(numbers.slice(0, 4)).toEqual(['connect 01', 'milestone-tickets 02', 'comparable-work 03', 'milestone 04'])
+    expect(numbers.slice(0, 2)).toEqual(['comparable-work 01', 'milestone 02'])
     const step = stepOf(html)
     expect(step).toContain('<h2>Comparable work</h2>')
     expect(step).toContain('Payments v2')
     expect(step).toContain('Comparable-work query')
-    expect(step).toMatch(/<a href="\/inputs#milestone" class="button primary">Skip<\/a>/)
+    expect(step).toMatch(/<a href="\/inputs\?step=check#check" class="button primary">Skip<\/a>/)
     expect(step).not.toContain('Start afresh')
   })
 
@@ -96,7 +102,7 @@ describe('the Comparable work step', () => {
     await post(running, '/inputs/comparable-work/add', checkout)
 
     expect(picked.status).toBe(303)
-    expect(picked.headers.get('location')).toBe('/inputs#comparable-work')
+    expect(picked.headers.get('location')).toBe('/inputs?step=comparableWork#comparable-work')
     const html = await page(running)
     const step = stepOf(html)
     expect(step.match(/class="chip"/g)).toHaveLength(2)
@@ -104,30 +110,28 @@ describe('the Comparable work step', () => {
     expect(step).toContain('<p class="read">2 finished in the last 9 weeks</p>')
     expect(step).toMatch(/>Next<\/a>/)
     expect(step).toContain('action="/inputs/comparable-work/afresh#comparable-work"')
-    expect(sectionOf(html, 'milestone-tickets')).not.toContain('class="chip"')
+    expect(sectionOf(await page(running, '/inputs'), 'milestone-tickets')).not.toContain('class="chip"')
   })
 
-  test('what is typed in its find box filters its lists, not the Milestone step’s', async () => {
+  test('what is typed in its find box filters its lists', async () => {
     const running = await startConnected()
 
-    const html = await page(running, '/inputs?comparableFind=check')
+    const html = await page(running, `${STEP}&comparableFind=check`)
 
     expect(stepOf(html)).not.toContain('Payments v2')
     expect(stepOf(html)).toContain('name="comparableFind" value="check"')
-    expect(sectionOf(html, 'milestone-tickets')).toContain('Payments v2')
   })
 
-  test('Edit as a query opens its own query in a box, the Milestone step still finding', async () => {
+  test('Edit as a query opens its own query in a box', async () => {
     const running = await startConnected()
     await post(running, '/inputs/comparable-work/add', payments)
 
-    expect(stepOf(await page(running))).toContain('href="/inputs?edit=comparable#comparable-work"')
-    const html = await page(running, '/inputs?edit=comparable')
+    expect(stepOf(await page(running))).toContain('href="/inputs?step=comparableWork&#38;edit=comparable#comparable-work"')
+    const html = await page(running, `${STEP}&edit=comparable`)
 
     expect(stepOf(html)).toMatch(
       /<form method="post" action="\/inputs\/comparable-work\/edit#comparable-work"[^]*id="comparable-work-query" name="query" value="milestone:&#34;Payments v2&#34;"/,
     )
-    expect(sectionOf(html, 'milestone-tickets')).toContain('type="search"')
   })
 
   test('a hand-edited query is read once submitted, and the step stays open for editing', async () => {
@@ -135,8 +139,8 @@ describe('the Comparable work step', () => {
 
     const edited = await post(running, '/inputs/comparable-work/edit', { query: both })
 
-    expect(edited.headers.get('location')).toBe('/inputs?edit=comparable#comparable-work')
-    const step = stepOf(await page(running, '/inputs?edit=comparable'))
+    expect(edited.headers.get('location')).toBe('/inputs?step=comparableWork&edit=comparable#comparable-work')
+    const step = stepOf(await page(running, `${STEP}&edit=comparable`))
     expect(step).toContain('2 finished in the last 9 weeks')
     expect(step).toContain('Start afresh')
   })
@@ -148,7 +152,7 @@ describe('the Comparable work step', () => {
 
     const afresh = await post(running, '/inputs/comparable-work/afresh', {})
 
-    expect(afresh.headers.get('location')).toBe('/inputs#comparable-work')
+    expect(afresh.headers.get('location')).toBe('/inputs?step=comparableWork#comparable-work')
     const step = stepOf(await page(running))
     expect(step).not.toContain('class="chip"')
     expect(step).toMatch(/>Skip<\/a>/)
