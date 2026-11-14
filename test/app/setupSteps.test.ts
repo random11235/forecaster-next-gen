@@ -124,6 +124,29 @@ describe('"Use these"', () => {
     expect(html).not.toContain('id="milestone-tickets"')
   })
 
+  test('the summary names the milestone’s pick with its kind, says the leaf-and-epics line once, and flags nothing for a working setup', async () => {
+    const running = await picked()
+    await post(running, '/inputs/setup/use-these', {})
+
+    const html = await page(running, '/inputs')
+    const summary = html.slice(html.indexOf('id="setup-summary"'), html.indexOf('id="milestone"'))
+    expect(summary).toMatch(/<dt>Milestone<\/dt>\s*<dd>Checkout v2 <span class="kind">\(milestone\)<\/span><\/dd>/)
+    expect(summary).not.toContain('<dt>Comparable</dt>')
+    expect(html.split('Leaf tickets only. Epics include their sub-epics.')).toHaveLength(2)
+    expect(summary).not.toContain('class="note warn flag"')
+  })
+
+  test('the summary shows a query written by hand as written, and flags a read that matches nothing beneath it', async () => {
+    const running = await picked()
+    await post(running, '/inputs/milestone-query/edit', { query: 'milestone:"Checkout v2" -label:wontfix' })
+    await post(running, '/inputs/setup/use-these', {})
+
+    const html = await page(running, '/inputs')
+    const summary = html.slice(html.indexOf('id="setup-summary"'), html.indexOf('id="milestone"'))
+    expect(summary).toMatch(/<dt>Milestone<\/dt>\s*<dd><code>milestone:&#34;Checkout v2&#34; -label:wontfix<\/code><\/dd>/)
+    expect(summary).toMatch(/<p class="note warn flag">⚠ Milestone query: This query matches nothing/)
+  })
+
   test('once set up, the Inputs screen reads nothing from the tracker, its choices included', async () => {
     const running = await picked()
     await post(running, '/inputs/setup/use-these', {})

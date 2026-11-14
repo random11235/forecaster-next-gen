@@ -1,4 +1,5 @@
-import type { SetupEdit, SetupStep, SetupSteps, SetupSummary } from '../forecast/setup.js'
+import type { SetupEdit, SetupStep, SetupSteps, SetupSummary, SummaryFlag, SummaryRow } from '../forecast/setup.js'
+import { COMPARABLE_WORK, MILESTONE_QUERY } from '../forecast/stepQuery.js'
 import { escapeHtml } from './html.js'
 import { COMPARABLE_WORK_STEP, inputsAt, MILESTONE_STEP } from './queryStepSection.js'
 
@@ -57,17 +58,46 @@ export function checkStepHtml(): string {
         </form>`
 }
 
-/** Setup done: the tracker, the repo or project, and when the milestone was read, with Change to open the steps again; above the inputs. */
-export function setupSummaryHtml({ tracker, where, readOn }: SetupSummary): string {
-  const read = readOn === undefined ? '' : `\n      <span class="read">read ${escapeHtml(readOn)}</span>`
+/**
+ * Setup done, above the inputs: the tracker, the repo or project, and when the milestone was read, with Change to open
+ * the steps again; the Milestone row, and the Comparable row when there is comparable work, each naming its picks with
+ * their kinds or showing the query written by hand; the leaf-and-epics line; and beneath, only problem flags.
+ */
+export function setupSummaryHtml({ tracker, where, readOn, milestone, comparable, note, flags }: SetupSummary): string {
+  const read = readOn === undefined ? '' : `\n        <span class="read">read ${escapeHtml(readOn)}</span>`
+  const rows = [rowHtml('Milestone', milestone), ...(comparable ? [rowHtml('Comparable', comparable)] : [])].join('\n')
   return `    <div class="setup-summary" id="setup-summary" aria-label="Tracker">
-      <span class="ok-dot" aria-hidden="true"></span>
-      <span>${escapeHtml(tracker)} · <b>${escapeHtml(where)}</b></span>${read}
-      <form method="post" action="${SETUP_PATHS.change}">
-        <button type="submit" class="linkish">Change</button>
-      </form>
+      <div class="setup-head">
+        <span class="ok-dot" aria-hidden="true"></span>
+        <span>${escapeHtml(tracker)} · <b>${escapeHtml(where)}</b></span>${read}
+        <form method="post" action="${SETUP_PATHS.change}">
+          <button type="submit" class="linkish">Change</button>
+        </form>
+      </div>
+      <dl class="setup-rows">
+${rows}
+      </dl>
+      <p class="note">${escapeHtml(note)}</p>${flags.map(flagHtml).join('')}
     </div>
 `
+}
+
+/** A summary row: its picks, "Checkout v2 (epic), Search revamp (epic)", or the query written by hand. */
+function rowHtml(name: string, row: SummaryRow): string {
+  const shown =
+    'query' in row
+      ? `<code>${escapeHtml(row.query)}</code>`
+      : row.picks.map((pick) => `${escapeHtml(pick.name)} <span class="kind">(${escapeHtml(pick.kind)})</span>`).join(', ')
+  return `        <dt>${name}</dt>
+        <dd>${shown}</dd>`
+}
+
+/** Each query flagged, named as its step names it. */
+const FLAGGED_QUERY: Readonly<Record<SummaryFlag['of'], string>> = { milestone: MILESTONE_QUERY.name, comparable: COMPARABLE_WORK.name }
+
+/** A problem flag beneath the summary: "⚠ Milestone query: This query matches nothing…". */
+function flagHtml({ of, flag }: SummaryFlag): string {
+  return `\n      <p class="note warn flag">⚠ ${FLAGGED_QUERY[of]}: ${escapeHtml(flag)}</p>`
 }
 
 /** Connecting skipped: the inputs typed, as the MVP has them, with a way to connect a tracker after all; above the inputs. */
