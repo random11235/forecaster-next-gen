@@ -1,4 +1,5 @@
 import type { Connection } from '../model/connection.js'
+import type { MilestoneQuery } from '../model/milestoneQuery.js'
 import type { SetupStorage } from '../storage/storage.js'
 import type { Connecting } from './connection.js'
 import { readOn } from './trackerReads.js'
@@ -67,11 +68,11 @@ export function setupView(settingUp: SettingUp | undefined, teamId: string, aske
   const closed = settingUp.setup.setupClosed(teamId)
   if (closed === 'done' && connection) return summaryOf(settingUp, teamId, connection)
   if (closed === 'skipped' && !connection) return { kind: 'skipped' }
-  const picked = settingUp.milestoneQueries.milestoneQuery(teamId) !== undefined
+  const picked = hasQuery(settingUp.milestoneQueries.milestoneQuery(teamId))
   const step: SetupStep = !connection ? 'connect' : asked === 'connect' || (picked && isLater(asked)) ? (asked as SetupStep) : 'milestone'
   const at = SETUP_STEPS.indexOf(step)
   const back = SETUP_STEPS[at - 1]
-  const next = connection && nextOf(step, picked, settingUp.milestoneQueries.comparableWorkQuery(teamId) !== undefined)
+  const next = connection && nextOf(step, picked, hasQuery(settingUp.milestoneQueries.comparableWorkQuery(teamId)))
   return {
     kind: 'steps',
     step,
@@ -100,6 +101,9 @@ function nextOf(step: SetupStep, picked: boolean, comparable: boolean): SetupSte
   }
 }
 
+/** Whether a step's query is saved, and not left empty by removing its last pick or starting afresh. */
+const hasQuery = (saved: MilestoneQuery | undefined): boolean => (saved?.query ?? '') !== ''
+
 function summaryOf(settingUp: SettingUp, teamId: string, connection: Connection): SetupSummary {
   const tracker = trackerOf(connection)
   const query = settingUp.milestoneQueries.milestoneQuery(teamId)?.query
@@ -114,7 +118,7 @@ function summaryOf(settingUp: SettingUp, teamId: string, connection: Connection)
 export function submitSetup(settingUp: SettingUp, teamId: string, edit: SetupEdit): SetupSubmitted {
   switch (edit.kind) {
     case 'useThese':
-      if (!settingUp.connections.connection(teamId) || !settingUp.milestoneQueries.milestoneQuery(teamId)) return { saved: false }
+      if (!settingUp.connections.connection(teamId) || !hasQuery(settingUp.milestoneQueries.milestoneQuery(teamId))) return { saved: false }
       settingUp.setup.closeSetup(teamId, 'done')
       return { saved: true }
     case 'skipConnecting':

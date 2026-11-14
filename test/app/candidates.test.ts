@@ -73,7 +73,7 @@ async function startConnected(): Promise<RunningApp> {
   return app
 }
 
-const page = async (running: RunningApp, path = '/inputs'): Promise<string> => (await fetch(new URL(path, running.url))).text()
+const page = async (running: RunningApp, path = '/inputs?step=comparableWork'): Promise<string> => (await fetch(new URL(path, running.url))).text()
 
 const post = (running: RunningApp, path: string, fields: Record<string, string> | Choice): Promise<Response> =>
   fetch(new URL(path, running.url), { method: 'POST', body: new URLSearchParams({ ...fields }), redirect: 'manual' })
@@ -103,14 +103,14 @@ describe('candidates for comparable work', () => {
 
     expect(reads).toEqual([])
     expect(step).toContain('class="candidates"')
-    expect(step).toContain(`href="/inputs?comparableOpen=${encodeURIComponent(payments.query)}#comparable-work"`)
+    expect(step).toContain(`href="/inputs?step=comparableWork&#38;comparableOpen=${encodeURIComponent(payments.query)}#comparable-work"`)
     expect(step).not.toContain('Slower than the milestone')
   })
 
   test('opening one reads it alone, and shows it in its group with its data', async () => {
     const running = await startConnected()
 
-    const step = stepOf(await page(running, `/inputs?comparableOpen=${encodeURIComponent(payments.query)}`))
+    const step = stepOf(await page(running, `/inputs?step=comparableWork&comparableOpen=${encodeURIComponent(payments.query)}`))
 
     expect(reads).toEqual([payments.query])
     expect(step).toContain('Slower than the milestone')
@@ -123,7 +123,7 @@ describe('candidates for comparable work', () => {
   test('the milestone itself is marked', async () => {
     const running = await startConnected()
 
-    const step = stepOf(await page(running, `/inputs?comparableOpen=${encodeURIComponent(checkout.query)}`))
+    const step = stepOf(await page(running, `/inputs?step=comparableWork&comparableOpen=${encodeURIComponent(checkout.query)}`))
 
     expect(step).toContain('About the same')
     expect(step).toContain('this milestone: counts its own too')
@@ -132,7 +132,7 @@ describe('candidates for comparable work', () => {
   test('the milestone itself is marked in the step’s lists, unread', async () => {
     const running = await startConnected()
 
-    const step = stepOf(await page(running, '/inputs'))
+    const step = stepOf(await page(running))
 
     expect(reads).toEqual([])
     expect(step).toMatch(/Checkout v2 <span class="kind">milestone<\/span> <span class="this">this milestone<\/span><\/button>/)
@@ -141,7 +141,7 @@ describe('candidates for comparable work', () => {
   test('narrowing the list to a few by typing reads those', async () => {
     const running = await startConnected()
 
-    const step = stepOf(await page(running, '/inputs?comparableFind=pay'))
+    const step = stepOf(await page(running, '/inputs?step=comparableWork&comparableFind=pay'))
 
     expect(reads).toEqual([payments.query])
     expect(step).toContain('Slower than the milestone')
@@ -150,7 +150,7 @@ describe('candidates for comparable work', () => {
   test('a candidate whose read fails shows why, and can still be picked', async () => {
     const running = await startConnected()
 
-    const step = stepOf(await page(running, `/inputs?comparableOpen=${encodeURIComponent(broken.query)}`))
+    const step = stepOf(await page(running, `/inputs?step=comparableWork&comparableOpen=${encodeURIComponent(broken.query)}`))
 
     expect(step).toContain('GitHub couldn’t read it just now.')
     expect(step).toMatch(/<form method="post" action="\/inputs\/comparable-work\/add#comparable-work"[^>]*>[^]*?value="label:&#34;broken&#34;"[^]*?GitHub couldn’t read it/)

@@ -2,6 +2,7 @@ import type { ConnectionEdit, ConnectionView, ConnectStep } from '../forecast/co
 import { TRACKERS, trackerOf, type Tracker } from '../forecast/trackers.js'
 import type { Connection } from '../model/connection.js'
 import { escapeHtml } from './html.js'
+import { SETUP_PATHS } from './setupSection.js'
 
 /** Where the Connect step's forms post: connect (or change the connection), and disconnect. */
 export const CONNECT_PATHS = { connect: '/inputs/connect', disconnect: '/inputs/connect/disconnect' } as const
@@ -27,7 +28,7 @@ export const CONNECT_FORMS: ReadonlyMap<string, ConnectFormReader> = new Map<str
 ])
 
 /**
- * The Connect step, the first section of the Inputs screen in the local server build; none in the browser build. It
+ * The Connect step, the first of the setup steps in the local server build; none in the browser build. It
  * posts as a whole when Connect is pressed, never as each field changes, as its check asks the tracker. The token
  * field is always blank: the token is never put back into the page. Once connected, leaving it blank keeps the saved token.
  */
@@ -60,7 +61,8 @@ function connectForm({ form, permissions, refusal, kind }: ConnectStep, button: 
     `              <label><input type="radio" name="tracker" value="${option}"${option === form.tracker ? ' checked' : ''} required> ${TRACKERS[option].name}</label>`
   const field = (label: string, name: string, value: string, placeholder: string, wide = true, type = 'text'): string =>
     `              <label${wide ? ' class="wide"' : ''}>${label} <input type="${type}" name="${name}" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}" autocomplete="off" spellcheck="false"></label>`
-  const skip = kind === 'connect' ? '\n            <a href="#milestone" class="skip">Skip: type the inputs instead</a>' : ''
+  const skip =
+    kind === 'connect' ? `\n            <button type="submit" formaction="${SETUP_PATHS.skip}" formnovalidate class="linkish skip">Skip: type the inputs instead</button>` : ''
   return `        <form method="post" action="${CONNECT_PATHS.connect}#connect" class="connect">${refusal === undefined ? '' : `\n          <p class="error" role="alert">${escapeHtml(refusal)}</p>`}
           <fieldset class="levels trackers" aria-label="Tracker">
 ${tracker('github')}
