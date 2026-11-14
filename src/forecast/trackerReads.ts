@@ -56,6 +56,8 @@ export interface PaceReading {
   firstFinished: string | undefined
   /** When the read pace comes from was read, in the EM's time zone: "4 Nov 09:12". */
   readOn: string
+  /** The same instant in UTC, as the EM's opening of the reading is kept by (`SeenReads`). */
+  readAt: string
   /**
    * The counts pace showed before the latest read replaced the one before it, on the day that one was read; none
    * before a second read, nor when the read changed nothing.
@@ -86,6 +88,8 @@ export interface TicketsReading {
   readOn: string
   /** What the read before it gave; none before a second read, nor when the read changed it nothing. */
   was: WasTickets | undefined
+  /** The same instant in UTC, as the EM's opening of the reading is kept by (`SeenReads`). */
+  readAt: string
 }
 
 /**
@@ -100,7 +104,7 @@ export function measured(reads: TrackerReads | undefined, teamId: string, storag
   const read = savedReadOf(reads, teamId, query)
   return {
     tracker,
-    ticketsRemaining: read && { count: ticketsRemaining(read), incomplete: read.incomplete, readOn: readOn(read.readAt, reads.timeZone), was: wasTickets(reads, teamId, query, ticketsRemaining(read)) },
+    ticketsRemaining: read && { count: ticketsRemaining(read), incomplete: read.incomplete, readOn: readOn(read.readAt, reads.timeZone), readAt: read.readAt, was: wasTickets(reads, teamId, query, ticketsRemaining(read)) },
     pace: paceReading(reads, teamId, storage, today, tracker),
   }
 }
@@ -169,6 +173,7 @@ function paceReading(reads: TrackerReads, teamId: string, storage: Pick<Storage,
     firstFinished: bound === 'firstFinished' ? `From the first finished ticket, ${dayMonth(first!)}.` : undefined,
     readOn: paceRead ? readOn(paceRead.readAt, reads.timeZone) : '',
     was: wasPace(reads, teamId, storage, read.from, query?.query, window.counts),
+    readAt: paceRead?.readAt ?? '',
   }
 }
 

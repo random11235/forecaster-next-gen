@@ -36,7 +36,7 @@ The data model is designed so that each of these can be relaxed later without re
 2. **The engine is a pure function: `simulateCase(SimulationCase) → ForecastResult`.** It does no I/O, uses no clock, and gets all its randomness from a seed in the case. That makes forecasts reproducible, and it makes the calibration ledger trustworthy.
 3. **Store samples, not summaries.** Keep the raw growth ratios and weekly throughputs, not just a mean or min/max. That keeps the tail, and it lets you change the sampling method later.
 4. **Key data by team, not by user.** Throughput belongs to a team. v1 has one team, but keeping every store keyed by `teamId` means a later multi-team phase needs no migration.
-5. **Measured data suggests; the EM decides.** Wherever measured data could replace an EM input (pace, the medium growth range), the tool shows it as a suggestion and switches only when the EM accepts.
+5. **Measured data suggests; the EM decides.** Wherever measured data could replace an EM input (pace, the medium growth range), the tool uses it only because the EM chose it as the value's source: following the tracker, the value updates on each read; typed, the EM's value stands, with a chip when the tracker reads it differently. Nothing is accepted, so no accepted copy is kept (#159, superseding #132's "values the EM accepted are kept").
 
 ---
 
@@ -123,7 +123,7 @@ test/
 - **Seam B** is `forecast/`: stored facts, settings and the ledger go in, with what the local server build connects with (`Connecting`, or `QueryStepping` for a query step); each screen's and step's view comes out, whole, and each submit is saved or refused with the view to show again. `app/` keeps only reading form fields and query parameters, keeping a candidates opening by its id, and rendering, so refused re-display and each step's behaviour are tested here, without the server, reading through the canned connector and `openMemorySecrets`. The browser build connects nothing, so its views have no Connect or query step. What each view shows is in [`forecast-model.md`](forecast-model.md) and [`frontend-essentials.md`](frontend-essentials.md). Its entry points:
   - `milestoneForecastView`: the Milestone forecast screen, through the engine.
   - `inputsView`, `submitInputs`: the Inputs screen; a form as typed (`InputsEdit`) saved, saying which screen comes next, or refused, with the screen to show again (Capacity's forms are on the Milestone forecast screen) and its view.
-  - These three take the team's tracker reads (`TrackerReads`) in the local server build: its connection and saved reads, which a value following the tracker takes (`measured`). With none, or no connection, every value is typed, as in the MVP.
+  - These three take the team's tracker reads (`TrackerReads`) in the local server build: its connection and saved reads, which a value following the tracker takes (`measured`), and a typed one is compared with for its chip (`readsDifferently`). With none, or no connection, every value is typed, as in the MVP.
   - `connectionView`, `submitConnection`: the Connect step; a connect checked through a connector, then saved or refused; disconnect.
   - `queryStepView`: a query step whole, for the query it edits (`StepQuery`): the Milestone step, or the Comparable work step with its pace and its candidates.
   - `searchedChoiceList`: one kind of a query step's choices searched in the tracker, as its script asks.
