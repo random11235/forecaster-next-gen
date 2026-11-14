@@ -69,6 +69,24 @@ describe('the Check step', () => {
     expect(running.storage.setupDraft('team')?.sources).toBeUndefined()
   })
 
+  test('with no milestone entered yet, offers each source, starting on a new milestone’s', async () => {
+    app = await appOnTracker({ milestoneChoices: [{ kind: 'milestone', choices: [CHECKOUT], pastLimit: false }], reads: { [CHECKOUT.query]: { tickets: open(7), incomplete: false } } })
+    await post(app.running, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
+    await post(app.running, '/inputs/milestone-query/add', { ...CHECKOUT })
+
+    const html = await check(app)
+    expect(html).toMatch(/value="tracker" required> GitHub<\/label>\s*<label><input type="radio" name="source" value="typed" checked required> Typed<\/label>/)
+    expect(html).toMatch(/value="tracker" required> GitHub<\/label>\s*<label><input type="radio" name="source" value="range" checked required> Range<\/label>/)
+  })
+
+  test('with pace from typed counts, offers the range beside them', async () => {
+    const running = await atCheck()
+    await post(running.running, '/inputs/pace-counts', { counts: '5 6 7' })
+    await post(running.running, '/inputs/pace-mode', { paceMode: 'counts' })
+
+    expect(await check(running)).toMatch(/value="tracker" required> GitHub<\/label>\s*<label><input type="radio" name="source" value="range" required> Range<\/label>\s*<label><input type="radio" name="source" value="counts" checked required> Typed counts<\/label>/)
+  })
+
   test('marks an incomplete read on its row', async () => {
     const html = await check(await atCheck({ incomplete: true }))
 
