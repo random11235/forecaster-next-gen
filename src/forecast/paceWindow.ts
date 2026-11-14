@@ -10,6 +10,11 @@ export interface DatedCounts {
   starts: string[]
 }
 
+/** The same counts, in the same order; never with none to compare. */
+export function sameCounts(some: readonly number[], others: readonly number[] | undefined): boolean {
+  return others !== undefined && some.length === others.length && some.every((count, period) => count === others[period])
+}
+
 /**
  * The pace the forecast uses, as the EM chose it, with what the tracker measures (`measured`; none with no
  * connection): following the tracker falls back to the typed counts with no connection to follow.
