@@ -11,14 +11,16 @@ import { queryStepView, searchedChoiceList, submitStepQuery, type QueryStepping,
 import { COMPARABLE_WORK } from '../../src/forecast/stepQuery.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
-import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
+import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
+import type { TeamStorage } from '../trackerScenario.js'
 
 // Candidates for comparable work (#205): read on demand, each grouped slower, about the same or faster than the
 // milestone's own, or nothing finished.
 
 const TEAM = 'team'
 const TODAY = '2026-11-12'
-// Thursday; each read reaches back 8 weeks, to 09:00 on Thursday 17 Sep, so the weeks it reaches whole start on 24 Sep.
+// Thursday; each read reaches back 9 weeks (8 whole weeks and the current one), to 09:00 on Thursday 10 Sep, so the
+// weeks it reaches whole start on 17 Sep. The tickets here finish from the week of 24 Sep.
 const READ_AT = '2026-11-12T09:00:00Z'
 const AT = { readAt: READ_AT, today: TODAY, timeZone: 'UTC' }
 const WEEKS = ['2026-09-24', '2026-10-01', '2026-10-08', '2026-10-15', '2026-10-22', '2026-10-29', '2026-11-05']
@@ -72,7 +74,7 @@ const FIXTURE: CannedFixture = {
 }
 
 let dir: string
-let storage: SqliteStorage
+let storage: TeamStorage
 let using: QueryStepping
 let reads: string[]
 
@@ -123,10 +125,11 @@ describe('a candidate’s read', () => {
             choice: payments,
             thisMilestone: false,
             read: {
-              strip: { counts: [1, 1, 0, 1, 1, 0, 1], starts: WEEKS },
+              strip: { counts: [0, 1, 1, 0, 1, 1, 0, 1], starts: ['2026-09-17', ...WEEKS] },
               median: 1,
               versus: { kind: 'slower', by: 1 },
               finished: 5,
+              weeks: 9,
               lastFinished: '2026-11-06',
               open: 1,
             },

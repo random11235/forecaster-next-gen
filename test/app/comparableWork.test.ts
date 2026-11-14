@@ -3,7 +3,8 @@ import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
 import type { Connecting } from '../../src/forecast/connection.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
-import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
+import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
+import type { TeamStorage } from '../trackerScenario.js'
 
 // The Comparable work step on the Inputs screen (#201), through the local server as the EM's browser sees it, on the
 // canned connector.
@@ -28,7 +29,7 @@ const FIXTURE: CannedFixture = {
 }
 
 let app: RunningApp | undefined
-let storage: SqliteStorage | undefined
+let storage: TeamStorage | undefined
 
 afterEach(async () => {
   await app?.close()
@@ -100,7 +101,7 @@ describe('the Comparable work step', () => {
     const step = stepOf(html)
     expect(step.match(/class="chip"/g)).toHaveLength(2)
     expect(step).toContain('milestone:&#34;Payments v2&#34; OR label:&#34;checkout&#34;')
-    expect(step).toContain('<p class="read">2 finished in the last 8 weeks</p>')
+    expect(step).toContain('<p class="read">2 finished in the last 9 weeks</p>')
     expect(step).toMatch(/>Next<\/a>/)
     expect(step).toContain('action="/inputs/comparable-work/afresh#comparable-work"')
     expect(sectionOf(html, 'milestone-tickets')).not.toContain('class="chip"')
@@ -136,7 +137,7 @@ describe('the Comparable work step', () => {
 
     expect(edited.headers.get('location')).toBe('/inputs?edit=comparable#comparable-work')
     const step = stepOf(await page(running, '/inputs?edit=comparable'))
-    expect(step).toContain('2 finished in the last 8 weeks')
+    expect(step).toContain('2 finished in the last 9 weeks')
     expect(step).toContain('Start afresh')
   })
 
@@ -177,8 +178,9 @@ describe('the Comparable work step', () => {
     expect(before).toContain('Add comparable work to measure pace from work like this milestone’s.')
     expect(step).toMatch(/<p class="headline">0 a week <small>pace, from comparable work, range 0–1<\/small><\/p>/)
     expect(step).toContain('<p class="delta aboutTheSame">About the same as the milestone’s own so far (0 a week).</p>')
-    expect(step.match(/<li class="period/g)).toHaveLength(7)
-    expect(step.match(/<li class="period before"/g)).toHaveLength(1)
+    // the 8 whole weeks the reads reach, from 17 Sep: those of 17 and 24 Sep before the milestone started
+    expect(step.match(/<li class="period/g)).toHaveLength(8)
+    expect(step.match(/<li class="period before"/g)).toHaveLength(2)
     expect(step).toMatch(/class="legend"[^]*comparable work[^]*the milestone’s own[^]*before it started/)
     expect(step).toMatch(/class="chip"[^]*class="strip"[^]*1 finished/)
   })

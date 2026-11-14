@@ -4,7 +4,7 @@ import type { SavedRead } from '../model/savedRead.js'
 import type { SavedReadStorage, Storage } from '../storage/storage.js'
 import { periodName, type PeriodName } from './cadence.js'
 import { teamConnection, type Connecting } from './connection.js'
-import { calendarDayIn, completeRead, finishedPerPeriod, finishedSinceFor, ticketsRemaining } from './finished.js'
+import { calendarDayIn, completeRead, finishedPerPeriod, finishedSinceFor, ticketsRemaining, weeksRead } from './finished.js'
 import type { ChoiceList } from './queryStep.js'
 import { paceReads, paceReadsStorage, wholePeriods } from './paceReads.js'
 import type { DatedCounts } from './paceWindow.js'
@@ -31,8 +31,10 @@ export interface CandidateRead {
   median: number
   /** How that median compares with the milestone's own. */
   versus: PaceVersus
-  /** Its tickets finished in the weeks the read reaches back (`FINISHED_WEEKS`). */
+  /** Its tickets finished in the weeks the read reaches back (`weeks`). */
   finished: number
+  /** How many weeks back the read counts finished tickets, as far as the milestone query's reads reach (`finishedSinceFor`). */
+  weeks: number
   /** Of those, how many comparable work's read doesn't already count; none until comparable work is read. */
   adds?: number
   /** The calendar day it last finished one, in the EM's time zone; none when it finished none. */
@@ -80,7 +82,7 @@ export interface CandidatesAt {
 
 /**
  * Seam B: opens the team's candidates for comparable work, reading none yet. Each is read through the connector once,
- * as the comparable-work query is, back `FINISHED_WEEKS` weeks, and kept only by this opening, never saved. Its
+ * as the comparable-work query is, as far back (`finishedSinceFor`), and kept only by this opening, never saved. Its
  * periods are laid on the milestone's cadence from its start date (from today before it has one).
  */
 export function openCandidates(
@@ -103,11 +105,12 @@ export function openCandidates(
     const team = await (connected ??= teamConnection(connecting, teamId))
     if (!team) return { ...marked, failure: NOT_CONNECTED }
     if (team.connector === 'keychainFailed') return { ...marked, failure: KEYCHAIN_FAILED }
-    const result = await team.connector.read(choice.query, finishedSinceFor(at.readAt))
+    const finishedSince = finishedSinceFor(at.readAt, inputs)
+    const result = await team.connector.read(choice.query, finishedSince)
     if (!result.ok) return { ...marked, failure: failureOf(team.connection, result) }
     if (result.incomplete) return { ...marked, failure: `${trackerOf(team.connection).name} gave only part of what it matches, so it isn’t counted.` }
     const byId = new Map(result.tickets.map((ticket) => [ticket.id, ticket]))
-    return { ...marked, read: candidateRead({ tickets: [...byId.values()], incomplete: false, readAt: at.readAt }, ownCounts, picked, laid, at) }
+    return { ...marked, read: candidateRead({ tickets: [...byId.values()], incomplete: false, readAt: at.readAt, finishedSince }, ownCounts, picked, laid, at) }
   }
   return {
     async read(choices) {
@@ -169,6 +172,7 @@ function candidateRead(
     median,
     versus: paceVersusMilestoneOwn(median, ownCounts),
     finished: finished.length,
+    weeks: weeksRead(read),
     ...(picked && { adds: finished.filter((ticket) => !picked.has(ticket.id)).length }),
     ...(last !== undefined && { lastFinished: calendarDayIn(timeZone)(last) }),
     open: ticketsRemaining(read),

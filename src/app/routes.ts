@@ -2,6 +2,7 @@ import { choiceKindOf } from '../connectors/connector.js'
 import { connectionView, submitConnection, type Connecting, type ConnectionEdit, type ConnectionView, type SetupStep } from '../forecast/connection.js'
 import { howItWorksView } from '../forecast/howItWorksView.js'
 import { followRenamedMilestone } from '../forecast/milestoneRenamed.js'
+import { submitSkip, type SkipEdit, type Skipping } from '../forecast/skippedPeriods.js'
 import {
   queryStepView,
   searchedChoiceList,
@@ -14,12 +15,13 @@ import {
 import type { Connector } from '../connectors/connector.js'
 import { inputsView, submitInputs, type InputsView, type NextScreen } from '../forecast/inputs.js'
 import { milestoneForecastView, type MilestoneForecastView } from '../forecast/milestoneForecastView.js'
+import type { TrackerReads } from '../forecast/trackerReads.js'
 import { DEFAULT_SETTINGS, type ForecastSettings } from '../forecast/settings.js'
 import type { Team } from '../model/team.js'
 import type { Storage } from '../storage/storage.js'
 import { CONNECT_FORMS } from './connectSection.js'
 import { renderHowItWorksScreen } from './howItWorksScreen.js'
-import { INPUTS_FORMS, renderInputsScreen, type ShownStep } from './inputsScreen.js'
+import { INPUTS_FORMS, PACE_TRACKER_PATH, renderInputsScreen, SKIP_FORMS, type ShownStep } from './inputsScreen.js'
 import { CAPACITY_OPEN, CAPACITY_OPEN_PATH, FORECAST_FORMS, renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
 import { choiceListHtml, COMPARABLE_WORK_STEP, CONFIRMING_BACK, KIND_FIELD, MILESTONE_STEP, OPEN_FIELD, STEP_SECTIONS, type StepSection } from './queryStepSection.js'
 import { CANDIDATES_PATH, candidatesHtml, choicesAsked, keepOpening, OPENING_FIELD, openingKept } from './candidatesSection.js'
@@ -110,7 +112,7 @@ export function route(request: Request, context: AppContext): Reply {
   const team = storage.teams()[0]
   if (request.method === 'GET' && pathname === '/') {
     const capacityOpen = searchParams.get(CAPACITY_OPEN.name) === CAPACITY_OPEN.value
-    const view: MilestoneForecastView = team ? milestoneForecastView(storage, team.id, settings, today(), { capacityOpen }) : { kind: 'empty' }
+    const view: MilestoneForecastView = team ? milestoneForecastView(storage, team.id, settings, today(), { capacityOpen, tracker: trackerReads(context) }) : { kind: 'empty' }
     return { kind: 'html', status: 200, html: renderMilestoneForecastScreen(view) }
   }
   if (request.method === 'GET' && pathname === '/how-it-works') {
@@ -119,7 +121,7 @@ export function route(request: Request, context: AppContext): Reply {
   if (!team) return { kind: 'notFound' }
   const connection = connectionView(connecting, team.id)
   if (request.method === 'GET' && pathname === SCREEN_PATHS.inputs) {
-    return { kind: 'html', status: 200, html: renderInputsScreen(inputsView(storage, team.id, settings, today()), connection) }
+    return { kind: 'html', status: 200, html: renderInputsScreen(inputsView(storage, team.id, settings, today(), { tracker: trackerReads(context) }), connection) }
   }
   const submitted = submitForm(request, context, { ...routed, team })
   if (submitted?.kind !== 'inputs') return submitted ?? { kind: 'notFound' }
@@ -133,19 +135,21 @@ export function route(request: Request, context: AppContext): Reply {
  */
 type FormReply = Reply | { kind: 'inputs'; status: number; view: InputsView }
 
-function submitForm(request: Request, { storage, today }: AppContext, { team, settings, pathname, searchParams }: TeamRouting): FormReply | undefined {
+function submitForm(request: Request, context: AppContext, { team, settings, pathname, searchParams }: TeamRouting): FormReply | undefined {
+  const { storage, today } = context
+  const tracker = trackerReads(context)
   const readForm = request.method === 'POST' ? (INPUTS_FORMS.get(pathname) ?? FORECAST_FORMS.get(pathname)) : undefined
   if (!readForm) return undefined
   // the Capacity section's open state travels in the URL, and its forms carry it
   const capacityOpen = searchParams.get(CAPACITY_OPEN.name) === CAPACITY_OPEN.value
-  const submitted = submitInputs(storage, team.id, settings, today(), readForm(request.form ?? new URLSearchParams()), { capacityOpen })
+  const submitted = submitInputs(storage, team.id, settings, today(), readForm(request.form ?? new URLSearchParams()), { capacityOpen, tracker })
   // a form from the open Capacity section goes back to the screen with it open
   const pathOf = (screen: NextScreen): string => (screen === 'forecast' && capacityOpen ? CAPACITY_OPEN_PATH : SCREEN_PATHS[screen])
   if (!submitted.saved) {
     if (submitted.screen === 'inputs') return { kind: 'inputs', status: 400, view: submitted.view }
     return { kind: 'html', status: 400, html: renderMilestoneForecastScreen(submitted.view), path: pathOf(submitted.screen) }
   }
-  if (request.saveInPlace) return { kind: 'inputs', status: 200, view: inputsView(storage, team.id, settings, today()) }
+  if (request.saveInPlace) return { kind: 'inputs', status: 200, view: inputsView(storage, team.id, settings, today(), { tracker }) }
   return { kind: 'redirect', location: pathOf(submitted.next) }
 }
 
@@ -159,7 +163,7 @@ export function routeSetup(request: Request, context: AppContext): Promise<Reply
   const { connecting, storage } = context
   const team = storage.teams()[0]
   if (!connecting || !team) return undefined
-  const setup: SetupRouting = { ...routing(request), team, request, context, connecting }
+  const setup: SetupRouting = { ...routing(request), team, request, context, connecting, reading: { ...connecting, milestoneInputs: storage } }
   const { pathname } = setup
   if (request.method === 'GET' && pathname === SCREEN_PATHS.inputs) return inputsWithStep(setup)
   const searchedFor = request.method === 'GET' ? STEP_SECTIONS.find((section) => section.searchedChoicesPath === pathname) : undefined
@@ -169,6 +173,8 @@ export function routeSetup(request: Request, context: AppContext): Promise<Reply
   if (editedIn) return queryEdited(setup, editedIn, editedIn.forms.get(pathname)!)
   const readConnect = request.method === 'POST' ? CONNECT_FORMS.get(pathname) : undefined
   if (readConnect) return connected(setup, readConnect)
+  const readSkip = request.method === 'POST' ? SKIP_FORMS.get(pathname) : undefined
+  if (readSkip) return skipped(setup, readSkip)
   const named = milestoneName(storage, team.id)
   const submitted = submitForm(request, context, setup)
   if (!submitted) return undefined
@@ -180,9 +186,9 @@ export function routeSetup(request: Request, context: AppContext): Promise<Reply
  * to the new name where it follows it (`followRenamedMilestone`).
  */
 async function renamed(setup: SetupRouting, named: string | undefined, submitted: FormReply): Promise<Reply> {
-  const { connecting, context, team, request } = setup
+  const { reading, context, team, request } = setup
   const now = milestoneName(context.storage, team.id)
-  if (named !== undefined && now !== undefined) await followRenamedMilestone(connecting, team.id, { from: named, to: now }, context.now())
+  if (named !== undefined && now !== undefined) await followRenamedMilestone(reading, team.id, { from: named, to: now }, context.now())
   if (submitted.kind !== 'inputs') return submitted
   // a save in place replaces only the sections saved, not the Milestone step, so its choices aren't asked for
   return inputsWithStep(setup, { status: submitted.status, view: submitted.view, unlisted: request.saveInPlace === true })
@@ -198,6 +204,8 @@ interface SetupRouting extends TeamRouting {
   request: Request
   context: AppContext
   connecting: Connecting
+  /** What its steps read and save with: the connection, and what is stored, the milestone's inputs among it. */
+  reading: Skipping
 }
 
 /**
@@ -238,11 +246,16 @@ async function inputsWithStep(
     steps.push({ section, view, ...(candidates && { openingId: keepOpening(candidates.opening) }) })
   }
   const html = renderInputsScreen(
-    view ?? inputsView(context.storage, team.id, settings, context.today()),
+    view ?? inputsView(context.storage, team.id, settings, context.today(), { tracker: trackerReads(context) }),
     connection ?? connectionView(connecting, team.id),
     steps,
   )
   return { kind: 'html', status, html, ...(request.method === 'POST' && { path: SCREEN_PATHS.inputs }) }
+}
+
+/** What the views read of the team's tracker: its connection and saved reads, dated in the EM's time zone; none in the browser build. */
+function trackerReads({ connecting }: AppContext): TrackerReads | undefined {
+  return connecting && { ...connecting, timeZone: localTimeZone() }
 }
 
 /** This computer's time zone, an IANA name: the EM's, which each finish is counted on its calendar day in. */
@@ -296,11 +309,23 @@ async function searchedChoices({ connecting, team, searchParams }: SetupRouting,
 async function queryEdited(setup: SetupRouting, section: StepSection, readQueryEdit: (body: URLSearchParams) => StepQueryEdit | undefined): Promise<Reply> {
   const edit = readQueryEdit(setup.request.form ?? new URLSearchParams())
   if (!edit) return { kind: 'notFound' }
-  const submitted = await submitStepQuery(setup.connecting, setup.team.id, edit, setup.context.now(), section.stepQuery)
+  const submitted = await submitStepQuery(setup.reading, setup.team.id, edit, setup.context.now(), section.stepQuery)
   if (submitted.kind === 'refused') return inputsWithStep(setup, { status: 400, refused: { section, query: submitted } })
   if (submitted.kind === 'confirmClear') return { kind: 'redirect', location: section.urls.confirmingBack }
   // a query edited by hand stays open for editing; every other change goes back to finding
   return { kind: 'redirect', location: edit.kind === 'editQuery' ? section.urls.editing : section.urls.finding }
+}
+
+/**
+ * The tracker's periods skipped, or counted again, which may read the tracker further back; then back to its pace.
+ * Refused, the Inputs screen again, saying why.
+ */
+async function skipped(setup: SetupRouting, readSkip: (body: URLSearchParams) => SkipEdit): Promise<Reply> {
+  const { reading, context, team, request, settings } = setup
+  const at = { settings, today: context.today(), readAt: context.now(), timeZone: localTimeZone() }
+  const submitted = await submitSkip(reading, team.id, readSkip(request.form ?? new URLSearchParams()), at)
+  if (!submitted.saved) return inputsWithStep(setup, { status: 400, ...(submitted.screen === 'inputs' && { view: submitted.view }) })
+  return { kind: 'redirect', location: PACE_TRACKER_PATH }
 }
 
 /** A connect: on to the next setup step once saved; refused, the Inputs screen again with why, and the form as typed but for the token. */

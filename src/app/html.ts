@@ -205,6 +205,18 @@ const STYLE = `
     .pace-trend svg { width: 100%; overflow: visible; border-bottom: 1px solid var(--ink); }
     .pace-trend .trend-bars rect { fill: var(--bar); }
     .pace-trend .trend-line line { stroke: var(--ink); stroke-width: 2px; vector-effect: non-scaling-stroke; stroke-linecap: round; }
+    /* Paired with comparable work: comparable work's bars beside the milestone's own, as on the Comparable work step;
+       the series pace isn't drawn from faint, and the periods before the milestone started hatched. */
+    .pace-trend .trend-bars rect.own { fill: var(--ink); }
+    .pace-trend .trend-bars rect.comparable:not(.in-use), .pace-trend .trend-bars rect.own:not(.in-use) { opacity: 0.35; }
+    .pace-trend .trend-bars rect.before { fill: url(#pace-trend-before); stroke: var(--border); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+    .pace-trend pattern rect { fill: var(--border); }
+    .pace-trend .legend { margin: 0; font-size: 12px; color: var(--muted); }
+    .pace-trend .legend i { display: inline-block; width: 11px; height: 10px; vertical-align: middle; margin: 0 3px 0 8px; }
+    .pace-trend .legend i:first-child { margin-left: 0; }
+    .pace-trend .legend .comparable { background: var(--bar); }
+    .pace-trend .legend .own { background: var(--ink); }
+    .pace-trend .legend .before { background: repeating-linear-gradient(45deg, var(--border) 0 3px, transparent 3px 6px); box-shadow: inset 0 0 0 1px var(--border); }
     /* A plain caption, not a note: it says what the graph shows, with no verdict. */
     .pace-trend figcaption { font-size: 13px; line-height: 1.45; color: var(--text-2); }
 
@@ -252,6 +264,50 @@ const STYLE = `
     .counts { display: flex; align-items: end; gap: 12px; }
     .counts .fields { flex-wrap: nowrap; }
     .counts button { white-space: nowrap; }
+    .tickets-source { flex: 1 1 200px; display: flex; flex-direction: column; gap: 6px; }
+    .tickets-source fieldset.levels { gap: 0; align-self: flex-start; flex-wrap: nowrap; }
+    .tickets-source fieldset.levels label { flex: 0 0 auto; flex-direction: row; padding: 4px 12px; font-size: 13px; color: var(--text-2); border-radius: 0; }
+    .tickets-source > label { flex: 0 0 auto; display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); }
+    .tickets-source fieldset.levels label:first-child { border-radius: 6px 0 0 6px; }
+    .tickets-source fieldset.levels label:last-child { border-radius: 0 6px 6px 0; margin-left: -1px; }
+    .tickets-source fieldset.levels input { position: absolute; opacity: 0; }
+    .tickets-source .reading { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+    .tickets-source .reading-value { font-size: 32px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+    .tickets-source .reading-line { flex-basis: 100%; font-size: 12px; color: var(--muted); }
+    .tickets-source .incomplete { font-size: 12px; font-weight: 600; color: var(--risk); }
+    /* A typed value the tracker reads differently: a chip, dotted for an unopened read, opening on the reading and Follow. */
+    details.reads-differently { position: relative; align-self: flex-start; display: inline-block; }
+    details.reads-differently > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; padding: 2px 10px; border: 1px solid var(--hairline); border-radius: 999px; font-size: 12px; color: var(--muted); }
+    details.reads-differently > summary::-webkit-details-marker { display: none; }
+    details.reads-differently[open] > summary { border-color: var(--ink); color: var(--ink); }
+    details.reads-differently .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--risk); }
+    .reads-differently-panel { position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; width: min(420px, 80vw); display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; background: var(--page); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); font-size: 13px; color: var(--ink); white-space: normal; }
+    .reads-differently-panel p { margin: 0; }
+    .reads-differently-panel .reading-line { margin: 0; font-size: 12px; color: var(--muted); }
+    .reads-differently-panel .incomplete, .pace-following .incomplete { font-size: 12px; font-weight: 600; color: var(--risk); }
+    .reads-differently-actions { display: flex; gap: 8px; }
+    /* Pace following the tracker: its counts as bars, a quiet period a red stub, its periods behind Show weeks. */
+    .pace-following { display: flex; flex-direction: column; gap: 6px; }
+    .pace-following .reading-line { margin: 0; font-size: 12px; color: var(--muted); }
+    /* The value the latest read replaced, faint beneath a value following the tracker. */
+    .tickets-source .reading-line.was, .pace-following .reading-line.was { color: var(--faint); }
+    .pace-bars { display: flex; align-items: flex-end; gap: 4px; height: 64px; max-width: 320px; padding-top: 16px; border-bottom: 1px solid var(--ink); }
+    .pace-bars .bar { position: relative; flex: 1 1 0; min-width: 0; background: var(--bar); }
+    .pace-bars .bar.zero { height: 2px; background: var(--risk); }
+    .pace-bars .v { position: absolute; bottom: 100%; left: 0; right: 0; text-align: center; font-family: var(--mono); font-size: 10px; color: var(--text-2); }
+    .pace-bars .bar.zero .v { color: var(--risk); }
+    .week-blocks summary { cursor: pointer; font-size: 13px; color: var(--link); }
+    .week-blocks form { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+    .week-blocks .hint { margin: 0; font-size: 12px; color: var(--muted); }
+    .week-blocks .blocks { display: flex; flex-wrap: wrap; gap: 6px; }
+    .week-blocks .blocks label { display: flex; flex-direction: column; gap: 2px; font-size: 11px; color: var(--muted); }
+    .week-blocks .blocks input { width: 56px; text-align: center; }
+    .pace-bars .bar.gap { height: 2px; background: var(--hairline); }
+    .pace-bars .bar.gap .v { color: var(--muted); }
+    .week-blocks .blocks .block { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; font-size: 11px; color: var(--muted); }
+    .week-blocks .blocks .block.skipped { width: 56px; padding: 4px; border: 1px dashed var(--hairline); }
+    .week-blocks .blocks .block.skipped s { font-family: var(--mono); font-size: 16px; color: var(--muted); }
+    section.input form.skipped-line { display: block; }
     fieldset.levels .range { font-family: var(--mono); font-size: 13px; color: var(--muted); }
     table.growth { border-collapse: collapse; }
     table.growth th { padding: 0 24px 6px 0; text-align: left; font-size: 12px; font-weight: 500; color: var(--faint); }

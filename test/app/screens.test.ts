@@ -46,7 +46,9 @@ const CHECKOUT: MilestoneInputs = {
   paceRange: undefined,
   paceCounts: [],
   paceCadenceDays: undefined,
-  paceWindow: { action: undefined },
+  paceWindow: { action: undefined, skippedPeriods: [] },
+  ticketsSource: 'typed',
+  seenReads: { ticketsRemaining: undefined, pace: undefined },
 }
 
 let dir: string | undefined

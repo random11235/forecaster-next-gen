@@ -1,13 +1,22 @@
 import { periodName, type PeriodName } from '../forecast/cadence.js'
 import type { InputNote, MilestoneInput } from '../forecast/milestoneAssessment.js'
-import { MAX_CADENCE_DAYS, MAX_TICKETS_PER_PERIOD, MAX_TICKETS_REMAINING } from '../forecast/milestoneInputs.js'
+import {
+  MAX_CADENCE_DAYS,
+  MAX_TICKETS_PER_PERIOD,
+  MAX_TICKETS_REMAINING,
+  type TrackerPaceView,
+  type ReadsDifferently,
+  type TicketsSourceView,
+} from '../forecast/milestoneInputs.js'
 import { ambiguityName, MAX_GROWTH, type GrowthView, type TypedRange } from '../forecast/growth.js'
 import type { ConnectionView } from '../forecast/connection.js'
 import type { QueryStepView } from '../forecast/queryStep.js'
+import type { SkipEdit } from '../forecast/skippedPeriods.js'
 import type { InputsEdit, InputsForm, InputsView, TypedForms } from '../forecast/inputs.js'
 import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
-import type { PaceMode } from '../model/milestoneInputs.js'
+import type { PaceMode, TicketsSource } from '../model/milestoneInputs.js'
 import { CONNECT_HINT, connectSection } from './connectSection.js'
+import { dayMonth } from '../forecast/calendarDate.js'
 import { escapeHtml, htmlPage } from './html.js'
 import { INPUTS_SCRIPT } from './inputsScript.js'
 import { candidatesHtml, candidatesScript } from './candidatesSection.js'
@@ -34,13 +43,19 @@ export const INPUTS_FORMS: ReadonlyMap<string, FormReader> = new Map<string, For
       kind: 'setMilestone',
       name: body.get('name') ?? '',
       startDate: body.get('startDate')?.trim() ?? '',
-      ticketsRemaining: body.get('ticketsRemaining')?.trim() ?? '',
+      // no field while tickets remaining follows the tracker
+      ticketsRemaining: body.get('ticketsRemaining')?.trim(),
     }),
   ],
+  ['/inputs/tickets-source', (body) => ({ kind: 'setTicketsSource', ticketsSource: body.get('ticketsSource') ?? '' })],
+  // a chip opened: its reading is seen, and its dot clears (see `inputsScript.ts`)
+  ['/inputs/reading-opened', (body) => ({ kind: 'openReading', reading: body.get('reading') ?? '' })],
   ['/inputs/cadence', (body) => ({ kind: 'setCadence', cadenceDays: body.get('cadenceDays')?.trim() ?? '' })],
   ['/inputs/pace', (body) => ({ kind: 'setPaceRange', low: body.get('low')?.trim() ?? '', high: body.get('high')?.trim() ?? '' })],
   ['/inputs/pace-mode', (body) => ({ kind: 'setPaceMode', paceMode: body.get('paceMode') ?? '' })],
   ['/inputs/pace-counts', (body) => ({ kind: 'setPaceCounts', counts: body.get('counts')?.trim() ?? '' })],
+  // the tracker's weeks as blocks, opened and typed into: the typed counts, oldest first
+  ['/inputs/pace-weeks', (body) => ({ kind: 'setPaceCounts', counts: body.getAll('week').map((week) => week.trim()).join(' ') })],
   ['/inputs/pace-counts/add', (body) => ({ kind: 'addPaceCount', count: body.get('count')?.trim() ?? '' })],
   ['/inputs/pace-counts/remove-last', () => ({ kind: 'removeLastPaceCount' })],
   ['/inputs/ambiguity', (body) => ({ kind: 'setAmbiguity', level: body.get('ambiguity') ?? '' })],
@@ -51,6 +66,15 @@ export const INPUTS_FORMS: ReadonlyMap<string, FormReader> = new Map<string, For
       return { kind: 'setAmbiguityRanges', low: typed('low'), medium: typed('medium'), high: typed('high') }
     },
   ],
+])
+
+/** Where the tracker's pace is shown, which skipping its periods goes back to. */
+export const PACE_TRACKER_PATH = '/inputs#pace-tracker'
+
+/** The tracker's periods skipped, or counted again, each by the date it starts on, by its form's path: in the local server build. */
+export const SKIP_FORMS: ReadonlyMap<string, (body: URLSearchParams) => SkipEdit> = new Map<string, (body: URLSearchParams) => SkipEdit>([
+  ['/inputs/pace-skip', (body) => ({ kind: 'skip', periods: body.getAll('period') })],
+  ['/inputs/pace-count-again', (body) => ({ kind: 'countAgain', periods: body.getAll('period') })],
 ])
 
 /** A step picking or writing one of the team's queries, as the Inputs screen shows it: its section, and its view. */
@@ -81,7 +105,7 @@ export function renderInputsScreen(screen: InputsView, connection: ConnectionVie
   const sections = [
     ...(connect === undefined ? [] : [inputSection('Connect', 'Connect', CONNECT_HINT, connect, { postsOnSubmit: true })]),
     ...pickers.map(({ section, picker }) => inputSection(section.title, section.title, section.hint, picker, { postsOnSubmit: true, id: section.id })),
-    milestoneSection(forms.milestone, error('milestone'), milestone.notes),
+    milestoneSection(forms.milestone, milestone.ticketsSource, error, milestone.notes),
     cadenceSection(forms.cadence, error('cadence'), milestone.cadenceDays),
     paceSection(screen, error, periodName(milestone.cadenceDays)),
     ambiguitySection(milestone.ambiguity, screen.growth.ranges, error('ambiguity')),
@@ -119,20 +143,116 @@ ${body}
     </section>`
 }
 
-function milestoneSection(form: TypedForms['milestone'], error: string | undefined, notes: readonly InputNote[]): Section {
+/**
+ * The milestone's name, start date and tickets remaining. With a connection, tickets remaining has a source to choose
+ * (`ticketsSource`): following the tracker, it shows the latest read's count, with no field to type in; typed, the
+ * field as in the MVP. The source's radios sit by the field but post their own form, saved as soon as one is chosen.
+ */
+function milestoneSection(
+  form: TypedForms['milestone'],
+  ticketsSource: TicketsSourceView | undefined,
+  error: (form: InputsForm) => string | undefined,
+  notes: readonly InputNote[],
+): Section {
+  const following = ticketsSource?.source === 'tracker'
+  const typedField = `<label>${INPUT_LABELS.ticketsRemaining} <input type="number" name="ticketsRemaining" min="0" max="${MAX_TICKETS_REMAINING}" step="1" value="${escapeHtml(form.ticketsRemaining)}" required></label>`
+  const tickets = ticketsSource
+    ? `<div class="tickets-source">
+              ${radios('ticketsSource', `Where ${INPUT_LABELS.ticketsRemaining.toLowerCase()} comes from`, TICKETS_SOURCES, ticketsSource.source, (source) => (source === 'tracker' ? escapeHtml(ticketsSource.tracker) : 'Typed'), { form: TICKETS_SOURCE_FORM }).trim()}
+              ${following ? trackerTickets(ticketsSource) : typedField + ticketsChip(ticketsSource)}
+            </div>`
+    : typedField
   return inputSection(
     'Milestone',
     'Milestone',
     'Name the milestone, the date work on it starts, and how many tickets are left.',
-    `        <form method="post" action="/inputs/milestone#milestone">${errorLine(error)}
+    `        <form method="post" action="/inputs/milestone#milestone">${errorLine(error('milestone'))}
           <div class="fields">
             <label class="wide">${INPUT_LABELS.name} <input type="text" name="name" value="${escapeHtml(form.name)}" required></label>${notesFor('name', notes)}
             <label>${INPUT_LABELS.startDate} <input type="date" name="startDate" value="${escapeHtml(form.startDate)}" required></label>${notesFor('startDate', notes)}
-            <label>${INPUT_LABELS.ticketsRemaining} <input type="number" name="ticketsRemaining" min="0" max="${MAX_TICKETS_REMAINING}" step="1" value="${escapeHtml(form.ticketsRemaining)}" required></label>${notesFor('ticketsRemaining', notes)}
+            ${tickets}${notesFor('ticketsRemaining', notes)}
           </div>
           <div class="actions"><button type="submit" class="primary">Save milestone</button></div>
-        </form>`,
+        </form>${
+          ticketsSource
+            ? `
+        <form method="post" action="/inputs/tickets-source#milestone" id="${TICKETS_SOURCE_FORM}">${errorLine(error('ticketsSource'))}
+          <div class="actions"><button type="submit">Use this source</button></div>
+        </form>${
+          // opening a reading is posted by the page's script, which shows no reply; a refusal shows here, by the first chip
+          errorLine(error('readingOpened'))
+        }${ticketsSource.readsDifferently ? chipForms(TICKETS_CHIP, '/inputs/tickets-source#milestone', { ticketsSource: 'tracker' }) : ''}`
+            : ''
+        }`,
   )
+}
+
+const TICKETS_SOURCE_FORM = 'tickets-source'
+const TICKETS_SOURCES: readonly TicketsSource[] = ['tracker', 'typed']
+
+/** Tickets remaining typed, with its chip when the tracker reads it differently. */
+function ticketsChip({ tracker, reading, readsDifferently }: TicketsSourceView): string {
+  if (!readsDifferently || !reading) return ''
+  return `
+              ${chip(TICKETS_CHIP, tracker, readsDifferently, `<p>${escapeHtml(tracker)} reads <b>${reading.count}</b> tickets remaining, read ${escapeHtml(reading.readOn)}.${incompleteMark(reading.incomplete)}</p>`)}`
+}
+
+/** A value's mark when the read it is from was part of what its query matched; nothing when whole. */
+function incompleteMark(incomplete: boolean): string {
+  return incomplete ? ' <span class="incomplete">incomplete</span>' : ''
+}
+
+/** A chip: what its forms are ids from, and which value's reading it opens. */
+interface Chip {
+  id: string
+  reading: 'ticketsRemaining' | 'pace'
+}
+
+const TICKETS_CHIP: Chip = { id: 'tickets', reading: 'ticketsRemaining' }
+const PACE_CHIP: Chip = { id: 'pace', reading: 'pace' }
+
+/**
+ * The chip on a typed value the tracker reads differently: "GitHub reads differently", with a dot while its latest
+ * read is unopened. Opened, it shows the `reading` and offers Follow, which posts the form switching the value back to
+ * the tracker; the page's script posts that it was opened, clearing the dot. Its forms sit outside the form the value
+ * is in (`chipForms`), as forms don't nest.
+ */
+function chip({ id, reading }: Chip, tracker: string, { unseen }: ReadsDifferently, body: string): string {
+  const opens = unseen ? ` data-opens="open-${id}-reading"` : ''
+  const dot = unseen ? '<span class="dot" title="A read you haven’t opened"></span>' : ''
+  return `<details class="reads-differently"${opens} data-reading="${reading}">
+                <summary>${dot}${escapeHtml(tracker)} reads differently</summary>
+                <div class="reads-differently-panel">
+                  ${body}
+                  <div class="reads-differently-actions"><button type="submit" form="follow-${id}" class="primary">Follow ${escapeHtml(tracker)}</button></div>
+                </div>
+              </details>`
+}
+
+/** A chip's forms: Follow, posting `fields` to `action`; and opening its reading, which the page's script posts. */
+function chipForms({ id, reading }: Chip, action: string, fields: Record<string, string>): string {
+  const hidden = Object.entries(fields)
+    .map(([name, value]) => `<input type="hidden" name="${name}" value="${escapeHtml(value)}">`)
+    .join('')
+  return `
+        <form method="post" action="${action}" id="follow-${id}">
+          ${hidden}
+        </form>
+        <form method="post" action="/inputs/reading-opened#${action.split('#')[1]}" id="open-${id}-reading">
+          <input type="hidden" name="reading" value="${reading}">
+        </form>`
+}
+
+/**
+ * Tickets remaining as the tracker last read it, and when; marked incomplete when the read was part of the tickets.
+ * Faintly beneath, the value the read replaced.
+ */
+function trackerTickets({ tracker, reading, was }: TicketsSourceView): string {
+  if (!reading) return `<p class="reading"><span class="reading-line">tickets remaining · ${escapeHtml(tracker)}, not read yet</span></p>`
+  return `<p class="reading"><span class="reading-value">${reading.count}</span>${incompleteMark(reading.incomplete)}
+              <span class="reading-line">tickets remaining · ${escapeHtml(tracker)}, read ${escapeHtml(reading.readOn)}</span>${
+                was ? `\n              <span class="reading-line was">was ${was.count} on ${escapeHtml(was.readOn)}</span>` : ''
+              }</p>`
 }
 
 /** The notes about one input, shown beside it. */
@@ -170,36 +290,50 @@ function cadenceHint(savedDays: number): string {
     : `${lasts} At ${savedDays} days a period is a sprint, so pace is entered per sprint; 7 days makes it a week.`
 }
 
-const PACE_MODE_NAMES: Record<PaceMode, string> = { range: 'Range', counts: INPUT_LABELS.typedCounts }
+/** Each pace's name; the tracker's is the connected tracker's own, GitHub or Jira. */
+const PACE_MODE_NAMES: Record<Exclude<PaceMode, 'tracker'>, string> = { range: 'Range', counts: INPUT_LABELS.typedCounts }
 
-/** The pace: which one the forecast uses, the range, and the typed counts, the notes beside the one in use. */
+/**
+ * The pace: which one the forecast uses, the tracker's with a connection, the range, and the typed counts, the notes
+ * and the trend beside the one in use.
+ */
 function paceSection(screen: InputsView, error: (form: InputsForm) => string | undefined, period: PeriodName): Section {
-  const { paceMode, notes, typedCountsNeeded: typedCounts, paceTrend } = screen.milestone
-  const notesIfUsed = (mode: PaceMode): string => (mode === paceMode ? notesFor('pace', notes) + notesFor('typedCounts', notes) : '')
+  const { paceMode, paceUsed: inUse, trackerPace, notes, typedCountsNeeded: typedCounts, paceTrend } = screen.milestone
+  const notesIfUsed = (mode: PaceMode): string => (mode === inUse ? notesFor('pace', notes) + notesFor('typedCounts', notes) : '')
+  const trendIfUsed = (mode: PaceMode): string => (mode === inUse ? renderPaceTrend(paceTrend, period, '          ') : '')
   const { paceRange: range, paceCounts: counts } = screen.forms
+  const chipIfUsed = (mode: PaceMode): string => (mode === inUse ? paceChip(trackerPace, period) : '')
+  const modes: readonly PaceMode[] = trackerPace ? ['tracker', 'counts', 'range'] : ['range', 'counts']
+  const name = (mode: PaceMode): string => (mode === 'tracker' ? escapeHtml(trackerPace?.tracker ?? '') : PACE_MODE_NAMES[mode])
+  const tracker = trackerPace
+    ? `
+        <div class="pace-following" id="pace-tracker">
+          <h3>${escapeHtml(trackerPace.tracker)}</h3>${errorLine(error('paceSkip'))}${trackerReading(trackerPace, period, inUse === 'tracker')}${notesIfUsed('tracker')}${trendIfUsed('tracker')}
+        </div>`
+    : ''
   return inputSection(
     INPUT_LABELS.pace,
     INPUT_LABELS.pace,
-    `How many tickets the team finishes in a ${period}: a range from a slow ${period} to a good one, or typed counts of past ${period}s. Typed counts need at least ${typedCounts.forForecast} for a forecast, and ${typedCounts.reliable} to be reliable. Capacity is set beside the forecast, under Pace.`,
+    `How many tickets the team finishes in a ${period}: ${trackerPace ? `the ${period}s ${escapeHtml(trackerPace.tracker)} reads, ` : ''}a range from a slow ${period} to a good one, or typed counts of past ${period}s. Typed counts need at least ${typedCounts.forForecast} for a forecast, and ${typedCounts.reliable} to be reliable. Capacity is set beside the forecast, under Pace.`,
     `        <form method="post" action="/inputs/pace-mode#pace">${errorLine(error('paceMode'))}
-${radios('paceMode', 'Pace the forecast uses', ['range', 'counts'], paceMode, (mode) => PACE_MODE_NAMES[mode])}
+${radios('paceMode', 'Pace the forecast uses', modes, paceMode, name)}
           <div class="actions"><button type="submit" class="primary">Use this pace</button></div>
-        </form>
+        </form>${trackerPace?.readsDifferently ? chipForms(PACE_CHIP, '/inputs/pace-mode#pace', { paceMode: 'tracker' }) : ''}${tracker}
         <form method="post" action="/inputs/pace#pace-range" id="pace-range">${errorLine(error('paceRange'))}
           <h3>${PACE_MODE_NAMES.range}</h3>
           <div class="pace">
             <label>Low <input type="number" name="low" min="0" max="${MAX_TICKETS_PER_PERIOD}" step="1" value="${escapeHtml(range.low)}" required></label>
             <span class="to">to</span>
             <label>High <input type="number" name="high" min="0" max="${MAX_TICKETS_PER_PERIOD}" step="1" value="${escapeHtml(range.high)}" required></label>
-            <span class="unit">tickets per ${period}</span>
+            <span class="unit">tickets per ${period}</span>${chipIfUsed('range')}
           </div>${notesIfUsed('range')}
           <div class="actions"><button type="submit" class="primary">Save and forecast</button></div>
         </form>
         <form method="post" action="/inputs/pace-counts#pace-counts" id="pace-counts">${errorLine(error('paceCounts'))}
           <h3>${PACE_MODE_NAMES.counts}</h3>
           <div class="fields">
-            <label class="wide">Tickets done each ${period}, oldest first <input type="text" name="counts" value="${escapeHtml(counts.counts)}" inputmode="numeric" placeholder="6, 4, 9"></label>
-          </div>${notesIfUsed('counts')}${renderPaceTrend(paceTrend, period, '          ')}
+            <label class="wide">Tickets done each ${period}, oldest first <input type="text" name="counts" value="${escapeHtml(counts.counts)}" inputmode="numeric" placeholder="6, 4, 9"></label>${chipIfUsed('counts')}
+          </div>${notesIfUsed('counts')}${trendIfUsed('counts')}
           <div class="actions"><button type="submit">Save counts</button></div>
         </form>
         <div class="counts">
@@ -216,11 +350,85 @@ ${radios('paceMode', 'Pace the forecast uses', ['range', 'counts'], paceMode, (m
   )
 }
 
-/** One of `options` to choose, as radio buttons named `name` with the chosen one checked; `label` is each one's HTML. */
-function radios<T extends string>(name: string, ariaLabel: string, options: readonly T[], chosen: T, label: (option: T) => string): string {
+/** The typed counts or the range in use, with its chip when the tracker reads pace differently: its periods' counts as bars. */
+function paceChip(trackerPace: TrackerPaceView | undefined, period: PeriodName): string {
+  if (!trackerPace?.readsDifferently || !trackerPace.reading) return ''
+  const { tracker, readsDifferently } = trackerPace
+  return `
+            <span class="unit">${chip(PACE_CHIP, tracker, readsDifferently, `<p>${escapeHtml(tracker)} reads these ${period}s:</p>${trackerReading(trackerPace, period, false)}`)}</span>`
+}
+
+/**
+ * The tracker's pace: its counts as bars, oldest first, a quiet period a red stub, with the periods counted and when
+ * they were read, and faintly, the counts the read replaced. While pace follows it (`following`), its periods sit behind
+ * Show weeks as blocks to type into, each holding its count: typing into one posts them all as typed counts, which
+ * switches pace to them.
+ */
+function trackerReading({ tracker, reading, incomplete, was }: TrackerPaceView, period: PeriodName, following: boolean): string {
+  if (!reading) return `\n          <p class="reading-line">${period}s finished · ${escapeHtml(tracker)}, ${incomplete ? `read in part${incompleteMark(true)}` : 'not read yet'}</p>`
+  const { periods, counts, line, firstFinished, skipped } = reading
+  const lines = `
+          <p class="reading-line">${escapeHtml(line)}</p>${firstFinished ? `\n          <p class="reading-line">${escapeHtml(firstFinished)}</p>` : ''}${
+            was ? `\n          <p class="reading-line was">was ${was.counts.join(', ')} on ${escapeHtml(was.readOn)}</p>` : ''
+          }${skipped ? countAgainLine(skipped.line, skipped.starts) : ''}`
+  if (periods.length === 0) return lines
+  const tallest = Math.max(1, ...counts)
+  const bars = periods
+    .map(({ start, count, skipped }) =>
+      skipped ? `<span class="bar gap" title="${period} of ${dayMonth(start)}: ${count}, skipped"><span class="v">–</span></span>`
+      : count === 0 ? `<span class="bar zero" title="${period} of ${dayMonth(start)}: 0"><span class="v">0</span></span>`
+      : `<span class="bar" style="height: ${Math.round((count / tallest) * 100)}%" title="${period} of ${dayMonth(start)}: ${count}"><span class="v">${count}</span></span>`,
+    )
+    .join('')
+  const said = periods.map(({ count, skipped }) => (skipped ? 'skipped' : String(count))).join(', ')
+  const graph = `
+          <div class="pace-bars" role="img" aria-label="Finished tickets per ${period}, oldest first: ${said}">${bars}</div>`
+  if (!following) return graph + lines
+  const button = (path: string, start: string, label: string): string =>
+    `<button type="submit" formaction="${path}#pace-tracker" formnovalidate name="period" value="${start}" class="linkish">${label}</button>`
+  const blocks = periods
+    .map(({ start, count, skipped }) =>
+      skipped ? `<span class="block skipped"><s>${count}</s> ${dayMonth(start)} ${button('/inputs/pace-count-again', start, 'count')}</span>`
+      : `<span class="block"><label>${dayMonth(start)} <input type="number" name="week" min="0" max="${MAX_TICKETS_PER_PERIOD}" step="1" value="${count}" required></label> ${button('/inputs/pace-skip', start, 'skip')}</span>`,
+    )
+    .join('\n              ')
+  // kept open once a period is skipped, so what was skipped, and counting it again, stay in view
+  return `${graph}${lines}
+          <details class="week-blocks"${skipped ? ' open' : ''}>
+            <summary>Show ${period}s</summary>
+            <form method="post" action="/inputs/pace-weeks#pace-counts">
+              <p class="hint">Typing into a ${period} switches pace to typed counts, starting from these. Skip a ${period} that says nothing about the pace ahead (a holiday, say), and the one before counts instead.</p>
+              <div class="blocks">
+              ${blocks}
+              </div>
+              ${counts.length > 0 ? '<div class="actions"><button type="submit">Use as typed counts</button></div>' : ''}
+            </form>
+          </details>`
+}
+
+/** The skipped periods, as `trackerReads` says them, with a button to count them all again. */
+function countAgainLine(line: string, starts: readonly string[]): string {
+  const periods = starts.map((start) => `<input type="hidden" name="period" value="${start}">`).join('')
+  return `
+          <form method="post" action="/inputs/pace-count-again#pace-tracker" class="reading-line skipped-line">${escapeHtml(line)} ${periods}<button type="submit" class="linkish">count ${starts.length === 1 ? 'it' : 'them'} again</button></form>`
+}
+
+/**
+ * One of `options` to choose, as radio buttons named `name` with the chosen one checked; `label` is each one's HTML.
+ * They post the form they are in, or the one whose id is `form`.
+ */
+function radios<T extends string>(
+  name: string,
+  ariaLabel: string,
+  options: readonly T[],
+  chosen: T,
+  label: (option: T) => string,
+  { form }: { form?: string } = {},
+): string {
+  const owner = form === undefined ? '' : ` form="${form}"`
   const buttons = options.map(
     (option) =>
-      `            <label><input type="radio" name="${name}" value="${option}"${option === chosen ? ' checked' : ''} required> ${label(option)}</label>`,
+      `            <label><input type="radio" name="${name}" value="${option}"${option === chosen ? ' checked' : ''}${owner} required> ${label(option)}</label>`,
   )
   return `          <fieldset class="levels" aria-label="${ariaLabel}">
 ${buttons.join('\n')}
