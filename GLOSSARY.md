@@ -33,7 +33,7 @@ _Avoid_: rebaseline, new normal
 **Pace trend** (of a milestone): the typed counts drawn as bars with the straight line that fits them best, for the EM to read; the forecast doesn't use it. Not the trend of forecast dates over time.
 _Avoid_: trend line, pace slope
 
-**Pace window** (of a milestone): the periods its pace is drawn from: every typed count, less any the EM's applied pace action leaves out. Counts outside it are kept, so undoing the action brings them back.
+**Pace window** (of a milestone): the periods its pace is drawn from: every typed count, or, following the tracker, up to its 8 most recent whole periods from the first finished ticket, less any the EM's applied pace action leaves out. Counts outside it are kept, so undoing the action brings them back.
 
 **Pace pattern** (of a milestone): the shape the tool names in the typed counts in its pace window, at a cadence of 7 days or more: Steady, Lumpy, Speeding up, Slowing down, Stepped up, Stepped down, Good and bad spells, or One odd week (or sprint). It names the shape and its direction with the team's numbers, never a cause. A step offers to count pace from it, and one odd period to leave it out.
 _Avoid_: team change (names a cause), pace trend (the bars and their line)

@@ -1,9 +1,9 @@
 import type { ThroughputRange } from '../engine/index.js'
-import type { MilestoneInputs } from '../model/milestoneInputs.js'
+import type { MilestoneInputs, PaceMode } from '../model/milestoneInputs.js'
 import { periodName } from './cadence.js'
 import { daysBetween } from './calendarDate.js'
 import { counted } from './counted.js'
-import { actionSaid, paceWindow } from './paceWindow.js'
+import { actionSaid, paceSource, paceWindow } from './paceWindow.js'
 import type { ForecastSettings } from './settings.js'
 import type { Measured } from './trackerReads.js'
 
@@ -21,8 +21,8 @@ export interface Warning extends InputNote {
   beside: string
 }
 
-/** The pace the forecast uses: the range, or the typed counts, whichever the EM chose. */
-export type PaceInUse = ({ source: 'range' } & ThroughputRange) | { source: 'counts'; counts: number[] }
+/** The pace the forecast uses: the range, the typed counts, or the counts the connected `tracker` reads, whichever the EM chose. */
+export type PaceInUse = ({ source: 'range' } & ThroughputRange) | { source: 'counts'; counts: number[] } | { source: 'tracker'; tracker: string; counts: number[] }
 
 /** A milestone with every input its forecast needs, its tickets remaining the ones in use, from the source the EM chose. */
 export type ForecastableInputs = MilestoneInputs & { startDate: string; ticketsRemaining: number }
@@ -42,21 +42,25 @@ export type MilestoneAssessment =
  */
 export function assessMilestone(inputs: MilestoneInputs, settings: ForecastSettings, today: string, measured?: Measured): MilestoneAssessment {
   const { typedCounts } = settings
-  // the typed counts the pace is drawn from: those in its window
-  const inWindow = paceWindow(inputs, today).window.counts
-  const pace = paceInUse(inputs, inWindow)
+  // the counts the pace is drawn from: those in its window
+  const inWindow = paceWindow(inputs, today, measured).window.counts
+  const source = paceSource(inputs, measured)
+  const pace = paceInUse(inputs, source, inWindow, measured)
   const tickets = ticketsInUse(inputs, measured)
+  const tracker = source === 'tracker' ? trackerPaceNotes(inputs, inWindow.length, typedCounts, measured!) : { problems: [], warnings: [] }
   const warnings = [
     ...startDateWarnings(inputs, today),
     ...paceWarnings(inputs, tickets.count, pace),
-    ...paceCadenceWarnings(inputs),
-    ...typedCountsWarnings(inputs, inWindow.length, typedCounts),
+    ...(source === 'tracker' ? [] : paceCadenceWarnings(inputs)),
+    ...(source === 'counts' ? typedCountsWarnings(inputs, inWindow.length, typedCounts) : []),
+    ...tracker.warnings,
   ]
   const problems = [
     ...(inputs.startDate === undefined ? [{ input: 'startDate', message: 'No start date is saved yet.' } as const] : []),
     ...(tickets.problem ? [{ input: 'ticketsRemaining', message: tickets.problem } as const] : []),
     ...(pace === undefined ? [{ input: 'pace', message: 'Enter a pace range.' } as const] : []),
-    ...typedCountsShort(inputs, inWindow.length, typedCounts),
+    ...(source === 'counts' ? typedCountsShort(inputs, inWindow.length, typedCounts) : []),
+    ...tracker.problems,
   ]
   const { startDate } = inputs
   const ticketsRemaining = tickets.count
@@ -89,19 +93,39 @@ function ticketsInUse(inputs: MilestoneInputs, measured: Measured | undefined): 
 }
 
 /**
- * The pace the milestone's forecast uses, or undefined until the chosen one is entered. Typed counts are those in its
- * pace window, `inWindow`.
+ * The pace the milestone's forecast uses, from `source`, or undefined until the chosen one is entered. Counts, typed or
+ * the tracker's, are those in its pace window, `inWindow`.
  */
-function paceInUse(inputs: MilestoneInputs, inWindow: number[]): PaceInUse | undefined {
-  if (inputs.paceMode === 'counts') return { source: 'counts', counts: inWindow }
+function paceInUse(inputs: MilestoneInputs, source: PaceMode, inWindow: number[], measured: Measured | undefined): PaceInUse | undefined {
+  if (source === 'counts') return { source: 'counts', counts: inWindow }
+  if (source === 'tracker') return { source: 'tracker', tracker: measured!.tracker, counts: inWindow }
   return inputs.paceRange && { source: 'range', ...inputs.paceRange }
+}
+
+/**
+ * Following the tracker, what stops a forecast from its counts, `inUse` of them, and the warnings, as with typed
+ * counts: none read yet, nothing finished in the periods read, fewer than `forForecast`, or fewer than `reliable`.
+ */
+function trackerPaceNotes(inputs: MilestoneInputs, inUse: number, { forForecast, reliable }: TypedCounts, { tracker, pace }: Measured): { problems: InputNote[]; warnings: Warning[] } {
+  const period = periodName(inputs.cadenceDays)
+  const instead = 'Type counts, or switch pace to the range.'
+  const problem = (message: string) => ({ problems: [{ input: 'pace' as const, message }], warnings: [] })
+  if (!pace) return problem(`${tracker} hasn’t read the milestone’s finished tickets yet. Pick them in the Milestone step, or ${instead.toLowerCase()}`)
+  if (pace.window.counts.length === 0) return problem(`${tracker} has no finished tickets in the ${period}s it read, so there is no pace. ${instead}`)
+  const counting = `${tracker}’s pace: ${pace.periods}${inUse === pace.window.counts.length ? '' : `, ${counted(inUse, period)} counted`}.`
+  if (inUse < forForecast) return problem(`${counting} The forecast needs at least ${forForecast}. ${instead}`)
+  if (inUse >= reliable) return { problems: [], warnings: [] }
+  return {
+    problems: [],
+    warnings: [{ input: 'pace', message: `${counting} The forecast needs ${reliable} to be reliable.`, beside: `${inUse} of ${reliable} needed for reliable results` }],
+  }
 }
 
 type TypedCounts = ForecastSettings['typedCounts']
 
 /** Why the typed counts in use are too few to forecast from, if they are: one count isn't a pace. */
 function typedCountsShort(inputs: MilestoneInputs, inUse: number, { forForecast }: TypedCounts): InputNote[] {
-  if (inputs.paceMode !== 'counts' || inUse >= forForecast) return []
+  if (inUse >= forForecast) return []
   return [
     {
       input: 'typedCounts',
@@ -123,7 +147,7 @@ function typedCountsEntered(inputs: MilestoneInputs, inUse: number): string {
 
 /** Typed counts enough to forecast from, but too few for a range the EM can rely on. */
 function typedCountsWarnings(inputs: MilestoneInputs, inUse: number, { forForecast, reliable }: TypedCounts): Warning[] {
-  if (inputs.paceMode !== 'counts' || inUse < forForecast || inUse >= reliable) return []
+  if (inUse < forForecast || inUse >= reliable) return []
   return [
     {
       input: 'typedCounts',
@@ -145,7 +169,7 @@ function paceWarnings(inputs: MilestoneInputs, ticketsRemaining: number | undefi
   const workLeft = (ticketsRemaining ?? 0) > 0
   // with no counts typed yet, the too-few-counts problem says what to do
   const zeroPace =
-    pace?.source === 'counts' ? pace.counts.length > 0 && pace.counts.every((count) => count === 0) : pace?.high === 0
+    pace !== undefined && pace.source !== 'range' ? pace.counts.length > 0 && pace.counts.every((count) => count === 0) : pace?.high === 0
   if (workLeft && zeroPace) return [worded('pace', `At 0 tickets a ${periodName(inputs.cadenceDays)}, the work never finishes.`)]
   return []
 }

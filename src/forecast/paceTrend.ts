@@ -1,6 +1,7 @@
 import type { MilestoneInputs } from '../model/milestoneInputs.js'
-import { paceWindow } from './paceWindow.js'
+import { paceSource, paceWindow } from './paceWindow.js'
 import type { ForecastSettings } from './settings.js'
+import type { Measured } from './trackerReads.js'
 
 /**
  * The typed counts drawn as bars, oldest first, with a straight least-squares line fitted through them. Information
@@ -16,12 +17,12 @@ export interface PaceTrend {
 }
 
 /**
- * The trend of the typed counts in use, those in the pace window on `today`, when they are the pace and there are as
- * many as a forecast needs; otherwise none, as with the range or too few counts.
+ * The trend of the counts in use, typed or the tracker's (`measured`), those in the pace window on `today`, when they
+ * are the pace and there are as many as a forecast needs; otherwise none, as with the range or too few counts.
  */
-export function paceTrend(inputs: MilestoneInputs, { typedCounts }: ForecastSettings, today: string): PaceTrend | undefined {
-  const counts = paceWindow(inputs, today).window.counts
-  if (inputs.paceMode !== 'counts' || counts.length < typedCounts.forForecast) return undefined
+export function paceTrend(inputs: MilestoneInputs, { typedCounts }: ForecastSettings, today: string, measured?: Measured): PaceTrend | undefined {
+  const counts = paceWindow(inputs, today, measured).window.counts
+  if (paceSource(inputs, measured) === 'range' || counts.length < typedCounts.forForecast) return undefined
   return { counts, ...fittedLine(counts) }
 }
 

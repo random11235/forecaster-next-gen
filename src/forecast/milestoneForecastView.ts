@@ -11,7 +11,7 @@ import { paceActionApplied, pacePattern, type PacePatternView } from './pacePatt
 import { paceWindow } from './paceWindow.js'
 import { paceTrend, type PaceTrend } from './paceTrend.js'
 import type { ForecastSettings } from './settings.js'
-import { measured, type ReadingTracker } from './trackerReads.js'
+import { measured, type Measured, type ReadingTracker } from './trackerReads.js'
 
 /** The confidence level the headline states. */
 export const HEADLINE_PERCENT = 85
@@ -116,9 +116,10 @@ export function milestoneForecastView(
 ): MilestoneForecastView {
   const saved = storage.milestoneInputs(teamId)
   if (!saved) return { kind: 'empty' }
-  const assessment = assessMilestone(saved, settings, today, measured(tracker, teamId))
+  const reading = measured(tracker, teamId, storage, today)
+  const assessment = assessMilestone(saved, settings, today, reading)
   if (!assessment.forecastable) {
-    const applied = paceActionApplied(saved, today)
+    const applied = paceActionApplied(saved, today, reading)
     return { kind: 'problems', name: saved.name, problems: assessment.problems, ...(applied && { paceApplied: applied }) }
   }
 
@@ -161,10 +162,10 @@ export function milestoneForecastView(
     ambiguity: { level: inputs.ambiguity, ...growth },
     warnings: assessment.warnings.map(({ input, message }) => ({ input, message })),
     finishGraph: finishGraph(result, simulationCase),
-    paceTrend: paceTrend(inputs, settings, today),
+    paceTrend: paceTrend(inputs, settings, today, reading),
     pacePattern:
-      pace.source === 'counts'
-        ? pacePattern(paceWindow(inputs, today), inputs.paceWindow.action, periodDays, {
+      pace.source !== 'range'
+        ? pacePattern(paceWindow(inputs, today, reading), inputs.paceWindow.action, periodDays, {
             percent: HEADLINE_PERCENT,
             now: result.percentileDates[HEADLINE_PERCENT] ?? null,
             // from the same seed and capacity, so the two differ by the action alone
@@ -173,7 +174,7 @@ export function milestoneForecastView(
                 .percentileDates[HEADLINE_PERCENT] ?? null,
           })
         : undefined,
-    capacity: capacityView(storage, teamId, today, use, period, { open: capacityOpen, ...(effects && { effects }), pace: pacePeriods(inputs, pace, today) }),
+    capacity: capacityView(storage, teamId, today, use, period, { open: capacityOpen, ...(effects && { effects }), pace: pacePeriods(inputs, pace, today, reading) }),
     comparison,
     capacityLine: capacityLine(use, period),
   }
@@ -187,8 +188,8 @@ function comparedDate(percent: number, withCapacity: ForecastResult, atUsual: Fo
 }
 
 /** The periods the pace comes from, for the new-usual rule: each in the pace window, dated back from today's period. */
-function pacePeriods(inputs: ForecastableInputs, pace: PaceInUse, today: string): PacePeriods {
-  return pace.source === 'range' ? { source: 'range' } : { source: 'counts', starts: paceWindow(inputs, today).window.starts }
+function pacePeriods(inputs: ForecastableInputs, pace: PaceInUse, today: string, reading: Measured | undefined): PacePeriods {
+  return pace.source === 'range' ? { source: 'range' } : { source: 'counts', starts: paceWindow(inputs, today, reading).window.starts }
 }
 
 function forecastDate(percent: number, date: string | null, today: string): ForecastDate {
@@ -229,7 +230,7 @@ function milestoneCase(
       },
     ],
     // typed counts are drawn by the Bayesian bootstrap (ADR-0001), a range uniformly
-    throughputSamples: pace.source === 'counts' ? pace.counts : { low: pace.low, high: pace.high },
+    throughputSamples: pace.source !== 'range' ? pace.counts : { low: pace.low, high: pace.high },
     epicSizeSamples: { low: 0, high: 0 },
     percentiles: settings.percentiles,
     ...(factors && { capacity: factors }),

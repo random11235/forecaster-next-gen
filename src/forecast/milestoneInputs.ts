@@ -8,7 +8,7 @@ import { refuse, type EditResult, type Refusal } from './editResult.js'
 import { assessMilestone, type InputNote, type MilestoneAssessment } from './milestoneAssessment.js'
 import { paceTrend, type PaceTrend } from './paceTrend.js'
 import type { ForecastSettings } from './settings.js'
-import type { Measured, TicketsReading } from './trackerReads.js'
+import type { Measured, PaceReading, TicketsReading } from './trackerReads.js'
 
 /** Far above any real team's pace in one period; keeps typos like 1000000 out of the forecast. */
 export const MAX_TICKETS_PER_PERIOD = 1000
@@ -19,8 +19,6 @@ export const MAX_CADENCE_DAYS = 365
 /** Far above any real milestone; keeps typos out of the forecast. */
 export const MAX_TICKETS_REMAINING = 100_000
 
-/** The paces the EM can choose: not yet the tracker's, until the tracker pace is offered with a connection (#159). */
-const OFFERED_PACE_MODES: readonly PaceMode[] = PACE_MODES.filter((mode) => mode !== 'tracker')
 
 /** A change the EM makes to the milestone on the Inputs screen, as typed. */
 export type MilestoneInputsEdit =
@@ -43,7 +41,10 @@ export type MilestoneInputsEdit =
   | { kind: 'addPaceCount'; count: string }
   /** Drops the newest typed count, if there is one. */
   | { kind: 'removeLastPaceCount' }
-  /** Which pace the forecast uses, `range` or `counts`; both are kept. */
+  /**
+   * Which pace the forecast uses: `range`, `counts`, or with a connection `tracker`; each is kept. Typing the counts
+   * while following the tracker switches pace to typed counts.
+   */
   | { kind: 'setPaceMode'; paceMode: string }
 
 /** The milestone as the Inputs screen shows it, with the start date pre-filled with today until one is entered. */
@@ -63,6 +64,8 @@ export interface MilestoneInputsView {
   paceCounts: number[]
   /** Which pace the forecast uses. */
   paceMode: PaceMode
+  /** What the tracker reads of pace, with a connection to follow it; none with none, where pace is typed or a range. */
+  paceSource: PaceSourceView | undefined
   /** How many typed counts the settings need: at least `forForecast` for a forecast, and `reliable` to be reliable. */
   typedCountsNeeded: ForecastSettings['typedCounts']
   /** What stops a forecast, then the warnings, each beside its input; none before anything is entered. */
@@ -78,6 +81,14 @@ export interface TicketsSourceView {
   tracker: string
   /** The tracker's latest reading, which tickets remaining is while it follows the tracker; none until it is read. */
   reading: TicketsReading | undefined
+}
+
+/** The connected tracker's pace, offered as a source of pace. */
+export interface PaceSourceView {
+  /** The connected tracker, which the source and its wording name: GitHub or Jira. */
+  tracker: string
+  /** The tracker's reading of pace, which the forecast uses while pace follows it; none until it is read. */
+  reading: PaceReading | undefined
 }
 
 /**
@@ -98,9 +109,10 @@ export function milestoneInputsView(storage: Storage, teamId: string, settings: 
     paceRange: inputs.paceRange,
     paceCounts: inputs.paceCounts,
     paceMode: inputs.paceMode,
+    paceSource: measured && { tracker: measured.tracker, reading: measured.pace },
     typedCountsNeeded: settings.typedCounts,
     notes: assessment ? notesBeside(assessment) : [],
-    paceTrend: paceTrend(inputs, settings, today),
+    paceTrend: paceTrend(inputs, settings, today, measured),
   }
 }
 
@@ -119,7 +131,16 @@ export function editMilestoneInputs(storage: Storage, teamId: string, edit: Mile
   if (edit.kind === 'setMilestone') return save(storage, withMilestone(saved ?? newMilestone(teamId), edit))
   if (!saved) return refuse('Enter the milestone first.')
   if (edit.kind === 'setTicketsSource') return save(storage, withTicketsSource(saved, edit.ticketsSource, measured))
+  if (edit.kind === 'setPaceMode') return save(storage, withPaceMode(saved, edit.paceMode, measured))
   return save(storage, edited(saved, edit))
+}
+
+/** The pace the forecast uses: the tracker's only with a connection. */
+function withPaceMode(saved: MilestoneInputs, paceMode: string, measured: Measured | undefined): Edited {
+  const offered = PACE_MODES.filter((mode) => mode !== 'tracker' || measured)
+  const chosen = offered.find((mode) => mode === paceMode)
+  if (chosen === undefined) return refuse(measured ? `Choose ${measured.tracker}, typed counts or the range.` : 'Choose the range or typed counts.')
+  return { ...saved, paceMode: chosen }
 }
 
 /** The source tickets remaining comes from: the tracker only with a connection. */
@@ -155,7 +176,7 @@ function withMilestone(inputs: MilestoneInputs, edit: Extract<MilestoneInputsEdi
 }
 
 /** A saved milestone as any edit but the milestone's own leaves it. */
-function edited(saved: MilestoneInputs, edit: Exclude<MilestoneInputsEdit, { kind: 'setMilestone' | 'setTicketsSource' }>): Edited {
+function edited(saved: MilestoneInputs, edit: Exclude<MilestoneInputsEdit, { kind: 'setMilestone' | 'setTicketsSource' | 'setPaceMode' }>): Edited {
   switch (edit.kind) {
     case 'setPaceRange': {
       const [low, high] = [wholeNumber(edit.low), wholeNumber(edit.high)]
@@ -176,15 +197,12 @@ function edited(saved: MilestoneInputs, edit: Exclude<MilestoneInputsEdit, { kin
       if (!counts.every((count) => count !== undefined)) return refuse('Enter typed counts as whole numbers of tickets, 0 or more.')
       if (counts.some((count) => count > MAX_TICKETS_PER_PERIOD)) return refuseAbovePerPeriodCap(saved)
       const paceCounts = edit.kind === 'addPaceCount' ? [...saved.paceCounts, ...counts] : counts
-      return { ...saved, paceCounts, paceCadenceDays: saved.cadenceDays }
+      // typed while following the tracker, as into its opened weeks: pace switches to the typed counts
+      const paceMode = saved.paceMode === 'tracker' ? 'counts' : saved.paceMode
+      return { ...saved, paceCounts, paceMode, paceCadenceDays: saved.cadenceDays }
     }
     case 'removeLastPaceCount':
       return { ...saved, paceCounts: saved.paceCounts.slice(0, -1) }
-    case 'setPaceMode': {
-      const paceMode = OFFERED_PACE_MODES.find((mode) => mode === edit.paceMode)
-      if (paceMode === undefined) return refuse('Choose the range or typed counts.')
-      return { ...saved, paceMode }
-    }
     case 'setCadence': {
       const days = wholeNumber(edit.cadenceDays)
       if (days === undefined || days < 1) return refuse('Enter the cadence as a whole number of days, 1 or more.')

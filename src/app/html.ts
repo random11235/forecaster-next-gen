@@ -263,6 +263,20 @@ const STYLE = `
     .tickets-source .reading-value { font-size: 32px; line-height: 1.1; font-variant-numeric: tabular-nums; }
     .tickets-source .reading-line { flex-basis: 100%; font-size: 12px; color: var(--muted); }
     .tickets-source .incomplete { font-size: 12px; font-weight: 600; color: var(--risk); }
+    /* Pace following the tracker: its counts as bars, a quiet period a red stub, its periods behind Show weeks. */
+    .pace-following { display: flex; flex-direction: column; gap: 6px; }
+    .pace-following .reading-line { margin: 0; font-size: 12px; color: var(--muted); }
+    .pace-bars { display: flex; align-items: flex-end; gap: 4px; height: 64px; max-width: 320px; padding-top: 16px; border-bottom: 1px solid var(--ink); }
+    .pace-bars .bar { position: relative; flex: 1 1 0; min-width: 0; background: var(--bar); }
+    .pace-bars .bar.zero { height: 2px; background: var(--risk); }
+    .pace-bars .v { position: absolute; bottom: 100%; left: 0; right: 0; text-align: center; font-family: var(--mono); font-size: 10px; color: var(--text-2); }
+    .pace-bars .bar.zero .v { color: var(--risk); }
+    .week-blocks summary { cursor: pointer; font-size: 13px; color: var(--link); }
+    .week-blocks form { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+    .week-blocks .hint { margin: 0; font-size: 12px; color: var(--muted); }
+    .week-blocks .blocks { display: flex; flex-wrap: wrap; gap: 6px; }
+    .week-blocks .blocks label { display: flex; flex-direction: column; gap: 2px; font-size: 11px; color: var(--muted); }
+    .week-blocks .blocks input { width: 56px; text-align: center; }
     fieldset.levels .range { font-family: var(--mono); font-size: 13px; color: var(--muted); }
     table.growth { border-collapse: collapse; }
     table.growth th { padding: 0 24px 6px 0; text-align: left; font-size: 12px; font-weight: 500; color: var(--faint); }
