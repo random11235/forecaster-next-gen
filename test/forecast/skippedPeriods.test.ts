@@ -121,7 +121,7 @@ describe('skipping a period', () => {
   test('the forecast’s pace says how many are skipped', async () => {
     await skip(HOLIDAYS)
 
-    expect(forecast()).toMatchObject({ kind: 'forecast', pace: { source: 'tracker', tracker: 'GitHub', counts: [4, 6, 3, 5, 6, 4, 6, 8], skipped: 2 } })
+    expect(forecast()).toMatchObject({ kind: 'forecast', pace: { source: 'tracker', tracker: 'GitHub', counts: [4, 6, 3, 5, 6, 4, 6, 8], skipped: 2 }, paceSaid: 'GitHub’s last 8 weeks, 2 skipped' })
   })
 
   test('with GitHub holding no earlier weeks, fewer are counted, and the skip line says so', async () => {
