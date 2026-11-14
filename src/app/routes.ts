@@ -2,7 +2,7 @@ import { choiceKindOf } from '../connectors/connector.js'
 import { connectionView, submitConnection, type Connecting, type ConnectionEdit, type ConnectionView, type SetupStep } from '../forecast/connection.js'
 import { howItWorksView } from '../forecast/howItWorksView.js'
 import { followRenamedMilestone } from '../forecast/milestoneRenamed.js'
-import { submitSkip, type SkipEdit } from '../forecast/skippedPeriods.js'
+import { submitSkip, type SkipEdit, type Skipping } from '../forecast/skippedPeriods.js'
 import {
   queryStepView,
   searchedChoiceList,
@@ -163,7 +163,7 @@ export function routeSetup(request: Request, context: AppContext): Promise<Reply
   const { connecting, storage } = context
   const team = storage.teams()[0]
   if (!connecting || !team) return undefined
-  const setup: SetupRouting = { ...routing(request), team, request, context, connecting }
+  const setup: SetupRouting = { ...routing(request), team, request, context, connecting, reading: { ...connecting, milestoneInputs: storage } }
   const { pathname } = setup
   if (request.method === 'GET' && pathname === SCREEN_PATHS.inputs) return inputsWithStep(setup)
   const searchedFor = request.method === 'GET' ? STEP_SECTIONS.find((section) => section.searchedChoicesPath === pathname) : undefined
@@ -186,9 +186,9 @@ export function routeSetup(request: Request, context: AppContext): Promise<Reply
  * to the new name where it follows it (`followRenamedMilestone`).
  */
 async function renamed(setup: SetupRouting, named: string | undefined, submitted: FormReply): Promise<Reply> {
-  const { connecting, context, team, request } = setup
+  const { reading, context, team, request } = setup
   const now = milestoneName(context.storage, team.id)
-  if (named !== undefined && now !== undefined) await followRenamedMilestone({ ...connecting, milestoneInputs: context.storage }, team.id, { from: named, to: now }, context.now())
+  if (named !== undefined && now !== undefined) await followRenamedMilestone(reading, team.id, { from: named, to: now }, context.now())
   if (submitted.kind !== 'inputs') return submitted
   // a save in place replaces only the sections saved, not the Milestone step, so its choices aren't asked for
   return inputsWithStep(setup, { status: submitted.status, view: submitted.view, unlisted: request.saveInPlace === true })
@@ -204,6 +204,8 @@ interface SetupRouting extends TeamRouting {
   request: Request
   context: AppContext
   connecting: Connecting
+  /** What its steps read and save with: the connection, and what is stored, the milestone's inputs among it. */
+  reading: Skipping
 }
 
 /**
@@ -307,7 +309,7 @@ async function searchedChoices({ connecting, team, searchParams }: SetupRouting,
 async function queryEdited(setup: SetupRouting, section: StepSection, readQueryEdit: (body: URLSearchParams) => StepQueryEdit | undefined): Promise<Reply> {
   const edit = readQueryEdit(setup.request.form ?? new URLSearchParams())
   if (!edit) return { kind: 'notFound' }
-  const submitted = await submitStepQuery({ ...setup.connecting, milestoneInputs: setup.context.storage }, setup.team.id, edit, setup.context.now(), section.stepQuery)
+  const submitted = await submitStepQuery(setup.reading, setup.team.id, edit, setup.context.now(), section.stepQuery)
   if (submitted.kind === 'refused') return inputsWithStep(setup, { status: 400, refused: { section, query: submitted } })
   if (submitted.kind === 'confirmClear') return { kind: 'redirect', location: section.urls.confirmingBack }
   // a query edited by hand stays open for editing; every other change goes back to finding
@@ -319,9 +321,9 @@ async function queryEdited(setup: SetupRouting, section: StepSection, readQueryE
  * Refused, the Inputs screen again, saying why.
  */
 async function skipped(setup: SetupRouting, readSkip: (body: URLSearchParams) => SkipEdit): Promise<Reply> {
-  const { connecting, context, team, request, settings } = setup
+  const { reading, context, team, request, settings } = setup
   const at = { settings, today: context.today(), readAt: context.now(), timeZone: localTimeZone() }
-  const submitted = await submitSkip({ ...connecting, milestoneInputs: context.storage }, team.id, readSkip(request.form ?? new URLSearchParams()), at)
+  const submitted = await submitSkip(reading, team.id, readSkip(request.form ?? new URLSearchParams()), at)
   if (!submitted.saved) return inputsWithStep(setup, { status: 400, ...(submitted.screen === 'inputs' && { view: submitted.view }) })
   return { kind: 'redirect', location: PACE_TRACKER_PATH }
 }
