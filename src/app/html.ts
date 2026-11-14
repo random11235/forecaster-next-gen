@@ -265,7 +265,9 @@ const STYLE = `
     .setup-summary dd { margin: 0; overflow-wrap: anywhere; }
     .setup-summary code { font-family: var(--mono); font-size: 13px; }
     .setup-summary p.note { flex-basis: 100%; }
-    .setup-summary p.flag { color: var(--risk); }
+    .setup-summary .flag { flex-basis: 100%; color: var(--risk); }
+    .setup-summary .setup-head form + form { margin: 0; }
+    .setup-summary .flag form { display: inline; margin-left: 8px; }
     .pace { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; }
     .pace label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
     .pace input[type=number] { font-size: 32px; width: 72px; text-align: center; padding: 2px 0; }
