@@ -22,8 +22,14 @@ const FIXTURE: CannedFixture = {
     { kind: 'label', choices: [payments, bug, broken], pastLimit: false },
   ],
   reads: {
-    // 2 a week, the weeks of 1, 8, 15 and 22 Oct
-    [checkout.query]: { tickets: [{ id: 'm-open' }, ...finishedOn('m', ['2026-10-02', '2026-10-03', '2026-10-09', '2026-10-10', '2026-10-16', '2026-10-17', '2026-10-23', '2026-10-24'])], incomplete: false },
+    // 2 a week, every week from its start on 1 Oct; the reads reach whole from the week of 17 Sep, two weeks before
+    [checkout.query]: {
+      tickets: [
+        { id: 'm-open' },
+        ...finishedOn('m', ['2026-10-02', '2026-10-03', '2026-10-09', '2026-10-10', '2026-10-16', '2026-10-17', '2026-10-23', '2026-10-24', '2026-10-30', '2026-10-31', '2026-11-06', '2026-11-07']),
+      ],
+      incomplete: false,
+    },
     [payments.query]: { tickets: [{ id: 'p-open' }, ...finishedOn('p', ['2026-10-02', '2026-10-30'])], incomplete: false },
     [broken.query]: { failure: 'unavailable' },
   },

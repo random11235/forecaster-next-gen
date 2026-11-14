@@ -1,6 +1,6 @@
 import type { Choice, ChoiceKind, Connector } from '../connectors/connector.js'
-import { teamConnection, type Connecting } from './connection.js'
-import { submitStepQuery, type StepQuerySubmitted } from './queryStep.js'
+import { teamConnection } from './connection.js'
+import { submitStepQuery, type StepQuerySubmitted, type StepReading } from './queryStep.js'
 
 /** The kinds of choice that are the tracker's own milestone: a GitHub milestone, a Jira fix version. */
 const MILESTONE_KINDS: readonly ChoiceKind[] = ['milestone', 'fixVersion']
@@ -13,7 +13,7 @@ const MILESTONE_KINDS: readonly ChoiceKind[] = ['milestone', 'fixVersion']
  * written by hand) is left as it was, as is one when the tracker has no milestone of the new name.
  */
 export async function followRenamedMilestone(
-  connecting: Connecting,
+  connecting: StepReading,
   teamId: string,
   { from, to }: { from: string; to: string },
   readAt: string,

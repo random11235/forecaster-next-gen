@@ -11,10 +11,10 @@ import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteS
 
 const CHECKOUT = { kind: 'milestone', name: 'Checkout v2', query: 'milestone:"Checkout v2"' } as const
 
-// The Tuesdays of the weeks the read reaches whole, from 21 Sep, the milestone started on Monday 31 Aug; the current
+// The Tuesdays of the 8 weeks the read reaches whole, from 14 Sep, the milestone started on Monday 31 Aug; the current
 // week, of 9 Nov, is left out.
-const TUESDAYS = ['2026-09-22', '2026-09-29', '2026-10-06', '2026-10-13', '2026-10-20', '2026-10-27', '2026-11-03']
-const COUNTS = [5, 6, 0, 7, 5, 6, 8]
+const TUESDAYS = ['2026-09-15', '2026-09-22', '2026-09-29', '2026-10-06', '2026-10-13', '2026-10-20', '2026-10-27', '2026-11-03']
+const COUNTS = [4, 5, 6, 0, 7, 5, 6, 8]
 
 const finished: Ticket[] = COUNTS.flatMap((count, week) =>
   Array.from({ length: count }, (_, i) => ({ id: `w${week}-${i}`, finishedAt: `${TUESDAYS[week]}T10:00:00Z` })),
@@ -93,10 +93,10 @@ describe('pace following GitHub', () => {
 
     const section = await paceSection(running)
     expect(section).toMatch(/value="tracker" checked/)
-    expect(section.match(/class="bar[ "]/g)).toHaveLength(7)
+    expect(section.match(/class="bar[ "]/g)).toHaveLength(8)
     expect(section.match(/class="bar zero"/g)).toHaveLength(1)
-    expect(section).toContain('aria-label="Finished tickets per week, oldest first: 5, 6, 0, 7, 5, 6, 8"')
-    expect(section).toContain('7 weeks · GitHub has nothing before w/c 21 Sep')
+    expect(section).toContain('aria-label="Finished tickets per week, oldest first: 4, 5, 6, 0, 7, 5, 6, 8"')
+    expect(section).toContain('last 8 weeks')
     expect(section).toMatch(/read 12 Nov \d\d:00/)
   })
 
@@ -109,19 +109,19 @@ describe('pace following GitHub', () => {
     const blocks = [...section.matchAll(/<input type="number" name="week" [^>]*value="(\d+)"/g)].map((block) => block[1])
     expect(blocks).toEqual(COUNTS.map(String))
 
-    const typed = new URLSearchParams(COUNTS.map((count, week) => ['week', String(week === 6 ? 9 : count)]))
+    const typed = new URLSearchParams(COUNTS.map((count, week) => ['week', String(week === 7 ? 9 : count)]))
     await post(running, '/inputs/pace-weeks', typed)
 
     const after = await paceSection(running)
     expect(after).toMatch(/value="counts" checked/)
-    expect(after).toContain('value="5, 6, 0, 7, 5, 6, 9"')
+    expect(after).toContain('value="4, 5, 6, 0, 7, 5, 6, 9"')
   })
 
   test('the forecast says its pace is GitHub’s weeks', async () => {
     const running = await start()
     await post(running, '/inputs/pace-mode', { paceMode: 'tracker' })
 
-    expect(await page(running, '/')).toContain('GitHub’s last 7 weeks')
+    expect(await page(running, '/')).toContain('GitHub’s last 8 weeks')
   })
 
   test('with no connection, pace offers only typed counts and the range', async () => {

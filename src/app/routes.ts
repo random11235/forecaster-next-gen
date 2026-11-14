@@ -185,7 +185,7 @@ export function routeSetup(request: Request, context: AppContext): Promise<Reply
 async function renamed(setup: SetupRouting, named: string | undefined, submitted: FormReply): Promise<Reply> {
   const { connecting, context, team, request } = setup
   const now = milestoneName(context.storage, team.id)
-  if (named !== undefined && now !== undefined) await followRenamedMilestone(connecting, team.id, { from: named, to: now }, context.now())
+  if (named !== undefined && now !== undefined) await followRenamedMilestone({ ...connecting, milestoneInputs: context.storage }, team.id, { from: named, to: now }, context.now())
   if (submitted.kind !== 'inputs') return submitted
   // a save in place replaces only the sections saved, not the Milestone step, so its choices aren't asked for
   return inputsWithStep(setup, { status: submitted.status, view: submitted.view, unlisted: request.saveInPlace === true })
@@ -304,7 +304,7 @@ async function searchedChoices({ connecting, team, searchParams }: SetupRouting,
 async function queryEdited(setup: SetupRouting, section: StepSection, readQueryEdit: (body: URLSearchParams) => StepQueryEdit | undefined): Promise<Reply> {
   const edit = readQueryEdit(setup.request.form ?? new URLSearchParams())
   if (!edit) return { kind: 'notFound' }
-  const submitted = await submitStepQuery(setup.connecting, setup.team.id, edit, setup.context.now(), section.stepQuery)
+  const submitted = await submitStepQuery({ ...setup.connecting, milestoneInputs: setup.context.storage }, setup.team.id, edit, setup.context.now(), section.stepQuery)
   if (submitted.kind === 'refused') return inputsWithStep(setup, { status: 400, refused: { section, query: submitted } })
   if (submitted.kind === 'confirmClear') return { kind: 'redirect', location: section.urls.confirmingBack }
   // a query edited by hand stays open for editing; every other change goes back to finding

@@ -252,6 +252,12 @@ CREATE TABLE comparable_work_queries (
 ALTER TABLE milestone_inputs ADD COLUMN tickets_source TEXT NOT NULL DEFAULT 'typed';
 ALTER TABLE milestone_inputs ADD COLUMN seen_reads TEXT NOT NULL DEFAULT '{}';
 `,
+  // 18: how far back each saved read counts finished tickets (#213), which now reaches past the skipped periods. A read
+  // saved before reached back 8 weeks from when it was made.
+  `
+ALTER TABLE saved_reads ADD COLUMN finished_since TEXT;
+UPDATE saved_reads SET finished_since = strftime('%Y-%m-%dT%H:%M:%fZ', read_at, '-56 days');
+`,
 ]
 
 type Row = Record<string, SQLInputValue>
@@ -318,11 +324,11 @@ export function openSqliteStorage(file: string): SqliteStorage {
   const selectConnection = db.prepare('SELECT * FROM connections WHERE team_id = ?')
   const deleteConnection = db.prepare('DELETE FROM connections WHERE team_id = ?')
   const deleteSavedRead = db.prepare('DELETE FROM saved_reads WHERE team_id = ? AND query = ?')
-  const insertSavedRead = db.prepare('INSERT INTO saved_reads (team_id, query, incomplete, read_at) VALUES (?, ?, ?, ?)')
+  const insertSavedRead = db.prepare('INSERT INTO saved_reads (team_id, query, incomplete, read_at, finished_since) VALUES (?, ?, ?, ?, ?)')
   const insertSavedReadTicket = db.prepare(
     'INSERT INTO saved_read_tickets (team_id, query, position, id, finished_at) VALUES (?, ?, ?, ?, ?)',
   )
-  const selectSavedRead = db.prepare('SELECT incomplete, read_at FROM saved_reads WHERE team_id = ? AND query = ?')
+  const selectSavedRead = db.prepare('SELECT incomplete, read_at, finished_since FROM saved_reads WHERE team_id = ? AND query = ?')
   const selectSavedReadTickets = db.prepare(
     'SELECT id, finished_at FROM saved_read_tickets WHERE team_id = ? AND query = ? ORDER BY position',
   )
@@ -472,7 +478,7 @@ export function openSqliteStorage(file: string): SqliteStorage {
     saveRead({ teamId, query }, read) {
       transaction(() => {
         deleteSavedRead.run(teamId, query)
-        insertSavedRead.run(teamId, query, read.incomplete ? 1 : 0, read.readAt)
+        insertSavedRead.run(teamId, query, read.incomplete ? 1 : 0, read.readAt, read.finishedSince)
         read.tickets.forEach((ticket, position) => {
           insertSavedReadTicket.run(teamId, query, position, ticket.id, ticket.finishedAt ?? null)
         })
@@ -491,6 +497,7 @@ export function openSqliteStorage(file: string): SqliteStorage {
           })),
         incomplete: Number(row.incomplete) === 1,
         readAt: String(row.read_at),
+        finishedSince: String(row.finished_since),
       } satisfies SavedRead
     },
 

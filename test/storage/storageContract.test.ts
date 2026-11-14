@@ -289,6 +289,7 @@ describe("SQLite storage's saved reads", () => {
     tickets: [{ id: 'I_1', finishedAt: '2026-11-06T22:30:00Z' }, { id: 'I_2' }, { id: 'I_3', finishedAt: '2026-10-30T09:00:00Z' }],
     incomplete: false,
     readAt: '2026-11-11T08:15:00Z',
+    finishedSince: '2026-09-09T08:15:00Z',
   }
 
   function sqliteFile(): { storage: SqliteStorage; reopen: () => SqliteStorage } {
@@ -303,7 +304,7 @@ describe("SQLite storage's saved reads", () => {
     return { storage: reopen(), reopen }
   }
 
-  test("keeps a query's last read, with its tickets in order, whether it was incomplete, and when it was read", () => {
+  test("keeps a query's last read, with its tickets in order, whether it was incomplete, when it was read, and how far back", () => {
     const { storage, reopen } = sqliteFile()
     storage.saveTeam(TEAM)
 
@@ -322,7 +323,7 @@ describe("SQLite storage's saved reads", () => {
     storage.saveRead({ teamId: 'team', query: otherQuery }, READ)
     storage.saveRead({ teamId: 'another', query: OPEN_TICKETS }, READ)
 
-    const later: SavedRead = { tickets: [{ id: 'I_2', finishedAt: '2026-11-12T10:00:00Z' }], incomplete: true, readAt: '2026-11-12T11:00:00Z' }
+    const later: SavedRead = { tickets: [{ id: 'I_2', finishedAt: '2026-11-12T10:00:00Z' }], incomplete: true, readAt: '2026-11-12T11:00:00Z', finishedSince: '2026-09-10T11:00:00Z' }
     storage.saveRead({ teamId: 'team', query: OPEN_TICKETS }, later)
 
     const again = reopen()
@@ -334,7 +335,7 @@ describe("SQLite storage's saved reads", () => {
   test('keeps a read that matched nothing as an empty list', () => {
     const { storage, reopen } = sqliteFile()
     storage.saveTeam(TEAM)
-    const empty: SavedRead = { tickets: [], incomplete: false, readAt: '2026-11-11T08:15:00Z' }
+    const empty: SavedRead = { tickets: [], incomplete: false, readAt: '2026-11-11T08:15:00Z', finishedSince: '2026-09-16T08:15:00Z' }
 
     storage.saveRead({ teamId: 'team', query: OPEN_TICKETS }, empty)
 

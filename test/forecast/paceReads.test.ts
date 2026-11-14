@@ -4,9 +4,9 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
 import type { Choice } from '../../src/connectors/connector.js'
-import { submitConnection, type Connecting } from '../../src/forecast/connection.js'
+import { submitConnection } from '../../src/forecast/connection.js'
 import { submitInputs } from '../../src/forecast/inputs.js'
-import { submitStepQuery } from '../../src/forecast/queryStep.js'
+import { submitStepQuery, type StepReading } from '../../src/forecast/queryStep.js'
 import { COMPARABLE_WORK } from '../../src/forecast/stepQuery.js'
 import { paceReads } from '../../src/forecast/paceReads.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
@@ -17,7 +17,7 @@ import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteS
 
 const TEAM = 'team'
 const TODAY = '2026-11-12'
-// Thursday; each read reaches back 8 weeks, to 09:00 on Thursday 17 Sep.
+// Thursday; each read reaches back 9 weeks (8 whole weeks and the current one), to 09:00 on Thursday 10 Sep.
 const READ_AT = '2026-11-12T09:00:00Z'
 const AT = { today: TODAY, timeZone: 'UTC' }
 
@@ -39,7 +39,7 @@ const PAYMENTS_TICKETS = [
   { id: 'c1', finishedAt: '2026-09-25T10:00:00Z' },
   { id: 'c2', finishedAt: '2026-10-02T10:00:00Z' },
   { id: 'c3', finishedAt: '2026-10-20T10:00:00Z' },
-  { id: 'c4', finishedAt: '2026-09-18T10:00:00Z' }, // read, but in a week the read reaches only part of
+  { id: 'c4', finishedAt: '2026-09-11T10:00:00Z' }, // read, but in a week the read reaches only part of
   { id: 'c5', finishedAt: '2026-11-12T08:00:00Z' }, // the current week
   { id: 'c9' }, // open: comparable work's open tickets are ignored
 ]
@@ -60,15 +60,15 @@ const FIXTURE: CannedFixture = {
   },
 }
 
-// The weeks both reads reach whole, from the milestone's start on Thursday 1 Oct: the week of 24 Sep, before it
-// started, then six of its own; the current week, of 12 Nov, is left out.
-const WEEKS = ['2026-09-24', '2026-10-01', '2026-10-08', '2026-10-15', '2026-10-22', '2026-10-29', '2026-11-05']
-const MILESTONE_COUNTS = [0, 2, 1, 0, 0, 0, 1]
-const PAYMENTS_COUNTS = [1, 1, 0, 1, 0, 0, 0]
+// The weeks both reads reach whole, from the milestone's start on Thursday 1 Oct: the weeks of 17 and 24 Sep, before
+// it started, then six of its own; the current week, of 12 Nov, is left out.
+const WEEKS = ['2026-09-17', '2026-09-24', '2026-10-01', '2026-10-08', '2026-10-15', '2026-10-22', '2026-10-29', '2026-11-05']
+const MILESTONE_COUNTS = [0, 0, 2, 1, 0, 0, 0, 1]
+const PAYMENTS_COUNTS = [0, 1, 1, 0, 1, 0, 0, 0]
 
 let dir: string
 let storage: SqliteStorage
-let using: Connecting
+let using: StepReading
 
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'forecaster-pace-reads-'))
@@ -82,6 +82,7 @@ beforeEach(async () => {
   })
   using = {
     connections: storage,
+    milestoneInputs: storage,
     reads: storage,
     milestoneQueries: storage,
     secrets: openMemorySecrets(),
@@ -120,7 +121,7 @@ describe('with a comparable-work query', () => {
       from: 'comparableWork',
       pace: { counts: PAYMENTS_COUNTS, starts: WEEKS },
       milestone: { counts: MILESTONE_COUNTS, starts: WEEKS },
-      beforeStart: 1,
+      beforeStart: 2,
       comparableWork: { counts: PAYMENTS_COUNTS, starts: WEEKS },
       ticketsRemaining: 3,
     })
@@ -132,7 +133,7 @@ describe('with a comparable-work query', () => {
 
     expect(paceReads(storage, TEAM, AT)).toMatchObject({
       from: 'comparableWork',
-      pace: { counts: [1, 3, 1, 1, 0, 0, 1], starts: WEEKS },
+      pace: { counts: [0, 1, 3, 1, 1, 0, 0, 1], starts: WEEKS },
       milestone: { counts: MILESTONE_COUNTS },
     })
   })
@@ -148,9 +149,9 @@ describe('with a comparable-work query', () => {
 describe('the milestone’s own pace', () => {
   const OWN = {
     from: 'milestone',
-    pace: { counts: [2, 1, 0, 0, 0, 1], starts: WEEKS.slice(1) },
+    pace: { counts: [2, 1, 0, 0, 0, 1], starts: WEEKS.slice(2) },
     milestone: { counts: MILESTONE_COUNTS, starts: WEEKS },
-    beforeStart: 1,
+    beforeStart: 2,
     ticketsRemaining: 3,
   }
 
@@ -166,7 +167,7 @@ describe('the milestone’s own pace', () => {
 
     expect(paceReads(storage, TEAM, AT)).toEqual({
       ...OWN,
-      comparableWork: { counts: [0, 0, 0, 0, 0, 0, 0], starts: WEEKS },
+      comparableWork: { counts: [0, 0, 0, 0, 0, 0, 0, 0], starts: WEEKS },
     })
   })
 
@@ -175,7 +176,7 @@ describe('the milestone’s own pace', () => {
 
     expect(paceReads(storage, TEAM, AT)).toEqual({
       ...OWN,
-      comparableWork: { counts: [0, 0, 0, 0, 0, 0, 0], starts: WEEKS },
+      comparableWork: { counts: [0, 0, 0, 0, 0, 0, 0, 0], starts: WEEKS },
     })
   })
 
@@ -205,7 +206,7 @@ describe('the milestone’s own pace', () => {
     expect(paceReads(storage, TEAM, AT)).toMatchObject({
       from: 'milestone',
       pace: { counts: [], starts: [] },
-      beforeStart: 7,
+      beforeStart: 8,
     })
   })
 })
@@ -248,7 +249,7 @@ describe('no reads to count', () => {
       from: 'comparableWork',
       pace: { counts: PAYMENTS_COUNTS, starts: WEEKS },
       milestone: undefined,
-      beforeStart: 1,
+      beforeStart: 2,
       comparableWork: { counts: PAYMENTS_COUNTS, starts: WEEKS },
       ticketsRemaining: undefined,
     })
