@@ -15,7 +15,7 @@ import {
 import type { Connector } from '../connectors/connector.js'
 import { inputsView, submitInputs, type InputsView, type NextScreen } from '../forecast/inputs.js'
 import { milestoneForecastView, type MilestoneForecastView } from '../forecast/milestoneForecastView.js'
-import { readPicks, setupView, submitSetup, throughDraft, type SettingUp, type SetupEdit } from '../forecast/setup.js'
+import { readPicks, setupView, submitReadAgain, submitSetup, throughDraft, type SettingUp, type SetupEdit, type SetupView } from '../forecast/setup.js'
 import type { TrackerReads } from '../forecast/trackerReads.js'
 import { DEFAULT_SETTINGS, type ForecastSettings } from '../forecast/settings.js'
 import type { Team } from '../model/team.js'
@@ -25,7 +25,7 @@ import { renderHowItWorksScreen } from './howItWorksScreen.js'
 import { INPUTS_FORMS, PACE_TRACKER_PATH, renderInputsScreen, SKIP_FORMS, type ShownStep } from './inputsScreen.js'
 import { CAPACITY_OPEN, CAPACITY_OPEN_PATH, FORECAST_FORMS, renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
 import { choiceListHtml, COMPARABLE_WORK_STEP, CONFIRMING_BACK, KIND_FIELD, MILESTONE_STEP, OPEN_FIELD, STEP_FIELD, STEP_SECTIONS, type StepSection } from './queryStepSection.js'
-import { SETUP_FORMS, SETUP_STEP_PATHS } from './setupSection.js'
+import { SETUP_FORMS, SETUP_PATHS, SETUP_STEP_PATHS } from './setupSection.js'
 import { CANDIDATES_PATH, candidatesHtml, choicesAsked, keepOpening, OPENING_FIELD, openingKept } from './candidatesSection.js'
 import { openCandidates, type CandidatesAt } from '../forecast/candidates.js'
 
@@ -179,6 +179,7 @@ export function routeSetup(request: Request, context: AppContext): Promise<Reply
   if (readSkip) return skipped(setup, readSkip)
   const setupEdit = request.method === 'POST' ? SETUP_FORMS.get(pathname) : undefined
   if (setupEdit) return Promise.resolve(setupSubmitted(setup, setupEdit))
+  if (request.method === 'POST' && pathname === SETUP_PATHS.readAgain) return readAgain(setup)
   const named = milestoneName(storage, team.id)
   const submitted = submitForm(request, context, setup)
   if (!submitted) return undefined
@@ -231,11 +232,11 @@ interface StepsOpening {
  */
 async function inputsWithStep(
   { request, context, connecting, reading, team, settings, searchParams }: SetupRouting,
-  { status = 200, view, connection, unlisted = false, refused }: { status?: number; view?: InputsView; connection?: ConnectionView } & StepsOpening = {},
+  { status = 200, view, connection, unlisted = false, refused, setup: shownSetup }: { status?: number; view?: InputsView; connection?: ConnectionView; setup?: SetupView } & StepsOpening = {},
 ): Promise<Reply> {
   // a refusal opens the step refused; otherwise the step the URL asks for
   const asked = refused?.section.setupStep ?? (connection?.kind !== 'noConnect' && connection?.refusal !== undefined ? 'connect' : (searchParams.get(STEP_FIELD) ?? undefined))
-  const setup = setupView(settingUp(context, connecting), team.id, asked)
+  const setup = shownSetup ?? setupView(settingUp(context, connecting), team.id, asked)
   // each pick's count on the summary is read at Check, never as the screen opens
   if (setup.kind === 'steps' && setup.step === 'check') await readPicks(reading, team.id, context.now())
   // the steps show what setup's draft holds, before what is saved
@@ -273,13 +274,25 @@ function settingUp(context: AppContext, connecting: Connecting): SettingUp {
 
 /**
  * "Use these", Change, Cancel or skipping connecting: back to the Inputs screen, at the Milestone step when the steps
- * open again with the team connected. Refused, from a page left open, it goes back to the steps as they are.
+ * open again with the team connected, or at the Connect step for Change from a refused token's flag. Refused, from a
+ * page left open, it goes back to the steps as they are.
  */
 function setupSubmitted(setup: SetupRouting, edit: SetupEdit): Reply {
   const settingUpNow = settingUp(setup.context, setup.connecting)
   submitSetup(settingUpNow, setup.team.id, edit)
+  if (setup.pathname === SETUP_PATHS.changeConnection) return { kind: 'redirect', location: SETUP_STEP_PATHS.connect }
   const view = setupView(settingUpNow, setup.team.id)
   return { kind: 'redirect', location: view.kind === 'steps' && view.step === 'milestone' ? SETUP_STEP_PATHS.milestone : SCREEN_PATHS.inputs }
+}
+
+/**
+ * Read again: back to the Inputs screen once read; failed, the Inputs screen with the summary saying why, the saved
+ * read in use.
+ */
+async function readAgain(setup: SetupRouting): Promise<Reply> {
+  const submitted = await submitReadAgain({ ...setup.reading, timeZone: localTimeZone() }, setup.team.id, setup.context.now())
+  if (submitted.kind !== 'failed') return { kind: 'redirect', location: SCREEN_PATHS.inputs }
+  return inputsWithStep(setup, { setup: submitted.view })
 }
 
 /** What the views read of the team's tracker: its connection and saved reads, dated in the EM's time zone; none in the browser build. */

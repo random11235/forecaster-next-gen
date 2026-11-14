@@ -135,6 +135,7 @@ test/
   - `connectionView`, `submitConnection`: the Connect step; a connect checked through a connector, then saved or refused; disconnect.
   - `setupView`, `submitSetup`: the setup step shown, with Back and Next, or once closed its summary (reading nothing from the tracker) or the inputs typed; "Use these" (applying the setup draft), Change, Cancel (throwing the draft away), or skipping connecting.
   - `throughDraft`: what the steps read and save their queries and reads with while setup is open, held in the team's setup draft.
+  - `submitReadAgain`: Read again on the summary: the milestone query and comparable work's read again, or, failing, the summary saying why, the saved reads still in use.
   - `queryStepView`: a query step whole, for the query it edits (`StepQuery`): the Milestone step, or the Comparable work step with its pace and its candidates.
   - `searchedChoiceList`: one kind of a query step's choices searched in the tracker, as its script asks.
   - `submitStepQuery`: a query step's submit: its query saved and read, refused, or asking to confirm a clear.
