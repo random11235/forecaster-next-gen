@@ -7,6 +7,7 @@ import { isCalendarDate } from './calendarDate.js'
 import { refuse, type EditResult, type Refusal } from './editResult.js'
 import { assessMilestone, type InputNote, type MilestoneAssessment } from './milestoneAssessment.js'
 import { paceTrend, type PaceTrend } from './paceTrend.js'
+import { paceSource } from './paceWindow.js'
 import type { ForecastSettings } from './settings.js'
 import type { Measured, PaceReading, TicketsReading, WasPace, WasTickets } from './trackerReads.js'
 
@@ -67,8 +68,10 @@ export interface MilestoneInputsView {
   paceRange: ThroughputRange | undefined
   /** Tickets done in past periods, oldest first. */
   paceCounts: number[]
-  /** Which pace the forecast uses. */
+  /** Which pace the EM chose. */
   paceMode: PaceMode
+  /** Which pace the forecast uses: the one chosen, but typed counts while following the tracker with no connection. */
+  paceUsed: PaceMode
   /** What the tracker reads of pace, with a connection to follow it; none with none, where pace is typed or a range. */
   paceSource: PaceSourceView | undefined
   /** How many typed counts the settings need: at least `forForecast` for a forecast, and `reliable` to be reliable. */
@@ -136,6 +139,7 @@ export function milestoneInputsView(storage: Storage, teamId: string, settings: 
     paceRange: inputs.paceRange,
     paceCounts: inputs.paceCounts,
     paceMode: inputs.paceMode,
+    paceUsed: paceSource(inputs, measured),
     paceSource: measured && {
       tracker: measured.tracker,
       reading: measured.pace,

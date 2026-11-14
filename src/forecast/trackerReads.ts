@@ -6,7 +6,7 @@ import type { Connecting } from './connection.js'
 import { counted } from './counted.js'
 import { calendarDayIn, ticketsRemaining } from './finished.js'
 import { paceReads, paceReadsStorage, type PaceFrom } from './paceReads.js'
-import { TRACKER_PERIODS, trackerWindow, type DatedCounts } from './paceWindow.js'
+import { TRACKER_PERIODS, trackerWindow, type DatedCounts, type TrackerWindowBound } from './paceWindow.js'
 import { trackerOf } from './trackers.js'
 
 /**
@@ -43,6 +43,8 @@ export interface Measured {
 export interface PaceReading {
   /** The finished tickets in each period counted, oldest first; empty with nothing finished in any period read. */
   window: DatedCounts
+  /** What bounds the window: its reach, the first finished ticket, or, empty, nothing finished or every period skipped. */
+  bound: TrackerWindowBound
   /** Whose finished tickets they are: comparable work's, or the milestone's own. */
   from: PaceFrom
   /**
@@ -155,7 +157,7 @@ function countsAsThen(reads: TrackerReads, teamId: string, storage: Pick<Storage
   const saved = paceReadsStorage(storage, reads)
   const asThen = { ...saved, savedRead: (teamQuery: TeamQuery) => (teamQuery.query === query ? read : saved.savedRead(teamQuery)) }
   const then = paceReads(asThen, teamId, { today: calendarDayIn(reads.timeZone)(read.readAt), timeZone: reads.timeZone })
-  return then && then.from === from ? trackerWindow(then.pace, storage.milestoneInputs(teamId)?.paceWindow.skippedPeriods).window.counts : undefined
+  return then && then.from === from ? trackerWindow(then, storage.milestoneInputs(teamId)?.paceWindow.skippedPeriods).window.counts : undefined
 }
 
 function sameCounts(some: number[], others: number[] | undefined): boolean {
@@ -169,12 +171,13 @@ function paceReading(reads: TrackerReads, teamId: string, storage: Pick<Storage,
   if (!inputs || !read) return undefined
   const query = read.from === 'milestone' ? reads.milestoneQueries.milestoneQuery(teamId) : reads.milestoneQueries.comparableWorkQuery(teamId)
   const paceRead = savedReadOf(reads, teamId, query?.query)
-  const { window, skipped, bound } = trackerWindow(read.pace, inputs.paceWindow.skippedPeriods)
+  const { window, skipped, bound } = trackerWindow(read, inputs.paceWindow.skippedPeriods)
   const period = periodName(inputs.cadenceDays)
   const first = window.starts[0]
   const periods =
     bound === 'nothingFinished' ? `nothing finished in the ${counted(read.pace.counts.length, period)} ${tracker} reads`
     : bound === 'everySkipped' ? `every ${period} skipped`
+    : bound === 'everyFinishedSkipped' ? `every ${period} that finished something skipped`
     : bound === 'full' ? `last ${counted(TRACKER_PERIODS, period)}`
     : bound === 'firstFinished' ? counted(window.counts.length, period)
     // the milestone's own pace counts only the periods since its start date
@@ -182,6 +185,7 @@ function paceReading(reads: TrackerReads, teamId: string, storage: Pick<Storage,
     : `${counted(window.counts.length, period)} · ${tracker} has nothing before ${period === 'week' ? 'w/c' : 'the sprint of'} ${dayMonth(first!)}`
   return {
     window,
+    bound,
     from: read.from,
     milestone: read.milestone,
     comparableWork: read.comparableWork,

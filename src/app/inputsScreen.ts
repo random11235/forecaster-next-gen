@@ -298,9 +298,7 @@ const PACE_MODE_NAMES: Record<Exclude<PaceMode, 'tracker'>, string> = { range: '
  * and the trend beside the one in use.
  */
 function paceSection(screen: InputsView, error: (form: InputsForm) => string | undefined, period: PeriodName): Section {
-  const { paceMode, paceSource, notes, typedCountsNeeded: typedCounts, paceTrend } = screen.milestone
-  // with no connection to follow, pace following the tracker uses the typed counts
-  const inUse: PaceMode = paceMode === 'tracker' && !paceSource ? 'counts' : paceMode
+  const { paceMode, paceUsed: inUse, paceSource, notes, typedCountsNeeded: typedCounts, paceTrend } = screen.milestone
   const notesIfUsed = (mode: PaceMode): string => (mode === inUse ? notesFor('pace', notes) + notesFor('typedCounts', notes) : '')
   const trendIfUsed = (mode: PaceMode): string => (mode === inUse ? renderPaceTrend(paceTrend, period, '          ') : '')
   const { paceRange: range, paceCounts: counts } = screen.forms
@@ -368,14 +366,13 @@ function paceChip(paceSource: PaceSourceView | undefined, period: PeriodName): s
  */
 function trackerPace({ tracker, reading, incomplete, was }: PaceSourceView, period: PeriodName, following: boolean): string {
   if (!reading) return `\n          <p class="reading-line">${period}s finished · ${escapeHtml(tracker)}, ${incomplete ? `read in part${incompleteMark(true)}` : 'not read yet'}</p>`
-  const { window, skipped, periods, skippedLine, firstFinished, readOn } = reading
-  const everySkipped = window.counts.length === 0 && skipped.counts.some((count) => count > 0)
-  // with every period skipped, the pace's note says so, and how to have a pace again
+  const { window, bound, skipped, periods, skippedLine, firstFinished, readOn } = reading
   const lines = `
           <p class="reading-line">${escapeHtml(periods)} · read ${escapeHtml(readOn)}</p>${firstFinished ? `\n          <p class="reading-line">${escapeHtml(firstFinished)}</p>` : ''}${
             was ? `\n          <p class="reading-line was">was ${was.counts.join(', ')} on ${escapeHtml(was.readOn)}</p>` : ''
           }${skippedLine ? countAgainLine(skippedLine, skipped.starts) : ''}`
-  if (window.counts.length === 0 && !everySkipped) return lines
+  // with nothing finished there are no bars; with every period skipped, they show the gaps to count again
+  if (bound === 'nothingFinished') return lines
   // the periods counted and those skipped, oldest first: a skipped one is a gap
   const shown = [...window.starts.map((start, at) => ({ start, count: window.counts[at]!, skipped: false })), ...skipped.starts.map((start, at) => ({ start, count: skipped.counts[at]!, skipped: true }))].sort((a, b) =>
     a.start.localeCompare(b.start),
