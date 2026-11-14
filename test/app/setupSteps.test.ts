@@ -224,13 +224,15 @@ describe('Read again', () => {
     expect(onTracker.storage.savedRead({ teamId: 'team', query: CHECKOUT.query })).toMatchObject({ readAt: `${TODAY}T14:30:00Z`, tickets: [{ id: 'o1' }] })
   })
 
-  test('failing, shows the summary saying why beneath it, the saved read in use', async () => {
+  test('failing, goes back to the Inputs screen, its summary saying why there on every load, the saved read in use', async () => {
     const { fixture, onTracker } = await setUp()
     fixture.reads[CHECKOUT.query] = { failure: 'unavailable' }
 
     const failed = await post(onTracker.running, '/inputs/setup/read-again', {})
-    expect(failed.status).toBe(200)
-    const summary = summaryOf(await failed.text())
+    expect(failed.status).toBe(303)
+    expect(failed.headers.get('location')).toBe('/inputs')
+    expect(summaryOf(await page(onTracker.running, '/inputs'))).toContain('⚠ GitHub can’t be reached')
+    const summary = summaryOf(await page(onTracker.running, '/inputs'))
     expect(summary).toMatch(/<p class="note warn flag">⚠ GitHub can’t be reached just now, or is limiting requests, so the last read stays in use\. Try again in a few minutes\.<\/p>/)
     expect(onTracker.storage.savedRead({ teamId: 'team', query: CHECKOUT.query })).toMatchObject({ readAt: `${TODAY}T09:00:00Z` })
   })
@@ -239,7 +241,8 @@ describe('Read again', () => {
     const { fixture, onTracker } = await setUp()
     fixture.reads[CHECKOUT.query] = { failure: 'unauthorised' }
 
-    const summary = summaryOf(await (await post(onTracker.running, '/inputs/setup/read-again', {})).text())
+    await post(onTracker.running, '/inputs/setup/read-again', {})
+    const summary = summaryOf(await page(onTracker.running, '/inputs'))
     expect(summary).toMatch(/⚠ GitHub refused the token\.[^<]*<form method="post" action="\/inputs\/setup\/change-connection">\s*<button type="submit" class="linkish">Change<\/button>/)
 
     const changed = await post(onTracker.running, '/inputs/setup/change-connection', {})

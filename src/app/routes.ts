@@ -15,7 +15,7 @@ import {
 import type { Connector } from '../connectors/connector.js'
 import { inputsView, submitInputs, type InputsView, type NextScreen } from '../forecast/inputs.js'
 import { milestoneForecastView, type MilestoneForecastView } from '../forecast/milestoneForecastView.js'
-import { openSetup, submitSetup, type SettingUp, type SetupEdit, type SetupView } from '../forecast/setup.js'
+import { openSetup, submitSetup, type SettingUp, type SetupEdit } from '../forecast/setup.js'
 import { submitReadAgain } from '../forecast/setupSummary.js'
 import { throughDraft } from '../forecast/throughDraft.js'
 import type { TrackerReads } from '../forecast/trackerReads.js'
@@ -233,11 +233,11 @@ interface StepsOpening {
  */
 async function inputsWithStep(
   { request, context, connecting, team, settings, searchParams }: SetupRouting,
-  { status = 200, view, connection, unlisted = false, refused, setup: shownSetup }: { status?: number; view?: InputsView; connection?: ConnectionView; setup?: SetupView } & StepsOpening = {},
+  { status = 200, view, connection, unlisted = false, refused }: { status?: number; view?: InputsView; connection?: ConnectionView } & StepsOpening = {},
 ): Promise<Reply> {
   // the Connect step's view is given only as a connect was refused
-  const opening = { asked: searchParams.get(STEP_FIELD),...(refused && { refused: refused.section.setupStep }), ...(connection && { refused: 'connect' as const }) }
-  const setup = shownSetup ?? (await openSetup(settingUp(context, connecting), team.id, opening, context.now()))
+  const opening = { asked: searchParams.get(STEP_FIELD), ...(refused && { refused: refused.section.setupStep }), ...(connection && { refused: 'connect' as const }) }
+  const setup = await openSetup(settingUp(context, connecting), team.id, opening, context.now())
   // the steps show what setup's draft holds, before what is saved
   const stepping: QueryStepping = { ...throughDraft(listingOnce(connecting)), milestoneInputs: context.storage, at: candidatesAt(context) }
   const steps: ShownStep[] = []
@@ -281,14 +281,10 @@ async function setupSubmitted(setup: SetupRouting, edit: SetupEdit | undefined):
   return { kind: 'redirect', location: next ? SETUP_STEP_PATHS[next] : SCREEN_PATHS.inputs }
 }
 
-/**
- * Read again: back to the Inputs screen once read; failed, the Inputs screen with the summary saying why, the saved
- * read in use.
- */
+/** Read again: back to the Inputs screen, read or failed, its summary saying why a read failed, the saved read in use. */
 async function readAgain(setup: SetupRouting): Promise<Reply> {
-  const submitted = await submitReadAgain({ ...setup.reading, timeZone: localTimeZone() }, setup.team.id, setup.context.now())
-  if (submitted.kind !== 'failed') return { kind: 'redirect', location: SCREEN_PATHS.inputs }
-  return inputsWithStep(setup, { setup: submitted.view })
+  await submitReadAgain({ ...setup.reading, timeZone: localTimeZone() }, setup.team.id, setup.context.now())
+  return { kind: 'redirect', location: SCREEN_PATHS.inputs }
 }
 
 /** What the views read of the team's tracker: its connection and saved reads, dated in the EM's time zone; none in the browser build. */
