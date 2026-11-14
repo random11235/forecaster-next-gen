@@ -87,7 +87,7 @@ async function readAgain(readAt = READ_AT): Promise<void> {
 describe('a value following the tracker', () => {
   test('after the first read, neither value has a previous one', () => {
     expect(inputs().ticketsSource).toMatchObject({ reading: { count: 34 }, was: undefined })
-    expect(inputs().paceSource).toMatchObject({ reading: { readOn: '5 Nov 09:05' }, was: undefined })
+    expect(inputs().trackerPace).toMatchObject({ reading: { line: 'last 8 weeks · read 5 Nov 09:05' }, was: undefined })
   })
 
   test('a read updates tickets remaining, with the value it replaced and when that was read', async () => {
@@ -103,8 +103,8 @@ describe('a value following the tracker', () => {
 
     await readAgain()
 
-    expect(inputs().paceSource).toMatchObject({
-      reading: { window: { counts: [5, 6, 8, 5, 7, 6, 4, 3], starts: WEEKS }, readOn: '12 Nov 09:12' },
+    expect(inputs().trackerPace).toMatchObject({
+      reading: { counts: [5, 6, 8, 5, 7, 6, 4, 3], line: 'last 8 weeks · read 12 Nov 09:12' },
       // read on 5 Nov, pace counted the weeks it reached whole, up to w/c 26 Oct
       was: { counts: [5, 6, 8, 5, 7, 6, 4], readOn: '5 Nov 09:05' },
     })
@@ -114,7 +114,7 @@ describe('a value following the tracker', () => {
     await readAgain('2026-11-05T15:00:00Z')
 
     expect(inputs().ticketsSource).toMatchObject({ reading: { readOn: '5 Nov 15:00' }, was: undefined })
-    expect(inputs().paceSource).toMatchObject({ reading: { readOn: '5 Nov 15:00' }, was: undefined })
+    expect(inputs().trackerPace).toMatchObject({ reading: { line: 'last 8 weeks · read 5 Nov 15:00' }, was: undefined })
   })
 
   test('a typed value shows none: only a value following the tracker does', async () => {
@@ -125,6 +125,6 @@ describe('a value following the tracker', () => {
     submit({ kind: 'setPaceMode', paceMode: 'range' })
 
     expect(inputs().ticketsSource).toMatchObject({ source: 'typed', was: undefined })
-    expect(inputs().paceSource).toMatchObject({ was: undefined })
+    expect(inputs().trackerPace).toMatchObject({ was: undefined })
   })
 })

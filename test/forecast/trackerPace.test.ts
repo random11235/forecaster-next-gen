@@ -108,13 +108,23 @@ describe('following GitHub', () => {
     expect(inputs().milestone).toMatchObject({
       paceMode: 'tracker',
       paceUsed: 'tracker',
-      paceSource: {
+      trackerPace: {
         tracker: 'GitHub',
         reading: {
-          window: { counts: [3, 5, 6, 4, 7, 5, 6, 8], starts: WEEKS },
-          periods: 'last 8 weeks',
+          periods: [
+            { start: '2026-09-14', count: 3, skipped: false },
+            { start: '2026-09-21', count: 5, skipped: false },
+            { start: '2026-09-28', count: 6, skipped: false },
+            { start: '2026-10-05', count: 4, skipped: false },
+            { start: '2026-10-12', count: 7, skipped: false },
+            { start: '2026-10-19', count: 5, skipped: false },
+            { start: '2026-10-26', count: 6, skipped: false },
+            { start: '2026-11-02', count: 8, skipped: false },
+          ],
+          counts: [3, 5, 6, 4, 7, 5, 6, 8],
+          line: 'last 8 weeks · read 12 Nov 09:00',
           firstFinished: undefined,
-          readOn: '12 Nov 09:00',
+          skipped: undefined,
         },
       },
     })
@@ -148,16 +158,27 @@ describe('the window', () => {
       { cadenceDays: '5' },
     )
 
-    expect(inputs().milestone.paceSource?.reading).toMatchObject({ window: { counts, starts: sprints }, periods: 'last 8 sprints', firstFinished: undefined })
+    expect(inputs().milestone.trackerPace?.reading).toMatchObject({
+      periods: sprints.map((start, sprint) => ({ start, count: counts[sprint], skipped: false })),
+      counts,
+      line: 'last 8 sprints · read 12 Nov 09:00',
+      firstFinished: undefined,
+    })
     expect(forecast()).toMatchObject({ kind: 'forecast', pace: { source: 'tracker', counts } })
   })
 
   test('quiet weeks before the first finished ticket are left out, and those after it count 0', async () => {
     await following(finishedInWeeks([0, 0, 0, 0, 2, 3, 0, 4]))
 
-    expect(inputs().milestone.paceSource?.reading).toMatchObject({
-      window: { counts: [2, 3, 0, 4], starts: WEEKS.slice(4) },
-      periods: '4 weeks',
+    expect(inputs().milestone.trackerPace?.reading).toMatchObject({
+      periods: [
+        { start: '2026-10-12', count: 2, skipped: false },
+        { start: '2026-10-19', count: 3, skipped: false },
+        { start: '2026-10-26', count: 0, skipped: false },
+        { start: '2026-11-02', count: 4, skipped: false },
+      ],
+      counts: [2, 3, 0, 4],
+      line: '4 weeks · read 12 Nov 09:00',
       firstFinished: 'From the first finished ticket, 12 Oct.',
     })
     expect(forecast()).toMatchObject({
@@ -178,10 +199,9 @@ describe('the window', () => {
     await following(finishedInWeeks([0, 0, 1, 0, 0, 0, 0, 0]))
     await submitStepQuery(using, TEAM, { kind: 'addPick', choice: like }, READ_AT, COMPARABLE_WORK)
 
-    expect(inputs().milestone.paceSource?.reading).toMatchObject({
-      from: 'comparableWork',
-      window: { counts: [0, 0, 2, 3, 2, 3], starts: WEEKS.slice(2) },
-      periods: '6 weeks',
+    expect(inputs().milestone.trackerPace?.reading).toMatchObject({
+      counts: [0, 0, 2, 3, 2, 3],
+      line: '6 weeks · read 12 Nov 09:00',
       firstFinished: 'From the first finished ticket, 28 Sep.',
     })
   })
@@ -198,7 +218,7 @@ describe('the window', () => {
   test('with nothing finished in the weeks read, there is no pace to follow', async () => {
     await following([])
 
-    expect(inputs().milestone.paceSource?.reading).toMatchObject({ window: { counts: [], starts: [] } })
+    expect(inputs().milestone.trackerPace?.reading).toMatchObject({ periods: [], counts: [], line: 'nothing finished in the 8 weeks GitHub reads · read 12 Nov 09:00' })
     expect(forecast()).toMatchObject({ kind: 'problems', problems: [{ input: 'pace', message: expect.stringContaining('GitHub has no finished tickets in the weeks it read') }] })
   })
 
@@ -217,7 +237,7 @@ describe('an incomplete read', () => {
     await enterAndPick()
     submit({ kind: 'setPaceMode', paceMode: 'tracker' })
 
-    expect(inputs().milestone.paceSource).toMatchObject({ tracker: 'GitHub', reading: undefined, incomplete: true })
+    expect(inputs().milestone.trackerPace).toMatchObject({ tracker: 'GitHub', reading: undefined, incomplete: true })
     expect(forecast()).toMatchObject({
       kind: 'problems',
       problems: expect.arrayContaining([
@@ -230,7 +250,7 @@ describe('an incomplete read', () => {
     await connectGitHub()
     await enterAndPick()
 
-    expect(inputs().milestone.paceSource).toMatchObject({ incomplete: false })
+    expect(inputs().milestone.trackerPace).toMatchObject({ incomplete: false })
   })
 })
 
@@ -261,7 +281,7 @@ describe('switching pace', () => {
 
   test('with no connection, pace falls back to the typed counts, and GitHub is not offered', () => {
     expect(forecast(OFFLINE)).toMatchObject({ kind: 'forecast', pace: { source: 'counts', counts: [1, 2, 3, 4] } })
-    expect(inputs(OFFLINE).milestone).toMatchObject({ paceMode: 'tracker', paceUsed: 'counts', paceSource: undefined })
+    expect(inputs(OFFLINE).milestone).toMatchObject({ paceMode: 'tracker', paceUsed: 'counts', trackerPace: undefined })
 
     submit({ kind: 'setPaceMode', paceMode: 'range' })
     expect(submit({ kind: 'setPaceMode', paceMode: 'tracker' }, OFFLINE)).toMatchObject({ saved: false, view: { refusal: { error: 'Choose the range or typed counts.' } } })

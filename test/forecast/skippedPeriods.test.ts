@@ -83,7 +83,7 @@ afterEach(() => {
 
 const submit = (edit: InputsEdit) => submitInputs(storage, TEAM, DEFAULT_SETTINGS, TODAY, edit, { tracker })
 
-const reading = () => inputsView(storage, TEAM, DEFAULT_SETTINGS, TODAY, { tracker }).milestone.paceSource?.reading
+const reading = () => inputsView(storage, TEAM, DEFAULT_SETTINGS, TODAY, { tracker }).milestone.trackerPace?.reading
 
 const forecast = () => milestoneForecastView(storage, TEAM, DEFAULT_SETTINGS, TODAY, { tracker })
 
@@ -98,10 +98,22 @@ describe('skipping a period', () => {
     // 11 weeks back from Thursday 12 Nov: the 8 counted, the 2 skipped, and the current one
     expect(asked).toEqual(['2026-08-27T09:00:00.000Z'])
     expect(reading()).toMatchObject({
-      window: { counts: [4, 6, 3, 5, 6, 4, 6, 8], starts: [...WEEKS.slice(0, 6), ...WEEKS.slice(8)] },
-      skipped: { counts: [7, 5], starts: HOLIDAYS },
-      periods: 'last 8 weeks',
-      skippedLine: '2 skipped (12 Oct, 19 Oct), reaching back to w/c 31 Aug',
+      // the skipped weeks are gaps among those counted
+      periods: [
+        { start: '2026-08-31', count: 4, skipped: false },
+        { start: '2026-09-07', count: 6, skipped: false },
+        { start: '2026-09-14', count: 3, skipped: false },
+        { start: '2026-09-21', count: 5, skipped: false },
+        { start: '2026-09-28', count: 6, skipped: false },
+        { start: '2026-10-05', count: 4, skipped: false },
+        { start: '2026-10-12', count: 7, skipped: true },
+        { start: '2026-10-19', count: 5, skipped: true },
+        { start: '2026-10-26', count: 6, skipped: false },
+        { start: '2026-11-02', count: 8, skipped: false },
+      ],
+      counts: [4, 6, 3, 5, 6, 4, 6, 8],
+      line: 'last 8 weeks · read 12 Nov 09:00',
+      skipped: { line: '2 skipped (12 Oct, 19 Oct), reaching back to w/c 31 Aug', starts: HOLIDAYS },
     })
     expect(storage.milestoneInputs(TEAM)).toMatchObject({ paceMode: 'tracker', paceWindow: { skippedPeriods: HOLIDAYS } })
   })
@@ -119,8 +131,8 @@ describe('skipping a period', () => {
     await skip(HOLIDAYS)
 
     expect(reading()).toMatchObject({
-      window: { counts: [3, 5, 6, 4, 6, 8] },
-      skippedLine: '2 skipped (12 Oct, 19 Oct), and GitHub has no earlier weeks to count instead',
+      counts: [3, 5, 6, 4, 6, 8],
+      skipped: { line: '2 skipped (12 Oct, 19 Oct), and GitHub has no earlier weeks to count instead' },
     })
   })
 
@@ -132,9 +144,9 @@ describe('skipping a period', () => {
     await readQuery(cannedConnector(fixture), storage, { teamId: TEAM, query: checkout.query, finishedSince: finishedSinceFor(NEXT_READ_AT, storage.milestoneInputs(TEAM)), readAt: NEXT_READ_AT })
 
     expect(reading()).toMatchObject({
-      window: { counts: [4, 6, 3, 5, 6, 4, 6, 9] },
+      counts: [4, 6, 3, 5, 6, 4, 6, 9],
+      line: 'last 8 weeks · read 12 Nov 14:30',
       skipped: { starts: HOLIDAYS },
-      readOn: '12 Nov 14:30',
     })
   })
 })
@@ -172,9 +184,8 @@ describe('counting skipped periods again', () => {
 
     expect(asked).toEqual([])
     expect(reading()).toMatchObject({
-      window: { counts: [6, 3, 5, 6, 4, 5, 6, 8] },
-      skipped: { counts: [7], starts: ['2026-10-12'] },
-      skippedLine: '1 skipped (12 Oct), reaching back to w/c 7 Sep',
+      counts: [6, 3, 5, 6, 4, 5, 6, 8],
+      skipped: { line: '1 skipped (12 Oct), reaching back to w/c 7 Sep', starts: ['2026-10-12'] },
     })
   })
 
@@ -182,7 +193,7 @@ describe('counting skipped periods again', () => {
     await skip(HOLIDAYS)
     await submitSkip(using, TEAM, { kind: 'countAgain', periods: HOLIDAYS }, at())
 
-    expect(reading()).toMatchObject({ window: { counts: [3, 5, 6, 4, 7, 5, 6, 8] }, skipped: { counts: [] }, skippedLine: undefined })
+    expect(reading()).toMatchObject({ counts: [3, 5, 6, 4, 7, 5, 6, 8], skipped: undefined })
 
     asked = []
     await skip(['2026-10-12'])
@@ -197,7 +208,11 @@ describe('every period skipped', () => {
 
     await skip(WEEKS)
 
-    expect(reading()).toMatchObject({ window: { counts: [] }, bound: 'everySkipped', periods: 'every week skipped', skippedLine: expect.stringMatching(/^10 skipped \(31 Aug, .*, 2 Nov\), so no weeks count$/) })
+    expect(reading()).toMatchObject({
+      counts: [],
+      line: 'every week skipped · read 12 Nov 09:00',
+      skipped: { line: expect.stringMatching(/^10 skipped \(31 Aug, .*, 2 Nov\), so no weeks count$/) },
+    })
     expect(forecast()).toMatchObject({
       kind: 'problems',
       problems: [{ input: 'pace', message: 'Every week is skipped, so GitHub gives no pace. Count a week again, or use typed counts or the range.' }],
@@ -208,7 +223,7 @@ describe('every period skipped', () => {
     // started 10 Aug: the quiet weeks before 31 Aug are read, and not skipped
     await skip(WEEKS)
 
-    expect(reading()).toMatchObject({ window: { counts: [] }, bound: 'everyFinishedSkipped', periods: 'every week that finished something skipped' })
+    expect(reading()).toMatchObject({ counts: [], line: 'every week that finished something skipped · read 12 Nov 09:00' })
     expect(forecast()).toMatchObject({
       kind: 'problems',
       problems: [{ input: 'pace', message: 'Every week that finished something is skipped, so GitHub gives no pace. Count a week again, or use typed counts or the range.' }],

@@ -147,41 +147,41 @@ describe('pace', () => {
   test('typed counts different from GitHub’s carry the chip, with its dot', () => {
     submit({ kind: 'setPaceMode', paceMode: 'counts' })
 
-    expect(inputs().milestone.paceSource).toMatchObject({ reading: { window: { counts: GITHUB_COUNTS } }, readsDifferently: { unseen: true } })
+    expect(inputs().milestone.trackerPace).toMatchObject({ reading: { counts: GITHUB_COUNTS }, readsDifferently: { unseen: true } })
   })
 
   test('typed counts the same as GitHub’s carry no chip', () => {
     submit({ kind: 'setPaceMode', paceMode: 'counts' })
     submit({ kind: 'setPaceCounts', counts: GITHUB_COUNTS.join(', ') })
 
-    expect(inputs().milestone.paceSource?.readsDifferently).toBeUndefined()
+    expect(inputs().milestone.trackerPace?.readsDifferently).toBeUndefined()
   })
 
   test('a range other than the span of GitHub’s counts carries the chip; one spanning them, 4 to 8, carries none', () => {
     expect(inputs().milestone).toMatchObject({ paceMode: 'range', paceRange: { low: 4, high: 8 } })
-    expect(inputs().milestone.paceSource?.readsDifferently).toBeUndefined()
+    expect(inputs().milestone.trackerPace?.readsDifferently).toBeUndefined()
 
     submit({ kind: 'setPaceRange', low: '4', high: '9' })
 
-    expect(inputs().milestone.paceSource?.readsDifferently).toEqual({ unseen: true })
+    expect(inputs().milestone.trackerPace?.readsDifferently).toEqual({ unseen: true })
   })
 
   test('following GitHub, pace carries no chip', () => {
     submit({ kind: 'setPaceMode', paceMode: 'tracker' })
 
-    expect(inputs().milestone.paceSource?.readsDifferently).toBeUndefined()
+    expect(inputs().milestone.trackerPace?.readsDifferently).toBeUndefined()
   })
 
   test('opening the reading clears the dot, which returns with a new read', async () => {
     submit({ kind: 'setPaceMode', paceMode: 'counts' })
 
     submit({ kind: 'openReading', reading: 'pace' })
-    expect(inputs().milestone.paceSource?.readsDifferently).toEqual({ unseen: false })
+    expect(inputs().milestone.trackerPace?.readsDifferently).toEqual({ unseen: false })
     // opening pace’s reading leaves tickets remaining’s dot
     expect(inputs().milestone.ticketsSource?.readsDifferently).toEqual({ unseen: true })
 
     await readAgain(NEXT_READ_AT)
-    expect(inputs().milestone.paceSource?.readsDifferently).toEqual({ unseen: true })
+    expect(inputs().milestone.trackerPace?.readsDifferently).toEqual({ unseen: true })
   })
 
   test('Follow switches pace back to GitHub, keeping the typed counts and the range', () => {
@@ -198,7 +198,7 @@ describe('a reading that can’t be opened', () => {
   test('with no connection, there is no chip, and opening a reading is refused', async () => {
     submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '40' }, undefined)
 
-    expect(inputs(undefined).milestone).toMatchObject({ ticketsSource: undefined, paceSource: undefined })
+    expect(inputs(undefined).milestone).toMatchObject({ ticketsSource: undefined, trackerPace: undefined })
     expect(submit({ kind: 'openReading', reading: 'ticketsRemaining' }, undefined)).toMatchObject({
       saved: false,
       view: { refusal: { form: 'readingOpened', error: 'Connect a tracker to see its reading.' } },
