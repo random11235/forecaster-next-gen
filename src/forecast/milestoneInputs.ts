@@ -7,7 +7,7 @@ import { isCalendarDate } from './calendarDate.js'
 import { refuse, type EditResult, type Refusal } from './editResult.js'
 import { assessMilestone, type InputNote, type MilestoneAssessment } from './milestoneAssessment.js'
 import { paceTrend, type PaceTrend } from './paceTrend.js'
-import { paceSource } from './paceWindow.js'
+import { paceSource, sameCounts } from './paceWindow.js'
 import type { ForecastSettings } from './settings.js'
 import type { Measured, PaceReading, TicketsReading, WasPace, WasTickets } from './trackerReads.js'
 
@@ -169,7 +169,7 @@ function paceReadDifferently(inputs: MilestoneInputs, reading: PaceReading | und
   if (!reading || counts.length === 0 || inputs.paceMode === 'tracker') return undefined
   const same =
     inputs.paceMode === 'counts'
-      ? inputs.paceCounts.length === counts.length && inputs.paceCounts.every((count, at) => count === counts[at])
+      ? sameCounts(inputs.paceCounts, counts)
       : inputs.paceRange?.low === Math.min(...counts) && inputs.paceRange.high === Math.max(...counts)
   return same ? undefined : { unseen: inputs.seenReads.pace !== reading.readAt }
 }
