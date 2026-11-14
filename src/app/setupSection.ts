@@ -139,9 +139,12 @@ function sourceFormHtml<T extends string>(value: string, ariaLabel: string, sour
               </form>`
 }
 
-/** Check's script: a source chosen posts at once, so its Choose button is hidden. */
+/**
+ * Check's script: a source chosen posts at once, so its Choose button is hidden. It starts with `;`, so the script
+ * before it, ending in a call, isn't taken to call it.
+ */
 export const CHECK_SCRIPT = `
-(() => {
+;(() => {
   const check = document.getElementById('check')
   if (!check) return
   check.classList.add('chooses-as-changed')
