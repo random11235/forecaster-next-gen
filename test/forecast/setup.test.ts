@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'vitest'
-import type { Choice } from '../../src/connectors/connector.js'
+import type { Choice, Ticket } from '../../src/connectors/connector.js'
 import { setupView, submitSetup, throughDraft, type SettingUp } from '../../src/forecast/setup.js'
 import { queryStepView, submitStepQuery, type StepQueryEdit } from '../../src/forecast/queryStep.js'
 import { COMPARABLE_WORK, MILESTONE_QUERY, type StepQuery } from '../../src/forecast/stepQuery.js'
@@ -121,7 +121,8 @@ describe('the setup steps', () => {
 
 describe('"Use these"', () => {
   test('closes setup to a summary naming the tracker, the repo and when the milestone was read, in the EM’s time zone', async () => {
-    const { connect, pick } = team()
+    const { connect, pick, fixture } = team()
+    fixture.reads[CHECKOUT.query] = { tickets: open(3), incomplete: false }
     await connect()
     await pick(READ_AT)
 
@@ -131,6 +132,9 @@ describe('"Use these"', () => {
       tracker: 'GitHub',
       where: 'shop-team/shop',
       readOn: '12 Nov 20:05',
+      milestone: { picks: [{ name: 'Checkout v2', kind: 'milestone' }] },
+      note: 'Leaf tickets only. Epics include their sub-epics.',
+      flags: [],
     })
   })
 
@@ -150,6 +154,103 @@ describe('"Use these"', () => {
     expect(submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })).toEqual({ saved: false })
 
     expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({ kind: 'steps', step: 'milestone' })
+  })
+})
+
+describe('the summary’s rows', () => {
+  const SEARCH: Choice = { kind: 'epic', name: '#57 Search revamp', query: 'parent-issue:shop-team/shop#57' }
+  const BUG: Choice = { kind: 'label', name: 'bug', query: 'label:bug' }
+
+  /** Connected, with the milestone picked (as `choices`, all read with `tickets`), and setup closed with "Use these". */
+  async function setUp(choices: Choice[] = [CHECKOUT]): Promise<TrackerScenario> {
+    const { connect, pick, fixture } = team()
+    fixture.milestoneChoices = [{ kind: 'milestone', choices: [CHECKOUT, Q3_POLISH, SEARCH, BUG], pastLimit: false }]
+    for (const choice of [SEARCH, BUG]) fixture.reads[choice.query] = { tickets: [{ id: choice.name, finishedAt: '2026-11-10T00:00:00Z' }], incomplete: false }
+    await connect()
+    for (const choice of choices) await pick(READ_AT, choice)
+    return scenario!
+  }
+  const summary = () => (submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' }), setupView(settingUp(scenario!), TEAM))
+
+  test('name the milestone’s and comparable work’s picks, in the order picked, each with its kind', async () => {
+    const { fixture } = await setUp([CHECKOUT, SEARCH])
+    fixture.reads[Q3_POLISH.query] = { tickets: [{ id: 'q', finishedAt: '2026-11-10T00:00:00Z' }], incomplete: false }
+    await scenario!.pick(READ_AT, BUG, COMPARABLE_WORK)
+    await scenario!.pick(READ_AT, Q3_POLISH, COMPARABLE_WORK)
+
+    expect(summary()).toMatchObject({
+      milestone: { picks: [{ name: 'Checkout v2', kind: 'milestone' }, { name: '#57 Search revamp', kind: 'epic' }] },
+      comparable: { picks: [{ name: 'bug', kind: 'label' }, { name: 'Q3 polish', kind: 'milestone' }] },
+    })
+  })
+
+  test('show a query written by hand as written, and no Comparable row without comparable work', async () => {
+    const { fixture } = await setUp()
+    const written = 'milestone:"Checkout v2" -label:wontfix'
+    fixture.reads[written] = { tickets: open(3), incomplete: false }
+    await submitStepQuery(scenario!.using, TEAM, { kind: 'editQuery', query: written }, READ_AT)
+
+    const view = summary()
+    expect(view).toMatchObject({ milestone: { query: written } })
+    expect(view).not.toHaveProperty('comparable')
+  })
+
+  test('name Jira’s picks in Jira’s kinds', async () => {
+    const VERSION: Choice = { kind: 'fixVersion', name: '2.4', query: 'fixVersion = "2.4"' }
+    const EPIC: Choice = { kind: 'epic', name: 'SHOP-41 Checkout v2', query: 'parent = SHOP-41' }
+    const LABEL: Choice = { kind: 'label', name: 'checkout', query: 'labels = checkout' }
+    const { fixture } = team()
+    for (const choice of [VERSION, EPIC, LABEL]) fixture.reads[choice.query] = { tickets: open(1, choice.name), incomplete: false }
+    await scenario!.connect('jira')
+    for (const choice of [VERSION, EPIC, LABEL]) await scenario!.pick(READ_AT, choice)
+
+    expect(summary()).toMatchObject({
+      milestone: { picks: [{ name: '2.4', kind: 'fix version' }, { name: 'SHOP-41 Checkout v2', kind: 'epic' }, { name: 'checkout', kind: 'label' }] },
+    })
+  })
+})
+
+describe('the summary’s flags', () => {
+  /** Connected, the milestone picked and read as `milestone`, comparable work picked as Q3 polish when read as `comparable`, and "Use these". */
+  async function summaryWith(milestone: { tickets: Ticket[]; incomplete: boolean }, comparable?: { tickets: Ticket[]; incomplete: boolean }) {
+    const { connect, pick, fixture } = team()
+    fixture.reads[CHECKOUT.query] = milestone
+    await connect()
+    await pick(READ_AT)
+    if (comparable) {
+      fixture.reads[Q3_POLISH.query] = comparable
+      await pick(READ_AT, Q3_POLISH, COMPARABLE_WORK)
+    }
+    submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
+    return setupView(settingUp(scenario!), TEAM)
+  }
+  const FINISHED = finishedOn('f', '2026-11-10', 2)
+
+  test('are none for a working setup', async () => {
+    expect(await summaryWith({ tickets: [...open(3), ...FINISHED], incomplete: false }, { tickets: FINISHED, incomplete: false })).toMatchObject({ flags: [] })
+  })
+
+  test('say when the milestone query matches nothing', async () => {
+    expect(await summaryWith({ tickets: [], incomplete: false })).toMatchObject({
+      flags: [{ of: 'milestone', flag: 'This query matches nothing: no open tickets, and none finished in the last 9 weeks. Check it picks out the milestone’s tickets.' }],
+    })
+  })
+
+  test('say when a read is incomplete, the milestone’s or comparable work’s', async () => {
+    const view = await summaryWith({ tickets: open(3), incomplete: true }, { tickets: FINISHED, incomplete: true })
+    const flag = 'GitHub gave only part of what this query matches, so its tickets aren’t counted. Narrow the query to read all of it.'
+    expect(view).toMatchObject({ flags: [{ of: 'milestone', flag }, { of: 'comparable', flag }] })
+  })
+
+  test('say when comparable work’s query matches nothing finished, so pace is the milestone’s own', async () => {
+    expect(await summaryWith({ tickets: open(3), incomplete: false }, { tickets: open(2, 'c'), incomplete: false })).toMatchObject({
+      flags: [
+        {
+          of: 'comparable',
+          flag: 'This query matches nothing finished in the last 9 weeks, so pace comes from the milestone’s own tickets. Check it picks out work like the milestone’s.',
+        },
+      ],
+    })
   })
 })
 
