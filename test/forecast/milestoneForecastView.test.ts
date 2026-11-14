@@ -639,6 +639,8 @@ describe('typed counts', () => {
     [{ kind: 'addPaceCount', count: '4 5' }, 'Enter typed counts as whole numbers of tickets, 0 or more.'],
     [{ kind: 'addPaceCount', count: '1001' }, 'Enter at most 1000 tickets per week.'],
     [{ kind: 'setPaceMode', paceMode: 'measured' }, 'Choose the range or typed counts.'],
+    // the tracker's pace isn't offered yet (#159)
+    [{ kind: 'setPaceMode', paceMode: 'tracker' }, 'Choose the range or typed counts.'],
   ] satisfies [InputsEdit, string][])('refuses %j, saying why and changing nothing', (change, error) => {
     const storage = newTeam()
     enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
@@ -697,7 +699,9 @@ describe('before there is a forecast', () => {
       paceRange: undefined,
       paceCounts: [],
       paceCadenceDays: undefined,
-      paceWindow: { action: undefined },
+      paceWindow: { action: undefined, skippedPeriods: [] },
+      ticketsSource: 'typed',
+      seenReads: { ticketsRemaining: undefined, pace: undefined },
     })
 
     expect(view(storage)).toEqual({
@@ -724,7 +728,9 @@ describe('before there is a forecast', () => {
       paceRange: undefined,
       paceCounts: [6],
       paceCadenceDays: undefined,
-      paceWindow: { action: undefined },
+      paceWindow: { action: undefined, skippedPeriods: [] },
+      ticketsSource: 'typed',
+      seenReads: { ticketsRemaining: undefined, pace: undefined },
     })
 
     expect(view(storage)).toEqual({
@@ -876,7 +882,9 @@ describe('the milestone on the Inputs screen', () => {
       paceRange: { low: 4, high: 8 },
       paceCounts: [],
       paceCadenceDays: undefined,
-      paceWindow: { action: undefined },
+      paceWindow: { action: undefined, skippedPeriods: [] },
+      ticketsSource: 'typed',
+      seenReads: { ticketsRemaining: undefined, pace: undefined },
     })
 
     expect(inputs(storage)).toMatchObject({

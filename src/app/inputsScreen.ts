@@ -170,7 +170,8 @@ function cadenceHint(savedDays: number): string {
     : `${lasts} At ${savedDays} days a period is a sprint, so pace is entered per sprint; 7 days makes it a week.`
 }
 
-const PACE_MODE_NAMES: Record<PaceMode, string> = { range: 'Range', counts: INPUT_LABELS.typedCounts }
+/** Each pace's name. The tracker's is not offered on this screen yet (#159), so its name is never shown. */
+const PACE_MODE_NAMES: Record<PaceMode, string> = { range: 'Range', counts: INPUT_LABELS.typedCounts, tracker: 'Tracker' }
 
 /** The pace: which one the forecast uses, the range, and the typed counts, the notes beside the one in use. */
 function paceSection(screen: InputsView, error: (form: InputsForm) => string | undefined, period: PeriodName): Section {

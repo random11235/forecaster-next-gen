@@ -23,13 +23,15 @@ const LAUNCH: MilestoneInputs = {
   name: 'Launch',
   startDate: '2026-11-02',
   ticketsRemaining: 30,
+  ticketsSource: 'typed',
   ambiguity: 'high',
   cadenceDays: 14,
   paceMode: 'counts',
   paceRange: { low: 5, high: 10 },
   paceCounts: [4, 7, 6],
   paceCadenceDays: 14,
-  paceWindow: { action: { kind: 'startFrom', date: '2026-10-12' } },
+  paceWindow: { action: { kind: 'startFrom', date: '2026-10-12' }, skippedPeriods: [] },
+  seenReads: { ticketsRemaining: undefined, pace: undefined },
 }
 
 const RANGES: AmbiguityRanges = {
@@ -140,7 +142,7 @@ describe.each(kinds)('%s storage', (_, opened) => {
       ticketsRemaining: undefined,
       paceRange: undefined,
       paceCounts: [],
-      paceWindow: { action: undefined },
+      paceWindow: { action: undefined, skippedPeriods: [] },
     }
 
     storage.saveMilestoneInputs(bare)
@@ -151,11 +153,27 @@ describe.each(kinds)('%s storage', (_, opened) => {
   test('keeps either pace action: counting from a date, or leaving out a period', () => {
     const { storage } = opened()
     storage.saveTeam(TEAM)
-    const leftOut: MilestoneInputs = { ...LAUNCH, paceWindow: { action: { kind: 'leaveOut', period: '2026-10-12' } } }
+    const leftOut: MilestoneInputs = { ...LAUNCH, paceWindow: { action: { kind: 'leaveOut', period: '2026-10-12' }, skippedPeriods: [] } }
 
     storage.saveMilestoneInputs(leftOut)
 
     expect(storage.milestoneInputs('team')).toEqual(leftOut)
+  })
+
+  test("keeps each value's source following the tracker, the skipped periods and the reads seen, opened again", () => {
+    const { storage, reopen } = opened()
+    storage.saveTeam(TEAM)
+    const following: MilestoneInputs = {
+      ...LAUNCH,
+      ticketsSource: 'tracker',
+      paceMode: 'tracker',
+      paceWindow: { action: undefined, skippedPeriods: ['2026-12-21', '2026-12-28'] },
+      seenReads: { ticketsRemaining: '2026-10-28T09:05:00Z', pace: undefined },
+    }
+
+    storage.saveMilestoneInputs(following)
+
+    expect(reopen().milestoneInputs('team')).toEqual(following)
   })
 
   test("keeps the team's ambiguity ranges, replacing them when saved again", () => {
@@ -478,7 +496,24 @@ describe('browser storage the browser refuses', () => {
     const stored = { teams: [TEAM], milestoneInputs: { team: before }, ambiguityRanges: {}, capacityEntries: {}, capacityOff: [] }
     store.setItem('forecaster', JSON.stringify(stored))
 
-    expect(openWebStorage(store).milestoneInputs('team')).toEqual({ ...LAUNCH, paceWindow: { action: undefined } })
+    expect(openWebStorage(store).milestoneInputs('team')).toEqual({ ...LAUNCH, paceWindow: { action: undefined, skippedPeriods: [] } })
+  })
+
+  test('with a milestone stored before sources, reads it with tickets typed, its pace mode, no skips and nothing seen', () => {
+    const store = memoryStore()
+    const { ticketsSource: _, seenReads: __, ...before } = LAUNCH
+    const stored = {
+      teams: [TEAM],
+      milestoneInputs: { team: { ...before, paceWindow: { action: LAUNCH.paceWindow.action } } },
+      ambiguityRanges: {},
+      capacityEntries: {},
+      capacityOff: [],
+    }
+    store.setItem('forecaster', JSON.stringify(stored))
+
+    const read = openWebStorage(store).milestoneInputs('team')
+    expect(read).toEqual(LAUNCH)
+    expect(read).toHaveProperty('seenReads', { ticketsRemaining: undefined, pace: undefined })
   })
 
   test('with stored data it cannot read, starts empty', () => {
