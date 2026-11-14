@@ -327,7 +327,7 @@ function readLine(read: SavedRead, { kind }: StepQuery): string {
  * None for a read with all its tickets. Whether comparable work's is used is its pace's to flag (`comparableWorkPace`),
  * over the periods pace counts.
  */
-function readFlag(read: SavedRead, trackerName: string, { picksOut, kind }: StepQuery): { flag: string } | undefined {
+export function readFlag(read: SavedRead, trackerName: string, { picksOut, kind }: StepQuery): { flag: string } | undefined {
   if (read.incomplete) {
     return { flag: `${trackerName} gave only part of what this query matches, so its tickets aren’t counted. Narrow the query to read all of it.` }
   }
@@ -491,7 +491,7 @@ async function searchedFor(connector: Connector, kinds: ChoiceKind[], named: str
  * Whether the picker can show the milestone query as its picks' chips: it is an OR of their queries, in their order,
  * or empty.
  */
-function chipsShow(tracker: TrackerFacts, { picks, query }: MilestoneQuery): boolean {
+export function chipsShow(tracker: TrackerFacts, { picks, query }: MilestoneQuery): boolean {
   if (query === '') return true
   const parts = tracker.orParts(query)
   return parts.length === picks.length && parts.every((part, at) => part === picks[at]!.query)
