@@ -53,13 +53,16 @@ export interface ConnectionStorage {
 /**
  * Where the local server build keeps the last read of each of a team's queries, beside its connection, so screens open
  * without a network call. Not the append-only facts earlier releases wrote: a read replaces the query's saved read
- * whole. Nothing of a ticket but its id and finish time is kept. The browser build has no connectors, so no saved reads.
+ * whole, keeping the one it replaced as the previous read, one back. Nothing of a ticket but its id and finish time is
+ * kept. The browser build has no connectors, so no saved reads.
  */
 export interface SavedReadStorage {
-  /** Saves the query's read, replacing whatever was saved for it. */
+  /** Saves the query's read, replacing whatever was saved for it, which becomes its previous read. */
   saveRead(teamQuery: TeamQuery, read: SavedRead): void
   /** The query's last saved read, if it has been read. */
   savedRead(teamQuery: TeamQuery): SavedRead | undefined
+  /** The read the query's last saved read replaced, if it has been read twice: what the faint previous value comes from (#214). */
+  previousRead(teamQuery: TeamQuery): SavedRead | undefined
 }
 
 /**

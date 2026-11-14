@@ -9,6 +9,7 @@ import { inputsView, submitInputs, type InputsEdit } from '../../src/forecast/in
 import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
 import { submitStepQuery, type StepReading } from '../../src/forecast/queryStep.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
+import { COMPARABLE_WORK } from '../../src/forecast/stepQuery.js'
 import type { TrackerReads } from '../../src/forecast/trackerReads.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
@@ -221,5 +222,56 @@ describe('switching pace', () => {
 
     submit({ kind: 'setPaceMode', paceMode: 'range' })
     expect(submit({ kind: 'setPaceMode', paceMode: 'tracker' }, OFFLINE)).toMatchObject({ saved: false, view: { refusal: { error: 'Choose the range or typed counts.' } } })
+  })
+})
+
+describe('the pace graph', () => {
+  const like: Choice = { kind: 'label', name: 'checkout-like', query: 'label:"checkout-like"' }
+  // the milestone started on Monday 5 Oct, so the weeks of 14, 21 and 28 Sep come before it
+  const STARTED = '2026-10-05'
+  const OWN = [5, 6, 4, 7, 5, 6, 8]
+  const LIKE = [2, 3, 2, 3, 2, 3, 2]
+
+  /** Follows GitHub, the milestone started on `STARTED`; with `comparable`, comparable work finished that many a week. */
+  async function following(comparable: number[] | undefined): Promise<void> {
+    await connectGitHub()
+    fixture.milestoneChoices = [
+      { kind: 'milestone', choices: [checkout], pastLimit: false },
+      { kind: 'label', choices: [like], pastLimit: false },
+    ]
+    const likeTickets = finishedInWeeks(comparable ?? []).map((ticket) => ({ ...ticket, id: `like-${ticket.id}` }))
+    fixture.reads[like.query] = { tickets: [{ id: 'like-open' }, ...likeTickets], incomplete: false }
+    await enterAndPick()
+    submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: STARTED, ticketsRemaining: '30' })
+    if (comparable) await submitStepQuery(using, TEAM, { kind: 'addPick', choice: like }, READ_AT, COMPARABLE_WORK)
+    submit({ kind: 'setPaceMode', paceMode: 'tracker' })
+  }
+
+  const trendOf = (view: ReturnType<typeof forecast>) => (view.kind === 'forecast' ? view.paceTrend : undefined)
+
+  test('with comparable work, it pairs its finished tickets with the milestone’s own each week, marking the weeks before the milestone started and the series pace comes from', async () => {
+    await following(LIKE)
+
+    // the read reaches 8 whole weeks, from 14 Sep: comparable work finished nothing in the last
+    const counts = [...LIKE, 0]
+    const paired = { from: 'comparableWork', comparableWork: counts, milestone: [3, ...OWN], beforeStart: 3 }
+    expect(inputs().milestone.paceTrend).toMatchObject({ counts, paired })
+    expect(trendOf(forecast())).toMatchObject({ counts, paired })
+  })
+
+  test('with no comparable-work query, it shows the milestone’s own alone', async () => {
+    await following(undefined)
+
+    expect(inputs().milestone.paceTrend).toMatchObject({ counts: [4, 7, 5, 6, 8], paired: undefined })
+    expect(trendOf(forecast())).toMatchObject({ counts: [4, 7, 5, 6, 8], paired: undefined })
+  })
+
+  test('with comparable work that finished nothing, pace falls back to the milestone’s own, paired with comparable work’s quiet weeks', async () => {
+    await following([0, 0, 0, 0, 0, 0, 0])
+
+    expect(inputs().milestone.paceTrend).toMatchObject({
+      counts: [4, 7, 5, 6, 8],
+      paired: { from: 'milestone', comparableWork: [0, 0, 0, 0, 0], milestone: [4, 7, 5, 6, 8], beforeStart: 0 },
+    })
   })
 })

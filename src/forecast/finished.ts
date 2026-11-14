@@ -11,7 +11,7 @@ import { TRACKER_PERIODS, type DatedCounts } from './paceWindow.js'
  * `TRACKER_PERIODS` whole periods at the milestone's cadence the tracker's pace counts, the periods the EM skipped among
  * them, and the current one. Weekly with nothing skipped, 9 weeks. With no milestone yet, as weekly.
  */
-export function finishedSinceFor(readAt: string, inputs: Pick<MilestoneInputs, 'cadenceDays' | 'paceWindow'> | undefined): string {
+export function finishedSinceFor(readAt: string, inputs?: Pick<MilestoneInputs, 'cadenceDays' | 'paceWindow'>): string {
   const cadenceDays = inputs?.cadenceDays ?? 7
   const skipped = inputs?.paceWindow.skippedPeriods ?? []
   // a skip counts while it could be in the window: within the reach with every skip counted
