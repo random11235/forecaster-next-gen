@@ -16,6 +16,8 @@ import type { InputsEdit, InputsForm, InputsView, TypedForms } from '../forecast
 import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
 import type { PaceMode, TicketsSource } from '../model/milestoneInputs.js'
 import { CONNECT_HINT, connectSection } from './connectSection.js'
+import type { SetupView } from '../forecast/setup.js'
+import { CHECK_STEP, checkStepHtml, setupSkippedHtml, setupStepHtml, setupSummaryHtml } from './setupSection.js'
 import { dayMonth } from '../forecast/calendarDate.js'
 import { escapeHtml, htmlPage } from './html.js'
 import { INPUTS_SCRIPT } from './inputsScript.js'
@@ -89,22 +91,20 @@ export interface ShownStep {
 }
 
 /**
- * The Inputs screen: in the local server build the Connect step first, and once connected the `steps` picking the
- * team's queries, the Milestone step and then the Comparable work step; then the milestone, its pace and the team's
- * growth.
+ * The Inputs screen: in the local server build, first `setup` (`setupView`): the setup step the EM is on, the Connect
+ * step, one of the `steps` picking the team's queries (the Milestone step or the Comparable work step), or Check; or,
+ * once setup is closed, its summary. Then the milestone, its pace and the team's growth.
  */
-export function renderInputsScreen(screen: InputsView, connection: ConnectionView, steps: readonly ShownStep[] = []): string {
+export function renderInputsScreen(screen: InputsView, connection: ConnectionView, steps: readonly ShownStep[] = [], setup: SetupView = { kind: 'noSetup' }): string {
   const { milestone, forms } = screen
   const error = (form: InputsForm): string | undefined => (screen.refusal?.form === form ? screen.refusal.error : undefined)
-  const connect = connectSection(connection)
   const pickers = steps.flatMap(({ section, view, openingId }) => {
     const picker = queryStepSection(view, section)
     const candidates = view.kind === 'comparableWorkStep' && view.candidates && openingId !== undefined ? candidatesHtml(view.candidates.shown, openingId, section) : ''
     return picker === undefined ? [] : [{ section, picker: picker + candidates }]
   })
   const sections = [
-    ...(connect === undefined ? [] : [inputSection('Connect', 'Connect', CONNECT_HINT, connect, { postsOnSubmit: true })]),
-    ...pickers.map(({ section, picker }) => inputSection(section.title, section.title, section.hint, picker, { postsOnSubmit: true, id: section.id })),
+    ...setupStepSection(setup, connection, pickers),
     milestoneSection(forms.milestone, milestone.ticketsSource, error, milestone.notes),
     cadenceSection(forms.cadence, error('cadence'), milestone.cadenceDays),
     paceSection(screen, error, periodName(milestone.cadenceDays)),
@@ -120,7 +120,27 @@ export function renderInputsScreen(screen: InputsView, connection: ConnectionVie
     INPUTS_SCRIPT +
     pickers.map(({ section }) => queryStepScript(section)).join('') +
     steps.filter(({ openingId }) => openingId !== undefined).map(({ section }) => candidatesScript(section)).join('')
-  return htmlPage('/inputs', header, sections.map((section, index) => section(index + 1)).join('\n'), script)
+  const closed = setup.kind === 'summary' ? setupSummaryHtml(setup) : setup.kind === 'skipped' ? setupSkippedHtml() : ''
+  return htmlPage('/inputs', header, closed + sections.map((section, index) => section(index + 1)).join('\n'), script)
+}
+
+/** The setup step the EM is on, as its section, with the steps' list and Back and Next; none once setup is closed, or in the browser build. */
+function setupStepSection(setup: SetupView, connection: ConnectionView, pickers: readonly { section: StepSection; picker: string }[]): Section[] {
+  if (setup.kind !== 'steps') return []
+  const step = (label: string, hint: string, body: string, id: string): Section[] => [inputSection(label, label, hint, setupStepHtml(setup, body), { postsOnSubmit: true, id })]
+  switch (setup.step) {
+    case 'connect': {
+      const connect = connectSection(connection)
+      return connect === undefined ? [] : step('Connect', CONNECT_HINT, connect, 'connect')
+    }
+    case 'check':
+      return step(CHECK_STEP.title, CHECK_STEP.hint, checkStepHtml(), CHECK_STEP.id)
+    case 'milestone':
+    case 'comparableWork': {
+      const shown = pickers.find(({ section }) => section.setupStep === setup.step)
+      return shown === undefined ? [] : step(shown.section.title, shown.section.hint, shown.picker, shown.section.id)
+    }
+  }
 }
 
 /** A section of the Inputs screen, given its number on the screen. */

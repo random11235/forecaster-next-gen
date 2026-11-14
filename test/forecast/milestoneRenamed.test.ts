@@ -71,7 +71,7 @@ async function pickedFrom(fixture: CannedFixture, connect: ConnectionEdit, picks
       return canned.read(query, since)
     },
   })
-  const using: QueryStepping = { connections: storage, reads: storage, milestoneQueries: storage, secrets: openMemorySecrets(), connector, milestoneInputs: storage, at: AT }
+  const using: QueryStepping = { connections: storage, reads: storage, milestoneQueries: storage, setup: storage, secrets: openMemorySecrets(), connector, milestoneInputs: storage, at: AT }
   await submitConnection(using, TEAM, connect)
   for (const choice of picks) await submitStepQuery(using, TEAM, { kind: 'addPick', choice }, READ_AT)
   queriesRead.length = 0

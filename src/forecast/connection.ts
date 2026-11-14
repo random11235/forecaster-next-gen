@@ -1,7 +1,8 @@
 import type { Connector, Failure } from '../connectors/connector.js'
 import type { Connection } from '../model/connection.js'
 import type { Secrets } from '../secrets/secrets.js'
-import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage } from '../storage/storage.js'
+import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage, SetupStorage } from '../storage/storage.js'
+import type { SetupStep } from './setup.js'
 import { BLANK_CONNECTION_FORM, connectionOf, TRACKERS, trackerOf, type ConnectionForm, type Tracker } from './trackers.js'
 
 /** Builds the connector for a connection and its token: the real one in the local server build, the canned one in tests and demo mode. */
@@ -9,13 +10,14 @@ export type ConnectorFactory = (connection: Connection, token: string) => Connec
 
 /**
  * What the local server build connects with: where the connection is kept, where its token is kept, how a connector is
- * built, and where the milestone's picks and query and their reads are kept. The browser build has none of these, so
- * it has no Connect or Milestone step.
+ * built, where the milestone's picks and query and their reads are kept, and how setup was closed. The browser build
+ * has none of these, so it has no setup steps.
  */
 export interface Connecting {
   connections: ConnectionStorage
   reads: SavedReadStorage
   milestoneQueries: MilestoneQueryStorage
+  setup: SetupStorage
   secrets: Secrets
   connector: ConnectorFactory
 }
@@ -45,11 +47,8 @@ export type ConnectStep = ({ kind: 'connect' } | { kind: 'connected'; connection
   refusal?: string
 }
 
-/** The setup step to go to next: Connect, or, once connected, picking the milestone's tickets. */
-export type SetupStep = 'connect' | 'milestone'
-
-/** A connection saved (or removed), and the setup step to go to next; or refused, with the Connect step to show again. */
-export type ConnectionSubmitted = { saved: true; next: SetupStep } | { saved: false; view: ConnectStep & { refusal: string } }
+/** A connection saved (or removed), and the setup step to go to next: Connect, or, once connected, Milestone; or refused, with the Connect step to show again. */
+export type ConnectionSubmitted = { saved: true; next: Extract<SetupStep, 'connect' | 'milestone'> } | { saved: false; view: ConnectStep & { refusal: string } }
 
 /**
  * Seam B: connects the team, changes its connection, or disconnects it.

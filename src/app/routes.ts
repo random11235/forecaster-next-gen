@@ -1,5 +1,5 @@
 import { choiceKindOf } from '../connectors/connector.js'
-import { connectionView, submitConnection, type Connecting, type ConnectionEdit, type ConnectionView, type SetupStep } from '../forecast/connection.js'
+import { connectionView, submitConnection, type Connecting, type ConnectionEdit, type ConnectionView } from '../forecast/connection.js'
 import { howItWorksView } from '../forecast/howItWorksView.js'
 import { followRenamedMilestone } from '../forecast/milestoneRenamed.js'
 import { submitSkip, type SkipEdit, type Skipping } from '../forecast/skippedPeriods.js'
@@ -15,6 +15,7 @@ import {
 import type { Connector } from '../connectors/connector.js'
 import { inputsView, submitInputs, type InputsView, type NextScreen } from '../forecast/inputs.js'
 import { milestoneForecastView, type MilestoneForecastView } from '../forecast/milestoneForecastView.js'
+import { setupView, submitSetup, type SettingUp, type SetupEdit } from '../forecast/setup.js'
 import type { TrackerReads } from '../forecast/trackerReads.js'
 import { DEFAULT_SETTINGS, type ForecastSettings } from '../forecast/settings.js'
 import type { Team } from '../model/team.js'
@@ -23,7 +24,8 @@ import { CONNECT_FORMS } from './connectSection.js'
 import { renderHowItWorksScreen } from './howItWorksScreen.js'
 import { INPUTS_FORMS, PACE_TRACKER_PATH, renderInputsScreen, SKIP_FORMS, type ShownStep } from './inputsScreen.js'
 import { CAPACITY_OPEN, CAPACITY_OPEN_PATH, FORECAST_FORMS, renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
-import { choiceListHtml, COMPARABLE_WORK_STEP, CONFIRMING_BACK, KIND_FIELD, MILESTONE_STEP, OPEN_FIELD, STEP_SECTIONS, type StepSection } from './queryStepSection.js'
+import { choiceListHtml, COMPARABLE_WORK_STEP, CONFIRMING_BACK, KIND_FIELD, MILESTONE_STEP, OPEN_FIELD, STEP_FIELD, STEP_SECTIONS, type StepSection } from './queryStepSection.js'
+import { SETUP_FORMS, SETUP_STEP_PATHS } from './setupSection.js'
 import { CANDIDATES_PATH, candidatesHtml, choicesAsked, keepOpening, OPENING_FIELD, openingKept } from './candidatesSection.js'
 import { openCandidates, type CandidatesAt } from '../forecast/candidates.js'
 
@@ -175,6 +177,8 @@ export function routeSetup(request: Request, context: AppContext): Promise<Reply
   if (readConnect) return connected(setup, readConnect)
   const readSkip = request.method === 'POST' ? SKIP_FORMS.get(pathname) : undefined
   if (readSkip) return skipped(setup, readSkip)
+  const setupEdit = request.method === 'POST' ? SETUP_FORMS.get(pathname) : undefined
+  if (setupEdit) return Promise.resolve(setupSubmitted(setup, setupEdit))
   const named = milestoneName(storage, team.id)
   const submitted = submitForm(request, context, setup)
   if (!submitted) return undefined
@@ -228,9 +232,13 @@ async function inputsWithStep(
   { request, context, connecting, team, settings, searchParams }: SetupRouting,
   { status = 200, view, connection, unlisted = false, refused }: { status?: number; view?: InputsView; connection?: ConnectionView } & StepsOpening = {},
 ): Promise<Reply> {
+  // a refusal opens the step refused; otherwise the step the URL asks for
+  const asked = refused?.section.setupStep ?? (connection?.kind !== 'noConnect' && connection?.refusal !== undefined ? 'connect' : (searchParams.get(STEP_FIELD) ?? undefined))
+  const setup = setupView(settingUp(context, connecting), team.id, asked)
   const stepping: QueryStepping = { ...listingOnce(connecting), milestoneInputs: context.storage, at: candidatesAt(context) }
   const steps: ShownStep[] = []
-  for (const section of STEP_SECTIONS) {
+  // only the step shown is built, so the tracker is asked nothing once setup is closed
+  for (const section of STEP_SECTIONS.filter(({ setupStep }) => setup.kind === 'steps' && setup.step === setupStep)) {
     const editing = searchParams.get(section.editing.name) === section.editing.value
     const opening: QueryStepOpening =
       refused?.section === section
@@ -249,8 +257,25 @@ async function inputsWithStep(
     view ?? inputsView(context.storage, team.id, settings, context.today(), { tracker: trackerReads(context) }),
     connection ?? connectionView(connecting, team.id),
     steps,
+    setup,
   )
   return { kind: 'html', status, html, ...(request.method === 'POST' && { path: SCREEN_PATHS.inputs }) }
+}
+
+/** What setup reads and saves, its read dated in the EM's time zone. */
+function settingUp(context: AppContext, connecting: Connecting): SettingUp {
+  return { ...connecting, timeZone: localTimeZone() }
+}
+
+/**
+ * "Use these", Change or skipping connecting: back to the Inputs screen, at the Milestone step when the steps open
+ * again with the team connected. "Use these" refused, from a page left open, goes back to the steps as they are.
+ */
+function setupSubmitted(setup: SetupRouting, edit: SetupEdit): Reply {
+  const settingUpNow = settingUp(setup.context, setup.connecting)
+  submitSetup(settingUpNow, setup.team.id, edit)
+  const view = setupView(settingUpNow, setup.team.id)
+  return { kind: 'redirect', location: view.kind === 'steps' && view.step === 'milestone' ? SETUP_STEP_PATHS.milestone : SCREEN_PATHS.inputs }
 }
 
 /** What the views read of the team's tracker: its connection and saved reads, dated in the EM's time zone; none in the browser build. */
@@ -335,8 +360,6 @@ async function connected(setup: SetupRouting, readConnect: (body: URLSearchParam
   return inputsWithStep(setup, { status: 400, connection: submitted.view })
 }
 
-/** Where each setup step is served. */
-const SETUP_STEP_PATHS: Record<SetupStep, string> = { connect: '/inputs#connect', milestone: MILESTONE_STEP.urls.finding }
 
 /** Where each screen is served. */
 const SCREEN_PATHS: Record<NextScreen, string> = { forecast: '/', inputs: '/inputs' }

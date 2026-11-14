@@ -1,9 +1,10 @@
-import type { ChoiceList, ComparableWorkStep, StepQueryEdit, QueryStep, QueryStepView, QueryEditing } from '../forecast/queryStep.js'
+import type { ChoiceList, StepQueryEdit, QueryStep, QueryStepView, QueryEditing } from '../forecast/queryStep.js'
 import { kindName } from '../forecast/queryStep.js'
 import { COMPARABLE_WORK, MILESTONE_QUERY, type StepQuery } from '../forecast/stepQuery.js'
 import { choiceKindOf, type Choice } from '../connectors/connector.js'
 import { dayMonth } from '../forecast/calendarDate.js'
 import type { ComparableWorkPace, PairedPeriod, PickPace } from '../forecast/comparableWorkPace.js'
+import type { SetupStep } from '../forecast/setup.js'
 import { escapeHtml } from './html.js'
 
 /** Reads a submitted step's form, by the field names this section gives them; none when it isn't one of its forms as sent. */
@@ -12,11 +13,13 @@ type StepFormReader = (body: URLSearchParams) => StepQueryEdit | undefined
 /**
  * One of the setup steps that picks or writes one of the team's queries, as the Inputs screen shows it: the Milestone
  * step (`MILESTONE_STEP`) and the Comparable work step (`COMPARABLE_WORK_STEP`). Each has its own section, forms, find
- * box and URLs, so both are on the one screen at once; they share the picker and its HTML.
+ * box and URLs; they share the picker and its HTML.
  */
 export interface StepSection {
   /** The query the step edits. */
   stepQuery: StepQuery
+  /** The setup step it is, which its URLs open at (`STEP_FIELD`): the Milestone step, the default, names none. */
+  setupStep: Extract<SetupStep, 'milestone' | 'comparableWork'>
   /** Its section's id on the Inputs screen. */
   id: string
   /** Its name and hint, in the section's label column. */
@@ -53,6 +56,20 @@ export const CHOICE_FIELDS = { kind: 'kind', name: 'name', query: 'query' } as c
 /** The field Back to finding sends, `yes` once the EM has confirmed it clears the query. */
 export const CONFIRMED = { name: 'confirmed', value: 'yes' } as const
 
+/** The field naming the setup step the Inputs screen opens at: `/inputs?step=comparableWork`; Milestone, once connected, without it. */
+export const STEP_FIELD = 'step'
+
+/** The URL query opening the Inputs screen at `step`, `step=comparableWork`; none for the Milestone step, its default. */
+export function stepParam(step: SetupStep): string {
+  return step === 'milestone' ? '' : `${STEP_FIELD}=${step}`
+}
+
+/** The Inputs screen opened at `step`, with `params` beside it, at the section `id`. */
+export function inputsAt(step: SetupStep, id: string, ...params: string[]): string {
+  const query = [stepParam(step), ...params].filter((param) => param !== '').join('&')
+  return `/inputs${query === '' ? '' : `?${query}`}#${id}`
+}
+
 /** The field naming which step's query is open for editing: `/inputs?edit=query`. */
 const EDIT_FIELD = 'edit'
 
@@ -64,7 +81,7 @@ type StepSectionMade = Omit<StepSection, 'paths' | 'forms' | 'editing' | 'urls'>
 
 function stepSection({ formsAt, editingValue, ...section }: StepSectionMade): StepSection {
   const paths = { add: `${formsAt}/add`, remove: `${formsAt}/remove`, edit: `${formsAt}/edit`, back: `${formsAt}/back`, afresh: `${formsAt}/afresh` }
-  const editing = `/inputs?${EDIT_FIELD}=${editingValue}`
+  const editing = `${EDIT_FIELD}=${editingValue}`
   const forms = new Map<string, StepFormReader>([
     [
       paths.add,
@@ -84,9 +101,9 @@ function stepSection({ formsAt, editingValue, ...section }: StepSectionMade): St
     forms,
     editing: { name: EDIT_FIELD, value: editingValue },
     urls: {
-      finding: `/inputs#${section.id}`,
-      editing: `${editing}#${section.id}`,
-      confirmingBack: `${editing}&${CONFIRMING_BACK.name}=${CONFIRMING_BACK.value}#${section.id}`,
+      finding: inputsAt(section.setupStep, section.id),
+      editing: inputsAt(section.setupStep, section.id, editing),
+      confirmingBack: inputsAt(section.setupStep, section.id, editing, `${CONFIRMING_BACK.name}=${CONFIRMING_BACK.value}`),
     },
   }
 }
@@ -94,6 +111,7 @@ function stepSection({ formsAt, editingValue, ...section }: StepSectionMade): St
 /** The Milestone step, picking the milestone's tickets: after the Connect step. */
 export const MILESTONE_STEP: StepSection = stepSection({
   stepQuery: MILESTONE_QUERY,
+  setupStep: 'milestone',
   id: 'milestone-tickets',
   title: 'Milestone’s tickets',
   hint: 'Which tickets are the milestone? Find and add one or more: several epics, say, or a label.',
@@ -104,12 +122,10 @@ export const MILESTONE_STEP: StepSection = stepSection({
   editingValue: 'query',
 })
 
-/**
- * The Comparable work step, picking recent work like the milestone's to measure its pace from: after the Milestone
- * step, and optional, so its main button goes on to the milestone.
- */
+/** The Comparable work step, picking recent work like the milestone's to measure its pace from: after the Milestone step, and optional. */
 export const COMPARABLE_WORK_STEP: StepSection = stepSection({
   stepQuery: COMPARABLE_WORK,
+  setupStep: 'comparableWork',
   id: 'comparable-work',
   title: 'Comparable work',
   hint: 'Optional. Recent work like this milestone’s: once added, pace is measured from it instead of the milestone’s own. Pick this milestone too to count its own tickets.',
@@ -120,9 +136,6 @@ export const COMPARABLE_WORK_STEP: StepSection = stepSection({
   editingValue: 'comparable',
 })
 
-/** Where the Comparable work step's main button (Skip, or Next) goes on to: the next section, the milestone. */
-const COMPARABLE_WORK_ONWARD = '/inputs#milestone'
-
 /** The setup steps that pick or write a query, in the order the Inputs screen shows them. */
 export const STEP_SECTIONS: readonly StepSection[] = [MILESTONE_STEP, COMPARABLE_WORK_STEP]
 
@@ -130,8 +143,8 @@ export const STEP_SECTIONS: readonly StepSection[] = [MILESTONE_STEP, COMPARABLE
  * A step picking or writing one of the team's queries (`section`), in the local server build once connected; none
  * otherwise. Each pick and each removal posts at once; the find box filters the lists as the EM types (see
  * `queryStepScript`), and without the script it submits to `/inputs` with what was typed. The Comparable work step
- * leads with its pace, and ends with its main button, Skip until something is added and Next after, and Start
- * afresh once it has a query.
+ * leads with its pace, and ends with Start afresh once it has a query. Back and Next between the steps are the setup
+ * steps' own (`setupStepsHtml`).
  */
 export function queryStepSection(view: QueryStepView, section: StepSection): string | undefined {
   if (view.kind === 'noQueryStep') return undefined
@@ -202,21 +215,11 @@ function readHtml(view: QueryStep, pace: ComparableWorkPace | undefined): string
   return line + flag
 }
 
-/** The Comparable work step's main button's label, by where it goes. */
-const ONWARD_LABELS: Readonly<Record<ComparableWorkStep['onward'], string>> = { skip: 'Skip', next: 'Next' }
-
-/**
- * The Comparable work step's end: Start afresh, clearing all its picks and query at once, once it has a query; and
- * its main button, on to the next section. Nothing for the Milestone step.
- */
-function onwardHtml(view: QueryStep, { paths, id }: StepSection): string {
-  if (view.kind !== 'comparableWorkStep') return ''
-  const afresh =
-    view.onward === 'next'
-      ? `<form method="post" action="${paths.afresh}#${id}"><button type="submit" class="linkish">Start afresh</button></form> `
-      : ''
+/** The Comparable work step's end, once it has a query: Start afresh, clearing all its picks and query at once. Nothing for the Milestone step. */
+function afreshHtml(view: QueryStep, { paths, urls }: StepSection): string {
+  if (view.kind !== 'comparableWorkStep' || view.query === '') return ''
   return `
-          <div class="actions onward">${afresh}<a href="${COMPARABLE_WORK_ONWARD}" class="button primary">${ONWARD_LABELS[view.onward]}</a></div>`
+          <div class="actions afresh"><form method="post" action="${paths.afresh}${urls.finding.slice(urls.finding.indexOf('#'))}"><button type="submit" class="linkish">Start afresh</button></form></div>`
 }
 
 /**
@@ -233,7 +236,7 @@ function editingSection(view: QueryStep, editing: QueryEditing, section: StepSec
       : `\n          <p class="note">Still reading <code>${escapeHtml(view.query)}</code></p>`
   const clears = editing.backClears === undefined ? '' : `<p class="note warn">${escapeHtml(editing.backClears)}</p> `
   const back = editing.confirmingBack
-    ? `<input type="hidden" name="${CONFIRMED.name}" value="${CONFIRMED.value}"><button type="submit">Clear the query and go back</button> <a href="${urls.editing}" class="keep">Keep editing</a>`
+    ? `<input type="hidden" name="${CONFIRMED.name}" value="${CONFIRMED.value}"><button type="submit">Clear the query and go back</button> <a href="${escapeHtml(urls.editing)}" class="keep">Keep editing</a>`
     : '<button type="submit" class="linkish">Back to finding</button>'
   return `        <div class="picker editing">${paceHtml(pace)}
           <form method="post" action="${paths.edit}#${id}" class="query">
@@ -243,7 +246,7 @@ function editingSection(view: QueryStep, editing: QueryEditing, section: StepSec
           </form>${refusal}${inUse}${readHtml(view, pace)}
           <form method="post" action="${paths.back}#${id}" class="back">
             ${clears}${back}
-          </form>${onwardHtml(view, section)}
+          </form>${afreshHtml(view, section)}
         </div>`
 }
 
@@ -264,7 +267,7 @@ function findingSection(view: QueryStep, section: StepSection, pace: ComparableW
   const failure = view.choicesFailure === undefined ? '' : `\n          <p class="error" role="alert">${escapeHtml(view.choicesFailure)}</p>`
   const query = view.query === '' ? '<span class="none">Nothing picked yet.</span>' : `<code>${escapeHtml(view.query)}</code>`
   return `        <div class="picker">${paceHtml(pace)}${failure}${chips === '' ? '' : `\n          <ul class="chips">\n${chips}\n          </ul>`}${refusal}
-          <form method="get" action="/inputs#${id}" class="find">
+          <form method="get" action="/inputs#${id}" class="find">${section.setupStep === 'milestone' ? '' : `\n            <input type="hidden" name="${STEP_FIELD}" value="${section.setupStep}">`}
             <input type="search" name="${findField}" value="${escapeHtml(view.find)}" placeholder="Find ${escapeHtml(article(alternatives(kinds)))}…" aria-label="Find a choice to pick" autocomplete="off" spellcheck="false">
           </form>
           <div class="found">
@@ -272,9 +275,9 @@ ${lists}
             <p class="note none-found" hidden>Nothing matches.</p>
           </div>
           <div class="query">
-            <span class="label">${escapeHtml(section.stepQuery.name)} <a href="${urls.editing}" class="edit">Edit as a query</a></span> ${query}
+            <span class="label">${escapeHtml(section.stepQuery.name)} <a href="${escapeHtml(urls.editing)}" class="edit">Edit as a query</a></span> ${query}
             <p class="note">${escapeHtml(view.note)}</p>
-          </div>${readHtml(view, pace)}${onwardHtml(view, section)}
+          </div>${readHtml(view, pace)}${afreshHtml(view, section)}
         </div>`
 }
 
@@ -283,13 +286,13 @@ ${lists}
  * marked "this milestone"; a kind searched in the tracker is marked for the script (`data-searched`), which asks for it
  * again as the EM types rather than filtering it.
  */
-export function choiceListHtml(list: ChoiceList, { paths, id, stepQuery }: StepSection): string {
+export function choiceListHtml(list: ChoiceList, { paths, id, stepQuery, setupStep }: StepSection): string {
   const candidates = stepQuery.kind === 'comparableWork'
   const choices = list.choices
     .map(
       (choice) => `              <form method="post" action="${paths.add}#${id}" data-name="${escapeHtml(choice.name.toLowerCase())}"${candidates ? ' class="candidate"' : ''}>
                 <input type="hidden" name="${CHOICE_FIELDS.kind}" value="${escapeHtml(choice.kind)}"><input type="hidden" name="${CHOICE_FIELDS.name}" value="${escapeHtml(choice.name)}"><input type="hidden" name="${CHOICE_FIELDS.query}" value="${escapeHtml(choice.query)}">
-                <button type="submit">${escapeHtml(choice.name)} <span class="kind">${escapeHtml(kindName(choice.kind))}</span>${choice.query === list.thisMilestone ? ' <span class="this">this milestone</span>' : ''}</button>${candidates ? openLinkHtml(choice, id) : ''}
+                <button type="submit">${escapeHtml(choice.name)} <span class="kind">${escapeHtml(kindName(choice.kind))}</span>${choice.query === list.thisMilestone ? ' <span class="this">this milestone</span>' : ''}</button>${candidates ? openLinkHtml(choice, setupStep, id) : ''}
               </form>`,
     )
     .join('\n')
@@ -304,8 +307,8 @@ ${choices}
 export const OPEN_FIELD = 'comparableOpen'
 
 /** The link opening a choice as a candidate, beside it in the step's lists, to read how it runs. */
-function openLinkHtml(choice: Choice, id: string): string {
-  return `<a class="open" href="/inputs?${OPEN_FIELD}=${encodeURIComponent(choice.query)}#${id}" aria-label="How ${escapeHtml(choice.name)} runs">pace</a>`
+function openLinkHtml(choice: Choice, step: SetupStep, id: string): string {
+  return `<a class="open" href="${escapeHtml(inputsAt(step, id, `${OPEN_FIELD}=${encodeURIComponent(choice.query)}`))}" aria-label="How ${escapeHtml(choice.name)} runs">pace</a>`
 }
 
 function capitalised(text: string): string {

@@ -9,14 +9,14 @@ import { submitSkip, type Skipping } from '../src/forecast/skippedPeriods.js'
 import { MILESTONE_QUERY, type StepQuery } from '../src/forecast/stepQuery.js'
 import type { TrackerReads } from '../src/forecast/trackerReads.js'
 import { openMemorySecrets } from '../src/secrets/memorySecrets.js'
-import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage, Storage } from '../src/storage/storage.js'
+import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage, SetupStorage, Storage } from '../src/storage/storage.js'
 import { openSqliteStorage } from '../src/storage/sqliteStorage.js'
 
 // A team on a tracker, for Seam B tests of what the tracker reads (#211–#215): its storage, a canned connector
 // answering from a fixture the test can change between reads, and the Seam B entry points bound to them.
 
 /** What the local server build stores, by the interfaces its tests use. */
-export type TeamStorage = Storage & ConnectionStorage & SavedReadStorage & MilestoneQueryStorage
+export type TeamStorage = Storage & ConnectionStorage & SavedReadStorage & MilestoneQueryStorage & SetupStorage
 
 export const TEAM = 'team'
 /** A Thursday. */
@@ -87,6 +87,7 @@ export function trackerScenario({ tickets = [] as Ticket[], today = TODAY } = {}
     milestoneInputs: storage,
     reads: storage,
     milestoneQueries: storage,
+    setup: storage,
     secrets: openMemorySecrets(),
     connector: () => {
       const canned = cannedConnector(fixture)
