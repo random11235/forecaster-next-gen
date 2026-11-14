@@ -41,6 +41,7 @@ async function start({ ticketsRemaining = '30', tracker = 'github' } = {}): Prom
     await post(running, '/inputs/connect', { tracker: 'jira', site: 'shop.atlassian.net', projectKey: 'SHOP', email: 'em@shop.test', token: 'token' })
     await post(running, '/inputs/milestone-query/add', RELEASE)
   }
+  await post(running, '/inputs/setup/use-these', {})
   return running
 }
 

@@ -255,6 +255,7 @@ const STYLE = `
     ol.setup-steps li.done, ol.setup-steps li.done a { color: var(--muted); }
     .actions.setup-nav { gap: 12px; align-items: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--hairline); }
     .actions.setup-nav a.button:not(.primary) { margin-right: auto; font-size: 14px; color: var(--link); }
+    .actions.setup-nav form { margin: 0; }
     .setup-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 24px; padding: 12px 16px; border: 1px solid var(--hairline); border-radius: 8px; font-size: 14px; }
     .setup-summary .read, .setup-summary .muted { font-size: 13px; color: var(--muted); }
     .setup-summary form { margin: 0 0 0 auto; }
