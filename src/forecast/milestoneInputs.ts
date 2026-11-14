@@ -104,6 +104,8 @@ export interface PaceSourceView {
   tracker: string
   /** The tracker's reading of pace, which the forecast uses while pace follows it; none until it is read. */
   reading: PaceReading | undefined
+  /** No reading, as a read pace would come from is incomplete: marked so, not as unread. */
+  incomplete: boolean
   /** While pace follows the tracker, the counts its latest read replaced, shown faintly; none otherwise. */
   was: WasPace | undefined
   /** The typed counts or the range in use, different from the reading: the chip. None otherwise. */
@@ -137,6 +139,7 @@ export function milestoneInputsView(storage: Storage, teamId: string, settings: 
     paceSource: measured && {
       tracker: measured.tracker,
       reading: measured.pace,
+      incomplete: measured.paceIncomplete,
       was: inputs.paceMode === 'tracker' ? measured.pace?.was : undefined,
       readsDifferently: paceReadDifferently(inputs, measured.pace),
     },

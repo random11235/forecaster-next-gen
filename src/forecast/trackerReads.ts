@@ -29,6 +29,11 @@ export interface Measured {
   ticketsRemaining: TicketsReading | undefined
   /** Pace as the tracker's reads count it; none until a complete read reaches a whole period of the milestone's. */
   pace: PaceReading | undefined
+  /**
+   * With no pace, because a read it would be taken from is incomplete: the tracker didn't return every finished ticket
+   * the query matched, so a pace from it would be part of one.
+   */
+  paceIncomplete: boolean
 }
 
 /**
@@ -109,10 +114,13 @@ export function measured(reads: TrackerReads | undefined, teamId: string, storag
   const tracker = trackerOf(connection).name
   const query = reads.milestoneQueries.milestoneQuery(teamId)?.query
   const read = savedReadOf(reads, teamId, query)
+  const pace = paceReading(reads, teamId, storage, today, tracker)
+  const comparableWorkRead = savedReadOf(reads, teamId, reads.milestoneQueries.comparableWorkQuery(teamId)?.query)
   return {
     tracker,
     ticketsRemaining: read && { count: ticketsRemaining(read), incomplete: read.incomplete, readOn: readOn(read.readAt, reads.timeZone), readAt: read.readAt, was: wasTickets(reads, teamId, query, ticketsRemaining(read)) },
-    pace: paceReading(reads, teamId, storage, today, tracker),
+    pace,
+    paceIncomplete: !pace && [read, comparableWorkRead].some((each) => each?.incomplete === true),
   }
 }
 

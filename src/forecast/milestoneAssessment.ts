@@ -107,12 +107,15 @@ function paceInUse(inputs: MilestoneInputs, source: PaceMode, inWindow: number[]
 
 /**
  * Following the tracker, what stops a forecast from its counts, `inUse` of them, and the warnings, as with typed
- * counts: none read yet, nothing finished in the periods read, fewer than `forForecast`, or fewer than `reliable`.
+ * counts: none read yet, or none from an incomplete read, nothing finished in the periods read, fewer than `forForecast`, or fewer than `reliable`.
  */
-function trackerPaceNotes(inputs: MilestoneInputs, inUse: number, { forForecast, reliable }: TypedCounts, { tracker, pace }: Measured): { problems: InputNote[]; warnings: Warning[] } {
+function trackerPaceNotes(inputs: MilestoneInputs, inUse: number, { forForecast, reliable }: TypedCounts, { tracker, pace, paceIncomplete }: Measured): { problems: InputNote[]; warnings: Warning[] } {
   const period = periodName(inputs.cadenceDays)
   const instead = 'Type counts, or switch pace to the range.'
   const problem = (message: string) => ({ problems: [{ input: 'pace' as const, message }], warnings: [] })
+  if (!pace && paceIncomplete) {
+    return problem(`${tracker} gave only part of the finished tickets its queries match, so its pace isn’t known. Narrow the query, or ${instead.toLowerCase()}`)
+  }
   if (!pace) return problem(`${tracker} hasn’t read the milestone’s finished tickets yet. Pick them in the Milestone step, or ${instead.toLowerCase()}`)
   if (pace.window.counts.length === 0 && pace.skipped.counts.some((count) => count > 0)) {
     return problem(`Every ${period} is skipped, so ${tracker} gives no pace. Count a ${period} again, or use typed counts or the range.`)

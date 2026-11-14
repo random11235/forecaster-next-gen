@@ -193,9 +193,13 @@ const TICKETS_SOURCES: readonly TicketsSource[] = ['tracker', 'typed']
 /** Tickets remaining typed, with its chip when the tracker reads it differently. */
 function ticketsChip({ tracker, reading, readsDifferently }: TicketsSourceView): string {
   if (!readsDifferently || !reading) return ''
-  const incomplete = reading.incomplete ? ' <span class="incomplete">incomplete</span>' : ''
   return `
-              ${chip(TICKETS_CHIP, tracker, readsDifferently, `<p>${escapeHtml(tracker)} reads <b>${reading.count}</b> tickets remaining, read ${escapeHtml(reading.readOn)}.${incomplete}</p>`)}`
+              ${chip(TICKETS_CHIP, tracker, readsDifferently, `<p>${escapeHtml(tracker)} reads <b>${reading.count}</b> tickets remaining, read ${escapeHtml(reading.readOn)}.${incompleteMark(reading.incomplete)}</p>`)}`
+}
+
+/** A value's mark when the read it is from was part of what its query matched; nothing when whole. */
+function incompleteMark(incomplete: boolean): string {
+  return incomplete ? ' <span class="incomplete">incomplete</span>' : ''
 }
 
 /** A chip: what its forms are ids from, and which value's reading it opens. */
@@ -245,8 +249,7 @@ function chipForms({ id, reading }: Chip, action: string, fields: Record<string,
  */
 function trackerTickets({ tracker, reading, was }: TicketsSourceView): string {
   if (!reading) return `<p class="reading"><span class="reading-line">tickets remaining · ${escapeHtml(tracker)}, not read yet</span></p>`
-  const incomplete = reading.incomplete ? ' <span class="incomplete">incomplete</span>' : ''
-  return `<p class="reading"><span class="reading-value">${reading.count}</span>${incomplete}
+  return `<p class="reading"><span class="reading-value">${reading.count}</span>${incompleteMark(reading.incomplete)}
               <span class="reading-line">tickets remaining · ${escapeHtml(tracker)}, read ${escapeHtml(reading.readOn)}</span>${
                 was ? `\n              <span class="reading-line was">was ${was.count} on ${escapeHtml(was.readOn)}</span>` : ''
               }</p>`
@@ -363,8 +366,8 @@ function paceChip(paceSource: PaceSourceView | undefined, period: PeriodName): s
  * Show weeks as blocks to type into, each holding its count: typing into one posts them all as typed counts, which
  * switches pace to them.
  */
-function trackerPace({ tracker, reading, was }: PaceSourceView, period: PeriodName, following: boolean): string {
-  if (!reading) return `\n          <p class="reading-line">${period}s finished · ${escapeHtml(tracker)}, not read yet</p>`
+function trackerPace({ tracker, reading, incomplete, was }: PaceSourceView, period: PeriodName, following: boolean): string {
+  if (!reading) return `\n          <p class="reading-line">${period}s finished · ${escapeHtml(tracker)}, ${incomplete ? `read in part${incompleteMark(true)}` : 'not read yet'}</p>`
   const { window, skipped, periods, skippedLine, firstFinished, readOn } = reading
   const everySkipped = window.counts.length === 0 && skipped.counts.some((count) => count > 0)
   // with every period skipped, the pace's note says so, and how to have a pace again
