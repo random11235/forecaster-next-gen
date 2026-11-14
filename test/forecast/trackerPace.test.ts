@@ -160,6 +160,31 @@ describe('the window', () => {
     })
   })
 
+  test('a read reaching back less far than the window, as before a change of cadence, says where the tracker’s periods run out', async () => {
+    await following(finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]))
+
+    // fortnightly sprints from 31 Aug: the weekly read, back to 10 Sep, reaches whole only those from 14 Sep
+    submit({ kind: 'setCadence', cadenceDays: '14' })
+
+    expect(inputs().milestone.trackerPace?.reading).toMatchObject({
+      counts: [8, 10, 12, 14],
+      line: '4 sprints · GitHub has nothing before the sprint of 14 Sep · read 12 Nov 09:00',
+      firstFinished: undefined,
+    })
+  })
+
+  test('the milestone’s own pace counts only the periods since its start date, and says so', async () => {
+    await following(finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]))
+
+    submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-10-05', ticketsRemaining: '30' })
+
+    expect(inputs().milestone.trackerPace?.reading).toMatchObject({
+      counts: [4, 7, 5, 6, 8],
+      line: '5 weeks · since the start date · read 12 Nov 09:00',
+      firstFinished: undefined,
+    })
+  })
+
   test('fewer than 4 weeks stop the forecast, as typed counts do', async () => {
     await following(finishedInWeeks([0, 0, 0, 0, 0, 2, 0, 3]))
 
@@ -227,6 +252,9 @@ describe('switching pace', () => {
   })
 
   test('typing into the opened weeks switches pace to the typed counts, as typed from GitHub’s', () => {
+    // the opened weeks start from GitHub’s counts
+    expect(inputs().milestone.trackerPace?.reading?.counts).toEqual([3, 5, 6, 4, 7, 5, 6, 8])
+
     expect(submit({ kind: 'setPaceCounts', counts: '3, 5, 6, 4, 7, 5, 6, 9' })).toEqual({ saved: true, next: 'inputs' })
 
     expect(inputs().milestone).toMatchObject({ paceMode: 'counts', paceCounts: [3, 5, 6, 4, 7, 5, 6, 9] })

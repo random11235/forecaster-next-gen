@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
-import { finishedPerPeriod, readQuery, ticketsRemaining } from '../../src/forecast/finished.js'
+import { finishedPerPeriod, finishedSinceFor, readQuery, ticketsRemaining } from '../../src/forecast/finished.js'
+import { wholePeriods } from '../../src/forecast/paceReads.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { TeamStorage } from '../trackerScenario.js'
 
@@ -28,10 +29,10 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true })
 })
 
-/** Reads QUERY through the canned connector answering with `tickets`, and returns the read it saved. */
-async function readOf(tickets: { id: string; finishedAt?: string }[]) {
+/** Reads QUERY through the canned connector answering with `tickets`, from SINCE at READ_AT unless given, and returns the read it saved. */
+async function readOf(tickets: { id: string; finishedAt?: string }[], { finishedSince = SINCE, readAt = READ_AT } = {}) {
   const fixture: CannedFixture = { milestoneChoices: [], reads: { [QUERY]: { tickets, incomplete: false } } }
-  const result = await readQuery(cannedConnector(fixture), storage, { teamId: TEAM, query: QUERY, finishedSince: SINCE, readAt: READ_AT })
+  const result = await readQuery(cannedConnector(fixture), storage, { teamId: TEAM, query: QUERY, finishedSince, readAt })
   if (!result.ok) throw new Error(`read failed: ${result.failure}`)
   return result.read
 }
@@ -103,4 +104,37 @@ describe('reading a query', () => {
 test('tickets remaining counts the read’s open tickets', async () => {
   const read = await readOf([{ id: 'a' }, { id: 'b', finishedAt: '2026-10-05T10:00:00Z' }, { id: 'c' }])
   expect(ticketsRemaining(read)).toBe(2)
+})
+
+describe('how far back a read reaches', () => {
+  // Thursday 12 Nov
+  const AT = '2026-11-12T09:00:00Z'
+  const skipping = (cadenceDays: number, skippedPeriods: string[]) => ({ cadenceDays, paceWindow: { action: undefined, skippedPeriods } })
+
+  test('weekly, 9 weeks: the 8 pace counts and the current one; each skip within reach adds a week', () => {
+    expect(finishedSinceFor(AT)).toBe('2026-09-10T09:00:00.000Z')
+    expect(finishedSinceFor(AT, skipping(7, ['2026-10-12', '2026-10-19']))).toBe('2026-08-27T09:00:00.000Z')
+  })
+
+  test('at a 14-day cadence, in whole weeks: 18 for 9 sprints, and 2 more for each skipped sprint', () => {
+    expect(finishedSinceFor(AT, skipping(14, []))).toBe('2026-07-09T09:00:00.000Z')
+    expect(finishedSinceFor(AT, skipping(14, ['2026-10-12']))).toBe('2026-06-25T09:00:00.000Z')
+  })
+
+  test('a skip older than any window could reach back to doesn’t widen the read', () => {
+    // with one skip, the window could reach back 10 weeks, to 3 Sep; a skip on 31 Aug is older
+    expect(finishedSinceFor(AT, skipping(7, ['2026-08-31']))).toBe('2026-09-10T09:00:00.000Z')
+    expect(finishedSinceFor(AT, skipping(7, ['2026-09-07']))).toBe('2026-09-03T09:00:00.000Z')
+  })
+
+  test('read late on the EM’s Sunday, still Sunday in their time zone, it reaches 8 whole weeks there, the first from its first hour', async () => {
+    // 02:00 UTC on Monday 9 Nov is 21:00 on Sunday 8 Nov in New York, in the week of 2 Nov there; the read reaches back
+    // to 22:00 on Sunday 6 Sep, so the week of 7 Sep is whole, and a finish at 00:30 on Monday 7 Sep counts in it
+    const readAt = '2026-11-09T02:00:00Z'
+    const read = await readOf([{ id: 'a', finishedAt: '2026-09-07T04:30:00Z' }], { finishedSince: finishedSinceFor(readAt), readAt })
+    const weeks = { startDate: '2026-08-31', cadenceDays: 7, today: '2026-11-08', timeZone: 'America/New_York' }
+
+    expect(wholePeriods([read], weeks)).toEqual({ first: 1, periods: 8 })
+    expect(finishedPerPeriod(read, { ...weeks, periods: 8 })).toMatchObject({ counts: [1, 0, 0, 0, 0, 0, 0, 0], starts: expect.arrayContaining(['2026-09-07']) })
+  })
 })
