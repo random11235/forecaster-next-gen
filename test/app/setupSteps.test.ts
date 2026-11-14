@@ -130,10 +130,31 @@ describe('"Use these"', () => {
 
     const html = await page(running, '/inputs')
     const summary = html.slice(html.indexOf('id="setup-summary"'), html.indexOf('id="milestone"'))
-    expect(summary).toMatch(/<dt>Milestone<\/dt>\s*<dd>Checkout v2 <span class="kind">\(milestone\)<\/span><\/dd>/)
+    expect(summary).toMatch(/<dt>Milestone<\/dt>\s*<dd>Checkout v2 <span class="kind">\(milestone\)<\/span> · 1<\/dd>/)
     expect(summary).not.toContain('<dt>Comparable</dt>')
     expect(html.split('Leaf tickets only. Epics include their sub-epics.')).toHaveLength(2)
     expect(summary).not.toContain('class="note warn flag"')
+  })
+
+  test('the summary gives each pick its count, a pick of several read once Check opens', async () => {
+    const SEARCH = { kind: 'epic', name: '#57 Search revamp', query: 'parent-issue:shop-team/shop#57' }
+    FIXTURE.reads[SEARCH.query] = { tickets: [{ id: 's1' }, { id: 's2', finishedAt: `${TODAY}T08:00:00Z` }], incomplete: false }
+    const running = await picked()
+    await post(running, '/inputs/milestone-query/add', SEARCH)
+    const rowOf = async () => {
+      const html = await page(running, '/inputs')
+      return html.slice(html.indexOf('<dt>Milestone</dt>'), html.indexOf('</dd>', html.indexOf('<dt>Milestone</dt>')))
+    }
+
+    await post(running, '/inputs/setup/use-these', {})
+    delete FIXTURE.reads[SEARCH.query]
+    expect(await rowOf()).toMatch(/#57 Search revamp <span class="kind">\(epic\)<\/span>$/)
+    await post(running, '/inputs/setup/change', {})
+    FIXTURE.reads[SEARCH.query] = { tickets: [{ id: 's1' }, { id: 's2', finishedAt: `${TODAY}T08:00:00Z` }], incomplete: false }
+    await page(running, '/inputs?step=check')
+    delete FIXTURE.reads[SEARCH.query]
+    await post(running, '/inputs/setup/use-these', {})
+    expect(await rowOf()).toMatch(/Checkout v2 <span class="kind">\(milestone\)<\/span> · 1, #57 Search revamp <span class="kind">\(epic\)<\/span> · 2$/)
   })
 
   test('the summary shows a query written by hand as written, and flags a read that matches nothing beneath it', async () => {
