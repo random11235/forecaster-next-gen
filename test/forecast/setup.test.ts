@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import type { Choice, Ticket } from '../../src/connectors/connector.js'
-import { setupView, submitReadAgain, submitSetup, type SettingUp } from '../../src/forecast/setup.js'
-import { submitStepQuery } from '../../src/forecast/queryStep.js'
-import { COMPARABLE_WORK } from '../../src/forecast/stepQuery.js'
-import { CHECKOUT, finishedOn, open, TEAM, trackerScenario, type TrackerScenario } from '../trackerScenario.js'
+import { setupView, submitReadAgain, submitSetup, throughDraft, type SettingUp } from '../../src/forecast/setup.js'
+import { queryStepView, submitStepQuery, type StepQueryEdit } from '../../src/forecast/queryStep.js'
+import { COMPARABLE_WORK, MILESTONE_QUERY, type StepQuery } from '../../src/forecast/stepQuery.js'
+import { CHECKOUT, finishedOn, open, TEAM, TODAY, trackerScenario, type TrackerScenario } from '../trackerScenario.js'
 
 // Seam B: the Inputs screen's setup steps (#217), Connect → Milestone → Comparable work → Check, one at a time, closing
 // with "Use these" to a summary of the connection, or skipped to the inputs typed.
@@ -412,5 +412,138 @@ describe('skipping connecting', () => {
 
     submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })
     expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({ kind: 'steps', step: 'connect' })
+  })
+})
+
+// What the EM chooses inside setup (#218) is held as a draft: nothing in it reaches the forecast or the Inputs values
+// until "Use these" applies it all together, and Cancel throws it away.
+describe('the draft', () => {
+  const NEXT_READ_AT = '2026-11-13T10:00:00Z'
+  const BOTH = `${CHECKOUT.query} OR ${Q3_POLISH.query}`
+
+  /** A team set up on GitHub, following its milestone's 3 open tickets, then setup opened again with Change. */
+  async function setUpThenChange(): Promise<TrackerScenario> {
+    const { connect, submit } = team()
+    scenario!.fixture.reads[CHECKOUT.query] = { tickets: [...open(3), ...finishedOn('f', '2026-11-03', 2), ...finishedOn('g', '2026-10-27', 2)], incomplete: false }
+    scenario!.fixture.reads[BOTH] = { tickets: open(7), incomplete: false }
+    scenario!.fixture.reads[Q3_POLISH.query] = { tickets: finishedOn('q', '2026-11-03', 6), incomplete: false }
+    await connect()
+    submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-11-16', ticketsRemaining: '30' })
+    submit({ kind: 'setPaceRange', low: '4', high: '8' })
+    submit({ kind: 'setTicketsSource', ticketsSource: 'tracker' })
+    await inSetup({ kind: 'addPick', choice: CHECKOUT }, READ_AT)
+    submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
+    submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })
+    return scenario!
+  }
+
+  /** A query step's submit made inside setup, through the draft. */
+  const inSetup = (edit: StepQueryEdit, readAt = NEXT_READ_AT, stepQuery: StepQuery = MILESTONE_QUERY) =>
+    submitStepQuery(throughDraft(scenario!.using), TEAM, edit, readAt, stepQuery)
+
+  /** A query step as setup shows it, through the draft. */
+  const stepInSetup = (stepQuery: StepQuery = MILESTONE_QUERY) =>
+    queryStepView({ ...throughDraft(scenario!.using), at: { readAt: NEXT_READ_AT, today: TODAY, timeZone: 'UTC' } }, TEAM, '', { unlisted: true }, stepQuery)
+
+  test('picks and a hand-written query made in setup leave the saved queries, saved reads and the forecast unchanged until "Use these"', async () => {
+    const { storage, inputs, forecast } = await setUpThenChange()
+    const before = { inputs: inputs(), forecast: forecast() }
+    expect(before.forecast).toMatchObject({ kind: 'forecast', ticketsRemaining: 3 })
+
+    await inSetup({ kind: 'editQuery', query: BOTH })
+    await inSetup({ kind: 'addPick', choice: Q3_POLISH }, NEXT_READ_AT, COMPARABLE_WORK)
+
+    expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [CHECKOUT], query: CHECKOUT.query })
+    expect(storage.comparableWorkQuery(TEAM)).toBeUndefined()
+    expect(storage.savedRead({ teamId: TEAM, query: BOTH })).toBeUndefined()
+    expect(storage.savedRead({ teamId: TEAM, query: Q3_POLISH.query })).toBeUndefined()
+    expect(storage.savedRead({ teamId: TEAM, query: CHECKOUT.query })?.readAt).toBe(READ_AT)
+    expect(inputs()).toEqual(before.inputs)
+    expect(forecast()).toEqual(before.forecast)
+  })
+
+  test('a first setup’s picks reach nothing either, until "Use these"', async () => {
+    const { connect, storage, inputs } = team()
+    await connect()
+    const before = inputs()
+
+    await inSetup({ kind: 'addPick', choice: CHECKOUT }, READ_AT)
+
+    expect(storage.milestoneQuery(TEAM)).toBeUndefined()
+    expect(inputs()).toEqual(before)
+    expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({ step: 'milestone', next: { step: 'comparableWork' } })
+    submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
+    expect(storage.milestoneQuery(TEAM)?.query).toBe(CHECKOUT.query)
+  })
+
+  test('"Use these" applies the draft’s queries and reads together, and closes setup', async () => {
+    const { storage, forecast } = await setUpThenChange()
+    await inSetup({ kind: 'editQuery', query: BOTH })
+    await inSetup({ kind: 'addPick', choice: Q3_POLISH }, NEXT_READ_AT, COMPARABLE_WORK)
+
+    expect(submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })).toEqual({ saved: true })
+
+    expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [CHECKOUT, Q3_POLISH], query: BOTH })
+    expect(storage.comparableWorkQuery(TEAM)).toEqual({ picks: [Q3_POLISH], query: Q3_POLISH.query })
+    expect(storage.savedRead({ teamId: TEAM, query: BOTH })).toMatchObject({ readAt: NEXT_READ_AT, tickets: open(7) })
+    expect(storage.savedRead({ teamId: TEAM, query: Q3_POLISH.query })?.readAt).toBe(NEXT_READ_AT)
+    expect(storage.setupDraft(TEAM)).toBeUndefined()
+    expect(forecast()).toMatchObject({ kind: 'forecast', ticketsRemaining: 7 })
+    expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({ kind: 'summary', readOn: '13 Nov 10:00' })
+  })
+
+  test('Cancel discards the draft: the Inputs view and the Milestone forecast view are as they were before setup opened', async () => {
+    const { storage, inputs, forecast } = await setUpThenChange()
+    const before = { inputs: inputs(), forecast: forecast() }
+    await inSetup({ kind: 'editQuery', query: BOTH })
+    await inSetup({ kind: 'addPick', choice: Q3_POLISH }, NEXT_READ_AT, COMPARABLE_WORK)
+
+    expect(submitSetup(settingUp(scenario!), TEAM, { kind: 'cancel' })).toEqual({ saved: true })
+
+    expect(storage.setupDraft(TEAM)).toBeUndefined()
+    expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({ kind: 'summary', readOn: '12 Nov 09:05' })
+    expect(inputs()).toEqual(before.inputs)
+    expect(forecast()).toEqual(before.forecast)
+    submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })
+    expect(await stepInSetup()).toMatchObject({ query: CHECKOUT.query, picks: [CHECKOUT], read: '3 open · 4 finished in the last 9 weeks' })
+  })
+
+  test('Cancel is offered once setup opens again from its summary, and not in a first setup, where it is refused', async () => {
+    const { connect } = team()
+    await connect()
+    await inSetup({ kind: 'addPick', choice: CHECKOUT }, READ_AT)
+
+    expect(setupView(settingUp(scenario!), TEAM)).not.toHaveProperty('cancel')
+    expect(submitSetup(settingUp(scenario!), TEAM, { kind: 'cancel' })).toEqual({ saved: false })
+    expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({ kind: 'steps', step: 'milestone' })
+
+    submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
+    submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })
+    expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({ kind: 'steps', step: 'milestone', cancel: true })
+    expect(setupView(settingUp(scenario!), TEAM, 'check')).toMatchObject({ step: 'check', cancel: true })
+  })
+
+  test('a query edit in setup is read at once, and the step shows its read and flags, from the draft', async () => {
+    await setUpThenChange()
+    scenario!.fixture.reads['is:open'] = { tickets: open(2), incomplete: true }
+
+    expect(await inSetup({ kind: 'editQuery', query: BOTH })).toMatchObject({ kind: 'saved', read: { ok: true } })
+    expect(await stepInSetup()).toMatchObject({ query: BOTH, read: '7 open · 0 finished in the last 9 weeks' })
+
+    await inSetup({ kind: 'editQuery', query: 'is:open' })
+    expect(await stepInSetup()).toMatchObject({ query: 'is:open', flag: expect.stringContaining('gave only part') })
+  })
+
+  test('a query refused in setup leaves the draft as it was', async () => {
+    const { storage } = await setUpThenChange()
+    scenario!.fixture.reads['closed:>2026-13-45'] = { failure: 'invalidQuery', message: 'Invalid date' }
+    await inSetup({ kind: 'editQuery', query: BOTH })
+    const draft = storage.setupDraft(TEAM)
+
+    expect(await inSetup({ kind: 'editQuery', query: 'closed:>2026-13-45' })).toMatchObject({ kind: 'refused' })
+    expect(await inSetup({ kind: 'editQuery', query: 'label:checkout payments' })).toMatchObject({ kind: 'refused' })
+
+    expect(storage.setupDraft(TEAM)).toEqual(draft)
+    expect(await stepInSetup()).toMatchObject({ query: BOTH })
   })
 })

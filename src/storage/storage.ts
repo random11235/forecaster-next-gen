@@ -4,6 +4,7 @@ import type { Connection } from '../model/connection.js'
 import type { MilestoneInputs } from '../model/milestoneInputs.js'
 import type { MilestoneQuery } from '../model/milestoneQuery.js'
 import type { SavedRead, TeamQuery } from '../model/savedRead.js'
+import type { SetupDraft } from '../model/setupDraft.js'
 import type { Team } from '../model/team.js'
 
 /**
@@ -87,7 +88,8 @@ export type SetupClosed = 'done' | 'skipped'
 
 /**
  * How the team's setup steps were closed (#217), if they were: the Inputs screen shows the summary, or the inputs typed,
- * instead of the steps. Open until closed, and open again when the EM changes them. The browser build has no setup steps.
+ * instead of the steps. Open until closed, and open again when the EM changes them. Beside it, the setup draft: what
+ * the EM has chosen in the steps and not yet applied (#218). The browser build has no setup steps.
  */
 export interface SetupStorage {
   /** How the team's setup was closed, if it was. */
@@ -96,4 +98,10 @@ export interface SetupStorage {
   closeSetup(teamId: string, closed: SetupClosed): void
   /** Opens the team's setup steps again. */
   reopenSetup(teamId: string): void
+  /** What the EM has chosen inside setup and not yet applied (#218), if anything: kept apart from the saved queries and reads. */
+  setupDraft(teamId: string): SetupDraft | undefined
+  /** Replaces the team's setup draft whole. */
+  saveSetupDraft(teamId: string, draft: SetupDraft): void
+  /** Throws the team's setup draft away, if it has one. */
+  discardSetupDraft(teamId: string): void
 }
