@@ -783,7 +783,7 @@ describe('a data file from schema version 17, before previous reads', () => {
     const again = openSqliteStorage(file)
     expect(again.previousRead({ teamId: TEAM, query })).toEqual(saved)
     again.close()
-    expect(versionOf(file)).toBe(21)
+    expect(versionOf(file)).toBe(22)
   })
 })
 
@@ -829,7 +829,7 @@ describe('a data file from schema version 18, before reads reached back past ski
     open(file).saveRead({ teamId: TEAM, query: 'milestone:"Launch"' }, read)
 
     expect(open(file).savedRead({ teamId: TEAM, query: 'milestone:"Launch"' })).toEqual(read)
-    expect(versionOf(file)).toBe(21)
+    expect(versionOf(file)).toBe(22)
   })
 })
 
@@ -856,7 +856,7 @@ describe('a data file from schema version 19, before setup closed to a summary',
 
     expect(open(file).setupClosed('sample-team')).toBe('skipped')
     expect(open(file).setupClosed(TEAM)).toBeUndefined()
-    expect(versionOf(file)).toBe(21)
+    expect(versionOf(file)).toBe(22)
   })
 })
 
@@ -879,7 +879,27 @@ describe('a data file from schema version 20, before setup held a draft', () => 
     open(file).saveSetupDraft(TEAM, { reads: [] })
 
     expect(open(file).setupDraft(TEAM)).toEqual({ reads: [] })
-    expect(versionOf(file)).toBe(21)
+    expect(versionOf(file)).toBe(22)
+  })
+})
+
+/** Version 21's tables: version 20's, with the setup draft as #218 shipped it. Kept verbatim: it is a past release. */
+const VERSION_21_SCHEMA = `${VERSION_20_SCHEMA}
+CREATE TABLE setup_drafts (
+  team_id TEXT PRIMARY KEY REFERENCES teams(id),
+  draft TEXT NOT NULL
+);
+`
+
+describe('a data file from schema version 21, before a failed read was kept', () => {
+  test('has no read failures, and takes them', () => {
+    const file = writeFile('v21.db', VERSION_21_SCHEMA, 21)
+    expect(open(file).readFailures(TEAM)).toBeUndefined()
+
+    open(file).saveReadFailures(TEAM, { whole: { failure: 'unavailable', at: '2026-11-12T09:00:00Z' } })
+
+    expect(open(file).readFailures(TEAM)).toEqual({ whole: { failure: 'unavailable', at: '2026-11-12T09:00:00Z' } })
+    expect(versionOf(file)).toBe(22)
   })
 })
 
