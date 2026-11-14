@@ -11,7 +11,8 @@ import { COMPARABLE_WORK } from '../../src/forecast/stepQuery.js'
 import { paceReads } from '../../src/forecast/paceReads.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
-import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
+import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
+import type { TeamStorage } from '../trackerScenario.js'
 
 // Where pace's finished tickets come from (#203): comparable work alone once it is added, else the milestone's own.
 
@@ -67,7 +68,7 @@ const MILESTONE_COUNTS = [0, 0, 2, 1, 0, 0, 0, 1]
 const PAYMENTS_COUNTS = [0, 1, 1, 0, 1, 0, 0, 0]
 
 let dir: string
-let storage: SqliteStorage
+let storage: TeamStorage
 let using: StepReading
 
 beforeEach(async () => {

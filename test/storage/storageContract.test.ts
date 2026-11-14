@@ -10,8 +10,8 @@ import type { MilestoneQuery } from '../../src/model/milestoneQuery.js'
 import type { SavedRead } from '../../src/model/savedRead.js'
 import type { MilestoneInputs } from '../../src/model/milestoneInputs.js'
 import type { Team } from '../../src/model/team.js'
-import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
-import type { Storage } from '../../src/storage/storage.js'
+import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
+import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage, Storage } from '../../src/storage/storage.js'
 import { openWebStorage, type KeyValueStore } from '../../src/storage/webStorage.js'
 
 // What every Storage keeps, whatever it keeps it in: the local app's SQLite file and the web build's browser storage.
@@ -233,10 +233,10 @@ describe.each(kinds)('%s storage', (_, opened) => {
 // Only the local server build keeps a connection: the browser build has no connectors (#155), so its Storage has no
 // place for one.
 describe("SQLite storage's connection", () => {
-  function sqliteFile(): { storage: SqliteStorage; reopen: () => SqliteStorage } {
+  function sqliteFile(): { storage: Storage & ConnectionStorage; reopen: () => Storage & ConnectionStorage } {
     dir = mkdtempSync(join(tmpdir(), 'forecaster-'))
     const file = join(dir, 'forecaster.db')
-    const reopen = (): SqliteStorage => {
+    const reopen = (): Storage & ConnectionStorage => {
       open?.close()
       const storage = openSqliteStorage(file)
       open = storage
@@ -292,10 +292,10 @@ describe("SQLite storage's saved reads", () => {
     finishedSince: '2026-09-09T08:15:00Z',
   }
 
-  function sqliteFile(): { storage: SqliteStorage; reopen: () => SqliteStorage } {
+  function sqliteFile(): { storage: Storage & SavedReadStorage; reopen: () => Storage & SavedReadStorage } {
     dir = mkdtempSync(join(tmpdir(), 'forecaster-'))
     const file = join(dir, 'forecaster.db')
-    const reopen = (): SqliteStorage => {
+    const reopen = (): Storage & SavedReadStorage => {
       open?.close()
       const storage = openSqliteStorage(file)
       open = storage
@@ -386,10 +386,10 @@ describe("SQLite storage's milestone query", () => {
     query: 'parent-issue:acme/checkout#106 OR label:"payments"',
   }
 
-  function sqliteFile(): { storage: SqliteStorage; reopen: () => SqliteStorage } {
+  function sqliteFile(): { storage: Storage & MilestoneQueryStorage; reopen: () => Storage & MilestoneQueryStorage } {
     dir = mkdtempSync(join(tmpdir(), 'forecaster-'))
     const file = join(dir, 'forecaster.db')
-    const reopen = (): SqliteStorage => {
+    const reopen = (): Storage & MilestoneQueryStorage => {
       open?.close()
       const storage = openSqliteStorage(file)
       open = storage

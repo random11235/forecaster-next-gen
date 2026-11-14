@@ -1,8 +1,7 @@
-import type { MilestoneInputs, PaceAction, PaceMode } from '../model/milestoneInputs.js'
-import { addDays, dayMonth, daysBetween } from './calendarDate.js'
+import type { PaceAction } from '../model/milestoneInputs.js'
+import { dayMonth } from './calendarDate.js'
 import type { PeriodName } from './cadence.js'
 import type { PaceReads } from './paceReads.js'
-import type { Measured } from './trackerReads.js'
 
 /** Counts, oldest first, each period starting on the date at the same place in `starts`. */
 export interface DatedCounts {
@@ -13,42 +12,6 @@ export interface DatedCounts {
 /** The same counts, in the same order; never with none to compare. */
 export function sameCounts(some: readonly number[], others: readonly number[] | undefined): boolean {
   return others !== undefined && some.length === others.length && some.every((count, period) => count === others[period])
-}
-
-/**
- * The pace the forecast uses, as the EM chose it, with what the tracker measures (`measured`; none with no
- * connection): following the tracker falls back to the typed counts with no connection to follow.
- */
-export function paceSource(inputs: MilestoneInputs, measured: Measured | undefined): PaceMode {
-  return inputs.paceMode === 'tracker' && !measured ? 'counts' : inputs.paceMode
-}
-
-/**
- * The counts pace is drawn from, `all`: following the tracker, the tracker's window (`trackerWindow`); otherwise the
- * typed counts, dated back from the current period on `today`, the last being the most recent whole one. And `window`,
- * those of them the pace is drawn from once its action is applied.
- */
-export function paceWindow(inputs: MilestoneInputs, today: string, measured?: Measured): { all: DatedCounts; window: DatedCounts } {
-  const all = paceSource(inputs, measured) === 'tracker' ? (measured?.pace?.window ?? { counts: [], starts: [] }) : typedCounts(inputs, today)
-  const action = inputs.paceWindow.action
-  if (action === undefined || inputs.startDate === undefined) return { all, window: all }
-  return { all, window: withAction(all, action) }
-}
-
-/** The milestone's typed counts, dated back from the current period on `today`. */
-function typedCounts(inputs: MilestoneInputs, today: string): DatedCounts {
-  const counts = inputs.paceCounts
-  const starts = inputs.startDate === undefined ? [] : typedCountStarts(counts.length, inputs.startDate, inputs.cadenceDays, today)
-  return { counts: [...counts], starts }
-}
-
-/**
- * The first day of each typed count's period, oldest first. They are dated back from the current period (the one
- * holding `today`, in periods counted from the start date): the last count is the most recent whole period.
- */
-function typedCountStarts(counts: number, startDate: string, periodDays: number, today: string): string[] {
-  const current = Math.floor(daysBetween(startDate, today) / periodDays)
-  return Array.from({ length: counts }, (_, count) => addDays(startDate, (current - counts + count) * periodDays))
 }
 
 /** The most periods the tracker's pace counts. */

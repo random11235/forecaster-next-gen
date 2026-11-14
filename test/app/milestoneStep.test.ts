@@ -5,7 +5,8 @@ import { cannedConnector, type CannedFixture } from '../../src/connectors/canned
 import type { Choice, ChoicesOfKind } from '../../src/connectors/connector.js'
 import type { Connecting } from '../../src/forecast/connection.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
-import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
+import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
+import type { TeamStorage } from '../trackerScenario.js'
 import { openWebStorage } from '../../src/storage/webStorage.js'
 
 // The Milestone step on the Inputs screen (#191), through the local server as the EM's browser sees it, on the canned
@@ -28,7 +29,7 @@ const FIXTURE: CannedFixture = {
 }
 
 let app: RunningApp | undefined
-let storage: SqliteStorage | undefined
+let storage: TeamStorage | undefined
 
 afterEach(async () => {
   await app?.close()

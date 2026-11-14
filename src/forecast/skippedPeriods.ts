@@ -1,13 +1,17 @@
 import type { Storage } from '../storage/storage.js'
 import { periodName } from './cadence.js'
 import { isCalendarDate } from './calendarDate.js'
-import { teamConnection, type Connecting } from './connection.js'
+import { teamConnection } from './connection.js'
 import { finishedSinceFor, readQuery } from './finished.js'
 import { inputsView, type Submitted } from './inputs.js'
+import type { StepReading } from './queryStep.js'
 import type { ForecastSettings } from './settings.js'
 
-/** What skipping reads and saves: the team's connection, queries and reads, and what is stored, the milestone's inputs among it. */
-export interface Skipping extends Connecting {
+/**
+ * What skipping reads and saves: what a query step reads with, the milestone's inputs held in the whole of what is
+ * stored, which a refused skip's Inputs screen is shown from.
+ */
+export interface Skipping extends StepReading {
   milestoneInputs: Storage
 }
 

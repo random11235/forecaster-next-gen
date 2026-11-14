@@ -4,7 +4,8 @@ import { cannedConnector, type CannedFixture } from '../../src/connectors/canned
 import type { Choice, Connector } from '../../src/connectors/connector.js'
 import type { Connecting } from '../../src/forecast/connection.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
-import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
+import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
+import type { TeamStorage } from '../trackerScenario.js'
 
 // Candidates for comparable work on the Inputs screen (#205), through the local server, on the canned connector.
 
@@ -36,7 +37,7 @@ const FIXTURE: CannedFixture = {
 }
 
 let app: RunningApp | undefined
-let storage: SqliteStorage | undefined
+let storage: TeamStorage | undefined
 let reads: string[] = []
 
 afterEach(async () => {

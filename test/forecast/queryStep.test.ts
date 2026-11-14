@@ -12,7 +12,8 @@ import { followRenamedMilestone } from '../../src/forecast/milestoneRenamed.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import type { MilestoneQuery } from '../../src/model/milestoneQuery.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
-import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
+import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
+import type { TeamStorage } from '../trackerScenario.js'
 
 // The Milestone step (#191): picking the milestone's tickets, joining the picks into the milestone query, and its read.
 
@@ -45,7 +46,7 @@ const FIXTURE: CannedFixture = {
 
 let dir: string
 let file: string
-let storage: SqliteStorage
+let storage: TeamStorage
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'forecaster-milestone-step-'))

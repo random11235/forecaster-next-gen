@@ -13,20 +13,21 @@ export interface KeyValueStore {
 /** Where the data is kept in the browser's storage: everything, as one JSON value. */
 const KEY = 'forecaster'
 
-/**
- * Milestone inputs as an earlier build may have stored them: before the pace window (#161), or before sources, skips
- * and reads seen (#210).
- */
-type StoredMilestoneInputs = Omit<MilestoneInputs, 'paceWindow' | 'ticketsSource' | 'seenReads'> & {
-  paceWindow?: Partial<MilestoneInputs['paceWindow']>
-  ticketsSource?: MilestoneInputs['ticketsSource']
-  seenReads?: Partial<MilestoneInputs['seenReads']>
-}
-
 /** Everything stored, by team ID. Fields are only ever added, so data from an earlier build still reads. */
 interface Stored {
   teams: Team[]
-  milestoneInputs: Record<string, StoredMilestoneInputs>
+  /**
+   * Each team's milestone inputs, missing the fields added since the build that stored them: the pace window (#161),
+   * or sources, skips and reads seen (#210).
+   */
+  milestoneInputs: Record<
+    string,
+    Omit<MilestoneInputs, 'paceWindow' | 'ticketsSource' | 'seenReads'> & {
+      paceWindow?: Partial<MilestoneInputs['paceWindow']>
+      ticketsSource?: MilestoneInputs['ticketsSource']
+      seenReads?: Partial<MilestoneInputs['seenReads']>
+    }
+  >
   ambiguityRanges: Record<string, AmbiguityRanges>
   /** Each team's capacity entries; an entry running onward has no `to`. */
   capacityEntries: Record<string, CapacityEntry[]>
@@ -112,7 +113,7 @@ export function openWebStorage(store: KeyValueStore | undefined): Storage {
  * The milestone inputs, with what an earlier build didn't store at its default: no action and no skips, tickets typed,
  * nothing seen. JSON drops an undefined `readAt`, so it is read back as undefined.
  */
-function withDefaults({ paceWindow, ticketsSource, seenReads, ...inputs }: StoredMilestoneInputs): MilestoneInputs {
+function withDefaults({ paceWindow, ticketsSource, seenReads, ...inputs }: Stored['milestoneInputs'][string]): MilestoneInputs {
   return {
     ...inputs,
     ticketsSource: ticketsSource ?? 'typed',

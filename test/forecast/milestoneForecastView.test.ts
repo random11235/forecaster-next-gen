@@ -109,6 +109,7 @@ describe('the forecast from what the EM enters', () => {
       horizonDate: '2029-08-28',
       cadenceDays: 7,
       pace: { source: 'range', low: 5, high: 5 },
+      paceSaid: '5–5 tickets per week (range)',
       ambiguity: { level: 'medium', low: 1, high: 1 },
       warnings: [],
       finishGraph: [
@@ -375,7 +376,7 @@ describe('the cadence', () => {
     expect(edit(storage, { kind: 'setCadence', cadenceDays: '14' })).toEqual({ ok: true })
 
     const forecast = view(storage)
-    expect(forecast).toMatchObject({ cadenceDays: 14, pace: { source: 'range', low: 4, high: 8 } })
+    expect(forecast).toMatchObject({ cadenceDays: 14, pace: { source: 'range', low: 4, high: 8 }, paceSaid: '4–8 tickets per sprint (range)' })
     if (forecast.kind !== 'forecast') throw new Error('expected a forecast')
     forecast.dates.forEach(({ date }, index) => expect(date! > DATES_FROM_1_SEP[index]!.date).toBe(true))
   })
@@ -512,6 +513,7 @@ describe('typed counts', () => {
       kind: 'forecast',
       dates: [50, 70, 85, 95].map((percent) => ({ percent, date: '2026-09-15' })),
       pace: { source: 'counts', counts: [5, 5, 5, 5, 5, 5, 5, 5] },
+      paceSaid: 'typed counts, 8 weeks',
       warnings: [],
     })
   })

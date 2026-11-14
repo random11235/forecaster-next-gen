@@ -4,7 +4,8 @@ import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js
 import { openWebApp } from '../../src/app/webApp.js'
 import type { Connecting } from '../../src/forecast/connection.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
-import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
+import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
+import type { TeamStorage } from '../trackerScenario.js'
 import { openWebStorage } from '../../src/storage/webStorage.js'
 
 // The Connect step on the Inputs screen (#181), through the local server as the EM's browser sees it, on the canned
@@ -15,7 +16,7 @@ const TOKEN = 'github_pat_11ABCDEFG0123456789_secret'
 const CHOICES: CannedFixture['milestoneChoices'] = [{ kind: 'milestone', choices: [{ kind: 'milestone', name: 'Checkout v2', query: 'milestone:"Checkout v2"' }], pastLimit: false }]
 
 let app: RunningApp | undefined
-let storage: SqliteStorage | undefined
+let storage: TeamStorage | undefined
 
 afterEach(async () => {
   await app?.close()
