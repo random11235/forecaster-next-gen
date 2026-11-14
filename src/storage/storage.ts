@@ -81,3 +81,19 @@ export interface MilestoneQueryStorage {
   /** Comparable work's picks and query, if the EM has picked or written one. */
   comparableWorkQuery(teamId: string): MilestoneQuery | undefined
 }
+
+/** How the team's setup steps were closed: `done` with "Use these", or `skipped` when the EM typed the inputs instead. */
+export type SetupClosed = 'done' | 'skipped'
+
+/**
+ * How the team's setup steps were closed (#217), if they were: the Inputs screen shows the summary, or the inputs typed,
+ * instead of the steps. Open until closed, and open again when the EM changes them. The browser build has no setup steps.
+ */
+export interface SetupStorage {
+  /** How the team's setup was closed, if it was. */
+  setupClosed(teamId: string): SetupClosed | undefined
+  /** Closes the team's setup, replacing how it was closed before. */
+  closeSetup(teamId: string, closed: SetupClosed): void
+  /** Opens the team's setup steps again. */
+  reopenSetup(teamId: string): void
+}
