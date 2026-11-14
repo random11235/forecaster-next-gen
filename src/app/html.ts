@@ -282,7 +282,7 @@ const STYLE = `
     .week-blocks .blocks .block { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; font-size: 11px; color: var(--muted); }
     .week-blocks .blocks .block.skipped { width: 56px; padding: 4px; border: 1px dashed var(--hairline); }
     .week-blocks .blocks .block.skipped s { font-family: var(--mono); font-size: 16px; color: var(--muted); }
-    .reading-line.empty { color: var(--risk); }
+    section.input form.skipped-line { display: block; }
     fieldset.levels .range { font-family: var(--mono); font-size: 13px; color: var(--muted); }
     table.growth { border-collapse: collapse; }
     table.growth th { padding: 0 24px 6px 0; text-align: left; font-size: 12px; font-weight: 500; color: var(--faint); }

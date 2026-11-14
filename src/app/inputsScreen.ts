@@ -291,7 +291,8 @@ function trackerPace({ tracker, reading }: PaceSourceView, period: PeriodName, f
   if (!reading) return `\n          <p class="reading-line">${period}s finished · ${escapeHtml(tracker)}, not read yet</p>`
   const { window, skipped, periods, skippedLine, firstFinished, readOn } = reading
   const everySkipped = window.counts.length === 0 && skipped.counts.some((count) => count > 0)
-  const lines = `${everySkipped ? `\n          <p class="reading-line empty">Every ${period} is skipped, so ${escapeHtml(tracker)} gives no pace. Count a ${period} again, or use Typed counts or Range.</p>` : ''}
+  // with every period skipped, the pace's note says so, and how to have a pace again
+  const lines = `
           <p class="reading-line">${escapeHtml(periods)} · read ${escapeHtml(readOn)}</p>${firstFinished ? `\n          <p class="reading-line">${escapeHtml(firstFinished)}</p>` : ''}${skippedLine ? countAgainLine(skippedLine, skipped.starts) : ''}`
   if (window.counts.length === 0 && !everySkipped) return lines
   // the periods counted and those skipped, oldest first: a skipped one is a gap
@@ -336,7 +337,7 @@ function trackerPace({ tracker, reading }: PaceSourceView, period: PeriodName, f
 function countAgainLine(line: string, starts: readonly string[]): string {
   const periods = starts.map((start) => `<input type="hidden" name="period" value="${start}">`).join('')
   return `
-          <form method="post" action="/inputs/pace-count-again#pace-tracker" class="reading-line">${escapeHtml(line)} ${periods}<button type="submit" class="linkish">count ${starts.length === 1 ? 'it' : 'them'} again</button></form>`
+          <form method="post" action="/inputs/pace-count-again#pace-tracker" class="reading-line skipped-line">${escapeHtml(line)} ${periods}<button type="submit" class="linkish">count ${starts.length === 1 ? 'it' : 'them'} again</button></form>`
 }
 
 /**
