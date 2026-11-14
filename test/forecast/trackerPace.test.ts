@@ -191,6 +191,30 @@ describe('the window', () => {
   })
 })
 
+describe('an incomplete read', () => {
+  test('with no other read to take pace from, pace is marked incomplete, and the forecast doesn’t use part of a pace', async () => {
+    await connectGitHub()
+    fixture.reads[checkout.query] = { tickets: [...OPEN, ...finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8])], incomplete: true }
+    await enterAndPick()
+    submit({ kind: 'setPaceMode', paceMode: 'tracker' })
+
+    expect(inputs().milestone.paceSource).toMatchObject({ tracker: 'GitHub', reading: undefined, incomplete: true })
+    expect(forecast()).toMatchObject({
+      kind: 'problems',
+      problems: expect.arrayContaining([
+        { input: 'pace', message: 'GitHub gave only part of the finished tickets its queries match, so its pace isn’t known. Narrow the query, or type counts, or switch pace to the range.' },
+      ]),
+    })
+  })
+
+  test('with a complete read, pace is not marked incomplete', async () => {
+    await connectGitHub()
+    await enterAndPick()
+
+    expect(inputs().milestone.paceSource).toMatchObject({ incomplete: false })
+  })
+})
+
 describe('switching pace', () => {
   beforeEach(async () => {
     await connectGitHub()

@@ -284,7 +284,7 @@ const STYLE = `
     .reads-differently-panel { position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; width: min(420px, 80vw); display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; background: var(--page); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); font-size: 13px; color: var(--ink); white-space: normal; }
     .reads-differently-panel p { margin: 0; }
     .reads-differently-panel .reading-line { margin: 0; font-size: 12px; color: var(--muted); }
-    .reads-differently-panel .incomplete { font-size: 12px; font-weight: 600; color: var(--risk); }
+    .reads-differently-panel .incomplete, .pace-following .incomplete { font-size: 12px; font-weight: 600; color: var(--risk); }
     .reads-differently-actions { display: flex; gap: 8px; }
     /* Pace following the tracker: its counts as bars, a quiet period a red stub, its periods behind Show weeks. */
     .pace-following { display: flex; flex-direction: column; gap: 6px; }
