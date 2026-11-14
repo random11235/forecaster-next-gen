@@ -236,11 +236,20 @@ CREATE TABLE milestone_queries (
   picks TEXT NOT NULL
 );
 `,
+  // 16: comparable work's picks and query (#201), in the milestone query's shape, kept apart from it. A file from
+  // before has neither.
+  `
+CREATE TABLE comparable_work_queries (
+  team_id TEXT PRIMARY KEY REFERENCES teams(id),
+  query TEXT NOT NULL,
+  picks TEXT NOT NULL
+);
+`,
 ]
 
 type Row = Record<string, SQLInputValue>
 
-/** The local server build's storage: everything, and the team's connection, saved reads and milestone query. */
+/** The local server build's storage: everything, and the team's connection, saved reads, milestone query and comparable work's. */
 export type SqliteStorage = Storage & ConnectionStorage & SavedReadStorage & MilestoneQueryStorage
 
 /** Opens (creating if needed) the SQLite file at `file`. `':memory:'` keeps everything in memory. */
@@ -313,6 +322,10 @@ export function openSqliteStorage(file: string): SqliteStorage {
     INSERT INTO milestone_queries (team_id, query, picks) VALUES (?, ?, ?)
     ON CONFLICT (team_id) DO UPDATE SET query = excluded.query, picks = excluded.picks`)
   const selectMilestoneQuery = db.prepare('SELECT query, picks FROM milestone_queries WHERE team_id = ?')
+  const upsertComparableWorkQuery = db.prepare(`
+    INSERT INTO comparable_work_queries (team_id, query, picks) VALUES (?, ?, ?)
+    ON CONFLICT (team_id) DO UPDATE SET query = excluded.query, picks = excluded.picks`)
+  const selectComparableWorkQuery = db.prepare('SELECT query, picks FROM comparable_work_queries WHERE team_id = ?')
 
   return {
     isEmpty() {
@@ -469,21 +482,37 @@ export function openSqliteStorage(file: string): SqliteStorage {
       } satisfies SavedRead
     },
 
-    saveMilestoneQuery(teamId, { picks, query }) {
-      const kept = picks.map(({ kind, name, query }) => ({ kind, name, query }))
-      upsertMilestoneQuery.run(teamId, query, JSON.stringify(kept))
+    saveMilestoneQuery(teamId, milestoneQuery) {
+      upsertMilestoneQuery.run(teamId, milestoneQuery.query, picksKept(milestoneQuery.picks))
     },
 
     milestoneQuery(teamId) {
-      const row = selectMilestoneQuery.get(teamId)
-      if (row === undefined) return undefined
-      return { picks: picksIn(String(row.picks)), query: String(row.query) } satisfies MilestoneQuery
+      return queryIn(selectMilestoneQuery.get(teamId))
+    },
+
+    saveComparableWorkQuery(teamId, comparableWorkQuery) {
+      upsertComparableWorkQuery.run(teamId, comparableWorkQuery.query, picksKept(comparableWorkQuery.picks))
+    },
+
+    comparableWorkQuery(teamId) {
+      return queryIn(selectComparableWorkQuery.get(teamId))
     },
 
     close() {
       db.close()
     },
   }
+}
+
+/** The picks as a row keeps them: a JSON array of each one's kind, name and query, in order, and nothing else of it. */
+function picksKept(picks: readonly Choice[]): string {
+  return JSON.stringify(picks.map(({ kind, name, query }) => ({ kind, name, query })))
+}
+
+/** The picks and query a row of `milestone_queries` or `comparable_work_queries` keeps; none for no row. */
+function queryIn(row: Row | undefined): MilestoneQuery | undefined {
+  if (row === undefined) return undefined
+  return { picks: picksIn(String(row.picks)), query: String(row.query) }
 }
 
 /**

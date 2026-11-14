@@ -653,7 +653,37 @@ describe("a data file from schema version 14, before the milestone's picks and q
     const again = openSqliteStorage(file)
     expect(again.milestoneQuery(TEAM)).toEqual(picked)
     again.close()
-    expect(versionOf(file)).toBe(15)
+    expect(versionOf(file)).toBeGreaterThan(14)
+  })
+})
+
+/** Version 15's tables: version 14's, plus the milestone's picks and query as #190 shipped them. Kept verbatim: it is a past release. */
+const VERSION_15_SCHEMA = `${VERSION_14_SCHEMA}
+CREATE TABLE milestone_queries (
+  team_id TEXT PRIMARY KEY REFERENCES teams(id),
+  query TEXT NOT NULL,
+  picks TEXT NOT NULL
+);
+INSERT INTO milestone_queries VALUES ('${TEAM}', 'milestone:"Launch"', '[{"kind":"milestone","name":"Launch","query":"milestone:\\"Launch\\""}]');
+`
+
+describe("a data file from schema version 15, before comparable work's picks and query", () => {
+  test("keeps the milestone's picks and query unchanged, has no comparable work, and takes it, which survives reopening", () => {
+    const file = writeFile('v15.db', VERSION_15_SCHEMA, 15)
+    const storage = openSqliteStorage(file)
+    const launch: MilestoneQuery = { picks: [{ kind: 'milestone', name: 'Launch', query: 'milestone:"Launch"' }], query: 'milestone:"Launch"' }
+    expect(storage.milestoneQuery(TEAM)).toEqual(launch)
+    expect(storage.comparableWorkQuery(TEAM)).toBeUndefined()
+
+    const comparable: MilestoneQuery = { picks: [{ kind: 'label', name: 'checkout', query: 'label:"checkout"' }], query: 'label:"checkout"' }
+    storage.saveComparableWorkQuery(TEAM, comparable)
+    storage.close()
+
+    const again = openSqliteStorage(file)
+    expect(again.comparableWorkQuery(TEAM)).toEqual(comparable)
+    expect(again.milestoneQuery(TEAM)).toEqual(launch)
+    again.close()
+    expect(versionOf(file)).toBe(16)
   })
 })
 
