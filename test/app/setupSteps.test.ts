@@ -5,7 +5,7 @@ import type { Connecting } from '../../src/forecast/connection.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import { CHECKOUT, TODAY, type TeamStorage } from '../trackerScenario.js'
-import { page, post } from './appOnTracker.js'
+import { appOnTracker, page, post, type AppOnTracker } from './appOnTracker.js'
 
 // The Inputs screen's setup steps (#217), through the local server as the EM's browser sees it, on the canned
 // connector: one step at a time, Back and Next between them, closing with "Use these" to a summary.
@@ -130,10 +130,31 @@ describe('"Use these"', () => {
 
     const html = await page(running, '/inputs')
     const summary = html.slice(html.indexOf('id="setup-summary"'), html.indexOf('id="milestone"'))
-    expect(summary).toMatch(/<dt>Milestone<\/dt>\s*<dd>Checkout v2 <span class="kind">\(milestone\)<\/span><\/dd>/)
+    expect(summary).toMatch(/<dt>Milestone<\/dt>\s*<dd>Checkout v2 <span class="kind">\(milestone\)<\/span> · 1<\/dd>/)
     expect(summary).not.toContain('<dt>Comparable</dt>')
     expect(html.split('Leaf tickets only. Epics include their sub-epics.')).toHaveLength(2)
     expect(summary).not.toContain('class="note warn flag"')
+  })
+
+  test('the summary gives each pick its count, a pick of several read once Check opens', async () => {
+    const SEARCH = { kind: 'epic', name: '#57 Search revamp', query: 'parent-issue:shop-team/shop#57' }
+    FIXTURE.reads[SEARCH.query] = { tickets: [{ id: 's1' }, { id: 's2', finishedAt: `${TODAY}T08:00:00Z` }], incomplete: false }
+    const running = await picked()
+    await post(running, '/inputs/milestone-query/add', SEARCH)
+    const rowOf = async () => {
+      const html = await page(running, '/inputs')
+      return html.slice(html.indexOf('<dt>Milestone</dt>'), html.indexOf('</dd>', html.indexOf('<dt>Milestone</dt>')))
+    }
+
+    await post(running, '/inputs/setup/use-these', {})
+    delete FIXTURE.reads[SEARCH.query]
+    expect(await rowOf()).toMatch(/#57 Search revamp <span class="kind">\(epic\)<\/span>$/)
+    await post(running, '/inputs/setup/change', {})
+    FIXTURE.reads[SEARCH.query] = { tickets: [{ id: 's1' }, { id: 's2', finishedAt: `${TODAY}T08:00:00Z` }], incomplete: false }
+    await page(running, '/inputs?step=check')
+    delete FIXTURE.reads[SEARCH.query]
+    await post(running, '/inputs/setup/use-these', {})
+    expect(await rowOf()).toMatch(/Checkout v2 <span class="kind">\(milestone\)<\/span> · 1, #57 Search revamp <span class="kind">\(epic\)<\/span> · 2$/)
   })
 
   test('the summary shows a query written by hand as written, and flags a read that matches nothing beneath it', async () => {
@@ -169,6 +190,63 @@ describe('Change', () => {
     expect(stepsOf(html)).toContain('<li aria-current="step">Milestone</li>')
     expect(html).toContain('Checkout v2')
     expect(html).toMatch(/<a href="\/inputs\?step=comparableWork#comparable-work" class="button primary">Next<\/a>/)
+  })
+})
+
+describe('Read again', () => {
+  let onTracker: AppOnTracker | undefined
+  afterEach(async () => {
+    await onTracker?.close()
+    onTracker = undefined
+  })
+
+  /** The app connected to GitHub, the milestone picked and read at 09:00 (3 open), and "Use these". */
+  async function setUp(): Promise<{ fixture: CannedFixture; onTracker: AppOnTracker }> {
+    const fixture: CannedFixture = { ...FIXTURE, reads: { [CHECKOUT.query]: { tickets: [{ id: 'o1' }, { id: 'o2' }, { id: 'o3' }], incomplete: false } } }
+    onTracker = await appOnTracker(fixture)
+    await post(onTracker.running, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
+    await post(onTracker.running, '/inputs/milestone-query/add', { ...CHECKOUT })
+    await post(onTracker.running, '/inputs/setup/use-these', {})
+    onTracker.readAt(`${TODAY}T14:30:00Z`)
+    return { fixture, onTracker }
+  }
+  const summaryOf = (html: string) => html.slice(html.indexOf('id="setup-summary"'), html.indexOf('id="milestone"'))
+
+  test('sits beside Change in the summary’s head, and reads again, the read time updating', async () => {
+    const { fixture, onTracker } = await setUp()
+    const before = summaryOf(await page(onTracker.running, '/inputs'))
+    expect(before).toMatch(/<div class="setup-head">[\s\S]*<form method="post" action="\/inputs\/setup\/read-again">\s*<button type="submit" class="linkish">Read again<\/button>[\s\S]*<\/div>\s*<dl/)
+    fixture.reads[CHECKOUT.query] = { tickets: [{ id: 'o1' }], incomplete: false }
+
+    const read = await post(onTracker.running, '/inputs/setup/read-again', {})
+    expect(read.status).toBe(303)
+    expect(read.headers.get('location')).toBe('/inputs')
+    expect(onTracker.storage.savedRead({ teamId: 'team', query: CHECKOUT.query })).toMatchObject({ readAt: `${TODAY}T14:30:00Z`, tickets: [{ id: 'o1' }] })
+  })
+
+  test('failing, shows the summary saying why beneath it, the saved read in use', async () => {
+    const { fixture, onTracker } = await setUp()
+    fixture.reads[CHECKOUT.query] = { failure: 'unavailable' }
+
+    const failed = await post(onTracker.running, '/inputs/setup/read-again', {})
+    expect(failed.status).toBe(200)
+    const summary = summaryOf(await failed.text())
+    expect(summary).toMatch(/<p class="note warn flag">⚠ GitHub can’t be reached just now, or is limiting requests, so the last read stays in use\. Try again in a few minutes\.<\/p>/)
+    expect(onTracker.storage.savedRead({ teamId: 'team', query: CHECKOUT.query })).toMatchObject({ readAt: `${TODAY}T09:00:00Z` })
+  })
+
+  test('with the token refused, offers Change, which opens the Connect step', async () => {
+    const { fixture, onTracker } = await setUp()
+    fixture.reads[CHECKOUT.query] = { failure: 'unauthorised' }
+
+    const summary = summaryOf(await (await post(onTracker.running, '/inputs/setup/read-again', {})).text())
+    expect(summary).toMatch(/⚠ GitHub refused the token\.[^<]*<form method="post" action="\/inputs\/setup\/change-connection">\s*<button type="submit" class="linkish">Change<\/button>/)
+
+    const changed = await post(onTracker.running, '/inputs/setup/change-connection', {})
+    expect(changed.headers.get('location')).toBe('/inputs?step=connect#connect')
+    const html = await page(onTracker.running, '/inputs?step=connect')
+    expect(stepsOf(html)).toContain('<li aria-current="step">Connect</li>')
+    expect(html).toContain('id="connect"')
   })
 })
 
