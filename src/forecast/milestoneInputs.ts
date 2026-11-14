@@ -18,6 +18,9 @@ export const MAX_CADENCE_DAYS = 365
 /** Far above any real milestone; keeps typos out of the forecast. */
 export const MAX_TICKETS_REMAINING = 100_000
 
+/** The paces the EM can choose: not yet the tracker's, until the tracker pace is offered with a connection (#159). */
+const OFFERED_PACE_MODES: readonly PaceMode[] = PACE_MODES.filter((mode) => mode !== 'tracker')
+
 /** A change the EM makes to the milestone on the Inputs screen, as typed. */
 export type MilestoneInputsEdit =
   | { kind: 'setMilestone'; name: string; startDate: string; ticketsRemaining: string }
@@ -138,7 +141,7 @@ function edited(saved: MilestoneInputs, edit: Exclude<MilestoneInputsEdit, { kin
     case 'removeLastPaceCount':
       return { ...saved, paceCounts: saved.paceCounts.slice(0, -1) }
     case 'setPaceMode': {
-      const paceMode = PACE_MODES.find((mode) => mode === edit.paceMode)
+      const paceMode = OFFERED_PACE_MODES.find((mode) => mode === edit.paceMode)
       if (paceMode === undefined) return refuse('Choose the range or typed counts.')
       return { ...saved, paceMode }
     }
@@ -163,13 +166,15 @@ function newMilestone(teamId: string): MilestoneInputs {
     name: '',
     startDate: undefined,
     ticketsRemaining: undefined,
+    ticketsSource: 'typed',
     ambiguity: 'medium',
     cadenceDays: 7,
     paceMode: 'range',
     paceRange: undefined,
     paceCounts: [],
     paceCadenceDays: undefined,
-    paceWindow: { action: undefined },
+    paceWindow: { action: undefined, skippedPeriods: [] },
+    seenReads: { ticketsRemaining: undefined, pace: undefined },
   }
 }
 
