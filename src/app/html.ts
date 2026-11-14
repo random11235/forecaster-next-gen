@@ -252,6 +252,17 @@ const STYLE = `
     .counts { display: flex; align-items: end; gap: 12px; }
     .counts .fields { flex-wrap: nowrap; }
     .counts button { white-space: nowrap; }
+    .tickets-source { flex: 1 1 200px; display: flex; flex-direction: column; gap: 6px; }
+    .tickets-source fieldset.levels { gap: 0; align-self: flex-start; flex-wrap: nowrap; }
+    .tickets-source fieldset.levels label { flex: 0 0 auto; flex-direction: row; padding: 4px 12px; font-size: 13px; color: var(--text-2); border-radius: 0; }
+    .tickets-source > label { flex: 0 0 auto; display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); }
+    .tickets-source fieldset.levels label:first-child { border-radius: 6px 0 0 6px; }
+    .tickets-source fieldset.levels label:last-child { border-radius: 0 6px 6px 0; margin-left: -1px; }
+    .tickets-source fieldset.levels input { position: absolute; opacity: 0; }
+    .tickets-source .reading { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+    .tickets-source .reading-value { font-size: 32px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+    .tickets-source .reading-line { flex-basis: 100%; font-size: 12px; color: var(--muted); }
+    .tickets-source .incomplete { font-size: 12px; font-weight: 600; color: var(--risk); }
     fieldset.levels .range { font-family: var(--mono); font-size: 13px; color: var(--muted); }
     table.growth { border-collapse: collapse; }
     table.growth th { padding: 0 24px 6px 0; text-align: left; font-size: 12px; font-weight: 500; color: var(--faint); }

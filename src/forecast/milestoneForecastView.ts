@@ -11,6 +11,7 @@ import { paceActionApplied, pacePattern, type PacePatternView } from './pacePatt
 import { paceWindow } from './paceWindow.js'
 import { paceTrend, type PaceTrend } from './paceTrend.js'
 import type { ForecastSettings } from './settings.js'
+import { measured, type ReadingTracker } from './trackerReads.js'
 
 /** The confidence level the headline states. */
 export const HEADLINE_PERCENT = 85
@@ -94,8 +95,11 @@ interface PaceActionRefused {
   paceActionRefusal?: string
 }
 
-/** How the screen is shown: `capacityOpen` with the Capacity section open, where each entry gives its own effect. */
-export interface ForecastViewOptions {
+/**
+ * How the screen is shown: `capacityOpen` with the Capacity section open, where each entry gives its own effect; and
+ * with the team's `tracker` reads (the local server build), which values following the tracker take.
+ */
+export interface ForecastViewOptions extends ReadingTracker {
   capacityOpen?: boolean
 }
 
@@ -108,11 +112,11 @@ export function milestoneForecastView(
   teamId: string,
   settings: ForecastSettings,
   today: string,
-  { capacityOpen = false }: ForecastViewOptions = {},
+  { capacityOpen = false, tracker }: ForecastViewOptions = {},
 ): MilestoneForecastView {
   const saved = storage.milestoneInputs(teamId)
   if (!saved) return { kind: 'empty' }
-  const assessment = assessMilestone(saved, settings, today)
+  const assessment = assessMilestone(saved, settings, today, measured(tracker, teamId))
   if (!assessment.forecastable) {
     const applied = paceActionApplied(saved, today)
     return { kind: 'problems', name: saved.name, problems: assessment.problems, ...(applied && { paceApplied: applied }) }
