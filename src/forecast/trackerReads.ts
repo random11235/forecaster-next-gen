@@ -5,7 +5,7 @@ import { dayMonth } from './calendarDate.js'
 import type { Connecting } from './connection.js'
 import { counted } from './counted.js'
 import { calendarDayIn, ticketsRemaining } from './finished.js'
-import { paceReads, paceReadsStorage, type PaceFrom } from './paceReads.js'
+import { paceReads, paceReadsStorage, type PaceFrom, type PaceReads } from './paceReads.js'
 import { sameCounts, TRACKER_PERIODS, trackerWindow, type DatedCounts, type TrackerWindowBound } from './paceWindow.js'
 import { trackerOf } from './trackers.js'
 
@@ -38,11 +38,14 @@ export interface Measured {
 
 /**
  * The tracker's reading of pace: up to the 8 most recent whole periods its reads reach, at the milestone's cadence,
- * the current one left out and quiet ones 0, leaving out the quiet periods before the first finished ticket.
+ * the current one left out and quiet ones 0, leaving out the quiet periods before the first finished ticket. Kept
+ * within forecast/: the Inputs screen is given `PaceReadingView`.
  */
 export interface PaceReading {
   /** The finished tickets in each period counted, oldest first; empty with nothing finished in any period read. */
   window: DatedCounts
+  /** The periods the EM skipped that the window reaches back past, oldest first, with what each finished. */
+  skipped: DatedCounts
   /** What bounds the window: its reach, the first finished ticket, or, empty, nothing finished or every period skipped. */
   bound: TrackerWindowBound
   /** Whose finished tickets they are: comparable work's, or the milestone's own. */
@@ -54,20 +57,13 @@ export interface PaceReading {
   milestone: DatedCounts | undefined
   /** Comparable work's finished tickets in each period its read reaches whole; none with no query, or no complete read of it. */
   comparableWork: DatedCounts | undefined
-  /**
-   * The periods counted, as the source says them: "last 8 weeks"; "7 weeks · GitHub has nothing before w/c 21 Sep"
-   * when its reads run out first.
-   */
-  periods: string
-  /** The periods the EM skipped that the window reaches back past, oldest first, with what each finished. */
-  skipped: DatedCounts
+  /** What the window's bound says of it (`BOUND_SAID`): its periods, and with none counted, what stops a forecast. */
+  said: BoundSaid
   /**
    * With periods skipped, which, and what the window counts instead: "2 skipped (12 Oct, 19 Oct), reaching back to
    * w/c 31 Aug"; none with none skipped.
    */
   skippedLine: string | undefined
-  /** With the quiet periods before the first finished ticket left out, from when: "From the first finished ticket, 3 Nov." */
-  firstFinished: string | undefined
   /** When the read pace comes from was read, in the EM's time zone: "4 Nov 09:12". */
   readOn: string
   /** The same instant in UTC, as the EM's opening of the reading is kept by (`SeenReads`). */
@@ -77,6 +73,43 @@ export interface PaceReading {
    * before a second read, nor when the read changed nothing.
    */
   was: WasPace | undefined
+}
+
+/** The tracker's reading of pace as the Inputs screen shows it: its periods as bars and blocks, and its lines. */
+export interface PaceReadingView {
+  /**
+   * The periods counted and the skipped ones the window reaches back past, oldest first: a skipped one is a gap. None
+   * with nothing finished in any period read, which has no bars.
+   */
+  periods: { start: string; count: number; skipped: boolean }[]
+  /** The counts in the window, oldest first: what the typed counts start from, taken from these periods. */
+  counts: number[]
+  /**
+   * The periods counted, as the source says them, and when they were read: "last 8 weeks · read 12 Nov 09:00"; "7
+   * weeks · GitHub has nothing before w/c 21 Sep · read …" when its reads run out first.
+   */
+  line: string
+  /** With the quiet periods before the first finished ticket left out, from when: "From the first finished ticket, 3 Nov." */
+  firstFinished: string | undefined
+  /**
+   * With periods skipped, which, and what the window counts instead, with those skipped, to count again: "2 skipped
+   * (12 Oct, 19 Oct), reaching back to w/c 31 Aug"; none with none skipped.
+   */
+  skipped: { line: string; starts: string[] } | undefined
+}
+
+/** The tracker's reading of pace, as the Inputs screen shows it. */
+export function paceReadingView({ window, skipped, said, skippedLine, readOn }: PaceReading): PaceReadingView {
+  const dated = ({ counts, starts }: DatedCounts, isSkipped: boolean) => starts.map((start, at) => ({ start, count: counts[at]!, skipped: isSkipped }))
+  // ISO calendar dates order as strings do
+  const periods = said.bars ? [...dated(window, false), ...dated(skipped, true)].sort((a, b) => a.start.localeCompare(b.start)) : []
+  return {
+    periods,
+    counts: window.counts,
+    line: `${said.periods} · read ${readOn}`,
+    firstFinished: said.firstFinished,
+    skipped: skippedLine === undefined ? undefined : { line: skippedLine, starts: skipped.starts },
+  }
 }
 
 /** The pace the latest read replaced: "was 5, 6, 8 on 28 Oct 09:05". */
@@ -160,39 +193,80 @@ function countsAsThen(reads: TrackerReads, teamId: string, storage: Pick<Storage
   return then && then.from === from ? trackerWindow(then, storage.milestoneInputs(teamId)?.paceWindow.skippedPeriods).window.counts : undefined
 }
 
-/** The tracker's reading of pace, from `paceReads`: the periods it counts and how they are bounded. */
+/** The tracker's reading of pace, from `paceReads`: the periods it counts and how they are bounded; none until its query is read. */
 function paceReading(reads: TrackerReads, teamId: string, storage: Pick<Storage, 'milestoneInputs'>, today: string, tracker: string): PaceReading | undefined {
   const inputs = storage.milestoneInputs(teamId)
   const read = paceReads(paceReadsStorage(storage, reads), teamId, { today, timeZone: reads.timeZone })
-  if (!inputs || !read) return undefined
-  const query = read.from === 'milestone' ? reads.milestoneQueries.milestoneQuery(teamId) : reads.milestoneQueries.comparableWorkQuery(teamId)
+  const query = read?.from === 'milestone' ? reads.milestoneQueries.milestoneQuery(teamId) : reads.milestoneQueries.comparableWorkQuery(teamId)
   const paceRead = savedReadOf(reads, teamId, query?.query)
+  if (!inputs || !read || !paceRead) return undefined
   const { window, skipped, bound } = trackerWindow(read, inputs.paceWindow.skippedPeriods)
   const period = periodName(inputs.cadenceDays)
-  const first = window.starts[0]
-  const periods =
-    bound === 'nothingFinished' ? `nothing finished in the ${counted(read.pace.counts.length, period)} ${tracker} reads`
-    : bound === 'everySkipped' ? `every ${period} skipped`
-    : bound === 'everyFinishedSkipped' ? `every ${period} that finished something skipped`
-    : bound === 'full' ? `last ${counted(TRACKER_PERIODS, period)}`
-    : bound === 'firstFinished' ? counted(window.counts.length, period)
-    // the milestone's own pace counts only the periods since its start date
-    : read.from === 'milestone' && read.beforeStart > 0 ? `${counted(window.counts.length, period)} · since the start date`
-    : `${counted(window.counts.length, period)} · ${tracker} has nothing before ${periodOf(period, first!)}`
   return {
     window,
+    skipped,
     bound,
     from: read.from,
     milestone: read.milestone,
     comparableWork: read.comparableWork,
-    periods,
-    skipped,
+    said: BOUND_SAID[bound]({ tracker, period, window, read }),
     skippedLine: skippedLine(skipped, window, period, tracker),
-    firstFinished: bound === 'firstFinished' ? `From the first finished ticket, ${dayMonth(first!)}.` : undefined,
-    readOn: paceRead ? readOn(paceRead.readAt, reads.timeZone) : '',
+    readOn: readOn(paceRead.readAt, reads.timeZone),
+    readAt: paceRead.readAt,
     was: wasPace(reads, teamId, storage, read.from, query?.query, window.counts),
-    readAt: paceRead?.readAt ?? '',
   }
+}
+
+/**
+ * What a bound says of the window: its periods, as the reading's line says them; whether they are bars to show; with
+ * the quiet periods before the first finished ticket left out, from when; and with none counted, the problem that
+ * stops a forecast.
+ */
+export interface BoundSaid {
+  periods: string
+  bars: boolean
+  firstFinished?: string
+  problem?: string
+}
+
+/** What a bound is said from: the tracker, the milestone's period, the window, and the reads it is taken from. */
+interface Saying {
+  tracker: string
+  period: PeriodName
+  window: DatedCounts
+  read: PaceReads
+}
+
+/** What each bound says of the window, in one place: the reading's line, and the problem when it leaves no pace. */
+const BOUND_SAID: Record<TrackerWindowBound, (saying: Saying) => BoundSaid> = {
+  full: ({ period }) => ({ periods: `last ${counted(TRACKER_PERIODS, period)}`, bars: true }),
+  firstFinished: ({ period, window }) => ({
+    periods: counted(window.counts.length, period),
+    bars: true,
+    firstFinished: `From the first finished ticket, ${dayMonth(window.starts[0]!)}.`,
+  }),
+  reach: ({ tracker, period, window, read }) => ({
+    // the milestone's own pace counts only the periods since its start date
+    periods: `${counted(window.counts.length, period)} · ${read.from === 'milestone' && read.beforeStart > 0 ? 'since the start date' : `${tracker} has nothing before ${periodOf(period, window.starts[0]!)}`}`,
+    bars: true,
+  }),
+  // with nothing finished there are no bars
+  nothingFinished: ({ tracker, period, read }) => ({
+    periods: `nothing finished in the ${counted(read.pace.counts.length, period)} ${tracker} reads`,
+    bars: false,
+    problem: `${tracker} has no finished tickets in the ${period}s it read, so there is no pace. Type counts, or switch pace to the range.`,
+  }),
+  // with every period skipped, the bars show the gaps to count again
+  everySkipped: ({ tracker, period }) => ({
+    periods: `every ${period} skipped`,
+    bars: true,
+    problem: `Every ${period} is skipped, so ${tracker} gives no pace. Count a ${period} again, or use typed counts or the range.`,
+  }),
+  everyFinishedSkipped: ({ tracker, period }) => ({
+    periods: `every ${period} that finished something skipped`,
+    bars: true,
+    problem: `Every ${period} that finished something is skipped, so ${tracker} gives no pace. Count a ${period} again, or use typed counts or the range.`,
+  }),
 }
 
 /**
