@@ -132,7 +132,7 @@ describe('skipping GitHub’s weeks', () => {
     await post(running, '/inputs/pace-skip', periods(WEEKS))
 
     const section = await paceSection(running)
-    expect(section).toContain('Every week is skipped, so GitHub gives no pace. Count a week again, or use Typed counts or Range.')
+    expect(section).toContain('Every week is skipped, so GitHub gives no pace. Count a week again, or use typed counts or the range.')
     expect(section.match(/class="bar gap"/g)).toHaveLength(10)
     expect(section.match(/formaction="\/inputs\/pace-count-again#pace-tracker"/g)).toHaveLength(10)
     expect(await page(running, '/')).toContain('Every week is skipped, so GitHub gives no pace. Count a week again, or use typed counts or the range.')
