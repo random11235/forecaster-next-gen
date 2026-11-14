@@ -2,8 +2,12 @@ import type { Connection } from '../model/connection.js'
 import type { MilestoneQuery } from '../model/milestoneQuery.js'
 import type { SetupStorage } from '../storage/storage.js'
 import type { Connecting } from './connection.js'
+import type { SavedRead } from '../model/savedRead.js'
+import { weeksRead } from './finished.js'
+import { chipsShow, kindName, LEAF_NOTE, readFlag } from './queryStep.js'
+import { COMPARABLE_WORK, MILESTONE_QUERY, type StepQuery } from './stepQuery.js'
 import { readOn } from './trackerReads.js'
-import { trackerOf } from './trackers.js'
+import { trackerOf, type TrackerFacts } from './trackers.js'
 
 /** The setup steps, in order: connect a tracker, pick the milestone's tickets, pick comparable work, check what they give. */
 export const SETUP_STEPS = ['connect', 'milestone', 'comparableWork', 'check'] as const
@@ -24,13 +28,33 @@ export type StepMark = 'done' | 'current' | 'ahead'
  */
 export type SetupView = { kind: 'noSetup' } | { kind: 'skipped' } | SetupSummary | SetupSteps
 
-/** Setup done: the tracker, the repo or project read, and when the milestone's tickets were last read, if they were. */
+/**
+ * Setup done: the tracker, the repo or project read, and when the milestone's tickets were last read, if they were;
+ * what the milestone query reads, and comparable work's when it has one; the leaf-and-epics line, once; and only
+ * what is wrong with those reads.
+ */
 export interface SetupSummary {
   kind: 'summary'
   tracker: string
   where: string
   /** In the EM's time zone: "4 Nov 09:12". */
   readOn?: string
+  milestone: SummaryRow
+  /** None without comparable work. */
+  comparable?: SummaryRow
+  /** "Leaf tickets only. Epics include their sub-epics." */
+  note: string
+  /** Problem flags only: none for a working setup. */
+  flags: SummaryFlag[]
+}
+
+/** A summary row: the picks, each named with its kind as the screens name it ("epic", "fix version"), or the query as written by hand. */
+export type SummaryRow = { picks: { name: string; kind: string }[] } | { query: string }
+
+/** What is wrong with a query's saved read, and which query's it is. */
+export interface SummaryFlag {
+  of: 'milestone' | 'comparable'
+  flag: string
 }
 
 /** The setup step shown, each step marked from it, and the steps Back and Next (or Skip) go to, where they can. */
@@ -108,7 +132,38 @@ function summaryOf(settingUp: SettingUp, teamId: string, connection: Connection)
   const tracker = trackerOf(connection)
   const query = settingUp.milestoneQueries.milestoneQuery(teamId)?.query
   const read = query === undefined ? undefined : settingUp.reads.savedRead({ teamId, query })
-  return { kind: 'summary', tracker: tracker.name, where: tracker.where(connection), ...(read && { readOn: readOn(read.readAt, settingUp.timeZone) }) }
+  const comparable = settingUp.milestoneQueries.comparableWorkQuery(teamId)
+  const comparableRead = comparable && hasQuery(comparable) ? settingUp.reads.savedRead({ teamId, query: comparable.query }) : undefined
+  return {
+    kind: 'summary',
+    tracker: tracker.name,
+    where: tracker.where(connection),
+    ...(read && { readOn: readOn(read.readAt, settingUp.timeZone) }),
+    milestone: rowOf(tracker, settingUp.milestoneQueries.milestoneQuery(teamId) ?? { picks: [], query: '' }),
+    ...(comparable && hasQuery(comparable) && { comparable: rowOf(tracker, comparable) }),
+    note: LEAF_NOTE,
+    flags: [...flagOf('milestone', read, tracker.name, MILESTONE_QUERY), ...flagOf('comparable', comparableRead, tracker.name, COMPARABLE_WORK)],
+  }
+}
+
+/**
+ * What is wrong with a query's saved read, as its step says it (`readFlag`): incomplete, or the milestone's matching
+ * nothing; or comparable work's finishing nothing, so pace is the milestone's own. None for a read that is fine, or none.
+ */
+function flagOf(of: SummaryFlag['of'], read: SavedRead | undefined, trackerName: string, stepQuery: StepQuery): SummaryFlag[] {
+  if (!read) return []
+  const flag = readFlag(read, trackerName, stepQuery)?.flag ?? (of === 'comparable' && !read.tickets.some((ticket) => ticket.finishedAt !== undefined) ? comparableUnused(read) : undefined)
+  return flag === undefined ? [] : [{ of, flag }]
+}
+
+/** Comparable work's read finishing nothing: "…nothing finished in the last 9 weeks, so pace comes from the milestone’s own tickets…". */
+function comparableUnused(read: SavedRead): string {
+  return `This query matches nothing finished in the last ${weeksRead(read)} weeks, so pace comes from the milestone’s own tickets. Check it picks out ${COMPARABLE_WORK.picksOut}.`
+}
+
+/** A query's row: its picks with their kinds when the picker shows it as their chips, else the query as written. */
+function rowOf(tracker: TrackerFacts, saved: MilestoneQuery): SummaryRow {
+  return chipsShow(tracker, saved) ? { picks: saved.picks.map(({ name, kind }) => ({ name, kind: kindName(kind) })) } : { query: saved.query }
 }
 
 /**
