@@ -48,7 +48,7 @@ The tree is `src/` as it stands in the MVP, with `connectors/` and `secrets/`. v
 src/
   model/                  # Layer 1: record types, no logic
     team.ts
-    milestoneInputs.ts    # MilestoneInputs: what the EM types in for the team's milestone; PaceMode
+    milestoneInputs.ts    # MilestoneInputs: what the EM types in for the team's milestone; PaceMode, TicketsSource, the skipped periods and reads seen
     ambiguity.ts          # Ambiguity and AmbiguityRanges: set by the EM
     connection.ts         # Connection: the team's one tracker and repo or Jira project (with Jira's account email); never a token
 

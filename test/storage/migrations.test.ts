@@ -349,7 +349,14 @@ describe('a data file from schema version 6, before milestone inputs', () => {
 
     const storage = open(file)
 
-    const defaults = { ambiguity: 'medium', cadenceDays: 7, paceMode: 'range', paceCounts: [] }
+    const defaults = {
+      ambiguity: 'medium',
+      cadenceDays: 7,
+      paceMode: 'range',
+      paceCounts: [],
+      ticketsSource: 'typed',
+      seenReads: { ticketsRemaining: undefined, pace: undefined },
+    }
     const left = { startDate: undefined, ticketsRemaining: undefined }
     expect(storage.milestoneInputs(TEAM)).toEqual({
       teamId: TEAM,
@@ -358,7 +365,7 @@ describe('a data file from schema version 6, before milestone inputs', () => {
       ...defaults,
       paceRange: { low: 3, high: 7 },
       paceCadenceDays: 7,
-      paceWindow: { action: undefined },
+      paceWindow: { action: undefined, skippedPeriods: [] },
     })
     expect(storage.milestoneInputs('sample-team')).toEqual({
       teamId: 'sample-team',
@@ -367,7 +374,7 @@ describe('a data file from schema version 6, before milestone inputs', () => {
       ...defaults,
       paceRange: undefined,
       paceCadenceDays: undefined,
-      paceWindow: { action: undefined },
+      paceWindow: { action: undefined, skippedPeriods: [] },
     })
   })
 
@@ -399,13 +406,15 @@ describe('a data file from schema version 6, before milestone inputs', () => {
       name: 'Launch',
       startDate: '2026-09-01',
       ticketsRemaining: 120,
+      ticketsSource: 'typed' as const,
       ambiguity: 'high' as const,
       cadenceDays: 14,
       paceMode: 'counts' as const,
       paceRange: { low: 4, high: 8 },
       paceCounts: [6, 0, 9],
       paceCadenceDays: 7,
-      paceWindow: { action: undefined },
+      paceWindow: { action: undefined, skippedPeriods: [] },
+      seenReads: { ticketsRemaining: undefined, pace: undefined },
     }
 
     open(file).saveMilestoneInputs(inputs)
@@ -541,7 +550,7 @@ describe('a data file from schema version 11, before the pace window', () => {
     const before = storage.milestoneInputs(TEAM)!
     expect(before).toMatchObject({ name: 'Launch', paceCounts: [6, 9], paceWindow: { action: undefined } })
 
-    const acted = { ...before, paceWindow: { action: { kind: 'leaveOut' as const, period: '2026-08-17' } } }
+    const acted = { ...before, paceWindow: { action: { kind: 'leaveOut' as const, period: '2026-08-17' }, skippedPeriods: [] } }
     storage.saveMilestoneInputs(acted)
 
     expect(open(file).milestoneInputs(TEAM)).toEqual(acted)
@@ -642,7 +651,9 @@ describe("a data file from schema version 14, before the milestone's picks and q
       paceRange: { low: 4, high: 8 },
       paceCounts: [6, 9],
       paceCadenceDays: 14,
-      paceWindow: { action: undefined },
+      paceWindow: { action: undefined, skippedPeriods: [] },
+      ticketsSource: 'typed',
+      seenReads: { ticketsRemaining: undefined, pace: undefined },
     })
     expect(storage.milestoneQuery(TEAM)).toBeUndefined()
 
@@ -683,7 +694,59 @@ describe("a data file from schema version 15, before comparable work's picks and
     expect(again.comparableWorkQuery(TEAM)).toEqual(comparable)
     expect(again.milestoneQuery(TEAM)).toEqual(launch)
     again.close()
-    expect(versionOf(file)).toBe(16)
+    expect(versionOf(file)).toBeGreaterThan(15)
+  })
+})
+
+/** Version 16's tables: version 15's, plus comparable work's picks and query as #201 shipped them. Kept verbatim: it is a past release. */
+const VERSION_16_SCHEMA = `${VERSION_15_SCHEMA}
+CREATE TABLE comparable_work_queries (
+  team_id TEXT PRIMARY KEY REFERENCES teams(id),
+  query TEXT NOT NULL,
+  picks TEXT NOT NULL
+);
+UPDATE milestone_inputs SET pace_window = '{"action":{"kind":"leaveOut","period":"2026-08-17"}}' WHERE team_id = '${TEAM}';
+`
+
+describe("a data file from schema version 16, before the values' sources, skips and reads seen", () => {
+  test.each(['range', 'counts'])(
+    'keeps its milestone inputs with tickets typed, its pace mode %s unchanged, no skips and nothing seen',
+    (paceMode) => {
+      const file = writeFile('v16.db', `${VERSION_16_SCHEMA}\nUPDATE milestone_inputs SET pace_mode = '${paceMode}';`, 16)
+      const storage = open(file)
+
+      expect(storage.milestoneInputs(TEAM)).toEqual({
+        teamId: TEAM,
+        name: 'Launch',
+        startDate: '2026-09-01',
+        ticketsRemaining: 40,
+        ticketsSource: 'typed',
+        ambiguity: 'medium',
+        cadenceDays: 14,
+        paceMode,
+        paceRange: { low: 4, high: 8 },
+        paceCounts: [6, 9],
+        paceCadenceDays: 14,
+        paceWindow: { action: { kind: 'leaveOut', period: '2026-08-17' }, skippedPeriods: [] },
+        seenReads: { ticketsRemaining: undefined, pace: undefined },
+      })
+    },
+  )
+
+  test('takes sources, skips and reads seen, which survive reopening', () => {
+    const file = writeFile('v16.db', VERSION_16_SCHEMA, 16)
+    const storage = open(file)
+    const following = {
+      ...storage.milestoneInputs(TEAM)!,
+      ticketsSource: 'tracker' as const,
+      paceMode: 'tracker' as const,
+      paceWindow: { action: undefined, skippedPeriods: ['2026-12-21'] },
+      seenReads: { ticketsRemaining: '2026-10-28T09:05:00Z', pace: '2026-10-28T09:05:00Z' },
+    }
+    storage.saveMilestoneInputs(following)
+
+    expect(open(file).milestoneInputs(TEAM)).toEqual(following)
+    expect(versionOf(file)).toBe(17)
   })
 })
 
