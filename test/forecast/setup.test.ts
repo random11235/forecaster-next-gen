@@ -665,19 +665,20 @@ describe('the draft', () => {
     expect(await stepInSetup()).toMatchObject({ query: CHECKOUT.query, picks: [CHECKOUT], read: '3 open · 4 finished in the last 9 weeks' })
   })
 
-  test('Cancel is offered once setup opens again from its summary, and not in a first setup, where it is refused', async () => {
-    const { connect } = team()
+  test('Cancel in a first setup discards the draft and the connection made in it: the team is as it was before setup opened', async () => {
+    const { connect, storage, using, inputs, forecast } = team()
+    const before = { inputs: inputs(), forecast: forecast() }
     await connect()
     await inSetup({ kind: 'addPick', choice: CHECKOUT }, READ_AT)
 
-    expect(setupView(settingUp(scenario!), TEAM)).not.toHaveProperty('cancel')
-    expect(await submitSetup(settingUp(scenario!), TEAM, { kind: 'cancel' })).toMatchObject({ saved: false })
-    expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({ kind: 'steps', step: 'milestone' })
+    expect(await submitSetup(settingUp(scenario!), TEAM, { kind: 'cancel' })).toMatchObject({ saved: true })
 
-    await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
-    await submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })
-    expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({ kind: 'steps', step: 'milestone', cancel: true })
-    expect(setupView(settingUp(scenario!), TEAM, 'check')).toMatchObject({ step: 'check', cancel: true })
+    expect(storage.setupDraft(TEAM)).toBeUndefined()
+    expect(storage.connection(TEAM)).toBeUndefined()
+    expect(await using.secrets.token(TEAM)).toBeUndefined()
+    expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({ kind: 'steps', step: 'connect' })
+    expect(inputs()).toEqual(before.inputs)
+    expect(forecast()).toEqual(before.forecast)
   })
 
   test('a query edit in setup is read at once, and the step shows its read and flags, from the draft', async () => {
