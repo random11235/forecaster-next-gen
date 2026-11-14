@@ -9,7 +9,8 @@ export interface TeamQuery {
 
 /**
  * A query's last read, saved so screens open without a network call (#183): its tickets (ids and finish times only),
- * whether the tracker returned them all, and when it was read. Each read of the query replaces it whole.
+ * whether the tracker returned them all, when it was read, and how far back it counts finished tickets. Each read of
+ * the query replaces it whole.
  */
 export interface SavedRead {
   tickets: Ticket[]
@@ -17,4 +18,6 @@ export interface SavedRead {
   incomplete: boolean
   /** The UTC instant the read was made. */
   readAt: string
+  /** The UTC instant it counts finished tickets from: how far back it reaches, which differs with cadence and skips (#213). */
+  finishedSince: string
 }

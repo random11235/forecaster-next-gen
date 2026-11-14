@@ -220,7 +220,7 @@ describe('picking', () => {
     const view = await queryStepView(using, TEAM)
 
     expect(using.calls.reads).toEqual(['milestone:"Payments v2"'])
-    expect(view).toMatchObject({ picks: [payments], query: 'milestone:"Payments v2"', read: '2 open · 1 finished in the last 8 weeks' })
+    expect(view).toMatchObject({ picks: [payments], query: 'milestone:"Payments v2"', read: '2 open · 1 finished in the last 9 weeks' })
   })
 
   test('picks are joined with OR into one query, read once for the lot, and leave the lists', async () => {
@@ -234,7 +234,7 @@ describe('picking', () => {
     expect(view).toMatchObject({
       picks: [payments, bug],
       query: 'milestone:"Payments v2" OR label:"bug"',
-      read: '3 open · 2 finished in the last 8 weeks',
+      read: '3 open · 2 finished in the last 9 weeks',
       lists: [
         { kind: 'milestone', choices: [checkout], searchedInTracker: false },
         { kind: 'label', choices: [repay], searchedInTracker: false },
@@ -251,7 +251,7 @@ describe('picking', () => {
     const view = await queryStepView(using, TEAM)
 
     expect(using.calls.reads.at(-1)).toBe('milestone:"Payments v2"')
-    expect(view).toMatchObject({ picks: [payments], query: 'milestone:"Payments v2"', read: '2 open · 1 finished in the last 8 weeks' })
+    expect(view).toMatchObject({ picks: [payments], query: 'milestone:"Payments v2"', read: '2 open · 1 finished in the last 9 weeks' })
   })
 
   test('removing the last chip leaves no query, and nothing to read', async () => {
@@ -288,7 +288,7 @@ describe('picking', () => {
     expect(view).toMatchObject({
       picks: [payments, bug],
       query: 'milestone:"Payments v2" OR label:"bug"',
-      read: '3 open · 2 finished in the last 8 weeks',
+      read: '3 open · 2 finished in the last 9 weeks',
     })
   })
 
@@ -314,7 +314,7 @@ describe('editing as a query', () => {
 
     expect(using.calls.reads).toEqual(['label:checkout -label:bug'])
     expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [], query: 'label:checkout -label:bug' })
-    expect(view).toMatchObject({ picks: [], query: 'label:checkout -label:bug', read: '1 open · 0 finished in the last 8 weeks' })
+    expect(view).toMatchObject({ picks: [], query: 'label:checkout -label:bug', read: '1 open · 0 finished in the last 9 weeks' })
   })
 
   test('Edit as a query opens the milestone query for editing, read within the connected repo', async () => {
@@ -621,7 +621,7 @@ describe('a query the tracker rejects', () => {
     expect(view).toMatchObject({
       picks: [payments],
       query: 'milestone:"Payments v2"',
-      read: '2 open · 1 finished in the last 8 weeks',
+      read: '2 open · 1 finished in the last 9 weeks',
       editing: { typed: 'closed:>2026-13-45', readIn: 'shop-team/shop', refusal },
     })
   })
@@ -636,7 +636,7 @@ describe('a query the tracker rejects', () => {
 
     const refusal = `GitHub rejected this query: ${message}`
     expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
-    expect(view).toMatchObject({ picks: [payments], query: 'milestone:"Payments v2"', read: '2 open · 1 finished in the last 8 weeks', refusal })
+    expect(view).toMatchObject({ picks: [payments], query: 'milestone:"Payments v2"', read: '2 open · 1 finished in the last 9 weeks', refusal })
     expect(view && view.kind !== 'noQueryStep' && view.editing).toBeUndefined()
   })
 
@@ -689,8 +689,8 @@ describe('a read flagged', () => {
     expect(submitted.kind).toBe('saved')
     expect(storage.milestoneQuery(TEAM)?.query).toBe('label:"no such label"')
     expect(view).toMatchObject({
-      read: '0 open · 0 finished in the last 8 weeks',
-      flag: 'This query matches nothing: no open tickets, and none finished in the last 8 weeks. Check it picks out the milestone’s tickets.',
+      read: '0 open · 0 finished in the last 9 weeks',
+      flag: 'This query matches nothing: no open tickets, and none finished in the last 9 weeks. Check it picks out the milestone’s tickets.',
     })
   })
 
@@ -757,7 +757,7 @@ describe('the step, for another of the team’s queries (#200)', () => {
     expect(other.kept.get(TEAM)?.query).toBe('label:"no such label"')
     expect(storage.milestoneQuery(TEAM)).toBeUndefined()
     expect(view).toMatchObject({
-      flag: 'This query matches nothing: no open tickets, and none finished in the last 8 weeks. Check it picks out the other tickets.',
+      flag: 'This query matches nothing: no open tickets, and none finished in the last 9 weeks. Check it picks out the other tickets.',
     })
   })
 })
@@ -803,7 +803,7 @@ describe('the Comparable work step', () => {
 
     const view = await queryStepView(using, TEAM, '', {}, COMPARABLE_WORK)
 
-    expect(view).toMatchObject({ read: '2 finished in the last 8 weeks' })
+    expect(view).toMatchObject({ read: '2 finished in the last 9 weeks' })
   })
 
   test('written by hand, is saved as written and read', async () => {
@@ -893,7 +893,7 @@ describe('the Comparable work step, flagged', () => {
     expect(submitted.kind).toBe('saved')
     expect(storage.comparableWorkQuery(TEAM)?.query).toBe('label:"wip"')
     expect(view).toMatchObject({
-      read: '0 finished in the last 8 weeks',
+      read: '0 finished in the last 9 weeks',
       onward: 'next',
     })
     expect(view.kind !== 'noQueryStep' && view.flag).toBeUndefined()
@@ -915,7 +915,7 @@ describe('the Comparable work step, flagged', () => {
 
     const view = await queryStepView(using, TEAM, '', {}, COMPARABLE_WORK)
 
-    expect(view).toMatchObject({ read: '1 finished in the last 8 weeks' })
+    expect(view).toMatchObject({ read: '1 finished in the last 9 weeks' })
     expect(view.kind !== 'noQueryStep' && view.flag).toBeUndefined()
   })
 
@@ -933,7 +933,7 @@ describe('the Comparable work step, flagged', () => {
     expect(view).toMatchObject({
       picks: [payments],
       query: 'milestone:"Payments v2"',
-      read: '1 finished in the last 8 weeks',
+      read: '1 finished in the last 9 weeks',
       editing: { typed: 'closed:>2026-13-45', readIn: 'shop-team/shop', refusal },
       onward: 'next',
     })
@@ -949,7 +949,7 @@ describe('the Comparable work step, flagged', () => {
 
     const refusal = `GitHub rejected this query: ${message}`
     expect(storage.comparableWorkQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
-    expect(view).toMatchObject({ picks: [payments], query: 'milestone:"Payments v2"', read: '1 finished in the last 8 weeks', refusal })
+    expect(view).toMatchObject({ picks: [payments], query: 'milestone:"Payments v2"', read: '1 finished in the last 9 weeks', refusal })
     expect(view && view.kind !== 'noQueryStep' && view.editing).toBeUndefined()
   })
 
@@ -963,7 +963,7 @@ describe('the Comparable work step, flagged', () => {
     const refusal = 'This query reaches outside shop-team/shop, the connected repo. Take out what names another repo, owner or organisation.'
     expect(submitted).toEqual({ kind: 'refused', query: 'repo:someone/else', refusal })
     expect(storage.comparableWorkQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
-    expect(view).toMatchObject({ picks: [payments], read: '1 finished in the last 8 weeks', editing: { typed: 'repo:someone/else', refusal } })
+    expect(view).toMatchObject({ picks: [payments], read: '1 finished in the last 9 weeks', editing: { typed: 'repo:someone/else', refusal } })
   })
 
   test('reaching outside the connection as joined from a pick, keeps the EM finding, with the chips that worked', async () => {

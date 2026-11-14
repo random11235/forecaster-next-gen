@@ -88,7 +88,7 @@ describe('renaming the milestone', () => {
     expect(await queryStepView(using, TEAM, '', { unlisted: true })).toMatchObject({
       picks: [loyalty],
       query: 'milestone:"Loyalty launch"',
-      read: '3 open · 0 finished in the last 8 weeks',
+      read: '3 open · 0 finished in the last 9 weeks',
     })
   })
 

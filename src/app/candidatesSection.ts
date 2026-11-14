@@ -2,7 +2,6 @@ import type { Choice } from '../connectors/connector.js'
 import type { PeriodName } from '../forecast/cadence.js'
 import { dayMonth } from '../forecast/calendarDate.js'
 import { FEW_CANDIDATES, type Candidate, type CandidateGroupKind, type CandidateOpening, type Candidates } from '../forecast/candidates.js'
-import { FINISHED_WEEKS } from '../forecast/finished.js'
 import { kindName } from '../forecast/queryStep.js'
 import type { PaceVersus } from '../forecast/paceVersusOwn.js'
 import { escapeHtml } from './html.js'
@@ -92,7 +91,7 @@ function candidateHtml(candidate: Candidate, period: PeriodName, { paths, id }: 
   const facts = [
     `${read.finished} finished`,
     ...(read.adds === undefined ? [] : [`adds ${read.adds}`]),
-    read.lastFinished === undefined ? `none finished in the last ${FINISHED_WEEKS} weeks` : `last finished ${dayMonth(read.lastFinished)}`,
+    read.lastFinished === undefined ? `none finished in the last ${read.weeks} weeks` : `last finished ${dayMonth(read.lastFinished)}`,
     `${read.open} open`,
   ]
   const pace = read.finished === 0 ? '' : ` <span class="pace">${number(read.median)} a ${period}${versusHtml(read.versus, period)}</span>`

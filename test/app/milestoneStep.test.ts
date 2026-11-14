@@ -103,7 +103,7 @@ describe('the Milestone step', () => {
     const step = stepOf(await page(running))
     expect(step).toMatch(/class="chip"[^]*Payments v2[^]*milestone/)
     expect(step).toContain('milestone:&#34;Payments v2&#34;')
-    expect(step).toContain('1 open · 1 finished in the last 8 weeks')
+    expect(step).toContain('1 open · 1 finished in the last 9 weeks')
   })
 
   test('a removed chip is gone, and its choice listed again', async () => {
@@ -190,7 +190,7 @@ describe('the Milestone step', () => {
 
     expect(edited.status).toBe(303)
     expect(edited.headers.get('location')).toBe('/inputs?edit=query#milestone-tickets')
-    expect(stepOf(await page(running, '/inputs?edit=query'))).toContain('1 open · 1 finished in the last 8 weeks')
+    expect(stepOf(await page(running, '/inputs?edit=query'))).toContain('1 open · 1 finished in the last 9 weeks')
   })
 
   test('free text is refused: the step shows again with the query as typed and why', async () => {
@@ -215,7 +215,7 @@ describe('the Milestone step', () => {
     expect(step).toContain('value="closed:&#62;2026-13-45"')
     expect(step).toContain('GitHub rejected this query: Not a date.')
     expect(step).toContain('Still reading <code>milestone:&#34;Payments v2&#34;</code>')
-    expect(step).toContain('1 open · 1 finished in the last 8 weeks')
+    expect(step).toContain('1 open · 1 finished in the last 9 weeks')
   })
 
   test('a pick whose query the tracker rejects keeps the step finding, with the chips that worked and the tracker’s message beside them', async () => {
@@ -230,14 +230,14 @@ describe('the Milestone step', () => {
     expect(step).toMatch(/class="chip"[^]*Payments v2[^]*class="error" role="alert">GitHub rejected this query: Too many milestones\./)
     expect(step).toContain('type="search"')
     expect(step).not.toContain('id="milestone-query"')
-    expect(step).toContain('1 open · 1 finished in the last 8 weeks')
+    expect(step).toContain('1 open · 1 finished in the last 9 weeks')
   })
 
   test('a read matching nothing is flagged beside its line, while finding and editing', async () => {
     const running = await startConnected()
     await post(running, '/inputs/milestone-query/add', { kind: 'milestone', name: 'Checkout', query: 'milestone:"Checkout"' })
 
-    const flagged = /0 open · 0 finished in the last 8 weeks[^]*class="note warn flag">⚠ This query matches nothing/
+    const flagged = /0 open · 0 finished in the last 9 weeks[^]*class="note warn flag">⚠ This query matches nothing/
     expect(stepOf(await page(running))).toMatch(flagged)
     expect(stepOf(await page(running, '/inputs?edit=query'))).toMatch(flagged)
   })
@@ -331,7 +331,7 @@ describe('the Milestone step', () => {
       headers: { 'forecaster-save': 'in-place' },
     })
     expect(back.status).toBe(200)
-    expect(stepOf(await page(running))).toContain('1 open · 1 finished in the last 8 weeks')
+    expect(stepOf(await page(running))).toContain('1 open · 1 finished in the last 9 weeks')
   })
 
   test('before connecting, there is none', async () => {
