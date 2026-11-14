@@ -2,7 +2,7 @@ import type { Connector, Failure } from '../connectors/connector.js'
 import type { Connection } from '../model/connection.js'
 import type { Secrets } from '../secrets/secrets.js'
 import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage, SetupStorage } from '../storage/storage.js'
-import type { SetupStep } from './setup.js'
+import type { SetupStep } from './setupSteps.js'
 import { BLANK_CONNECTION_FORM, connectionOf, TRACKERS, trackerOf, type ConnectionForm, type Tracker } from './trackers.js'
 
 /** Builds the connector for a connection and its token: the real one in the local server build, the canned one in tests and demo mode. */

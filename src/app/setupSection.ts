@@ -1,8 +1,9 @@
-import type { FlaggedQuery, PaceCheck, SetupCheck, SetupEdit, SetupStep, SetupSteps, SetupSummary, SummaryFlag, SummaryRow, TicketsCheck } from '../forecast/setup.js'
-import type { PaceMode } from '../model/milestoneInputs.js'
-import { COMPARABLE_WORK, MILESTONE_QUERY } from '../forecast/stepQuery.js'
+import type { PaceCheck, SetupCheck, SetupEdit, SetupSteps, TicketsCheck } from '../forecast/setup.js'
+import { SETUP_STEPS, type SetupStep } from '../forecast/setupSteps.js'
+import type { SetupSummary, SummaryFlag, SummaryRow } from '../forecast/setupSummary.js'
+import { PACE_MODES, type PaceMode } from '../model/milestoneInputs.js'
+import { COMPARABLE_WORK, MILESTONE_QUERY, type StepQuery } from '../forecast/stepQuery.js'
 import { escapeHtml } from './html.js'
-import { COMPARABLE_WORK_STEP, inputsAt, MILESTONE_STEP } from './queryStepSection.js'
 
 /**
  * Where setup's own forms post: "Use these", Change (or Connect a tracker, once skipped), Change from a refused
@@ -20,31 +21,45 @@ export const SETUP_PATHS = {
 } as const
 
 /**
- * Each form setup posts, by its action's path, and the edit it is, read from its fields: only Check's sources send
- * any. Read again reads the tracker, so it is routed apart.
+ * Each form setup posts, by its action's path, and the edit it is, read from its fields; none for a source Check
+ * doesn't name, the only form sending any. Read again reads the tracker, so it is routed apart.
  */
-export const SETUP_FORMS: ReadonlyMap<string, (body: URLSearchParams) => SetupEdit> = new Map<string, (body: URLSearchParams) => SetupEdit>([
+export const SETUP_FORMS: ReadonlyMap<string, (body: URLSearchParams) => SetupEdit | undefined> = new Map<string, (body: URLSearchParams) => SetupEdit | undefined>([
   [SETUP_PATHS.useThese, () => ({ kind: 'useThese' })],
   [SETUP_PATHS.change, () => ({ kind: 'change' })],
-  [SETUP_PATHS.changeConnection, () => ({ kind: 'change' })],
+  [SETUP_PATHS.changeConnection, () => ({ kind: 'change', at: 'connect' })],
   [SETUP_PATHS.cancel, () => ({ kind: 'cancel' })],
   [SETUP_PATHS.skip, () => ({ kind: 'skipConnecting' })],
-  [SETUP_PATHS.source, (body) => ({ kind: 'chooseSource', value: body.get('value') ?? '', source: body.get('source') ?? '' })],
+  [SETUP_PATHS.source, (body) => chosenSourceOf(body.get('value'), body.get('source'))],
 ])
 
-/** Where each setup step is served: the Milestone step, once connected, at the Inputs screen's own URL. */
-export const SETUP_STEP_PATHS: Readonly<Record<SetupStep, string>> = {
-  connect: inputsAt('connect', 'connect'),
-  milestone: MILESTONE_STEP.urls.finding,
-  comparableWork: COMPARABLE_WORK_STEP.urls.finding,
-  check: inputsAt('check', 'check'),
+/** A source chosen at Check, as its form sends it: tickets remaining's, the tracker or typed; or pace's, the tracker, range or counts. */
+function chosenSourceOf(value: string | null, source: string | null): SetupEdit | undefined {
+  if (value === 'ticketsRemaining' && (source === 'tracker' || source === 'typed')) return { kind: 'chooseSource', value, source }
+  const pace = PACE_MODES.find((mode) => mode === source)
+  return value === 'pace' && pace ? { kind: 'chooseSource', value, source: pace } : undefined
 }
+
+/** The field naming the setup step the Inputs screen opens at: `/inputs?step=comparableWork`; Milestone, once connected, without it. */
+export const STEP_FIELD = 'step'
+
+/** Each setup step's section id on the Inputs screen. */
+export const SETUP_STEP_IDS: Readonly<Record<SetupStep, string>> = { connect: 'connect', milestone: 'milestone-tickets', comparableWork: 'comparable-work', check: 'check' }
+
+/** The Inputs screen opened at `step`, with `params` beside it, at the section `id`: `step=comparableWork`, but no step for Milestone, the default. */
+export function inputsAt(step: SetupStep, id: string, ...params: string[]): string {
+  const query = [step === 'milestone' ? '' : `${STEP_FIELD}=${step}`, ...params].filter((param) => param !== '').join('&')
+  return `/inputs${query === '' ? '' : `?${query}`}#${id}`
+}
+
+/** Where each setup step is served, at its section: the Milestone step, once connected, at the Inputs screen's own URL. */
+export const SETUP_STEP_PATHS = Object.fromEntries(SETUP_STEPS.map((step) => [step, inputsAt(step, SETUP_STEP_IDS[step])])) as Readonly<Record<SetupStep, string>>
 
 /** Each setup step's name, in the steps' list. */
 const STEP_NAMES: Readonly<Record<SetupStep, string>> = { connect: 'Connect', milestone: 'Milestone', comparableWork: 'Comparable work', check: 'Check' }
 
 /** The Check step's name and hint, in its section's label column. */
-export const CHECK_STEP = { id: 'check', title: 'Check', hint: 'Check what the tracker gives, then use it.' } as const
+export const CHECK_STEP = { id: SETUP_STEP_IDS.check, title: 'Check', hint: 'Check what the tracker gives, then use it.' } as const
 
 /**
  * The setup step shown, as `body` within it: the steps' list above, each done step a link back to it and the current
@@ -63,8 +78,8 @@ export function setupStepHtml(view: SetupSteps, body: string): string {
     .join('\n')
   const back = view.back === undefined ? '' : `<a href="${escapeHtml(SETUP_STEP_PATHS[view.back])}" class="button">Back</a>`
   const next = view.next === undefined ? '' : `<a href="${escapeHtml(SETUP_STEP_PATHS[view.next.step])}" class="button primary">${view.next.label === 'skip' ? 'Skip' : 'Next'}</a>`
-  const cancel = view.cancel ? `<form method="post" action="${SETUP_PATHS.cancel}">\n            <button type="submit">Cancel</button>\n          </form>` : ''
-  const nav = cancel === '' && back === '' && next === '' ? '' : `\n        <div class="actions setup-nav">${cancel}${back}${next}</div>`
+  const cancel = `<form method="post" action="${SETUP_PATHS.cancel}">\n            <button type="submit">Cancel</button>\n          </form>`
+  const nav = `\n        <div class="actions setup-nav">${cancel}${back}${next}</div>`
   return `        <ol class="setup-steps" aria-label="Setup steps">
 ${steps}
         </ol>
@@ -103,7 +118,7 @@ const partOf = (tracker: string): string => `${escapeHtml(tracker)} gave only pa
 /** Check's tickets remaining row. */
 function ticketsRowHtml(tracker: string, { yours, reading, incomplete, source }: TicketsCheck): string {
   const read = reading === undefined ? '—' : `${reading}${incomplete ? ` <span class="note warn">${partOf(tracker)}</span>` : ''}`
-  const use = source === undefined ? NOTHING_TO_CHOOSE : sourceFormHtml('ticketsRemaining', 'Where tickets remaining comes from', ['tracker', 'typed'], source, (each) => (each === 'tracker' ? tracker : 'Typed'))
+  const use = sourceFormHtml('ticketsRemaining', 'Where tickets remaining comes from', ['tracker', 'typed'], source, (each) => (each === 'tracker' ? tracker : 'Typed'))
   return `            <tr>
               <th scope="row">Tickets remaining</th>
               <td>${yours ?? '—'}</td>
@@ -117,13 +132,13 @@ const PACE_NAMES: Readonly<Record<Exclude<PaceMode, 'tracker'>, string>> = { ran
 
 /** Check's pace row: the EM's range or typed counts, the tracker's counts with its line. */
 function paceRowHtml(tracker: string, { yours, period, reading, incomplete, source, choices }: PaceCheck): string {
-  const own = yours.source === 'counts' ? (yours.counts.length === 0 ? '—' : yours.counts.join(', ')) : yours.range === undefined ? '—' : `${yours.range.low}–${yours.range.high} a ${period}`
+  const own = yours.source === 'counts' ? countsHtml(yours.counts) : yours.range === undefined ? '—' : `${yours.range.low}–${yours.range.high} a ${period}`
   const read = reading
-    ? `${reading.counts.length === 0 ? '—' : reading.counts.join(', ')} <span class="muted">${escapeHtml(reading.line)}</span>`
+    ? `${countsHtml(reading.counts)} <span class="muted">${escapeHtml(reading.line)}</span>`
     : incomplete
       ? `<span class="note warn">None: ${partOf(tracker)}</span>`
       : '—'
-  const use = source === undefined ? NOTHING_TO_CHOOSE : sourceFormHtml('pace', 'Pace the forecast uses', choices, source, (each) => (each === 'tracker' ? tracker : PACE_NAMES[each]))
+  const use = sourceFormHtml('pace', 'Pace the forecast uses', choices, source, (each) => (each === 'tracker' ? tracker : PACE_NAMES[each]))
   return `            <tr>
               <th scope="row">Pace</th>
               <td>${own}</td>
@@ -132,8 +147,8 @@ function paceRowHtml(tracker: string, { yours, period, reading, incomplete, sour
             </tr>`
 }
 
-/** With no milestone entered yet, there is no source to choose. */
-const NOTHING_TO_CHOOSE = '<span class="muted">Enter the milestone below to choose.</span>'
+/** Pace's counts, a period each: "4, 6, 5", or "—" for none. */
+const countsHtml = (counts: readonly number[]): string => (counts.length === 0 ? '—' : counts.join(', '))
 
 /** A value's sources at Check, as radios posting the one chosen, with a Choose button for a browser without the script. */
 function sourceFormHtml<T extends string>(value: string, ariaLabel: string, sources: readonly T[], chosen: T, name: (source: T) => string): string {
@@ -173,23 +188,33 @@ export const CHECK_SCRIPT = `
 export function setupSummaryHtml({ tracker, where, readOn, milestone, comparable, note, flags }: SetupSummary): string {
   const read = readOn === undefined ? '' : `\n        <span class="read">read ${escapeHtml(readOn)}</span>`
   const rows = [rowHtml('Milestone', milestone), ...(comparable ? [rowHtml('Comparable', comparable)] : [])].join('\n')
-  return `    <div class="setup-summary" id="setup-summary" aria-label="Tracker">
-      <div class="setup-head">
+  return summaryBoxHtml(`      <div class="setup-head">
         <span class="ok-dot" aria-hidden="true"></span>
         <span>${escapeHtml(tracker)} · <b>${escapeHtml(where)}</b></span>${read}
         <form method="post" action="${SETUP_PATHS.readAgain}">
           <button type="submit" class="linkish">Read again</button>
         </form>
-        <form method="post" action="${SETUP_PATHS.change}">
-          <button type="submit" class="linkish">Change</button>
-        </form>
+        ${changeHtml(SETUP_PATHS.change, 'Change')}
       </div>
       <dl class="setup-rows">
 ${rows}
       </dl>
-      <p class="note">${escapeHtml(note)}</p>${flags.map(flagHtml).join('')}
+      <p class="note">${escapeHtml(note)}</p>${flags.map(flagHtml).join('')}`)
+}
+
+/** The box setup's summary sits in above the inputs, around `body`. */
+function summaryBoxHtml(body: string): string {
+  return `    <div class="setup-summary" id="setup-summary" aria-label="Tracker">
+${body}
     </div>
 `
+}
+
+/** A form opening setup's steps again, posting to `path`, with its button's `label`. */
+function changeHtml(path: string, label: string): string {
+  return `<form method="post" action="${path}">
+          <button type="submit" class="linkish">${label}</button>
+        </form>`
 }
 
 /** A summary row: its picks, each with its count where it has one, "Checkout v2 (epic) · 32, Search revamp (epic) · 7", or the query written by hand. */
@@ -203,7 +228,7 @@ function rowHtml(name: string, row: SummaryRow): string {
 }
 
 /** Each query flagged, named as its step names it. */
-const FLAGGED_QUERY: Readonly<Record<FlaggedQuery, string>> = { milestone: MILESTONE_QUERY.name, comparable: COMPARABLE_WORK.name }
+const FLAGGED_QUERY: Readonly<Record<StepQuery['kind'], string>> = { milestoneQuery: MILESTONE_QUERY.name, comparableWork: COMPARABLE_WORK.name }
 
 /**
  * A problem flag beneath the summary: "⚠ Milestone query: This query matches nothing…", or, of a read failing as a
@@ -213,19 +238,12 @@ function flagHtml({ of, flag, change }: SummaryFlag): string {
   const text = `⚠ ${of === undefined ? '' : `${FLAGGED_QUERY[of]}: `}${escapeHtml(flag)}`
   if (change === undefined) return `\n      <p class="note warn flag">${text}</p>`
   return `\n      <div class="note warn flag">${text}
-        <form method="post" action="${SETUP_PATHS.changeConnection}">
-          <button type="submit" class="linkish">Change</button>
-        </form>
+        ${changeHtml(SETUP_PATHS.changeConnection, 'Change')}
       </div>`
 }
 
 /** Connecting skipped: the inputs typed, as the MVP has them, with a way to connect a tracker after all; above the inputs. */
 export function setupSkippedHtml(): string {
-  return `    <div class="setup-summary" id="setup-summary" aria-label="Tracker">
-      <span class="muted">No tracker connected.</span>
-      <form method="post" action="${SETUP_PATHS.change}">
-        <button type="submit" class="linkish">Connect a tracker</button>
-      </form>
-    </div>
-`
+  return summaryBoxHtml(`      <span class="muted">No tracker connected.</span>
+      ${changeHtml(SETUP_PATHS.change, 'Connect a tracker')}`)
 }

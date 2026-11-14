@@ -7,6 +7,7 @@ import type { CapacityEntry } from '../model/capacity.js'
 import type { MilestoneInputs, PaceMode, PaceWindow, SeenReads, TicketsSource } from '../model/milestoneInputs.js'
 import type { MilestoneQuery } from '../model/milestoneQuery.js'
 import type { SavedRead } from '../model/savedRead.js'
+import type { ReadFailures } from '../model/readFailures.js'
 import type { SetupDraft } from '../model/setupDraft.js'
 import type { Team } from '../model/team.js'
 import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage, SetupClosed, SetupStorage, Storage } from './storage.js'
@@ -299,6 +300,14 @@ CREATE TABLE setup_drafts (
   draft TEXT NOT NULL
 );
 `,
+  // 22: why the team's last reads failed (#222), as JSON, so the summary still says why after a reload; no row once
+  // read again. A file from before has none.
+  `
+CREATE TABLE read_failures (
+  team_id TEXT PRIMARY KEY REFERENCES teams(id),
+  failures TEXT NOT NULL
+);
+`,
 ]
 
 type Row = Record<string, SQLInputValue>
@@ -400,6 +409,10 @@ export function openSqliteStorage(file: string): SqliteStorage {
     INSERT INTO setup_drafts (team_id, draft) VALUES (?, ?) ON CONFLICT (team_id) DO UPDATE SET draft = excluded.draft`)
   const selectSetupDraft = db.prepare('SELECT draft FROM setup_drafts WHERE team_id = ?')
   const deleteSetupDraft = db.prepare('DELETE FROM setup_drafts WHERE team_id = ?')
+  const upsertReadFailures = db.prepare(`
+    INSERT INTO read_failures (team_id, failures) VALUES (?, ?) ON CONFLICT (team_id) DO UPDATE SET failures = excluded.failures`)
+  const selectReadFailures = db.prepare('SELECT failures FROM read_failures WHERE team_id = ?')
+  const deleteReadFailures = db.prepare('DELETE FROM read_failures WHERE team_id = ?')
 
   return {
     isEmpty() {
@@ -597,6 +610,19 @@ export function openSqliteStorage(file: string): SqliteStorage {
 
     discardSetupDraft(teamId) {
       deleteSetupDraft.run(teamId)
+    },
+
+    readFailures(teamId) {
+      const row = selectReadFailures.get(teamId)
+      return row === undefined ? undefined : (JSON.parse(String(row.failures)) as ReadFailures)
+    },
+
+    saveReadFailures(teamId, failures) {
+      upsertReadFailures.run(teamId, JSON.stringify(failures))
+    },
+
+    clearReadFailures(teamId) {
+      deleteReadFailures.run(teamId)
     },
 
     close() {
