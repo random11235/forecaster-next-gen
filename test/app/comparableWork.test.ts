@@ -3,7 +3,8 @@ import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
 import type { Connecting } from '../../src/forecast/connection.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
-import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
+import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
+import type { TeamStorage } from '../trackerScenario.js'
 
 // The Comparable work step on the Inputs screen (#201), through the local server as the EM's browser sees it, on the
 // canned connector.
@@ -28,7 +29,7 @@ const FIXTURE: CannedFixture = {
 }
 
 let app: RunningApp | undefined
-let storage: SqliteStorage | undefined
+let storage: TeamStorage | undefined
 
 afterEach(async () => {
   await app?.close()

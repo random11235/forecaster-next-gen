@@ -7,7 +7,8 @@ import type { Connector, Failure } from '../../src/connectors/connector.js'
 import type { Connection } from '../../src/model/connection.js'
 import { connectionView, submitConnection, type Connecting, type ConnectionEdit } from '../../src/forecast/connection.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
-import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
+import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
+import type { TeamStorage } from '../trackerScenario.js'
 
 // Connecting a tracker (#180): the Connect step's view, and a submit that checks the connection before saving it.
 
@@ -17,7 +18,7 @@ const TOKEN = 'github_pat_11ABCDEFG0123456789_secret'
 const CHOICES: CannedFixture = { milestoneChoices: [{ kind: 'milestone', choices: [{ kind: 'milestone', name: 'Checkout v2', query: 'milestone:"Checkout v2"' }], pastLimit: false }], reads: {} }
 
 let dir: string
-let storage: SqliteStorage
+let storage: TeamStorage
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'forecaster-connection-'))

@@ -11,7 +11,8 @@ import { queryStepView, searchedChoiceList, submitStepQuery, type QueryStepping,
 import { COMPARABLE_WORK } from '../../src/forecast/stepQuery.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
-import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
+import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
+import type { TeamStorage } from '../trackerScenario.js'
 
 // Candidates for comparable work (#205): read on demand, each grouped slower, about the same or faster than the
 // milestone's own, or nothing finished.
@@ -73,7 +74,7 @@ const FIXTURE: CannedFixture = {
 }
 
 let dir: string
-let storage: SqliteStorage
+let storage: TeamStorage
 let using: QueryStepping
 let reads: string[]
 

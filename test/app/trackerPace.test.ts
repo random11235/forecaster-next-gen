@@ -1,10 +1,8 @@
 import { afterEach, describe, expect, test } from 'vitest'
-import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
-import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
+import type { RunningApp } from '../../src/app/launch.js'
+import type { CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
 import type { Ticket } from '../../src/connectors/connector.js'
-import type { Connecting } from '../../src/forecast/connection.js'
-import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
-import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
+import { appOnTracker, inputsSection, page, post, type AppOnTracker } from './appOnTracker.js'
 
 // Pace following the tracker on the Inputs screen and the forecast (#212), through the local server as the EM's
 // browser sees it, on the canned connector.
@@ -25,54 +23,31 @@ const FIXTURE: CannedFixture = {
   reads: { [CHECKOUT.query]: { tickets: [{ id: 'm1' }, { id: 'm2' }, ...finished], incomplete: false } },
 }
 
-let app: RunningApp | undefined
-let storage: SqliteStorage | undefined
+let app: AppOnTracker | undefined
 
 afterEach(async () => {
   await app?.close()
   app = undefined
-  storage?.close()
-  storage = undefined
 })
 
 /** The app, its milestone entered with typed counts kept; connected to GitHub with its tickets picked, unless `connect` is false. */
 async function start({ connect = true, fixture = FIXTURE } = {}): Promise<RunningApp> {
-  storage = openSqliteStorage(':memory:')
-  const connecting: Connecting = {
-    connections: storage,
-    reads: storage,
-    milestoneQueries: storage,
-    secrets: openMemorySecrets(),
-    connector: () => cannedConnector(fixture),
-  }
-  app = await startAppAndOpenBrowser({
-    port: 0,
-    openBrowser: () => {},
-    storage,
-    connecting,
-    today: () => '2026-11-12',
-    now: () => '2026-11-12T09:00:00Z',
-  })
-  await post(app, '/inputs/milestone', { name: 'Checkout v2', startDate: '2026-08-31', ticketsRemaining: '30' })
-  await post(app, '/inputs/pace-counts', { counts: '1 2 3 4' })
+  app = await appOnTracker(fixture)
+  const { running } = app
+  await post(running, '/inputs/milestone', { name: 'Checkout v2', startDate: '2026-08-31', ticketsRemaining: '30' })
+  await post(running, '/inputs/pace-counts', { counts: '1 2 3 4' })
   if (connect) {
-    await post(app, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
-    await post(app, '/inputs/milestone-query/add', CHECKOUT)
+    await post(running, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
+    await post(running, '/inputs/milestone-query/add', CHECKOUT)
   }
-  return app
+  return running
 }
 
-const post = (running: RunningApp, path: string, fields: Record<string, string> | URLSearchParams): Promise<Response> =>
-  fetch(new URL(path, running.url), { method: 'POST', body: new URLSearchParams(fields), redirect: 'manual' })
 
-const page = async (running: RunningApp, path: string): Promise<string> => (await fetch(new URL(path, running.url))).text()
 
 /** The Pace section of the Inputs screen. */
 async function paceSection(running: RunningApp): Promise<string> {
-  const html = await page(running, '/inputs')
-  const start = html.indexOf('id="pace"')
-  expect(start).toBeGreaterThan(-1)
-  return html.slice(start, html.indexOf('</section>', start))
+  return inputsSection(running, 'pace')
 }
 
 describe('pace following GitHub', () => {

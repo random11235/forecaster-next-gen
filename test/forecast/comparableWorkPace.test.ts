@@ -11,7 +11,8 @@ import { queryStepView, submitStepQuery, type QueryStepping } from '../../src/fo
 import { COMPARABLE_WORK } from '../../src/forecast/stepQuery.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
-import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
+import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
+import type { TeamStorage } from '../trackerScenario.js'
 
 // The Comparable work step's pace (#204): the pace in use, how far it is from the milestone's own, the two paired
 // period by period, and each pick's own counts.
@@ -65,7 +66,7 @@ const FIXTURE: CannedFixture = {
 }
 
 let dir: string
-let storage: SqliteStorage
+let storage: TeamStorage
 let using: QueryStepping
 let asked: string[]
 
