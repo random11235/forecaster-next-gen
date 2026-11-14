@@ -40,6 +40,13 @@ export interface PaceReading {
   /** Whose finished tickets they are: comparable work's, or the milestone's own. */
   from: PaceFrom
   /**
+   * The milestone's own finished tickets in each period its read reaches whole, before its start date too; none while
+   * that read is incomplete.
+   */
+  milestone: DatedCounts | undefined
+  /** Comparable work's finished tickets in each period its read reaches whole; none with no query, or no complete read of it. */
+  comparableWork: DatedCounts | undefined
+  /**
    * The periods counted, as the source says them: "last 8 weeks"; "7 weeks · GitHub has nothing before w/c 21 Sep"
    * when its reads run out first.
    */
@@ -99,6 +106,8 @@ function paceReading(reads: TrackerReads, teamId: string, storage: Pick<Storage,
   return {
     window,
     from: read.from,
+    milestone: read.milestone,
+    comparableWork: read.comparableWork,
     periods,
     firstFinished: bound === 'firstFinished' ? `From the first finished ticket, ${dayMonth(first!)}.` : undefined,
     readOn: paceRead ? readOn(paceRead.readAt, reads.timeZone) : '',
