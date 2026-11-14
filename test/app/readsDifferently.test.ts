@@ -76,7 +76,7 @@ async function section(running: RunningApp, id: string): Promise<string> {
 
 /** The chip in `html`: its summary, from the `<details>` to its end. */
 function chip(html: string): string | undefined {
-  const start = html.indexOf('<details class="chip"')
+  const start = html.indexOf('<details class="reads-differently"')
   return start === -1 ? undefined : html.slice(start, html.indexOf('</details>', start))
 }
 

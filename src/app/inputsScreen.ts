@@ -206,11 +206,11 @@ const PACE_CHIP: Chip = { id: 'pace', reading: 'pace' }
 function chip({ id, reading }: Chip, tracker: string, { unseen }: ReadsDifferently, body: string): string {
   const opens = unseen ? ` data-opens="open-${id}-reading"` : ''
   const dot = unseen ? '<span class="dot" title="A read you haven’t opened"></span>' : ''
-  return `<details class="chip"${opens} data-reading="${reading}">
+  return `<details class="reads-differently"${opens} data-reading="${reading}">
                 <summary>${dot}${escapeHtml(tracker)} reads differently</summary>
-                <div class="chip-panel">
+                <div class="reads-differently-panel">
                   ${body}
-                  <div class="chip-actions"><button type="submit" form="follow-${id}" class="primary">Follow ${escapeHtml(tracker)}</button></div>
+                  <div class="reads-differently-actions"><button type="submit" form="follow-${id}" class="primary">Follow ${escapeHtml(tracker)}</button></div>
                 </div>
               </details>`
 }
