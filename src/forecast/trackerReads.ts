@@ -1,5 +1,5 @@
 import type { SavedRead, TeamQuery } from '../model/savedRead.js'
-import type { QueryTarget, Storage, TeamQueries } from '../storage/storage.js'
+import type { Storage, TeamQueries } from '../storage/storage.js'
 import { periodName, type PeriodName } from './cadence.js'
 import { dayMonth } from './calendarDate.js'
 import type { Connecting } from './connection.js'
@@ -17,7 +17,7 @@ import { trackerOf } from './trackers.js'
 export type TrackerReads = Pick<Connecting, 'connections' | 'queries'> & { timeZone: string }
 
 /** What `measure` reads: the tracker's reads, with the team's queries and their reads in one target. */
-type Measuring = Pick<Connecting, 'connections'> & TeamQueries & { timeZone: string }
+export type Measuring = Pick<Connecting, 'connections'> & TeamQueries & { timeZone: string }
 
 /** How a view is read beyond what `Storage` keeps: with the team's tracker reads, in the local server build. */
 export interface ReadingTracker {
@@ -144,13 +144,12 @@ export interface TicketsReading {
 
 /**
  * Seam B, behind the views: what the team's tracker measures, for the milestone in `storage` on `today`, from the
- * team's queries and reads in `target`: what's saved for the views, the setup draft's for Check; none with no
+ * team's queries and reads in the target `reads` has them in: `saved` for the views, `current` for Check; none with no
  * connection, nor in the browser build.
  */
-export function measure(tracking: TrackerReads | undefined, target: QueryTarget, teamId: string, storage: Pick<Storage, 'milestoneInputs'>, today: string): Measured | undefined {
-  const connection = tracking?.connections.connection(teamId)
-  if (!tracking || !connection) return undefined
-  const reads: Measuring = { ...tracking, ...tracking.queries.teamQueries(target) }
+export function measure(reads: Measuring | undefined, teamId: string, storage: Pick<Storage, 'milestoneInputs'>, today: string): Measured | undefined {
+  const connection = reads?.connections.connection(teamId)
+  if (!reads || !connection) return undefined
   const tracker = trackerOf(connection).name
   const query = reads.milestoneQueries.milestoneQuery(teamId)?.query
   const read = savedReadOf(reads, teamId, query)

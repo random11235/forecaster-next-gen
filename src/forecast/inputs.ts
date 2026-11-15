@@ -7,6 +7,7 @@ import { milestoneForecastView, type ForecastViewOptions, type MilestoneForecast
 import { editGrowth, growthView, type GrowthEdit, type GrowthView, type TypedRange } from './growth.js'
 import { editMilestoneInputs, milestoneInputsView, type MilestoneInputsEdit, type MilestoneInputsView } from './milestoneInputs.js'
 import type { ForecastSettings } from './settings.js'
+import { withTeamQueries } from './connection.js'
 import { measure, type ReadingTracker } from './trackerReads.js'
 
 /**
@@ -61,7 +62,7 @@ export type Submitted = { saved: true; next: NextScreen } | ({ saved: false } & 
  * With the team's `tracker` reads (the local server build), the values it measures can follow it.
  */
 export function inputsView(storage: Storage, teamId: string, settings: ForecastSettings, today: string, { tracker }: ReadingTracker = {}): InputsView {
-  const milestone = milestoneInputsView(storage, teamId, settings, today, measure(tracker, 'saved', teamId, storage, today))
+  const milestone = milestoneInputsView(storage, teamId, settings, today, measure(tracker && withTeamQueries(tracker, 'saved'), teamId, storage, today))
   const growth = growthView(storage, teamId)
   return { milestone, growth, forms: savedForms(milestone, growth) }
 }
@@ -84,7 +85,7 @@ export function submitInputs(
   if (isPaceActionEdit(edit)) return submitPaceAction(storage, teamId, settings, today, edit, shown)
   const { form, next, typed } = submission(edit)
   const result: EditResult =
-    edit.kind === 'setAmbiguityRanges' ? editGrowth(storage, teamId, edit) : editMilestoneInputs(storage, teamId, edit, measure(shown.tracker, 'saved', teamId, storage, today))
+    edit.kind === 'setAmbiguityRanges' ? editGrowth(storage, teamId, edit) : editMilestoneInputs(storage, teamId, edit, measure(shown.tracker && withTeamQueries(shown.tracker, 'saved'), teamId, storage, today))
   if (result.ok) return { saved: true, next }
   const screen = inputsView(storage, teamId, settings, today, shown)
   const view = { ...screen, forms: { ...screen.forms, ...typed(screen.forms) }, refusal: { form, error: result.error } }

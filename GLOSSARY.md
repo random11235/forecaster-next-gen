@@ -60,6 +60,9 @@ _Avoid_: reference class, team throughput
 **Setup draft** (of a team): what the EM has chosen in the setup steps and not yet applied: queries and their reads, kept apart from the saved ones until "Use these", and thrown away by Cancel. While setup is open, the steps show it; the Milestone forecast screen never does.
 _Avoid_: pending changes, staging
 
+**Target** (of the team's queries and reads): which of them a screen reads and saves: current, the setup draft over what's saved while setup is open, otherwise what's saved, which the setup steps use; or saved, what's saved only, which the forecast uses. A skip or a renamed milestone changes saved, then current wherever the steps' own still need it.
+_Avoid_: layer, overlay, view mode
+
 **Leaf**: a ticket in the tracker with no children of its own: never a pull request, a parent, an epic, or a story with subtasks. Only leaves count, as remaining or finished.
 _Avoid_: child ticket, work item
 

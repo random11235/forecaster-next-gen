@@ -21,8 +21,8 @@ export interface Connecting {
   connector: ConnectorFactory
 }
 
-/** What `connecting` connects with, with the team's queries and their reads in `target`. */
-export function connectingIn<T extends Pick<Connecting, 'queries'>>(connecting: T, target: QueryTarget): T & TeamQueries {
+/** `connecting` with the team's queries and their reads in `target`: the one way `forecast/` asks for a target. */
+export function withTeamQueries<T extends Pick<Connecting, 'queries'>>(connecting: T, target: QueryTarget): T & TeamQueries {
   return { ...connecting, ...connecting.queries.teamQueries(target) }
 }
 
