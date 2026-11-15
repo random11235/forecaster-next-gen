@@ -5,7 +5,7 @@ import type { SavedRead } from '../model/savedRead.js'
 import type { MilestoneQueryStorage, Storage, TeamQueries } from '../storage/storage.js'
 import { narrowedToAFew, openCandidates, type CandidateOpening, type Candidates, type CandidatesAt } from './candidates.js'
 import { comparableWorkPace, type ComparableWorkPace } from './comparableWorkPace.js'
-import { connectingIn, teamConnection, type Connecting } from './connection.js'
+import { teamConnection, withTeamQueries, type Connecting } from './connection.js'
 import { finishedSinceFor, readQuery, ticketsRemaining, weeksRead, type QueryRead } from './finished.js'
 import { paceReadsStorage } from './paceReads.js'
 import { MILESTONE_QUERY, type StepQuery } from './stepQuery.js'
@@ -177,7 +177,7 @@ export async function queryStepView(
   opening: QueryStepOpening = {},
   stepQuery: StepQuery = MILESTONE_QUERY,
 ): Promise<QueryStepView> {
-  const current = stepping && connectingIn(stepping, 'current')
+  const current = stepping && withTeamQueries(stepping, 'current')
   const picked = current && (await pickedQuery(current, teamId, find, opening, stepQuery))
   if (!current || !picked) return { kind: 'noQueryStep' }
   if (stepQuery.kind === 'milestoneQuery') return { kind: 'milestoneStep', ...picked }
@@ -276,7 +276,7 @@ export async function searchedChoiceList(
   find: string,
   stepQuery: StepQuery = MILESTONE_QUERY,
 ): Promise<ChoiceList | undefined> {
-  const { milestoneQueries } = connecting.queries.teamQueries('current')
+  const { milestoneQueries } = withTeamQueries(connecting, 'current')
   const connected = await teamConnection(connecting, teamId)
   if (!connected) return undefined
   if (connected.connector === 'keychainFailed') return { kind, choices: [], searchedInTracker: true, failure: KEYCHAIN_FAILED }
@@ -372,11 +372,11 @@ export async function submitStepQuery(
   readAt: string,
   stepQuery: StepQuery = MILESTONE_QUERY,
 ): Promise<StepQuerySubmitted> {
-  return changeStepQuery(connectingIn(connecting, 'current'), teamId, edit, readAt, stepQuery)
+  return changeStepQuery(withTeamQueries(connecting, 'current'), teamId, edit, readAt, stepQuery)
 }
 
 /**
- * `submitStepQuery`'s change, made on the queries and reads `connecting` gives, in whichever target: `everywhere`, for
+ * `submitStepQuery`'s change, made on the queries and reads `connecting` gives, in whichever target: `saved` too, for
  * a change the forecast follows at once (`followRenamedMilestone`).
  */
 export async function changeStepQuery(
