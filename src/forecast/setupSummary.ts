@@ -89,7 +89,8 @@ export function summaryOf(reading: SummaryReading, teamId: string, connection: C
 
 /**
  * The flags of the team's failed reads that no read has been saved since: a read by hand failed as a whole; and for
- * a step's query (`of`), its own read failed, else each of its picks whose own read at Check failed, or none.
+ * a step's query (`of`), its own read failed, else each of its several picks whose own read at Check failed (a lone
+ * pick is its query, never read on its own), or none.
  */
 function failedFlags(reading: SummaryReading, teamId: string, connection: Connection) {
   const { whole, queries = {}, picks: pickFailures = {} } = reading.setup.readFailures(teamId) ?? {}
@@ -104,7 +105,8 @@ function failedFlags(reading: SummaryReading, teamId: string, connection: Connec
       if (!hasQuery(savedQuery)) return undefined
       const failed = queries[savedQuery.query]
       if (since(failed, savedQuery.query)) return [{ ...queryFailedFlag(connection, failed), of: stepQuery.kind }]
-      const picks = chipsShow(trackerOf(connection), savedQuery) ? savedQuery.picks.filter(({ query }) => since(pickFailures[query], query)) : []
+      const several = savedQuery.picks.length > 1 && chipsShow(trackerOf(connection), savedQuery)
+      const picks = several ? savedQuery.picks.filter(({ query }) => since(pickFailures[query], query)) : []
       return picks.length === 0 ? undefined : picks.map(({ name }) => ({ of: stepQuery.kind, flag: pickFailed(name) }))
     },
   }

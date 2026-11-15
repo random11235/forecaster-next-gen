@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import type { Choice, Ticket } from '../../src/connectors/connector.js'
-import { openSetup, setupView, submitSetup, type ChosenSource, type SetupContext, type SetupEdit } from '../../src/forecast/setup.js'
+import { followRenamedMilestone } from '../../src/forecast/milestoneRenamed.js'
+import { NO_CANCEL, openSetup, setupView, submitSetup, type ChosenSource, type SetupContext, type SetupEdit } from '../../src/forecast/setup.js'
 import type { SetupStep } from '../../src/forecast/setupSteps.js'
 import { submitReadAgain } from '../../src/forecast/setupReads.js'
+import { COUNTS_WAIT } from '../../src/forecast/setupSummary.js'
 import { queryStepView, submitStepQuery, type StepQueryEdit } from '../../src/forecast/queryStep.js'
 import { COMPARABLE_WORK, MILESTONE_QUERY, type StepQuery } from '../../src/forecast/stepQuery.js'
 import { CHECKOUT, finishedOn, open, TEAM, TODAY, trackerScenario, type TrackerScenario } from '../trackerScenario.js'
@@ -360,6 +362,35 @@ describe('each pick’s count on the summary', () => {
     expect(await summary()).toMatchObject({ milestone: { picks: [{ count: 3 }, { count: 1 }] }, flags: [] })
   })
 
+  test('hold a pick’s failed read at Check in setup’s draft: Cancel leaves the summary without its flag', async () => {
+    await picked([[CHECKOUT, open(3, 'c')], [SEARCH, open(1, 's')]])
+    await summary()
+    await submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })
+    scenario!.fixture.reads[SEARCH.query] = { failure: 'unavailable' }
+    await atCheck()
+
+    expect(scenario!.storage.readFailures(TEAM)).toBeUndefined()
+    await submitSetup(settingUp(scenario!), TEAM, { kind: 'cancel' })
+    expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({ flags: [] })
+  })
+
+  test('flag a pick whose read failed on its own row only, though its query is comparable work’s too', async () => {
+    const { connect, pick, fixture } = team()
+    fixture.reads[Q3_POLISH.query] = { tickets: finishedOn('q', '2026-11-09', 1), incomplete: false }
+    fixture.reads[CHECKOUT.query] = { tickets: open(3, 'c'), incomplete: false }
+    fixture.reads[`${CHECKOUT.query} OR ${Q3_POLISH.query}`] = { tickets: open(3, 'c'), incomplete: false }
+    await connect()
+    await pick('2026-11-12T07:00:00Z', Q3_POLISH, COMPARABLE_WORK)
+    await pick('2026-11-12T08:00:00Z', CHECKOUT)
+    await pick('2026-11-12T08:01:00Z', Q3_POLISH)
+    fixture.reads[Q3_POLISH.query] = { failure: 'unavailable' }
+    await atCheck()
+
+    expect(await summary()).toMatchObject({
+      flags: [{ of: 'milestoneQuery', flag: 'Q3 polish couldn’t be read on its own, so it shows no count. Change, then Check, reads it again.' }],
+    })
+  })
+
   test('are none for a query written by hand', async () => {
     await picked([[CHECKOUT, open(3, 'c')]])
     const written = 'milestone:"Checkout v2" -label:wontfix'
@@ -484,8 +515,33 @@ describe('Read again', () => {
     await readAgain()
     expect(scenario!.asked).toHaveLength(2)
     const view = setupView(settingUp(scenario!), TEAM)
-    expect(view).toMatchObject({ milestone: { picks: [{ name: 'Checkout v2' }, { name: 'bug' }] } })
+    expect(view).toMatchObject({ milestone: { picks: [{ name: 'Checkout v2' }, { name: 'bug' }], note: COUNTS_WAIT } })
     expect(view.kind === 'summary' && 'picks' in view.milestone && view.milestone.picks.some((pick) => 'count' in pick)).toBe(false)
+  })
+
+  test('leaves no note on a row whose picks’ counts are as Check read them, or of one pick', async () => {
+    const BUG: Choice = { kind: 'label', name: 'bug', query: 'label:bug' }
+    const { fixture } = await setUp()
+    fixture.reads[BUG.query] = { tickets: open(2, 'b'), incomplete: false }
+    fixture.reads[`${CHECKOUT.query} OR ${BUG.query}`] = { tickets: [...open(3), ...open(2, 'b')], incomplete: false }
+    await readAgain()
+    expect(setupView(settingUp(scenario!), TEAM)).not.toHaveProperty('milestone.note')
+
+    await submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })
+    await scenario!.pick(READ_AT, BUG)
+    await atCheck(LATER)
+    await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
+    expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({ milestone: { picks: [{ count: 3 }, { count: 2 }] } })
+    expect(setupView(settingUp(scenario!), TEAM)).not.toHaveProperty('milestone.note')
+  })
+
+  test('reads nothing while setup is open again with Change', async () => {
+    await setUp()
+    await submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })
+    scenario!.asked.length = 0
+
+    expect(await readAgain()).toEqual({ kind: 'unchanged' })
+    expect(scenario!.asked).toEqual([])
   })
 
   test('reads nothing until setup is done', async () => {
@@ -718,6 +774,91 @@ describe('the draft', () => {
 
     expect(storage.setupDraft(TEAM)).toEqual(draft)
     expect(await stepInSetup()).toMatchObject({ query: BOTH })
+  })
+
+  test('a skip in setup reads the draft’s queries back too, into the draft, as well as the saved ones', async () => {
+    const { storage, submit } = await setUpThenChange()
+    submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-09-07', ticketsRemaining: '30' })
+    await inSetup({ kind: 'editQuery', query: BOTH })
+    scenario!.asked.length = 0
+
+    await scenario!.skip(['2026-11-02'], NEXT_READ_AT)
+
+    expect(scenario!.asked).toEqual(['2026-09-04T10:00:00.000Z', '2026-09-04T10:00:00.000Z'])
+    expect(storage.savedRead({ teamId: TEAM, query: BOTH })).toBeUndefined()
+    expect(storage.savedRead({ teamId: TEAM, query: CHECKOUT.query })?.finishedSince).toBe('2026-09-04T10:00:00.000Z')
+    expect(storage.setupDraft(TEAM)?.reads.find(({ query }) => query === BOTH)?.read.finishedSince).toBe('2026-09-04T10:00:00.000Z')
+  })
+
+  test('a milestone renamed in setup follows in the draft as well as the saved query', async () => {
+    const V3: Choice = { kind: 'milestone', name: 'Checkout v3', query: 'milestone:"Checkout v3"' }
+    const { storage, fixture } = await setUpThenChange()
+    fixture.milestoneChoices = [{ kind: 'milestone', choices: [CHECKOUT, V3, Q3_POLISH], pastLimit: false }]
+    fixture.reads[V3.query] = { tickets: open(4), incomplete: false }
+    await inSetup({ kind: 'removePick', query: CHECKOUT.query })
+    await inSetup({ kind: 'addPick', choice: CHECKOUT })
+
+    await followRenamedMilestone(scenario!.using, TEAM, { from: CHECKOUT.name, to: V3.name }, NEXT_READ_AT)
+
+    expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [V3], query: V3.query })
+    expect(storage.setupDraft(TEAM)?.milestoneQuery).toEqual({ picks: [V3], query: V3.query })
+    expect(await stepInSetup()).toMatchObject({ picks: [V3], read: '4 open · 0 finished in the last 9 weeks' })
+  })
+})
+
+// Cancel puts setup back as it was before its steps opened: the summary, connecting skipped, or a first setup's
+// steps; a connection made in the steps goes with it, one there before them stays.
+describe('Cancel', () => {
+  const cancel = () => submitSetup(settingUp(scenario!), TEAM, { kind: 'cancel' })
+
+  test('after Skip, then Change and Connect, removes the connection made and returns to connecting skipped', async () => {
+    const { connect, storage } = team()
+    await submitSetup(settingUp(scenario!), TEAM, { kind: 'skipConnecting' })
+    await submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })
+    await connect()
+
+    expect(await cancel()).toMatchObject({ saved: true })
+    expect(storage.connection(TEAM)).toBeUndefined()
+    expect(setupView(settingUp(scenario!), TEAM)).toEqual({ kind: 'skipped' })
+  })
+
+  test('in a team connected before setup’s steps came (#217), with no milestone query, keeps its connection', async () => {
+    const { connect, storage } = team()
+    await connect()
+    // as migration 20 leaves such a team: setup open, with no connection made in it
+    storage.saveSetupState(TEAM, { open: true })
+    await scenario!.pick(READ_AT)
+
+    expect(await cancel()).toMatchObject({ saved: true })
+    expect(storage.connection(TEAM)).toMatchObject({ tracker: 'github', repo: 'shop' })
+    expect(storage.setupDraft(TEAM)).toBeUndefined()
+    expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({ kind: 'steps', step: 'milestone' })
+  })
+
+  test('is refused once the connection the steps opened on is changed in them, and the step says why in its place', async () => {
+    const { connect, pick, storage } = team()
+    await connect()
+    await pick(READ_AT)
+    await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
+    await submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })
+    expect(setupView(settingUp(scenario!), TEAM)).not.toHaveProperty('noCancel')
+
+    await connect('jira')
+
+    expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({ kind: 'steps', noCancel: NO_CANCEL })
+    expect(await cancel()).toMatchObject({ saved: false })
+    expect(storage.connection(TEAM)).toMatchObject({ tracker: 'jira' })
+    expect(storage.setupState(TEAM)).toMatchObject({ open: true })
+  })
+
+  test('in a first setup, still removes a connection made there and then changed', async () => {
+    const { connect, storage } = team()
+    await connect()
+    await connect('jira')
+
+    expect(setupView(settingUp(scenario!), TEAM)).not.toHaveProperty('noCancel')
+    expect(await cancel()).toMatchObject({ saved: true })
+    expect(storage.connection(TEAM)).toBeUndefined()
   })
 })
 
