@@ -9,6 +9,7 @@ import { teamConnection, type Connecting } from './connection.js'
 import { finishedSinceFor, readQuery, ticketsRemaining, weeksRead, type QueryRead } from './finished.js'
 import { paceReadsStorage } from './paceReads.js'
 import { MILESTONE_QUERY, type StepQuery } from './stepQuery.js'
+import { throughDraft } from './throughDraft.js'
 import { trackerOf, type TrackerFacts } from './trackers.js'
 
 /** What the Milestone step says once, beside the milestone query: the only two things a read adds to it. */
@@ -177,10 +178,11 @@ export async function queryStepView(
   opening: QueryStepOpening = {},
   stepQuery: StepQuery = MILESTONE_QUERY,
 ): Promise<QueryStepView> {
-  const picked = stepping && (await pickedQuery(stepping, teamId, find, opening, stepQuery))
-  if (!picked) return { kind: 'noQueryStep' }
+  const drafted = stepping && throughDraft(stepping)
+  const picked = drafted && (await pickedQuery(drafted, teamId, find, opening, stepQuery))
+  if (!drafted || !picked) return { kind: 'noQueryStep' }
   if (stepQuery.kind === 'milestoneQuery') return { kind: 'milestoneStep', ...picked }
-  return comparableWorkStep(stepping, teamId, picked, opening)
+  return comparableWorkStep(drafted, teamId, picked, opening)
 }
 
 /**
@@ -275,11 +277,12 @@ export async function searchedChoiceList(
   find: string,
   stepQuery: StepQuery = MILESTONE_QUERY,
 ): Promise<ChoiceList | undefined> {
+  const { milestoneQueries } = throughDraft(connecting)
   const connected = await teamConnection(connecting, teamId)
   if (!connected) return undefined
   if (connected.connector === 'keychainFailed') return { kind, choices: [], searchedInTracker: true, failure: KEYCHAIN_FAILED }
-  const unpicked = notPicked(stepQuery.saved(connecting.milestoneQueries, teamId)?.picks ?? [])
-  const marked = markedThisMilestone(connecting.milestoneQueries, teamId)
+  const unpicked = notPicked(stepQuery.saved(milestoneQueries, teamId)?.picks ?? [])
+  const marked = markedThisMilestone(milestoneQueries, teamId)
   const typed = find.trim()
   if (typed !== '') return marked(await foundInTracker(connected.connector, kind, typed, unpicked))
   const choices = await connected.connector.milestoneChoices()
@@ -359,9 +362,24 @@ type PicksEdit = { kind: 'addPick'; choice: Choice } | { kind: 'removePick'; que
  * query is saved only once read, unless its read says it is wrong: the tracker rejecting it, or it reaching outside
  * the connection, refuses it, and the last query that worked stays in use, with its saved read. Going back to finding
  * from a query the picker can't show changes nothing until confirmed. Starting afresh clears the picks and query
- * together, reading nothing. The query changed is `stepQuery`, the milestone query unless given.
+ * together, reading nothing. The query changed is `stepQuery`, the milestone query unless given. While setup is open,
+ * the query and its reads are saved into its draft (`throughDraft`), as each step entry point reads and saves.
  */
 export async function submitStepQuery(
+  connecting: StepReading,
+  teamId: string,
+  edit: StepQueryEdit,
+  readAt: string,
+  stepQuery: StepQuery = MILESTONE_QUERY,
+): Promise<StepQuerySubmitted> {
+  return changeStepQuery(throughDraft(connecting), teamId, edit, readAt, stepQuery)
+}
+
+/**
+ * `submitStepQuery`'s change, made on the queries and reads `connecting` gives, held in setup's draft or not: the
+ * saved ones themselves, for a change the forecast follows at once (`followRenamedMilestone`).
+ */
+export async function changeStepQuery(
   connecting: StepReading,
   teamId: string,
   edit: StepQueryEdit,

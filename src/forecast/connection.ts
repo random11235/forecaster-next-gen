@@ -65,9 +65,31 @@ export type ConnectionSubmitted = { saved: true; next: Extract<SetupStep, 'conne
  *
  * Should this computer's keychain or the data file fail, nothing changes: what was written is put back, and the
  * refusal says which failed, never quoting its error.
+ *
+ * While setup is open, a saved change is noted on it: a connection made where there was none, which Cancel removes,
+ * or the one there was changed, after which setup can't be cancelled (`noteConnectionChange`).
  */
 export async function submitConnection(connecting: Connecting, teamId: string, edit: ConnectionEdit): Promise<ConnectionSubmitted> {
-  if (edit.kind === 'disconnect') return disconnect(connecting, teamId)
+  const before = connecting.connections.connection(teamId)
+  const submitted = edit.kind === 'disconnect' ? await disconnect(connecting, teamId) : await connect(connecting, teamId, edit)
+  if (submitted.saved) noteConnectionChange(connecting, teamId, before)
+  return submitted
+}
+
+/**
+ * While setup is open, what its opening has done to the connection, now `before` it changed: made it, where the team
+ * had none, or changed (or removed) the one it had, for Cancel to undo or refuse. Once made or changed, it stays so.
+ */
+function noteConnectionChange({ setup, connections }: Connecting, teamId: string, before: Connection | undefined): void {
+  const state = setup.setupState(teamId)
+  if (!state.open || state.connection) return
+  const after = connections.connection(teamId)
+  const connection = JSON.stringify(after) === JSON.stringify(before) ? undefined : before === undefined ? 'made' : 'changed'
+  if (connection) setup.saveSetupState(teamId, { ...state, connection })
+}
+
+/** A connect, or a change while connected: checked, then saved. */
+async function connect(connecting: Connecting, teamId: string, edit: Extract<ConnectionEdit, { kind: 'connect' }>): Promise<ConnectionSubmitted> {
   const { tracker, repo, site, projectKey, email } = edit
   const form: ConnectionForm = { tracker, repo, site, projectKey, email }
   const refused = (refusal: string): ConnectionSubmitted => ({ saved: false, view: { ...connectStep(connecting, teamId), form, refusal } })

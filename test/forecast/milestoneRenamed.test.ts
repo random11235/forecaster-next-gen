@@ -52,6 +52,7 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'forecaster-milestone-renamed-'))
   storage = openSqliteStorage(join(dir, 'forecaster.db'))
   storage.saveTeam({ id: TEAM, name: 'My team', source: 'manual', sourceRef: '', installedAt: '2026-01-01T00:00:00Z' })
+  storage.saveSetupState(TEAM, { open: false, closed: 'done' })
 })
 
 afterEach(() => {

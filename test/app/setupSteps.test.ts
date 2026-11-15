@@ -237,6 +237,23 @@ describe('Read again', () => {
     expect(onTracker.storage.savedRead({ teamId: 'team', query: CHECKOUT.query })).toMatchObject({ readAt: `${TODAY}T09:00:00Z` })
   })
 
+  test('notes, beneath a row of several picks, that their counts wait for Check', async () => {
+    const SEARCH = { kind: 'epic', name: '#57 Search revamp', query: 'parent-issue:shop-team/shop#57' }
+    const fixture: CannedFixture = { ...FIXTURE, reads: { ...FIXTURE.reads, [SEARCH.query]: { tickets: [{ id: 's1' }], incomplete: false } } }
+    onTracker = await appOnTracker(fixture)
+    await post(onTracker.running, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
+    await post(onTracker.running, '/inputs/milestone-query/add', { ...CHECKOUT })
+    await post(onTracker.running, '/inputs/milestone-query/add', SEARCH)
+    await page(onTracker.running, '/inputs?step=check')
+    await post(onTracker.running, '/inputs/setup/use-these', {})
+    onTracker.readAt(`${TODAY}T14:30:00Z`)
+
+    await post(onTracker.running, '/inputs/setup/read-again', {})
+    expect(summaryOf(await page(onTracker.running, '/inputs'))).toMatch(
+      /#57 Search revamp <span class="kind">\(epic\)<\/span><br><span class="muted">The picks’ counts are from Check, so some show none since the last read\. [^<]*<\/span><\/dd>/,
+    )
+  })
+
   test('with the token refused, offers Change, which opens the Connect step', async () => {
     const { fixture, onTracker } = await setUp()
     fixture.reads[CHECKOUT.query] = { failure: 'unauthorised' }
@@ -295,6 +312,17 @@ describe('the draft (#218)', () => {
     expect(cancelled.headers.get('location')).toBe('/inputs')
     expect(await page(running, '/inputs')).toContain('id="setup-summary"')
     expect(storage!.milestoneQuery('team')?.query).toBe(CHECKOUT.query)
+  })
+
+  test('once the connection is changed in steps Change reopened, says why in place of Cancel', async () => {
+    const running = await picked()
+    await post(running, '/inputs/setup/use-these', {})
+    await post(running, '/inputs/setup/change', {})
+    await post(running, '/inputs/connect', { tracker: 'github', repo: 'shop-team/payments', token: 'token' })
+
+    const html = await page(running, '/inputs')
+    expect(html).not.toContain('/inputs/setup/cancel')
+    expect(html).toMatch(/<p class="note">The connection changed in these steps, so they can’t be cancelled: [^<]*<\/p>\s*<div class="actions setup-nav">/)
   })
 })
 
