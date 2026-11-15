@@ -9,14 +9,14 @@ import { submitSkip, type Skipping } from '../src/forecast/skippedPeriods.js'
 import { MILESTONE_QUERY, type StepQuery } from '../src/forecast/stepQuery.js'
 import type { TrackerReads } from '../src/forecast/trackerReads.js'
 import { openMemorySecrets } from '../src/secrets/memorySecrets.js'
-import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage, Storage } from '../src/storage/storage.js'
+import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage, SetupStorage, Storage } from '../src/storage/storage.js'
 import { openSqliteStorage } from '../src/storage/sqliteStorage.js'
 
 // A team on a tracker, for Seam B tests of what the tracker reads (#211–#215): its storage, a canned connector
 // answering from a fixture the test can change between reads, and the Seam B entry points bound to them.
 
 /** What the local server build stores, by the interfaces its tests use. */
-export type TeamStorage = Storage & ConnectionStorage & SavedReadStorage & MilestoneQueryStorage
+export type TeamStorage = Storage & ConnectionStorage & SavedReadStorage & MilestoneQueryStorage & SetupStorage
 
 export const TEAM = 'team'
 /** A Thursday. */
@@ -73,10 +73,15 @@ export interface TrackerScenario {
   close(): void
 }
 
-/** A team, `TEAM`, not yet connected, whose milestone query reads `tickets`, kept in memory; close it after. */
-export function trackerScenario({ tickets = [] as Ticket[], today = TODAY } = {}): TrackerScenario {
+/**
+ * A team, `TEAM`, not yet connected, whose milestone query reads `tickets`, kept in memory; close it after. Its setup
+ * is closed done, so what the steps pick and read is saved, as the forecast reads it; or, in a first setup
+ * (`firstSetup`), open, so it is held in the setup draft until "Use these".
+ */
+export function trackerScenario({ tickets = [] as Ticket[], today = TODAY, firstSetup = false } = {}): TrackerScenario {
   const storage: TeamStorage = openSqliteStorage(':memory:')
   storage.saveTeam({ id: TEAM, name: 'My team', source: 'manual', sourceRef: '', installedAt: '2026-01-01T00:00:00Z' })
+  if (!firstSetup) storage.saveSetupState(TEAM, { open: false, closed: 'done' })
   const fixture: CannedFixture = {
     milestoneChoices: [{ kind: 'milestone', choices: [CHECKOUT], pastLimit: false }],
     reads: { [CHECKOUT.query]: { tickets, incomplete: false } },
@@ -87,6 +92,7 @@ export function trackerScenario({ tickets = [] as Ticket[], today = TODAY } = {}
     milestoneInputs: storage,
     reads: storage,
     milestoneQueries: storage,
+    setup: storage,
     secrets: openMemorySecrets(),
     connector: () => {
       const canned = cannedConnector(fixture)

@@ -1,7 +1,8 @@
 import type { Connector, Failure } from '../connectors/connector.js'
 import type { Connection } from '../model/connection.js'
 import type { Secrets } from '../secrets/secrets.js'
-import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage } from '../storage/storage.js'
+import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage, SetupStorage } from '../storage/storage.js'
+import type { SetupStep } from './setupSteps.js'
 import { BLANK_CONNECTION_FORM, connectionOf, TRACKERS, trackerOf, type ConnectionForm, type Tracker } from './trackers.js'
 
 /** Builds the connector for a connection and its token: the real one in the local server build, the canned one in tests and demo mode. */
@@ -9,13 +10,14 @@ export type ConnectorFactory = (connection: Connection, token: string) => Connec
 
 /**
  * What the local server build connects with: where the connection is kept, where its token is kept, how a connector is
- * built, and where the milestone's picks and query and their reads are kept. The browser build has none of these, so
- * it has no Connect or Milestone step.
+ * built, where the milestone's picks and query and their reads are kept, and how setup was closed. The browser build
+ * has none of these, so it has no setup steps.
  */
 export interface Connecting {
   connections: ConnectionStorage
   reads: SavedReadStorage
   milestoneQueries: MilestoneQueryStorage
+  setup: SetupStorage
   secrets: Secrets
   connector: ConnectorFactory
 }
@@ -45,11 +47,8 @@ export type ConnectStep = ({ kind: 'connect' } | { kind: 'connected'; connection
   refusal?: string
 }
 
-/** The setup step to go to next: Connect, or, once connected, picking the milestone's tickets. */
-export type SetupStep = 'connect' | 'milestone'
-
-/** A connection saved (or removed), and the setup step to go to next; or refused, with the Connect step to show again. */
-export type ConnectionSubmitted = { saved: true; next: SetupStep } | { saved: false; view: ConnectStep & { refusal: string } }
+/** A connection saved (or removed), and the setup step to go to next: Connect, or, once connected, Milestone; or refused, with the Connect step to show again. */
+export type ConnectionSubmitted = { saved: true; next: Extract<SetupStep, 'connect' | 'milestone'> } | { saved: false; view: ConnectStep & { refusal: string } }
 
 /**
  * Seam B: connects the team, changes its connection, or disconnects it.
@@ -66,9 +65,31 @@ export type ConnectionSubmitted = { saved: true; next: SetupStep } | { saved: fa
  *
  * Should this computer's keychain or the data file fail, nothing changes: what was written is put back, and the
  * refusal says which failed, never quoting its error.
+ *
+ * While setup is open, a saved change is noted on it: a connection made where there was none, which Cancel removes,
+ * or the one there was changed, after which setup can't be cancelled (`noteConnectionChange`).
  */
 export async function submitConnection(connecting: Connecting, teamId: string, edit: ConnectionEdit): Promise<ConnectionSubmitted> {
-  if (edit.kind === 'disconnect') return disconnect(connecting, teamId)
+  const before = connecting.connections.connection(teamId)
+  const submitted = edit.kind === 'disconnect' ? await disconnect(connecting, teamId) : await connect(connecting, teamId, edit)
+  if (submitted.saved) noteConnectionChange(connecting, teamId, before)
+  return submitted
+}
+
+/**
+ * While setup is open, what its opening has done to the connection, now `before` it changed: made it, where the team
+ * had none, or changed (or removed) the one it had, for Cancel to undo or refuse. Once made or changed, it stays so.
+ */
+function noteConnectionChange({ setup, connections }: Connecting, teamId: string, before: Connection | undefined): void {
+  const state = setup.setupState(teamId)
+  if (!state.open || state.connection) return
+  const after = connections.connection(teamId)
+  const connection = JSON.stringify(after) === JSON.stringify(before) ? undefined : before === undefined ? 'made' : 'changed'
+  if (connection) setup.saveSetupState(teamId, { ...state, connection })
+}
+
+/** A connect, or a change while connected: checked, then saved. */
+async function connect(connecting: Connecting, teamId: string, edit: Extract<ConnectionEdit, { kind: 'connect' }>): Promise<ConnectionSubmitted> {
   const { tracker, repo, site, projectKey, email } = edit
   const form: ConnectionForm = { tracker, repo, site, projectKey, email }
   const refused = (refusal: string): ConnectionSubmitted => ({ saved: false, view: { ...connectStep(connecting, teamId), form, refusal } })

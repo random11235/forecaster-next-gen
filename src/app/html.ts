@@ -247,8 +247,28 @@ const STYLE = `
     .actions { display: flex; justify-content: flex-end; }
     button.primary, a.button.primary { min-height: 42px; padding: 0 20px; border: 0; background: var(--ink); color: var(--page); font-size: 14px; font-weight: 600; }
     a.button.primary { display: inline-flex; align-items: center; border-radius: 6px; text-decoration: none; }
-    .actions.onward { gap: 16px; align-items: center; margin-top: 16px; }
-    .actions.onward form { margin: 0; }
+    /* The setup steps (#217): their list, the step shown marked; Back and Next beneath it; and, set up, the summary above the inputs. */
+    ol.setup-steps { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 0 0 20px; padding: 0; list-style: none; counter-reset: step; font-size: 13px; color: var(--faint); }
+    ol.setup-steps li { counter-increment: step; }
+    ol.setup-steps li::before { content: counter(step) ". "; font-family: var(--mono); }
+    ol.setup-steps li[aria-current="step"] { color: var(--ink); font-weight: 600; }
+    ol.setup-steps li.done, ol.setup-steps li.done a { color: var(--muted); }
+    .actions.setup-nav { gap: 12px; align-items: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--hairline); }
+    .actions.setup-nav a.button:not(.primary) { margin-right: auto; font-size: 14px; color: var(--link); }
+    .actions.setup-nav form { margin: 0; }
+    .setup-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 24px; padding: 12px 16px; border: 1px solid var(--hairline); border-radius: 8px; font-size: 14px; }
+    .setup-summary .read, .setup-summary .muted, .setup-summary .kind { font-size: 13px; color: var(--muted); }
+    .setup-summary form { margin: 0 0 0 auto; }
+    /* Set up: the tracker line, then the Milestone and Comparable rows, the leaf-and-epics line, and only problem flags. */
+    .setup-summary .setup-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; flex-basis: 100%; }
+    .setup-summary dl.setup-rows { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; flex-basis: 100%; }
+    .setup-summary dt { color: var(--muted); }
+    .setup-summary dd { margin: 0; overflow-wrap: anywhere; }
+    .setup-summary code { font-family: var(--mono); font-size: 13px; }
+    .setup-summary p.note { flex-basis: 100%; }
+    .setup-summary .flag { flex-basis: 100%; color: var(--risk); }
+    .setup-summary .setup-head form + form { margin: 0; }
+    .setup-summary .flag form { display: inline; margin-left: 8px; }
     .pace { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; }
     .pace label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
     .pace input[type=number] { font-size: 32px; width: 72px; text-align: center; padding: 2px 0; }
@@ -264,6 +284,20 @@ const STYLE = `
     .counts { display: flex; align-items: end; gap: 12px; }
     .counts .fields { flex-wrap: nowrap; }
     .counts button { white-space: nowrap; }
+    table.check { border-collapse: collapse; font-size: 14px; margin-bottom: 12px; }
+    table.check th[scope=col] { padding: 0 18px 6px 0; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--faint); border-bottom: 1px solid var(--ink); }
+    table.check th[scope=row] { padding: 10px 18px 10px 0; text-align: left; font-weight: 500; }
+    table.check td { padding: 10px 18px 10px 0; border-bottom: 1px solid var(--hairline); vertical-align: middle; font-variant-numeric: tabular-nums; }
+    table.check th[scope=row] { border-bottom: 1px solid var(--hairline); }
+    table.check .muted { font-size: 12px; }
+    table.check .note.warn { margin: 0; font-size: 12px; }
+    table.check form.source { display: flex; gap: 8px; align-items: center; }
+    table.check fieldset.levels { gap: 0; flex-wrap: nowrap; }
+    table.check fieldset.levels label { flex-direction: row; padding: 4px 12px; font-size: 13px; color: var(--text-2); border-radius: 0; }
+    table.check fieldset.levels label:first-child { border-radius: 6px 0 0 6px; }
+    table.check fieldset.levels label:last-child { border-radius: 0 6px 6px 0; margin-left: -1px; }
+    table.check fieldset.levels input { position: absolute; opacity: 0; }
+    .chooses-as-changed table.check .choose { display: none; }
     .tickets-source { flex: 1 1 200px; display: flex; flex-direction: column; gap: 6px; }
     .tickets-source fieldset.levels { gap: 0; align-self: flex-start; flex-wrap: nowrap; }
     .tickets-source fieldset.levels label { flex: 0 0 auto; flex-direction: row; padding: 4px 12px; font-size: 13px; color: var(--text-2); border-radius: 0; }

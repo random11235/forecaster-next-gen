@@ -288,7 +288,7 @@ function periodOf(period: PeriodName, start: string): string {
 }
 
 /** A UTC instant as the screens date a read, in `timeZone`: "4 Nov 09:12". */
-function readOn(instant: string, timeZone: string): string {
+export function readOn(instant: string, timeZone: string): string {
   const format = new Intl.DateTimeFormat('en-GB', { timeZone, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
   const part = (type: Intl.DateTimeFormatPartTypes): string => format.formatToParts(new Date(instant)).find((each) => each.type === type)?.value ?? ''
   return `${part('day')} ${part('month')} ${part('hour')}:${part('minute')}`

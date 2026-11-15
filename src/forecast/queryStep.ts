@@ -9,6 +9,7 @@ import { teamConnection, type Connecting } from './connection.js'
 import { finishedSinceFor, readQuery, ticketsRemaining, weeksRead, type QueryRead } from './finished.js'
 import { paceReadsStorage } from './paceReads.js'
 import { MILESTONE_QUERY, type StepQuery } from './stepQuery.js'
+import { throughDraft } from './throughDraft.js'
 import { trackerOf, type TrackerFacts } from './trackers.js'
 
 /** What the Milestone step says once, beside the milestone query: the only two things a read adds to it. */
@@ -59,8 +60,6 @@ export interface MilestoneStep extends PickedQuery {
  */
 export interface ComparableWorkStep extends PickedQuery {
   kind: 'comparableWorkStep'
-  /** Its main button: `skip` until something is added, then `next`. */
-  onward: 'skip' | 'next'
   /**
    * The pace it leads with (#204), from the saved reads alone, asking the tracker nothing; none until there is one.
    * Its `flag`, that comparable work's query isn't used, goes beside the read when the step has none of its own.
@@ -179,10 +178,11 @@ export async function queryStepView(
   opening: QueryStepOpening = {},
   stepQuery: StepQuery = MILESTONE_QUERY,
 ): Promise<QueryStepView> {
-  const picked = stepping && (await pickedQuery(stepping, teamId, find, opening, stepQuery))
-  if (!picked) return { kind: 'noQueryStep' }
+  const drafted = stepping && throughDraft(stepping)
+  const picked = drafted && (await pickedQuery(drafted, teamId, find, opening, stepQuery))
+  if (!drafted || !picked) return { kind: 'noQueryStep' }
   if (stepQuery.kind === 'milestoneQuery') return { kind: 'milestoneStep', ...picked }
-  return comparableWorkStep(stepping, teamId, picked, opening)
+  return comparableWorkStep(drafted, teamId, picked, opening)
 }
 
 /**
@@ -197,8 +197,7 @@ async function comparableWorkStep(
 ): Promise<ComparableWorkStep> {
   const { milestoneInputs, at } = stepping
   const pace = comparableWorkPace(paceReadsStorage(milestoneInputs, stepping), teamId, at)
-  const onward = picked.query === '' ? 'skip' : 'next'
-  const step: ComparableWorkStep = { kind: 'comparableWorkStep', ...picked, onward, ...(pace && { pace }) }
+  const step: ComparableWorkStep = { kind: 'comparableWorkStep', ...picked, ...(pace && { pace }) }
   if (picked.editing) return step
   const opening = openCandidates(stepping, milestoneInputs, teamId, at)
   const listed = picked.lists.flatMap((list) => list.choices)
@@ -278,11 +277,12 @@ export async function searchedChoiceList(
   find: string,
   stepQuery: StepQuery = MILESTONE_QUERY,
 ): Promise<ChoiceList | undefined> {
+  const { milestoneQueries } = throughDraft(connecting)
   const connected = await teamConnection(connecting, teamId)
   if (!connected) return undefined
   if (connected.connector === 'keychainFailed') return { kind, choices: [], searchedInTracker: true, failure: KEYCHAIN_FAILED }
-  const unpicked = notPicked(stepQuery.saved(connecting.milestoneQueries, teamId)?.picks ?? [])
-  const marked = markedThisMilestone(connecting.milestoneQueries, teamId)
+  const unpicked = notPicked(stepQuery.saved(milestoneQueries, teamId)?.picks ?? [])
+  const marked = markedThisMilestone(milestoneQueries, teamId)
   const typed = find.trim()
   if (typed !== '') return marked(await foundInTracker(connected.connector, kind, typed, unpicked))
   const choices = await connected.connector.milestoneChoices()
@@ -330,7 +330,7 @@ function readLine(read: SavedRead, { kind }: StepQuery): string {
  * None for a read with all its tickets. Whether comparable work's is used is its pace's to flag (`comparableWorkPace`),
  * over the periods pace counts.
  */
-function readFlag(read: SavedRead, trackerName: string, { picksOut, kind }: StepQuery): { flag: string } | undefined {
+export function readFlag(read: SavedRead, trackerName: string, { picksOut, kind }: StepQuery): { flag: string } | undefined {
   if (read.incomplete) {
     return { flag: `${trackerName} gave only part of what this query matches, so its tickets aren’t counted. Narrow the query to read all of it.` }
   }
@@ -362,9 +362,24 @@ type PicksEdit = { kind: 'addPick'; choice: Choice } | { kind: 'removePick'; que
  * query is saved only once read, unless its read says it is wrong: the tracker rejecting it, or it reaching outside
  * the connection, refuses it, and the last query that worked stays in use, with its saved read. Going back to finding
  * from a query the picker can't show changes nothing until confirmed. Starting afresh clears the picks and query
- * together, reading nothing. The query changed is `stepQuery`, the milestone query unless given.
+ * together, reading nothing. The query changed is `stepQuery`, the milestone query unless given. While setup is open,
+ * the query and its reads are saved into its draft (`throughDraft`), as each step entry point reads and saves.
  */
 export async function submitStepQuery(
+  connecting: StepReading,
+  teamId: string,
+  edit: StepQueryEdit,
+  readAt: string,
+  stepQuery: StepQuery = MILESTONE_QUERY,
+): Promise<StepQuerySubmitted> {
+  return changeStepQuery(throughDraft(connecting), teamId, edit, readAt, stepQuery)
+}
+
+/**
+ * `submitStepQuery`'s change, made on the queries and reads `connecting` gives, held in setup's draft or not: the
+ * saved ones themselves, for a change the forecast follows at once (`followRenamedMilestone`).
+ */
+export async function changeStepQuery(
   connecting: StepReading,
   teamId: string,
   edit: StepQueryEdit,
@@ -409,7 +424,7 @@ export async function submitStepQuery(
  * Why the tracker's failure to read a query rejects it, worded for the Milestone step: it reaches outside the
  * connection, or the tracker refused it, in its own words. None for a failure that says nothing of the query.
  */
-function rejectionOf(connection: Connection, failure: Failure): string | undefined {
+export function rejectionOf(connection: Connection, failure: Failure): string | undefined {
   const tracker = trackerOf(connection)
   if (failure.failure === 'outOfScope') return tracker.outOfScope(connection)
   if (failure.failure === 'invalidQuery') return `${tracker.name} rejected this query: ${failure.message}`
@@ -494,7 +509,7 @@ async function searchedFor(connector: Connector, kinds: ChoiceKind[], named: str
  * Whether the picker can show the milestone query as its picks' chips: it is an OR of their queries, in their order,
  * or empty.
  */
-function chipsShow(tracker: TrackerFacts, { picks, query }: MilestoneQuery): boolean {
+export function chipsShow(tracker: TrackerFacts, { picks, query }: MilestoneQuery): boolean {
   if (query === '') return true
   const parts = tracker.orParts(query)
   return parts.length === picks.length && parts.every((part, at) => part === picks[at]!.query)
