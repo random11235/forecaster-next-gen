@@ -8,6 +8,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "coverage:usage": "node scripts/usageCoverage.ts",
+    "check:migrations": "node scripts/checkMigrations.ts",
     "start": "npm run build && node dist/app/main.js",
     "build:web": "npm run build && node scripts/buildWeb.ts",
     "record": "npm run build && node scripts/record.ts",
