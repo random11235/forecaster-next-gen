@@ -42,8 +42,7 @@ async function startConnected(): Promise<RunningApp> {
   storage = openSqliteStorage(':memory:')
   const connecting: Connecting = {
     connections: storage,
-    reads: storage,
-    milestoneQueries: storage,
+    queries: storage,
     setup: storage,
     secrets: openMemorySecrets(),
     connector: () => cannedConnector(FIXTURE),

@@ -1,11 +1,11 @@
 import type { FailedRead, FailedReads, ReadFailures } from '../model/readFailures.js'
 import type { SavedRead } from '../model/savedRead.js'
+import type { SetupDraft } from '../model/setupDraft.js'
 import type { SetupStorage } from '../storage/storage.js'
 import { teamConnection } from './connection.js'
 import { finishedSinceFor, readQuery, type QueryRead } from './finished.js'
 import { chipsShow, rejectionOf, type StepReading } from './queryStep.js'
 import { COMPARABLE_WORK, hasQuery, MILESTONE_QUERY } from './stepQuery.js'
-import { redrafted, throughDraft } from './throughDraft.js'
 import { trackerOf } from './trackers.js'
 
 // Setup's own reads of the tracker: each pick's at Check, and the queries' by hand from the summary (Read again).
@@ -28,7 +28,8 @@ export async function readPicks(reading: StepReading, teamId: string, readAt: st
   const connected = await teamConnection(reading, teamId)
   if (!connected || connected.connector === 'keychainFailed') return
   const { connection, connector } = connected
-  const { milestoneQueries, reads, milestoneInputs, setup } = throughDraft(reading)
+  const { milestoneInputs, setup } = reading
+  const { milestoneQueries, reads } = reading.queries.teamQueries('current')
   const finishedSince = finishedSinceFor(readAt, milestoneInputs.milestoneInputs(teamId))
   for (const saved of [milestoneQueries.milestoneQuery(teamId), milestoneQueries.comparableWorkQuery(teamId)]) {
     if (!hasQuery(saved) || !chipsShow(trackerOf(connection), saved)) continue
@@ -38,9 +39,14 @@ export async function readPicks(reading: StepReading, teamId: string, readAt: st
       if (readSince(reads.savedRead({ teamId, query }), queryRead)) continue
       const read = await readQuery(connector, reads, { teamId, query, finishedSince, readAt })
       const failed = read.ok ? undefined : failedAt(read, readAt)
-      redrafted(setup, teamId, ({ pickFailures, ...draft }) => ({ ...draft, ...failuresOrNone('pickFailures', changed(pickFailures, { [query]: failed })) }))
+      redraft(setup, teamId, ({ pickFailures, ...draft }) => ({ ...draft, ...failuresOrNone('pickFailures', changed(pickFailures, { [query]: failed })) }))
     }
   }
+}
+
+/** Saves the team's setup draft with `change` made to it: a new one if it had none. */
+function redraft(setup: SetupStorage, teamId: string, change: (draft: SetupDraft) => SetupDraft): void {
+  setup.saveSetupDraft(teamId, change(setup.setupDraft(teamId) ?? { reads: [] }))
 }
 
 /** A failed read's failure, as asked for at `at`, without the saved read it leaves in use. */
@@ -93,12 +99,13 @@ export async function submitReadAgain(reading: StepReading, teamId: string, read
   const { connection, connector } = connected
   if (connector === 'keychainFailed') return (keepFailed(reading.setup, teamId, { whole: { failure: 'keychainFailed', at: readAt }, queries: {} }), { kind: 'failed' })
   const finishedSince = finishedSinceFor(readAt, reading.milestoneInputs.milestoneInputs(teamId))
+  const { milestoneQueries, reads } = reading.queries.teamQueries('saved')
   // a read made forgets why the last one failed; one failing whole stops there, the queries left as they were
   const queries: Record<string, FailedRead | undefined> = {}
   for (const stepQuery of [MILESTONE_QUERY, COMPARABLE_WORK]) {
-    const query = stepQuery.saved(reading.milestoneQueries, teamId)?.query
+    const query = stepQuery.saved(milestoneQueries, teamId)?.query
     if (!query) continue
-    const read = await readQuery(connector, reading.reads, { teamId, query, finishedSince, readAt })
+    const read = await readQuery(connector, reads, { teamId, query, finishedSince, readAt })
     queries[query] = read.ok ? undefined : failedAt(read, readAt)
     if (!read.ok && rejectionOf(connection, read) === undefined) {
       keepFailed(reading.setup, teamId, { whole: failedAt(read, readAt), queries: { ...queries, [query]: undefined } })

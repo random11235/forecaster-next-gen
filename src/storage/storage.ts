@@ -109,10 +109,40 @@ export interface SetupStorage {
   setupDraft(teamId: string): SetupDraft | undefined
   /** Replaces the team's setup draft whole. */
   saveSetupDraft(teamId: string, draft: SetupDraft): void
-  /** Throws the team's setup draft away, if it has one. */
+  /**
+   * Applies the team's setup draft ("Use these"), if it has one: its queries and reads saved over the saved ones, each
+   * read made in setup the query's latest, the saved one before it its previous; why its picks' reads failed over why
+   * theirs did, a pick read well in it failing no longer; then the draft discarded.
+   */
+  applySetupDraft(teamId: string): void
+  /** Throws the team's setup draft away (Cancel), if it has one. */
   discardSetupDraft(teamId: string): void
   /** Why the team's last reads failed (#222), if they did: the summary says so, the saved reads in use. */
   readFailures(teamId: string): ReadFailures | undefined
   /** Replaces why the team's reads failed whole: with none left, there are none. */
   saveReadFailures(teamId: string, failures: ReadFailures): void
+}
+
+/**
+ * Which of the team's queries and reads are meant (#244): `current`, what the setup steps read and save with, the
+ * team's setup draft over what's saved while setup is open, what's saved while it's closed; `saved`, what's saved only,
+ * which the Milestone forecast screen and the Inputs screen's values read; and `everywhere`, what's saved, read and
+ * saved, and while setup is open the draft too, wherever it holds the same as what's saved: a change the forecast
+ * takes at once, which the steps follow (a skip, a renamed milestone).
+ */
+export type QueryTarget = 'current' | 'saved' | 'everywhere'
+
+/** The team's queries and their reads, in one target. */
+export interface TeamQueries {
+  milestoneQueries: MilestoneQueryStorage
+  reads: SavedReadStorage
+}
+
+/**
+ * Where the local server build keeps the team's queries and reads, by target, the setup draft held behind it, so
+ * nothing outside storage overlays the draft itself. The browser build has no connectors, so it keeps none.
+ */
+export interface TeamQueryStorage {
+  /** The team's queries and reads in `target`. */
+  teamQueries(target: QueryTarget): TeamQueries
 }

@@ -52,8 +52,7 @@ async function startConnected(): Promise<RunningApp> {
   const counted = (connector: Connector): Connector => ({ ...connector, read: (query, since) => (reads.push(query), connector.read(query, since)) })
   const connecting: Connecting = {
     connections: storage,
-    reads: storage,
-    milestoneQueries: storage,
+    queries: storage,
     setup: storage,
     secrets: openMemorySecrets(),
     connector: () => counted(cannedConnector(FIXTURE)),
