@@ -1,7 +1,7 @@
 import type { Connector, Failure } from '../connectors/connector.js'
 import type { Connection } from '../model/connection.js'
 import type { Secrets } from '../secrets/secrets.js'
-import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage, SetupStorage } from '../storage/storage.js'
+import type { ConnectionStorage, QueryTarget, SetupStorage, TeamQueries, TeamQueryStorage } from '../storage/storage.js'
 import type { SetupStep } from './setupSteps.js'
 import { BLANK_CONNECTION_FORM, connectionOf, TRACKERS, trackerOf, type ConnectionForm, type Tracker } from './trackers.js'
 
@@ -10,16 +10,20 @@ export type ConnectorFactory = (connection: Connection, token: string) => Connec
 
 /**
  * What the local server build connects with: where the connection is kept, where its token is kept, how a connector is
- * built, where the milestone's picks and query and their reads are kept, and how setup was closed. The browser build
- * has none of these, so it has no setup steps.
+ * built, where the milestone's picks and query and their reads are kept, by target (`teamQueries`: setup's draft is
+ * held behind it), and how setup was closed. The browser build has none of these, so it has no setup steps.
  */
 export interface Connecting {
   connections: ConnectionStorage
-  reads: SavedReadStorage
-  milestoneQueries: MilestoneQueryStorage
+  queries: TeamQueryStorage
   setup: SetupStorage
   secrets: Secrets
   connector: ConnectorFactory
+}
+
+/** What `connecting` connects with, with the team's queries and their reads in `target`. */
+export function connectingIn<T extends Pick<Connecting, 'queries'>>(connecting: T, target: QueryTarget): T & TeamQueries {
+  return { ...connecting, ...connecting.queries.teamQueries(target) }
 }
 
 /**

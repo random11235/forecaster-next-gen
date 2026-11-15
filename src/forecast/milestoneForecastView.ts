@@ -119,7 +119,7 @@ export function milestoneForecastView(
 ): MilestoneForecastView {
   const saved = storage.milestoneInputs(teamId)
   if (!saved) return { kind: 'empty' }
-  const measured = measure(tracker, teamId, storage, today)
+  const measured = measure(tracker, 'saved', teamId, storage, today)
   const inUse = paceInUse(saved, today, measured)
   const assessment = assessMilestone(saved, settings, today, inUse, measured)
   if (!assessment.forecastable) {
