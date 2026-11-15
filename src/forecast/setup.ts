@@ -3,14 +3,13 @@ import type { MilestoneInputs, PaceMode, TicketsSource } from '../model/mileston
 import type { SetupDraft } from '../model/setupDraft.js'
 import type { SetupState, Storage } from '../storage/storage.js'
 import { periodName, type PeriodName } from './cadence.js'
-import { submitConnection } from './connection.js'
+import { connectingIn, submitConnection } from './connection.js'
 import { newMilestone } from './milestoneInputs.js'
 import type { StepReading } from './queryStep.js'
 import { readPicks } from './setupReads.js'
 import { summaryOf, type SetupSummary } from './setupSummary.js'
 import { SETUP_STEPS, setupStepOf, type SetupStep } from './setupSteps.js'
 import { hasQuery } from './stepQuery.js'
-import { applyDraft, redrafted, throughDraft } from './throughDraft.js'
 import { measure, paceReadingView, type PaceReadingView } from './trackerReads.js'
 
 /**
@@ -157,15 +156,15 @@ export function setupView(settingUp: SetupContext | undefined, teamId: string, a
   if (!settingUp) return { kind: 'noSetup' }
   const connection = settingUp.connections.connection(teamId)
   const state = settingUp.setup.setupState(teamId)
-  if (!state.open && state.closed === 'done' && connection) return summaryOf(settingUp, teamId, connection)
+  if (!state.open && state.closed === 'done' && connection) return summaryOf(connectingIn(settingUp, 'saved'), teamId, connection)
   if (!state.open && state.closed === 'skipped' && !connection) return { kind: 'skipped' }
-  const drafted = throughDraft(settingUp)
-  const picked = hasQuery(drafted.milestoneQueries.milestoneQuery(teamId))
+  const { milestoneQueries } = settingUp.queries.teamQueries('current')
+  const picked = hasQuery(milestoneQueries.milestoneQuery(teamId))
   const pastMilestone = asked !== undefined && SETUP_STEPS.indexOf(asked) > SETUP_STEPS.indexOf('milestone')
   const step: SetupStep = !connection ? 'connect' : asked === 'connect' || (picked && pastMilestone) ? asked : 'milestone'
   const at = SETUP_STEPS.indexOf(step)
   const back = SETUP_STEPS[at - 1]
-  const next = connection && nextOf(step, picked, hasQuery(drafted.milestoneQueries.comparableWorkQuery(teamId)))
+  const next = connection && nextOf(step, picked, hasQuery(milestoneQueries.comparableWorkQuery(teamId)))
   const check = step === 'check' ? checkOf(settingUp, teamId) : undefined
   return {
     kind: 'steps',
@@ -190,7 +189,7 @@ function nextOf(step: SetupStep, picked: boolean, comparable: boolean): SetupSte
 
 /** Check's rows: the saved values and sources, the draft's choices over them, and what the draft reads measure. */
 function checkOf(settingUp: SetupContext, teamId: string): SetupCheck | undefined {
-  const measured = measure(throughDraft(settingUp), teamId, settingUp.milestoneInputs, settingUp.today)
+  const measured = measure(settingUp, 'current', teamId, settingUp.milestoneInputs, settingUp.today)
   if (!measured) return undefined
   const inputs = inputsOrNew(settingUp, teamId)
   const chosen = settingUp.setup.setupDraft(teamId)?.sources
@@ -257,9 +256,9 @@ async function edited(settingUp: SetupContext, teamId: string, edit: SetupEdit):
   const { setup } = settingUp
   switch (edit.kind) {
     case 'useThese':
-      if (!settingUp.connections.connection(teamId) || !hasQuery(throughDraft(settingUp).milestoneQueries.milestoneQuery(teamId))) return false
+      if (!settingUp.connections.connection(teamId) || !hasQuery(settingUp.queries.teamQueries('current').milestoneQueries.milestoneQuery(teamId))) return false
       applySources(settingUp, teamId)
-      applyDraft(settingUp, teamId)
+      setup.applySetupDraft(teamId)
       setup.saveSetupState(teamId, { open: false, closed: 'done' })
       return true
     case 'chooseSource': {

@@ -1,5 +1,5 @@
 import type { SavedRead, TeamQuery } from '../model/savedRead.js'
-import type { Storage } from '../storage/storage.js'
+import type { QueryTarget, Storage, TeamQueries } from '../storage/storage.js'
 import { periodName, type PeriodName } from './cadence.js'
 import { dayMonth } from './calendarDate.js'
 import type { Connecting } from './connection.js'
@@ -11,10 +11,13 @@ import { trackerOf } from './trackers.js'
 
 /**
  * What the Inputs screen and the forecast read of the team's tracker, in the local server build: its connection, its
- * queries and their saved reads, and the EM's time zone (an IANA name), which reads are dated in. The browser build
- * has none, so its views are the MVP's.
+ * queries and their reads, by target, and the EM's time zone (an IANA name), which reads are dated in. The browser
+ * build has none, so its views are the MVP's.
  */
-export type TrackerReads = Pick<Connecting, 'connections' | 'milestoneQueries' | 'reads'> & { timeZone: string }
+export type TrackerReads = Pick<Connecting, 'connections' | 'queries'> & { timeZone: string }
+
+/** What `measure` reads: the tracker's reads, with the team's queries and their reads in one target. */
+type Measuring = Pick<Connecting, 'connections'> & TeamQueries & { timeZone: string }
 
 /** How a view is read beyond what `Storage` keeps: with the team's tracker reads, in the local server build. */
 export interface ReadingTracker {
@@ -140,12 +143,14 @@ export interface TicketsReading {
 }
 
 /**
- * Seam B, behind the views: what the team's tracker measures, for the milestone in `storage` on `today`; none with no
+ * Seam B, behind the views: what the team's tracker measures, for the milestone in `storage` on `today`, from the
+ * team's queries and reads in `target`: what's saved for the views, the setup draft's for Check; none with no
  * connection, nor in the browser build.
  */
-export function measure(reads: TrackerReads | undefined, teamId: string, storage: Pick<Storage, 'milestoneInputs'>, today: string): Measured | undefined {
-  const connection = reads?.connections.connection(teamId)
-  if (!reads || !connection) return undefined
+export function measure(tracking: TrackerReads | undefined, target: QueryTarget, teamId: string, storage: Pick<Storage, 'milestoneInputs'>, today: string): Measured | undefined {
+  const connection = tracking?.connections.connection(teamId)
+  if (!tracking || !connection) return undefined
+  const reads: Measuring = { ...tracking, ...tracking.queries.teamQueries(target) }
   const tracker = trackerOf(connection).name
   const query = reads.milestoneQueries.milestoneQuery(teamId)?.query
   const read = savedReadOf(reads, teamId, query)
@@ -159,12 +164,12 @@ export function measure(reads: TrackerReads | undefined, teamId: string, storage
   }
 }
 
-function savedReadOf(reads: TrackerReads, teamId: string, query: string | undefined) {
+function savedReadOf(reads: Measuring, teamId: string, query: string | undefined) {
   return query ? reads.reads.savedRead({ teamId, query }) : undefined
 }
 
 /** The tickets remaining the query's read before its latest gave, when it differs from `count`. */
-function wasTickets(reads: TrackerReads, teamId: string, query: string | undefined, count: number): WasTickets | undefined {
+function wasTickets(reads: Measuring, teamId: string, query: string | undefined, count: number): WasTickets | undefined {
   const previous = query ? reads.reads.previousRead({ teamId, query }) : undefined
   if (!previous || ticketsRemaining(previous) === count) return undefined
   return { count: ticketsRemaining(previous), readOn: readOn(previous.readAt, reads.timeZone) }
@@ -175,7 +180,7 @@ function wasTickets(reads: TrackerReads, teamId: string, query: string | undefin
  * day it was made. None when they are the counts pace shows, nor when the latest read, on its own day, counts the same:
  * the read changed nothing. Pace that came from the other query then gives none.
  */
-function wasPace(reads: TrackerReads, teamId: string, storage: Pick<Storage, 'milestoneInputs'>, from: PaceFrom, query: string | undefined, counts: number[]): WasPace | undefined {
+function wasPace(reads: Measuring, teamId: string, storage: Pick<Storage, 'milestoneInputs'>, from: PaceFrom, query: string | undefined, counts: number[]): WasPace | undefined {
   if (!query) return undefined
   const latest = reads.reads.savedRead({ teamId, query })
   const previous = reads.reads.previousRead({ teamId, query })
@@ -186,7 +191,7 @@ function wasPace(reads: TrackerReads, teamId: string, storage: Pick<Storage, 'mi
 }
 
 /** The counts pace showed with `read` as the query's, on the day it was made; none had pace come from the other query. */
-function countsAsThen(reads: TrackerReads, teamId: string, storage: Pick<Storage, 'milestoneInputs'>, from: PaceFrom, query: string, read: SavedRead): number[] | undefined {
+function countsAsThen(reads: Measuring, teamId: string, storage: Pick<Storage, 'milestoneInputs'>, from: PaceFrom, query: string, read: SavedRead): number[] | undefined {
   const saved = paceReadsStorage(storage, reads)
   const asThen = { ...saved, savedRead: (teamQuery: TeamQuery) => (teamQuery.query === query ? read : saved.savedRead(teamQuery)) }
   const then = paceReads(asThen, teamId, { today: calendarDayIn(reads.timeZone)(read.readAt), timeZone: reads.timeZone })
@@ -194,7 +199,7 @@ function countsAsThen(reads: TrackerReads, teamId: string, storage: Pick<Storage
 }
 
 /** The tracker's reading of pace, from `paceReads`: the periods it counts and how they are bounded; none until its query is read. */
-function paceReading(reads: TrackerReads, teamId: string, storage: Pick<Storage, 'milestoneInputs'>, today: string, tracker: string): PaceReading | undefined {
+function paceReading(reads: Measuring, teamId: string, storage: Pick<Storage, 'milestoneInputs'>, today: string, tracker: string): PaceReading | undefined {
   const inputs = storage.milestoneInputs(teamId)
   const read = paceReads(paceReadsStorage(storage, reads), teamId, { today, timeZone: reads.timeZone })
   const query = read?.from === 'milestone' ? reads.milestoneQueries.milestoneQuery(teamId) : reads.milestoneQueries.comparableWorkQuery(teamId)
