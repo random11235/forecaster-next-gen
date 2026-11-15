@@ -57,6 +57,9 @@ _Avoid_: selector, filter, scope
 **Comparable work** (of a milestone): recent work like the milestone's in type, capacity and ambiguity, picked out by a second, optional query the EM writes as the milestone query is written. Once added, it stands in for the milestone's own pace: pace comes from its finished tickets alone, and the milestone's own count only if the EM picks the milestone in it. KTLO usually isn't comparable work.
 _Avoid_: reference class, team throughput
 
+**Setup draft** (of a team): what the EM has chosen in the setup steps and not yet applied: queries and their reads, kept apart from the saved ones until "Use these", and thrown away by Cancel. While setup is open, the steps show it; the Milestone forecast screen never does.
+_Avoid_: pending changes, staging
+
 **Leaf**: a ticket in the tracker with no children of its own: never a pull request, a parent, an epic, or a story with subtasks. Only leaves count, as remaining or finished.
 _Avoid_: child ticket, work item
 
