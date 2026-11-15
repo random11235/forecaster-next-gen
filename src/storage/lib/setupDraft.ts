@@ -2,32 +2,40 @@ import type { SavedRead, TeamQuery } from '../../model/savedRead.js'
 import type { SetupDraft } from '../../model/setupDraft.js'
 import type { MilestoneQueryStorage, QueryTarget, SavedReadStorage, SetupStorage, TeamQueries } from '../storage.js'
 
-/** Where setup keeps the team's draft, and why its reads failed. */
-type DraftKeeping = Pick<SetupStorage, 'setupState' | 'setupDraft' | 'saveSetupDraft' | 'discardSetupDraft' | 'readFailures' | 'saveReadFailures'>
+/*
+ * The team's setup draft, behind sqliteStorage.ts: the team's queries and reads in each target, the draft over what's
+ * saved; the draft's own fields saved; and "Use these" applying it.
+ */
 
-/** All storage keeps of the team's queries and reads: what's saved, and where setup keeps the draft held over them. */
-export type QueryKeeping = TeamQueries & { setup: DraftKeeping }
+/** Reading and saving the team's setup draft. */
+type DraftStorage = Pick<SetupStorage, 'setupDraft' | 'saveSetupDraft'>
+
+/** The team's setup, as its draft needs it: whether setup is open, the draft, and why its reads failed. */
+type SetupWithDraft = DraftStorage & Pick<SetupStorage, 'setupState' | 'discardSetupDraft' | 'readFailures' | 'saveReadFailures'>
+
+/** The team's saved queries and reads, with its setup draft over them. */
+export type TeamQueriesWithDraft = TeamQueries & { setup: SetupWithDraft }
 
 /** A draft with nothing chosen yet: the steps show the saved queries and reads. */
 const NO_DRAFT: SetupDraft = { reads: [] }
 
 /** The team's queries and reads in `target`, as `QueryTarget` says. */
-export function draftedQueries(kept: QueryKeeping, target: QueryTarget): TeamQueries {
-  return target === 'current' ? current(kept) : { milestoneQueries: kept.milestoneQueries, reads: kept.reads }
+export function draftedQueries(withDraft: TeamQueriesWithDraft, target: QueryTarget): TeamQueries {
+  return target === 'current' ? current(withDraft) : { milestoneQueries: withDraft.milestoneQueries, reads: withDraft.reads }
 }
 
 /** Saves the team's setup draft with `change` made to it: a new one if it has none. */
-function redraft(setup: Pick<SetupStorage, 'setupDraft' | 'saveSetupDraft'>, teamId: string, change: (draft: SetupDraft) => SetupDraft): void {
+function redraft(setup: DraftStorage, teamId: string, change: (draft: SetupDraft) => SetupDraft): void {
   setup.saveSetupDraft(teamId, change(setup.setupDraft(teamId) ?? NO_DRAFT))
 }
 
 /** Saves the draft's sources (`SetupStorage.saveDraftSources`), the rest of it as it was. */
-export function saveDraftSources(setup: Pick<SetupStorage, 'setupDraft' | 'saveSetupDraft'>, teamId: string, sources: SetupDraft['sources']): void {
+export function saveDraftSources(setup: DraftStorage, teamId: string, sources: SetupDraft['sources']): void {
   redraft(setup, teamId, ({ sources: _, ...draft }) => ({ ...draft, ...(sources && { sources }) }))
 }
 
 /** Saves why the draft's picks failed to read (`SetupStorage.saveDraftPickFailures`), the rest of it as it was. */
-export function saveDraftPickFailures(setup: Pick<SetupStorage, 'setupDraft' | 'saveSetupDraft'>, teamId: string, pickFailures: SetupDraft['pickFailures']): void {
+export function saveDraftPickFailures(setup: DraftStorage, teamId: string, pickFailures: SetupDraft['pickFailures']): void {
   redraft(setup, teamId, ({ pickFailures: _, ...draft }) => ({ ...draft, ...(pickFailures && { pickFailures }) }))
 }
 
@@ -36,7 +44,7 @@ export function saveDraftPickFailures(setup: Pick<SetupStorage, 'setupDraft' | '
  * setup the query's latest, the saved one, if any, the read before it. Saves go into the draft, a new one if there is
  * none. Setup closed, it is what's saved.
  */
-function current({ milestoneQueries: saved, reads: savedReads, setup }: QueryKeeping): TeamQueries {
+function current({ milestoneQueries: saved, reads: savedReads, setup }: TeamQueriesWithDraft): TeamQueries {
   const draftOf = (teamId: string): SetupDraft | undefined => (setup.setupState(teamId).open ? setup.setupDraft(teamId) : undefined)
   const draftRead = ({ teamId, query }: TeamQuery): SavedRead | undefined => draftOf(teamId)?.reads.find((each) => each.query === query)?.read
   /** Saves `change` into the draft while setup is open: whether it did. */
@@ -70,7 +78,7 @@ function current({ milestoneQueries: saved, reads: savedReads, setup }: QueryKee
  * Applies the team's setup draft ("Use these"), if it has one: its queries and reads saved over the saved ones, and why
  * its picks' reads failed over why theirs did, a pick read well in it failing no longer; then discards it.
  */
-export function applySetupDraft({ milestoneQueries, reads, setup }: QueryKeeping, teamId: string): void {
+export function applySetupDraft({ milestoneQueries, reads, setup }: TeamQueriesWithDraft, teamId: string): void {
   const draft = setup.setupDraft(teamId)
   if (!draft) return
   if (draft.milestoneQuery) milestoneQueries.saveMilestoneQuery(teamId, draft.milestoneQuery)
