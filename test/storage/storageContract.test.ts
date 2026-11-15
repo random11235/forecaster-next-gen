@@ -620,9 +620,9 @@ describe("SQLite storage's setup", () => {
   })
 })
 
-// The team's queries and reads in three targets (#244): `current`, what the setup steps read and save with, the setup
-// draft over what's saved while setup is open; `saved`, what's saved only; and `everywhere`, what's saved and, where
-// the draft holds the same, the draft's too. "Use these" applies the draft; Cancel discards it.
+// The team's queries and reads in two targets (#244): `current`, what the setup steps read and save with, the setup
+// draft over what's saved while setup is open; and `saved`, what's saved only. "Use these" applies the draft; Cancel
+// discards it.
 describe("SQLite storage's query targets", () => {
   const LAUNCH_QUERY: MilestoneQuery = { picks: [{ kind: 'milestone', name: 'Launch', query: 'milestone:"Launch"' }], query: 'milestone:"Launch"' }
   const BETA_QUERY: MilestoneQuery = { picks: [], query: 'label:"beta"' }
@@ -657,7 +657,7 @@ describe("SQLite storage's query targets", () => {
   }
 
   test('with setup closed, every target reads and saves what is saved, drafting nothing', () => {
-    for (const target of ['current', 'saved', 'everywhere'] as const) {
+    for (const target of ['current', 'saved'] as const) {
       const { storage, reopen } = saved({ open: false, closed: 'done' })
       const { milestoneQueries, reads } = storage.teamQueries(target)
 
@@ -711,38 +711,17 @@ describe("SQLite storage's query targets", () => {
     expect(again.setupDraft('team')).toEqual({ milestoneQuery: EPIC_QUERY, reads: [{ query: launch.query, read: SECOND }] })
   })
 
-  test('with setup open, everywhere reads what is saved, and saves it, and in the draft where it holds the same', () => {
-    const { storage, reopen } = saved({ open: true, reopened: 'done' })
-    storage.saveSetupDraft('team', { milestoneQuery: LAUNCH_QUERY, comparableWorkQuery: EPIC_QUERY, reads: [{ query: launch.query, read: SECOND }] })
-    const { milestoneQueries, reads } = storage.teamQueries('everywhere')
-
-    expect(milestoneQueries.milestoneQuery('team')).toEqual(LAUNCH_QUERY)
-    expect(milestoneQueries.comparableWorkQuery('team')).toBeUndefined()
-    expect(reads.savedRead(launch)).toEqual(FIRST)
-    milestoneQueries.saveMilestoneQuery('team', BETA_QUERY)
-    milestoneQueries.saveComparableWorkQuery('team', BETA_QUERY)
-    reads.saveRead(launch, THIRD)
-    reads.saveRead(epic, THIRD)
-
-    const again = reopen()
-    expect(again.milestoneQuery('team')).toEqual(BETA_QUERY)
-    expect(again.comparableWorkQuery('team')).toEqual(BETA_QUERY)
-    expect(again.savedRead(launch)).toEqual(THIRD)
-    expect(again.savedRead(epic)).toEqual(THIRD)
-    // the draft's milestone query was the saved one, so it follows; its own comparable work is kept, and it held no read of the epic's
-    expect(again.setupDraft('team')).toEqual({ milestoneQuery: BETA_QUERY, comparableWorkQuery: EPIC_QUERY, reads: [{ query: launch.query, read: THIRD }] })
-  })
-
-  test('with setup open and no draft, everywhere saves what is saved alone, starting no draft', () => {
+  test('the draft’s sources and its picks’ failures save into it, keeping the rest, a draft started if there is none', () => {
     const { storage, reopen } = saved({ open: true })
-    const { milestoneQueries, reads } = storage.teamQueries('everywhere')
+    const failure = { 'label:"bug"': { failure: 'notFound' as const, at: '2026-11-12T09:00:00Z' } }
 
-    milestoneQueries.saveMilestoneQuery('team', EPIC_QUERY)
-    reads.saveRead(launch, SECOND)
+    storage.saveDraftSources('team', { pace: 'range' })
+    reopen().teamQueries('current').milestoneQueries.saveMilestoneQuery('team', EPIC_QUERY)
+    reopen().saveDraftPickFailures('team', failure)
+    expect(reopen().setupDraft('team')).toEqual({ milestoneQuery: EPIC_QUERY, reads: [], sources: { pace: 'range' }, pickFailures: failure })
 
-    expect(reopen().milestoneQuery('team')).toEqual(EPIC_QUERY)
-    expect(reopen().savedRead(launch)).toEqual(SECOND)
-    expect(reopen().setupDraft('team')).toBeUndefined()
+    reopen().saveDraftPickFailures('team', undefined)
+    expect(reopen().setupDraft('team')).toEqual({ milestoneQuery: EPIC_QUERY, reads: [], sources: { pace: 'range' } })
   })
 
   test('applying the draft saves its queries and reads over the saved ones, its picks’ failures over theirs, and discards it', () => {

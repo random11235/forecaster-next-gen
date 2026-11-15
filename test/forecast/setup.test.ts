@@ -705,18 +705,14 @@ describe('the draft', () => {
     expect(storage.milestoneQuery(TEAM)?.query).toBe(CHECKOUT.query)
   })
 
+  // what applying the draft saves is the Storage contract's; here, what the forecast and setup show once it has
   test('"Use these" applies the draft’s queries and reads together, and closes setup', async () => {
-    const { storage, forecast } = await setUpThenChange()
+    const { forecast } = await setUpThenChange()
     await inSetup({ kind: 'editQuery', query: BOTH })
     await inSetup({ kind: 'addPick', choice: Q3_POLISH }, NEXT_READ_AT, COMPARABLE_WORK)
 
     expect(await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })).toMatchObject({ saved: true })
 
-    expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [CHECKOUT, Q3_POLISH], query: BOTH })
-    expect(storage.comparableWorkQuery(TEAM)).toEqual({ picks: [Q3_POLISH], query: Q3_POLISH.query })
-    expect(storage.savedRead({ teamId: TEAM, query: BOTH })).toMatchObject({ readAt: NEXT_READ_AT, tickets: open(7) })
-    expect(storage.savedRead({ teamId: TEAM, query: Q3_POLISH.query })?.readAt).toBe(NEXT_READ_AT)
-    expect(storage.setupDraft(TEAM)).toBeUndefined()
     expect(forecast()).toMatchObject({ kind: 'forecast', ticketsRemaining: 7 })
     expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({ kind: 'summary', readOn: '13 Nov 10:00' })
   })
@@ -804,6 +800,36 @@ describe('the draft', () => {
     expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [V3], query: V3.query })
     expect(storage.setupDraft(TEAM)?.milestoneQuery).toEqual({ picks: [V3], query: V3.query })
     expect(await stepInSetup()).toMatchObject({ picks: [V3], read: '4 open · 0 finished in the last 9 weeks' })
+    // the draft reads the query it follows to, as the step does
+    expect(storage.setupDraft(TEAM)?.reads.map(({ query }) => query)).toContain(V3.query)
+  })
+
+  test('a milestone renamed in setup follows the draft’s pick of it, where the saved query is the same written by hand', async () => {
+    const V3: Choice = { kind: 'milestone', name: 'Checkout v3', query: 'milestone:"Checkout v3"' }
+    const { storage, fixture } = await setUpThenChange()
+    fixture.milestoneChoices = [{ kind: 'milestone', choices: [CHECKOUT, V3, Q3_POLISH], pastLimit: false }]
+    fixture.reads[V3.query] = { tickets: open(4), incomplete: false }
+    storage.saveMilestoneQuery(TEAM, { picks: [], query: CHECKOUT.query })
+    storage.saveSetupDraft(TEAM, { milestoneQuery: { picks: [CHECKOUT], query: CHECKOUT.query }, reads: [] })
+
+    await followRenamedMilestone(scenario!.using, TEAM, { from: CHECKOUT.name, to: V3.name }, NEXT_READ_AT)
+
+    expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [], query: CHECKOUT.query })
+    expect(await stepInSetup()).toMatchObject({ picks: [V3], query: V3.query, read: '4 open · 0 finished in the last 9 weeks' })
+  })
+
+  test('a skip in setup leaves a draft read that already reaches back far enough as it was', async () => {
+    const { storage, submit } = await setUpThenChange()
+    submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-09-07', ticketsRemaining: '30' })
+    const reachingFar = { ...storage.savedRead({ teamId: TEAM, query: CHECKOUT.query })!, finishedSince: '2026-06-01T00:00:00.000Z' }
+    storage.saveSetupDraft(TEAM, { reads: [{ query: CHECKOUT.query, read: reachingFar }] })
+    scenario!.asked.length = 0
+
+    await scenario!.skip(['2026-11-02'], NEXT_READ_AT)
+
+    expect(scenario!.asked).toEqual(['2026-09-04T10:00:00.000Z'])
+    expect(storage.savedRead({ teamId: TEAM, query: CHECKOUT.query })?.finishedSince).toBe('2026-09-04T10:00:00.000Z')
+    expect(storage.setupDraft(TEAM)?.reads).toEqual([{ query: CHECKOUT.query, read: reachingFar }])
   })
 })
 

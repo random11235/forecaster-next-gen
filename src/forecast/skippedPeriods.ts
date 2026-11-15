@@ -1,7 +1,7 @@
 import type { Storage, TeamQueries } from '../storage/storage.js'
 import { periodName } from './cadence.js'
 import { isCalendarDate } from './calendarDate.js'
-import { teamConnection } from './connection.js'
+import { teamConnection, withTeamQueries } from './connection.js'
 import { finishedSinceFor, readQuery } from './finished.js'
 import { inputsView, type Submitted } from './inputs.js'
 import type { StepReading } from './queryStep.js'
@@ -34,9 +34,9 @@ export interface SkipAt {
  * Inputs screen comes next. Skips belong to the milestone, so they outlast reads. A skip reads the pace's queries
  * again, as at `readAt`, where their saved reads don't reach back past the skipped periods (`finishedSinceFor`), so
  * the window can keep up to 8 counted; a read that fails leaves the last one in use. The steps' `current` queries are
- * read back too, so while setup is open its draft's are, into it, and Check counts the same window the forecast will. Refused, with no
- * period, a period that isn't a date, or no milestone, nothing changes, and the Inputs screen is shown again saying
- * why.
+ * read back too, so while setup is open its draft's are, into it, and Check counts the same window the forecast will.
+ * Refused, with no period, a period that isn't a date, or no milestone, nothing changes, and the Inputs screen is shown
+ * again saying why.
  */
 export async function submitSkip(skipping: Skipping, teamId: string, edit: SkipEdit, at: SkipAt): Promise<Submitted> {
   const saved = skipping.milestoneInputs.milestoneInputs(teamId)
@@ -63,23 +63,28 @@ function refused(skipping: Skipping, teamId: string, { settings, today, timeZone
 
 /**
  * Reads the pace's queries again, the milestone query and comparable work's, where their reads reach less far back than
- * `finishedSince`: the saved ones saved `everywhere`, into the draft too where it holds the same, and the steps'
- * (`current`) where theirs still fall short, each query read once.
+ * `finishedSince`: the saved ones, into what's saved; then the steps' (`current`) whose reads still fall short, which
+ * while setup is open are the draft's own, into it. A query the saved pass failed to read isn't asked for again.
  */
 async function reachBackPast(skipping: Skipping, teamId: string, finishedSince: string, readAt: string): Promise<void> {
-  const short = ({ milestoneQueries, reads }: TeamQueries): string[] =>
-    [milestoneQueries.milestoneQuery(teamId)?.query, milestoneQueries.comparableWorkQuery(teamId)?.query].filter((query): query is string => {
-      if (!query) return false
-      const read = reads.savedRead({ teamId, query })
-      return read === undefined || Date.parse(read.finishedSince) > Date.parse(finishedSince)
-    })
-  const savedShort = short(skipping.queries.teamQueries('saved'))
-  const current = skipping.queries.teamQueries('current')
-  const currentShort = short(current).filter((query) => !savedShort.includes(query))
-  if (savedShort.length === 0 && currentShort.length === 0) return
+  const saved = withTeamQueries(skipping, 'saved')
+  const current = withTeamQueries(skipping, 'current')
+  const short = (queries: TeamQueries): string[] => shortOf(queries, teamId, finishedSince)
+  if (short(saved).length === 0 && short(current).length === 0) return
   const connected = await teamConnection(skipping, teamId)
   if (!connected || connected.connector === 'keychainFailed') return
-  const everywhere = skipping.queries.teamQueries('everywhere')
-  for (const query of savedShort) await readQuery(connected.connector, everywhere.reads, { teamId, query, finishedSince, readAt })
-  for (const query of currentShort) await readQuery(connected.connector, current.reads, { teamId, query, finishedSince, readAt })
+  const failed = new Set<string>()
+  for (const query of short(saved)) {
+    if (!(await readQuery(connected.connector, saved.reads, { teamId, query, finishedSince, readAt })).ok) failed.add(query)
+  }
+  for (const query of short(current).filter((each) => !failed.has(each))) await readQuery(connected.connector, current.reads, { teamId, query, finishedSince, readAt })
+}
+
+/** The team's queries in `queries` whose reads reach less far back than `finishedSince`, or that have none. */
+function shortOf({ milestoneQueries, reads }: TeamQueries, teamId: string, finishedSince: string): string[] {
+  return [milestoneQueries.milestoneQuery(teamId)?.query, milestoneQueries.comparableWorkQuery(teamId)?.query].filter((query): query is string => {
+    if (!query) return false
+    const read = reads.savedRead({ teamId, query })
+    return read === undefined || Date.parse(read.finishedSince) > Date.parse(finishedSince)
+  })
 }
