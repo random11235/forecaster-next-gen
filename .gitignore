@@ -1,4 +1,7 @@
-.claude/skills/
+.claude/skills/*
+# installed from skills-lock.json; these two carry local edits, so git tracks them
+!.claude/skills/code-review/
+!.claude/skills/implement-spec/
 .agents/
 .DS_Store
 node_modules/
