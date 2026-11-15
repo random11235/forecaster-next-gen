@@ -6,6 +6,7 @@ import { finishedSinceFor, readQuery } from './finished.js'
 import { inputsView, type Submitted } from './inputs.js'
 import type { StepReading } from './queryStep.js'
 import type { ForecastSettings } from './settings.js'
+import { throughDraft } from './throughDraft.js'
 
 /**
  * What skipping reads and saves: what a query step reads with, the milestone's inputs held in the whole of what is
@@ -33,7 +34,8 @@ export interface SkipAt {
  * Seam B: skips the milestone's tracker periods, or counts skipped ones again, keeping pace on the tracker; saved, the
  * Inputs screen comes next. Skips belong to the milestone, so they outlast reads. A skip reads the pace's queries
  * again, as at `readAt`, where their saved reads don't reach back past the skipped periods (`finishedSinceFor`), so
- * the window can keep up to 8 counted; a read that fails leaves the last one in use. Refused, with no period, a period
+ * the window can keep up to 8 counted; a read that fails leaves the last one in use. While setup is open, the steps'
+ * queries are read back too, into its draft, so Check counts the same window the forecast will. Refused, with no period, a period
  * that isn't a date, or no milestone, nothing changes, and the Inputs screen is shown again saying why.
  */
 export async function submitSkip(skipping: Skipping, teamId: string, edit: SkipEdit, at: SkipAt): Promise<Submitted> {
@@ -46,7 +48,12 @@ export async function submitSkip(skipping: Skipping, teamId: string, edit: SkipE
   const skippedPeriods = edit.kind === 'skip' ? [...new Set([...before, ...edit.periods])].sort() : before.filter((start) => !edit.periods.includes(start))
   const inputs = { ...saved, paceWindow: { ...saved.paceWindow, skippedPeriods } }
   skipping.milestoneInputs.saveMilestoneInputs(inputs)
-  if (edit.kind === 'skip') await reachBackPast(skipping, teamId, finishedSinceFor(at.readAt, inputs), at.readAt)
+  if (edit.kind === 'skip') {
+    const finishedSince = finishedSinceFor(at.readAt, inputs)
+    await reachBackPast(skipping, teamId, finishedSince, at.readAt)
+    // the steps' queries and reads too, while setup holds its own in its draft
+    if (skipping.setup.setupState(teamId).open) await reachBackPast(throughDraft(skipping), teamId, finishedSince, at.readAt)
+  }
   return { saved: true, next: 'inputs' }
 }
 
