@@ -29,11 +29,12 @@ Communication to and from subagents should be sparse. Communicate primarily thro
    - calls the Skill tool with `tdd` to build the ticket;
    - merges the integration branch tip into its own branch before reporting done
 
-5. Once an **implementer subagent** completes, merge its work to the integration branch with a **merger subagent**.
+5. Once an **implementer subagent** completes, merge its work to the integration branch with a **merger subagent**. The merger runs `npm run typecheck`, `npm test` and `npm run check:migrations` on the merged result before committing it.
 
 6. If this changes the **frontier** of available tickets, kick off more **implementer subagents** to work on the new tickets. This allows for maximum concurrency.
 
-7. Once all tickets are complete, call the Skill tool with `code-review` on the integration branch. Fix all issues raised by the code review in a single **implementer subagent**.
+7. Once all tickets are complete, call the Skill tool with `code-review` on the integration branch, with main as the fixed point. Fix all issues raised by the code review in a single **implementer subagent**, on a fix branch.
+   - Before merging the fix branch, call the Skill tool with `code-review` on it, with the integration-branch tip as the fixed point. Fixes are written under the most context pressure; any finding goes back to the same implementer, and the loop ends when a review raises nothing new.
 
 8. If a draft PR exists, mark it ready for review. Otherwise, resolve each ticket the way the issue tracker closes work, and report the integration branch.
 
