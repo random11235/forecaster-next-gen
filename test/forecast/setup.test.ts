@@ -500,7 +500,7 @@ describe('Read again', () => {
     expect(scenario!.forecast()).toMatchObject({ kind: 'forecast', ticketsRemaining: 7 })
   })
 
-  test('reads the queries alone, not each of several picks: their counts show none until Check reads them again', async () => {
+  test('reads the queries alone, not each of several picks: their counts show none until Check reads them again, noted once beneath the rows', async () => {
     const BUG: Choice = { kind: 'label', name: 'bug', query: 'label:bug' }
     const { fixture } = await setUp()
     fixture.reads[BUG.query] = { tickets: open(2, 'b'), incomplete: false }
@@ -515,7 +515,8 @@ describe('Read again', () => {
     await readAgain()
     expect(scenario!.asked).toHaveLength(2)
     const view = setupView(settingUp(scenario!), TEAM)
-    expect(view).toMatchObject({ milestone: { picks: [{ name: 'Checkout v2' }, { name: 'bug' }], note: COUNTS_WAIT } })
+    expect(view).toMatchObject({ milestone: { picks: [{ name: 'Checkout v2' }, { name: 'bug' }] }, countsWait: COUNTS_WAIT })
+    expect(view).not.toHaveProperty('milestone.note')
     expect(view.kind === 'summary' && 'picks' in view.milestone && view.milestone.picks.some((pick) => 'count' in pick)).toBe(false)
   })
 
@@ -525,14 +526,14 @@ describe('Read again', () => {
     fixture.reads[BUG.query] = { tickets: open(2, 'b'), incomplete: false }
     fixture.reads[`${CHECKOUT.query} OR ${BUG.query}`] = { tickets: [...open(3), ...open(2, 'b')], incomplete: false }
     await readAgain()
-    expect(setupView(settingUp(scenario!), TEAM)).not.toHaveProperty('milestone.note')
+    expect(setupView(settingUp(scenario!), TEAM)).not.toHaveProperty('countsWait')
 
     await submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })
     await scenario!.pick(READ_AT, BUG)
     await atCheck(LATER)
     await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
     expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({ milestone: { picks: [{ count: 3 }, { count: 2 }] } })
-    expect(setupView(settingUp(scenario!), TEAM)).not.toHaveProperty('milestone.note')
+    expect(setupView(settingUp(scenario!), TEAM)).not.toHaveProperty('countsWait')
   })
 
   test('reads nothing while setup is open again with Change', async () => {
@@ -1003,6 +1004,19 @@ describe('Check', () => {
 
     await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
     expect(storage.milestoneInputs(TEAM)).toMatchObject({ name: '', ticketsSource: 'tracker', paceMode: 'tracker' })
+  })
+
+  test('with no start date yet, says pace has none to count its periods from; once entered, reads pace from the tracker', async () => {
+    const { connect, submit, fixture } = team()
+    fixture.reads[CHECKOUT.query] = { tickets: [...open(3), ...finishedOn('f', '2026-11-03', 6)], incomplete: false }
+    await connect()
+    await scenario!.pick(READ_AT)
+
+    expect(check()).toMatchObject({ pace: { incomplete: false, noStartDate: true } })
+    expect(check()).not.toHaveProperty('pace.reading')
+
+    submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-10-05', ticketsRemaining: '30' })
+    expect(check()).toMatchObject({ pace: { reading: { counts: [6] }, noStartDate: false } })
   })
 
   test('with no milestone entered yet and its sources left as they start, "Use these" enters no milestone', async () => {

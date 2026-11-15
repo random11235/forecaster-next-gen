@@ -24,6 +24,8 @@ export interface SetupSummary {
   milestone: SummaryRow
   /** None without comparable work. */
   comparable?: SummaryRow
+  /** Once beneath the rows, when a read by hand leaves a row of several picks without their counts (`COUNTS_WAIT`). */
+  countsWait?: string
   /** "Leaf tickets only. Epics include their sub-epics." */
   note: string
   /** Problem flags only: none for a working setup. */
@@ -32,10 +34,9 @@ export interface SetupSummary {
 
 /**
  * A summary row: the picks, each named with its kind as the screens name it ("epic", "fix version") and with its count
- * of matches, open and finished, where it has one (`pickCount`), and, once a read by hand leaves some of several picks
- * without theirs, a quiet note that Check counts them (`COUNTS_WAIT`); or the query as written by hand, with no counts.
+ * of matches, open and finished, where it has one (`pickCount`); or the query as written by hand, with no counts.
  */
-export type SummaryRow = { picks: SummaryPick[]; note?: string } | { query: string }
+export type SummaryRow = { picks: SummaryPick[] } | { query: string }
 
 /** A pick on a summary row: "#41 Checkout v2 (epic) · 32". */
 export interface SummaryPick {
@@ -71,13 +72,16 @@ export function summaryOf(reading: SummaryReading, teamId: string, connection: C
   const comparable = reading.milestoneQueries.comparableWorkQuery(teamId)
   const comparableRead = hasQuery(comparable) ? reading.reads.savedRead({ teamId, query: comparable.query }) : undefined
   const failed = failedFlags(reading, teamId, connection)
+  const milestone = rowOf(reading, teamId, tracker, saved ?? { picks: [], query: '' })
+  const comparableRow = hasQuery(comparable) ? rowOf(reading, teamId, tracker, comparable) : undefined
   return {
     kind: 'summary',
     tracker: tracker.name,
     where: tracker.where(connection),
     ...(read && { readOn: readOn(read.readAt, reading.timeZone) }),
-    milestone: rowOf(reading, teamId, tracker, saved ?? { picks: [], query: '' }),
-    ...(hasQuery(comparable) && { comparable: rowOf(reading, teamId, tracker, comparable) }),
+    milestone: milestone.row,
+    ...(comparableRow && { comparable: comparableRow.row }),
+    ...((milestone.countsWait || comparableRow?.countsWait) && { countsWait: COUNTS_WAIT }),
     note: LEAF_NOTE,
     flags: [
       ...failed.whole,
@@ -130,9 +134,12 @@ function flagOf(read: SavedRead | undefined, trackerName: string, stepQuery: Ste
   return flag === undefined ? [] : [{ of: stepQuery.kind, flag }]
 }
 
-/** A query's row: its picks with their kinds and counts when the picker shows it as their chips, else the query as written. */
-function rowOf(reading: SummaryReading, teamId: string, tracker: TrackerFacts, saved: MilestoneQuery): SummaryRow {
-  if (!chipsShow(tracker, saved)) return { query: saved.query }
+/**
+ * A query's row: its picks with their kinds and counts when the picker shows it as their chips, else the query as
+ * written; and whether its counts wait for Check, a read by hand having read the query since some of several picks.
+ */
+function rowOf(reading: SummaryReading, teamId: string, tracker: TrackerFacts, saved: MilestoneQuery): { row: SummaryRow; countsWait: boolean } {
+  if (!chipsShow(tracker, saved)) return { row: { query: saved.query }, countsWait: false }
   const queryRead = reading.reads.savedRead({ teamId, query: saved.query })
   const picks = saved.picks.map(({ name, kind, query }) => {
     const pickRead = reading.reads.savedRead({ teamId, query })
@@ -140,12 +147,11 @@ function rowOf(reading: SummaryReading, teamId: string, tracker: TrackerFacts, s
     return { pick: { name, kind: kindName(kind), ...(count !== undefined && { count }) }, readBefore: queryRead !== undefined && pickRead !== undefined && !readSince(pickRead, queryRead) }
   })
   // a read by hand reads the query, not each of several picks, so their counts wait for Check
-  const countsWait = picks.length > 1 && picks.some(({ readBefore }) => readBefore)
-  return { picks: picks.map(({ pick }) => pick), ...(countsWait && { note: COUNTS_WAIT }) }
+  return { row: { picks: picks.map(({ pick }) => pick) }, countsWait: picks.length > 1 && picks.some(({ readBefore }) => readBefore) }
 }
 
-/** Why a row of several picks shows some without their counts, read before its query was last read: Check reads them. */
-export const COUNTS_WAIT = 'The picks’ counts are from Check, so some show none since the last read. Change, then Check, counts them again.'
+/** Why a row of several picks shows them without their counts: a read by hand reads each query whole; Check reads each pick. */
+export const COUNTS_WAIT = 'Read again reads each query whole, so the picks show no counts. Change, then Check, counts each pick again.'
 
 /**
  * A pick's count: the tickets its own read matched, open and finished. A lone pick's read is its query's. None for a

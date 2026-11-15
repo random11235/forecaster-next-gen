@@ -237,7 +237,7 @@ describe('Read again', () => {
     expect(onTracker.storage.savedRead({ teamId: 'team', query: CHECKOUT.query })).toMatchObject({ readAt: `${TODAY}T09:00:00Z` })
   })
 
-  test('notes, beneath a row of several picks, that their counts wait for Check', async () => {
+  test('notes once, beneath the rows, that the counts of a row of several picks wait for Check', async () => {
     const SEARCH = { kind: 'epic', name: '#57 Search revamp', query: 'parent-issue:shop-team/shop#57' }
     const fixture: CannedFixture = { ...FIXTURE, reads: { ...FIXTURE.reads, [SEARCH.query]: { tickets: [{ id: 's1' }], incomplete: false } } }
     onTracker = await appOnTracker(fixture)
@@ -249,9 +249,9 @@ describe('Read again', () => {
     onTracker.readAt(`${TODAY}T14:30:00Z`)
 
     await post(onTracker.running, '/inputs/setup/read-again', {})
-    expect(summaryOf(await page(onTracker.running, '/inputs'))).toMatch(
-      /#57 Search revamp <span class="kind">\(epic\)<\/span><br><span class="muted">The picks’ counts are from Check, so some show none since the last read\. [^<]*<\/span><\/dd>/,
-    )
+    const summary = summaryOf(await page(onTracker.running, '/inputs'))
+    expect(summary).toMatch(/#57 Search revamp <span class="kind">\(epic\)<\/span><\/dd>\s*<\/dl>\s*<p class="note muted">Read again reads each query whole, so the picks show no counts\. [^<]*<\/p>/)
+    expect(summary.match(/Read again reads each query whole/g)).toHaveLength(1)
   })
 
   test('with the token refused, offers Change, which opens the Connect step', async () => {
