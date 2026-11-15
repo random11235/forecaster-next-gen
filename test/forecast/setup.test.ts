@@ -705,14 +705,18 @@ describe('the draft', () => {
     expect(storage.milestoneQuery(TEAM)?.query).toBe(CHECKOUT.query)
   })
 
-  // what applying the draft saves is the Storage contract's; here, what the forecast and setup show once it has
   test('"Use these" applies the draft’s queries and reads together, and closes setup', async () => {
-    const { forecast } = await setUpThenChange()
+    const { storage, forecast } = await setUpThenChange()
     await inSetup({ kind: 'editQuery', query: BOTH })
     await inSetup({ kind: 'addPick', choice: Q3_POLISH }, NEXT_READ_AT, COMPARABLE_WORK)
 
     expect(await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })).toMatchObject({ saved: true })
 
+    expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [CHECKOUT, Q3_POLISH], query: BOTH })
+    expect(storage.comparableWorkQuery(TEAM)).toEqual({ picks: [Q3_POLISH], query: Q3_POLISH.query })
+    expect(storage.savedRead({ teamId: TEAM, query: BOTH })).toMatchObject({ readAt: NEXT_READ_AT, tickets: open(7) })
+    expect(storage.savedRead({ teamId: TEAM, query: Q3_POLISH.query })?.readAt).toBe(NEXT_READ_AT)
+    expect(storage.setupDraft(TEAM)).toBeUndefined()
     expect(forecast()).toMatchObject({ kind: 'forecast', ticketsRemaining: 7 })
     expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({ kind: 'summary', readOn: '13 Nov 10:00' })
   })

@@ -10,7 +10,7 @@ import type { SavedRead } from '../model/savedRead.js'
 import type { FailedRead, FailedReads, ReadFailures } from '../model/readFailures.js'
 import type { SetupDraft } from '../model/setupDraft.js'
 import type { Team } from '../model/team.js'
-import { applySetupDraft, draftedQueries, redraft, type SavedWithDraft } from './lib/draftedQueries.js'
+import { applySetupDraft, draftedQueries, saveDraftPickFailures, saveDraftSources, type QueryKeeping } from './lib/draftedQueries.js'
 import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage, SetupClosed, SetupState, SetupStorage, Storage, TeamQueryStorage } from './storage.js'
 
 /**
@@ -713,13 +713,13 @@ export function openSqliteStorage(file: string): SqliteStorage {
       db.close()
     },
   }
-  const saved: SavedWithDraft = { milestoneQueries: kept, reads: kept, setup: kept }
+  const queryKeeping: QueryKeeping = { milestoneQueries: kept, reads: kept, setup: kept }
   return {
     ...kept,
-    saveDraftSources: (teamId, sources) => redraft(kept, teamId, ({ sources: _, ...draft }) => ({ ...draft, ...(sources && { sources }) })),
-    saveDraftPickFailures: (teamId, pickFailures) => redraft(kept, teamId, ({ pickFailures: _, ...draft }) => ({ ...draft, ...(pickFailures && { pickFailures }) })),
-    teamQueries: (target) => draftedQueries(saved, target),
-    applySetupDraft: (teamId) => applySetupDraft(saved, teamId),
+    saveDraftSources: (teamId, sources) => saveDraftSources(kept, teamId, sources),
+    saveDraftPickFailures: (teamId, pickFailures) => saveDraftPickFailures(kept, teamId, pickFailures),
+    teamQueries: (target) => draftedQueries(queryKeeping, target),
+    applySetupDraft: (teamId) => applySetupDraft(queryKeeping, teamId),
   }
 }
 
