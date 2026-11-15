@@ -2,7 +2,7 @@ import type { SavedRead, TeamQuery } from '../model/savedRead.js'
 import type { Storage, TeamQueries } from '../storage/storage.js'
 import { periodName, type PeriodName } from './cadence.js'
 import { dayMonth } from './calendarDate.js'
-import type { Connecting } from './connection.js'
+import { withTeamQueries, type Connecting } from './connection.js'
 import { counted } from './counted.js'
 import { calendarDayIn, ticketsRemaining } from './finished.js'
 import { paceReads, paceReadsStorage, type PaceFrom, type PaceReads } from './paceReads.js'
@@ -140,6 +140,11 @@ export interface TicketsReading {
   was: WasTickets | undefined
   /** The same instant in UTC, as the EM's opening of the reading is kept by (`SeenReads`). */
   readAt: string
+}
+
+/** What the team's tracker measures for the views, from what's saved (`measure` in `saved`); none without a tracker. */
+export function measureSaved(tracker: TrackerReads | undefined, teamId: string, storage: Pick<Storage, 'milestoneInputs'>, today: string): Measured | undefined {
+  return measure(tracker && withTeamQueries(tracker, 'saved'), teamId, storage, today)
 }
 
 /**
