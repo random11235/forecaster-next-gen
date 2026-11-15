@@ -1,27 +1,32 @@
 import type { ThroughputRange } from '../engine/index.js'
 import type { MilestoneInputs, PaceMode, TicketsSource } from '../model/milestoneInputs.js'
 import type { SetupDraft } from '../model/setupDraft.js'
-import type { Storage } from '../storage/storage.js'
+import type { SetupState, Storage } from '../storage/storage.js'
 import { periodName, type PeriodName } from './cadence.js'
 import { submitConnection } from './connection.js'
 import { newMilestone } from './milestoneInputs.js'
 import type { StepReading } from './queryStep.js'
-import { hasQuery, readPicks, summaryOf, type SetupSummary } from './setupSummary.js'
-import { isAfter, SETUP_STEPS, setupStepOf, type SetupStep } from './setupSteps.js'
-import { applyDraft, isOpen, isReopened, NO_DRAFT, throughDraft } from './throughDraft.js'
-
+import { readPicks } from './setupReads.js'
+import { summaryOf, type SetupSummary } from './setupSummary.js'
+import { SETUP_STEPS, setupStepOf, type SetupStep } from './setupSteps.js'
+import { hasQuery } from './stepQuery.js'
+import { applyDraft, redrafted, throughDraft } from './throughDraft.js'
 import { measure, paceReadingView, type PaceReadingView } from './trackerReads.js'
 
 /**
- * What setup reads and saves: what a query step reads with (the team's connection and queries, their reads and how
- * setup was closed), the milestone's inputs, whose sources Check chooses, today, which the tracker's pace is counted
- * to, and the EM's time zone, which the read is dated in.
+ * What setup, its summary and its reads read and save with, built once per request: what a query step reads with (the
+ * team's connection and queries, their reads and setup's state), the milestone's inputs, whose sources Check chooses,
+ * today, which the tracker's pace is counted to, and the EM's time zone, which reads are dated in. It is also what the
+ * views read of the tracker (`TrackerReads`).
  */
-export type SettingUp = StepReading & {
+export type SetupContext = StepReading & {
   milestoneInputs: Pick<Storage, 'milestoneInputs' | 'saveMilestoneInputs'>
   today: string
   timeZone: string
 }
+
+/** The milestone's inputs, or a new milestone's while none is entered: its sources are chosen at Check before it has a name. */
+const inputsOrNew = ({ milestoneInputs }: SetupContext, teamId: string): MilestoneInputs => milestoneInputs.milestoneInputs(teamId) ?? newMilestone(teamId)
 
 /** Where a step stands from the one shown: before it (`done`), it, or after it (`ahead`). */
 export type StepMark = 'done' | 'current' | 'ahead'
@@ -45,9 +50,14 @@ export interface SetupSteps {
    * which closes with "Use these" instead. Comparable work's is Skip until it has a query.
    */
   next?: { step: SetupStep; label: 'next' | 'skip' }
+  /** Why the steps can't be cancelled, in place of Cancel: the connection they opened on was changed in them. */
+  noCancel?: string
   /** At Check, its rows; none at any other step. */
   check?: SetupCheck
 }
+
+/** Why steps opened again can't be cancelled once the connection they opened on was changed: Cancel would keep the change but not what it read. */
+export const NO_CANCEL = 'The connection changed in these steps, so they can’t be cancelled: Cancel would keep the new connection with the old picks and reads. Go on to Check and use these.'
 
 /**
  * Check (#220): for each value the tracker can supply, the EM's value now, the tracker's reading from the setup
@@ -127,7 +137,7 @@ export interface SetupOpening {
  * Seam B: what the Inputs screen shows of the team's setup as it opens (`setupView`), at the step `opening` asks for.
  * Opening at Check reads, as at `readAt`, each pick the summary has no count for yet (`readPicks`).
  */
-export async function openSetup(settingUp: SettingUp | undefined, teamId: string, opening: SetupOpening, readAt: string): Promise<SetupView> {
+export async function openSetup(settingUp: SetupContext | undefined, teamId: string, opening: SetupOpening, readAt: string): Promise<SetupView> {
   const view = setupView(settingUp, teamId, opening.refused ?? setupStepOf(opening.asked))
   if (settingUp && view.kind === 'steps' && view.step === 'check') await readPicks(settingUp, teamId, readAt)
   return view
@@ -136,20 +146,21 @@ export async function openSetup(settingUp: SettingUp | undefined, teamId: string
 /**
  * Seam B: what the Inputs screen shows of the team's setup, at the step `asked` for (Milestone if none) while setting up.
  *
- * Done, and connected, it is the summary, reading nothing from the tracker, until Change opens the steps again. Skipped,
- * and not connected, it is the inputs typed. Otherwise the steps, as the setup draft has them: Connect until the team is
- * connected, and Milestone, asked for a later step, until the milestone has a query.
+ * Closed done, and connected, it is the summary, reading nothing from the tracker, until Change opens the steps again.
+ * Closed skipped, and not connected, it is the inputs typed. Otherwise the steps, as the setup draft has them: Connect
+ * until the team is connected, and Milestone, asked for a later step, until the milestone has a query. Once the
+ * connection they opened on is changed in them, they say they can't be cancelled (`noCancel`).
  */
-export function setupView(settingUp: SettingUp | undefined, teamId: string, asked?: SetupStep): SetupView {
+export function setupView(settingUp: SetupContext | undefined, teamId: string, asked?: SetupStep): SetupView {
   if (!settingUp) return { kind: 'noSetup' }
   const connection = settingUp.connections.connection(teamId)
-  const closed = settingUp.setup.setupClosed(teamId)
-  const reopened = isReopened(settingUp.setup, teamId)
-  if (closed === 'done' && connection && !reopened) return summaryOf(settingUp, teamId, connection)
-  if (closed === 'skipped' && !connection) return { kind: 'skipped' }
+  const state = settingUp.setup.setupState(teamId)
+  if (!state.open && state.closed === 'done' && connection) return summaryOf(settingUp, teamId, connection)
+  if (!state.open && state.closed === 'skipped' && !connection) return { kind: 'skipped' }
   const drafted = throughDraft(settingUp)
   const picked = hasQuery(drafted.milestoneQueries.milestoneQuery(teamId))
-  const step: SetupStep = !connection ? 'connect' : asked === 'connect' || (picked && asked && isAfter(asked, 'milestone')) ? asked : 'milestone'
+  const pastMilestone = asked !== undefined && SETUP_STEPS.indexOf(asked) > SETUP_STEPS.indexOf('milestone')
+  const step: SetupStep = !connection ? 'connect' : asked === 'connect' || (picked && pastMilestone) ? asked : 'milestone'
   const at = SETUP_STEPS.indexOf(step)
   const back = SETUP_STEPS[at - 1]
   const next = connection && nextOf(step, picked, hasQuery(drafted.milestoneQueries.comparableWorkQuery(teamId)))
@@ -160,9 +171,13 @@ export function setupView(settingUp: SettingUp | undefined, teamId: string, aske
     steps: SETUP_STEPS.map((each, index) => ({ step: each, mark: index < at ? 'done' : index === at ? 'current' : 'ahead' })),
     ...(back && { back }),
     ...(next && { next }),
+    ...(cancelRefused(state) && { noCancel: NO_CANCEL }),
     ...(check && { check }),
   }
 }
+
+/** Whether Cancel is refused: the steps changed the connection they opened on, which Cancel can't put back with its token. */
+const cancelRefused = (state: SetupState): boolean => state.open && state.connection === 'changed'
 
 /** The step Next (or Skip) goes to from `step`, if it can be left forward yet: the one after it. */
 function nextOf(step: SetupStep, picked: boolean, comparable: boolean): SetupSteps['next'] {
@@ -172,11 +187,10 @@ function nextOf(step: SetupStep, picked: boolean, comparable: boolean): SetupSte
 }
 
 /** Check's rows: the saved values and sources, the draft's choices over them, and what the draft reads measure. */
-function checkOf(settingUp: SettingUp, teamId: string): SetupCheck | undefined {
+function checkOf(settingUp: SetupContext, teamId: string): SetupCheck | undefined {
   const measured = measure(throughDraft(settingUp), teamId, settingUp.milestoneInputs, settingUp.today)
   if (!measured) return undefined
-  // with no milestone entered yet, a new one's inputs: its sources are chosen at Check before it has a name
-  const inputs = settingUp.milestoneInputs.milestoneInputs(teamId) ?? newMilestone(teamId)
+  const inputs = inputsOrNew(settingUp, teamId)
   const chosen = settingUp.setup.setupDraft(teamId)?.sources
   const tickets = measured.ticketsRemaining
   const pace = measured.pace
@@ -210,12 +224,11 @@ function paceChoices(inputs: MilestoneInputs): readonly PaceMode[] {
  * The draft with a value's source chosen at Check, or none when it isn't offered: the team must be connected and setup
  * open, the value tickets remaining or pace, and the source one Check offers it.
  */
-function withSource(settingUp: SettingUp, teamId: string, chosen: ChosenSource): SetupDraft | undefined {
-  if (!settingUp.connections.connection(teamId) || !isOpen(settingUp.setup, teamId)) return undefined
-  const draft = settingUp.setup.setupDraft(teamId) ?? NO_DRAFT
+function withSource(settingUp: SetupContext, teamId: string, chosen: ChosenSource): SetupDraft | undefined {
+  if (!settingUp.connections.connection(teamId) || !settingUp.setup.setupState(teamId).open) return undefined
+  const draft = settingUp.setup.setupDraft(teamId) ?? { reads: [] }
   if (chosen.value === 'ticketsRemaining') return { ...draft, sources: { ...draft.sources, ticketsRemaining: chosen.source } }
-  const inputs = settingUp.milestoneInputs.milestoneInputs(teamId) ?? newMilestone(teamId)
-  if (!paceChoices(inputs).includes(chosen.source)) return undefined
+  if (!paceChoices(inputsOrNew(settingUp, teamId)).includes(chosen.source)) return undefined
   return { ...draft, sources: { ...draft.sources, pace: chosen.source } }
 }
 
@@ -223,26 +236,28 @@ function withSource(settingUp: SettingUp, teamId: string, chosen: ChosenSource):
  * Seam B: closes the team's setup, or opens its steps again, keeping its connection either way.
  *
  * "Use these" applies the setup draft, its queries and their reads together, then closes setup to its summary; it is
- * refused, changing nothing, until the team is connected and its milestone has a query. Change, from the summary, opens
- * the steps on a new draft, so nothing chosen in them changes the forecast until "Use these"; Cancel throws that draft
- * away, back to the summary as it was; in a first setup it disconnects too, back to Connect as before setup. Connecting
- * skipped, Change opens the steps at Connect.
+ * refused, changing nothing, until the team is connected and its milestone has a query. Change, from the summary or
+ * from connecting skipped, opens the steps on a new draft, so nothing chosen in them changes the forecast until "Use
+ * these"; connecting skipped, they open at Connect. Cancel throws that draft away, removing a connection made in the
+ * steps, back to how setup was before they opened: the summary, connecting skipped, or a first setup's steps, a
+ * connection the team had before them kept. Once the steps changed the connection they opened on, Cancel is refused,
+ * changing nothing (`noCancel`): the old connection's token is gone, so it can't be put back.
  */
-export async function submitSetup(settingUp: SettingUp, teamId: string, edit: SetupEdit): Promise<SetupSubmitted> {
+export async function submitSetup(settingUp: SetupContext, teamId: string, edit: SetupEdit): Promise<SetupSubmitted> {
   const saved = await edited(settingUp, teamId, edit)
   const next = nextAfter(settingUp, teamId, edit)
   return { saved, ...(next && { next }) }
 }
 
 /** Makes `edit`, if it can be made: whether it was. */
-async function edited(settingUp: SettingUp, teamId: string, edit: SetupEdit): Promise<boolean> {
+async function edited(settingUp: SetupContext, teamId: string, edit: SetupEdit): Promise<boolean> {
   const { setup } = settingUp
   switch (edit.kind) {
     case 'useThese':
       if (!settingUp.connections.connection(teamId) || !hasQuery(throughDraft(settingUp).milestoneQueries.milestoneQuery(teamId))) return false
       applySources(settingUp, teamId)
       applyDraft(settingUp, teamId)
-      setup.closeSetup(teamId, 'done')
+      setup.saveSetupState(teamId, { open: false, closed: 'done' })
       return true
     case 'chooseSource': {
       const draft = withSource(settingUp, teamId, edit)
@@ -251,25 +266,38 @@ async function edited(settingUp: SettingUp, teamId: string, edit: SetupEdit): Pr
     }
     case 'skipConnecting':
       setup.discardSetupDraft(teamId)
-      setup.closeSetup(teamId, 'skipped')
+      setup.saveSetupState(teamId, { open: false, closed: 'skipped' })
       return true
-    case 'change':
-      if (setup.setupClosed(teamId) === 'done') setup.saveSetupDraft(teamId, setup.setupDraft(teamId) ?? NO_DRAFT)
-      else setup.reopenSetup(teamId)
-      return true
-    case 'cancel':
+    case 'change': {
+      const state = setup.setupState(teamId)
+      if (state.open) return true
       setup.discardSetupDraft(teamId)
-      // a first setup started unconnected, so the connection made in it goes too; one opened again keeps its connection
-      if (setup.setupClosed(teamId) === 'done' || !settingUp.connections.connection(teamId)) return true
-      return (await submitConnection(settingUp, teamId, { kind: 'disconnect' })).saved
+      setup.saveSetupState(teamId, { open: true, reopened: state.closed })
+      return true
+    }
+    case 'cancel':
+      return cancelled(settingUp, teamId)
   }
+}
+
+/** Cancels the steps, if they can be: their draft thrown away, a connection made in them removed, and setup as before they opened. */
+async function cancelled(settingUp: SetupContext, teamId: string): Promise<boolean> {
+  const { setup } = settingUp
+  const state = setup.setupState(teamId)
+  if (!state.open || cancelRefused(state)) return false
+  if (state.connection === 'made' && settingUp.connections.connection(teamId)) {
+    if (!(await submitConnection(settingUp, teamId, { kind: 'disconnect' })).saved) return false
+  }
+  setup.discardSetupDraft(teamId)
+  setup.saveSetupState(teamId, state.reopened ? { open: false, closed: state.reopened } : { open: true })
+  return true
 }
 
 /**
  * The step the Inputs screen opens at after `edit`, made or refused: Check again for a source chosen there; Connect for
  * Change from a refused token's flag; Milestone when the steps are open there with the team connected; else none.
  */
-function nextAfter(settingUp: SettingUp, teamId: string, edit: SetupEdit): SetupStep | undefined {
+function nextAfter(settingUp: SetupContext, teamId: string, edit: SetupEdit): SetupStep | undefined {
   if (edit.kind === 'chooseSource') return 'check'
   if (edit.kind === 'change' && edit.at) return edit.at
   const view = setupView(settingUp, teamId)
@@ -280,10 +308,11 @@ function nextAfter(settingUp: SettingUp, teamId: string, edit: SetupEdit): Setup
  * Saves the sources chosen at Check into the milestone's inputs, each value's own kept for whichever source is used.
  * With no milestone entered yet, a new one takes them, entered only when they aren't a new milestone's own.
  */
-function applySources({ milestoneInputs, setup }: SettingUp, teamId: string): void {
+function applySources(settingUp: SetupContext, teamId: string): void {
+  const { milestoneInputs, setup } = settingUp
   const sources = setup.setupDraft(teamId)?.sources
   const saved = milestoneInputs.milestoneInputs(teamId)
-  const inputs = saved ?? newMilestone(teamId)
+  const inputs = inputsOrNew(settingUp, teamId)
   if (!sources) return
   const applied = { ...inputs, ticketsSource: sources.ticketsRemaining ?? inputs.ticketsSource, paceMode: sources.pace ?? inputs.paceMode }
   if (saved || applied.ticketsSource !== inputs.ticketsSource || applied.paceMode !== inputs.paceMode) milestoneInputs.saveMilestoneInputs(applied)

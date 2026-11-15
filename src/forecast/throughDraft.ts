@@ -5,31 +5,25 @@ import type { MilestoneQueryStorage, SavedReadStorage, SetupStorage } from '../s
 export type DraftedThrough = { milestoneQueries: MilestoneQueryStorage; reads: SavedReadStorage; setup: SetupStorage }
 
 /** A draft with nothing chosen yet: the steps show the saved queries and reads. */
-export const NO_DRAFT: SetupDraft = { reads: [] }
+const NO_DRAFT: SetupDraft = { reads: [] }
 
-/** Whether setup's steps are open: in a first setup, or opened again from its summary with Change. */
-export function isOpen(setup: SetupStorage, teamId: string): boolean {
-  const closed = setup.setupClosed(teamId)
-  return closed === undefined || isReopened(setup, teamId)
-}
-
-/** Whether setup's steps were opened again from its summary with Change: done, with a draft. */
-export function isReopened(setup: SetupStorage, teamId: string): boolean {
-  return setup.setupClosed(teamId) === 'done' && setup.setupDraft(teamId) !== undefined
-}
+/** The queries a draft is held over, as `throughDraft` gives them, so a draft is never held over another. */
+const drafted = new WeakSet<MilestoneQueryStorage>()
 
 /**
- * Seam B: what the setup steps read and save with, `connecting` with its queries and their reads held in the team's
- * setup draft while setup is open: each step's picks, hand-written queries and reads are saved into the draft, and
- * read from it before the saved ones, so the steps show them while the forecast and the Inputs values keep the saved
- * ones until "Use these" (`submitSetup`). A read made in setup is the query's latest there, and the saved one, if any,
- * the read before it. Setup closed, it is `connecting` as it is.
+ * What the setup steps read and save with: `connecting` with its queries and their reads held in the team's setup
+ * draft while setup is open. Each step's picks, hand-written queries and reads are saved into the draft, and read from
+ * it before the saved ones, so the steps show them while the forecast and the Inputs values keep the saved ones until
+ * "Use these" (`applyDraft`). A read made in setup is the query's latest there, and the saved one, if any, the read
+ * before it. Setup closed, it is `connecting` as it is; held over a draft already, too. Each Seam B entry point of the
+ * steps reads through it, so its callers never do.
  */
 export function throughDraft<T extends DraftedThrough>(connecting: T): T {
+  if (drafted.has(connecting.milestoneQueries)) return connecting
   const { milestoneQueries: saved, reads: savedReads, setup } = connecting
-  const draftOf = (teamId: string): SetupDraft | undefined => (isOpen(setup, teamId) ? setup.setupDraft(teamId) : undefined)
+  const draftOf = (teamId: string): SetupDraft | undefined => (setup.setupState(teamId).open ? setup.setupDraft(teamId) : undefined)
   const redraft = (teamId: string, change: (draft: SetupDraft) => SetupDraft): boolean => {
-    if (!isOpen(setup, teamId)) return false
+    if (!setup.setupState(teamId).open) return false
     setup.saveSetupDraft(teamId, change(setup.setupDraft(teamId) ?? NO_DRAFT))
     return true
   }
@@ -44,6 +38,7 @@ export function throughDraft<T extends DraftedThrough>(connecting: T): T {
       if (!redraft(teamId, (draft) => ({ ...draft, comparableWorkQuery }))) saved.saveComparableWorkQuery(teamId, comparableWorkQuery)
     },
   }
+  drafted.add(milestoneQueries)
   const reads: SavedReadStorage = {
     savedRead: (teamQuery) => draftRead(teamQuery) ?? savedReads.savedRead(teamQuery),
     previousRead: (teamQuery) => (draftRead(teamQuery) ? savedReads.savedRead(teamQuery) : savedReads.previousRead(teamQuery)),
@@ -55,12 +50,24 @@ export function throughDraft<T extends DraftedThrough>(connecting: T): T {
   return { ...connecting, milestoneQueries, reads }
 }
 
-/** Saves the draft's queries and reads over the saved ones, and discards it. */
+/** The team's setup draft with `change` made to it, saved: a new one if it had none. */
+export function redrafted(setup: SetupStorage, teamId: string, change: (draft: SetupDraft) => SetupDraft): void {
+  setup.saveSetupDraft(teamId, change(setup.setupDraft(teamId) ?? NO_DRAFT))
+}
+
+/**
+ * Saves the draft's queries and reads over the saved ones, and why its picks' reads failed over why theirs did, a pick
+ * read well in it failing no longer; then discards it.
+ */
 export function applyDraft({ milestoneQueries, reads, setup }: DraftedThrough, teamId: string): void {
   const draft = setup.setupDraft(teamId)
   if (!draft) return
   if (draft.milestoneQuery) milestoneQueries.saveMilestoneQuery(teamId, draft.milestoneQuery)
   if (draft.comparableWorkQuery) milestoneQueries.saveComparableWorkQuery(teamId, draft.comparableWorkQuery)
   for (const { query, read } of draft.reads) reads.saveRead({ teamId, query }, read)
+  const failures = setup.readFailures(teamId) ?? {}
+  const readWell = new Set(draft.reads.map(({ query }) => query))
+  const picks = { ...Object.fromEntries(Object.entries(failures.picks ?? {}).filter(([query]) => !readWell.has(query))), ...draft.pickFailures }
+  setup.saveReadFailures(teamId, { ...failures, picks })
   setup.discardSetupDraft(teamId)
 }

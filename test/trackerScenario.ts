@@ -73,10 +73,15 @@ export interface TrackerScenario {
   close(): void
 }
 
-/** A team, `TEAM`, not yet connected, whose milestone query reads `tickets`, kept in memory; close it after. */
-export function trackerScenario({ tickets = [] as Ticket[], today = TODAY } = {}): TrackerScenario {
+/**
+ * A team, `TEAM`, not yet connected, whose milestone query reads `tickets`, kept in memory; close it after. Its setup
+ * is closed done, so what the steps pick and read is saved, as the forecast reads it; or, in a first setup
+ * (`firstSetup`), open, so it is held in the setup draft until "Use these".
+ */
+export function trackerScenario({ tickets = [] as Ticket[], today = TODAY, firstSetup = false } = {}): TrackerScenario {
   const storage: TeamStorage = openSqliteStorage(':memory:')
   storage.saveTeam({ id: TEAM, name: 'My team', source: 'manual', sourceRef: '', installedAt: '2026-01-01T00:00:00Z' })
+  if (!firstSetup) storage.saveSetupState(TEAM, { open: false, closed: 'done' })
   const fixture: CannedFixture = {
     milestoneChoices: [{ kind: 'milestone', choices: [CHECKOUT], pastLimit: false }],
     reads: { [CHECKOUT.query]: { tickets, incomplete: false } },

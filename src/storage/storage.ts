@@ -88,18 +88,23 @@ export interface MilestoneQueryStorage {
 export type SetupClosed = 'done' | 'skipped'
 
 /**
- * How the team's setup steps were closed (#217), if they were: the Inputs screen shows the summary, or the inputs typed,
- * instead of the steps. Open until closed, and open again when the EM changes them. Beside it, the setup draft: what
- * the EM has chosen in the steps and not yet applied (#218), and why the last reads failed (#222). The browser build has
- * no setup steps.
+ * Where the team's setup steps stand (#217): closed, `done` or `skipped`, the Inputs screen showing the summary or the
+ * inputs typed instead of the steps; or open. Open, they are a first setup, or opened again from how they were closed
+ * (`reopened`), which Cancel goes back to; and they say what this opening did to the team's connection, if anything:
+ * `made` it, where there was none, which Cancel undoes, or `changed` it, which Cancel can't undo. A team with nothing
+ * stored is open, in a first setup that has made nothing.
+ */
+export type SetupState = { open: false; closed: SetupClosed } | { open: true; reopened?: SetupClosed; connection?: 'made' | 'changed' }
+
+/**
+ * Where the team's setup steps stand (#217), and beside it the setup draft: what the EM has chosen in the steps and not
+ * yet applied (#218); and why the last reads failed (#222). The browser build has no setup steps.
  */
 export interface SetupStorage {
-  /** How the team's setup was closed, if it was. */
-  setupClosed(teamId: string): SetupClosed | undefined
-  /** Closes the team's setup, replacing how it was closed before. */
-  closeSetup(teamId: string, closed: SetupClosed): void
-  /** Opens the team's setup steps again. */
-  reopenSetup(teamId: string): void
+  /** Where the team's setup steps stand: open, in a first setup, until saved otherwise. */
+  setupState(teamId: string): SetupState
+  /** Replaces where the team's setup steps stand. */
+  saveSetupState(teamId: string, state: SetupState): void
   /** What the EM has chosen inside setup and not yet applied (#218), if anything: kept apart from the saved queries and reads. */
   setupDraft(teamId: string): SetupDraft | undefined
   /** Replaces the team's setup draft whole. */
@@ -108,8 +113,6 @@ export interface SetupStorage {
   discardSetupDraft(teamId: string): void
   /** Why the team's last reads failed (#222), if they did: the summary says so, the saved reads in use. */
   readFailures(teamId: string): ReadFailures | undefined
-  /** Replaces why the team's reads failed whole. */
+  /** Replaces why the team's reads failed whole: with none left, there are none. */
   saveReadFailures(teamId: string, failures: ReadFailures): void
-  /** Forgets why the team's reads failed, once they are read. */
-  clearReadFailures(teamId: string): void
 }

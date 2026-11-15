@@ -63,8 +63,8 @@ export const CHECK_STEP = { id: SETUP_STEP_IDS.check, title: 'Check', hint: 'Che
 
 /**
  * The setup step shown, as `body` within it: the steps' list above, each done step a link back to it and the current
- * one marked; then the step; then Cancel, once Change reopened the steps, Back, and Next (or Skip) where the step can
- * be left forward yet.
+ * one marked; then the step; then Cancel, or why the steps can't be cancelled once they changed the connection; Back;
+ * and Next (or Skip) where the step can be left forward yet.
  */
 export function setupStepHtml(view: SetupSteps, body: string): string {
   const steps = view.steps
@@ -78,8 +78,10 @@ export function setupStepHtml(view: SetupSteps, body: string): string {
     .join('\n')
   const back = view.back === undefined ? '' : `<a href="${escapeHtml(SETUP_STEP_PATHS[view.back])}" class="button">Back</a>`
   const next = view.next === undefined ? '' : `<a href="${escapeHtml(SETUP_STEP_PATHS[view.next.step])}" class="button primary">${view.next.label === 'skip' ? 'Skip' : 'Next'}</a>`
-  const cancel = `<form method="post" action="${SETUP_PATHS.cancel}">\n            <button type="submit">Cancel</button>\n          </form>`
-  const nav = `\n        <div class="actions setup-nav">${cancel}${back}${next}</div>`
+  const cancel =
+    view.noCancel === undefined ? `<form method="post" action="${SETUP_PATHS.cancel}">\n            <button type="submit">Cancel</button>\n          </form>` : ''
+  const noCancel = view.noCancel === undefined ? '' : `\n        <p class="note">${escapeHtml(view.noCancel)}</p>`
+  const nav = `${noCancel}\n        <div class="actions setup-nav">${cancel}${back}${next}</div>`
   return `        <ol class="setup-steps" aria-label="Setup steps">
 ${steps}
         </ol>
@@ -182,8 +184,9 @@ export const CHECK_SCRIPT = `
 
 /**
  * Setup done, above the inputs: the tracker, the repo or project, and when the milestone was read, with Read again,
- * and Change to open the steps again; the Milestone row, and the Comparable row when there is comparable work, each naming its picks with
- * their kinds or showing the query written by hand; the leaf-and-epics line; and beneath, only problem flags.
+ * and Change to open the steps again; the Milestone row, and the Comparable row when there is comparable work, each
+ * naming its picks with their kinds (and a note where their counts wait for Check) or showing the query written by
+ * hand; the leaf-and-epics line; and beneath, only problem flags.
  */
 export function setupSummaryHtml({ tracker, where, readOn, milestone, comparable, note, flags }: SetupSummary): string {
   const read = readOn === undefined ? '' : `\n        <span class="read">read ${escapeHtml(readOn)}</span>`
@@ -223,8 +226,9 @@ function rowHtml(name: string, row: SummaryRow): string {
     'query' in row
       ? `<code>${escapeHtml(row.query)}</code>`
       : row.picks.map((pick) => `${escapeHtml(pick.name)} <span class="kind">(${escapeHtml(pick.kind)})</span>${pick.count === undefined ? '' : ` · ${pick.count}`}`).join(', ')
+  const note = 'picks' in row && row.note !== undefined ? `<br><span class="muted">${escapeHtml(row.note)}</span>` : ''
   return `        <dt>${name}</dt>
-        <dd>${shown}</dd>`
+        <dd>${shown}${note}</dd>`
 }
 
 /** Each query flagged, named as its step names it. */
