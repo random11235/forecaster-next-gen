@@ -378,6 +378,7 @@ describe('from the tracker’s weeks (#213)', () => {
     const opened = openSqliteStorage(join(dir, 'forecaster.db'))
     storage = opened
     opened.saveTeam({ id: TEAM, name: 'Acme', source: 'manual', sourceRef: '', installedAt: '2026-01-01T00:00:00Z' })
+    opened.saveSetupState(TEAM, { open: false, closed: 'done' })
     const tickets = counts.flatMap((count, week) => Array.from({ length: count }, (_, i) => ({ id: `w${week}-${i}`, finishedAt: tuesday(GITHUB_WEEKS[week]!) })))
     const fixture: CannedFixture = {
       milestoneChoices: [{ kind: 'milestone', choices: [checkout], pastLimit: false }],
@@ -388,6 +389,7 @@ describe('from the tracker’s weeks (#213)', () => {
       milestoneInputs: opened,
       reads: opened,
       milestoneQueries: opened,
+      setup: opened,
       secrets: openMemorySecrets(),
       connector: () => cannedConnector(fixture),
     }

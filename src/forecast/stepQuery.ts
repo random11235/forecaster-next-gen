@@ -40,3 +40,6 @@ export const COMPARABLE_WORK: StepQuery = {
   saved: (storage, teamId) => storage.comparableWorkQuery(teamId),
   save: (storage, teamId, query) => storage.saveComparableWorkQuery(teamId, query),
 }
+
+/** Whether a step's query is saved, and not left empty by removing its last pick or starting afresh. */
+export const hasQuery = (saved: MilestoneQuery | undefined): saved is MilestoneQuery => (saved?.query ?? '') !== ''

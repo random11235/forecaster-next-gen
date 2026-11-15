@@ -4,6 +4,8 @@ import type { Connection } from '../model/connection.js'
 import type { MilestoneInputs } from '../model/milestoneInputs.js'
 import type { MilestoneQuery } from '../model/milestoneQuery.js'
 import type { SavedRead, TeamQuery } from '../model/savedRead.js'
+import type { ReadFailures } from '../model/readFailures.js'
+import type { SetupDraft } from '../model/setupDraft.js'
 import type { Team } from '../model/team.js'
 
 /**
@@ -80,4 +82,37 @@ export interface MilestoneQueryStorage {
   saveComparableWorkQuery(teamId: string, comparableWorkQuery: MilestoneQuery): void
   /** Comparable work's picks and query, if the EM has picked or written one. */
   comparableWorkQuery(teamId: string): MilestoneQuery | undefined
+}
+
+/** How the team's setup steps were closed: `done` with "Use these", or `skipped` when the EM typed the inputs instead. */
+export type SetupClosed = 'done' | 'skipped'
+
+/**
+ * Where the team's setup steps stand (#217): closed, `done` or `skipped`, the Inputs screen showing the summary or the
+ * inputs typed instead of the steps; or open. Open, they are a first setup, or opened again from how they were closed
+ * (`reopened`), which Cancel goes back to; and they say what this opening did to the team's connection, if anything:
+ * `made` it, where there was none, which Cancel undoes, or `changed` it, which Cancel can't undo. A team with nothing
+ * stored is open, in a first setup that has made nothing.
+ */
+export type SetupState = { open: false; closed: SetupClosed } | { open: true; reopened?: SetupClosed; connection?: 'made' | 'changed' }
+
+/**
+ * Where the team's setup steps stand (#217), and beside it the setup draft: what the EM has chosen in the steps and not
+ * yet applied (#218); and why the last reads failed (#222). The browser build has no setup steps.
+ */
+export interface SetupStorage {
+  /** Where the team's setup steps stand: open, in a first setup, until saved otherwise. */
+  setupState(teamId: string): SetupState
+  /** Replaces where the team's setup steps stand. */
+  saveSetupState(teamId: string, state: SetupState): void
+  /** What the EM has chosen inside setup and not yet applied (#218), if anything: kept apart from the saved queries and reads. */
+  setupDraft(teamId: string): SetupDraft | undefined
+  /** Replaces the team's setup draft whole. */
+  saveSetupDraft(teamId: string, draft: SetupDraft): void
+  /** Throws the team's setup draft away, if it has one. */
+  discardSetupDraft(teamId: string): void
+  /** Why the team's last reads failed (#222), if they did: the summary says so, the saved reads in use. */
+  readFailures(teamId: string): ReadFailures | undefined
+  /** Replaces why the team's reads failed whole: with none left, there are none. */
+  saveReadFailures(teamId: string, failures: ReadFailures): void
 }

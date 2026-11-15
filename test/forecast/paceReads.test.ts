@@ -81,11 +81,13 @@ beforeEach(async () => {
     sourceRef: '',
     installedAt: '2026-01-01T00:00:00Z',
   })
+  storage.saveSetupState(TEAM, { open: false, closed: 'done' })
   using = {
     connections: storage,
     milestoneInputs: storage,
     reads: storage,
     milestoneQueries: storage,
+    setup: storage,
     secrets: openMemorySecrets(),
     connector: () => cannedConnector(FIXTURE),
   }

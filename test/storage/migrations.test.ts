@@ -8,7 +8,7 @@ import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import type { MilestoneQuery } from '../../src/model/milestoneQuery.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
-import type { MilestoneQueryStorage, SavedReadStorage, Storage } from '../../src/storage/storage.js'
+import type { MilestoneQueryStorage, SavedReadStorage, SetupStorage, Storage } from '../../src/storage/storage.js'
 
 const TEAM = 'ACME'
 const CREATED = '2026-09-01T09:00:00Z'
@@ -49,7 +49,7 @@ INSERT INTO pace_settings VALUES ('ACME', 'M1', 'manual', 3, 7);
 `
 
 /** What these tests read back from a migrated file: its inputs, and the milestone's query and saved reads. */
-type Opened = Storage & MilestoneQueryStorage & SavedReadStorage
+type Opened = Storage & MilestoneQueryStorage & SavedReadStorage & SetupStorage
 
 const AN_ISO_TIMESTAMP = expect.stringMatching(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/)
 
@@ -783,7 +783,7 @@ describe('a data file from schema version 17, before previous reads', () => {
     const again = openSqliteStorage(file)
     expect(again.previousRead({ teamId: TEAM, query })).toEqual(saved)
     again.close()
-    expect(versionOf(file)).toBe(19)
+    expect(versionOf(file)).toBe(20)
   })
 })
 
@@ -829,7 +829,57 @@ describe('a data file from schema version 18, before reads reached back past ski
     open(file).saveRead({ teamId: TEAM, query: 'milestone:"Launch"' }, read)
 
     expect(open(file).savedRead({ teamId: TEAM, query: 'milestone:"Launch"' })).toEqual(read)
-    expect(versionOf(file)).toBe(19)
+    expect(versionOf(file)).toBe(20)
+  })
+})
+
+/** Version 19's tables: version 18's, with how far back each read reaches as #213 shipped it. Kept verbatim: it is a past release. */
+const VERSION_19_SCHEMA = `${VERSION_18_SCHEMA}
+ALTER TABLE saved_reads ADD COLUMN finished_since TEXT;
+UPDATE saved_reads SET finished_since = strftime('%Y-%m-%dT%H:%M:%fZ', read_at, '-56 days');
+ALTER TABLE previous_reads ADD COLUMN finished_since TEXT;
+UPDATE previous_reads SET finished_since = strftime('%Y-%m-%dT%H:%M:%fZ', read_at, '-56 days');
+`
+
+describe('a data file from schema version 19, before setup', () => {
+  // ACME is connected with a milestone query; EMPTY connected with its query emptied; BARE connected with none; the sample team not connected
+  const file = (): string =>
+    writeFile(
+      'v19.db',
+      `${VERSION_19_SCHEMA}
+INSERT INTO teams (id, name, source, source_ref) VALUES ('EMPTY', 'Empty', 'manual', ''), ('BARE', 'Bare', 'manual', '');
+INSERT INTO connections (team_id, tracker, owner, repo) VALUES ('EMPTY', 'github', 'acme', 'empty'), ('BARE', 'github', 'acme', 'bare');
+INSERT INTO milestone_queries VALUES ('EMPTY', '', '[]');
+`,
+      19,
+    )
+
+  test('has setup done for a team connected with a milestone query, and open in a first setup that made no connection for every other team', () => {
+    const storage = open(file())
+
+    expect(storage.setupState(TEAM)).toStrictEqual({ open: false, closed: 'done' })
+    // a connection from before setup is none setup made, so Cancel keeps it
+    expect(storage.setupState('EMPTY')).toStrictEqual({ open: true })
+    expect(storage.setupState('BARE')).toStrictEqual({ open: true })
+    expect(storage.setupState('sample-team')).toStrictEqual({ open: true })
+  })
+
+  test('has no setup draft and no failed reads, and takes them, with where setup stands, which survive reopening', () => {
+    const migrated = file()
+    const read = { tickets: [{ id: 'I_9', finishedAt: '2026-11-10T10:00:00Z' }], incomplete: false, readAt: '2026-11-12T09:00:00Z', finishedSince: '2026-09-17T09:00:00Z' }
+    const draft = { milestoneQuery: { picks: [], query: 'label:"beta"' }, reads: [{ query: 'label:"beta"', read }], sources: { pace: 'tracker' as const } }
+    const failures = { whole: { failure: 'unavailable' as const, at: '2026-11-12T09:00:00Z' } }
+    expect(open(migrated).setupDraft(TEAM)).toBeUndefined()
+    expect(open(migrated).readFailures(TEAM)).toBeUndefined()
+
+    open(migrated).saveSetupState(TEAM, { open: true, reopened: 'done' })
+    open(migrated).saveSetupDraft(TEAM, draft)
+    open(migrated).saveReadFailures(TEAM, failures)
+
+    expect(open(migrated).setupState(TEAM)).toStrictEqual({ open: true, reopened: 'done' })
+    expect(open(migrated).setupDraft(TEAM)).toStrictEqual(draft)
+    expect(open(migrated).readFailures(TEAM)).toStrictEqual(failures)
+    expect(versionOf(migrated)).toBe(20)
   })
 })
 

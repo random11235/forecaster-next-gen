@@ -27,6 +27,7 @@ export async function appOnTracker(fixture: CannedFixture, { today = TODAY, now 
     connections: storage,
     reads: storage,
     milestoneQueries: storage,
+    setup: storage,
     secrets: openMemorySecrets(),
     connector: () => cannedConnector(fixture),
   }

@@ -288,7 +288,7 @@ function refuseAbovePerPeriodCap(saved: MilestoneInputs): Refusal {
 }
 
 /** A milestone with every input the EM hasn't entered yet at its default. */
-function newMilestone(teamId: string): MilestoneInputs {
+export function newMilestone(teamId: string): MilestoneInputs {
   return {
     teamId,
     name: '',
