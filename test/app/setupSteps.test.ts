@@ -39,7 +39,7 @@ async function start(): Promise<RunningApp> {
       read: (query, finishedSince) => (asked++, canned.read(query, finishedSince)),
     }
   }
-  const connecting: Connecting = { connections: storage, reads: storage, milestoneQueries: storage, setup: storage, secrets: openMemorySecrets(), connector: counted }
+  const connecting: Connecting = { connections: storage, queries: storage, setup: storage, secrets: openMemorySecrets(), connector: counted }
   app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage, connecting, today: () => TODAY, now: () => `${TODAY}T09:00:00Z` })
   return app
 }

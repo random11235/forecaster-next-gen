@@ -25,8 +25,7 @@ export async function appOnTracker(fixture: CannedFixture, { today = TODAY, now 
   const storage: TeamStorage = openSqliteStorage(':memory:')
   const connecting: Connecting = {
     connections: storage,
-    reads: storage,
-    milestoneQueries: storage,
+    queries: storage,
     setup: storage,
     secrets: openMemorySecrets(),
     connector: () => cannedConnector(fixture),

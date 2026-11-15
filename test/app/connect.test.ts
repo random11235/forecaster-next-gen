@@ -36,8 +36,7 @@ async function startConnecting(answer: Answer = CHOICES): Promise<{ app: Running
   const canned = { answer }
   const connecting: Connecting = {
     connections: storage,
-    reads: storage,
-    milestoneQueries: storage,
+    queries: storage,
     setup: storage,
     secrets: openMemorySecrets(),
     connector: () => cannedConnector({ milestoneChoices: canned.answer, reads: {} }),

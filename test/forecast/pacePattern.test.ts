@@ -387,8 +387,7 @@ describe('from the tracker’s weeks (#213)', () => {
     const using: Skipping = {
       connections: opened,
       milestoneInputs: opened,
-      reads: opened,
-      milestoneQueries: opened,
+      queries: opened,
       setup: opened,
       secrets: openMemorySecrets(),
       connector: () => cannedConnector(fixture),

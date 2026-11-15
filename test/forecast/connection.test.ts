@@ -41,7 +41,7 @@ function connecting(answer: CannedFixture['milestoneChoices'] = CHOICES.mileston
     built.push({ connection, token })
     return cannedConnector({ milestoneChoices: answer, reads: {} })
   }
-  return { connections: storage, reads: storage, milestoneQueries: storage, setup: storage, secrets: openMemorySecrets(), connector, built }
+  return { connections: storage, queries: storage, setup: storage, secrets: openMemorySecrets(), connector, built }
 }
 
 function github(repo = 'shop-team/shop', token = TOKEN): ConnectionEdit {
