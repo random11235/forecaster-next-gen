@@ -10,7 +10,7 @@ import type { SavedRead } from '../model/savedRead.js'
 import type { FailedRead, FailedReads, ReadFailures } from '../model/readFailures.js'
 import type { SetupDraft } from '../model/setupDraft.js'
 import type { Team } from '../model/team.js'
-import { applySetupDraft, draftedQueries, type Drafted } from './lib/draftedQueries.js'
+import { applySetupDraft, draftedQueries, saveDraftPickFailures, saveDraftSources, type TeamQueriesWithDraft } from './lib/setupDraft.js'
 import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage, SetupClosed, SetupState, SetupStorage, Storage, TeamQueryStorage } from './storage.js'
 
 /**
@@ -461,7 +461,8 @@ export function openSqliteStorage(file: string): SqliteStorage {
   const selectReadFailures = db.prepare('SELECT of, query, failure, message, at FROM read_failures WHERE team_id = ? ORDER BY rowid')
   const deleteReadFailures = db.prepare('DELETE FROM read_failures WHERE team_id = ?')
 
-  const storage: SqliteStorage = {
+  // what each table keeps; the targets, and the draft's edits and "Use these", are made over it below
+  const kept: Omit<SqliteStorage, keyof TeamQueryStorage | 'saveDraftSources' | 'saveDraftPickFailures'> = {
     isEmpty() {
       return db.prepare('SELECT 1 FROM teams LIMIT 1').get() === undefined
     },
@@ -708,21 +709,18 @@ export function openSqliteStorage(file: string): SqliteStorage {
       })
     },
 
-    teamQueries(target) {
-      return draftedQueries(drafted, target)
-    },
-
-    applySetupDraft(teamId) {
-      applySetupDraft(drafted, teamId)
-    },
-
     close() {
       db.close()
     },
   }
-  // the saved queries and reads, and setup's draft, which the targets and "Use these" hold the draft over
-  const drafted: Drafted = { milestoneQueries: storage, reads: storage, setup: storage }
-  return storage
+  const withDraft: TeamQueriesWithDraft = { milestoneQueries: kept, reads: kept, setup: kept }
+  return {
+    ...kept,
+    saveDraftSources: (teamId, sources) => saveDraftSources(kept, teamId, sources),
+    saveDraftPickFailures: (teamId, pickFailures) => saveDraftPickFailures(kept, teamId, pickFailures),
+    teamQueries: (target) => draftedQueries(withDraft, target),
+    applySetupDraft: (teamId) => applySetupDraft(withDraft, teamId),
+  }
 }
 
 /** How setup can be closed. */

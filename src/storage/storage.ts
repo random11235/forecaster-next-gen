@@ -109,12 +109,10 @@ export interface SetupStorage {
   setupDraft(teamId: string): SetupDraft | undefined
   /** Replaces the team's setup draft whole. */
   saveSetupDraft(teamId: string, draft: SetupDraft): void
-  /**
-   * Applies the team's setup draft ("Use these"), if it has one: its queries and reads saved over the saved ones, each
-   * read made in setup the query's latest, the saved one before it its previous; why its picks' reads failed over why
-   * theirs did, a pick read well in it failing no longer; then the draft discarded.
-   */
-  applySetupDraft(teamId: string): void
+  /** Replaces the sources Check chose in the team's setup draft, keeping the rest of it: a draft started if it has none. */
+  saveDraftSources(teamId: string, sources: SetupDraft['sources']): void
+  /** Replaces why the draft's picks' reads failed at Check, keeping the rest of it: a draft started if it has none. */
+  saveDraftPickFailures(teamId: string, pickFailures: SetupDraft['pickFailures']): void
   /** Throws the team's setup draft away (Cancel), if it has one. */
   discardSetupDraft(teamId: string): void
   /** Why the team's last reads failed (#222), if they did: the summary says so, the saved reads in use. */
@@ -124,13 +122,14 @@ export interface SetupStorage {
 }
 
 /**
- * Which of the team's queries and reads are meant (#244): `current`, what the setup steps read and save with, the
- * team's setup draft over what's saved while setup is open, what's saved while it's closed; `saved`, what's saved only,
- * which the Milestone forecast screen and the Inputs screen's values read; and `everywhere`, what's saved, read and
- * saved, and while setup is open the draft too, wherever it holds the same as what's saved: a change the forecast
- * takes at once, which the steps follow (a skip, a renamed milestone).
+ * Which of the team's queries and reads are meant (#244). `current` is what the setup steps read and save with: while
+ * setup is open, each query and read the setup draft's where it has one, else the saved one, and every save made into
+ * the draft; while setup is closed, what's saved. `saved` is what's saved only, whether setup is open or not: what the
+ * Milestone forecast screen, the Inputs screen's values and setup's summary read. A change the forecast takes at once
+ * that the steps follow too (a skip, a renamed milestone) is made in `saved`, then in `current` where the steps' own
+ * still need it.
  */
-export type QueryTarget = 'current' | 'saved' | 'everywhere'
+export type QueryTarget = 'current' | 'saved'
 
 /** The team's queries and their reads, in one target. */
 export interface TeamQueries {
@@ -145,4 +144,10 @@ export interface TeamQueries {
 export interface TeamQueryStorage {
   /** The team's queries and reads in `target`. */
   teamQueries(target: QueryTarget): TeamQueries
+  /**
+   * Applies the team's setup draft ("Use these"), if it has one: its queries and reads saved over the saved ones, each
+   * read made in setup the query's latest, the saved one before it its previous; why its picks' reads failed over why
+   * theirs did, a pick read well in it failing no longer; then the draft discarded.
+   */
+  applySetupDraft(teamId: string): void
 }
