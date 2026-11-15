@@ -35,8 +35,9 @@ export interface SkipAt {
  * Inputs screen comes next. Skips belong to the milestone, so they outlast reads. A skip reads the pace's queries
  * again, as at `readAt`, where their saved reads don't reach back past the skipped periods (`finishedSinceFor`), so
  * the window can keep up to 8 counted; a read that fails leaves the last one in use. While setup is open, the steps'
- * queries are read back too, into its draft, so Check counts the same window the forecast will. Refused, with no period, a period
- * that isn't a date, or no milestone, nothing changes, and the Inputs screen is shown again saying why.
+ * queries are read back too, into its draft, so Check counts the same window the forecast will. Refused, with no
+ * period, a period that isn't a date, or no milestone, nothing changes, and the Inputs screen is shown again saying
+ * why.
  */
 export async function submitSkip(skipping: Skipping, teamId: string, edit: SkipEdit, at: SkipAt): Promise<Submitted> {
   const saved = skipping.milestoneInputs.milestoneInputs(teamId)

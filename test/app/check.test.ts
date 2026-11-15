@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import type { CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
 import { CHECKOUT, finishedOn, open } from '../trackerScenario.js'
-import { appOnTracker, inputsSection, page, post, type AppOnTracker } from './appOnTracker.js'
+import { appOnTracker, page, post, type AppOnTracker } from './appOnTracker.js'
 
-// The Check step (#220), through the local server as the EM's browser sees it, on the canned connector: a row for
-// each value the tracker can supply, the EM's value now, the tracker's and which to use, then "Use these".
+// The Check step (#220), through the local server as the EM's browser sees it, on the canned connector: how its rows
+// render, and how a choice's form is read. What Check offers and what "Use these" saves are Seam B's
+// (test/forecast/setup.test.ts).
 
 let app: AppOnTracker | undefined
 
@@ -47,18 +48,13 @@ describe('the Check step', () => {
     expect(html).toMatch(/value="tracker" required> GitHub<\/label>\s*<label><input type="radio" name="source" value="range" checked required> Range<\/label>/)
   })
 
-  test('a choice is held for "Use these", which saves it with the picks and closes setup', async () => {
+  test('a choice is read from its form, and Check shows it chosen', async () => {
     const running = await atCheck()
 
     const chosen = await post(running.running, '/inputs/setup/source', { value: 'ticketsRemaining', source: 'tracker' })
     expect(chosen.status).toBe(303)
     expect(chosen.headers.get('location')).toBe('/inputs?step=check#check')
     expect(await check(running)).toMatch(/value="tracker" checked required> GitHub<\/label>\s*<label><input type="radio" name="source" value="typed" required> Typed/)
-    expect(running.storage.milestoneInputs('team')?.ticketsSource).toBe('typed')
-
-    await post(running.running, '/inputs/setup/use-these', {})
-    expect(running.storage.milestoneInputs('team')).toMatchObject({ ticketsSource: 'tracker', paceMode: 'range' })
-    expect(await inputsSection(running.running, 'milestone')).not.toContain('name="ticketsRemaining"')
   })
 
   test('a source Check doesn’t name, as from a form changed by hand, is not found, and changes nothing', async () => {
@@ -69,22 +65,12 @@ describe('the Check step', () => {
     expect(running.storage.setupDraft('team')?.sources).toBeUndefined()
   })
 
-  test('with no milestone entered yet, offers each source, starting on a new milestone’s', async () => {
-    app = await appOnTracker({ milestoneChoices: [{ kind: 'milestone', choices: [CHECKOUT], pastLimit: false }], reads: { [CHECKOUT.query]: { tickets: open(7), incomplete: false } } })
-    await post(app.running, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
-    await post(app.running, '/inputs/milestone-query/add', { ...CHECKOUT })
-
-    const html = await check(app)
-    expect(html).toMatch(/value="tracker" required> GitHub<\/label>\s*<label><input type="radio" name="source" value="typed" checked required> Typed<\/label>/)
-    expect(html).toMatch(/value="tracker" required> GitHub<\/label>\s*<label><input type="radio" name="source" value="range" checked required> Range<\/label>/)
-  })
-
-  test('with pace from typed counts, offers the range beside them', async () => {
+  test('names the typed counts, offered beside the range', async () => {
     const running = await atCheck()
     await post(running.running, '/inputs/pace-counts', { counts: '5 6 7' })
     await post(running.running, '/inputs/pace-mode', { paceMode: 'counts' })
 
-    expect(await check(running)).toMatch(/value="tracker" required> GitHub<\/label>\s*<label><input type="radio" name="source" value="range" required> Range<\/label>\s*<label><input type="radio" name="source" value="counts" checked required> Typed counts<\/label>/)
+    expect(await check(running)).toMatch(/value="range" required> Range<\/label>\s*<label><input type="radio" name="source" value="counts" checked required> Typed counts<\/label>/)
   })
 
   test('marks an incomplete read on its row', async () => {
@@ -92,12 +78,5 @@ describe('the Check step', () => {
 
     expect(html).toMatch(/<td>7 <span class="note warn">GitHub gave only part of what the query matches<\/span><\/td>/)
     expect(html).toMatch(/<td><span class="note warn">None: GitHub gave only part of what the query matches<\/span><\/td>/)
-  })
-
-  test('names Jira', async () => {
-    const html = await check(await atCheck({ tracker: 'jira' }))
-
-    expect(html).toContain('<th scope="col">From Jira</th>')
-    expect(html).toContain('> Jira</label>')
   })
 })

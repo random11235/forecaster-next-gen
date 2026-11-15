@@ -63,8 +63,8 @@ export const CHECK_STEP = { id: SETUP_STEP_IDS.check, title: 'Check', hint: 'Che
 
 /**
  * The setup step shown, as `body` within it: the steps' list above, each done step a link back to it and the current
- * one marked; then the step; then Cancel, or why the steps can't be cancelled once they changed the connection, Back, and Next (or Skip) where the step can
- * be left forward yet.
+ * one marked; then the step; then Cancel, or why the steps can't be cancelled once they changed the connection; Back;
+ * and Next (or Skip) where the step can be left forward yet.
  */
 export function setupStepHtml(view: SetupSteps, body: string): string {
   const steps = view.steps
@@ -184,8 +184,9 @@ export const CHECK_SCRIPT = `
 
 /**
  * Setup done, above the inputs: the tracker, the repo or project, and when the milestone was read, with Read again,
- * and Change to open the steps again; the Milestone row, and the Comparable row when there is comparable work, each naming its picks with
- * their kinds or showing the query written by hand; the leaf-and-epics line; and beneath, only problem flags.
+ * and Change to open the steps again; the Milestone row, and the Comparable row when there is comparable work, each
+ * naming its picks with their kinds (and a note where their counts wait for Check) or showing the query written by
+ * hand; the leaf-and-epics line; and beneath, only problem flags.
  */
 export function setupSummaryHtml({ tracker, where, readOn, milestone, comparable, note, flags }: SetupSummary): string {
   const read = readOn === undefined ? '' : `\n        <span class="read">read ${escapeHtml(readOn)}</span>`
