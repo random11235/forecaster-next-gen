@@ -73,6 +73,18 @@ describe('the Check step', () => {
     expect(await check(running)).toMatch(/value="range" required> Range<\/label>\s*<label><input type="radio" name="source" value="counts" checked required> Typed counts<\/label>/)
   })
 
+  test('says why pace has no reading with no start date yet', async () => {
+    const fixture: CannedFixture = {
+      milestoneChoices: [{ kind: 'milestone', choices: [CHECKOUT], pastLimit: false }],
+      reads: { [CHECKOUT.query]: { tickets: [...open(7), ...finishedOn('f', '2026-11-03', 6)], incomplete: false } },
+    }
+    app = await appOnTracker(fixture)
+    await post(app.running, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
+    await post(app.running, '/inputs/milestone-query/add', { ...CHECKOUT })
+
+    expect(await check(app)).toMatch(/<th scope="row">Pace<\/th>\s*<td>—<\/td>\s*<td><span class="note">None yet: pace counts GitHub’s weeks from the milestone’s start date, entered below\.<\/span><\/td>/)
+  })
+
   test('marks an incomplete read on its row', async () => {
     const html = await check(await atCheck({ incomplete: true }))
 

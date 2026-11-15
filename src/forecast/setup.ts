@@ -92,6 +92,8 @@ export interface PaceCheck {
   reading?: PaceReadingView
   /** No reading, as a read pace would come from is incomplete. */
   incomplete: boolean
+  /** No reading, as the milestone has no start date yet to count pace's periods from: none entered, on a first setup. */
+  noStartDate: boolean
   /** A new milestone's, the range, with no milestone entered yet. */
   source: PaceMode
   /** The tracker, then the range, then the typed counts when they are what the EM uses. */
@@ -209,6 +211,7 @@ function checkOf(settingUp: SetupContext, teamId: string): SetupCheck | undefine
       period: periodName(inputs.cadenceDays),
       ...(pace && { reading: paceReadingView(pace) }),
       incomplete: measured.paceIncomplete,
+      noStartDate: !pace && !measured.paceIncomplete && inputs.startDate === undefined,
       source: paceSource,
       choices: paceChoices(inputs),
     },

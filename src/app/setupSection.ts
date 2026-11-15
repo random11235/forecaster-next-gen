@@ -133,13 +133,15 @@ function ticketsRowHtml(tracker: string, { yours, reading, incomplete, source }:
 const PACE_NAMES: Readonly<Record<Exclude<PaceMode, 'tracker'>, string>> = { range: 'Range', counts: 'Typed counts' }
 
 /** Check's pace row: the EM's range or typed counts, the tracker's counts with its line. */
-function paceRowHtml(tracker: string, { yours, period, reading, incomplete, source, choices }: PaceCheck): string {
+function paceRowHtml(tracker: string, { yours, period, reading, incomplete, noStartDate, source, choices }: PaceCheck): string {
   const own = yours.source === 'counts' ? countsHtml(yours.counts) : yours.range === undefined ? '—' : `${yours.range.low}–${yours.range.high} a ${period}`
   const read = reading
     ? `${countsHtml(reading.counts)} <span class="muted">${escapeHtml(reading.line)}</span>`
     : incomplete
       ? `<span class="note warn">None: ${partOf(tracker)}</span>`
-      : '—'
+      : noStartDate
+        ? `<span class="note">None yet: pace counts ${escapeHtml(tracker)}’s ${period}s from the milestone’s start date, entered below.</span>`
+        : '—'
   const use = sourceFormHtml('pace', 'Pace the forecast uses', choices, source, (each) => (each === 'tracker' ? tracker : PACE_NAMES[each]))
   return `            <tr>
               <th scope="row">Pace</th>
@@ -185,10 +187,10 @@ export const CHECK_SCRIPT = `
 /**
  * Setup done, above the inputs: the tracker, the repo or project, and when the milestone was read, with Read again,
  * and Change to open the steps again; the Milestone row, and the Comparable row when there is comparable work, each
- * naming its picks with their kinds (and a note where their counts wait for Check) or showing the query written by
- * hand; the leaf-and-epics line; and beneath, only problem flags.
+ * naming its picks with their kinds or showing the query written by hand; once beneath them, a note where a row's
+ * counts wait for Check; the leaf-and-epics line; and beneath, only problem flags.
  */
-export function setupSummaryHtml({ tracker, where, readOn, milestone, comparable, note, flags }: SetupSummary): string {
+export function setupSummaryHtml({ tracker, where, readOn, milestone, comparable, countsWait, note, flags }: SetupSummary): string {
   const read = readOn === undefined ? '' : `\n        <span class="read">read ${escapeHtml(readOn)}</span>`
   const rows = [rowHtml('Milestone', milestone), ...(comparable ? [rowHtml('Comparable', comparable)] : [])].join('\n')
   return summaryBoxHtml(`      <div class="setup-head">
@@ -201,7 +203,7 @@ export function setupSummaryHtml({ tracker, where, readOn, milestone, comparable
       </div>
       <dl class="setup-rows">
 ${rows}
-      </dl>
+      </dl>${countsWait === undefined ? '' : `\n      <p class="note muted">${escapeHtml(countsWait)}</p>`}
       <p class="note">${escapeHtml(note)}</p>${flags.map(flagHtml).join('')}`)
 }
 
@@ -226,9 +228,8 @@ function rowHtml(name: string, row: SummaryRow): string {
     'query' in row
       ? `<code>${escapeHtml(row.query)}</code>`
       : row.picks.map((pick) => `${escapeHtml(pick.name)} <span class="kind">(${escapeHtml(pick.kind)})</span>${pick.count === undefined ? '' : ` · ${pick.count}`}`).join(', ')
-  const note = 'picks' in row && row.note !== undefined ? `<br><span class="muted">${escapeHtml(row.note)}</span>` : ''
   return `        <dt>${name}</dt>
-        <dd>${shown}${note}</dd>`
+        <dd>${shown}</dd>`
 }
 
 /** Each query flagged, named as its step names it. */
