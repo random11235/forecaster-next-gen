@@ -783,7 +783,7 @@ describe('a data file from schema version 17, before previous reads', () => {
     const again = openSqliteStorage(file)
     expect(again.previousRead({ teamId: TEAM, query })).toEqual(saved)
     again.close()
-    expect(versionOf(file)).toBe(22)
+    expect(versionOf(file)).toBe(20)
   })
 })
 
@@ -829,7 +829,7 @@ describe('a data file from schema version 18, before reads reached back past ski
     open(file).saveRead({ teamId: TEAM, query: 'milestone:"Launch"' }, read)
 
     expect(open(file).savedRead({ teamId: TEAM, query: 'milestone:"Launch"' })).toEqual(read)
-    expect(versionOf(file)).toBe(22)
+    expect(versionOf(file)).toBe(20)
   })
 })
 
@@ -841,65 +841,45 @@ ALTER TABLE previous_reads ADD COLUMN finished_since TEXT;
 UPDATE previous_reads SET finished_since = strftime('%Y-%m-%dT%H:%M:%fZ', read_at, '-56 days');
 `
 
-describe('a data file from schema version 19, before setup closed to a summary', () => {
-  test('has setup done for a team connected with a milestone query, and open for a team with neither', () => {
-    const storage = open(writeFile('v19.db', VERSION_19_SCHEMA, 19))
+describe('a data file from schema version 19, before setup', () => {
+  // ACME is connected with a milestone query; EMPTY connected with its query emptied; BARE connected with none; the sample team not connected
+  const file = (): string =>
+    writeFile(
+      'v19.db',
+      `${VERSION_19_SCHEMA}
+INSERT INTO teams (id, name, source, source_ref) VALUES ('EMPTY', 'Empty', 'manual', ''), ('BARE', 'Bare', 'manual', '');
+INSERT INTO connections (team_id, tracker, owner, repo) VALUES ('EMPTY', 'github', 'acme', 'empty'), ('BARE', 'github', 'acme', 'bare');
+INSERT INTO milestone_queries VALUES ('EMPTY', '', '[]');
+`,
+      19,
+    )
 
-    expect(storage.setupClosed(TEAM)).toBe('done')
-    expect(storage.setupClosed('sample-team')).toBeUndefined()
+  test('has setup done for a team connected with a milestone query, and open in a first setup that made no connection for every other team', () => {
+    const storage = open(file())
+
+    expect(storage.setupState(TEAM)).toStrictEqual({ open: false, closed: 'done' })
+    // a connection from before setup is none setup made, so Cancel keeps it
+    expect(storage.setupState('EMPTY')).toStrictEqual({ open: true })
+    expect(storage.setupState('BARE')).toStrictEqual({ open: true })
+    expect(storage.setupState('sample-team')).toStrictEqual({ open: true })
   })
 
-  test('takes setup closed and reopened, which survives reopening', () => {
-    const file = writeFile('v19.db', VERSION_19_SCHEMA, 19)
-    open(file).closeSetup('sample-team', 'skipped')
-    open(file).reopenSetup(TEAM)
+  test('has no setup draft and no failed reads, and takes them, with where setup stands, which survive reopening', () => {
+    const migrated = file()
+    const read = { tickets: [{ id: 'I_9', finishedAt: '2026-11-10T10:00:00Z' }], incomplete: false, readAt: '2026-11-12T09:00:00Z', finishedSince: '2026-09-17T09:00:00Z' }
+    const draft = { milestoneQuery: { picks: [], query: 'label:"beta"' }, reads: [{ query: 'label:"beta"', read }], sources: { pace: 'tracker' as const } }
+    const failures = { whole: { failure: 'unavailable' as const, at: '2026-11-12T09:00:00Z' } }
+    expect(open(migrated).setupDraft(TEAM)).toBeUndefined()
+    expect(open(migrated).readFailures(TEAM)).toBeUndefined()
 
-    expect(open(file).setupClosed('sample-team')).toBe('skipped')
-    expect(open(file).setupClosed(TEAM)).toBeUndefined()
-    expect(versionOf(file)).toBe(22)
-  })
-})
+    open(migrated).saveSetupState(TEAM, { open: true, reopened: 'done' })
+    open(migrated).saveSetupDraft(TEAM, draft)
+    open(migrated).saveReadFailures(TEAM, failures)
 
-/** Version 20's tables: version 19's, with how setup was closed as #217 shipped it. Kept verbatim: it is a past release. */
-const VERSION_20_SCHEMA = `${VERSION_19_SCHEMA}
-CREATE TABLE setups (
-  team_id TEXT PRIMARY KEY REFERENCES teams(id),
-  closed TEXT NOT NULL
-);
-INSERT INTO setups (team_id, closed)
-  SELECT connections.team_id, 'done' FROM connections JOIN milestone_queries ON milestone_queries.team_id = connections.team_id;
-`
-
-describe('a data file from schema version 20, before setup held a draft', () => {
-  test('has no setup draft, and takes one, which survives reopening', () => {
-    const file = writeFile('v20.db', VERSION_20_SCHEMA, 20)
-    expect(open(file).setupDraft(TEAM)).toBeUndefined()
-    expect(open(file).setupClosed(TEAM)).toBe('done')
-
-    open(file).saveSetupDraft(TEAM, { reads: [] })
-
-    expect(open(file).setupDraft(TEAM)).toEqual({ reads: [] })
-    expect(versionOf(file)).toBe(22)
-  })
-})
-
-/** Version 21's tables: version 20's, with the setup draft as #218 shipped it. Kept verbatim: it is a past release. */
-const VERSION_21_SCHEMA = `${VERSION_20_SCHEMA}
-CREATE TABLE setup_drafts (
-  team_id TEXT PRIMARY KEY REFERENCES teams(id),
-  draft TEXT NOT NULL
-);
-`
-
-describe('a data file from schema version 21, before a failed read was kept', () => {
-  test('has no read failures, and takes them', () => {
-    const file = writeFile('v21.db', VERSION_21_SCHEMA, 21)
-    expect(open(file).readFailures(TEAM)).toBeUndefined()
-
-    open(file).saveReadFailures(TEAM, { whole: { failure: 'unavailable', at: '2026-11-12T09:00:00Z' } })
-
-    expect(open(file).readFailures(TEAM)).toEqual({ whole: { failure: 'unavailable', at: '2026-11-12T09:00:00Z' } })
-    expect(versionOf(file)).toBe(22)
+    expect(open(migrated).setupState(TEAM)).toStrictEqual({ open: true, reopened: 'done' })
+    expect(open(migrated).setupDraft(TEAM)).toStrictEqual(draft)
+    expect(open(migrated).readFailures(TEAM)).toStrictEqual(failures)
+    expect(versionOf(migrated)).toBe(20)
   })
 })
 

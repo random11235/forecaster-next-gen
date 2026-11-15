@@ -9,6 +9,7 @@ import type { ChoiceList } from './queryStep.js'
 import { paceReads, paceReadsStorage, wholePeriods } from './paceReads.js'
 import type { DatedCounts } from './paceWindow.js'
 import { medianOf, paceVersusMilestoneOwn, type PaceVersus } from './paceVersusOwn.js'
+import { throughDraft } from './throughDraft.js'
 import { trackerOf } from './trackers.js'
 
 /**
@@ -91,7 +92,8 @@ export function openCandidates(
   teamId: string,
   at: CandidatesAt,
 ): CandidateOpening {
-  const stored = paceReadsStorage(storage, connecting)
+  // the milestone's and comparable work's queries as setup's steps hold them
+  const stored = paceReadsStorage(storage, throughDraft(connecting))
   const read = new Map<string, Promise<Candidate>>()
   let connected: ReturnType<typeof teamConnection> | undefined
   const own = paceReads(stored, teamId, at)

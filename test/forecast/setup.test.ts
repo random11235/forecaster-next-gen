@@ -1,9 +1,8 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import type { Choice, Ticket } from '../../src/connectors/connector.js'
-import { openSetup, setupView, submitSetup, type ChosenSource, type SettingUp, type SetupEdit } from '../../src/forecast/setup.js'
+import { openSetup, setupView, submitSetup, type ChosenSource, type SetupContext, type SetupEdit } from '../../src/forecast/setup.js'
 import type { SetupStep } from '../../src/forecast/setupSteps.js'
-import { readPicks, submitReadAgain } from '../../src/forecast/setupSummary.js'
-import { throughDraft } from '../../src/forecast/throughDraft.js'
+import { submitReadAgain } from '../../src/forecast/setupReads.js'
 import { queryStepView, submitStepQuery, type StepQueryEdit } from '../../src/forecast/queryStep.js'
 import { COMPARABLE_WORK, MILESTONE_QUERY, type StepQuery } from '../../src/forecast/stepQuery.js'
 import { CHECKOUT, finishedOn, open, TEAM, TODAY, trackerScenario, type TrackerScenario } from '../trackerScenario.js'
@@ -23,13 +22,16 @@ afterEach(() => {
 
 /** A team not yet connected, with Q3 polish to pick as comparable work. */
 function team(): TrackerScenario {
-  scenario = trackerScenario()
+  scenario = trackerScenario({ firstSetup: true })
   scenario.fixture.milestoneChoices = [{ kind: 'milestone', choices: [CHECKOUT, Q3_POLISH], pastLimit: false }]
   scenario.fixture.reads[Q3_POLISH.query] = { tickets: [], incomplete: false }
   return scenario
 }
 
-const settingUp = ({ using }: TrackerScenario): SettingUp => ({ ...using, timeZone: 'UTC', today: TODAY })
+const settingUp = ({ using }: TrackerScenario): SetupContext => ({ ...using, timeZone: 'UTC', today: TODAY })
+
+/** The Inputs screen opened at Check, as at `readAt`, which reads each pick the summary has no count for yet. */
+const atCheck = (readAt = READ_AT) => openSetup(settingUp(scenario!), TEAM, { asked: 'check' }, readAt)
 
 describe('the setup steps', () => {
   test('open at Connect, the first of four, with nothing to go back or on to, until the team connects', () => {
@@ -262,7 +264,7 @@ describe('each pick’s count on the summary', () => {
   test('come from the milestone query’s own read for a single pick, open and finished alike, with no extra read', async () => {
     await picked([[CHECKOUT, [...open(3), ...FINISHED]]])
     scenario!.asked.length = 0
-    await readPicks(scenario!.using, TEAM, READ_AT)
+    await atCheck()
 
     expect(scenario!.asked).toEqual([])
     expect(await summary()).toMatchObject({ milestone: { picks: [{ name: 'Checkout v2', kind: 'milestone', count: 5 }] } })
@@ -276,7 +278,7 @@ describe('each pick’s count on the summary', () => {
     ])
     const before = await summary()
     await submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })
-    await readPicks(scenario!.using, TEAM, READ_AT)
+    await atCheck()
 
     expect(before).toMatchObject({ milestone: { picks: [{ name: 'Checkout v2' }, { name: '#57 Search revamp' }, { name: 'bug' }] } })
     expect(before.kind === 'summary' && 'picks' in before.milestone && before.milestone.picks.some((pick) => 'count' in pick)).toBe(false)
@@ -295,7 +297,7 @@ describe('each pick’s count on the summary', () => {
     await picked([[CHECKOUT, open(3, 'c')], [SEARCH, open(1, 's')]])
     await summary()
     await submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })
-    await readPicks(scenario!.using, TEAM, READ_AT)
+    await atCheck()
     await submitSetup(settingUp(scenario!), TEAM, { kind: 'cancel' })
 
     const view = setupView(settingUp(scenario!), TEAM)
@@ -306,7 +308,7 @@ describe('each pick’s count on the summary', () => {
     const VERSION: Choice = { kind: 'fixVersion', name: '2.4', query: 'fixVersion = "2.4"' }
     const EPIC: Choice = { kind: 'epic', name: 'SHOP-41 Checkout v2', query: 'parent = SHOP-41' }
     await picked([[VERSION, open(2, 'v')], [EPIC, open(6, 'e')]], 'jira')
-    await readPicks(scenario!.using, TEAM, READ_AT)
+    await atCheck()
 
     expect(await summary()).toMatchObject({ milestone: { picks: [{ name: '2.4', kind: 'fix version', count: 2 }, { name: 'SHOP-41 Checkout v2', kind: 'epic', count: 6 }] } })
   })
@@ -318,12 +320,12 @@ describe('each pick’s count on the summary', () => {
     await scenario!.pick(READ_AT, BUG, COMPARABLE_WORK)
     await scenario!.pick(READ_AT, Q3_POLISH, COMPARABLE_WORK)
     scenario!.asked.length = 0
-    await readPicks(scenario!.using, TEAM, READ_AT)
-    const atCheck = scenario!.asked.length
-    await readPicks(scenario!.using, TEAM, READ_AT)
+    await atCheck()
+    const reads = scenario!.asked.length
+    await atCheck()
 
-    expect(atCheck).toBe(2)
-    expect(scenario!.asked.length).toBe(atCheck)
+    expect(reads).toBe(2)
+    expect(scenario!.asked.length).toBe(reads)
     expect(await summary()).toMatchObject({ comparable: { picks: [{ name: 'bug', count: 2 }, { name: 'Q3 polish', count: 1 }] } })
   })
 
@@ -336,7 +338,7 @@ describe('each pick’s count on the summary', () => {
     scenario!.inputs()
 
     expect(scenario!.asked).toEqual([])
-    await readPicks(scenario!.using, TEAM, READ_AT)
+    await atCheck()
     const view = await summary()
     expect(view).toMatchObject({ milestone: { picks: [{ name: 'Checkout v2' }, { name: '#57 Search revamp' }] } })
     expect(view.kind === 'summary' && 'picks' in view.milestone && view.milestone.picks.some((pick) => 'count' in pick)).toBe(false)
@@ -345,7 +347,7 @@ describe('each pick’s count on the summary', () => {
   test('flag a pick whose own read failed at Check, until a later Check reads it', async () => {
     await picked([[CHECKOUT, open(3, 'c')], [SEARCH, open(1, 's')]])
     scenario!.fixture.reads[SEARCH.query] = { failure: 'unavailable' }
-    await readPicks(scenario!.using, TEAM, READ_AT)
+    await atCheck()
 
     expect(await summary()).toMatchObject({
       milestone: { picks: [{ name: 'Checkout v2', count: 3 }, { name: '#57 Search revamp' }] },
@@ -354,7 +356,7 @@ describe('each pick’s count on the summary', () => {
 
     scenario!.fixture.reads[SEARCH.query] = { tickets: open(1, 's'), incomplete: false }
     await submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })
-    await readPicks(scenario!.using, TEAM, READ_AT)
+    await atCheck()
     expect(await summary()).toMatchObject({ milestone: { picks: [{ count: 3 }, { count: 1 }] }, flags: [] })
   })
 
@@ -364,7 +366,7 @@ describe('each pick’s count on the summary', () => {
     scenario!.fixture.reads[written] = { tickets: open(3), incomplete: false }
     await submitStepQuery(scenario!.using, TEAM, { kind: 'editQuery', query: written }, READ_AT)
     scenario!.asked.length = 0
-    await readPicks(scenario!.using, TEAM, READ_AT)
+    await atCheck()
 
     expect(scenario!.asked).toEqual([])
     expect(await summary()).toMatchObject({ milestone: { query: written } })
@@ -441,7 +443,7 @@ describe('Read again', () => {
     await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
     return scenario!
   }
-  const readAgain = () => submitReadAgain({ ...scenario!.using, timeZone: 'UTC' }, TEAM, LATER)
+  const readAgain = () => submitReadAgain(settingUp(scenario!), TEAM, LATER)
 
   test('reads the milestone query and comparable work’s, and the summary’s read time updates', async () => {
     const { fixture, storage } = await setUp()
@@ -474,7 +476,7 @@ describe('Read again', () => {
     fixture.reads[`${CHECKOUT.query} OR ${BUG.query}`] = { tickets: [...open(3), ...open(2, 'b')], incomplete: false }
     await submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })
     await scenario!.pick(READ_AT, BUG)
-    await readPicks(scenario!.using, TEAM, READ_AT)
+    await atCheck()
     await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
     fixture.reads[`${CHECKOUT.query} OR ${BUG.query}`] = { tickets: [...open(3), ...open(4, 'b')], incomplete: false }
     scenario!.asked.length = 0
@@ -510,7 +512,7 @@ describe('a failed read', () => {
     await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
     return scenario!
   }
-  const readAgain = () => submitReadAgain({ ...scenario!.using, timeZone: 'UTC' }, TEAM, LATER)
+  const readAgain = () => submitReadAgain(settingUp(scenario!), TEAM, LATER)
   const summary = () => setupView(settingUp(scenario!), TEAM)
 
   test('of a tracker unreachable or rate-limited keeps the saved read in use, and the summary says why, until a read is made', async () => {
@@ -552,7 +554,7 @@ describe('a failed read', () => {
     scenario!.asked.length = 0
     const keychainFailing = { ...scenario!.using, secrets: { ...scenario!.using.secrets, token: () => Promise.reject(new Error('locked')) } }
 
-    expect(await submitReadAgain({ ...keychainFailing, timeZone: 'UTC' }, TEAM, LATER)).toEqual({ kind: 'failed' })
+    expect(await submitReadAgain(keychainFailing, TEAM, LATER)).toEqual({ kind: 'failed' })
     expect(summary()).toMatchObject({ flags: [{ flag: expect.stringContaining('keychain couldn’t be used') }] })
     expect(scenario!.asked).toEqual([])
   })
@@ -609,11 +611,11 @@ describe('the draft', () => {
 
   /** A query step's submit made inside setup, through the draft. */
   const inSetup = (edit: StepQueryEdit, readAt = NEXT_READ_AT, stepQuery: StepQuery = MILESTONE_QUERY) =>
-    submitStepQuery(throughDraft(scenario!.using), TEAM, edit, readAt, stepQuery)
+    submitStepQuery(scenario!.using, TEAM, edit, readAt, stepQuery)
 
   /** A query step as setup shows it, through the draft. */
   const stepInSetup = (stepQuery: StepQuery = MILESTONE_QUERY) =>
-    queryStepView({ ...throughDraft(scenario!.using), at: { readAt: NEXT_READ_AT, today: TODAY, timeZone: 'UTC' } }, TEAM, '', { unlisted: true }, stepQuery)
+    queryStepView({ ...scenario!.using, at: { readAt: NEXT_READ_AT, today: TODAY, timeZone: 'UTC' } }, TEAM, '', { unlisted: true }, stepQuery)
 
   test('picks and a hand-written query made in setup leave the saved queries, saved reads and the forecast unchanged until "Use these"', async () => {
     const { storage, inputs, forecast } = await setUpThenChange()
@@ -741,7 +743,7 @@ describe('Check', () => {
     await scenario!.pick(READ_AT)
     await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
     await submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })
-    const drafted = throughDraft(scenario!.using)
+    const drafted = scenario!.using
     await submitStepQuery(drafted, TEAM, { kind: 'editQuery', query: BOTH }, NEXT_READ_AT)
     await submitStepQuery(drafted, TEAM, { kind: 'addPick', choice: Q3_POLISH }, NEXT_READ_AT, COMPARABLE_WORK)
     return scenario!

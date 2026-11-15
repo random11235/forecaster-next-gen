@@ -8,8 +8,3 @@ export type SetupStep = (typeof SETUP_STEPS)[number]
 export function setupStepOf(text: string | null | undefined): SetupStep | undefined {
   return SETUP_STEPS.find((step) => step === text)
 }
-
-/** Whether `step` comes after `than` in the steps' order. */
-export function isAfter(step: SetupStep, than: SetupStep): boolean {
-  return SETUP_STEPS.indexOf(step) > SETUP_STEPS.indexOf(than)
-}

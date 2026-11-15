@@ -53,6 +53,7 @@ beforeEach(() => {
   file = join(dir, 'forecaster.db')
   storage = openSqliteStorage(file)
   storage.saveTeam({ id: TEAM, name: 'My team', source: 'manual', sourceRef: '', installedAt: '2026-01-01T00:00:00Z' })
+  storage.saveSetupState(TEAM, { open: false, closed: 'done' })
 })
 
 afterEach(() => {
@@ -284,7 +285,7 @@ describe('picking', () => {
     storage.close()
 
     storage = openSqliteStorage(file)
-    const view = await queryStepView({ ...using, connections: storage, reads: storage, milestoneQueries: storage, milestoneInputs: storage }, TEAM)
+    const view = await queryStepView({ ...using, connections: storage, reads: storage, milestoneQueries: storage, milestoneInputs: storage, setup: storage }, TEAM)
 
     expect(view).toMatchObject({
       picks: [payments, bug],
