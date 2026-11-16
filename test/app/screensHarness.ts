@@ -99,7 +99,7 @@ export function text(html: string): string {
 export function post(path: string, fields: [string, string][]): Promise<Response> {
   return fetch(new URL(path, app!.url), {
     method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { 'content-type': 'application/x-www-form-urlencoded', origin: new URL(app!.url).origin },
     body: new URLSearchParams(fields).toString(),
     redirect: 'manual',
   })
@@ -146,7 +146,7 @@ export function choosePace(paceMode: string): Promise<Response> {
 export function saveInPlace(path: string, fields: [string, string][]): Promise<Response> {
   return fetch(new URL(path, app!.url), {
     method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded', [SAVE_IN_PLACE.header]: SAVE_IN_PLACE.value },
+    headers: { 'content-type': 'application/x-www-form-urlencoded', origin: new URL(app!.url).origin, [SAVE_IN_PLACE.header]: SAVE_IN_PLACE.value },
     body: new URLSearchParams(fields).toString(),
     redirect: 'manual',
   })

@@ -104,7 +104,7 @@ describe('launch smoke test', () => {
   test('in demo mode, setup closes to a summary served from the committed fixture', async () => {
     const url = await printedUrl(runEntry({ PORT: '0', FORECASTER_DEMO: '1' }))
     const post = (path: string, fields: Record<string, string>) =>
-      fetch(new URL(path, url), { method: 'POST', body: new URLSearchParams(fields), redirect: 'manual' })
+      fetch(new URL(path, url), { method: 'POST', body: new URLSearchParams(fields), headers: { origin: new URL(url).origin }, redirect: 'manual' })
 
     await post('/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'demo' })
     await post('/inputs/milestone-query/add', { kind: 'epic', name: 'Epic: onboarding 1', query: 'parent-issue:shop-team/shop#200' })

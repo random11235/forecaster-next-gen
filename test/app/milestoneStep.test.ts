@@ -63,7 +63,7 @@ async function startConnected(fixture: CannedFixture = FIXTURE): Promise<Running
 const page = async (running: RunningApp, path = '/inputs'): Promise<string> => (await fetch(new URL(path, running.url))).text()
 
 const post = (running: RunningApp, path: string, fields: Record<string, string>): Promise<Response> =>
-  fetch(new URL(path, running.url), { method: 'POST', body: new URLSearchParams(fields), redirect: 'manual' })
+  fetch(new URL(path, running.url), { method: 'POST', body: new URLSearchParams(fields), headers: { origin: new URL(running.url).origin }, redirect: 'manual' })
 
 /** The Milestone step's section of the Inputs screen. */
 function stepOf(html: string): string {
@@ -312,7 +312,7 @@ describe('the Milestone step', () => {
       const saved = await fetch(new URL('/inputs/cadence', running.url), {
         method: 'POST',
         body: new URLSearchParams({ cadenceDays: '14' }),
-        headers: { 'forecaster-save': 'in-place' },
+        headers: { origin: new URL(running.url).origin, 'forecaster-save': 'in-place' },
       })
 
       expect(saved.status).toBe(200)
@@ -332,7 +332,7 @@ describe('the Milestone step', () => {
     const back = await fetch(new URL('/inputs/milestone', running.url), {
       method: 'POST',
       body: new URLSearchParams({ name: 'Payments v2', startDate: '2026-10-01', ticketsRemaining: '20' }),
-      headers: { 'forecaster-save': 'in-place' },
+      headers: { origin: new URL(running.url).origin, 'forecaster-save': 'in-place' },
     })
     expect(back.status).toBe(200)
     expect(stepOf(await page(running))).toContain('1 open · 1 finished in the last 9 weeks')

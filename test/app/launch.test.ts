@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { request as httpRequest } from 'node:http'
 import { networkInterfaces } from 'node:os'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
+import { SAVE_IN_PLACE } from '../../src/app/inputsScript.js'
 import { defaultTeam } from '../../src/app/routes.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
@@ -46,7 +47,12 @@ describe('one-command launch', () => {
   test('on first launch, the EM can enter a milestone and its pace on the Inputs screen and see it forecast', async () => {
     app = await startOnFreePort()
     const post = (path: string, fields: Record<string, string>): Promise<Response> =>
-      fetch(new URL(path, app!.url), { method: 'POST', body: new URLSearchParams(fields), redirect: 'manual' })
+      fetch(new URL(path, app!.url), {
+        method: 'POST',
+        body: new URLSearchParams(fields),
+        headers: { origin: new URL(app!.url).origin },
+        redirect: 'manual',
+      })
 
     await post('/inputs/milestone', { name: 'Launch', startDate: '2026-11-02', ticketsRemaining: '30' })
     await post('/inputs/pace', { low: '5', high: '10' })
@@ -205,8 +211,8 @@ describe('refuses requests from other sites', () => {
   const postMilestone = (headers: Record<string, string>): Promise<Answer> =>
     send('POST', '/inputs/milestone', { 'content-type': 'application/x-www-form-urlencoded', ...headers }, new URLSearchParams(MILESTONE).toString())
 
-  /** Whether the posted milestone was saved, as the Milestone forecast screen shows it. */
-  const milestoneSaved = async (): Promise<boolean> => (await (await fetch(app!.url)).text()).includes('Launch · 30 tickets remaining')
+  /** Whether the posted milestone was saved, as the Inputs screen shows its name. */
+  const milestoneSaved = async (): Promise<boolean> => (await (await fetch(new URL('/inputs', app!.url))).text()).includes('name="name" value="Launch"')
 
   /** A refusal: 403 with a short plain-text body, not a page. */
   const expectRefused = (answer: Answer): void => {
@@ -230,5 +236,57 @@ describe('refuses requests from other sites', () => {
 
     expectRefused(answer)
     expect(await milestoneSaved()).toBe(false)
+  })
+
+  test.each([
+    ['another site', { origin: 'https://attacker.example' }],
+    ['another port on this machine', { origin: 'http://127.0.0.1:1' }],
+    ['no Origin at all', {}],
+  ])('a POST from %s is refused with 403, and saves nothing', async (_, origin) => {
+    app = await startOnFreePort()
+    const { host } = new URL(app.url)
+
+    expectRefused(await postMilestone({ host, ...origin }))
+    expect(await milestoneSaved()).toBe(false)
+  })
+
+  // Started on port 0, so these also show the checks use the port the server bound.
+  test.each(['127.0.0.1', 'localhost'])('a POST from the app on %s is saved as today', async (name) => {
+    app = await startOnFreePort()
+    const { port } = new URL(app.url)
+
+    const answer = await postMilestone({ host: `${name}:${port}`, origin: `http://${name}:${port}` })
+
+    expect(answer.status).toBe(303)
+    expect(await milestoneSaved()).toBe(true)
+  })
+
+  test("the Inputs screen's save in place, from the app, is saved as today", async () => {
+    app = await startOnFreePort()
+    const { host, origin } = new URL(app.url)
+
+    const answer = await postMilestone({ host, origin, [SAVE_IN_PLACE.header]: SAVE_IN_PLACE.value })
+
+    expect(answer.status).toBeLessThan(400)
+    expect(await milestoneSaved()).toBe(true)
+  })
+
+  test.each(['127.0.0.1', 'localhost'])('GET pages and /live on %s are served as today, with no Origin', async (name) => {
+    app = await startOnFreePort()
+    const host = `${name}:${new URL(app.url).port}`
+
+    const page = await send('GET', '/inputs', { host })
+    const live = await new Promise<number>((resolve, reject) => {
+      const request = httpRequest(new URL('/live', app!.url), { headers: { host } }, (response) => {
+        resolve(response.statusCode ?? 0)
+        response.destroy()
+      })
+      request.on('error', reject)
+      request.end()
+    })
+
+    expect(page.status).toBe(200)
+    expect(page.body).toContain('<html')
+    expect(live).toBe(200)
   })
 })
