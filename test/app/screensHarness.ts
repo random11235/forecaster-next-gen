@@ -3,11 +3,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach } from 'vitest'
-import { SAVE_IN_PLACE } from '../../src/app/inputsScript.js'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
 import type { MilestoneInputs } from '../../src/model/milestoneInputs.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
+import { post as postForm, saveInPlace as saveFormInPlace } from './appOnTracker.js'
 
 // The screens through the local server, as the EM's browser sees them, on a data file from before the MVP: beside the
 // milestone's MVP fields, it holds the tables earlier releases wrote (epics, commits, workflow settings, adopted
@@ -52,7 +52,7 @@ export const CHECKOUT: MilestoneInputs = {
 }
 
 export let dir: string | undefined
-export let app: RunningApp | undefined
+let app: RunningApp | undefined
 export let storage: Storage | undefined
 
 afterEach(async () => {
@@ -83,8 +83,14 @@ export function startWithNoMilestone(): Promise<RunningApp> {
   return startOnPreMvpData({ milestone: false })
 }
 
+/** The app the test started; a test that started none has nothing to ask. */
+export function running(): RunningApp {
+  if (!app) throw new Error('No app is running: start one first.')
+  return app
+}
+
 export async function page(path: string): Promise<string> {
-  return (await fetch(new URL(path, app!.url))).text()
+  return (await fetch(new URL(path, running().url))).text()
 }
 
 /** The page's visible text, with tags removed and spaces collapsed. */
@@ -97,12 +103,7 @@ export function text(html: string): string {
 
 /** Posts a form as the browser does, without following the redirect. */
 export function post(path: string, fields: [string, string][]): Promise<Response> {
-  return fetch(new URL(path, app!.url), {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded', origin: new URL(app!.url).origin },
-    body: new URLSearchParams(fields).toString(),
-    redirect: 'manual',
-  })
+  return postForm(running(), path, fields)
 }
 
 /** Submits the Inputs screen's milestone form as the browser does. */
@@ -144,12 +145,7 @@ export function choosePace(paceMode: string): Promise<Response> {
 
 /** Posts a form as the Inputs screen's script does when a field changes: it asks to stay on the Inputs screen. */
 export function saveInPlace(path: string, fields: [string, string][]): Promise<Response> {
-  return fetch(new URL(path, app!.url), {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded', origin: new URL(app!.url).origin, [SAVE_IN_PLACE.header]: SAVE_IN_PLACE.value },
-    body: new URLSearchParams(fields).toString(),
-    redirect: 'manual',
-  })
+  return saveFormInPlace(running(), path, fields)
 }
 
 /** The ambiguity ranges form, with the defaults unless overridden. */

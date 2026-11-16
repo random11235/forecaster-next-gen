@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { app, startOnPreMvpData, startWithNoMilestone, page, text } from './screensHarness.js'
+import { running, startOnPreMvpData, startWithNoMilestone, page, text } from './screensHarness.js'
 
 // The screens through the local server: see screensHarness.ts.
 
@@ -9,7 +9,7 @@ describe('How it works screen', () => {
 
     const forecast = await page('/')
     const inputs = await page('/inputs')
-    const howItWorks = await fetch(new URL('/how-it-works', app!.url))
+    const howItWorks = await fetch(new URL('/how-it-works', running().url))
 
     expect(forecast).toContain('<a href="/how-it-works">How it works</a>')
     expect(inputs).toContain('<a href="/how-it-works">How it works</a>')
