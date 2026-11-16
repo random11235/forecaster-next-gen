@@ -14,21 +14,26 @@ const { openWebStorage }: typeof import('../src/storage/webStorage.js') = await 
   new URL('../dist/storage/webStorage.js', import.meta.url).href
 )
 const { FONT_FACES }: typeof import('../src/app/fonts.js') = await import(new URL('../dist/app/fonts.js', import.meta.url).href)
+const { VERSION }: typeof import('../src/app/version.js') = await import(new URL('../dist/app/version.js', import.meta.url).href)
 
-/** `src/app/fonts.ts` reads its font files from disk, which a browser can't: the bundle gets the rules it read. */
-const inlineFonts: Plugin = {
-  name: 'inline-fonts',
+/**
+ * `src/app/fonts.ts` reads its font files from disk, and `src/app/version.ts` reads `package.json`, which a browser
+ * can't: the bundle gets what they read.
+ */
+const inlineReadOnDisk: Plugin = {
+  name: 'inline-read-on-disk',
   setup(build) {
-    build.onResolve({ filter: /^\.\/fonts\.js$/ }, () => ({ path: 'fonts', namespace: 'inline-fonts' }))
-    build.onLoad({ filter: /.*/, namespace: 'inline-fonts' }, () => ({
-      contents: `export const FONT_FACES = ${JSON.stringify(FONT_FACES)}`,
-      loader: 'js',
-    }))
+    const inline = (file: string, contents: string): void => {
+      build.onResolve({ filter: new RegExp(`^\\./${file}\\.js$`) }, () => ({ path: file, namespace: 'inline-read-on-disk' }))
+      build.onLoad({ filter: new RegExp(`^${file}$`), namespace: 'inline-read-on-disk' }, () => ({ contents, loader: 'js' }))
+    }
+    inline('fonts', `export const FONT_FACES = ${JSON.stringify(FONT_FACES)}`)
+    inline('version', `export const VERSION = ${JSON.stringify(VERSION)}`)
   },
 }
 
 const bundled = await build({
-  plugins: [inlineFonts],
+  plugins: [inlineReadOnDisk],
   absWorkingDir: root,
   entryPoints: ['src/app/webMain.ts'],
   bundle: true,
