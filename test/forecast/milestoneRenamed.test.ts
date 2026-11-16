@@ -72,7 +72,7 @@ async function pickedFrom(fixture: CannedFixture, connect: ConnectionEdit, picks
       return canned.read(query, since)
     },
   })
-  const using: QueryStepping = { connections: storage, reads: storage, milestoneQueries: storage, setup: storage, secrets: openMemorySecrets(), connector, milestoneInputs: storage, at: AT }
+  const using: QueryStepping = { connections: storage, queries: storage, setup: storage, secrets: openMemorySecrets(), connector, milestoneInputs: storage, at: AT }
   await submitConnection(using, TEAM, connect)
   for (const choice of picks) await submitStepQuery(using, TEAM, { kind: 'addPick', choice }, READ_AT)
   queriesRead.length = 0
@@ -120,6 +120,16 @@ describe('renaming the milestone', () => {
 
     expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [checkout], query: 'milestone:"Checkout v2"' })
     expect(using.queriesRead).toEqual([])
+  })
+
+  test('when the tracker rejects the new name’s query, the query is left as it was, and the tracker asked once', async () => {
+    const rejecting: CannedFixture = { ...GITHUB, reads: { ...READS, 'milestone:"Loyalty launch"': { failure: 'invalidQuery', message: 'No such milestone.' } } }
+    const using = await pickedFrom(rejecting, GITHUB_REPO, [checkout])
+
+    expect(await followRenamedMilestone(using, TEAM, RENAMED, READ_AT)).toMatchObject({ kind: 'refused' })
+
+    expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [checkout], query: 'milestone:"Checkout v2"' })
+    expect(using.queriesRead).toEqual(['milestone:"Loyalty launch"'])
   })
 
   test.each([

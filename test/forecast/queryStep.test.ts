@@ -79,7 +79,7 @@ function connecting(fixture: CannedFixture = FIXTURE): QueryStepping & { calls: 
       return canned.read(query, since)
     },
   })
-  return { connections: storage, reads: storage, milestoneQueries: storage, setup: storage, secrets: openMemorySecrets(), connector, milestoneInputs: storage, at: AT, calls }
+  return { connections: storage, queries: storage, setup: storage, secrets: openMemorySecrets(), connector, milestoneInputs: storage, at: AT, calls }
 }
 
 /** Connected to a GitHub repo, with no calls counted yet. */
@@ -285,7 +285,7 @@ describe('picking', () => {
     storage.close()
 
     storage = openSqliteStorage(file)
-    const view = await queryStepView({ ...using, connections: storage, reads: storage, milestoneQueries: storage, milestoneInputs: storage, setup: storage }, TEAM)
+    const view = await queryStepView({ ...using, connections: storage, queries: storage, milestoneInputs: storage, setup: storage }, TEAM)
 
     expect(view).toMatchObject({
       picks: [payments, bug],

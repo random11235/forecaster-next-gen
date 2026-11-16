@@ -12,7 +12,7 @@ import { paceActionApplied, pacePattern, type PacePatternView } from './pacePatt
 import { paceInUse, type PaceInUse } from './paceInUse.js'
 import { paceTrend, type PaceTrend } from './paceTrend.js'
 import type { ForecastSettings } from './settings.js'
-import { measure, type ReadingTracker } from './trackerReads.js'
+import { measureSaved, type ReadingTracker } from './trackerReads.js'
 
 /** The confidence level the headline states. */
 export const HEADLINE_PERCENT = 85
@@ -119,7 +119,7 @@ export function milestoneForecastView(
 ): MilestoneForecastView {
   const saved = storage.milestoneInputs(teamId)
   if (!saved) return { kind: 'empty' }
-  const measured = measure(tracker, teamId, storage, today)
+  const measured = measureSaved(tracker, teamId, storage, today)
   const inUse = paceInUse(saved, today, measured)
   const assessment = assessMilestone(saved, settings, today, inUse, measured)
   if (!assessment.forecastable) {

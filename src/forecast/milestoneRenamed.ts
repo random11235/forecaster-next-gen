@@ -1,7 +1,8 @@
 import type { Choice, ChoiceKind, Connector } from '../connectors/connector.js'
-import { teamConnection } from './connection.js'
+import type { MilestoneQuery } from '../model/milestoneQuery.js'
+import type { TeamQueries } from '../storage/storage.js'
+import { teamConnection, withTeamQueries } from './connection.js'
 import { changeStepQuery, type StepQuerySubmitted, type StepReading } from './queryStep.js'
-import { throughDraft } from './throughDraft.js'
 
 /** The kinds of choice that are the tracker's own milestone: a GitHub milestone, a Jira fix version. */
 const MILESTONE_KINDS: readonly ChoiceKind[] = ['milestone', 'fixVersion']
@@ -13,9 +14,9 @@ const MILESTONE_KINDS: readonly ChoiceKind[] = ['milestone', 'fixVersion']
  * `readAt`, as the Milestone step reads a change. Any other milestone query (of epics or labels, of several picks, or
  * written by hand) is left as it was, as is one when the tracker has no milestone of the new name.
  *
- * The saved query follows, as the forecast reads it at once, setup open or not. While setup is open, a milestone query
- * of the draft's own follows too, so the steps and the forecast stay on the same milestone. Its answer is the saved
- * query's.
+ * The saved query follows, as the forecast reads it at once, setup open or not; then the steps' (`current`), so they
+ * stay on the same milestone: while setup is open, a milestone query of the draft's own follows too, into the draft,
+ * and is read there. Its answer is the saved query's.
  */
 export async function followRenamedMilestone(
   connecting: StepReading,
@@ -23,23 +24,34 @@ export async function followRenamedMilestone(
   renamed: { from: string; to: string },
   readAt: string,
 ): Promise<StepQuerySubmitted> {
-  const followed = await follow(connecting, teamId, renamed, readAt)
-  const { setup } = connecting
-  if (setup.setupState(teamId).open && setup.setupDraft(teamId)?.milestoneQuery) await follow(throughDraft(connecting), teamId, renamed, readAt)
+  const saved = withTeamQueries(connecting, 'saved')
+  const current = withTeamQueries(connecting, 'current')
+  // the steps' query is the saved one unless the draft holds its own; it follows when it is the draft's own, or when
+  // the saved one followed; a follow refused is not asked of the tracker again
+  const stepsOwn = !sameQuery(current.milestoneQueries.milestoneQuery(teamId), saved.milestoneQueries.milestoneQuery(teamId))
+  const followed = await followIn(saved, teamId, renamed, readAt)
+  if (stepsOwn || followed.kind === 'saved') await followIn(current, teamId, renamed, readAt)
   return followed
 }
 
-/** The milestone query `connecting` gives, followed from the milestone renamed, where it is just that milestone. */
-async function follow(connecting: StepReading, teamId: string, { from, to }: { from: string; to: string }, readAt: string): Promise<StepQuerySubmitted> {
+/** The milestone query in `connecting`'s target, followed from the milestone renamed, where it is just that milestone. */
+async function followIn(connecting: StepReading & TeamQueries, teamId: string, { from, to }: { from: string; to: string }, readAt: string): Promise<StepQuerySubmitted> {
   if (from === to) return { kind: 'unchanged' }
-  const saved = connecting.milestoneQueries.milestoneQuery(teamId)
-  const pick = saved?.picks.length === 1 ? saved.picks[0]! : undefined
-  if (!pick || pick.query !== saved?.query || pick.name !== from || !MILESTONE_KINDS.includes(pick.kind)) return { kind: 'unchanged' }
+  const query = connecting.milestoneQueries.milestoneQuery(teamId)
+  const pick = query?.picks.length === 1 ? query.picks[0]! : undefined
+  if (!pick || pick.query !== query?.query || pick.name !== from || !MILESTONE_KINDS.includes(pick.kind)) return { kind: 'unchanged' }
   const connected = await teamConnection(connecting, teamId)
   if (!connected || connected.connector === 'keychainFailed') return { kind: 'unchanged' }
-  const renamed = await choiceNamed(connected.connector, pick.kind, to)
-  if (!renamed) return { kind: 'unchanged' }
-  return changeStepQuery(connecting, teamId, { kind: 'editQuery', query: renamed.query }, readAt)
+  const choice = await choiceNamed(connected.connector, pick.kind, to)
+  if (!choice) return { kind: 'unchanged' }
+  return changeStepQuery(connecting, teamId, { kind: 'editQuery', query: choice.query }, readAt)
+}
+
+/** Whether two milestone queries are the same: the same query, of the same picks, in whatever order they were picked. */
+function sameQuery(one: MilestoneQuery | undefined, other: MilestoneQuery | undefined): boolean {
+  if (!one || !other) return one === other
+  const picks = ({ picks }: MilestoneQuery): string[] => picks.map(({ kind, name, query }) => JSON.stringify([kind, name, query])).sort()
+  return one.query === other.query && JSON.stringify(picks(one)) === JSON.stringify(picks(other))
 }
 
 /** The tracker's choice of `kind` named `name`: among those it lists, else, for a kind past the limit, found by its search. */

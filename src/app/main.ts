@@ -70,8 +70,8 @@ const trackerConnector: ConnectorFactory = (connection, token) =>
  */
 const demo = Boolean(process.env.FORECASTER_DEMO)
 const connecting: Connecting = demo
-  ? { connections: storage, reads: storage, milestoneQueries: storage, setup: storage, secrets: openMemorySecrets(), connector: demoConnector }
-  : { connections: storage, reads: storage, milestoneQueries: storage, setup: storage, secrets: openKeychainSecrets(), connector: trackerConnector }
+  ? { connections: storage, queries: storage, setup: storage, secrets: openMemorySecrets(), connector: demoConnector }
+  : { connections: storage, queries: storage, setup: storage, secrets: openKeychainSecrets(), connector: trackerConnector }
 if (demo) console.log('Demo mode: tickets come from the canned connector and its synthetic fixture.')
 
 try {
