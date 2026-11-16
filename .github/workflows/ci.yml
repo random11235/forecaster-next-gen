@@ -47,3 +47,39 @@ jobs:
           path: |
             coverage/
             coverage-usage/
+
+  # Mutation tests the source a pull request changes (scripts/mutateDiff.ts). It reports the score and fails only if
+  # Stryker can't run; a push to main has no branch to diff, so it runs on pull requests alone.
+  mutation:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the diff starts at the merge-base with the base branch
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Mutation tests
+        run: |
+          set -o pipefail
+          npm run test:mutation -- origin/${{ github.base_ref }} | tee mutation.txt
+      - name: Mutation summary
+        if: always()
+        run: |
+          [ -f mutation.txt ] || exit 0
+          echo '### Mutation testing (the source this pull request changes)' >> "$GITHUB_STEP_SUMMARY"
+          if grep -q 'nothing to mutate' mutation.txt; then
+            grep 'nothing to mutate' mutation.txt >> "$GITHUB_STEP_SUMMARY"
+          else
+            { echo '```'; grep -E '\|$' mutation.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutation-report
+          path: reports/mutation/
+          if-no-files-found: ignore
