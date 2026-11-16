@@ -3,16 +3,8 @@ import type { SavedRead } from '../model/savedRead.js'
 import type { TeamQueries } from '../storage/storage.js'
 import { readOn } from './calendarDate.js'
 import { withTeamQueries, type Connecting } from './connection.js'
-import {
-  paceOf,
-  savedPaceReads,
-  ticketsRemaining,
-  type ChosenSourcePace,
-  type DatedCounts,
-  type Pace,
-  type PaceReading,
-  type SavedPaceReads,
-} from './lib/pace.js'
+import { paceCalendar, paceOf, savedPaceReads, type ChosenSourcePace, type DatedCounts, type Pace, type PaceReading, type SavedPaceReads } from './lib/pace.js'
+import { ticketsRemaining } from './queryRead.js'
 import type { ForecastSettings } from './settings.js'
 import { trackerOf } from './trackers.js'
 
@@ -135,24 +127,15 @@ function wasTickets(previous: SavedRead | undefined, count: number, timeZone: st
 }
 
 /**
- * The milestone's pace on `today` (`paceOf`), from the source the EM chose, with what the team's tracker measures
- * (`measured`; none with no connection, when following the tracker falls back to the typed counts). Each view works it
- * out once, and every part of the view that shows pace takes it from there.
+ * The milestone's pace on `today` (`paceOf`), with what the team's tracker measures (`measured`; none with no
+ * connection). With `settings`, from the source the EM chose, following the tracker falling back to the typed counts
+ * with no connection: each view works it out once, and every part of the view that shows pace takes it from there.
+ * Without, as the tracker reads it, whichever source the EM chose: its reading, none until it is read.
  */
-export function milestonePace(inputs: MilestoneInputs, settings: ForecastSettings, today: string, measured: Measured | undefined): ChosenSourcePace {
-  const of = { paceWindow: inputs.paceWindow, cadence: inputs.cadenceDays, startDate: inputs.startDate, settings }
-  if (!measured) return paceOf({ ...of, reads: { chosen: inputs }, clock: { today, timeZone: 'UTC' } })
-  const { paceReads: saved, tracker, timeZone } = measured
-  return paceOf({ ...of, reads: { saved, tracker, chosen: inputs }, clock: { today, timeZone } })
-}
-
-/** The milestone's pace on `today` as the tracker reads it (`paceOf`), whichever source the EM chose: its reading, none until it is read. */
-export function trackerPace(inputs: MilestoneInputs, today: string, { paceReads: saved, tracker, timeZone }: Measured): Pace {
-  return paceOf({
-    paceWindow: inputs.paceWindow,
-    cadence: inputs.cadenceDays,
-    startDate: inputs.startDate,
-    reads: { saved, tracker },
-    clock: { today, timeZone },
-  })
+export function milestonePace(inputs: MilestoneInputs, today: string, measured: Measured | undefined, settings: ForecastSettings): ChosenSourcePace
+export function milestonePace(inputs: MilestoneInputs, today: string, measured: Measured): Pace
+export function milestonePace(inputs: MilestoneInputs, today: string, measured: Measured | undefined, settings?: ForecastSettings): Pace {
+  const calendar = paceCalendar(inputs, today)
+  const reads = measured && { saved: measured.paceReads, tracker: measured.tracker, timeZone: measured.timeZone }
+  return settings ? paceOf({ ...calendar, reads, chosen: inputs, settings }) : paceOf({ ...calendar, reads })
 }

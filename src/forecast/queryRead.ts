@@ -1,10 +1,10 @@
-import type { Connector, Failure } from '../../connectors/connector.js'
-import type { MilestoneInputs } from '../../model/milestoneInputs.js'
-import type { SavedRead } from '../../model/savedRead.js'
-import { DAY_MS } from '../../model/time.js'
-import type { SavedReadStorage } from '../../storage/storage.js'
-import { addDays } from '../calendarDate.js'
-import { TRACKER_PERIODS } from './trackerWindow.js'
+import type { Connector, Failure } from '../connectors/connector.js'
+import type { MilestoneInputs } from '../model/milestoneInputs.js'
+import type { SavedRead } from '../model/savedRead.js'
+import { DAY_MS } from '../model/time.js'
+import type { SavedReadStorage } from '../storage/storage.js'
+import { addDays } from './calendarDate.js'
+import { TRACKER_PERIODS } from './lib/pace.js'
 
 // Reading a query, as far back as pace needs, and what a read says: tickets remaining, weeks read.
 

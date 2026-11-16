@@ -2,7 +2,7 @@ import type { MilestoneInputs } from '../model/milestoneInputs.js'
 import type { TeamQueries } from '../storage/storage.js'
 import { periodName } from './cadence.js'
 import type { PeriodName } from './cadence.js'
-import { paceOf, savedPaceReads, type PaceClock, type PaceFrom, type SavedPaceReads } from './lib/pace.js'
+import { completeRead, paceCalendar, paceOf, savedPaceReads, type PaceFrom, type SavedPaceReads } from './lib/pace.js'
 import { COMPARABLE_WORK } from './stepQuery.js'
 import { medianOf, paceVersusMilestoneOwn, type PaceVersus } from './paceVersusOwn.js'
 
@@ -86,17 +86,11 @@ export function comparableWorkPace(
   queries: TeamQueries,
   inputs: MilestoneInputs | undefined,
   teamId: string,
-  clock: PaceClock,
+  clock: { today: string; timeZone: string },
 ): ComparableWorkPace | undefined {
   if (!inputs) return undefined
   const saved = savedPaceReads(queries, teamId)
-  const { counts: pace, sideBySide: reads } = paceOf({
-    reads: { saved },
-    paceWindow: inputs.paceWindow,
-    cadence: inputs.cadenceDays,
-    startDate: inputs.startDate,
-    clock,
-  })
+  const { counts: pace, sideBySide: reads } = paceOf({ ...paceCalendar(inputs, clock.today), reads: { saved, timeZone: clock.timeZone } })
   if (!pace || !reads) return undefined
   const period = periodName(inputs.cadenceDays)
   const counts = pace.counts
@@ -165,7 +159,10 @@ function range({ low, high }: PaceInUse): string {
  * a ticket the unread pick shares would count as only here.
  */
 function picksPace({ picks }: SavedPaceReads, strip: (query: string) => number[]): PickPace[] {
-  const read = picks.flatMap(({ query, read: saved }) => (saved && !saved.incomplete ? [{ query, read: saved }] : []))
+  const read = picks.flatMap(({ query, read: saved }) => {
+    const complete = completeRead(saved)
+    return complete ? [{ query, read: complete }] : []
+  })
   const comparing = picks.length > 1 && read.length === picks.length
   return read.map(({ query, read: own }) => {
     const elsewhere = new Set(read.filter((other) => other.query !== query).flatMap((other) => other.read.tickets.map((ticket) => ticket.id)))
