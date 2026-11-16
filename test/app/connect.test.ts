@@ -13,7 +13,9 @@ import { openWebStorage } from '../../src/storage/webStorage.js'
 
 const TOKEN = 'github_pat_11ABCDEFG0123456789_secret'
 
-const CHOICES: CannedFixture['milestoneChoices'] = [{ kind: 'milestone', choices: [{ kind: 'milestone', name: 'Checkout v2', query: 'milestone:"Checkout v2"' }], pastLimit: false }]
+const CHOICES: CannedFixture['milestoneChoices'] = [
+  { kind: 'milestone', choices: [{ kind: 'milestone', name: 'Checkout v2', query: 'milestone:"Checkout v2"' }], pastLimit: false },
+]
 
 let app: RunningApp | undefined
 let storage: TeamStorage | undefined

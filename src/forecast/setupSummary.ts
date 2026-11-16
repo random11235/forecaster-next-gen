@@ -143,7 +143,10 @@ function rowOf(reading: SummaryReading, teamId: string, tracker: TrackerFacts, s
   const picks = saved.picks.map(({ name, kind, query }) => {
     const pickRead = reading.reads.savedRead({ teamId, query })
     const count = queryRead && pickCount(pickRead, queryRead)
-    return { pick: { name, kind: kindName(kind), ...(count !== undefined && { count }) }, readBefore: queryRead !== undefined && pickRead !== undefined && !readSince(pickRead, queryRead) }
+    return {
+      pick: { name, kind: kindName(kind), ...(count !== undefined && { count }) },
+      readBefore: queryRead !== undefined && pickRead !== undefined && !readSince(pickRead, queryRead),
+    }
   })
   // a read by hand reads the query, not each of several picks, so their counts wait for Check
   return { row: { picks: picks.map(({ pick }) => pick) }, countsWait: picks.length > 1 && picks.some(({ readBefore }) => readBefore) }
@@ -180,4 +183,5 @@ function failedRead(connection: Connection, { failure }: FailedRead): SummaryFla
 }
 
 /** Why a read by hand read nothing, when this computer's keychain couldn't give the token. */
-const KEYCHAIN_UNUSED = 'This computer’s keychain couldn’t be used, so nothing was read and the last read stays in use. Check it’s unlocked and that the Forecaster may use it, then try again.'
+const KEYCHAIN_UNUSED =
+  'This computer’s keychain couldn’t be used, so nothing was read and the last read stays in use. Check it’s unlocked and that the Forecaster may use it, then try again.'

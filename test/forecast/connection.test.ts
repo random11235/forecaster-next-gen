@@ -15,7 +15,10 @@ import type { TeamStorage } from '../trackerScenario.js'
 const TEAM = 'team'
 const TOKEN = 'github_pat_11ABCDEFG0123456789_secret'
 
-const CHOICES: CannedFixture = { milestoneChoices: [{ kind: 'milestone', choices: [{ kind: 'milestone', name: 'Checkout v2', query: 'milestone:"Checkout v2"' }], pastLimit: false }], reads: {} }
+const CHOICES: CannedFixture = {
+  milestoneChoices: [{ kind: 'milestone', choices: [{ kind: 'milestone', name: 'Checkout v2', query: 'milestone:"Checkout v2"' }], pastLimit: false }],
+  reads: {},
+}
 
 let dir: string
 let storage: TeamStorage
@@ -151,7 +154,9 @@ describe('changing the connection', () => {
 
     const submitted = await submitConnection(refusing, TEAM, github('shop-team/payments', ''))
 
-    expect(submitted.saved === false && submitted.view.refusal).toBe('GitHub refused the token. Check it hasn’t expired, and that it has Issues: read on this repo.')
+    expect(submitted.saved === false && submitted.view.refusal).toBe(
+      'GitHub refused the token. Check it hasn’t expired, and that it has Issues: read on this repo.',
+    )
     expect(storage.connection(TEAM)).toEqual({ tracker: 'github', owner: 'shop-team', repo: 'shop' })
     expect(await using.secrets.token(TEAM)).toBe(TOKEN)
   })
@@ -222,8 +227,7 @@ describe('a connect refused before the tracker is asked', () => {
 })
 
 describe('a connect the tracker refuses', () => {
-  const refusedBy = (failure: Failure['failure']): CannedFixture['milestoneChoices'] =>
-    failure === 'invalidQuery' ? { failure, message: 'no' } : { failure }
+  const refusedBy = (failure: Failure['failure']): CannedFixture['milestoneChoices'] => (failure === 'invalidQuery' ? { failure, message: 'no' } : { failure })
 
   test('a refused GitHub token says so, saves nothing, and keeps the form as typed without the token', async () => {
     const using = connecting(refusedBy('unauthorised'))
@@ -247,8 +251,16 @@ describe('a connect the tracker refuses', () => {
     ['github', 'unauthorised', 'GitHub refused the token. Check it hasn’t expired, and that it has Issues: read on this repo.'],
     ['github', 'notFound', 'GitHub can’t see shop-team/shop with this token. Check the repo’s name, and that the token covers it.'],
     ['github', 'unavailable', 'GitHub can’t be reached just now, or is limiting requests. Try again in a few minutes.'],
-    ['jira', 'unauthorised', 'Jira refused the token. Check it hasn’t expired, that it has read:jira-work, and that em@shop.example is the account that made it.'],
-    ['jira', 'notFound', 'Jira can’t find project SHOP on shop.atlassian.net with this token. Check the site and the project key, and that the account can see it.'],
+    [
+      'jira',
+      'unauthorised',
+      'Jira refused the token. Check it hasn’t expired, that it has read:jira-work, and that em@shop.example is the account that made it.',
+    ],
+    [
+      'jira',
+      'notFound',
+      'Jira can’t find project SHOP on shop.atlassian.net with this token. Check the site and the project key, and that the account can see it.',
+    ],
     ['jira', 'unavailable', 'Jira can’t be reached just now, or is limiting requests. Try again in a few minutes.'],
   ] as const)('%s failing the check as %s says so, and saves nothing', async (tracker, failure, refusal) => {
     const using = connecting(refusedBy(failure))
@@ -272,7 +284,8 @@ describe('a connect the tracker refuses', () => {
 })
 
 describe('a connect or disconnect the keychain or the data file fails', () => {
-  const KEYCHAIN_FAILED = 'This computer’s keychain couldn’t be used, so nothing changed. Check it’s unlocked and that the Forecaster may use it, then try again.'
+  const KEYCHAIN_FAILED =
+    'This computer’s keychain couldn’t be used, so nothing changed. Check it’s unlocked and that the Forecaster may use it, then try again.'
   const DATA_FILE_FAILED = 'The data file couldn’t be written, so nothing changed. Try again.'
   const NEW_TOKEN = 'github_pat_22NEWTOKEN9876543210_secret'
   type Fails = Partial<Record<'saveToken' | 'token' | 'deleteToken' | 'saveConnection' | 'removeConnection', boolean>>

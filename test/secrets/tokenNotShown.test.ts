@@ -51,7 +51,9 @@ describe('the keychain failing', () => {
 
     const failure = await failureOf(secrets.saveToken('team', TOKEN))
 
-    expect(failure.message).toBe(`The OS keychain couldn't save the tracker token for team "team". Check the keychain is unlocked and the Forecaster may use it.`)
+    expect(failure.message).toBe(
+      `The OS keychain couldn't save the tracker token for team "team". Check the keychain is unlocked and the Forecaster may use it.`,
+    )
     expect(failure.stack).not.toContain(TOKEN)
     expect(failure.cause).toBeUndefined()
     expect(JSON.stringify(consoleCalls)).not.toContain(TOKEN)

@@ -25,7 +25,16 @@ import { CONNECT_FORMS } from './connectSection.js'
 import { renderHowItWorksScreen } from './howItWorksScreen.js'
 import { INPUTS_FORMS, PACE_TRACKER_PATH, renderInputsScreen, SKIP_FORMS, type ShownStep } from './inputsScreen.js'
 import { CAPACITY_OPEN, CAPACITY_OPEN_PATH, FORECAST_FORMS, renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
-import { choiceListHtml, COMPARABLE_WORK_STEP, CONFIRMING_BACK, KIND_FIELD, MILESTONE_STEP, OPEN_FIELD, STEP_SECTIONS, type StepSection } from './queryStepSection.js'
+import {
+  choiceListHtml,
+  COMPARABLE_WORK_STEP,
+  CONFIRMING_BACK,
+  KIND_FIELD,
+  MILESTONE_STEP,
+  OPEN_FIELD,
+  STEP_SECTIONS,
+  type StepSection,
+} from './queryStepSection.js'
 import { SETUP_FORMS, SETUP_PATHS, SETUP_STEP_PATHS, STEP_FIELD } from './setupSection.js'
 import { CANDIDATES_PATH, candidatesHtml, choicesAsked, keepOpening, OPENING_FIELD, openingKept } from './candidatesSection.js'
 import { openCandidates, type CandidatesAt } from '../forecast/candidates.js'
@@ -44,9 +53,7 @@ export interface Request {
 /** What to send back. */
 export type Reply =
   /** A screen; for a post, `path` is where the screen it answers with is served. */
-  | { kind: 'html'; status: number; html: string; path?: string }
-  | { kind: 'redirect'; location: string }
-  | { kind: 'notFound' }
+  { kind: 'html'; status: number; html: string; path?: string } | { kind: 'redirect'; location: string } | { kind: 'notFound' }
 
 export interface AppContext {
   storage: Storage
@@ -115,7 +122,9 @@ export function route(request: Request, context: AppContext): Reply {
   const team = storage.teams()[0]
   if (request.method === 'GET' && pathname === '/') {
     const capacityOpen = searchParams.get(CAPACITY_OPEN.name) === CAPACITY_OPEN.value
-    const view: MilestoneForecastView = team ? milestoneForecastView(storage, team.id, settings, today(), { capacityOpen, tracker: trackerReads(context) }) : { kind: 'empty' }
+    const view: MilestoneForecastView = team
+      ? milestoneForecastView(storage, team.id, settings, today(), { capacityOpen, tracker: trackerReads(context) })
+      : { kind: 'empty' }
     return { kind: 'html', status: 200, html: renderMilestoneForecastScreen(view) }
   }
   if (request.method === 'GET' && pathname === '/how-it-works') {
@@ -124,7 +133,11 @@ export function route(request: Request, context: AppContext): Reply {
   if (!team) return { kind: 'notFound' }
   const connection = connectionView(connecting, team.id)
   if (request.method === 'GET' && pathname === SCREEN_PATHS.inputs) {
-    return { kind: 'html', status: 200, html: renderInputsScreen(inputsView(storage, team.id, settings, today(), { tracker: trackerReads(context) }), connection) }
+    return {
+      kind: 'html',
+      status: 200,
+      html: renderInputsScreen(inputsView(storage, team.id, settings, today(), { tracker: trackerReads(context) }), connection),
+    }
   }
   const submitted = submitForm(request, context, { ...routed, team })
   if (submitted?.kind !== 'inputs') return submitted ?? { kind: 'notFound' }
@@ -239,7 +252,11 @@ async function inputsWithStep(
   { status = 200, view, connection, unlisted = false, refused }: { status?: number; view?: InputsView; connection?: ConnectionView } & StepsOpening = {},
 ): Promise<Reply> {
   // the Connect step's view is given only as a connect was refused
-  const opening = { asked: searchParams.get(STEP_FIELD), ...(refused && { refused: refused.section.setupStep }), ...(connection && { refused: 'connect' as const }) }
+  const opening = {
+    asked: searchParams.get(STEP_FIELD),
+    ...(refused && { refused: refused.section.setupStep }),
+    ...(connection && { refused: 'connect' as const }),
+  }
   const setup = await openSetup(reading, team.id, opening, context.now())
   const stepping: QueryStepping = { ...listingOnce(connecting), milestoneInputs: context.storage, at: candidatesAt(context) }
   const steps: ShownStep[] = []
@@ -366,7 +383,6 @@ async function connected(setup: SetupRouting, readConnect: (body: URLSearchParam
   if (submitted.saved) return { kind: 'redirect', location: SETUP_STEP_PATHS[submitted.next] }
   return inputsWithStep(setup, { status: 400, connection: submitted.view })
 }
-
 
 /** Where each screen is served. */
 const SCREEN_PATHS: Record<NextScreen, string> = { forecast: '/', inputs: '/inputs' }

@@ -184,7 +184,9 @@ export function capacityLine(use: CapacityUse, period: PeriodName): string | und
       return 'Capacity is switched off for this forecast; its entries are kept.'
     case 'inUse':
       if (use.shift === null) return 'Includes capacity.'
-      return use.shift === 0 ? 'Includes capacity, which doesn’t move the 85% date.' : `Includes capacity, which moves the 85% date ${shifted(use.shift, period)}.`
+      return use.shift === 0
+        ? 'Includes capacity, which doesn’t move the 85% date.'
+        : `Includes capacity, which moves the 85% date ${shifted(use.shift, period)}.`
   }
 }
 
@@ -213,7 +215,10 @@ export function editCapacity(storage: Storage, teamId: string, today: string, ed
   const entries = storage.capacityEntries(teamId)
   if (edit.kind === 'removeCapacity') {
     if (entries.some((entry) => String(entry.id) === edit.id.trim() && isPast(entry, today))) return refuse('Past entries are kept, so it can’t be removed.')
-    storage.saveCapacityEntries(teamId, entries.filter(({ id }) => String(id) !== edit.id.trim()))
+    storage.saveCapacityEntries(
+      teamId,
+      entries.filter(({ id }) => String(id) !== edit.id.trim()),
+    )
     return { ok: true }
   }
   if (edit.kind === 'addCapacity') {
@@ -225,7 +230,10 @@ export function editCapacity(storage: Storage, teamId: string, today: string, ed
   const edited = entries.find(({ id }) => String(id) === edit.id.trim())
   if (edited === undefined) return refuse('That entry is no longer there.')
   const save = (entry: CapacityEntry): EditResult => {
-    storage.saveCapacityEntries(teamId, entries.map((other) => (other === edited ? entry : other)))
+    storage.saveCapacityEntries(
+      teamId,
+      entries.map((other) => (other === edited ? entry : other)),
+    )
     return { ok: true }
   }
   if (edit.kind === 'acceptNewUsual' || edit.kind === 'keepCapacity' || edit.kind === 'endCapacityToday') {

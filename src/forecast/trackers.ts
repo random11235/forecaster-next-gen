@@ -61,8 +61,7 @@ export const TRACKERS: { readonly [T in Tracker]: TrackerFacts<Extract<Connectio
     formOf: (connection) => ({ ...BLANK_FORM, tracker: 'github', repo: TRACKERS.github.where(connection) }),
     missing: ({ owner, repo }) => (owner && repo ? undefined : 'Give the repo as owner/repo, like shop-team/shop.'),
     refused: () => `GitHub refused the token. Check it hasn’t expired, and that it has ${TRACKERS.github.permission} on this repo.`,
-    notFound: (connection) =>
-      `GitHub can’t see ${TRACKERS.github.where(connection)} with this token. Check the repo’s name, and that the token covers it.`,
+    notFound: (connection) => `GitHub can’t see ${TRACKERS.github.where(connection)} with this token. Check the repo’s name, and that the token covers it.`,
     queryRefusal: githubQueryRefusal,
     orParts: githubOrParts,
     named: githubNamed,
@@ -76,7 +75,10 @@ export const TRACKERS: { readonly [T in Tracker]: TrackerFacts<Extract<Connectio
     // the site without its scheme or slash, the project key in capitals
     connectionOf: (form) => ({
       tracker: 'jira',
-      site: form.site.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, ''),
+      site: form.site
+        .trim()
+        .replace(/^https?:\/\//i, '')
+        .replace(/\/+$/, ''),
       projectKey: form.projectKey.trim().toUpperCase(),
       email: form.email.trim(),
     }),

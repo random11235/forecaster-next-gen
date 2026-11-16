@@ -344,11 +344,7 @@ export function readFlag(read: SavedRead, trackerName: string, { picksOut, kind 
  * by hand, as typed; go back to finding, which clears the query when the picker can't show it,
  * once the EM has `confirmed` that; or, in the Comparable work step, start afresh, clearing the picks and query at once.
  */
-export type StepQueryEdit =
-  | PicksEdit
-  | { kind: 'editQuery'; query: string }
-  | { kind: 'backToFinding'; confirmed: boolean }
-  | { kind: 'startAfresh' }
+export type StepQueryEdit = PicksEdit | { kind: 'editQuery'; query: string } | { kind: 'backToFinding'; confirmed: boolean } | { kind: 'startAfresh' }
 
 type PicksEdit = { kind: 'addPick'; choice: Choice } | { kind: 'removePick'; query: string }
 
@@ -398,10 +394,17 @@ export async function changeStepQuery(
   const clears = edit.kind === 'backToFinding' && !chipsShow(tracker, before)
   if (clears && !edit.confirmed) return { kind: 'confirmClear' }
   const after =
-    edit.kind === 'editQuery' ? await editedQuery(tracker, before, edit.query, connector)
-    : edit.kind === 'backToFinding' ? (clears ? NO_QUERY : before)
-    : edit.kind === 'startAfresh' ? (before.query === '' && before.picks.length === 0 ? before : NO_QUERY)
-    : picksChanged(before, edit)
+    edit.kind === 'editQuery'
+      ? await editedQuery(tracker, before, edit.query, connector)
+      : edit.kind === 'backToFinding'
+        ? clears
+          ? NO_QUERY
+          : before
+        : edit.kind === 'startAfresh'
+          ? before.query === '' && before.picks.length === 0
+            ? before
+            : NO_QUERY
+          : picksChanged(before, edit)
   if (after === before) return { kind: 'unchanged' }
   const save = (): void => stepQuery.save(connecting.milestoneQueries, teamId, after)
   if (after.query === '' || connector === 'keychainFailed') {
@@ -437,11 +440,7 @@ export function rejectionOf(connection: Connection, failure: Failure): string | 
  * use: a hand-edited query before reading it, or any query the tracker rejected or that reaches outside the connection;
  * or changed nothing yet, as going back to finding would clear the query, which the EM is to confirm (`confirmClear`).
  */
-export type StepQuerySubmitted =
-  | { kind: 'saved'; read?: QueryRead }
-  | { kind: 'unchanged' }
-  | ({ kind: 'refused' } & RefusedQuery)
-  | { kind: 'confirmClear' }
+export type StepQuerySubmitted = { kind: 'saved'; read?: QueryRead } | { kind: 'unchanged' } | ({ kind: 'refused' } & RefusedQuery) | { kind: 'confirmClear' }
 
 /** A query refused: as typed, or as the picks joined into (`fromPicks`), and why. */
 export interface RefusedQuery {

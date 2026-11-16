@@ -54,7 +54,10 @@ const FIXTURE: CannedFixture = {
     [checkout.query]: { tickets: MILESTONE_TICKETS, incomplete: false },
     [payments.query]: { tickets: PAYMENTS_TICKETS, incomplete: false },
     // the tracker lists m4 under both parts here; it counts once
-    [`${payments.query} OR ${checkout.query}`]: { tickets: [...PAYMENTS_TICKETS, ...MILESTONE_TICKETS, { id: 'm4', finishedAt: '2026-10-05T10:00:00Z' }], incomplete: false },
+    [`${payments.query} OR ${checkout.query}`]: {
+      tickets: [...PAYMENTS_TICKETS, ...MILESTONE_TICKETS, { id: 'm4', finishedAt: '2026-10-05T10:00:00Z' }],
+      incomplete: false,
+    },
     [rewards.query]: { tickets: [{ id: 'r1' }], incomplete: false },
     // finished only in the week the read reaches part of, and in the current week: none in a whole week pace counts
     [edges.query]: { tickets: [PAYMENTS_TICKETS[3]!, PAYMENTS_TICKETS[4]!], incomplete: false },

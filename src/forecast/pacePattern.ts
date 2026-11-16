@@ -9,15 +9,7 @@ import { actionSaid, withAction, type DatedCounts } from './paceWindow.js'
 // The rule is the research classifier's, trimmed (docs/research/pace-stability/classify.mjs).
 
 /** The shapes the tool names in the counts the pace comes from. */
-export type PacePatternName =
-  | 'steady'
-  | 'lumpy'
-  | 'speedingUp'
-  | 'slowingDown'
-  | 'steppedUp'
-  | 'steppedDown'
-  | 'goodAndBadSpells'
-  | 'oneOddPeriod'
+export type PacePatternName = 'steady' | 'lumpy' | 'speedingUp' | 'slowingDown' | 'steppedUp' | 'steppedDown' | 'goodAndBadSpells' | 'oneOddPeriod'
 
 /** The fewest periods, from the first with a finished ticket, that a pattern is read from. */
 const FEWEST_TO_READ = 6
@@ -92,12 +84,7 @@ export interface PacePatternView {
  * Seam B, behind `milestoneForecastView`: the pattern in the pace window's counts, at the milestone's cadence, with
  * the action applied to the counts pace is drawn from to make that window, if any.
  */
-export function pacePattern(
-  { all, window }: PaceCounts,
-  applied: PaceAction | undefined,
-  cadenceDays: number,
-  headline: HeadlineDates,
-): PacePatternView {
+export function pacePattern({ all, window }: PaceCounts, applied: PaceAction | undefined, cadenceDays: number, headline: HeadlineDates): PacePatternView {
   if (cadenceDays < SHORTEST_CADENCE_DAYS) return unread('Patterns are read from weeks or sprints.')
   const period = periodName(cadenceDays)
   const read = window.counts.findIndex((count) => count > 0)
@@ -214,9 +201,7 @@ function oneOdd(counts: readonly number[], starts: readonly string[], odd: numbe
   return {
     pattern: 'oneOddPeriod',
     line: `One odd ${period} · ${dayMonth(date)} finished ${counts[odd]}`,
-    meaning:
-      `The ${period} of ${dayMonth(date)} finished ${counts[odd]}, ` +
-      `against ${Math.min(...rest)} to ${Math.max(...rest)} in the other ${period}s.`,
+    meaning: `The ${period} of ${dayMonth(date)} finished ${counts[odd]}, ` + `against ${Math.min(...rest)} to ${Math.max(...rest)} in the other ${period}s.`,
     advice: `If that ${period} wasn't like the others, leave it out of the pace.`,
     action: { kind: 'leaveOut', period: date, button: `Leave out ${dayMonth(date)}` },
   }

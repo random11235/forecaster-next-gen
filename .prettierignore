@@ -1,0 +1,11 @@
+# Generated or recorded: never hand-edited
+package-lock.json
+dist/
+coverage/
+coverage-usage/
+test/connectors/**/recordings/
+# Kept as written or imported from elsewhere
+docs/research/
+docs/demos/
+.claude/
+docs/design/**/*.html

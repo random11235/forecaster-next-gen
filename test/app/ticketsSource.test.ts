@@ -33,7 +33,6 @@ async function start({ connect = true, fixture = FIXTURE } = {}): Promise<Runnin
   return running
 }
 
-
 /** The Milestone section of the Inputs screen. */
 async function milestoneSection(running: RunningApp): Promise<string> {
   return inputsSection(running, 'milestone')

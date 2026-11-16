@@ -57,7 +57,16 @@ export const INPUTS_FORMS: ReadonlyMap<string, FormReader> = new Map<string, For
   ['/inputs/pace-mode', (body) => ({ kind: 'setPaceMode', paceMode: body.get('paceMode') ?? '' })],
   ['/inputs/pace-counts', (body) => ({ kind: 'setPaceCounts', counts: body.get('counts')?.trim() ?? '' })],
   // the tracker's weeks as blocks, opened and typed into: the typed counts, oldest first
-  ['/inputs/pace-weeks', (body) => ({ kind: 'setPaceCounts', counts: body.getAll('week').map((week) => week.trim()).join(' ') })],
+  [
+    '/inputs/pace-weeks',
+    (body) => ({
+      kind: 'setPaceCounts',
+      counts: body
+        .getAll('week')
+        .map((week) => week.trim())
+        .join(' '),
+    }),
+  ],
   ['/inputs/pace-counts/add', (body) => ({ kind: 'addPaceCount', count: body.get('count')?.trim() ?? '' })],
   ['/inputs/pace-counts/remove-last', () => ({ kind: 'removeLastPaceCount' })],
   ['/inputs/ambiguity', (body) => ({ kind: 'setAmbiguity', level: body.get('ambiguity') ?? '' })],
@@ -95,12 +104,18 @@ export interface ShownStep {
  * step, one of the `steps` picking the team's queries (the Milestone step or the Comparable work step), or Check; or,
  * once setup is closed, its summary. Then the milestone, its pace and the team's growth.
  */
-export function renderInputsScreen(screen: InputsView, connection: ConnectionView, steps: readonly ShownStep[] = [], setup: SetupView = { kind: 'noSetup' }): string {
+export function renderInputsScreen(
+  screen: InputsView,
+  connection: ConnectionView,
+  steps: readonly ShownStep[] = [],
+  setup: SetupView = { kind: 'noSetup' },
+): string {
   const { milestone, forms } = screen
   const error = (form: InputsForm): string | undefined => (screen.refusal?.form === form ? screen.refusal.error : undefined)
   const pickers = steps.flatMap(({ section, view, openingId }) => {
     const picker = queryStepSection(view, section)
-    const candidates = view.kind === 'comparableWorkStep' && view.candidates && openingId !== undefined ? candidatesHtml(view.candidates.shown, openingId, section) : ''
+    const candidates =
+      view.kind === 'comparableWorkStep' && view.candidates && openingId !== undefined ? candidatesHtml(view.candidates.shown, openingId, section) : ''
     return picker === undefined ? [] : [{ section, picker: picker + candidates }]
   })
   const sections = [
@@ -120,7 +135,10 @@ export function renderInputsScreen(screen: InputsView, connection: ConnectionVie
     INPUTS_SCRIPT +
     (setup.kind === 'steps' && setup.step === 'check' ? CHECK_SCRIPT : '') +
     pickers.map(({ section }) => queryStepScript(section)).join('') +
-    steps.filter(({ openingId }) => openingId !== undefined).map(({ section }) => candidatesScript(section)).join('')
+    steps
+      .filter(({ openingId }) => openingId !== undefined)
+      .map(({ section }) => candidatesScript(section))
+      .join('')
   const closed = setup.kind === 'summary' ? setupSummaryHtml(setup) : setup.kind === 'skipped' ? setupSkippedHtml() : ''
   return htmlPage('/inputs', header, closed + sections.map((section, index) => section(index + 1)).join('\n'), script)
 }
@@ -128,7 +146,9 @@ export function renderInputsScreen(screen: InputsView, connection: ConnectionVie
 /** The setup step the EM is on, as its section, with the steps' list and Back and Next; none once setup is closed, or in the browser build. */
 function setupStepSection(setup: SetupView, connection: ConnectionView, pickers: readonly { section: StepSection; picker: string }[]): Section[] {
   if (setup.kind !== 'steps') return []
-  const step = (label: string, hint: string, body: string, id: string): Section[] => [inputSection(label, label, hint, setupStepHtml(setup, body), { postsOnSubmit: true, id })]
+  const step = (label: string, hint: string, body: string, id: string): Section[] => [
+    inputSection(label, label, hint, setupStepHtml(setup, body), { postsOnSubmit: true, id }),
+  ]
   switch (setup.step) {
     case 'connect': {
       const connect = connectSection(connection)
@@ -386,7 +406,8 @@ function paceChip(trackerPace: TrackerPaceView | undefined, period: PeriodName):
  * switches pace to them.
  */
 function trackerReading({ tracker, reading, incomplete, was }: TrackerPaceView, period: PeriodName, following: boolean): string {
-  if (!reading) return `\n          <p class="reading-line">${period}s finished · ${escapeHtml(tracker)}, ${incomplete ? `read in part${incompleteMark(true)}` : 'not read yet'}</p>`
+  if (!reading)
+    return `\n          <p class="reading-line">${period}s finished · ${escapeHtml(tracker)}, ${incomplete ? `read in part${incompleteMark(true)}` : 'not read yet'}</p>`
   const { periods, counts, line, firstFinished, skipped } = reading
   const lines = `
           <p class="reading-line">${escapeHtml(line)}</p>${firstFinished ? `\n          <p class="reading-line">${escapeHtml(firstFinished)}</p>` : ''}${
@@ -396,9 +417,11 @@ function trackerReading({ tracker, reading, incomplete, was }: TrackerPaceView, 
   const tallest = Math.max(1, ...counts)
   const bars = periods
     .map(({ start, count, skipped }) =>
-      skipped ? `<span class="bar gap" title="${period} of ${dayMonth(start)}: ${count}, skipped"><span class="v">–</span></span>`
-      : count === 0 ? `<span class="bar zero" title="${period} of ${dayMonth(start)}: 0"><span class="v">0</span></span>`
-      : `<span class="bar" style="height: ${Math.round((count / tallest) * 100)}%" title="${period} of ${dayMonth(start)}: ${count}"><span class="v">${count}</span></span>`,
+      skipped
+        ? `<span class="bar gap" title="${period} of ${dayMonth(start)}: ${count}, skipped"><span class="v">–</span></span>`
+        : count === 0
+          ? `<span class="bar zero" title="${period} of ${dayMonth(start)}: 0"><span class="v">0</span></span>`
+          : `<span class="bar" style="height: ${Math.round((count / tallest) * 100)}%" title="${period} of ${dayMonth(start)}: ${count}"><span class="v">${count}</span></span>`,
     )
     .join('')
   const said = periods.map(({ count, skipped }) => (skipped ? 'skipped' : String(count))).join(', ')
@@ -409,8 +432,9 @@ function trackerReading({ tracker, reading, incomplete, was }: TrackerPaceView, 
     `<button type="submit" formaction="${path}#pace-tracker" formnovalidate name="period" value="${start}" class="linkish">${label}</button>`
   const blocks = periods
     .map(({ start, count, skipped }) =>
-      skipped ? `<span class="block skipped"><s>${count}</s> ${dayMonth(start)} ${button('/inputs/pace-count-again', start, 'count')}</span>`
-      : `<span class="block"><label>${dayMonth(start)} <input type="number" name="week" min="0" max="${MAX_TICKETS_PER_PERIOD}" step="1" value="${count}" required></label> ${button('/inputs/pace-skip', start, 'skip')}</span>`,
+      skipped
+        ? `<span class="block skipped"><s>${count}</s> ${dayMonth(start)} ${button('/inputs/pace-count-again', start, 'count')}</span>`
+        : `<span class="block"><label>${dayMonth(start)} <input type="number" name="week" min="0" max="${MAX_TICKETS_PER_PERIOD}" step="1" value="${count}" required></label> ${button('/inputs/pace-skip', start, 'skip')}</span>`,
     )
     .join('\n              ')
   // kept open once a period is skipped, so what was skipped, and counting it again, stay in view

@@ -215,7 +215,9 @@ describe('Read again', () => {
   test('sits beside Change in the summary’s head, and reads again, the read time updating', async () => {
     const { fixture, onTracker } = await setUp()
     const before = summaryOf(await page(onTracker.running, '/inputs'))
-    expect(before).toMatch(/<div class="setup-head">[\s\S]*<form method="post" action="\/inputs\/setup\/read-again">\s*<button type="submit" class="linkish">Read again<\/button>[\s\S]*<\/div>\s*<dl/)
+    expect(before).toMatch(
+      /<div class="setup-head">[\s\S]*<form method="post" action="\/inputs\/setup\/read-again">\s*<button type="submit" class="linkish">Read again<\/button>[\s\S]*<\/div>\s*<dl/,
+    )
     fixture.reads[CHECKOUT.query] = { tickets: [{ id: 'o1' }], incomplete: false }
 
     const read = await post(onTracker.running, '/inputs/setup/read-again', {})
@@ -233,7 +235,9 @@ describe('Read again', () => {
     expect(failed.headers.get('location')).toBe('/inputs')
     expect(summaryOf(await page(onTracker.running, '/inputs'))).toContain('⚠ GitHub can’t be reached')
     const summary = summaryOf(await page(onTracker.running, '/inputs'))
-    expect(summary).toMatch(/<p class="note warn flag">⚠ GitHub can’t be reached just now, or is limiting requests, so the last read stays in use\. Try again in a few minutes\.<\/p>/)
+    expect(summary).toMatch(
+      /<p class="note warn flag">⚠ GitHub can’t be reached just now, or is limiting requests, so the last read stays in use\. Try again in a few minutes\.<\/p>/,
+    )
     expect(onTracker.storage.savedRead({ teamId: 'team', query: CHECKOUT.query })).toMatchObject({ readAt: `${TODAY}T09:00:00Z` })
   })
 
@@ -250,7 +254,9 @@ describe('Read again', () => {
 
     await post(onTracker.running, '/inputs/setup/read-again', {})
     const summary = summaryOf(await page(onTracker.running, '/inputs'))
-    expect(summary).toMatch(/#57 Search revamp <span class="kind">\(epic\)<\/span><\/dd>\s*<\/dl>\s*<p class="note muted">Read again reads each query whole, so the picks show no counts\. [^<]*<\/p>/)
+    expect(summary).toMatch(
+      /#57 Search revamp <span class="kind">\(epic\)<\/span><\/dd>\s*<\/dl>\s*<p class="note muted">Read again reads each query whole, so the picks show no counts\. [^<]*<\/p>/,
+    )
     expect(summary.match(/Read again reads each query whole/g)).toHaveLength(1)
   })
 
@@ -260,7 +266,9 @@ describe('Read again', () => {
 
     await post(onTracker.running, '/inputs/setup/read-again', {})
     const summary = summaryOf(await page(onTracker.running, '/inputs'))
-    expect(summary).toMatch(/⚠ GitHub refused the token\.[^<]*<form method="post" action="\/inputs\/setup\/change-connection">\s*<button type="submit" class="linkish">Change<\/button>/)
+    expect(summary).toMatch(
+      /⚠ GitHub refused the token\.[^<]*<form method="post" action="\/inputs\/setup\/change-connection">\s*<button type="submit" class="linkish">Change<\/button>/,
+    )
 
     const changed = await post(onTracker.running, '/inputs/setup/change-connection', {})
     expect(changed.headers.get('location')).toBe('/inputs?step=connect#connect')
@@ -335,7 +343,9 @@ describe('skipping connecting', () => {
     const html = await page(running, '/inputs')
     expect(html).not.toContain('class="setup-steps"')
     expect(html).not.toContain('id="connect"')
-    expect(html).toMatch(/No tracker connected\.[\s\S]*<form method="post" action="\/inputs\/setup\/change">\s*<button type="submit" class="linkish">Connect a tracker<\/button>/)
+    expect(html).toMatch(
+      /No tracker connected\.[\s\S]*<form method="post" action="\/inputs\/setup\/change">\s*<button type="submit" class="linkish">Connect a tracker<\/button>/,
+    )
 
     await post(running, '/inputs/setup/change', {})
     expect(stepsOf(await page(running, '/inputs'))).toContain('<li aria-current="step">Connect</li>')

@@ -217,10 +217,7 @@ function afreshHtml(view: QueryStep, { paths, id }: StepSection): string {
 function editingSection(view: QueryStep, editing: QueryEditing, section: StepSection, pace: ComparableWorkPace | undefined): string {
   const { paths, urls, id, inputId } = section
   const refusal = editing.refusal === undefined ? '' : `\n          <p class="error" role="alert">${escapeHtml(editing.refusal)}</p>`
-  const inUse =
-    editing.refusal === undefined || view.query === ''
-      ? ''
-      : `\n          <p class="note">Still reading <code>${escapeHtml(view.query)}</code></p>`
+  const inUse = editing.refusal === undefined || view.query === '' ? '' : `\n          <p class="note">Still reading <code>${escapeHtml(view.query)}</code></p>`
   const clears = editing.backClears === undefined ? '' : `<p class="note warn">${escapeHtml(editing.backClears)}</p> `
   const back = editing.confirmingBack
     ? `<input type="hidden" name="${CONFIRMED.name}" value="${CONFIRMED.value}"><button type="submit">Clear the query and go back</button> <a href="${escapeHtml(urls.editing)}" class="keep">Keep editing</a>`
@@ -243,7 +240,9 @@ function findingSection(view: QueryStep, section: StepSection, pace: ComparableW
   const kinds = view.lists.map((list) => kindName(list.kind))
   const chips = view.picks
     .map(
-      (pick) => `            <li class="chip">${escapeHtml(pick.name)} <span class="kind">${escapeHtml(kindName(pick.kind))}</span>${pickPaceHtml(pace?.picks.find((each) => each.query === pick.query))}
+      (
+        pick,
+      ) => `            <li class="chip">${escapeHtml(pick.name)} <span class="kind">${escapeHtml(kindName(pick.kind))}</span>${pickPaceHtml(pace?.picks.find((each) => each.query === pick.query))}
               <form method="post" action="${paths.remove}#${id}"><input type="hidden" name="${CHOICE_FIELDS.query}" value="${escapeHtml(pick.query)}"><button type="submit" class="x" aria-label="Remove ${escapeHtml(pick.name)}">×</button></form>
             </li>`,
     )
@@ -277,7 +276,9 @@ export function choiceListHtml(list: ChoiceList, { paths, id, stepQuery, setupSt
   const candidates = stepQuery.kind === 'comparableWork'
   const choices = list.choices
     .map(
-      (choice) => `              <form method="post" action="${paths.add}#${id}" data-name="${escapeHtml(choice.name.toLowerCase())}"${candidates ? ' class="candidate"' : ''}>
+      (
+        choice,
+      ) => `              <form method="post" action="${paths.add}#${id}" data-name="${escapeHtml(choice.name.toLowerCase())}"${candidates ? ' class="candidate"' : ''}>
                 <input type="hidden" name="${CHOICE_FIELDS.kind}" value="${escapeHtml(choice.kind)}"><input type="hidden" name="${CHOICE_FIELDS.name}" value="${escapeHtml(choice.name)}"><input type="hidden" name="${CHOICE_FIELDS.query}" value="${escapeHtml(choice.query)}">
                 <button type="submit">${escapeHtml(choice.name)} <span class="kind">${escapeHtml(kindName(choice.kind))}</span>${choice.query === list.thisMilestone ? ' <span class="this">this milestone</span>' : ''}</button>${candidates ? openLinkHtml(choice, setupStep, id) : ''}
               </form>`,

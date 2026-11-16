@@ -16,7 +16,7 @@ const RECORDINGS: Recording[] = [
 ]
 
 describe('replay transport', () => {
-  test("answers a recorded request with its recorded status and body", async () => {
+  test('answers a recorded request with its recorded status and body', async () => {
     const fetch = replayTransport(RECORDINGS)
 
     const response = await fetch('https://api.example.test/things?page=1', { headers: { authorization: 'Bearer x' } })
@@ -37,12 +37,7 @@ describe('replay transport', () => {
   test.each([
     ['an unrecorded URL', 'https://api.example.test/things?page=2', {}, 'GET https://api.example.test/things?page=2'],
     ['another method', 'https://api.example.test/things?page=1', { method: 'DELETE' }, 'DELETE https://api.example.test/things?page=1'],
-    [
-      'another body',
-      'https://api.example.test/search',
-      { method: 'POST', body: '{"q":"b"}' },
-      'POST https://api.example.test/search {"q":"b"}',
-    ],
+    ['another body', 'https://api.example.test/search', { method: 'POST', body: '{"q":"b"}' }, 'POST https://api.example.test/search {"q":"b"}'],
   ])('throws on %s, naming the request', async (_, url, init, named) => {
     const fetch = replayTransport(RECORDINGS)
 

@@ -17,7 +17,9 @@ const COUNTS = [4, 6, 3, 5, 6, 4, 7, 5, 6, 8]
 // each on the Tuesday of its week
 const tuesday = (monday: string): string => new Date(Date.parse(`${monday}T10:00:00Z`) + 86_400_000).toISOString()
 
-const finished: Ticket[] = COUNTS.flatMap((count, week) => Array.from({ length: count }, (_, i) => ({ id: `w${week}-${i}`, finishedAt: tuesday(WEEKS[week]!) })))
+const finished: Ticket[] = COUNTS.flatMap((count, week) =>
+  Array.from({ length: count }, (_, i) => ({ id: `w${week}-${i}`, finishedAt: tuesday(WEEKS[week]!) })),
+)
 
 const FIXTURE: CannedFixture = {
   milestoneChoices: [{ kind: 'milestone', choices: [CHECKOUT], pastLimit: false }],
@@ -43,9 +45,7 @@ async function following(): Promise<RunningApp> {
   return running
 }
 
-
 const periods = (starts: string[]): URLSearchParams => new URLSearchParams(starts.map((start) => ['period', start]))
-
 
 /** The Pace section of the Inputs screen. */
 async function paceSection(running: RunningApp): Promise<string> {
@@ -59,7 +59,9 @@ describe('skipping GitHub’s weeks', () => {
     const section = await paceSection(running)
 
     expect(section.match(/formaction="\/inputs\/pace-skip#pace-tracker"/g)).toHaveLength(8)
-    expect(section).toMatch(/<button type="submit" formaction="\/inputs\/pace-skip#pace-tracker" formnovalidate name="period" value="2026-10-12"[^>]*>skip<\/button>/)
+    expect(section).toMatch(
+      /<button type="submit" formaction="\/inputs\/pace-skip#pace-tracker" formnovalidate name="period" value="2026-10-12"[^>]*>skip<\/button>/,
+    )
     expect(section).toContain('Skip a week that says nothing about the pace ahead (a holiday, say), and the one before counts instead.')
   })
 
@@ -76,15 +78,28 @@ describe('skipping GitHub’s weeks', () => {
     expect(section).toContain('aria-label="Finished tickets per week, oldest first: 6, 3, 5, 6, 4, skipped, 5, 6, 8"')
     expect(section).toContain('1 skipped (12 Oct), reaching back to w/c 7 Sep')
     expect(section).toMatch(/<details class="week-blocks" open>/)
-    expect(section).toMatch(/<span class="block skipped"><s>7<\/s> 12 Oct <button type="submit" formaction="\/inputs\/pace-count-again#pace-tracker" formnovalidate name="period" value="2026-10-12"[^>]*>count<\/button><\/span>/)
-    expect([...section.matchAll(/<input type="number" name="week" [^>]*value="(\d+)"/g)].map((block) => block[1])).toEqual(['6', '3', '5', '6', '4', '5', '6', '8'])
+    expect(section).toMatch(
+      /<span class="block skipped"><s>7<\/s> 12 Oct <button type="submit" formaction="\/inputs\/pace-count-again#pace-tracker" formnovalidate name="period" value="2026-10-12"[^>]*>count<\/button><\/span>/,
+    )
+    expect([...section.matchAll(/<input type="number" name="week" [^>]*value="(\d+)"/g)].map((block) => block[1])).toEqual([
+      '6',
+      '3',
+      '5',
+      '6',
+      '4',
+      '5',
+      '6',
+      '8',
+    ])
   })
 
   test('count them again brings the skipped weeks back', async () => {
     const running = await following()
     await post(running, '/inputs/pace-skip', periods(['2026-10-12', '2026-10-19']))
     const before = await paceSection(running)
-    expect(before).toMatch(/2 skipped \(12 Oct, 19 Oct\), reaching back to w\/c 31 Aug[^]*<input type="hidden" name="period" value="2026-10-12"><input type="hidden" name="period" value="2026-10-19"><button type="submit" class="linkish">count them again<\/button>/)
+    expect(before).toMatch(
+      /2 skipped \(12 Oct, 19 Oct\), reaching back to w\/c 31 Aug[^]*<input type="hidden" name="period" value="2026-10-12"><input type="hidden" name="period" value="2026-10-19"><button type="submit" class="linkish">count them again<\/button>/,
+    )
 
     const counted = await post(running, '/inputs/pace-count-again', periods(['2026-10-12', '2026-10-19']))
 

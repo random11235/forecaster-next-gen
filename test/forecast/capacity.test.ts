@@ -337,7 +337,14 @@ describe('each entry’s effect', () => {
     tenTicketsAtFive(storage)
     add(storage, '0', '2026-09-07', '2026-09-11', { note: 'Offsite' })
 
-    const result = submitInputs(storage, TEAM, DEFAULT_SETTINGS, TODAY, { kind: 'addCapacity', percent: 'half', from: MONDAY, to: '', onward: false, note: '' }, { capacityOpen: true })
+    const result = submitInputs(
+      storage,
+      TEAM,
+      DEFAULT_SETTINGS,
+      TODAY,
+      { kind: 'addCapacity', percent: 'half', from: MONDAY, to: '', onward: false, note: '' },
+      { capacityOpen: true },
+    )
 
     const shown = !result.saved && result.screen === 'forecast' ? result.view : undefined
     expect(shown?.kind === 'forecast' && shown.capacity.open).toBe(true)
@@ -452,11 +459,7 @@ describe('a refused capacity entry', () => {
     ['no percentage', { percent: '', from: MONDAY, to: '' }, 'Capacity is a whole percentage, 0 or more.'],
     ['a fraction', { percent: '50.5', from: MONDAY, to: '' }, 'Capacity is a whole percentage, 0 or more.'],
     ['a negative', { percent: '-10', from: MONDAY, to: '' }, 'Capacity is a whole percentage, 0 or more.'],
-    [
-      'above 1000%',
-      { percent: '5000', from: MONDAY, to: '' },
-      'Capacity above 1000% can’t be forecast. For a team that much bigger, use a pace range.',
-    ],
+    ['above 1000%', { percent: '5000', from: MONDAY, to: '' }, 'Capacity above 1000% can’t be forecast. For a team that much bigger, use a pace range.'],
   ])('%s changes nothing and shows the forecast screen again, as typed, saying why', (_, typed, refusal) => {
     const storage = openStorage()
     tenTicketsAtFive(storage)
@@ -525,7 +528,9 @@ describe('editing an entry', () => {
 
     expect(headline(storage)).toBe('2026-09-21')
     const forecast = view(storage)
-    expect(forecast.kind === 'forecast' && forecast.capacity.entries).toEqual([{ id: 1, from: '2026-09-14', to: '2026-09-18', percent: 100, note: 'Offsite moved' }])
+    expect(forecast.kind === 'forecast' && forecast.capacity.entries).toEqual([
+      { id: 1, from: '2026-09-14', to: '2026-09-18', percent: 100, note: 'Offsite moved' },
+    ])
   })
 
   test('an edit is refused as an add is, changing nothing and showing the forecast screen with the edit as typed', () => {
@@ -544,7 +549,11 @@ describe('editing an entry', () => {
       entries: [{ id: 1, from: '2026-09-07', to: '2026-09-11', percent: 0, note: 'Offsite' }],
       past: [],
       form: { percent: '', from: '', to: '', onward: false, note: '' },
-      editing: { id: 1, form: { percent: '50', from: '2026-09-11', to: '2026-09-07', onward: false, note: 'Shorter' }, refusal: 'The end date is before the start.' },
+      editing: {
+        id: 1,
+        form: { percent: '50', from: '2026-09-11', to: '2026-09-07', onward: false, note: 'Shorter' },
+        refusal: 'The end date is before the start.',
+      },
     })
     expect(view(storage)).toEqual(before)
   })
@@ -609,7 +618,9 @@ describe('past entries', () => {
 
     expect(result).toEqual({ saved: true, next: 'forecast' })
     const forecast = view(storage)
-    expect(forecast.kind === 'forecast' && forecast.capacity.past).toEqual([{ id: 1, from: AUGUST, to: '2026-08-07', percent: 0, note: 'Team offsite in Lisbon' }])
+    expect(forecast.kind === 'forecast' && forecast.capacity.past).toEqual([
+      { id: 1, from: AUGUST, to: '2026-08-07', percent: 0, note: 'Team offsite in Lisbon' },
+    ])
   })
 
   test('a past entry is kept: removing it is refused, and it stays under Past', () => {

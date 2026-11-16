@@ -82,7 +82,10 @@ function candidateHtml(candidate: Candidate, period: PeriodName, { paths, id }: 
   const { choice } = candidate
   const add = `<form method="post" action="${paths.add}#${id}"><input type="hidden" name="${CHOICE_FIELDS.kind}" value="${escapeHtml(choice.kind)}"><input type="hidden" name="${CHOICE_FIELDS.name}" value="${escapeHtml(choice.name)}"><input type="hidden" name="${CHOICE_FIELDS.query}" value="${escapeHtml(choice.query)}"><button type="submit">${escapeHtml(choice.name)} <span class="kind">${escapeHtml(kindName(choice.kind))}</span></button></form>`
   const own = candidate.thisMilestone ? ' <span class="this">this milestone: counts its own too</span>' : ''
-  const data = (fields: Record<string, string>): string => Object.entries(fields).map(([field, value]) => ` data-${field}="${escapeHtml(value)}"`).join('')
+  const data = (fields: Record<string, string>): string =>
+    Object.entries(fields)
+      .map(([field, value]) => ` data-${field}="${escapeHtml(value)}"`)
+      .join('')
   const shown = data({ kind: choice.kind, name: choice.name, query: choice.query })
   if (!('read' in candidate)) {
     return `                  <li${shown}>${add}${own}<p class="error">${escapeHtml(candidate.failure)}</p></li>`

@@ -10,9 +10,7 @@ const root = fileURLToPath(new URL('..', import.meta.url))
 const out = new URL('../dist/web/forecaster.html', import.meta.url)
 
 const { openWebApp }: typeof import('../src/app/webApp.js') = await import(new URL('../dist/app/webApp.js', import.meta.url).href)
-const { openWebStorage }: typeof import('../src/storage/webStorage.js') = await import(
-  new URL('../dist/storage/webStorage.js', import.meta.url).href
-)
+const { openWebStorage }: typeof import('../src/storage/webStorage.js') = await import(new URL('../dist/storage/webStorage.js', import.meta.url).href)
 const { FONT_FACES }: typeof import('../src/app/fonts.js') = await import(new URL('../dist/app/fonts.js', import.meta.url).href)
 
 /** `src/app/fonts.ts` reads its font files from disk, which a browser can't: the bundle gets the rules it read. */

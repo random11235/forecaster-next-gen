@@ -13,7 +13,9 @@
     "build:web": "npm run build && node scripts/buildWeb.ts",
     "record": "npm run build && node scripts/record.ts",
     "record:github": "npm run build && node scripts/record.ts github",
-    "record:jira": "npm run build && node scripts/record.ts jira"
+    "record:jira": "npm run build && node scripts/record.ts jira",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
     "@fontsource-variable/geist": "^5.3.0",
@@ -22,6 +24,8 @@
     "@vitest/coverage-v8": "^5.0.5",
     "c8": "^12.0.0",
     "esbuild": "^0.28.2",
+    "husky": "^9.1.7",
+    "prettier": "^3.10.1",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
   },
