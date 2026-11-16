@@ -62,7 +62,9 @@ function connectForm({ form, permissions, refusal, kind }: ConnectStep, button: 
   const field = (label: string, name: string, value: string, placeholder: string, wide = true, type = 'text'): string =>
     `              <label${wide ? ' class="wide"' : ''}>${label} <input type="${type}" name="${name}" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}" autocomplete="off" spellcheck="false"></label>`
   const skip =
-    kind === 'connect' ? `\n            <button type="submit" formaction="${SETUP_PATHS.skip}" formnovalidate class="linkish skip">Skip: type the inputs instead</button>` : ''
+    kind === 'connect'
+      ? `\n            <button type="submit" formaction="${SETUP_PATHS.skip}" formnovalidate class="linkish skip">Skip: type the inputs instead</button>`
+      : ''
   return `        <form method="post" action="${CONNECT_PATHS.connect}#connect" class="connect">${refusal === undefined ? '' : `\n          <p class="error" role="alert">${escapeHtml(refusal)}</p>`}
           <fieldset class="levels trackers" aria-label="Tracker">
 ${tracker('github')}

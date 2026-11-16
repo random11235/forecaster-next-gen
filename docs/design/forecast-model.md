@@ -14,7 +14,7 @@ It depends on the layers, folders and dependency rules in [`architecture.md`](ar
 
 ### Layer 1: observed facts (ingested)
 
-*Follows the MVP: it ingests nothing.*
+_Follows the MVP: it ingests nothing._
 
 ```ts
 Team          { id, name, source: 'manual'|'sample'|'jira'|'github', sourceRef, installedAt }
@@ -41,7 +41,7 @@ Ingestion follows data minimisation (see [Security](architecture.md#security)). 
 
 ### Layer 2: derived samples (recomputable, cacheable)
 
-*Follows the MVP, including the rules for committing, pull-backs, blocked epics and the warning below: it derives no samples.*
+_Follows the MVP, including the rules for committing, pull-backs, blocked epics and the warning below: it derives no samples._
 
 ```ts
 EpicCommit       { teamId, epicId, committedAt,
@@ -118,7 +118,7 @@ These defaults are the single source for the thresholds the app design refers to
 
 #### Pace
 
-*Follows the MVP: pace is what the EM types, a range or typed counts of past periods, whichever the EM chooses (see **Typed counts** in the [glossary](../../GLOSSARY.md)); nothing is measured.* `PaceSetting.mode` stays `'manual'` until the EM chooses the tracker as pace's source (#159: nothing is accepted). The tool offers the switch once the milestone has `minMeasuredPaceWeeks` of its own throughput since the last `TeamChange`: whole weeks, ending as today starts, that began at or after the team's installation (so the part-week it was installed in is dropped), counted from the week of the first finished ticket under the milestone's epics. Below that, the Milestone forecast and Inputs screens say so ("Only 4 weeks of finished tickets. Measured pace needs 8.") and the manual range is used. Measured pace is shown beside the manual range, which is kept: the EM can switch back to it, and edit it, at any time. If the milestone has fewer weeks than measured pace needs after the EM chose it (say the status mapping changed which tickets are done), measured pace is paused and the manual range is used, saying so. After a team change, the measured window restarts and the EM is prompted to review the manual range. Pace that predates the change is flagged stale until `staleWeeksAfterTeamChange` of new data exist.
+_Follows the MVP: pace is what the EM types, a range or typed counts of past periods, whichever the EM chooses (see **Typed counts** in the [glossary](../../GLOSSARY.md)); nothing is measured._ `PaceSetting.mode` stays `'manual'` until the EM chooses the tracker as pace's source (#159: nothing is accepted). The tool offers the switch once the milestone has `minMeasuredPaceWeeks` of its own throughput since the last `TeamChange`: whole weeks, ending as today starts, that began at or after the team's installation (so the part-week it was installed in is dropped), counted from the week of the first finished ticket under the milestone's epics. Below that, the Milestone forecast and Inputs screens say so ("Only 4 weeks of finished tickets. Measured pace needs 8.") and the manual range is used. Measured pace is shown beside the manual range, which is kept: the EM can switch back to it, and edit it, at any time. If the milestone has fewer weeks than measured pace needs after the EM chose it (say the status mapping changed which tickets are done), measured pace is paused and the manual range is used, saying so. After a team change, the measured window restarts and the EM is prompted to review the manual range. Pace that predates the change is flagged stale until `staleWeeksAfterTeamChange` of new data exist.
 
 #### Reads of the team's queries (#158)
 
@@ -159,7 +159,7 @@ With a pace range there is no proposal, since the tool doesn't guess what a rang
 
 #### Growth
 
-*Follows the MVP: the milestone grows by the range of its one ambiguity level, with no measured growth.* Each epic's growth range comes from its ambiguity level. Once at least `minGrowthSamples` growth samples exist, the tool suggests the measured distribution for `medium`. If the EM adopts it, epics marked medium draw from the pooled samples; low and high keep their ranges. Only medium, because the pool describes the team's typical epic, which is what medium means; low and high stay the EM's judgement. The EM can go back to the range at any time. Adopted measured growth is paused while there are fewer than `minGrowthSamples` growth samples, so medium epics grow by the range, and resumes once there are enough again.
+_Follows the MVP: the milestone grows by the range of its one ambiguity level, with no measured growth._ Each epic's growth range comes from its ambiguity level. Once at least `minGrowthSamples` growth samples exist, the tool suggests the measured distribution for `medium`. If the EM adopts it, epics marked medium draw from the pooled samples; low and high keep their ranges. Only medium, because the pool describes the team's typical epic, which is what medium means; low and high stay the EM's judgement. The EM can go back to the range at any time. Adopted measured growth is paused while there are fewer than `minGrowthSamples` growth samples, so medium epics grow by the range, and resumes once there are enough again.
 
 ### Layer 5: calibration ledger
 

@@ -105,10 +105,14 @@ describe('launch smoke test', () => {
     expect(html).toMatch(/id="setup-summary"[^]*GitHub · <b>shop-team\/shop<\/b>[^]*<span class="read">read /)
   }, 15_000)
 
-  test.each(['abc', '5180.5', '-1', '65536'])('refuses PORT=%j, naming the bad value', async (port) => {
-    const { code, stderr } = await failure(runEntry({ PORT: port }))
+  test.each(['abc', '5180.5', '-1', '65536'])(
+    'refuses PORT=%j, naming the bad value',
+    async (port) => {
+      const { code, stderr } = await failure(runEntry({ PORT: port }))
 
-    expect(code).toBe(1)
-    expect(stderr).toContain(`PORT must be a whole number from 0 to 65535, not "${port}"`)
-  }, 15_000)
+      expect(code).toBe(1)
+      expect(stderr).toContain(`PORT must be a whole number from 0 to 65535, not "${port}"`)
+    },
+    15_000,
+  )
 })

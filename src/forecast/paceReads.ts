@@ -38,7 +38,9 @@ export interface PaceDay {
 }
 
 /** What `paceReads` reads of what is stored: the milestone's inputs, the team's two queries, and their saved reads. */
-export type PaceReadsStorage = Pick<Storage, 'milestoneInputs'> & Pick<MilestoneQueryStorage, 'milestoneQuery' | 'comparableWorkQuery'> & Pick<SavedReadStorage, 'savedRead'>
+export type PaceReadsStorage = Pick<Storage, 'milestoneInputs'> &
+  Pick<MilestoneQueryStorage, 'milestoneQuery' | 'comparableWorkQuery'> &
+  Pick<SavedReadStorage, 'savedRead'>
 
 /** What `paceReads` reads, in the local server build: the milestone's inputs from `storage`, the queries and reads from `queries`. */
 export function paceReadsStorage(storage: Pick<Storage, 'milestoneInputs'>, { milestoneQueries, reads }: TeamQueries): PaceReadsStorage {
@@ -83,7 +85,10 @@ export function paceReads(storage: PaceReadsStorage, teamId: string, { today, ti
  * The periods the reads all reach whole, up to the current one, which is left out: the `first`, counted from the start
  * date (negative before it), and how many (`periods`). A period a read reaches only part of would pass for a quiet one.
  */
-export function wholePeriods(reads: readonly SavedRead[], { startDate, cadenceDays, today, timeZone }: Omit<FinishedPeriods, 'periods'>): { first: number; periods: number } {
+export function wholePeriods(
+  reads: readonly SavedRead[],
+  { startDate, cadenceDays, today, timeZone }: Omit<FinishedPeriods, 'periods'>,
+): { first: number; periods: number } {
   const current = Math.floor(daysBetween(startDate, today) / cadenceDays)
   const first = Math.max(...reads.map((read) => firstWholePeriod(read, startDate, cadenceDays, timeZone)))
   return { first, periods: Math.max(0, current - first) }

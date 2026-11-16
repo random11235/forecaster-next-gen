@@ -70,7 +70,8 @@ function current({ milestoneQueries: saved, reads: savedReads, setup }: TeamQuer
     previousRead: (teamQuery) => (draftRead(teamQuery) ? savedReads.savedRead(teamQuery) : savedReads.previousRead(teamQuery)),
     saveRead: (teamQuery, read) => {
       const { teamId, query } = teamQuery
-      if (!intoDraft(setup, teamId, (draft) => ({ ...draft, reads: [...draft.reads.filter((each) => each.query !== query), { query, read }] }))) savedReads.saveRead(teamQuery, read)
+      if (!intoDraft(setup, teamId, (draft) => ({ ...draft, reads: [...draft.reads.filter((each) => each.query !== query), { query, read }] })))
+        savedReads.saveRead(teamQuery, read)
     },
   }
   return { milestoneQueries, reads }

@@ -72,31 +72,31 @@ v1 is the MVP ([#84](https://github.com/random11235/forecaster-next-gen/issues/8
 
 > **Roadmap, in the [Doc](https://claude.ai/artifact/9oT8Z1jUP5mGQa6v2KAkvn):** MVP (#84, built) → v1 additions (#120, #121, #57; in review in PR #123) → after v1 (#6 epics and commits, #133 connected forecasting). v1 is done when PR #123 merges.
 
-| Area | Requirement | Ticket |
-| --- | --- | --- |
-| Inputs | The EM enters a name, a start date (pre-filled with today), tickets remaining, one ambiguity level, the cadence in days (default 7) and pace. | #84 |
-| Inputs | Pace is a low–high range per period, or typed counts of tickets done in past periods; both are kept, and the EM picks which one the forecast uses. | #84 |
-| Inputs | Ambiguity is low, medium (default) or high, growing the tickets by 1–1.5×, 1–2× or 1.5–3×. The EM can edit these ranges. Growth never takes the total below today's tickets remaining. | #84 |
-| Inputs | An input that can't be forecast is refused, says why, and keeps what was typed. Each warning sits beside the input it names. | #84 |
-| Inputs | Typed counts need at least 4 for a forecast, and warn until there are 8. | #84, #119 |
-| Forecast | The headline reads "Starting 2 Nov 2026: 85% confident of finishing by 25 Jan 2027", with the 50%, 70% and 95% dates below it. | #84 |
-| Forecast | A graph shows when the trials finish, by week or sprint, with the four dates marked. | #84 |
-| Forecast | Dates beyond the 156-period horizon show as "later than \<date>"; dates before today are marked "already past". | #84 |
-| Forecast | The same inputs always give the same forecast. | #84 |
-| Pace trend | With 4 or more typed counts, both screens show them as bars with a best-fit line. It is for information only; the forecast is unchanged. | #120 |
-| Engine | Typed counts are drawn by the Bayesian bootstrap, so ranges from short history widen to match what is really known ([ADR-0001](https://github.com/random11235/forecaster-next-gen/blob/main/docs/adr/0001-bayesian-bootstrap-pace-sampler.md)). | #121 |
-| Builds | A local server started with one command keeps inputs in a local SQLite file. | #84 |
-| Builds | A browser build is one HTML file (about 210 KB), shared by email, chat or a shared drive. It loads nothing from outside and keeps each tester's inputs in their own browser. | #57 |
+| Area       | Requirement                                                                                                                                                                                                                                     | Ticket    |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| Inputs     | The EM enters a name, a start date (pre-filled with today), tickets remaining, one ambiguity level, the cadence in days (default 7) and pace.                                                                                                   | #84       |
+| Inputs     | Pace is a low–high range per period, or typed counts of tickets done in past periods; both are kept, and the EM picks which one the forecast uses.                                                                                              | #84       |
+| Inputs     | Ambiguity is low, medium (default) or high, growing the tickets by 1–1.5×, 1–2× or 1.5–3×. The EM can edit these ranges. Growth never takes the total below today's tickets remaining.                                                          | #84       |
+| Inputs     | An input that can't be forecast is refused, says why, and keeps what was typed. Each warning sits beside the input it names.                                                                                                                    | #84       |
+| Inputs     | Typed counts need at least 4 for a forecast, and warn until there are 8.                                                                                                                                                                        | #84, #119 |
+| Forecast   | The headline reads "Starting 2 Nov 2026: 85% confident of finishing by 25 Jan 2027", with the 50%, 70% and 95% dates below it.                                                                                                                  | #84       |
+| Forecast   | A graph shows when the trials finish, by week or sprint, with the four dates marked.                                                                                                                                                            | #84       |
+| Forecast   | Dates beyond the 156-period horizon show as "later than \<date>"; dates before today are marked "already past".                                                                                                                                 | #84       |
+| Forecast   | The same inputs always give the same forecast.                                                                                                                                                                                                  | #84       |
+| Pace trend | With 4 or more typed counts, both screens show them as bars with a best-fit line. It is for information only; the forecast is unchanged.                                                                                                        | #120      |
+| Engine     | Typed counts are drawn by the Bayesian bootstrap, so ranges from short history widen to match what is really known ([ADR-0001](https://github.com/random11235/forecaster-next-gen/blob/main/docs/adr/0001-bayesian-bootstrap-pace-sampler.md)). | #121      |
+| Builds     | A local server started with one command keeps inputs in a local SQLite file.                                                                                                                                                                    | #84       |
+| Builds     | A browser build is one HTML file (about 210 KB), shared by email, chat or a shared drive. It loads nothing from outside and keeps each tester's inputs in their own browser.                                                                    | #57       |
 
 ## Success metrics
 
 v1 meets all three of its quality bars, each checked by a test on every change. Measures of whether testers find it useful are not set yet (see Open questions).
 
-| Measure | Target | v1 result |
-| --- | --- | --- |
-| Ranges are right: steady teams' actual finish falls outside P10–P90 | About 1 time in 5 (test band 12–24%) | 17.6% (the plain bootstrap gave 27.7%) |
-| Speed: 10,000 trials over a realistic milestone | Within 100 ms | About 11 ms on a laptop |
-| Privacy: anything loaded from outside the file or server | Nothing, fonts included | Nothing; [private-data review on #57](https://github.com/random11235/forecaster-next-gen/issues/57#issuecomment-6552633943) |
+| Measure                                                             | Target                               | v1 result                                                                                                                   |
+| ------------------------------------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| Ranges are right: steady teams' actual finish falls outside P10–P90 | About 1 time in 5 (test band 12–24%) | 17.6% (the plain bootstrap gave 27.7%)                                                                                      |
+| Speed: 10,000 trials over a realistic milestone                     | Within 100 ms                        | About 11 ms on a laptop                                                                                                     |
+| Privacy: anything loaded from outside the file or server            | Nothing, fonts included              | Nothing; [private-data review on #57](https://github.com/random11235/forecaster-next-gen/issues/57#issuecomment-6552633943) |
 
 The calibration figures use synthetic steady teams. Once real milestones finish, a track record of past forecasts against actual finishes is meant to take over this check.
 
@@ -104,12 +104,12 @@ The calibration figures use synthetic steady teams. Once real milestones finish,
 
 **Risks**
 
-| Risk | Effect | Mitigation |
-| --- | --- | --- |
-| A team's pace is changing (speeding up, or a team change) | The forecast is too confident; the Bayesian bootstrap doesn't fix this | The pace trend shows the change; investigated in [#42](https://github.com/random11235/forecaster-next-gen/issues/42) |
-| Calibration rests on synthetic teams only | Real teams may miss more often than 1 in 5 | A track record of real forecasts, after v1 |
-| Testers forward the file to people it wasn't meant for | Low: the file holds no data; each tester's inputs stay in their own browser | Private-data review on #57 |
-| A browser that blocks site data, such as a private window | Inputs are lost when the page closes | Stated in the README |
+| Risk                                                      | Effect                                                                      | Mitigation                                                                                                           |
+| --------------------------------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| A team's pace is changing (speeding up, or a team change) | The forecast is too confident; the Bayesian bootstrap doesn't fix this      | The pace trend shows the change; investigated in [#42](https://github.com/random11235/forecaster-next-gen/issues/42) |
+| Calibration rests on synthetic teams only                 | Real teams may miss more often than 1 in 5                                  | A track record of real forecasts, after v1                                                                           |
+| Testers forward the file to people it wasn't meant for    | Low: the file holds no data; each tester's inputs stay in their own browser | Private-data review on #57                                                                                           |
+| A browser that blocks site data, such as a private window | Inputs are lost when the page closes                                        | Stated in the README                                                                                                 |
 
 **Open questions**
 
@@ -118,13 +118,13 @@ The calibration figures use synthetic steady teams. Once real milestones finish,
 
 ## Glossary and references
 
-| Term | Meaning |
-| --- | --- |
-| Ambiguity | How well the milestone's work is understood: low, medium or high, each a range the tickets may grow by |
-| Cadence | The length of one of the team's periods in days: a "week" at 7, a "sprint" otherwise |
-| Typed counts | Tickets the team finished in each past period, oldest first, as the EM types them |
-| Pace trend | The typed counts drawn as bars with a best-fit line, for the EM to read; the forecast doesn't use it |
-| Trial | One simulated future; a forecast runs 10,000 and reads its dates from when they finish |
+| Term               | Meaning                                                                                                      |
+| ------------------ | ------------------------------------------------------------------------------------------------------------ |
+| Ambiguity          | How well the milestone's work is understood: low, medium or high, each a range the tickets may grow by       |
+| Cadence            | The length of one of the team's periods in days: a "week" at 7, a "sprint" otherwise                         |
+| Typed counts       | Tickets the team finished in each past period, oldest first, as the EM types them                            |
+| Pace trend         | The typed counts drawn as bars with a best-fit line, for the EM to read; the forecast doesn't use it         |
+| Trial              | One simulated future; a forecast runs 10,000 and reads its dates from when they finish                       |
 | Bayesian bootstrap | Drawing pace from typed counts with fresh random weights in each trial, so short history gives a wider range |
 
 **After v1:** epics, commits and connected forecasting, where typed counts are proposed from comparable work in Jira or GitHub ([#6](https://github.com/random11235/forecaster-next-gen/issues/6), [#133](https://github.com/random11235/forecaster-next-gen/issues/133)).

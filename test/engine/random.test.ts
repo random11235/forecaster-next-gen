@@ -5,11 +5,7 @@ import { xoshiro128StarStar } from '../../src/engine/random.js'
 // https://prng.di.unimi.it/xoshiro128starstar.c), compiled and run from each state.
 describe('xoshiro128** matches the reference implementation', () => {
   test.each<[string, [number, number, number, number], number[]]>([
-    [
-      'a small state',
-      [1, 2, 3, 4],
-      [11520, 0, 5927040, 70819200, 2031721883, 1637235492, 1287239034, 3734860849],
-    ],
+    ['a small state', [1, 2, 3, 4], [11520, 0, 5927040, 70819200, 2031721883, 1637235492, 1287239034, 3734860849]],
     [
       'a mixed state',
       [0x9e3779b9, 0x243f6a88, 0xb7e15162, 0xdeadbeef],

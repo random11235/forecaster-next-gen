@@ -81,7 +81,11 @@ describe('skipping a period', () => {
   test('the forecast’s pace says how many are skipped', async () => {
     await skip(HOLIDAYS)
 
-    expect(forecast()).toMatchObject({ kind: 'forecast', pace: { source: 'tracker', tracker: 'GitHub', counts: [4, 6, 3, 5, 6, 4, 6, 8], skipped: 2 }, paceSaid: 'GitHub’s last 8 weeks, 2 skipped' })
+    expect(forecast()).toMatchObject({
+      kind: 'forecast',
+      pace: { source: 'tracker', tracker: 'GitHub', counts: [4, 6, 3, 5, 6, 4, 6, 8], skipped: 2 },
+      paceSaid: 'GitHub’s last 8 weeks, 2 skipped',
+    })
   })
 
   test('with GitHub holding no earlier weeks, fewer are counted, and the skip line says so', async () => {
@@ -147,7 +151,14 @@ describe('a skip submitted', () => {
   test('with no milestone, it is refused', async () => {
     const other = 'other-team'
 
-    expect(await submitSkip(scenario.using, other, { kind: 'skip', periods: HOLIDAYS }, { settings: DEFAULT_SETTINGS, today: TODAY, readAt: READ_AT, timeZone: 'UTC' })).toMatchObject({ saved: false, view: { refusal: { form: 'paceSkip', error: 'Enter the milestone first.' } } })
+    expect(
+      await submitSkip(
+        scenario.using,
+        other,
+        { kind: 'skip', periods: HOLIDAYS },
+        { settings: DEFAULT_SETTINGS, today: TODAY, readAt: READ_AT, timeZone: 'UTC' },
+      ),
+    ).toMatchObject({ saved: false, view: { refusal: { form: 'paceSkip', error: 'Enter the milestone first.' } } })
   })
 })
 
@@ -202,7 +213,12 @@ describe('every period skipped', () => {
     expect(reading()).toMatchObject({ counts: [], line: 'every week that finished something skipped · read 12 Nov 09:00' })
     expect(forecast()).toMatchObject({
       kind: 'problems',
-      problems: [{ input: 'pace', message: 'Every week that finished something is skipped, so GitHub gives no pace. Count a week again, or use typed counts or the range.' }],
+      problems: [
+        {
+          input: 'pace',
+          message: 'Every week that finished something is skipped, so GitHub gives no pace. Count a week again, or use typed counts or the range.',
+        },
+      ],
     })
   })
 })

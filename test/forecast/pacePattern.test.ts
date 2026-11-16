@@ -319,7 +319,11 @@ describe('an applied action', () => {
 
     const submitted = submit(storage, { kind: 'applyPaceAction', action: 'startFrom', date: 'soon' })
 
-    expect(submitted).toMatchObject({ saved: false, screen: 'forecast', view: { pacePattern: undefined, paceActionRefusal: 'That action is no longer offered.' } })
+    expect(submitted).toMatchObject({
+      saved: false,
+      screen: 'forecast',
+      view: { pacePattern: undefined, paceActionRefusal: 'That action is no longer offered.' },
+    })
   })
 
   test('is still offered when it would leave fewer counts than the forecast needs', () => {
@@ -370,7 +374,18 @@ describe('from the tracker’s weeks (#213)', () => {
   const checkout: Choice = { kind: 'milestone', name: 'Launch', query: 'milestone:"Launch"' }
   const READ_AT = '2026-11-11T09:00:00Z'
   // GitHub's weeks, Mondays from 31 Aug to 2 Nov; the week of 9 Nov is the current one
-  const GITHUB_WEEKS = ['2026-08-31', '2026-09-07', '2026-09-14', '2026-09-21', '2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26', '2026-11-02']
+  const GITHUB_WEEKS = [
+    '2026-08-31',
+    '2026-09-07',
+    '2026-09-14',
+    '2026-09-21',
+    '2026-09-28',
+    '2026-10-05',
+    '2026-10-12',
+    '2026-10-19',
+    '2026-10-26',
+    '2026-11-02',
+  ]
   const tuesday = (monday: string): string => new Date(Date.parse(`${monday}T10:00:00Z`) + 86_400_000).toISOString()
 
   /** A milestone started long before, following GitHub, which finished `counts[i]` tickets in the week of `GITHUB_WEEKS[i]`. */
@@ -379,7 +394,9 @@ describe('from the tracker’s weeks (#213)', () => {
     storage = opened
     opened.saveTeam({ id: TEAM, name: 'Acme', source: 'manual', sourceRef: '', installedAt: '2026-01-01T00:00:00Z' })
     opened.saveSetupState(TEAM, { open: false, closed: 'done' })
-    const tickets = counts.flatMap((count, week) => Array.from({ length: count }, (_, i) => ({ id: `w${week}-${i}`, finishedAt: tuesday(GITHUB_WEEKS[week]!) })))
+    const tickets = counts.flatMap((count, week) =>
+      Array.from({ length: count }, (_, i) => ({ id: `w${week}-${i}`, finishedAt: tuesday(GITHUB_WEEKS[week]!) })),
+    )
     const fixture: CannedFixture = {
       milestoneChoices: [{ kind: 'milestone', choices: [checkout], pastLimit: false }],
       reads: { [checkout.query]: { tickets: [{ id: 'open' }, ...tickets], incomplete: false } },
@@ -411,7 +428,12 @@ describe('from the tracker’s weeks (#213)', () => {
     const { storage, using, tracker } = await followingGitHub([5, 4, 6, 5, 5, 4, 0, 0, 5, 6])
     expect(trackerForecast(storage, tracker).pacePattern?.pattern).not.toBe('steady')
 
-    await submitSkip(using, TEAM, { kind: 'skip', periods: ['2026-10-12', '2026-10-19'] }, { settings: DEFAULT_SETTINGS, today: TODAY, readAt: READ_AT, timeZone: 'UTC' })
+    await submitSkip(
+      using,
+      TEAM,
+      { kind: 'skip', periods: ['2026-10-12', '2026-10-19'] },
+      { settings: DEFAULT_SETTINGS, today: TODAY, readAt: READ_AT, timeZone: 'UTC' },
+    )
 
     expect(trackerForecast(storage, tracker).pacePattern).toMatchObject({ pattern: 'steady', line: 'Steady · 4 to 6 a week' })
   })
@@ -422,4 +444,3 @@ describe('from the tracker’s weeks (#213)', () => {
     expect(trackerForecast(storage, tracker).pacePattern).toEqual({ pattern: undefined, line: 'No pattern yet · 5 weeks is too few to tell' })
   })
 })
-

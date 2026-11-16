@@ -91,7 +91,8 @@ export async function submitReadAgain(reading: StepReading, teamId: string, read
   const connected = await teamConnection(reading, teamId)
   if (!connected) return { kind: 'unchanged' }
   const { connection, connector } = connected
-  if (connector === 'keychainFailed') return (keepFailed(reading.setup, teamId, { whole: { failure: 'keychainFailed', at: readAt }, queries: {} }), { kind: 'failed' })
+  if (connector === 'keychainFailed')
+    return (keepFailed(reading.setup, teamId, { whole: { failure: 'keychainFailed', at: readAt }, queries: {} }), { kind: 'failed' })
   const finishedSince = finishedSinceFor(readAt, reading.milestoneInputs.milestoneInputs(teamId))
   const { milestoneQueries, reads } = withTeamQueries(reading, 'saved')
   // a read made forgets why the last one failed; one failing whole stops there, the queries left as they were

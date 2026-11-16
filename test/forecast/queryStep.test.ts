@@ -143,10 +143,7 @@ describe('a kind with more than 100 entries', () => {
   /** 120 epics, past the limit, the first 100 listed; and the milestones and labels in full. */
   const PAST_LIMIT: CannedFixture = {
     ...FIXTURE,
-    milestoneChoices: [
-      { kind: 'epic', choices: listed, pastLimit: true },
-      ...(FIXTURE.milestoneChoices as ChoicesOfKind[]),
-    ],
+    milestoneChoices: [{ kind: 'epic', choices: listed, pastLimit: true }, ...(FIXTURE.milestoneChoices as ChoicesOfKind[])],
     searchable: { epic: [...listed, cardPayments, payouts, ...Array.from({ length: 18 }, (_, i) => epic(142 + i))] },
   }
 
@@ -518,7 +515,15 @@ describe('a hand-edited query refused before reading', () => {
 
   test('on Jira, a text search and an empty value are refused; a clause with a value is read', async () => {
     const using = connecting()
-    await submitConnection(using, TEAM, { kind: 'connect', tracker: 'jira', repo: '', site: 'shop.atlassian.net', projectKey: 'SHOP', email: 'em@shop.test', token: 'token' })
+    await submitConnection(using, TEAM, {
+      kind: 'connect',
+      tracker: 'jira',
+      repo: '',
+      site: 'shop.atlassian.net',
+      projectKey: 'SHOP',
+      email: 'em@shop.test',
+      token: 'token',
+    })
 
     const text = await submitStepQuery(using, TEAM, edit('labels = "checkout" OR text ~ "payments"'), READ_AT)
     const empty = await submitStepQuery(using, TEAM, edit('labels = '), READ_AT)
@@ -603,7 +608,15 @@ function reading(query: string, read: CannedFixture['reads'][string]): CannedFix
 /** The means to connect on `fixture`, connected to the Jira project SHOP. */
 async function connectedToJira(fixture: CannedFixture): Promise<ReturnType<typeof connecting>> {
   const using = connecting(fixture)
-  await submitConnection(using, TEAM, { kind: 'connect', tracker: 'jira', repo: '', site: 'shop.atlassian.net', projectKey: 'SHOP', email: 'em@shop.test', token: 'token' })
+  await submitConnection(using, TEAM, {
+    kind: 'connect',
+    tracker: 'jira',
+    repo: '',
+    site: 'shop.atlassian.net',
+    projectKey: 'SHOP',
+    email: 'em@shop.test',
+    token: 'token',
+  })
   return using
 }
 
@@ -787,12 +800,7 @@ describe('the Comparable work step', () => {
     await submitStepQuery(using, TEAM, add(bug), READ_AT, COMPARABLE_WORK)
     const view = await queryStepView(using, TEAM, '', {}, COMPARABLE_WORK)
 
-    expect(using.calls.reads).toEqual([
-      'milestone:"Payments v2"',
-      'milestone:"Payments v2" OR label:"bug"',
-      'milestone:"Payments v2"',
-      'label:"bug"',
-    ])
+    expect(using.calls.reads).toEqual(['milestone:"Payments v2"', 'milestone:"Payments v2" OR label:"bug"', 'milestone:"Payments v2"', 'label:"bug"'])
     expect(storage.comparableWorkQuery(TEAM)).toEqual({ picks: [payments, bug], query: 'milestone:"Payments v2" OR label:"bug"' })
     expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [checkout], query: 'milestone:"Checkout"' })
     expect(view).toMatchObject({ picks: [payments, bug], query: 'milestone:"Payments v2" OR label:"bug"' })
@@ -876,7 +884,6 @@ describe('the Comparable work step', () => {
     expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [checkout], query: 'milestone:"Checkout"' })
     expect(storage.comparableWorkQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
   })
-
 })
 
 // The Comparable work step's flags and refusals (#202): the milestone query's, worded for comparable work.

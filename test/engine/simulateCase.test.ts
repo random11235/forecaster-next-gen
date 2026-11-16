@@ -54,9 +54,7 @@ describe("simulateCase: 'when' for one committed epic", () => {
 
   test("floating-point error in the epic's total does not add a period", () => {
     // 100 × 1.1 is 110.00000000000001 in floating point; 110 per period finishes it in one
-    const result = simulateCase(
-      whenCase({ scope: [epic({ baseCount: 100, growth: [1.1] })], throughputSamples: [110] }),
-    )
+    const result = simulateCase(whenCase({ scope: [epic({ baseCount: 100, growth: [1.1] })], throughputSamples: [110] }))
 
     expect(result.quantiles.every((q) => q === 1)).toBe(true)
   })
@@ -111,7 +109,7 @@ describe("simulateCase: 'when' for one committed epic", () => {
     expect(result.quantiles[100]).toBe(3)
   })
 
-  test("a growth range draws the ratio uniformly from low to high", () => {
+  test('a growth range draws the ratio uniformly from low to high', () => {
     // 10 × [1, 3] is a total spread evenly over 10 to 30; at 1 per period, so are the finish periods
     const result = simulateCase(
       whenCase({
@@ -122,7 +120,11 @@ describe("simulateCase: 'when' for one committed epic", () => {
     )
 
     expect(result.quantiles[0]).toBeGreaterThanOrEqual(10)
-    for (const [p, expected] of [[25, 15], [50, 20], [75, 25]] as const) {
+    for (const [p, expected] of [
+      [25, 15],
+      [50, 20],
+      [75, 25],
+    ] as const) {
       expect(result.quantiles[p]).toBeGreaterThanOrEqual(expected - 1)
       expect(result.quantiles[p]).toBeLessThanOrEqual(expected + 1)
     }
@@ -133,9 +135,7 @@ describe("simulateCase: 'when' for one committed epic", () => {
     // Each period finishes all 10 tickets with a chance p of its own per trial, weighted 2p from 0 to 1
     // (two of the three samples finish it), so P(not by k) = 2 / ((k + 1)(k + 2)); with a 2-period horizon,
     // P(finish in 1) = 2/3, P(finish by 2) = 5/6, P(beyond the horizon) = 1/6.
-    const result = simulateCase(
-      whenCase({ trials: 10_000, maxPeriods: 2, throughputSamples: [0, 10, 10] }),
-    )
+    const result = simulateCase(whenCase({ trials: 10_000, maxPeriods: 2, throughputSamples: [0, 10, 10] }))
 
     expect(result.finishedFraction).toBeCloseTo(5 / 6, 1)
     expect(result.quantiles[60]).toBe(1)
@@ -159,10 +159,7 @@ describe("simulateCase: 'when' for several ranked epics", () => {
     // and leaves 3 for rank 2's 6; period 2 finishes rank 2.
     const result = simulateCase(
       whenCase({
-        scope: [
-          epic({ epicId: 'SECOND', rank: 2, baseCount: 6, currentCount: 6 }),
-          epic({ epicId: 'FIRST', rank: 1, baseCount: 1, currentCount: 1 }),
-        ],
+        scope: [epic({ epicId: 'SECOND', rank: 2, baseCount: 6, currentCount: 6 }), epic({ epicId: 'FIRST', rank: 1, baseCount: 1, currentCount: 1 })],
         throughputSamples: [4],
       }),
     )
@@ -200,9 +197,7 @@ describe("simulateCase: 'when' for several ranked epics", () => {
     const result = simulateCase(
       whenCase({
         trials: 10_000,
-        scope: Array.from({ length: 10 }, (_, i) =>
-          epic({ epicId: `EPIC-${i + 1}`, rank: i + 1, growth: { low: 1, high: 3 } }),
-        ),
+        scope: Array.from({ length: 10 }, (_, i) => epic({ epicId: `EPIC-${i + 1}`, rank: i + 1, growth: { low: 1, high: 3 } })),
         throughputSamples: [10],
       }),
     )
@@ -216,9 +211,7 @@ describe("simulateCase: 'when' for several ranked epics", () => {
 describe('simulateCase: epics with no children', () => {
   test.each([null, 0])('an epic with baseCount %s draws its total size from the epic-size samples', (baseCount) => {
     // No children to grow from, so its total is a drawn size: 12 at 2 per period → 6 periods
-    const result = simulateCase(
-      whenCase({ scope: [epic({ baseCount, currentCount: 0, growth: [3] })], epicSizeSamples: [12] }),
-    )
+    const result = simulateCase(whenCase({ scope: [epic({ baseCount, currentCount: 0, growth: [3] })], epicSizeSamples: [12] }))
 
     expect(result.quantiles.every((q) => q === 6)).toBe(true)
   })
@@ -262,9 +255,7 @@ describe('simulateCase: epics with no children', () => {
 
   test("a drawn size is never below the epic's current count", () => {
     // baseCount 0 but 14 children have since been added: 14 at 2 per period → 7 periods
-    const result = simulateCase(
-      whenCase({ scope: [epic({ baseCount: 0, currentCount: 14 })], epicSizeSamples: [4] }),
-    )
+    const result = simulateCase(whenCase({ scope: [epic({ baseCount: 0, currentCount: 14 })], epicSizeSamples: [4] }))
 
     expect(result.quantiles.every((q) => q === 7)).toBe(true)
   })
@@ -276,10 +267,7 @@ describe('simulateCase: epics with no children', () => {
     const result = simulateCase(
       whenCase({
         trials: 10_000,
-        scope: [
-          epic({ epicId: 'A', growth: [1, 3] }),
-          epic({ epicId: 'B', rank: 2, baseCount: null, currentCount: 0 }),
-        ],
+        scope: [epic({ epicId: 'A', growth: [1, 3] }), epic({ epicId: 'B', rank: 2, baseCount: null, currentCount: 0 })],
         epicSizeSamples: [10, 30],
         throughputSamples: [10],
       }),
@@ -406,9 +394,7 @@ describe('simulateCase: span', () => {
 
   test("for 'how many', the span is the periods to byDate and the median count done", () => {
     // 2026-01-05 to 2026-08-03 is 30 weekly periods; at 6 per period the median count done is 180
-    const result = simulateCase(
-      whenCase({ question: { kind: 'howMany', byDate: '2026-08-03' }, throughputSamples: [6] }),
-    )
+    const result = simulateCase(whenCase({ question: { kind: 'howMany', byDate: '2026-08-03' }, throughputSamples: [6] }))
 
     expect(result.diagnostics.span).toEqual({ periods: 30, tickets: 180 })
   })
@@ -611,9 +597,7 @@ describe('simulateCase: capacity', () => {
 
   test("'how many by date' counts the scaled pace", () => {
     // 4 weekly periods at 2 per period, the second at 0 and the third at 0.5: 2 + 0 + 1 + 2
-    const result = simulateCase(
-      whenCase({ question: { kind: 'howMany', byDate: '2026-02-02' }, capacity: [1, 0, 0.5] }),
-    )
+    const result = simulateCase(whenCase({ question: { kind: 'howMany', byDate: '2026-02-02' }, capacity: [1, 0, 0.5] }))
 
     expect(result.quantiles.every((q) => q === 5)).toBe(true)
   })

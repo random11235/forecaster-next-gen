@@ -133,7 +133,27 @@ try {
 
   execFileSync(
     'npx',
-    ['c8', 'report', '--temp-directory', rawCoverage, '--reports-dir', 'coverage-usage', '--src', 'src', '--all', '--include', 'dist/**', '--include', 'src/**', '--exclude', 'dist/**/*.d.ts', '--reporter', 'text', '--reporter', 'html'],
+    [
+      'c8',
+      'report',
+      '--temp-directory',
+      rawCoverage,
+      '--reports-dir',
+      'coverage-usage',
+      '--src',
+      'src',
+      '--all',
+      '--include',
+      'dist/**',
+      '--include',
+      'src/**',
+      '--exclude',
+      'dist/**/*.d.ts',
+      '--reporter',
+      'text',
+      '--reporter',
+      'html',
+    ],
     { cwd: root, stdio: 'inherit' },
   )
 } finally {

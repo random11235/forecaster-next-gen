@@ -323,7 +323,12 @@ describe("SQLite storage's saved reads", () => {
     storage.saveRead({ teamId: 'team', query: otherQuery }, READ)
     storage.saveRead({ teamId: 'another', query: OPEN_TICKETS }, READ)
 
-    const later: SavedRead = { tickets: [{ id: 'I_2', finishedAt: '2026-11-12T10:00:00Z' }], incomplete: true, readAt: '2026-11-12T11:00:00Z', finishedSince: '2026-09-10T11:00:00Z' }
+    const later: SavedRead = {
+      tickets: [{ id: 'I_2', finishedAt: '2026-11-12T10:00:00Z' }],
+      incomplete: true,
+      readAt: '2026-11-12T11:00:00Z',
+      finishedSince: '2026-09-10T11:00:00Z',
+    }
     storage.saveRead({ teamId: 'team', query: OPEN_TICKETS }, later)
 
     const again = reopen()
@@ -337,7 +342,12 @@ describe("SQLite storage's saved reads", () => {
     const { storage, reopen } = sqliteFile()
     storage.saveTeam(TEAM)
     const otherQuery = 'repo:acme/checkout is:issue milestone:"Beta"'
-    const later: SavedRead = { tickets: [{ id: 'I_2', finishedAt: '2026-11-12T10:00:00Z' }], incomplete: true, readAt: '2026-11-12T11:00:00Z', finishedSince: '2026-09-10T11:00:00Z' }
+    const later: SavedRead = {
+      tickets: [{ id: 'I_2', finishedAt: '2026-11-12T10:00:00Z' }],
+      incomplete: true,
+      readAt: '2026-11-12T11:00:00Z',
+      finishedSince: '2026-09-10T11:00:00Z',
+    }
     const latest: SavedRead = { tickets: [], incomplete: false, readAt: '2026-11-13T11:00:00Z', finishedSince: '2026-09-11T11:00:00Z' }
 
     storage.saveRead({ teamId: 'team', query: OPEN_TICKETS }, READ)
@@ -365,7 +375,7 @@ describe("SQLite storage's saved reads", () => {
     expect(reopen().savedRead({ teamId: 'team', query: OPEN_TICKETS })).toEqual(empty)
   })
 
-  test("keeps nothing of a ticket but its id and finish time, whatever else it is handed", () => {
+  test('keeps nothing of a ticket but its id and finish time, whatever else it is handed', () => {
     const { storage, reopen } = sqliteFile()
     storage.saveTeam(TEAM)
     const handed = { id: 'I_1', finishedAt: '2026-11-06T22:30:00Z', title: 'Fix checkout', assignee: 'sam' }
@@ -546,7 +556,12 @@ describe("SQLite storage's setup", () => {
   test('keeps the setup draft whole, every part of it, replacing it, until it is discarded', () => {
     const { storage, reopen } = sqliteFile()
     storage.saveTeam(TEAM)
-    const read: SavedRead = { tickets: [{ id: 'I_1' }, { id: 'I_2', finishedAt: '2026-10-20T10:00:00Z' }], incomplete: true, readAt: '2026-11-12T09:00:00Z', finishedSince: '2026-09-17T09:00:00Z' }
+    const read: SavedRead = {
+      tickets: [{ id: 'I_1' }, { id: 'I_2', finishedAt: '2026-10-20T10:00:00Z' }],
+      incomplete: true,
+      readAt: '2026-11-12T09:00:00Z',
+      finishedSince: '2026-09-17T09:00:00Z',
+    }
     const draft = {
       milestoneQuery: { picks: [{ kind: 'milestone' as const, name: 'Launch', query: 'milestone:"Launch"' }], query: 'milestone:"Launch"' },
       comparableWorkQuery: { picks: [], query: 'label:"beta"' },
@@ -578,12 +593,19 @@ describe("SQLite storage's setup", () => {
     const { storage, reopen } = sqliteFile()
     storage.saveTeam(TEAM)
     const handed = { kind: 'label' as const, name: 'payments', query: 'label:"payments"', overHundred: true }
-    storage.saveSetupDraft('team', { milestoneQuery: { picks: [handed], query: handed.query }, reads: [], sources: { ticketsRemaining: 'typed', pace: 'counts' } })
+    storage.saveSetupDraft('team', {
+      milestoneQuery: { picks: [handed], query: handed.query },
+      reads: [],
+      sources: { ticketsRemaining: 'typed', pace: 'counts' },
+    })
     const db = new DatabaseSync(join(dir!, 'forecaster.db'))
     db.prepare("UPDATE setup_drafts SET tickets_source = 'estimated', pace_mode = 'velocity'").run()
     db.close()
 
-    expect(reopen().setupDraft('team')).toStrictEqual({ milestoneQuery: { picks: [{ kind: 'label', name: 'payments', query: 'label:"payments"' }], query: 'label:"payments"' }, reads: [] })
+    expect(reopen().setupDraft('team')).toStrictEqual({
+      milestoneQuery: { picks: [{ kind: 'label', name: 'payments', query: 'label:"payments"' }], query: 'label:"payments"' },
+      reads: [],
+    })
   })
 
   // Why the last reads failed (#222), so the summary still says why after a reload; none once read again.
@@ -593,7 +615,10 @@ describe("SQLite storage's setup", () => {
     const failures = {
       whole: { failure: 'unauthorised' as const, at: '2026-11-12T09:00:00Z' },
       queries: { 'milestone:"Q3"': { failure: 'invalidQuery' as const, message: 'No such milestone.', at: '2026-11-12T09:00:00Z' } },
-      picks: { 'milestone:"Q3"': { failure: 'unavailable' as const, at: '2026-11-11T09:00:00Z' }, 'label:bug': { failure: 'outOfScope' as const, at: '2026-11-11T09:00:00Z' } },
+      picks: {
+        'milestone:"Q3"': { failure: 'unavailable' as const, at: '2026-11-11T09:00:00Z' },
+        'label:bug': { failure: 'outOfScope' as const, at: '2026-11-11T09:00:00Z' },
+      },
     }
 
     expect(storage.readFailures('team')).toBeUndefined()
@@ -611,7 +636,10 @@ describe("SQLite storage's setup", () => {
   test('reads back no failure it doesn’t know, from a later version', () => {
     const { storage, reopen } = sqliteFile()
     storage.saveTeam(TEAM)
-    storage.saveReadFailures('team', { whole: { failure: 'unavailable', at: '2026-11-12T09:00:00Z' }, picks: { 'label:bug': { failure: 'notFound', at: '2026-11-12T09:00:00Z' } } })
+    storage.saveReadFailures('team', {
+      whole: { failure: 'unavailable', at: '2026-11-12T09:00:00Z' },
+      picks: { 'label:bug': { failure: 'notFound', at: '2026-11-12T09:00:00Z' } },
+    })
     const db = new DatabaseSync(join(dir!, 'forecaster.db'))
     db.prepare("UPDATE read_failures SET failure = 'melted' WHERE of = 'whole'").run()
     db.close()
@@ -626,7 +654,10 @@ describe("SQLite storage's setup", () => {
 describe("SQLite storage's query targets", () => {
   const LAUNCH_QUERY: MilestoneQuery = { picks: [{ kind: 'milestone', name: 'Launch', query: 'milestone:"Launch"' }], query: 'milestone:"Launch"' }
   const BETA_QUERY: MilestoneQuery = { picks: [], query: 'label:"beta"' }
-  const EPIC_QUERY: MilestoneQuery = { picks: [{ kind: 'epic', name: 'Checkout redesign', query: 'parent-issue:acme/checkout#106' }], query: 'parent-issue:acme/checkout#106' }
+  const EPIC_QUERY: MilestoneQuery = {
+    picks: [{ kind: 'epic', name: 'Checkout redesign', query: 'parent-issue:acme/checkout#106' }],
+    query: 'parent-issue:acme/checkout#106',
+  }
   const readAt = (at: string): SavedRead => ({ tickets: [{ id: 'I_1' }], incomplete: false, readAt: at, finishedSince: '2026-09-01T09:00:00Z' })
   const FIRST = readAt('2026-11-10T09:00:00Z')
   const SECOND = readAt('2026-11-11T09:00:00Z')
@@ -692,7 +723,14 @@ describe("SQLite storage's query targets", () => {
     expect(again.reads.previousRead(epic)).toBeUndefined()
     expect(again.reads.savedRead(launch)).toEqual(THIRD)
     expect(again.reads.previousRead(launch)).toEqual(FIRST)
-    expect(reopen().setupDraft('team')).toEqual({ milestoneQuery: EPIC_QUERY, comparableWorkQuery: BETA_QUERY, reads: [{ query: epic.query, read: SECOND }, { query: launch.query, read: THIRD }] })
+    expect(reopen().setupDraft('team')).toEqual({
+      milestoneQuery: EPIC_QUERY,
+      comparableWorkQuery: BETA_QUERY,
+      reads: [
+        { query: epic.query, read: SECOND },
+        { query: launch.query, read: THIRD },
+      ],
+    })
   })
 
   test('with setup open, saved reads and saves only what is saved, never the draft', () => {
@@ -745,7 +783,10 @@ describe("SQLite storage's query targets", () => {
     storage.saveSetupDraft('team', {
       milestoneQuery: EPIC_QUERY,
       comparableWorkQuery: BETA_QUERY,
-      reads: [{ query: launch.query, read: SECOND }, { query: epic.query, read: THIRD }],
+      reads: [
+        { query: launch.query, read: SECOND },
+        { query: epic.query, read: THIRD },
+      ],
       pickFailures: { 'label:"bug"': { failure: 'invalidQuery', message: 'No such label.', at: '2026-11-12T09:00:00Z' } },
     })
 
@@ -760,7 +801,10 @@ describe("SQLite storage's query targets", () => {
     // the pick read well in the draft fails no longer
     expect(again.readFailures('team')).toEqual({
       whole: { failure: 'unavailable', at: '2026-11-09T09:00:00Z' },
-      picks: { 'label:"ui"': { failure: 'notFound', at: '2026-11-09T09:00:00Z' }, 'label:"bug"': { failure: 'invalidQuery', message: 'No such label.', at: '2026-11-12T09:00:00Z' } },
+      picks: {
+        'label:"ui"': { failure: 'notFound', at: '2026-11-09T09:00:00Z' },
+        'label:"bug"': { failure: 'invalidQuery', message: 'No such label.', at: '2026-11-12T09:00:00Z' },
+      },
     })
     expect(again.setupDraft('team')).toBeUndefined()
     expect(again.teamQueries('current').milestoneQueries.milestoneQuery('team')).toEqual(EPIC_QUERY)

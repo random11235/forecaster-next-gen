@@ -85,12 +85,7 @@ export interface CandidatesAt {
  * as the comparable-work query is, as far back (`finishedSinceFor`), and kept only by this opening, never saved. Its
  * periods are laid on the milestone's cadence from its start date (from today before it has one).
  */
-export function openCandidates(
-  connecting: Connecting,
-  storage: Pick<Storage, 'milestoneInputs'>,
-  teamId: string,
-  at: CandidatesAt,
-): CandidateOpening {
+export function openCandidates(connecting: Connecting, storage: Pick<Storage, 'milestoneInputs'>, teamId: string, at: CandidatesAt): CandidateOpening {
   // the milestone's and comparable work's queries as setup's steps hold them
   const stored = paceReadsStorage(storage, withTeamQueries(connecting, 'current'))
   const read = new Map<string, Promise<Candidate>>()
@@ -167,7 +162,10 @@ function candidateRead(
   const strip = finishedPerPeriod(read, { startDate, cadenceDays, today, timeZone, periods })
   const median = strip.counts.length === 0 ? 0 : medianOf(strip.counts)
   const finished = read.tickets.filter((ticket) => ticket.finishedAt !== undefined)
-  const last = finished.map((ticket) => ticket.finishedAt!).sort().at(-1)
+  const last = finished
+    .map((ticket) => ticket.finishedAt!)
+    .sort()
+    .at(-1)
   return {
     strip,
     median,

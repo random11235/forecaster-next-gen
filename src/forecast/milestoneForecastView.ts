@@ -3,7 +3,17 @@ import type { Ambiguity, GrowthRange } from '../model/ambiguity.js'
 import type { CapacityEntry } from '../model/capacity.js'
 import type { Storage } from '../storage/storage.js'
 import { daysBetween } from './calendarDate.js'
-import { capacityFactors, capacityLine, capacityView, currentEntries, entryEffect, type CapacityUse, type CapacityView, type EntryEffect, type PacePeriods } from './capacity.js'
+import {
+  capacityFactors,
+  capacityLine,
+  capacityView,
+  currentEntries,
+  entryEffect,
+  type CapacityUse,
+  type CapacityView,
+  type EntryEffect,
+  type PacePeriods,
+} from './capacity.js'
 import { periodName, type PeriodName } from './cadence.js'
 import { counted } from './counted.js'
 import { milestoneGrowth } from './growth.js'
@@ -175,8 +185,9 @@ export function milestoneForecastView(
             now: result.percentileDates[HEADLINE_PERCENT] ?? null,
             // from the same seed and capacity, so the two differ by the action alone
             from: (counts) =>
-              simulateCase(milestoneCase(inputs, { source: 'counts', counts: [...counts] }, growth, settings, on ? factors : undefined))
-                .percentileDates[HEADLINE_PERCENT] ?? null,
+              simulateCase(milestoneCase(inputs, { source: 'counts', counts: [...counts] }, growth, settings, on ? factors : undefined)).percentileDates[
+                HEADLINE_PERCENT
+              ] ?? null,
           })
         : undefined,
     capacity: capacityView(storage, teamId, today, use, period, { open: capacityOpen, ...(effects && { effects }), pace: pacePeriods(inUse) }),
@@ -194,7 +205,8 @@ function comparedDate(percent: number, withCapacity: ForecastResult, atUsual: Fo
 
 /** The pace the dates come from, said in the milestone's `period`. */
 function paceSaid(pace: ForecastPace, period: PeriodName): string {
-  if (pace.source === 'tracker') return `${pace.tracker}’s last ${pace.counts.length === 1 ? period : counted(pace.counts.length, period)}${pace.skipped > 0 ? `, ${pace.skipped} skipped` : ''}`
+  if (pace.source === 'tracker')
+    return `${pace.tracker}’s last ${pace.counts.length === 1 ? period : counted(pace.counts.length, period)}${pace.skipped > 0 ? `, ${pace.skipped} skipped` : ''}`
   return pace.source === 'counts' ? `typed counts, ${counted(pace.counts.length, period)}` : `${pace.low}–${pace.high} tickets per ${period} (range)`
 }
 

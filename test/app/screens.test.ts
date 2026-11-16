@@ -107,12 +107,19 @@ function post(path: string, fields: [string, string][]): Promise<Response> {
 
 /** Submits the Inputs screen's milestone form as the browser does. */
 function submitMilestone(name: string, startDate: string, ticketsRemaining: string): Promise<Response> {
-  return post('/inputs/milestone', [['name', name], ['startDate', startDate], ['ticketsRemaining', ticketsRemaining]])
+  return post('/inputs/milestone', [
+    ['name', name],
+    ['startDate', startDate],
+    ['ticketsRemaining', ticketsRemaining],
+  ])
 }
 
 /** Submits the Inputs screen's pace form as the browser does. */
 function submitPace(low: string, high: string): Promise<Response> {
-  return post('/inputs/pace', [['low', low], ['high', high]])
+  return post('/inputs/pace', [
+    ['low', low],
+    ['high', high],
+  ])
 }
 
 /** Submits the Inputs screen's cadence form as the browser does. */
@@ -849,7 +856,7 @@ describe('Milestone forecast screen', () => {
     expect(text(await page('/'))).not.toContain('already past')
   })
 
-  test("forecasts data from before the MVP from its MVP fields, adding no team and showing none of its epics on either screen", async () => {
+  test('forecasts data from before the MVP from its MVP fields, adding no team and showing none of its epics on either screen', async () => {
     await startOnPreMvpData()
     await submitPace('4', '8')
 
@@ -942,8 +949,12 @@ describe('Milestone forecast screen: pace pattern', () => {
 
     expect(html).toMatch(/<figure class="pace-trend"[\s\S]*<details class="pace-pattern"><summary>Stepped up · about 4 a week, then 8 since 22 Sep<\/summary>/)
     const opened = text(html.slice(html.indexOf('class="pace-pattern"')))
-    expect(opened).toMatch(/^.*About 4 a week, then 8 since 22 Sep\. If that&#39;s lasting, count pace from 22 Sep\. 85% confident by \d{1,2} [A-Z][a-z]{2} 2026 now, \d{1,2} [A-Z][a-z]{2} 2026 from 22 Sep\. Start from 22 Sep/)
-    expect(html).toContain('<form method="post" action="/pace-action/apply"><input type="hidden" name="action" value="startFrom"><input type="hidden" name="date" value="2026-09-22"><button>Start from 22 Sep</button></form>')
+    expect(opened).toMatch(
+      /^.*About 4 a week, then 8 since 22 Sep\. If that&#39;s lasting, count pace from 22 Sep\. 85% confident by \d{1,2} [A-Z][a-z]{2} 2026 now, \d{1,2} [A-Z][a-z]{2} 2026 from 22 Sep\. Start from 22 Sep/,
+    )
+    expect(html).toContain(
+      '<form method="post" action="/pace-action/apply"><input type="hidden" name="action" value="startFrom"><input type="hidden" name="date" value="2026-09-22"><button>Start from 22 Sep</button></form>',
+    )
   })
 
   test('the button counts pace from the step, saying so with Undo, which brings every count back', async () => {
@@ -952,7 +963,10 @@ describe('Milestone forecast screen: pace pattern', () => {
     await choosePace('counts')
     const offered = text(await page('/')).match(/(\d{1,2} [A-Z][a-z]{2} 2026) from 22 Sep/)![1]!
 
-    const applied = await post('/pace-action/apply', [['action', 'startFrom'], ['date', '2026-09-22']])
+    const applied = await post('/pace-action/apply', [
+      ['action', 'startFrom'],
+      ['date', '2026-09-22'],
+    ])
 
     expect(applied.status).toBe(303)
     expect(applied.headers.get('location')).toBe('/')
@@ -973,7 +987,10 @@ describe('Milestone forecast screen: pace pattern', () => {
     await choosePace('counts')
     const date = (await page('/')).match(/name="date" value="(\d{4}-\d{2}-\d{2})"/)![1]!
 
-    await post('/pace-action/apply', [['action', 'startFrom'], ['date', date]])
+    await post('/pace-action/apply', [
+      ['action', 'startFrom'],
+      ['date', date],
+    ])
 
     const html = await page('/')
     expect(text(html)).toMatch(/Typed counts: Counting pace from \d{1,2} [A-Z][a-z]{2} leaves 3 weeks\. The forecast needs at least 4\./)
@@ -985,9 +1002,14 @@ describe('Milestone forecast screen: pace pattern', () => {
     await startOnPreMvpData()
     await submitCounts('5, 6, 5, 4, 6, 5, 5, 4, 6, 5, 23, 5, 6, 4')
     await choosePace('counts')
-    const period = (await page('/')).match(/<input type="hidden" name="action" value="leaveOut"><input type="hidden" name="period" value="(\d{4}-\d{2}-\d{2})">/)![1]!
+    const period = (await page('/')).match(
+      /<input type="hidden" name="action" value="leaveOut"><input type="hidden" name="period" value="(\d{4}-\d{2}-\d{2})">/,
+    )![1]!
 
-    await post('/pace-action/apply', [['action', 'leaveOut'], ['period', period]])
+    await post('/pace-action/apply', [
+      ['action', 'leaveOut'],
+      ['period', period],
+    ])
 
     expect(text(await page('/'))).toMatch(/Leaving out the week of \d{1,2} [A-Z][a-z]{2}, the odd week\. Undo/)
   })
@@ -1168,10 +1190,19 @@ describe('Milestone forecast screen: capacity', () => {
     await submitPace('4', '8')
     expect(await page('/?capacity=open')).toContain('<form method="post" action="/capacity/add?capacity=open#capacity"')
 
-    const saved = await post('/capacity/add?capacity=open', [['percent', '0'], ['from', '2026-11-02'], ['to', '2026-11-06'], ['note', 'Offsite']])
+    const saved = await post('/capacity/add?capacity=open', [
+      ['percent', '0'],
+      ['from', '2026-11-02'],
+      ['to', '2026-11-06'],
+      ['note', 'Offsite'],
+    ])
 
     expect(saved.headers.get('location')).toBe('/?capacity=open')
-    const refused = await post('/capacity/add?capacity=open', [['percent', 'half'], ['from', '2026-09-14'], ['to', '']])
+    const refused = await post('/capacity/add?capacity=open', [
+      ['percent', 'half'],
+      ['from', '2026-09-14'],
+      ['to', ''],
+    ])
     const html = await refused.text()
     expect(html).toContain('<details class="capacity" id="capacity" data-toggle="/#capacity" open>')
     expect(text(html)).toContain('Offsite 85% date +1 wk')
@@ -1186,7 +1217,13 @@ describe('Milestone forecast screen: capacity', () => {
 
 /** Saves an entry's edit form as the browser does. */
 function editCapacity(id: string, percent: string, from: string, to: string, note = ''): Promise<Response> {
-  return post('/capacity/edit', [['id', id], ['percent', percent], ['from', from], ['to', to], ['note', note]])
+  return post('/capacity/edit', [
+    ['id', id],
+    ['percent', percent],
+    ['from', from],
+    ['to', to],
+    ['note', note],
+  ])
 }
 
 describe('Milestone forecast screen: editing capacity, and Past', () => {
@@ -1243,7 +1280,9 @@ describe('Milestone forecast screen: editing capacity, and Past', () => {
     const html = await page('/')
 
     const past = html.match(/<details class="capacity-past">[\s\S]*<\/details>\s*<\/li>\s*<\/ul>\s*<\/details>/)?.[0] ?? ''
-    expect(text(past).trim()).toMatch(/^Past \(1\) · kept, not used by the forecast 0% 7 Sep 2026 to 11 Sep 2026 Offsite Edit Past, so only the note can change\. Note Save Cancel$/)
+    expect(text(past).trim()).toMatch(
+      /^Past \(1\) · kept, not used by the forecast 0% 7 Sep 2026 to 11 Sep 2026 Offsite Edit Past, so only the note can change\. Note Save Cancel$/,
+    )
     expect(past).not.toContain('/capacity/remove')
     expect(text(html)).toContain('Capacity none, every week usual')
     expect(text(html)).toContain('Starting 1 Sep 2026: 85% confident of finishing by 1 Dec 2026')
@@ -1254,7 +1293,10 @@ describe('Milestone forecast screen: editing capacity, and Past', () => {
     await submitPace('4', '8')
     await addCapacity('0', '2026-09-07', '2026-09-11', 'Offsite')
 
-    await post('/capacity/edit', [['id', '1'], ['note', 'Offsite in Lisbon']])
+    await post('/capacity/edit', [
+      ['id', '1'],
+      ['note', 'Offsite in Lisbon'],
+    ])
 
     expect(text(await page('/'))).toContain('0% 7 Sep 2026 to 11 Sep 2026 Offsite in Lisbon')
   })

@@ -45,7 +45,6 @@ async function start({ ticketsRemaining = '30', tracker = 'github' } = {}): Prom
   return running
 }
 
-
 /** The section of the Inputs screen with `id`. */
 async function section(running: RunningApp, id: string): Promise<string> {
   return inputsSection(running, id)
@@ -80,7 +79,9 @@ describe('tickets remaining', () => {
   test('Follow switches it back to GitHub, with no chip', async () => {
     const running = await start()
     const shown = await section(running, 'milestone')
-    expect(shown).toMatch(/<form method="post" action="\/inputs\/tickets-source#milestone" id="follow-tickets">\s*<input type="hidden" name="ticketsSource" value="tracker">/)
+    expect(shown).toMatch(
+      /<form method="post" action="\/inputs\/tickets-source#milestone" id="follow-tickets">\s*<input type="hidden" name="ticketsSource" value="tracker">/,
+    )
 
     await post(running, '/inputs/tickets-source', { ticketsSource: 'tracker' })
 

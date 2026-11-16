@@ -121,7 +121,7 @@ describe('the pace in use', () => {
   test('comparable work slower than the milestone’s own: its median and range, and how far below the milestone’s own', async () => {
     await addComparable(slow)
 
-    expect((await paceOf())).toMatchObject({
+    expect(await paceOf()).toMatchObject({
       inUse: { from: 'comparableWork', median: 2, low: 1, high: 2 },
       comparison: { versus: { kind: 'slower', by: 1.5 }, ownMedian: 3.5 },
       said: {
@@ -135,7 +135,7 @@ describe('the pace in use', () => {
   test('comparable work faster than the milestone’s own: how far above it', async () => {
     await addComparable(fast)
 
-    expect((await paceOf())).toMatchObject({
+    expect(await paceOf()).toMatchObject({
       inUse: { from: 'comparableWork', median: 5, low: 5, high: 6 },
       comparison: { versus: { kind: 'faster', by: 1.5 }, ownMedian: 3.5 },
       said: { inUse: '5 a week', comparison: '↑ 1.5 a week faster than the milestone’s own so far (3.5 a week)' },
@@ -145,7 +145,7 @@ describe('the pace in use', () => {
   test('within 0.5 a period of the milestone’s own, about the same', async () => {
     await addComparable(even)
 
-    expect((await paceOf())).toMatchObject({
+    expect(await paceOf()).toMatchObject({
       comparison: { versus: { kind: 'aboutTheSame' }, ownMedian: 3.5 },
       said: { comparison: 'About the same as the milestone’s own so far (3.5 a week).' },
     })
@@ -155,7 +155,7 @@ describe('the pace in use', () => {
     startOn('2026-10-29')
     await addComparable(slow)
 
-    expect((await paceOf())).toMatchObject({
+    expect(await paceOf()).toMatchObject({
       inUse: { from: 'comparableWork', median: 2 },
       comparison: { versus: { kind: 'tooFewToCompare' }, ownPeriods: 2 },
       said: { comparison: 'The milestone has 2 weeks of its own so far: too few to compare.' },
@@ -166,11 +166,11 @@ describe('the pace in use', () => {
     startOn('2026-10-22')
     await addComparable(slow)
 
-    expect((await paceOf())).toMatchObject({ comparison: { versus: { kind: 'slower', by: 2 }, ownMedian: 4 } })
+    expect(await paceOf()).toMatchObject({ comparison: { versus: { kind: 'slower', by: 2 }, ownMedian: 4 } })
   })
 
   test('with no comparable-work query, the milestone’s own is the headline, compared with nothing', async () => {
-    const pace = (await paceOf())
+    const pace = await paceOf()
 
     expect(pace).toMatchObject({
       inUse: { from: 'milestone', median: 3.5, low: 3, high: 4 },
@@ -182,7 +182,7 @@ describe('the pace in use', () => {
   test('a comparable-work query matching nothing finished leaves the milestone’s own as the headline', async () => {
     await addComparable(idle)
 
-    expect((await paceOf())).toMatchObject({ inUse: { from: 'milestone', median: 3.5 } })
+    expect(await paceOf()).toMatchObject({ inUse: { from: 'milestone', median: 3.5 } })
     expect((await paceOf())?.comparison).toBeUndefined()
   })
 
@@ -212,7 +212,7 @@ describe('the pace in use', () => {
   test('none before the milestone query is read', async () => {
     await submitStepQuery(using, TEAM, { kind: 'removePick', query: checkout.query }, READ_AT)
 
-    expect((await paceOf())).toBeUndefined()
+    expect(await paceOf()).toBeUndefined()
   })
 })
 
@@ -224,7 +224,7 @@ describe('the milestone query’s read incomplete', () => {
     await submitStepQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
     await addComparable(slow)
 
-    const pace = (await paceOf())
+    const pace = await paceOf()
 
     expect(pace).toMatchObject({ inUse: { from: 'comparableWork', median: 2 }, said: { inUse: '2 a week' } })
     expect(pace?.comparison).toBeUndefined()
@@ -236,9 +236,7 @@ describe('the periods paired', () => {
   test('comparable work beside the milestone’s own in each period, those before the milestone started marked', async () => {
     await addComparable(slow)
 
-    expect((await paceOf())?.periods).toEqual(
-      WEEKS.map((start, at) => ({ start, milestone: OWN[at], comparableWork: SLOW[at], beforeStart: at <= 1 })),
-    )
+    expect((await paceOf())?.periods).toEqual(WEEKS.map((start, at) => ({ start, milestone: OWN[at], comparableWork: SLOW[at], beforeStart: at <= 1 })))
   })
 
   test('with no comparable-work query, the milestone’s own alone', async () => {
