@@ -6,9 +6,10 @@ import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js
 import { SAVE_IN_PLACE } from '../../src/app/inputsScript.js'
 import { defaultTeam } from '../../src/app/routes.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
-import type { Storage } from '../../src/storage/storage.js'
+import type { QueryTarget, Storage } from '../../src/storage/storage.js'
 import { CHECKOUT, TEAM } from '../trackerScenario.js'
-import { appOnTracker, page, post, type AppOnTracker } from './appOnTracker.js'
+import { appOnTracker, page, type AppOnTracker } from './appOnTracker.js'
+import { post } from './forms.js'
 
 /** The app's one version, as `package.json` sets it. */
 const VERSION: unknown = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version
@@ -206,6 +207,13 @@ describe('refuses requests from other sites', () => {
       request.end(body)
     })
 
+  /** What the app answered a `fetch`, as `send` gives it. */
+  const answerOf = async (response: Response): Promise<Answer> => ({
+    status: response.status,
+    contentType: response.headers.get('content-type') ?? undefined,
+    body: await response.text(),
+  })
+
   /** Posts the milestone form with the given headers. */
   const postMilestone = (running: RunningApp, headers: Record<string, string>): Promise<Answer> =>
     send(running, 'POST', '/inputs/milestone', { 'content-type': 'application/x-www-form-urlencoded', ...headers }, new URLSearchParams(MILESTONE).toString())
@@ -214,7 +222,7 @@ describe('refuses requests from other sites', () => {
   const milestoneSaved = async (running: RunningApp): Promise<boolean> => (await page(running, '/inputs')).includes('name="name" value="Launch"')
 
   /** A refusal: 403 with a short plain-text body, not a page. */
-  const expectRefused = (answer: Pick<Answer, 'status' | 'contentType' | 'body'>): void => {
+  const expectRefused = (answer: Answer): void => {
     expect(answer.status).toBe(403)
     expect(answer.contentType).toMatch(/^text\/plain/)
     expect(answer.body).not.toContain('<html')
@@ -257,14 +265,19 @@ describe('refuses requests from other sites', () => {
       tracker = undefined
     })
 
-    /** The team's connection and queries, saved and as setup's steps see them. */
-    const connectionAndQueries = ({ storage }: AppOnTracker) => [
-      storage.connection(TEAM),
-      ...(['saved', 'current'] as const).map((target) => {
-        const { milestoneQueries } = storage.teamQueries(target)
-        return [milestoneQueries.milestoneQuery(TEAM), milestoneQueries.comparableWorkQuery(TEAM)]
-      }),
-    ]
+    /** The team's queries in `target`. */
+    const queriesIn = ({ storage }: AppOnTracker, target: QueryTarget) => {
+      const { milestoneQueries } = storage.teamQueries(target)
+      return { milestone: milestoneQueries.milestoneQuery(TEAM), comparableWork: milestoneQueries.comparableWorkQuery(TEAM) }
+    }
+
+    /** The team's connection, its saved token, and its queries, saved and as setup's steps see them. */
+    const connectionAndQueries = async (tracker: AppOnTracker) => ({
+      connection: tracker.storage.connection(TEAM),
+      token: await tracker.secrets.token(TEAM),
+      saved: queriesIn(tracker, 'saved'),
+      current: queriesIn(tracker, 'current'),
+    })
 
     test.each([
       ['connecting another repo', '/inputs/connect', { tracker: 'github', repo: 'attacker/repo', token: 'theirs' }],
@@ -274,13 +287,14 @@ describe('refuses requests from other sites', () => {
       tracker = await appOnTracker({ milestoneChoices: [{ kind: 'milestone', choices: [CHECKOUT], pastLimit: false }], reads: {} })
       await post(tracker.running, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
       await post(tracker.running, '/inputs/milestone-query/add', { ...CHECKOUT })
-      const before = connectionAndQueries(tracker)
-      expect(before[0]).toBeDefined()
+      const before = await connectionAndQueries(tracker)
+      expect(before.connection).toEqual({ tracker: 'github', owner: 'shop-team', repo: 'shop' })
+      expect(before.token).toBe('token')
 
       const refused = await post(tracker.running, path, fields, { origin: 'https://attacker.example' })
 
-      expectRefused({ status: refused.status, contentType: refused.headers.get('content-type') ?? undefined, body: await refused.text() })
-      expect(connectionAndQueries(tracker)).toEqual(before)
+      expectRefused(await answerOf(refused))
+      expect(await connectionAndQueries(tracker)).toEqual(before)
     })
   })
 
