@@ -1,12 +1,12 @@
-import { afterEach, beforeAll, describe, expect, test } from 'vitest'
-import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
+import { afterEach, describe, expect, test } from 'vitest'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { once } from 'node:events'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-// Starts the app the way `npm start` does: build, then run the built entry point.
+// Starts the app the way `npm start` does: runs the built entry point, which test/buildOnce.ts builds before any test file.
 const root = fileURLToPath(new URL('../..', import.meta.url))
 const entry = 'dist/app/main.js'
 
@@ -15,10 +15,6 @@ const VERSION: unknown = JSON.parse(readFileSync(new URL('../../package.json', i
 
 let child: ChildProcess | undefined
 let dataDir: string | undefined
-
-beforeAll(() => {
-  execFileSync('npm', ['run', 'build'], { cwd: root, stdio: 'ignore' })
-}, 60_000)
 
 afterEach(async () => {
   if (child && child.exitCode === null && child.signalCode === null) {
