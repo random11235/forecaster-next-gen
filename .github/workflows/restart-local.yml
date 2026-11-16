@@ -1,0 +1,38 @@
+name: Restart local app
+
+# Each merge to main, however it's made, restarts the dev's local app (http://127.0.0.1:5180/) from that commit. It runs
+# on the self-hosted runner on the dev's Mac, which scripts/setupRunner.sh sets up. The app runs from the runner's own
+# checkout, not the dev's working copy, so switching branches or running the tests there leaves it serving main.
+# Only a push to main runs it, never a pull request, so no fork's code runs on the dev's machine. With the Mac asleep
+# or the runner stopped, the run waits in the queue until the runner comes back, for up to 24 hours: GitHub cancels it
+# after that, and `gh workflow run restart-local.yml --ref main` restarts the app by hand.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # scripts/setupRunner.sh runs it once, on main, to check the new runner
+
+# A newer merge's run replaces one still waiting; one already restarting finishes first.
+concurrency:
+  group: restart-local
+  cancel-in-progress: false
+
+jobs:
+  restart:
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, macOS, forecaster-dev]
+    timeout-minutes: 15
+    steps:
+      # checkout cleans the folder, untracked and ignored files too, so the app's data lives outside it: the runner's
+      # .env names the working copy's data file, as scripts/setupRunner.sh writes it.
+      - name: Data file outside the checkout
+        run: |
+          : "${FORECASTER_DATA_FILE:?is unset: run scripts/setupRunner.sh, which sets it in the runner's .env}"
+          echo "The app keeps its data in $FORECASTER_DATA_FILE"
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: npm run build
+      # If the install or build fails, this step doesn't run: the run fails, and the app from before keeps running
+      # as it was, on its own version. If the app doesn't come up, the script fails with its output.
+      - name: Restart the app
+        run: scripts/restartLocal.sh

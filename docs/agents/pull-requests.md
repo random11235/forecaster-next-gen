@@ -37,8 +37,5 @@ When a PR merges into `main`, the path to production ends on this machine:
 
 1. Update `main` locally (`git checkout main && git pull --ff-only`) and delete the merged branch.
 2. Remove the closed tickets' workflow labels, as the [Ticket lifecycle](issue-tracker.md#ticket-lifecycle) sets out.
-3. Restart the local app from `main`, so http://127.0.0.1:5180/ shows what merged:
-   - Stop whatever listens on port 5180 (`lsof -tiTCP:5180 -sTCP:LISTEN | xargs kill`).
-   - Run `npm install && FORECASTER_NO_BROWSER=1 npm start` in the background from the repo root, and wait for `Forecaster running at`. Open pages reload on the new version by themselves, so no new tab opens.
-   - After a few seconds, if no page has reconnected to `/live` (no established connection to port 5180: `lsof -nP -iTCP:5180 -sTCP:ESTABLISHED` lists none), open one tab: `open http://127.0.0.1:5180/`.
-   - If the build fails, say so with its output; don't leave the old app running as if it were updated.
+
+Don't restart the local app yourself. Every merge to `main`, made by anyone, anywhere, runs [`restart-local.yml`](../../.github/workflows/restart-local.yml) on the dev's self-hosted runner, which rebuilds and restarts http://127.0.0.1:5180/ from that commit (`scripts/restartLocal.sh`). A failed run means the app didn't update: report it with the run's output (`gh run list --workflow restart-local.yml`). If the run waits in the queue with no runner, the dev hasn't set one up: point them to `scripts/setupRunner.sh`, run once in a terminal. A run that waits over 24 hours (the Mac away that long) is cancelled; `gh workflow run restart-local.yml --ref main` runs it again.
