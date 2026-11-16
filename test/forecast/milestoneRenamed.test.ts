@@ -122,6 +122,16 @@ describe('renaming the milestone', () => {
     expect(using.queriesRead).toEqual([])
   })
 
+  test('when the tracker rejects the new name’s query, the query is left as it was, and the tracker asked once', async () => {
+    const rejecting: CannedFixture = { ...GITHUB, reads: { ...READS, 'milestone:"Loyalty launch"': { failure: 'invalidQuery', message: 'No such milestone.' } } }
+    const using = await pickedFrom(rejecting, GITHUB_REPO, [checkout])
+
+    expect(await followRenamedMilestone(using, TEAM, RENAMED, READ_AT)).toMatchObject({ kind: 'refused' })
+
+    expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [checkout], query: 'milestone:"Checkout v2"' })
+    expect(using.queriesRead).toEqual(['milestone:"Loyalty launch"'])
+  })
+
   test.each([
     ['a label', [payments]],
     ['several picks', [checkout, payments]],
