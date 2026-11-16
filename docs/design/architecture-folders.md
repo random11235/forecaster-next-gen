@@ -39,6 +39,9 @@ src/
     setupSummary.ts       # setup's summary view: its rows, their picks' counts and note, and problem flags
     setupReads.ts         # Seam B: setup's reads: each pick read at Check for its count (`readPicks`, from `openSetup`), Read again, why a read failed
     queryStep.ts          # Seam B: a query step's view, whole (the Milestone step, or the Comparable work step with its pace and candidates); its searched choices; its submits
+    lib/choiceLists.ts    # behind queryStep.ts: each kind's choices as the picker lists them, filtered here or searched in the tracker
+    lib/stepQueryEdit.ts  # behind queryStep.ts: the query an edit makes, its picks changed or typed by hand and read back into chips
+    lib/readSaid.ts       # behind queryStep.ts: what a step says of its query's read (its line and flag), and why the tracker rejected the query
     stepQuery.ts          # which of the team's queries a query step edits: the milestone query, or comparable work's
     candidates.ts         # Seam B: comparable work's candidates, read on demand in an opening
     milestoneRenamed.ts   # Seam B: the milestone query following the milestone to its new name
