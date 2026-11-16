@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import type { RunningApp } from '../../src/app/launch.js'
 import type { CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
-import { appOnTracker, inputsSection, post, type AppOnTracker } from './appOnTracker.js'
+import { appOnTracker, inputsSection, type AppOnTracker } from './appOnTracker.js'
+import { post } from './forms.js'
 
 // The "GitHub reads differently" chip on the Inputs screen (#215), through the local server as the EM's browser sees
 // it, on the canned connector: its dot, the reading it opens, and Follow.
