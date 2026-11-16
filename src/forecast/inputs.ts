@@ -16,7 +16,8 @@ import { measureSaved, type ReadingTracker } from './trackerReads.js'
 export type InputsEdit = MilestoneInputsEdit | GrowthEdit | CapacityEdit | PaceActionEdit
 
 /** A form on the Inputs screen, which a refusal is shown on. The typed counts' list, add and remove share one. */
-export type InputsForm = 'milestone' | 'ticketsSource' | 'readingOpened' | 'cadence' | 'paceMode' | 'paceSkip' | 'paceRange' | 'paceCounts' | 'ambiguity' | 'growth'
+export type InputsForm =
+  'milestone' | 'ticketsSource' | 'readingOpened' | 'cadence' | 'paceMode' | 'paceSkip' | 'paceRange' | 'paceCounts' | 'ambiguity' | 'growth'
 
 /** What the forms with typed fields show: as saved, or as typed when refused. The choices show what is saved. */
 export interface TypedForms {
@@ -84,7 +85,9 @@ export function submitInputs(
   if (isPaceActionEdit(edit)) return submitPaceAction(storage, teamId, settings, today, edit, shown)
   const { form, next, typed } = submission(edit)
   const result: EditResult =
-    edit.kind === 'setAmbiguityRanges' ? editGrowth(storage, teamId, edit) : editMilestoneInputs(storage, teamId, edit, measureSaved(shown.tracker, teamId, storage, today))
+    edit.kind === 'setAmbiguityRanges'
+      ? editGrowth(storage, teamId, edit)
+      : editMilestoneInputs(storage, teamId, edit, measureSaved(shown.tracker, teamId, storage, today))
   if (result.ok) return { saved: true, next }
   const screen = inputsView(storage, teamId, settings, today, shown)
   const view = { ...screen, forms: { ...screen.forms, ...typed(screen.forms) }, refusal: { form, error: result.error } }
@@ -95,7 +98,14 @@ export function submitInputs(
  * A capacity form, saved, goes to the forecast it changes. Refused, the Milestone forecast screen shows it again as
  * typed with why; a screen with no forecast yet has no capacity section to show it on.
  */
-function submitCapacity(storage: Storage, teamId: string, settings: ForecastSettings, today: string, edit: CapacityEdit, shown: ForecastViewOptions): Submitted {
+function submitCapacity(
+  storage: Storage,
+  teamId: string,
+  settings: ForecastSettings,
+  today: string,
+  edit: CapacityEdit,
+  shown: ForecastViewOptions,
+): Submitted {
   const result = editCapacity(storage, teamId, today, edit)
   if (result.ok) return { saved: true, next: 'forecast' }
   const view = milestoneForecastView(storage, teamId, settings, today, shown)
@@ -105,7 +115,14 @@ function submitCapacity(storage: Storage, teamId: string, settings: ForecastSett
 }
 
 /** A pace pattern's action, applied or undone, goes to the forecast it changes; refused, the forecast says why. */
-function submitPaceAction(storage: Storage, teamId: string, settings: ForecastSettings, today: string, edit: PaceActionEdit, shown: ForecastViewOptions): Submitted {
+function submitPaceAction(
+  storage: Storage,
+  teamId: string,
+  settings: ForecastSettings,
+  today: string,
+  edit: PaceActionEdit,
+  shown: ForecastViewOptions,
+): Submitted {
   const result = editPaceAction(storage, teamId, edit)
   if (result.ok) return { saved: true, next: 'forecast' }
   const view = milestoneForecastView(storage, teamId, settings, today, shown)
@@ -143,7 +160,11 @@ function submission(edit: Exclude<InputsEdit, CapacityEdit | PaceActionEdit>): S
     case 'setMilestone': {
       const { name, startDate, ticketsRemaining } = edit
       // with no field for tickets remaining (it follows the tracker), the typed one kept shows as saved
-      return { form: 'milestone', next: 'inputs', typed: (saved) => ({ milestone: { name, startDate, ticketsRemaining: ticketsRemaining ?? saved.milestone.ticketsRemaining } }) }
+      return {
+        form: 'milestone',
+        next: 'inputs',
+        typed: (saved) => ({ milestone: { name, startDate, ticketsRemaining: ticketsRemaining ?? saved.milestone.ticketsRemaining } }),
+      }
     }
     case 'setTicketsSource':
       return { form: 'ticketsSource', next: 'inputs', typed: asSaved }

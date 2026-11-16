@@ -118,7 +118,11 @@ function burndown(view: HowItWorksView): string {
   const { ticketsRemaining } = view.example
   const { perPeriod, period, met } = view.averagePace
   const { first, last } = finishSpan(view)
-  const left = 36, right = 404, top = 14, bottom = 190, lastWeek = Math.max(12, last + 1)
+  const left = 36,
+    right = 404,
+    top = 14,
+    bottom = 190,
+    lastWeek = Math.max(12, last + 1)
   const x = (week: number): number => left + (week / lastWeek) * (right - left)
   const y = (tickets: number): number => bottom - (tickets / ticketsRemaining) * (bottom - top)
   const tallest = Math.max(...view.finishes.map(({ share }) => share))
@@ -139,7 +143,12 @@ function burndown(view: HowItWorksView): string {
     label(right, bottom - (bottom - top) * 0.55 - 10, `simulated finishes: weeks ${first}–${last}`, 'strong', 'end'),
   )
   for (let week = 0; week <= lastWeek; week += 2) shapes.push(label(x(week), bottom + 16, week, '', 'middle'))
-  return svg(420, 210, `A straight burndown at the average pace reaches 0 in week ${period}; simulated finishes fall between weeks ${first} and ${last}.`, shapes)
+  return svg(
+    420,
+    210,
+    `A straight burndown at the average pace reaches 0 in week ${period}; simulated finishes fall between weeks ${first} and ${last}.`,
+    shapes,
+  )
 }
 
 /** The tickets remaining, and the same grown by a growth from the range. */
@@ -159,7 +168,9 @@ function grow({ example }: HowItWorksView): string {
 
 /** One simulation's weeks spending its paces on 42 tickets. */
 function spend(): string {
-  const paces = [6, 4, 7, 5, 8, 6, 7], tickets = 42, unit = 180 / 45
+  const paces = [6, 4, 7, 5, 8, 6, 7],
+    tickets = 42,
+    unit = 180 / 45
   const shapes = [label(0, 20, `${tickets} tickets`)]
   let spent = 0
   paces.forEach((pace, week) => {
@@ -179,7 +190,8 @@ function spend(): string {
 /** Six simulations as dots on a line of weeks. */
 function repeat(view: HowItWorksView): string {
   const { first, last } = finishSpan(view)
-  const left = 8, right = 192
+  const left = 8,
+    right = 192
   const x = (week: number): number => left + ((week - first) / Math.max(last - first, 1)) * (right - left)
   const shapes = view.someFinishes.flatMap((week, at) => [
     line(left, 12 + at * 15, x(week), 12 + at * 15, 'grid'),
@@ -192,7 +204,11 @@ function repeat(view: HowItWorksView): string {
 /** The share of simulations finishing each week, with the 50% and 85% weeks marked. */
 function read(view: HowItWorksView): string {
   const { first, last } = finishSpan(view)
-  const left = 4, right = 196, top = 30, bottom = 102, width = (right - left) / (last - first + 1)
+  const left = 4,
+    right = 196,
+    top = 30,
+    bottom = 102,
+    width = (right - left) / (last - first + 1)
   const x = (week: number): number => left + (week - first) * width
   const tallest = Math.max(...view.finishes.map(({ share }) => share))
   const shapes = view.finishes
@@ -221,7 +237,8 @@ function typedCounts(): string {
 }
 
 function ticketSizes(): string {
-  const wide = [2, 4, 7, 9, 8, 6, 4, 3, 2, 1], narrow = [1, 6, 12, 6, 1]
+  const wide = [2, 4, 7, 9, 8, 6, 4, 3, 2, 1],
+    narrow = [1, 6, 12, 6, 1]
   return svg(140, 60, 'A wide spread of finishes above a narrow one.', [
     ...wide.map((share, at) => rect(10 + at * 12, 26 - share * 2.2, 10, share * 2.2, 'bar light', 1)),
     ...narrow.map((share, at) => rect(40 + at * 12, 58 - share * 2.2, 10, share * 2.2, 'bar', 1)),
@@ -230,15 +247,32 @@ function ticketSizes(): string {
 
 function ambiguities(): string {
   const x = (growth: number): number => 30 + ((growth - 1) / 2) * 104
-  const levels: [string, number, number][] = [['low', 1, 1.5], ['med', 1, 2], ['high', 1.5, 3]]
+  const levels: [string, number, number][] = [
+    ['low', 1, 1.5],
+    ['med', 1, 2],
+    ['high', 1.5, 3],
+  ]
   return svg(140, 60, 'Growth ranges: low 1 to 1.5 times, medium 1 to 2 times, high 1.5 to 3 times.', [
-    ...levels.flatMap(([level, low, high], at) => [label(0, 12 + at * 17, level), rect(x(low), 4 + at * 17, x(high) - x(low), 10, at === 2 ? 'bar dark' : 'bar')]),
+    ...levels.flatMap(([level, low, high], at) => [
+      label(0, 12 + at * 17, level),
+      rect(x(low), 4 + at * 17, x(high) - x(low), 10, at === 2 ? 'bar dark' : 'bar'),
+    ]),
     label(x(1), 58, '1×'),
     label(x(3), 58, '3×', '', 'end'),
   ])
 }
 
 function reforecast(): string {
-  const spreads: [number, number][] = [[0, 120], [20, 100], [40, 82], [56, 70]]
-  return svg(140, 60, 'The spread of finishes narrows with each re-forecast.', spreads.map(([from, to], at) => rect(from + 10, 4 + at * 13, to - from, 8, at === spreads.length - 1 ? 'bar' : 'bar light', 4)))
+  const spreads: [number, number][] = [
+    [0, 120],
+    [20, 100],
+    [40, 82],
+    [56, 70],
+  ]
+  return svg(
+    140,
+    60,
+    'The spread of finishes narrows with each re-forecast.',
+    spreads.map(([from, to], at) => rect(from + 10, 4 + at * 13, to - from, 8, at === spreads.length - 1 ? 'bar' : 'bar light', 4)),
+  )
 }

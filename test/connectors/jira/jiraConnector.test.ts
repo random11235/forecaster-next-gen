@@ -206,9 +206,9 @@ describe('Jira connector', () => {
   test('the day early is read but compared as instants: a ticket finished before finishedSince is left out', async () => {
     const { transport } = jiraFinding([issue('early', 'done'), issue('onTime', 'done'), issue('open', 'indeterminate')], {
       changelogs: {
-      early: [statusChange('2026-01-01T05:30:44Z')],
-      onTime: [statusChange('2026-01-01T05:30:45Z')],
-      open: [statusChange('2025-06-01T00:00:00Z')],
+        early: [statusChange('2026-01-01T05:30:44Z')],
+        onTime: [statusChange('2026-01-01T05:30:45Z')],
+        open: [statusChange('2025-06-01T00:00:00Z')],
       },
     })
     const connector = jiraConnector(CONNECTION, 'token', transport)
@@ -242,7 +242,7 @@ describe('Jira connector', () => {
     expect(await connector.read('labels = a', SINCE)).toEqual({ ok: true, tickets: [{ id: '1', finishedAt: '2026-03-01T00:00:00.000Z' }], incomplete: false })
   })
 
-  test("changelogs are fetched for finished tickets only, up to 1,000 tickets a call", async () => {
+  test('changelogs are fetched for finished tickets only, up to 1,000 tickets a call', async () => {
     const finished = Array.from({ length: 1500 }, (_, k) => String(k + 1))
     const { transport, fetched } = jiraFinding([...finished.map((id) => issue(id, 'done')), issue('open')], {
       changelogs: Object.fromEntries(finished.map((id) => [id, [statusChange('2026-03-01T00:00:00Z')]])),
@@ -370,7 +370,6 @@ describe('Jira connector', () => {
     expect(await connector.milestoneChoices()).toEqual({ ok: false, failure: 'unavailable' })
     expect(jira.sent.filter(throughGateway)).toHaveLength(1)
   })
-
 })
 
 /** What a stand-in Jira lists for milestone choices: its fix versions, and the first page of its epics and labels. */
@@ -583,7 +582,10 @@ describe('Jira milestone choices searched past the limit', () => {
     })
     const connector = jiraConnector(CONNECTION, 'token', jira.transport, mustNotWait)
 
-    expect(await connector.searchChoices('epic', 'card pay"ments*')).toEqual({ ok: true, choices: [{ kind: 'epic', name: 'Card payments', query: 'parent = SYN-140' }] })
+    expect(await connector.searchChoices('epic', 'card pay"ments*')).toEqual({
+      ok: true,
+      choices: [{ kind: 'epic', name: 'Card payments', query: 'parent = SYN-140' }],
+    })
     // Search's special characters are left out, so none can make the JQL fail.
     expect(asked).toEqual([
       {
@@ -598,7 +600,12 @@ describe('Jira milestone choices searched past the limit', () => {
     const jira = answeringPastTenant(async (url) => {
       const { pathname, searchParams } = new URL(url)
       if (pathname.endsWith('/jql/autocompletedata/suggestions') && searchParams.get('fieldName') === 'labels' && searchParams.get('fieldValue') === 'pay') {
-        return json(200, { results: [{ value: 'payments', displayName: '<b>pay</b>ments' }, { value: 'pay"day', displayName: '<b>pay</b>"day' }] })
+        return json(200, {
+          results: [
+            { value: 'payments', displayName: '<b>pay</b>ments' },
+            { value: 'pay"day', displayName: '<b>pay</b>"day' },
+          ],
+        })
       }
       return json(404, {})
     })
@@ -617,6 +624,7 @@ describe('Jira milestone choices searched past the limit', () => {
     const jira = answeringPastTenant(async () => json(502, {}))
     const connector = jiraConnector(CONNECTION, 'token', jira.transport, mustNotWait)
 
-    for (const kind of ['fixVersion', 'epic', 'label'] as const) expect(await connector.searchChoices(kind, 'pay')).toEqual({ ok: false, failure: 'unavailable' })
+    for (const kind of ['fixVersion', 'epic', 'label'] as const)
+      expect(await connector.searchChoices(kind, 'pay')).toEqual({ ok: false, failure: 'unavailable' })
   })
 })

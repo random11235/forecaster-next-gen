@@ -32,9 +32,7 @@ const FAVICON = `data:image/svg+xml,${encodeURIComponent(
  */
 export function htmlPage(path: ScreenPath, header: PageHeader, main: string, script?: string): string {
   const title = SCREENS.find((screen) => screen.path === path)!.name
-  const links = SCREENS.map(
-    (screen) => `      <a href="${screen.path}"${screen.path === path ? ' aria-current="page"' : ''}>${screen.name}</a>`,
-  ).join('\n')
+  const links = SCREENS.map((screen) => `      <a href="${screen.path}"${screen.path === path ? ' aria-current="page"' : ''}>${screen.name}</a>`).join('\n')
   const context = header.context ? `\n      <p class="context">${escapeHtml(header.context)}</p>` : ''
   const lede = header.lede ? `\n      <p class="lede">${header.lede}</p>` : ''
   return `<!doctype html>

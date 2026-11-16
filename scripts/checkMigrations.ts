@@ -34,8 +34,7 @@ released.forEach((step, i) => {
 const added = branch.length - released.length
 if (added > 1) {
   problems.push(
-    `this branch adds ${added} steps (${released.length + 1}–${branch.length}); a branch into main adds at most one, ` +
-      'so fold them into one step',
+    `this branch adds ${added} steps (${released.length + 1}–${branch.length}); a branch into main adds at most one, ` + 'so fold them into one step',
   )
 }
 if (added < 0) problems.push(`this branch removes released steps ${branch.length + 1}–${released.length}`)

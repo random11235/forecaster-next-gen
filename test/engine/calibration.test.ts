@@ -64,21 +64,25 @@ function forecastFromTypedCounts(counts: number[], seed: number): SimulationCase
 
 // Research measured about 18% for the Bayesian bootstrap and about 26% for the plain one (ADR-0001).
 // The band is loose on purpose: it only has to tell the two apart, and the fixed seeds keep it stable.
-test('forecast ranges from 10 typed counts of a steady team miss the actual finish about 1 time in 5', () => {
-  const team = createRandom(121)
-  let misses = 0
-  for (let history = 0; history < HISTORIES; history++) {
-    const counts = Array.from({ length: WEEKS_OF_HISTORY }, () => steadyWeek(team))
-    const { quantiles } = simulateCase(forecastFromTypedCounts(counts, history))
-    const actual = actualWeeks(team)
-    if (actual < quantiles[10]! || actual > quantiles[90]!) misses++
-  }
-  const missRate = misses / HISTORIES
-  const guard =
-    'Forecast ranges from typed counts have become too narrow or too wide: they should miss about 1 time in 5, ' +
-    `but missed ${Math.round(missRate * 100)} times in 100. ` +
-    'Typed counts should be drawn by the Bayesian bootstrap: docs/adr/0001-bayesian-bootstrap-pace-sampler.md.'
+test(
+  'forecast ranges from 10 typed counts of a steady team miss the actual finish about 1 time in 5',
+  () => {
+    const team = createRandom(121)
+    let misses = 0
+    for (let history = 0; history < HISTORIES; history++) {
+      const counts = Array.from({ length: WEEKS_OF_HISTORY }, () => steadyWeek(team))
+      const { quantiles } = simulateCase(forecastFromTypedCounts(counts, history))
+      const actual = actualWeeks(team)
+      if (actual < quantiles[10]! || actual > quantiles[90]!) misses++
+    }
+    const missRate = misses / HISTORIES
+    const guard =
+      'Forecast ranges from typed counts have become too narrow or too wide: they should miss about 1 time in 5, ' +
+      `but missed ${Math.round(missRate * 100)} times in 100. ` +
+      'Typed counts should be drawn by the Bayesian bootstrap: docs/adr/0001-bayesian-bootstrap-pace-sampler.md.'
 
-  expect(missRate, guard).toBeGreaterThanOrEqual(0.12)
-  expect(missRate, guard).toBeLessThanOrEqual(0.24)
-}, TIMEOUT_MS)
+    expect(missRate, guard).toBeGreaterThanOrEqual(0.12)
+    expect(missRate, guard).toBeLessThanOrEqual(0.24)
+  },
+  TIMEOUT_MS,
+)

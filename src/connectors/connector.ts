@@ -21,9 +21,7 @@ export interface Ticket {
  * - `unauthorised`: the token was refused.
  * - `unavailable`: the network, or rate limiting after backoff.
  */
-export type Failure =
-  | { failure: 'invalidQuery'; message: string }
-  | { failure: 'outOfScope' | 'notFound' | 'unauthorised' | 'unavailable' }
+export type Failure = { failure: 'invalidQuery'; message: string } | { failure: 'outOfScope' | 'notFound' | 'unauthorised' | 'unavailable' }
 
 /** A failed call: one failure, and nothing else. */
 export type FailedCall = { ok: false } & Failure

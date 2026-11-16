@@ -17,16 +17,11 @@ export function simulateCase(simulationCase: SimulationCase): ForecastResult {
   const { question, scope, throughputSamples } = simulationCase
   const ranked = [...scope].sort((a, b) => a.rank - b.rank)
   const random = createRandom(simulationCase.seed)
-  const questionResult =
-    question.kind === 'when'
-      ? simulateWhen(simulationCase, ranked, random)
-      : simulateHowMany(simulationCase, question.byDate, random)
+  const questionResult = question.kind === 'when' ? simulateWhen(simulationCase, ranked, random) : simulateHowMany(simulationCase, question.byDate, random)
 
   const { trialsHittingHorizon, span, ...result } = questionResult
   const paceVariationDiagnostic =
-    !isRange(throughputSamples) && throughputSamples.length >= 2
-      ? { paceVariation: relativeStandardError(throughputSamples) }
-      : {}
+    !isRange(throughputSamples) && throughputSamples.length >= 2 ? { paceVariation: relativeStandardError(throughputSamples) } : {}
 
   return {
     caseHash: hashJson(simulationCase),
@@ -69,9 +64,7 @@ function simulateWhen(simulationCase: SimulationCase, ranked: readonly ScopeEntr
     const u = random()
     for (let i = 0; i < ranked.length; i++) {
       const epic = ranked[i]!
-      const drawn = hasChildren(epic.baseCount)
-        ? withoutFloatError(epic.baseCount * growthAt[i]!(u))
-        : drawCount(random, epicSizeSamples)
+      const drawn = hasChildren(epic.baseCount) ? withoutFloatError(epic.baseCount * growthAt[i]!(u)) : drawCount(random, epicSizeSamples)
       const total = Math.max(drawn, epic.currentCount)
       remaining[i] = Math.max(total - epic.doneCount, 0)
       remainingTotals[trial]! += remaining[i]!

@@ -118,7 +118,10 @@ function rowsOf(file: string, sql: string): Record<string, unknown>[] {
   storage?.close()
   storage = undefined
   const db = new DatabaseSync(file)
-  const rows = db.prepare(sql).all().map((row) => ({ ...row }))
+  const rows = db
+    .prepare(sql)
+    .all()
+    .map((row) => ({ ...row }))
   db.close()
   return rows
 }
@@ -143,13 +146,9 @@ describe('a data file written before schema versions', () => {
     expect(rowsOf(file, 'SELECT item_id, from_value, to_value FROM work_item_events')).toEqual([
       { item_id: 'S1', from_value: 'To Do', to_value: 'In Progress' },
     ])
-    expect(rowsOf(file, 'SELECT id, name, committed_date FROM milestones')).toEqual([
-      { id: 'M1', name: 'Launch', committed_date: '2026-12-18' },
-    ])
+    expect(rowsOf(file, 'SELECT id, name, committed_date FROM milestones')).toEqual([{ id: 'M1', name: 'Launch', committed_date: '2026-12-18' }])
     expect(rowsOf(file, 'SELECT milestone_id, epic_id FROM milestone_epics')).toEqual([{ milestone_id: 'M1', epic_id: 'E1' }])
-    expect(rowsOf(file, 'SELECT milestone_id, mode, low, high FROM pace_settings')).toEqual([
-      { milestone_id: 'M1', mode: 'manual', low: 3, high: 7 },
-    ])
+    expect(rowsOf(file, 'SELECT milestone_id, mode, low, high FROM pace_settings')).toEqual([{ milestone_id: 'M1', mode: 'manual', low: 3, high: 7 }])
   })
 })
 
@@ -205,7 +204,11 @@ describe('a data file from schema version 1, before workflow settings', () => {
       blocked_labels: '["blocked"]',
     }
 
-    expect(open(file).teams().map((team) => team.id)).toEqual([TEAM])
+    expect(
+      open(file)
+        .teams()
+        .map((team) => team.id),
+    ).toEqual([TEAM])
     expect(rowsOf(file, workflow)).toEqual([sampleWorkflow])
     expect(rowsOf(file, 'SELECT id FROM work_items ORDER BY rowid')).toEqual([{ id: 'E1' }, { id: 'S1' }])
 
@@ -322,9 +325,7 @@ describe('a data file from schema version 5, before installation dates', () => {
 
     storage.saveTeam({ ...acme!, name: 'Acme Payments', installedAt: '2030-01-01T00:00:00Z' })
     expect(open(file).teams()[0]).toEqual({ ...acme, name: 'Acme Payments' })
-    expect(rowsOf(file, "SELECT mode, low, high FROM pace_settings WHERE team_id = 'sample-team'")).toEqual([
-      { mode: 'measured', low: null, high: null },
-    ])
+    expect(rowsOf(file, "SELECT mode, low, high FROM pace_settings WHERE team_id = 'sample-team'")).toEqual([{ mode: 'measured', low: null, high: null }])
   })
 
   test('keeps its ambiguity ranges, and editing them leaves the measured growth adopted before the MVP as it was', () => {
@@ -384,13 +385,12 @@ describe('a data file from schema version 6, before milestone inputs', () => {
   test('is forecast from its MVP fields once its start date and tickets are entered: its name and pace, not its epics', () => {
     const storage = open(writeFile('v6.db', VERSION_6_SCHEMA, 6))
 
-    const entered = submitInputs(
-      storage,
-      TEAM,
-      DEFAULT_SETTINGS,
-      '2026-09-01',
-      { kind: 'setMilestone', name: 'Launch', startDate: '2026-09-01', ticketsRemaining: '20' },
-    )
+    const entered = submitInputs(storage, TEAM, DEFAULT_SETTINGS, '2026-09-01', {
+      kind: 'setMilestone',
+      name: 'Launch',
+      startDate: '2026-09-01',
+      ticketsRemaining: '20',
+    })
 
     expect(entered).toEqual({ saved: true, next: 'inputs' })
     expect(milestoneForecastView(storage, TEAM, DEFAULT_SETTINGS, '2026-09-01')).toMatchObject({
@@ -717,29 +717,26 @@ UPDATE milestone_inputs SET pace_window = '{"action":{"kind":"leaveOut","period"
 `
 
 describe("a data file from schema version 16, before the values' sources, skips and reads seen", () => {
-  test.each(['range', 'counts'])(
-    'keeps its milestone inputs with tickets typed, its pace mode %s unchanged, no skips and nothing seen',
-    (paceMode) => {
-      const file = writeFile('v16.db', `${VERSION_16_SCHEMA}\nUPDATE milestone_inputs SET pace_mode = '${paceMode}';`, 16)
-      const storage = open(file)
+  test.each(['range', 'counts'])('keeps its milestone inputs with tickets typed, its pace mode %s unchanged, no skips and nothing seen', (paceMode) => {
+    const file = writeFile('v16.db', `${VERSION_16_SCHEMA}\nUPDATE milestone_inputs SET pace_mode = '${paceMode}';`, 16)
+    const storage = open(file)
 
-      expect(storage.milestoneInputs(TEAM)).toEqual({
-        teamId: TEAM,
-        name: 'Launch',
-        startDate: '2026-09-01',
-        ticketsRemaining: 40,
-        ticketsSource: 'typed',
-        ambiguity: 'medium',
-        cadenceDays: 14,
-        paceMode,
-        paceRange: { low: 4, high: 8 },
-        paceCounts: [6, 9],
-        paceCadenceDays: 14,
-        paceWindow: { action: { kind: 'leaveOut', period: '2026-08-17' }, skippedPeriods: [] },
-        seenReads: { ticketsRemaining: undefined, pace: undefined },
-      })
-    },
-  )
+    expect(storage.milestoneInputs(TEAM)).toEqual({
+      teamId: TEAM,
+      name: 'Launch',
+      startDate: '2026-09-01',
+      ticketsRemaining: 40,
+      ticketsSource: 'typed',
+      ambiguity: 'medium',
+      cadenceDays: 14,
+      paceMode,
+      paceRange: { low: 4, high: 8 },
+      paceCounts: [6, 9],
+      paceCadenceDays: 14,
+      paceWindow: { action: { kind: 'leaveOut', period: '2026-08-17' }, skippedPeriods: [] },
+      seenReads: { ticketsRemaining: undefined, pace: undefined },
+    })
+  })
 
   test('takes sources, skips and reads seen, which survive reopening', () => {
     const file = writeFile('v16.db', VERSION_16_SCHEMA, 16)
@@ -773,11 +770,19 @@ describe('a data file from schema version 17, before previous reads', () => {
     const query = 'milestone:"Launch"'
     const storage = openSqliteStorage(file)
     // reaching back the 8 weeks it was read with (#213)
-    const saved = { tickets: [{ id: 'I_1', finishedAt: '2026-10-27T10:00:00Z' }, { id: 'I_2' }], incomplete: false, readAt: '2026-10-28T09:05:00Z', finishedSince: '2026-09-02T09:05:00.000Z' }
+    const saved = {
+      tickets: [{ id: 'I_1', finishedAt: '2026-10-27T10:00:00Z' }, { id: 'I_2' }],
+      incomplete: false,
+      readAt: '2026-10-28T09:05:00Z',
+      finishedSince: '2026-09-02T09:05:00.000Z',
+    }
     expect(storage.savedRead({ teamId: TEAM, query })).toEqual(saved)
     expect(storage.previousRead({ teamId: TEAM, query })).toBeUndefined()
 
-    storage.saveRead({ teamId: TEAM, query }, { tickets: [{ id: 'I_2' }], incomplete: false, readAt: '2026-11-04T09:12:00Z', finishedSince: '2026-09-02T09:12:00Z' })
+    storage.saveRead(
+      { teamId: TEAM, query },
+      { tickets: [{ id: 'I_2' }], incomplete: false, readAt: '2026-11-04T09:12:00Z', finishedSince: '2026-09-02T09:12:00Z' },
+    )
     storage.close()
 
     const again = openSqliteStorage(file)
@@ -814,7 +819,10 @@ describe('a data file from schema version 18, before reads reached back past ski
     const file = writeFile('v18.db', VERSION_18_SCHEMA, 18)
     const storage = open(file)
 
-    expect(storage.savedRead({ teamId: TEAM, query: 'milestone:"Launch"' })).toMatchObject({ readAt: '2026-10-28T09:05:00Z', finishedSince: '2026-09-02T09:05:00.000Z' })
+    expect(storage.savedRead({ teamId: TEAM, query: 'milestone:"Launch"' })).toMatchObject({
+      readAt: '2026-10-28T09:05:00Z',
+      finishedSince: '2026-09-02T09:05:00.000Z',
+    })
     expect(storage.previousRead({ teamId: TEAM, query: 'milestone:"Launch"' })).toEqual({
       tickets: [{ id: 'I_1' }],
       incomplete: false,
@@ -825,7 +833,12 @@ describe('a data file from schema version 18, before reads reached back past ski
 
   test('takes a read reaching further back, which survives reopening', () => {
     const file = writeFile('v18.db', VERSION_18_SCHEMA, 18)
-    const read = { tickets: [{ id: 'I_2', finishedAt: '2026-09-15T10:00:00Z' }], incomplete: false, readAt: '2026-11-13T09:00:00Z', finishedSince: '2026-08-27T09:00:00Z' }
+    const read = {
+      tickets: [{ id: 'I_2', finishedAt: '2026-09-15T10:00:00Z' }],
+      incomplete: false,
+      readAt: '2026-11-13T09:00:00Z',
+      finishedSince: '2026-08-27T09:00:00Z',
+    }
     open(file).saveRead({ teamId: TEAM, query: 'milestone:"Launch"' }, read)
 
     expect(open(file).savedRead({ teamId: TEAM, query: 'milestone:"Launch"' })).toEqual(read)
@@ -866,7 +879,12 @@ INSERT INTO milestone_queries VALUES ('EMPTY', '', '[]');
 
   test('has no setup draft and no failed reads, and takes them, with where setup stands, which survive reopening', () => {
     const migrated = file()
-    const read = { tickets: [{ id: 'I_9', finishedAt: '2026-11-10T10:00:00Z' }], incomplete: false, readAt: '2026-11-12T09:00:00Z', finishedSince: '2026-09-17T09:00:00Z' }
+    const read = {
+      tickets: [{ id: 'I_9', finishedAt: '2026-11-10T10:00:00Z' }],
+      incomplete: false,
+      readAt: '2026-11-12T09:00:00Z',
+      finishedSince: '2026-09-17T09:00:00Z',
+    }
     const draft = { milestoneQuery: { picks: [], query: 'label:"beta"' }, reads: [{ query: 'label:"beta"', read }], sources: { pace: 'tracker' as const } }
     const failures = { whole: { failure: 'unavailable' as const, at: '2026-11-12T09:00:00Z' } }
     expect(open(migrated).setupDraft(TEAM)).toBeUndefined()

@@ -27,7 +27,20 @@ const FIXTURE: CannedFixture = {
     [checkout.query]: {
       tickets: [
         { id: 'm-open' },
-        ...finishedOn('m', ['2026-10-02', '2026-10-03', '2026-10-09', '2026-10-10', '2026-10-16', '2026-10-17', '2026-10-23', '2026-10-24', '2026-10-30', '2026-10-31', '2026-11-06', '2026-11-07']),
+        ...finishedOn('m', [
+          '2026-10-02',
+          '2026-10-03',
+          '2026-10-09',
+          '2026-10-10',
+          '2026-10-16',
+          '2026-10-17',
+          '2026-10-23',
+          '2026-10-24',
+          '2026-10-30',
+          '2026-10-31',
+          '2026-11-06',
+          '2026-11-07',
+        ]),
       ],
       incomplete: false,
     },
@@ -152,7 +165,9 @@ describe('candidates for comparable work', () => {
     const step = stepOf(await page(running, `/inputs?step=comparableWork&comparableOpen=${encodeURIComponent(broken.query)}`))
 
     expect(step).toContain('GitHub couldn’t read it just now.')
-    expect(step).toMatch(/<form method="post" action="\/inputs\/comparable-work\/add#comparable-work"[^>]*>[^]*?value="label:&#34;broken&#34;"[^]*?GitHub couldn’t read it/)
+    expect(step).toMatch(
+      /<form method="post" action="\/inputs\/comparable-work\/add#comparable-work"[^>]*>[^]*?value="label:&#34;broken&#34;"[^]*?GitHub couldn’t read it/,
+    )
   })
 
   test('the step’s script asks for the candidates opened, each read once in the opening', async () => {

@@ -415,13 +415,9 @@ export function openSqliteStorage(file: string): SqliteStorage {
   const deleteConnection = db.prepare('DELETE FROM connections WHERE team_id = ?')
   const deleteSavedRead = db.prepare('DELETE FROM saved_reads WHERE team_id = ? AND query = ?')
   const insertSavedRead = db.prepare('INSERT INTO saved_reads (team_id, query, incomplete, read_at, finished_since) VALUES (?, ?, ?, ?, ?)')
-  const insertSavedReadTicket = db.prepare(
-    'INSERT INTO saved_read_tickets (team_id, query, position, id, finished_at) VALUES (?, ?, ?, ?, ?)',
-  )
+  const insertSavedReadTicket = db.prepare('INSERT INTO saved_read_tickets (team_id, query, position, id, finished_at) VALUES (?, ?, ?, ?, ?)')
   const selectSavedRead = db.prepare('SELECT incomplete, read_at, finished_since FROM saved_reads WHERE team_id = ? AND query = ?')
-  const selectSavedReadTickets = db.prepare(
-    'SELECT id, finished_at FROM saved_read_tickets WHERE team_id = ? AND query = ? ORDER BY position',
-  )
+  const selectSavedReadTickets = db.prepare('SELECT id, finished_at FROM saved_read_tickets WHERE team_id = ? AND query = ? ORDER BY position')
   const deletePreviousRead = db.prepare('DELETE FROM previous_reads WHERE team_id = ? AND query = ?')
   const keepPreviousRead = db.prepare(
     'INSERT INTO previous_reads (team_id, query, incomplete, read_at, finished_since) SELECT team_id, query, incomplete, read_at, finished_since FROM saved_reads WHERE team_id = ? AND query = ?',
@@ -430,9 +426,7 @@ export function openSqliteStorage(file: string): SqliteStorage {
     INSERT INTO previous_read_tickets (team_id, query, position, id, finished_at)
     SELECT team_id, query, position, id, finished_at FROM saved_read_tickets WHERE team_id = ? AND query = ?`)
   const selectPreviousRead = db.prepare('SELECT incomplete, read_at, finished_since FROM previous_reads WHERE team_id = ? AND query = ?')
-  const selectPreviousReadTickets = db.prepare(
-    'SELECT id, finished_at FROM previous_read_tickets WHERE team_id = ? AND query = ? ORDER BY position',
-  )
+  const selectPreviousReadTickets = db.prepare('SELECT id, finished_at FROM previous_read_tickets WHERE team_id = ? AND query = ? ORDER BY position')
   const upsertMilestoneQuery = db.prepare(`
     INSERT INTO milestone_queries (team_id, query, picks) VALUES (?, ?, ?)
     ON CONFLICT (team_id) DO UPDATE SET query = excluded.query, picks = excluded.picks`)
@@ -524,15 +518,7 @@ export function openSqliteStorage(file: string): SqliteStorage {
     },
 
     saveAmbiguityRanges(ranges) {
-      upsertAmbiguityRanges.run(
-        ranges.teamId,
-        ranges.low.low,
-        ranges.low.high,
-        ranges.medium.low,
-        ranges.medium.high,
-        ranges.high.low,
-        ranges.high.high,
-      )
+      upsertAmbiguityRanges.run(ranges.teamId, ranges.low.low, ranges.low.high, ranges.medium.low, ranges.medium.high, ranges.high.low, ranges.high.high)
     },
 
     ambiguityRanges(teamId) {
@@ -657,7 +643,9 @@ export function openSqliteStorage(file: string): SqliteStorage {
       }
       return {
         ...(row.milestone_query !== null && { milestoneQuery: { picks: picksIn(String(row.milestone_picks)), query: String(row.milestone_query) } }),
-        ...(row.comparable_work_query !== null && { comparableWorkQuery: { picks: picksIn(String(row.comparable_work_picks)), query: String(row.comparable_work_query) } }),
+        ...(row.comparable_work_query !== null && {
+          comparableWorkQuery: { picks: picksIn(String(row.comparable_work_picks)), query: String(row.comparable_work_query) },
+        }),
         reads,
         ...(Object.keys(sources).length > 0 && { sources }),
         ...(pickFailures && { pickFailures }),

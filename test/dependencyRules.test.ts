@@ -49,9 +49,7 @@ function loadedBy(entry: string): Set<string> {
 
 describe('dependency rules', () => {
   test('forecast/ reaches connectors only through the interface, never a concrete connector', () => {
-    const concrete = importsFrom('forecast').filter(
-      ({ imported }) => imported.startsWith('connectors/') && imported !== 'connectors/connector.js',
-    )
+    const concrete = importsFrom('forecast').filter(({ imported }) => imported.startsWith('connectors/') && imported !== 'connectors/connector.js')
 
     expect(concrete).toEqual([])
   })

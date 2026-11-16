@@ -39,7 +39,10 @@ export interface TrackerWindow {
  * with a ticket finished in either read, the milestone's or comparable work's. A period the EM skipped (its start in
  * `skipped`) isn't counted: the window reaches back past it, so the one before counts instead. And what bounds it.
  */
-export function trackerWindow({ pace, milestone, comparableWork }: Pick<PaceReads, 'pace' | 'milestone' | 'comparableWork'>, skipped: readonly string[] = []): TrackerWindow {
+export function trackerWindow(
+  { pace, milestone, comparableWork }: Pick<PaceReads, 'pace' | 'milestone' | 'comparableWork'>,
+  skipped: readonly string[] = [],
+): TrackerWindow {
   const { counts, starts } = pace
   const isSkipped = (period: number): boolean => skipped.includes(starts[period]!)
   const finished = new Set([pace, milestone, comparableWork].flatMap((read) => read?.starts.filter((_, at) => read.counts[at]! > 0) ?? []))

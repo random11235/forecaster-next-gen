@@ -82,14 +82,12 @@ interface Tracker<C extends Connection> {
  * fails a search or a read for any reason but the query being one it rejects: a recording with a gap fails the suite
  * later, less plainly.
  */
-async function recordTracker<C extends Connection>(
-  tracker: Tracker<C>,
-  credential: string,
-  transport: Transport,
-  connect: Connect<C>,
-): Promise<Recorded> {
+async function recordTracker<C extends Connection>(tracker: Tracker<C>, credential: string, transport: Transport, connect: Connect<C>): Promise<Recorded> {
   const recordings = {} as Record<Scenario, Recording[]>
-  for (const [scenario, { connection, refused, searches, reads }] of Object.entries(tracker.cases.scenarios) as [Scenario, TrackerCases<C>['scenarios'][Scenario]][]) {
+  for (const [scenario, { connection, refused, searches, reads }] of Object.entries(tracker.cases.scenarios) as [
+    Scenario,
+    TrackerCases<C>['scenarios'][Scenario],
+  ][]) {
     const recorder = recording(transport, tracker.trim)
     const connector = connect(connection, refused ? tracker.refusedCredential : credential, recorder.transport)
     const choices = await connector.milestoneChoices()
@@ -97,7 +95,10 @@ async function recordTracker<C extends Connection>(
       if (choices.failure === 'unauthorised') return { ok: false, message: tracker.refusedMessage }
       return { ok: false, message: `The synthetic tracker's milestone choices failed as ${choices.failure}. Nothing was recorded.` }
     }
-    const failed = (what: string, failure: string): Recorded => ({ ok: false, message: `The synthetic tracker's ${what} failed as ${failure}. Nothing was recorded.` })
+    const failed = (what: string, failure: string): Recorded => ({
+      ok: false,
+      message: `The synthetic tracker's ${what} failed as ${failure}. Nothing was recorded.`,
+    })
     const nothing = searches.slice(0, 1).map(({ kind }) => ({ kind, text: NO_SUCH_CHOICE }))
     for (const { kind, text } of [...searches, ...nothing]) {
       const found = await connector.searchChoices(kind, text)
@@ -175,7 +176,8 @@ const JIRA: Tracker<JiraConnection> = {
     if (/\/project\/[^/]+$/.test(url)) return {}
     if (url.endsWith('/versions')) return (body as Body[]).map((version) => pick(version, ['id', 'name', 'released', 'archived']))
     if (url.includes('/label?')) return pick(body, ['values', 'isLast'])
-    if (url.includes('/jql/autocompletedata/suggestions?')) return { results: ((body as Body).results as Body[]).map((suggested) => pick(suggested, ['value'])) }
+    if (url.includes('/jql/autocompletedata/suggestions?'))
+      return { results: ((body as Body).results as Body[]).map((suggested) => pick(suggested, ['value'])) }
     const categoryOf = (status: unknown) => ({ statusCategory: pick((status as Body).statusCategory, ['key']) })
     if (url.endsWith('/statuses')) {
       return (body as Body[]).map((issueType) => ({

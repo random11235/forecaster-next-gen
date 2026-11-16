@@ -82,7 +82,11 @@ describe('following GitHub', () => {
         },
       },
     })
-    expect(forecast()).toMatchObject({ kind: 'forecast', pace: { source: 'tracker', tracker: 'GitHub', counts: [3, 5, 6, 4, 7, 5, 6, 8] }, paceSaid: 'GitHub’s last 8 weeks' })
+    expect(forecast()).toMatchObject({
+      kind: 'forecast',
+      pace: { source: 'tracker', tracker: 'GitHub', counts: [3, 5, 6, 4, 7, 5, 6, 8] },
+      paceSaid: 'GitHub’s last 8 weeks',
+    })
   })
 })
 
@@ -149,7 +153,10 @@ describe('the window', () => {
       { kind: 'milestone', choices: [CHECKOUT], pastLimit: false },
       { kind: 'label', choices: [like], pastLimit: false },
     ]
-    scenario.fixture.reads[like.query] = { tickets: finishedInWeeks([0, 0, 0, 0, 2, 3, 2, 3]).map((ticket) => ({ ...ticket, id: `like-${ticket.id}` })), incomplete: false }
+    scenario.fixture.reads[like.query] = {
+      tickets: finishedInWeeks([0, 0, 0, 0, 2, 3, 2, 3]).map((ticket) => ({ ...ticket, id: `like-${ticket.id}` })),
+      incomplete: false,
+    }
     await following(finishedInWeeks([0, 0, 1, 0, 0, 0, 0, 0]))
     await scenario.pick(READ_AT, like, COMPARABLE_WORK)
 
@@ -197,8 +204,15 @@ describe('the window', () => {
   test('with nothing finished in the weeks read, there is no pace to follow', async () => {
     await following([])
 
-    expect(inputs().milestone.trackerPace?.reading).toMatchObject({ periods: [], counts: [], line: 'nothing finished in the 8 weeks GitHub reads · read 12 Nov 09:00' })
-    expect(forecast()).toMatchObject({ kind: 'problems', problems: [{ input: 'pace', message: expect.stringContaining('GitHub has no finished tickets in the weeks it read') }] })
+    expect(inputs().milestone.trackerPace?.reading).toMatchObject({
+      periods: [],
+      counts: [],
+      line: 'nothing finished in the 8 weeks GitHub reads · read 12 Nov 09:00',
+    })
+    expect(forecast()).toMatchObject({
+      kind: 'problems',
+      problems: [{ input: 'pace', message: expect.stringContaining('GitHub has no finished tickets in the weeks it read') }],
+    })
   })
 
   test('the pace pattern reads GitHub’s counts as it reads typed counts', async () => {
@@ -220,7 +234,11 @@ describe('an incomplete read', () => {
     expect(forecast()).toMatchObject({
       kind: 'problems',
       problems: expect.arrayContaining([
-        { input: 'pace', message: 'GitHub gave only part of the finished tickets its queries match, so its pace isn’t known. Narrow the query, or type counts, or switch pace to the range.' },
+        {
+          input: 'pace',
+          message:
+            'GitHub gave only part of the finished tickets its queries match, so its pace isn’t known. Narrow the query, or type counts, or switch pace to the range.',
+        },
       ]),
     })
   })
@@ -266,7 +284,10 @@ describe('switching pace', () => {
     expect(inputs(OFFLINE).milestone).toMatchObject({ paceMode: 'tracker', paceUsed: 'counts', trackerPace: undefined })
 
     submit({ kind: 'setPaceMode', paceMode: 'range' })
-    expect(submit({ kind: 'setPaceMode', paceMode: 'tracker' }, OFFLINE)).toMatchObject({ saved: false, view: { refusal: { error: 'Choose the range or typed counts.' } } })
+    expect(submit({ kind: 'setPaceMode', paceMode: 'tracker' }, OFFLINE)).toMatchObject({
+      saved: false,
+      view: { refusal: { error: 'Choose the range or typed counts.' } },
+    })
   })
 })
 

@@ -42,7 +42,9 @@ const github: Transport = async (url, init) => {
   return json(200, {
     total_count: 1,
     incomplete_results: false,
-    items: [{ node_id: 'I_1', number: 7, state: 'closed', closed_at: '2026-11-06T08:47:38Z', title: 'Search leaf 1', body: 'Synthetic', user: { login: 'someone' } }],
+    items: [
+      { node_id: 'I_1', number: 7, state: 'closed', closed_at: '2026-11-06T08:47:38Z', title: 'Search leaf 1', body: 'Synthetic', user: { login: 'someone' } },
+    ],
     search_type: 'lexical',
   })
 }

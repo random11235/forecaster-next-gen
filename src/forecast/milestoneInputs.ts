@@ -21,7 +21,6 @@ export const MAX_CADENCE_DAYS = 365
 /** Far above any real milestone; keeps typos out of the forecast. */
 export const MAX_TICKETS_REMAINING = 100_000
 
-
 /** A change the EM makes to the milestone on the Inputs screen, as typed. */
 export type MilestoneInputsEdit =
   /**
@@ -246,7 +245,10 @@ function withMilestone(inputs: MilestoneInputs, edit: Extract<MilestoneInputsEdi
 }
 
 /** A saved milestone as any edit but the milestone's own leaves it. */
-function edited(saved: MilestoneInputs, edit: Exclude<MilestoneInputsEdit, { kind: 'setMilestone' | 'setTicketsSource' | 'setPaceMode' | 'openReading' }>): Edited {
+function edited(
+  saved: MilestoneInputs,
+  edit: Exclude<MilestoneInputsEdit, { kind: 'setMilestone' | 'setTicketsSource' | 'setPaceMode' | 'openReading' }>,
+): Edited {
   switch (edit.kind) {
     case 'setPaceRange': {
       const [low, high] = [wholeNumber(edit.low), wholeNumber(edit.high)]

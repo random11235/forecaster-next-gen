@@ -35,7 +35,12 @@ export async function followRenamedMilestone(
 }
 
 /** The milestone query in `connecting`'s target, followed from the milestone renamed, where it is just that milestone. */
-async function followIn(connecting: StepReading & TeamQueries, teamId: string, { from, to }: { from: string; to: string }, readAt: string): Promise<StepQuerySubmitted> {
+async function followIn(
+  connecting: StepReading & TeamQueries,
+  teamId: string,
+  { from, to }: { from: string; to: string },
+  readAt: string,
+): Promise<StepQuerySubmitted> {
   if (from === to) return { kind: 'unchanged' }
   const query = connecting.milestoneQueries.milestoneQuery(teamId)
   const pick = query?.picks.length === 1 ? query.picks[0]! : undefined

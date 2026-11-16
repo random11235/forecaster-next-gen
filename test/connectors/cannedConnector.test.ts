@@ -109,7 +109,16 @@ describe("demo mode's connector", () => {
     // The fixture is JSON, which types no kind: every choice is of its list's kind.
     for (const { kind, choices: ofKind } of choices.kinds) expect(ofKind.map((choice) => choice.kind)).toEqual(ofKind.map(() => kind))
     const listed = choices.kinds.slice(1).flatMap((kind) => kind.choices)
-    expect(listed.map((choice) => choice.name)).toEqual(['Synthetic launch', 'Synthetic beta', 'Payments v2', 'payments', 'repayments', 'checkout', 'bug', 'platform'])
+    expect(listed.map((choice) => choice.name)).toEqual([
+      'Synthetic launch',
+      'Synthetic beta',
+      'Payments v2',
+      'payments',
+      'repayments',
+      'checkout',
+      'bug',
+      'platform',
+    ])
     await expectEachReadsTickets(connector, listed)
   })
 
@@ -128,7 +137,12 @@ describe("demo mode's connector", () => {
 describe("demo mode's connector, refusing on cue", () => {
   test.each([
     ['the token `refused`', { tracker: 'github', owner: 'shop-team', repo: 'shop' }, 'refused', 'unauthorised'],
-    ['the token `refused`, on Jira', { tracker: 'jira', site: 'shop.atlassian.net', projectKey: 'SHOP', email: 'em@shop.example' }, ' refused ', 'unauthorised'],
+    [
+      'the token `refused`, on Jira',
+      { tracker: 'jira', site: 'shop.atlassian.net', projectKey: 'SHOP', email: 'em@shop.example' },
+      ' refused ',
+      'unauthorised',
+    ],
     ['a repo named `unknown`', { tracker: 'github', owner: 'shop-team', repo: 'unknown' }, 'any-token', 'notFound'],
     ['a project named `unknown`', { tracker: 'jira', site: 'shop.atlassian.net', projectKey: 'UNKNOWN', email: 'em@shop.example' }, 'any-token', 'notFound'],
   ] as const)('%s is refused', async (_, connection, token, failure) => {

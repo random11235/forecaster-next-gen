@@ -161,12 +161,7 @@ function searchFailure(received: Received): FailedCall {
 }
 
 /** `wait` is how backoff on a rate limit waits: a timer, unless a test stands in for it. */
-export function githubConnector(
-  connection: Extract<Connection, { tracker: 'github' }>,
-  token: string,
-  transport: Transport,
-  wait: Wait = sleep,
-): Connector {
+export function githubConnector(connection: Extract<Connection, { tracker: 'github' }>, token: string, transport: Transport, wait: Wait = sleep): Connector {
   const repo = `${connection.owner}/${connection.repo}`
   const backoff: Backoff = { rateLimited, wait }
 
@@ -215,7 +210,10 @@ export function githubConnector(
    * is read as a qualifier; search matches whole words only.
    */
   async function searchedEpics(text: string): Promise<SearchedChoices> {
-    const words = text.replace(/"/g, ' ').split(/\s+/).filter((word) => word !== '')
+    const words = text
+      .replace(/"/g, ' ')
+      .split(/\s+/)
+      .filter((word) => word !== '')
     return searchedIn(await epics(` in:title ${words.map((word) => `"${word}"`).join(' ')}`))
   }
 

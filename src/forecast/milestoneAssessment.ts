@@ -26,7 +26,8 @@ export interface Warning extends InputNote {
  * The pace the forecast runs on: the range, the typed counts, or the counts the connected `tracker` reads, with how many
  * periods the EM skipped among them, whichever the EM chose; the counts are those in the pace window.
  */
-export type ForecastPace = ({ source: 'range' } & ThroughputRange) | { source: 'counts'; counts: number[] } | { source: 'tracker'; tracker: string; counts: number[]; skipped: number }
+export type ForecastPace =
+  ({ source: 'range' } & ThroughputRange) | { source: 'counts'; counts: number[] } | { source: 'tracker'; tracker: string; counts: number[]; skipped: number }
 
 /** A milestone with every input its forecast needs, its tickets remaining the ones in use, from the source the EM chose. */
 export type ForecastableInputs = MilestoneInputs & { startDate: string; ticketsRemaining: number }
@@ -45,7 +46,13 @@ export type MilestoneAssessment =
  * (`inUse`) and what the team's tracker measures (`measured`; none with no connection, when every value is typed, as
  * in the MVP).
  */
-export function assessMilestone(inputs: MilestoneInputs, settings: ForecastSettings, today: string, inUse: PaceInUse, measured: Measured | undefined): MilestoneAssessment {
+export function assessMilestone(
+  inputs: MilestoneInputs,
+  settings: ForecastSettings,
+  today: string,
+  inUse: PaceInUse,
+  measured: Measured | undefined,
+): MilestoneAssessment {
   const { typedCounts } = settings
   const { source } = inUse
   // the counts the pace is drawn from: those in its window
@@ -100,7 +107,8 @@ function ticketsInUse(inputs: MilestoneInputs, measured: Measured | undefined): 
 /** The pace the forecast runs on, from the pace in use, or undefined until the range chosen is entered. */
 function forecastPace(inUse: PaceInUse): ForecastPace | undefined {
   if (inUse.source === 'counts') return { source: 'counts', counts: inUse.window.counts }
-  if (inUse.source === 'tracker') return { source: 'tracker', tracker: inUse.tracker, counts: inUse.window.counts, skipped: inUse.reading?.skipped.starts.length ?? 0 }
+  if (inUse.source === 'tracker')
+    return { source: 'tracker', tracker: inUse.tracker, counts: inUse.window.counts, skipped: inUse.reading?.skipped.starts.length ?? 0 }
   return inUse.range && { source: 'range', ...inUse.range }
 }
 
@@ -119,7 +127,9 @@ function trackerPaceNotes(
   const instead = 'Type counts, or switch pace to the range.'
   const problem = (message: string) => ({ problems: [{ input: 'pace' as const, message }], warnings: [] })
   if (!pace && incomplete) {
-    return problem(`${tracker} gave only part of the finished tickets its queries match, so its pace isn’t known. Narrow the query, or ${instead.toLowerCase()}`)
+    return problem(
+      `${tracker} gave only part of the finished tickets its queries match, so its pace isn’t known. Narrow the query, or ${instead.toLowerCase()}`,
+    )
   }
   if (!pace) return problem(`${tracker} hasn’t read the milestone’s finished tickets yet. Pick them in the Milestone step, or ${instead.toLowerCase()}`)
   // its bound leaves no periods counted: nothing finished, or every period skipped
@@ -129,7 +139,9 @@ function trackerPaceNotes(
   if (inUse >= reliable) return { problems: [], warnings: [] }
   return {
     problems: [],
-    warnings: [{ input: 'pace', message: `${counting} The forecast needs ${reliable} to be reliable.`, beside: `${inUse} of ${reliable} needed for reliable results` }],
+    warnings: [
+      { input: 'pace', message: `${counting} The forecast needs ${reliable} to be reliable.`, beside: `${inUse} of ${reliable} needed for reliable results` },
+    ],
   }
 }
 
@@ -180,8 +192,7 @@ function startDateWarnings(inputs: MilestoneInputs, today: string): Warning[] {
 function paceWarnings(inputs: MilestoneInputs, ticketsRemaining: number | undefined, pace: ForecastPace | undefined): Warning[] {
   const workLeft = (ticketsRemaining ?? 0) > 0
   // with no counts typed yet, the too-few-counts problem says what to do
-  const zeroPace =
-    pace !== undefined && pace.source !== 'range' ? pace.counts.length > 0 && pace.counts.every((count) => count === 0) : pace?.high === 0
+  const zeroPace = pace !== undefined && pace.source !== 'range' ? pace.counts.length > 0 && pace.counts.every((count) => count === 0) : pace?.high === 0
   if (workLeft && zeroPace) return [worded('pace', `At 0 tickets a ${periodName(inputs.cadenceDays)}, the work never finishes.`)]
   return []
 }

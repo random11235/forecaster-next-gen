@@ -10,9 +10,7 @@ const root = fileURLToPath(new URL('..', import.meta.url))
 const out = new URL('../dist/web/forecaster.html', import.meta.url)
 
 const { openWebApp }: typeof import('../src/app/webApp.js') = await import(new URL('../dist/app/webApp.js', import.meta.url).href)
-const { openWebStorage }: typeof import('../src/storage/webStorage.js') = await import(
-  new URL('../dist/storage/webStorage.js', import.meta.url).href
-)
+const { openWebStorage }: typeof import('../src/storage/webStorage.js') = await import(new URL('../dist/storage/webStorage.js', import.meta.url).href)
 const { FONT_FACES }: typeof import('../src/app/fonts.js') = await import(new URL('../dist/app/fonts.js', import.meta.url).href)
 const { VERSION }: typeof import('../src/app/version.js') = await import(new URL('../dist/app/version.js', import.meta.url).href)
 

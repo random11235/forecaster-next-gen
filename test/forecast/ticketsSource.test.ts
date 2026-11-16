@@ -140,7 +140,9 @@ describe('a read that can’t be followed', () => {
     expect(inputs().milestone.ticketsSource).toEqual({ source: 'tracker', tracker: 'GitHub', reading: undefined })
     expect(forecast()).toMatchObject({
       kind: 'problems',
-      problems: [{ input: 'ticketsRemaining', message: 'GitHub hasn’t read the milestone’s tickets yet. Pick them in the Milestone step, or type tickets remaining.' }],
+      problems: [
+        { input: 'ticketsRemaining', message: 'GitHub hasn’t read the milestone’s tickets yet. Pick them in the Milestone step, or type tickets remaining.' },
+      ],
     })
   })
 })

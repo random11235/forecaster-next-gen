@@ -217,12 +217,7 @@ function cursor(nextPageToken: string | undefined): { nextPageToken?: string } {
 }
 
 /** `wait` is how backoff on a rate limit waits: a timer, unless a test stands in for it. */
-export function jiraConnector(
-  connection: Extract<Connection, { tracker: 'jira' }>,
-  token: string,
-  transport: Transport,
-  wait: Wait = sleep,
-): Connector {
+export function jiraConnector(connection: Extract<Connection, { tracker: 'jira' }>, token: string, transport: Transport, wait: Wait = sleep): Connector {
   const key = connection.projectKey
   const backoff: Backoff = { rateLimited, wait }
   const authorization = `Basic ${btoa(`${connection.email}:${token}`)}`
@@ -386,7 +381,10 @@ export function jiraConnector(
    * search's special characters are left out, so none can make the JQL fail.
    */
   async function searchedEpics(text: string): Promise<SearchedChoices> {
-    const words = text.replace(TEXT_SEARCH_SPECIALS, ' ').split(/\s+/).filter((word) => word !== '')
+    const words = text
+      .replace(TEXT_SEARCH_SPECIALS, ' ')
+      .split(/\s+/)
+      .filter((word) => word !== '')
     return searchedIn(await epics(words.map((word) => ` AND summary ~ "${word}*"`).join('')))
   }
 

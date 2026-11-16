@@ -97,7 +97,11 @@ describe('reading a query', () => {
 
   test('a failed first read has no saved read', async () => {
     const failing: CannedFixture = { milestoneChoices: [], reads: { [QUERY]: { failure: 'unauthorised' } } }
-    expect(await readQuery(cannedConnector(failing), storage, { teamId: TEAM, query: QUERY, finishedSince: SINCE, readAt: READ_AT })).toEqual({ ok: false, failure: 'unauthorised', saved: undefined })
+    expect(await readQuery(cannedConnector(failing), storage, { teamId: TEAM, query: QUERY, finishedSince: SINCE, readAt: READ_AT })).toEqual({
+      ok: false,
+      failure: 'unauthorised',
+      saved: undefined,
+    })
   })
 })
 
@@ -135,6 +139,9 @@ describe('how far back a read reaches', () => {
     const weeks = { startDate: '2026-08-31', cadenceDays: 7, today: '2026-11-08', timeZone: 'America/New_York' }
 
     expect(wholePeriods([read], weeks)).toEqual({ first: 1, periods: 8 })
-    expect(finishedPerPeriod(read, { ...weeks, periods: 8 })).toMatchObject({ counts: [1, 0, 0, 0, 0, 0, 0, 0], starts: expect.arrayContaining(['2026-09-07']) })
+    expect(finishedPerPeriod(read, { ...weeks, periods: 8 })).toMatchObject({
+      counts: [1, 0, 0, 0, 0, 0, 0, 0],
+      starts: expect.arrayContaining(['2026-09-07']),
+    })
   })
 })

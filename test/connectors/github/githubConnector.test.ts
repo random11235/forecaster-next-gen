@@ -76,7 +76,10 @@ describe('GitHub connector', () => {
 
   test.each([
     ['a primary rate limit resetting more than a minute away', () => primaryRateLimit(String(Math.ceil(Date.now() / 1000) + 3600))],
-    ['a 403 asking to retry after more than a minute', () => answering(async () => new Response('{"message":"rate limited"}', { status: 403, headers: { 'retry-after': '3600' } }))],
+    [
+      'a 403 asking to retry after more than a minute',
+      () => answering(async () => new Response('{"message":"rate limited"}', { status: 403, headers: { 'retry-after': '3600' } })),
+    ],
   ])("%s is unavailable at once, so a read doesn't hang", async (_, standIn) => {
     const github = standIn()
     const connector = githubConnector(CONNECTION, 'token', github.transport, mustNotWait)
@@ -213,7 +216,8 @@ describe('GitHub connector', () => {
         const github = answering(async () => json({ message: 'Server Error' }, 502))
         const connector = githubConnector(CONNECTION, 'token', github.transport, mustNotWait)
 
-        for (const kind of ['epic', 'label', 'milestone'] as const) expect(await connector.searchChoices(kind, 'pay')).toEqual({ ok: false, failure: 'unavailable' })
+        for (const kind of ['epic', 'label', 'milestone'] as const)
+          expect(await connector.searchChoices(kind, 'pay')).toEqual({ ok: false, failure: 'unavailable' })
       })
     })
 
@@ -278,7 +282,13 @@ describe('GitHub connector', () => {
     })
 
     test('reads the leaves of each picked epic in its place in the query, leaving the rest as written', async () => {
-      const github = nested(new Map([[106, [107, 111]], [107, [108]], [200, [201]]]))
+      const github = nested(
+        new Map([
+          [106, [107, 111]],
+          [107, [108]],
+          [200, [201]],
+        ]),
+      )
       const connector = githubConnector(CONNECTION, 'token', github.transport, mustNotWait)
 
       await connector.read(`(parent-issue:${REPO}#106 label:"checkout") OR parent-issue:${REPO}#200`, '2026-01-01T00:00:00Z')
