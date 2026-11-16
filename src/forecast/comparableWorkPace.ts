@@ -2,7 +2,8 @@ import type { MilestoneInputs } from '../model/milestoneInputs.js'
 import type { TeamQueries } from '../storage/storage.js'
 import { periodName } from './cadence.js'
 import type { PeriodName } from './cadence.js'
-import { completeRead, paceCalendar, paceOf, savedPaceReads, type PaceFrom, type SavedPaceReads } from './lib/pace.js'
+import { paceCalendar, paceOf, savedPaceReads, type PaceClock, type PaceFrom, type SavedPaceReads } from './lib/pace.js'
+import { completeRead } from './queryRead.js'
 import { COMPARABLE_WORK } from './stepQuery.js'
 import { medianOf, paceVersusMilestoneOwn, type PaceVersus } from './paceVersusOwn.js'
 
@@ -79,18 +80,18 @@ export interface ComparableWorkPace {
 
 /**
  * The Comparable work step's pace, which its view leads with (`queryStepView`), from the team's saved reads in the
- * target `queries` keeps them in (`paceOf`), asking the tracker nothing, for the milestone's `inputs` on `clock`. None
+ * target `queries` keeps them in (`paceOf`), asking the tracker nothing, for the milestone's `inputs` on its clock. None
  * before the milestone has a start date and a complete read of its query.
  */
 export function comparableWorkPace(
   queries: TeamQueries,
   inputs: MilestoneInputs | undefined,
   teamId: string,
-  clock: { today: string; timeZone: string },
+  { today, timeZone }: PaceClock,
 ): ComparableWorkPace | undefined {
   if (!inputs) return undefined
   const saved = savedPaceReads(queries, teamId)
-  const { counts: pace, sideBySide: reads } = paceOf({ ...paceCalendar(inputs, clock.today), reads: { saved, timeZone: clock.timeZone } })
+  const { counts: pace, sideBySide: reads } = paceOf({ ...paceCalendar(inputs, today), timeZone, reads: { saved } })
   if (!pace || !reads) return undefined
   const period = periodName(inputs.cadenceDays)
   const counts = pace.counts

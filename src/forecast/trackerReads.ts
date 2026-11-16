@@ -127,15 +127,18 @@ function wasTickets(previous: SavedRead | undefined, count: number, timeZone: st
 }
 
 /**
- * The milestone's pace on `today` (`paceOf`), with what the team's tracker measures (`measured`; none with no
- * connection). With `settings`, from the source the EM chose, following the tracker falling back to the typed counts
- * with no connection: each view works it out once, and every part of the view that shows pace takes it from there.
- * Without, as the tracker reads it, whichever source the EM chose: its reading, none until it is read.
+ * The milestone's pace on `today` (`paceOf`), from the source the EM chose, with what the team's tracker measures
+ * (`measured`; none with no connection, when following the tracker falls back to the typed counts). Each view works it
+ * out once, and every part of the view that shows pace takes it from there.
  */
-export function milestonePace(inputs: MilestoneInputs, today: string, measured: Measured | undefined, settings: ForecastSettings): ChosenSourcePace
-export function milestonePace(inputs: MilestoneInputs, today: string, measured: Measured): Pace
-export function milestonePace(inputs: MilestoneInputs, today: string, measured: Measured | undefined, settings?: ForecastSettings): Pace {
-  const calendar = paceCalendar(inputs, today)
-  const reads = measured && { saved: measured.paceReads, tracker: measured.tracker, timeZone: measured.timeZone }
-  return settings ? paceOf({ ...calendar, reads, chosen: inputs, settings }) : paceOf({ ...calendar, reads })
+export function milestonePace(inputs: MilestoneInputs, settings: ForecastSettings, today: string, measured: Measured | undefined): ChosenSourcePace {
+  const chosen = { chosen: inputs, settings }
+  if (!measured) return paceOf({ ...paceCalendar(inputs, today), ...chosen })
+  const { paceReads: saved, tracker, timeZone } = measured
+  return paceOf({ ...paceCalendar(inputs, today), timeZone, reads: { saved, tracker }, ...chosen })
+}
+
+/** The milestone's pace on `today` as the tracker reads it (`paceOf`), whichever source the EM chose: its reading, none until it is read. */
+export function trackerPace(inputs: MilestoneInputs, today: string, { paceReads: saved, tracker, timeZone }: Measured): Pace {
+  return paceOf({ ...paceCalendar(inputs, today), timeZone, reads: { saved, tracker } })
 }

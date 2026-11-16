@@ -5,8 +5,8 @@ import type { SavedRead } from '../model/savedRead.js'
 import type { Storage } from '../storage/storage.js'
 import { periodName, type PeriodName } from './cadence.js'
 import { teamConnection, withTeamQueries, type Connecting } from './connection.js'
-import { calendarDayIn, completeRead, paceOf, savedPaceReads, type DatedCounts } from './lib/pace.js'
-import { finishedSinceFor, ticketsRemaining, weeksRead } from './queryRead.js'
+import { calendarDayIn, paceOf, savedPaceReads, type DatedCounts, type PaceClock } from './lib/pace.js'
+import { completeRead, finishedSinceFor, ticketsRemaining, weeksRead } from './queryRead.js'
 import type { ChoiceList } from './queryStep.js'
 import { medianOf, paceVersusMilestoneOwn, type PaceVersus } from './paceVersusOwn.js'
 import { trackerOf } from './trackers.js'
@@ -73,11 +73,9 @@ export interface CandidateOpening {
   read(choices: readonly Choice[]): Promise<Candidates>
 }
 
-/** When the candidates are read: the UTC instant, today, and the EM's time zone (an IANA name). */
-export interface CandidatesAt {
+/** When the candidates are read: the UTC instant, and pace's clock, today in the EM's time zone. */
+export interface CandidatesAt extends PaceClock {
   readAt: string
-  today: string
-  timeZone: string
 }
 
 /**
@@ -92,7 +90,7 @@ export function openCandidates(connecting: Connecting, storage: Pick<Storage, 'm
   let connected: ReturnType<typeof teamConnection> | undefined
   const inputs = storage.milestoneInputs(teamId)
   const laid = { startDate: inputs?.startDate, cadence: inputs?.cadenceDays ?? 7 }
-  const { sideBySide: own } = paceOf({ reads: { saved, timeZone: at.timeZone }, paceWindow: NO_PACE_WINDOW, ...laid, today: at.today })
+  const { sideBySide: own } = paceOf({ reads: { saved }, paceWindow: NO_PACE_WINDOW, ...laid, today: at.today, timeZone: at.timeZone })
   const ownCounts = own?.milestone?.counts.slice(own.beforeStart) ?? []
   const milestoneQuery = saved.milestone?.query
   const picked = finishedIds(saved.comparableWork?.latest)
@@ -159,9 +157,9 @@ function candidateRead(
   ownCounts: readonly number[],
   picked: Set<string> | undefined,
   { startDate, cadence }: { startDate: string | undefined; cadence: number },
-  { today, timeZone }: CandidatesAt,
+  clock: PaceClock,
 ): CandidateRead {
-  const { counts } = paceOf({ reads: { candidate: read, timeZone }, paceWindow: NO_PACE_WINDOW, cadence, startDate, today })
+  const { counts } = paceOf({ reads: { candidate: read }, paceWindow: NO_PACE_WINDOW, cadence, startDate, ...clock })
   const all = counts ?? { counts: [], starts: [] }
   const strip = { counts: all.counts.slice(-STRIP_PERIODS), starts: all.starts.slice(-STRIP_PERIODS) }
   const median = strip.counts.length === 0 ? 0 : medianOf(strip.counts)
@@ -177,7 +175,7 @@ function candidateRead(
     finished: finished.length,
     weeks: weeksRead(read),
     ...(picked && { adds: finished.filter((ticket) => !picked.has(ticket.id)).length }),
-    ...(last !== undefined && { lastFinished: calendarDayIn(timeZone)(last) }),
+    ...(last !== undefined && { lastFinished: calendarDayIn(clock.timeZone)(last) }),
     open: ticketsRemaining(read),
   }
 }

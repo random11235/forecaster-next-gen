@@ -9,7 +9,7 @@ import { sameCounts, type PaceReading, type WasPace } from './lib/pace.js'
 import { assessMilestone, type InputNote, type MilestoneAssessment } from './milestoneAssessment.js'
 import { paceTrend, type PaceTrend } from './paceTrend.js'
 import type { ForecastSettings } from './settings.js'
-import { milestonePace, paceReadingView, type Measured, type PaceReadingView, type TicketsReading, type WasTickets } from './trackerReads.js'
+import { milestonePace, paceReadingView, trackerPace, type Measured, type PaceReadingView, type TicketsReading, type WasTickets } from './trackerReads.js'
 
 /** Far above any real team's pace in one period; keeps typos like 1000000 out of the forecast. */
 export const MAX_TICKETS_PER_PERIOD = 1000
@@ -121,7 +121,7 @@ export interface TrackerPaceView {
 export function milestoneInputsView(storage: Storage, teamId: string, settings: ForecastSettings, today: string, measured?: Measured): MilestoneInputsView {
   const saved = storage.milestoneInputs(teamId)
   const inputs = saved ?? newMilestone(teamId)
-  const pace = milestonePace(inputs, today, measured, settings)
+  const pace = milestonePace(inputs, settings, today, measured)
   const assessment = saved && assessMilestone(saved, today, pace, measured)
   return {
     name: inputs.name,
@@ -206,7 +206,7 @@ function withPaceMode(saved: MilestoneInputs, paceMode: string, measured: Measur
 function withReadingOpened(saved: MilestoneInputs, reading: string, today: string, measured: Measured | undefined): Edited {
   if (!measured) return refuse('Connect a tracker to see its reading.')
   if (reading !== 'ticketsRemaining' && reading !== 'pace') return refuse('Choose tickets remaining or pace.')
-  const latest = reading === 'pace' ? milestonePace(saved, today, measured).reading : measured.ticketsRemaining
+  const latest = reading === 'pace' ? trackerPace(saved, today, measured).reading : measured.ticketsRemaining
   if (!latest) return refuse(`${measured.tracker} hasn’t read it yet.`)
   return { ...saved, seenReads: { ...saved.seenReads, [reading]: latest.readAt } }
 }

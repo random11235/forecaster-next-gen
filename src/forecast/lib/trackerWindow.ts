@@ -1,12 +1,10 @@
 import type { PeriodName } from '../cadence.js'
 import { dayMonth } from '../calendarDate.js'
 import { counted } from '../counted.js'
+import { TRACKER_PERIODS } from '../queryRead.js'
 import type { DatedCounts, SideBySide } from './periodCounts.js'
 
 // The tracker's pace window: the periods it counts, the skipped ones it reaches back past, and what its bound says.
-
-/** The most periods the tracker's pace counts. */
-export const TRACKER_PERIODS = 8
 
 /**
  * What bounds the tracker's window: it is `full`, at `TRACKER_PERIODS`; or shorter, as the periods the reads reach run

@@ -2,6 +2,7 @@ import type { MilestoneInputs, PaceWindow } from '../../model/milestoneInputs.js
 import type { SavedRead } from '../../model/savedRead.js'
 import type { TeamQueries } from '../../storage/storage.js'
 import { addDays, daysBetween } from '../calendarDate.js'
+import { completeRead } from '../queryRead.js'
 
 // Pace's saved reads, and their finished tickets counted per period side by side, on the EM's calendar days.
 
@@ -11,9 +12,16 @@ export interface DatedCounts {
   starts: string[]
 }
 
+/** When pace is counted: today, and the EM's time zone (an IANA name) each finish is counted on its calendar day in. */
+export interface PaceClock {
+  today: string
+  timeZone: string
+}
+
 /**
  * The milestone's calendar pace is counted on: its pace window (its skipped periods and the pace action applied), its
- * cadence in days, its start date (a candidate is laid from today without one), and today.
+ * cadence in days, its start date (a candidate is laid from today without one), and today. Without a time zone: where
+ * a read is counted, it is a `ReadCalendar`.
  */
 export interface PaceCalendar {
   paceWindow: PaceWindow
@@ -30,8 +38,8 @@ export function paceCalendar(
   return { paceWindow, cadence: cadenceDays, startDate, today }
 }
 
-/** The calendar a read's finishes are counted on: with the EM's time zone (an IANA name), each finish on its calendar day there. */
-export type ReadCalendar = PaceCalendar & { timeZone: string }
+/** The calendar a read's finishes are counted on, on the clock's calendar days. */
+export type ReadCalendar = PaceCalendar & PaceClock
 
 /** One of the team's queries, with its latest saved read and the one that read replaced. */
 export interface QueryReads {
@@ -91,14 +99,14 @@ export function calendarDayIn(timeZone: string): (instant: string) => string {
   return (instant) => format.format(new Date(instant))
 }
 
-/** The periods to count finished tickets in: laid on the milestone's cadence from its start date, up to today. */
-type StartedCalendar = Pick<ReadCalendar, 'cadence' | 'today' | 'timeZone'> & { startDate: string }
-
 /**
  * The tickets the read finished in each of the `periods` before the current one (the one holding today), oldest
  * first, each finish counted on its calendar day in the EM's time zone. A quiet period counts 0.
  */
-export function finishedPerPeriod(read: SavedRead, { startDate, cadence, today, timeZone, periods }: StartedCalendar & { periods: number }): DatedCounts {
+export function finishedPerPeriod(
+  read: SavedRead,
+  { startDate, cadence, today, timeZone, periods }: ReadCalendar & { startDate: string; periods: number },
+): DatedCounts {
   const current = Math.floor(daysBetween(startDate, today) / cadence)
   const first = current - periods
   const counts = Array.from({ length: periods }, () => 0)
@@ -116,14 +124,19 @@ export function finishedPerPeriod(read: SavedRead, { startDate, cadence, today, 
  * The periods the reads all reach whole, up to the current one, which is left out: the `first`, counted from the start
  * date (negative before it), and how many (`periods`). A period a read reaches only part of would pass for a quiet one.
  */
-export function wholePeriods(reads: readonly SavedRead[], { startDate, cadence, today, timeZone }: StartedCalendar): { first: number; periods: number } {
+export function wholePeriods(
+  reads: readonly SavedRead[],
+  { startDate, cadence, today, timeZone }: ReadCalendar & { startDate: string },
+): { first: number; periods: number } {
   const current = Math.floor(daysBetween(startDate, today) / cadence)
   const first = Math.max(...reads.map((read) => Math.ceil((daysBetween(startDate, calendarDayIn(timeZone)(read.finishedSince)) + 1) / cadence)))
   return { first, periods: Math.max(0, current - first) }
 }
 
-/** The read, when it has all its tickets: an incomplete one is never counted as if whole. */
-export const completeRead = (read: SavedRead | undefined): SavedRead | undefined => (read && !read.incomplete ? read : undefined)
+/** Whether the latest read of the milestone query, or of comparable work, is incomplete. */
+export function latestIncomplete({ milestone, comparableWork }: SavedPaceReads): boolean {
+  return [milestone, comparableWork].some((reads) => reads?.latest?.incomplete === true)
+}
 
 /**
  * The saved reads side by side, and the counts pace comes from; none before the milestone has a start date, nor
@@ -131,14 +144,15 @@ export const completeRead = (read: SavedRead | undefined): SavedRead | undefined
  */
 export function sideBySide(
   { milestone: milestoneReads, comparableWork: comparableReads, picks }: SavedPaceReads,
-  { startDate, cadence, today, timeZone }: Omit<ReadCalendar, 'paceWindow'>,
+  of: ReadCalendar,
 ): { counts: DatedCounts; sides: SideBySide } | undefined {
+  const { startDate } = of
   if (startDate === undefined) return undefined
   const milestoneRead = completeRead(milestoneReads?.latest)
   const comparableRead = completeRead(comparableReads?.latest)
   const reads = [milestoneRead, comparableRead].filter((read) => read !== undefined)
   if (reads.length === 0) return undefined
-  const laid = { startDate, cadence, today, timeZone }
+  const laid = { ...of, startDate }
   const { first, periods } = wholePeriods(reads, laid)
   const counted = (read: SavedRead): DatedCounts => finishedPerPeriod(read, { ...laid, periods })
   const milestone = milestoneRead && counted(milestoneRead)
