@@ -5,12 +5,11 @@ import type { Storage } from '../storage/storage.js'
 import { periodName } from './cadence.js'
 import { isCalendarDate } from './calendarDate.js'
 import { refuse, type EditResult, type Refusal } from './editResult.js'
+import { sameCounts, type PaceReading, type WasPace } from './lib/pace.js'
 import { assessMilestone, type InputNote, type MilestoneAssessment } from './milestoneAssessment.js'
-import { paceInUse } from './paceInUse.js'
 import { paceTrend, type PaceTrend } from './paceTrend.js'
-import { sameCounts } from './paceWindow.js'
 import type { ForecastSettings } from './settings.js'
-import { paceReadingView, type Measured, type PaceReading, type PaceReadingView, type TicketsReading, type WasPace, type WasTickets } from './trackerReads.js'
+import { milestonePace, paceReadingView, trackerPace, type Measured, type PaceReadingView, type TicketsReading, type WasTickets } from './trackerReads.js'
 
 /** Far above any real team's pace in one period; keeps typos like 1000000 out of the forecast. */
 export const MAX_TICKETS_PER_PERIOD = 1000
@@ -122,8 +121,8 @@ export interface TrackerPaceView {
 export function milestoneInputsView(storage: Storage, teamId: string, settings: ForecastSettings, today: string, measured?: Measured): MilestoneInputsView {
   const saved = storage.milestoneInputs(teamId)
   const inputs = saved ?? newMilestone(teamId)
-  const pace = paceInUse(inputs, today, measured)
-  const assessment = saved && assessMilestone(saved, settings, today, pace, measured)
+  const pace = milestonePace(inputs, settings, today, measured)
+  const assessment = saved && assessMilestone(saved, today, pace, measured)
   return {
     name: inputs.name,
     startDate: inputs.startDate ?? today,
@@ -140,17 +139,17 @@ export function milestoneInputsView(storage: Storage, teamId: string, settings: 
     paceRange: inputs.paceRange,
     paceCounts: inputs.paceCounts,
     paceMode: inputs.paceMode,
-    paceUsed: pace.source,
+    paceUsed: pace.inUse.source,
     trackerPace: measured && {
       tracker: measured.tracker,
-      reading: measured.pace && paceReadingView(measured.pace),
-      incomplete: measured.paceIncomplete,
-      was: inputs.paceMode === 'tracker' ? measured.pace?.was : undefined,
-      readsDifferently: paceReadDifferently(inputs, measured.pace),
+      reading: pace.reading && paceReadingView(pace.reading),
+      incomplete: pace.incomplete,
+      was: inputs.paceMode === 'tracker' ? pace.reading?.was : undefined,
+      readsDifferently: paceReadDifferently(inputs, pace.reading),
     },
     typedCountsNeeded: settings.typedCounts,
     notes: assessment ? notesBeside(assessment) : [],
-    paceTrend: paceTrend(pace, settings, inputs.startDate),
+    paceTrend: paceTrend(pace.inUse, settings, inputs.startDate),
   }
 }
 
@@ -183,15 +182,15 @@ function notesBeside(assessment: MilestoneAssessment): InputNote[] {
 
 /**
  * Seam B, through `submitInputs`: saves the EM's edit to the milestone. A refused edit changes nothing and says why.
- * With a connection, `measured` is what the tracker reads: the tracker is offered as a source only then.
+ * With a connection, `measured` is what the tracker reads on `today`: the tracker is offered as a source only then.
  */
-export function editMilestoneInputs(storage: Storage, teamId: string, edit: MilestoneInputsEdit, measured?: Measured): EditResult {
+export function editMilestoneInputs(storage: Storage, teamId: string, edit: MilestoneInputsEdit, today: string, measured?: Measured): EditResult {
   const saved = storage.milestoneInputs(teamId)
   if (edit.kind === 'setMilestone') return save(storage, withMilestone(saved ?? newMilestone(teamId), edit))
   if (!saved) return refuse('Enter the milestone first.')
   if (edit.kind === 'setTicketsSource') return save(storage, withTicketsSource(saved, edit.ticketsSource, measured))
   if (edit.kind === 'setPaceMode') return save(storage, withPaceMode(saved, edit.paceMode, measured))
-  if (edit.kind === 'openReading') return save(storage, withReadingOpened(saved, edit.reading, measured))
+  if (edit.kind === 'openReading') return save(storage, withReadingOpened(saved, edit.reading, today, measured))
   return save(storage, edited(saved, edit))
 }
 
@@ -204,10 +203,10 @@ function withPaceMode(saved: MilestoneInputs, paceMode: string, measured: Measur
 }
 
 /** The milestone with the tracker's latest reading of a value marked opened, so its chip's dot clears until the next read. */
-function withReadingOpened(saved: MilestoneInputs, reading: string, measured: Measured | undefined): Edited {
+function withReadingOpened(saved: MilestoneInputs, reading: string, today: string, measured: Measured | undefined): Edited {
   if (!measured) return refuse('Connect a tracker to see its reading.')
   if (reading !== 'ticketsRemaining' && reading !== 'pace') return refuse('Choose tickets remaining or pace.')
-  const latest = measured[reading]
+  const latest = reading === 'pace' ? trackerPace(saved, today, measured).reading : measured.ticketsRemaining
   if (!latest) return refuse(`${measured.tracker} hasn’t read it yet.`)
   return { ...saved, seenReads: { ...saved.seenReads, [reading]: latest.readAt } }
 }

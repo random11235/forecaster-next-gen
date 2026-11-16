@@ -1,13 +1,12 @@
 import type { Choice, Failure } from '../connectors/connector.js'
 import type { Connection } from '../model/connection.js'
+import type { MilestoneInputs } from '../model/milestoneInputs.js'
 import type { SavedRead } from '../model/savedRead.js'
-import type { SavedReadStorage, Storage } from '../storage/storage.js'
+import type { Storage } from '../storage/storage.js'
 import { periodName, type PeriodName } from './cadence.js'
 import { teamConnection, withTeamQueries, type Connecting } from './connection.js'
-import { calendarDayIn, completeRead, finishedPerPeriod, finishedSinceFor, ticketsRemaining, weeksRead } from './finished.js'
+import { calendarDayIn, finishedSinceFor, paceOf, savedPaceReads, ticketsRemaining, weeksRead, type DatedCounts } from './lib/pace.js'
 import type { ChoiceList } from './queryStep.js'
-import { paceReads, paceReadsStorage, wholePeriods } from './paceReads.js'
-import type { DatedCounts } from './paceWindow.js'
 import { medianOf, paceVersusMilestoneOwn, type PaceVersus } from './paceVersusOwn.js'
 import { trackerOf } from './trackers.js'
 
@@ -87,15 +86,15 @@ export interface CandidatesAt {
  */
 export function openCandidates(connecting: Connecting, storage: Pick<Storage, 'milestoneInputs'>, teamId: string, at: CandidatesAt): CandidateOpening {
   // the milestone's and comparable work's queries as setup's steps hold them
-  const stored = paceReadsStorage(storage, withTeamQueries(connecting, 'current'))
+  const saved = savedPaceReads(withTeamQueries(connecting, 'current'), teamId)
   const read = new Map<string, Promise<Candidate>>()
   let connected: ReturnType<typeof teamConnection> | undefined
-  const own = paceReads(stored, teamId, at)
-  const ownCounts = own?.milestone?.counts.slice(own.beforeStart) ?? []
-  const milestoneQuery = stored.milestoneQuery(teamId)?.query
-  const picked = finishedIds(stored, teamId, stored.comparableWorkQuery(teamId)?.query)
   const inputs = storage.milestoneInputs(teamId)
-  const laid = { startDate: inputs?.startDate ?? at.today, cadenceDays: inputs?.cadenceDays ?? 7 }
+  const laid = { startDate: inputs?.startDate, cadence: inputs?.cadenceDays ?? 7 }
+  const { sideBySide: own } = paceOf({ reads: { saved }, paceWindow: NO_PACE_WINDOW, ...laid, clock: at })
+  const ownCounts = own?.milestone?.counts.slice(own.beforeStart) ?? []
+  const milestoneQuery = saved.milestone?.query
+  const picked = finishedIds(saved.comparableWork?.latest)
   const candidate = async (choice: Choice): Promise<Candidate> => {
     const marked = { choice, thisMilestone: choice.query === milestoneQuery }
     const team = await (connected ??= teamConnection(connecting, teamId))
@@ -111,7 +110,7 @@ export function openCandidates(connecting: Connecting, storage: Pick<Storage, 'm
   return {
     async read(choices) {
       for (const choice of choices) if (!read.has(choice.query)) read.set(choice.query, candidate(choice))
-      return grouped(await Promise.all(read.values()), ownCounts, periodName(laid.cadenceDays))
+      return grouped(await Promise.all(read.values()), ownCounts, periodName(laid.cadence))
     },
   }
 }
@@ -145,21 +144,24 @@ function failureOf(connection: Connection, failure: Failure): string {
   }
 }
 
-/** The finished tickets' ids in the query's saved read, when it has a complete one. */
-function finishedIds(reads: Pick<SavedReadStorage, 'savedRead'>, teamId: string, query: string | undefined): Set<string> | undefined {
-  const read = completeRead(reads, teamId, query)
-  return read && new Set(read.tickets.filter((ticket) => ticket.finishedAt !== undefined).map((ticket) => ticket.id))
+/** The finished tickets' ids in the saved read, when it is complete. */
+function finishedIds(read: SavedRead | undefined): Set<string> | undefined {
+  return read && !read.incomplete ? new Set(read.tickets.filter((ticket) => ticket.finishedAt !== undefined).map((ticket) => ticket.id)) : undefined
 }
+
+/** A milestone's pace measured with no pace window: a candidate's, and the milestone's own beside it. */
+const NO_PACE_WINDOW: MilestoneInputs['paceWindow'] = { action: undefined, skippedPeriods: [] }
 
 function candidateRead(
   read: SavedRead,
   ownCounts: readonly number[],
   picked: Set<string> | undefined,
-  { startDate, cadenceDays }: { startDate: string; cadenceDays: number },
+  { startDate, cadence }: { startDate: string | undefined; cadence: number },
   { today, timeZone }: CandidatesAt,
 ): CandidateRead {
-  const periods = Math.min(STRIP_PERIODS, wholePeriods([read], { startDate, cadenceDays, today, timeZone }).periods)
-  const strip = finishedPerPeriod(read, { startDate, cadenceDays, today, timeZone, periods })
+  const { counts } = paceOf({ reads: { candidate: read }, paceWindow: NO_PACE_WINDOW, cadence, startDate, clock: { today, timeZone } })
+  const all = counts ?? { counts: [], starts: [] }
+  const strip = { counts: all.counts.slice(-STRIP_PERIODS), starts: all.starts.slice(-STRIP_PERIODS) }
   const median = strip.counts.length === 0 ? 0 : medianOf(strip.counts)
   const finished = read.tickets.filter((ticket) => ticket.finishedAt !== undefined)
   const last = finished

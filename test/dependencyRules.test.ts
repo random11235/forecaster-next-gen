@@ -3,7 +3,7 @@ import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
 
-// The dependency rules in docs/design/architecture.md that keep connectors/ and secrets/ at the edge.
+// The dependency rules in docs/design/architecture-dependency-rules.md that keep connectors/ and secrets/ at the edge.
 
 const src = fileURLToPath(new URL('../src', import.meta.url))
 
