@@ -2,6 +2,7 @@ import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
 import type { Connecting } from '../../src/forecast/connection.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
+import type { Secrets } from '../../src/secrets/secrets.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import { TODAY, type TeamStorage } from '../trackerScenario.js'
 
@@ -12,6 +13,8 @@ import { TODAY, type TeamStorage } from '../trackerScenario.js'
 export interface AppOnTracker {
   running: RunningApp
   storage: TeamStorage
+  /** Where the app keeps the team's token, in memory in place of the keychain. */
+  secrets: Secrets
   /** Moves the clock: the instant the app reads the tracker at from now on. */
   readAt(instant: string): void
   close(): Promise<void>
@@ -23,11 +26,12 @@ export interface AppOnTracker {
  */
 export async function appOnTracker(fixture: CannedFixture, { today = TODAY, now = `${TODAY}T09:00:00Z` } = {}): Promise<AppOnTracker> {
   const storage: TeamStorage = openSqliteStorage(':memory:')
+  const secrets = openMemorySecrets()
   const connecting: Connecting = {
     connections: storage,
     queries: storage,
     setup: storage,
-    secrets: openMemorySecrets(),
+    secrets,
     connector: () => cannedConnector(fixture),
   }
   let instant = now
@@ -35,6 +39,7 @@ export async function appOnTracker(fixture: CannedFixture, { today = TODAY, now 
   return {
     running,
     storage,
+    secrets,
     readAt: (later) => void (instant = later),
     async close() {
       await running.close()
@@ -42,10 +47,6 @@ export async function appOnTracker(fixture: CannedFixture, { today = TODAY, now 
     },
   }
 }
-
-/** Posts `fields` to `path`, as a form does, not following a redirect. */
-export const post = (running: RunningApp, path: string, fields: Record<string, string> | URLSearchParams): Promise<Response> =>
-  fetch(new URL(path, running.url), { method: 'POST', body: new URLSearchParams(fields), redirect: 'manual' })
 
 /** The page at `path`, as HTML. */
 export const page = async (running: RunningApp, path: string): Promise<string> => (await fetch(new URL(path, running.url))).text()

@@ -5,6 +5,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { post } from './forms.js'
 
 // Starts the app the way `npm start` does: runs the built entry point, which test/buildOnce.ts builds before any test file.
 const root = fileURLToPath(new URL('../..', import.meta.url))
@@ -103,12 +104,11 @@ describe('launch smoke test', () => {
 
   test('in demo mode, setup closes to a summary served from the committed fixture', async () => {
     const url = await printedUrl(runEntry({ PORT: '0', FORECASTER_DEMO: '1' }))
-    const post = (path: string, fields: Record<string, string>) =>
-      fetch(new URL(path, url), { method: 'POST', body: new URLSearchParams(fields), redirect: 'manual' })
+    const running = { url }
 
-    await post('/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'demo' })
-    await post('/inputs/milestone-query/add', { kind: 'epic', name: 'Epic: onboarding 1', query: 'parent-issue:shop-team/shop#200' })
-    const used = await post('/inputs/setup/use-these', {})
+    await post(running, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'demo' })
+    await post(running, '/inputs/milestone-query/add', { kind: 'epic', name: 'Epic: onboarding 1', query: 'parent-issue:shop-team/shop#200' })
+    const used = await post(running, '/inputs/setup/use-these', {})
     const html = await (await fetch(new URL('/inputs', url))).text()
 
     expect(used.status).toBe(303)

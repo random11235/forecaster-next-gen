@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
+import { post } from './forms.js'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
 import type { Connecting } from '../../src/forecast/connection.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
@@ -62,9 +63,6 @@ async function startConnected(): Promise<RunningApp> {
 }
 
 const page = async (running: RunningApp, path = STEP): Promise<string> => (await fetch(new URL(path, running.url))).text()
-
-const post = (running: RunningApp, path: string, fields: Record<string, string>): Promise<Response> =>
-  fetch(new URL(path, running.url), { method: 'POST', body: new URLSearchParams(fields), redirect: 'manual' })
 
 /** The Inputs screen at the Comparable work step (#217). */
 const STEP = '/inputs?step=comparableWork'
