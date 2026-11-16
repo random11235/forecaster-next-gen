@@ -26,10 +26,11 @@ export async function followRenamedMilestone(
 ): Promise<StepQuerySubmitted> {
   const saved = withTeamQueries(connecting, 'saved')
   const current = withTeamQueries(connecting, 'current')
-  // the steps' query is the saved one unless the draft holds its own; that one is looked for again only if it differs
+  // the steps' query is the saved one unless the draft holds its own; it follows when it is the draft's own, or when
+  // the saved one followed; a follow refused is not asked of the tracker again
   const stepsOwn = !sameQuery(current.milestoneQueries.milestoneQuery(teamId), saved.milestoneQueries.milestoneQuery(teamId))
   const followed = await followIn(saved, teamId, renamed, readAt)
-  if (followed.kind !== 'unchanged' || stepsOwn) await followIn(current, teamId, renamed, readAt)
+  if (stepsOwn || followed.kind === 'saved') await followIn(current, teamId, renamed, readAt)
   return followed
 }
 
