@@ -1,8 +1,8 @@
-import { SAVE_IN_PLACE } from '../../src/app/inputsScript.js'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
 import type { Connecting } from '../../src/forecast/connection.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
+import type { Secrets } from '../../src/secrets/secrets.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import { TODAY, type TeamStorage } from '../trackerScenario.js'
 
@@ -13,6 +13,8 @@ import { TODAY, type TeamStorage } from '../trackerScenario.js'
 export interface AppOnTracker {
   running: RunningApp
   storage: TeamStorage
+  /** Where the app keeps the team's token, in memory in place of the keychain. */
+  secrets: Secrets
   /** Moves the clock: the instant the app reads the tracker at from now on. */
   readAt(instant: string): void
   close(): Promise<void>
@@ -24,11 +26,12 @@ export interface AppOnTracker {
  */
 export async function appOnTracker(fixture: CannedFixture, { today = TODAY, now = `${TODAY}T09:00:00Z` } = {}): Promise<AppOnTracker> {
   const storage: TeamStorage = openSqliteStorage(':memory:')
+  const secrets = openMemorySecrets()
   const connecting: Connecting = {
     connections: storage,
     queries: storage,
     setup: storage,
-    secrets: openMemorySecrets(),
+    secrets,
     connector: () => cannedConnector(fixture),
   }
   let instant = now
@@ -36,6 +39,7 @@ export async function appOnTracker(fixture: CannedFixture, { today = TODAY, now 
   return {
     running,
     storage,
+    secrets,
     readAt: (later) => void (instant = later),
     async close() {
       await running.close()
@@ -44,24 +48,7 @@ export async function appOnTracker(fixture: CannedFixture, { today = TODAY, now 
   }
 }
 
-/** A form's fields, in any shape `URLSearchParams` takes. */
-type FormFields = Record<string, string> | [string, string][] | URLSearchParams
-
-/**
- * Posts `fields` to `path` as a form on the app's own page does: from its origin, which the server checks, not following
- * a redirect. Takes anything with the app's `url`, so a test of the built app can post to the address it printed.
- */
-export const post = (running: Pick<RunningApp, 'url'>, path: string, fields: FormFields, headers: Record<string, string> = {}): Promise<Response> =>
-  fetch(new URL(path, running.url), {
-    method: 'POST',
-    body: new URLSearchParams(fields),
-    headers: { origin: new URL(running.url).origin, ...headers },
-    redirect: 'manual',
-  })
-
-/** Posts `fields` as the Inputs screen's script does when a field changes: it asks to stay on the Inputs screen. */
-export const saveInPlace = (running: Pick<RunningApp, 'url'>, path: string, fields: FormFields): Promise<Response> =>
-  post(running, path, fields, { [SAVE_IN_PLACE.header]: SAVE_IN_PLACE.value })
+export { post, saveInPlace } from './forms.js'
 
 /** The page at `path`, as HTML. */
 export const page = async (running: RunningApp, path: string): Promise<string> => (await fetch(new URL(path, running.url))).text()
