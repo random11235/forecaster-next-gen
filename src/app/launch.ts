@@ -63,6 +63,8 @@ export async function startAppAndOpenBrowser(options: LaunchOptions): Promise<Ru
 /** Hands the request to the routes and writes their reply. */
 async function serve(request: IncomingMessage, response: ServerResponse, context: AppContext): Promise<void> {
   const method = request.method ?? 'GET'
+  const refusal = refuseOtherSites(request, method)
+  if (refusal) return refuse(response, refusal)
   const { pathname, search } = new URL(request.url ?? '/', `http://${HOST}`)
   if (method === 'GET' && pathname === LIVE_PATH) return streamVersion(response)
   const path = pathname + search
@@ -70,6 +72,27 @@ async function serve(request: IncomingMessage, response: ServerResponse, context
   const saveInPlace = request.headers[SAVE_IN_PLACE.header] === SAVE_IN_PLACE.value
   const routed: Request = { method, path, ...(form && { form }), ...(saveInPlace && { saveInPlace }) }
   send(response, await (routeSetup(routed, context) ?? route(routed, context)))
+}
+
+/**
+ * Why a request is refused before any route runs, if it is. Localhost is reachable from any page the EM's browser
+ * opens: a page on a domain re-pointed at 127.0.0.1 (DNS rebinding) sends its own domain as `Host`. The port is the
+ * one the server actually bound, so a `PORT=0` launch is checked against the port it got. A form on any site can POST
+ * here, so a POST must come from the server's own pages: browsers send `Origin` on every POST, the app's own
+ * save-in-place `fetch` among them, so a POST without one is refused too. GETs aren't Origin-checked, so links,
+ * bookmarks, typed URLs and `/live` keep working.
+ */
+function refuseOtherSites(request: IncomingMessage, method: string): string | undefined {
+  const port = request.socket.localPort
+  const ours = (scheme: string): string[] => [`${scheme}${HOST}:${port}`, `${scheme}localhost:${port}`]
+  if (!ours('').includes(request.headers.host ?? '')) return 'Refused: this request is not addressed to the Forecaster.'
+  if (method === 'POST' && !ours('http://').includes(request.headers.origin ?? '')) return 'Refused: this form was not sent from the Forecaster.'
+  return undefined
+}
+
+function refuse(response: ServerResponse, reason: string): void {
+  response.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' })
+  response.end(reason)
 }
 
 /** Where an open page listens for the version the app is running, to reload when it changes. */

@@ -88,7 +88,12 @@ async function startConnected(): Promise<RunningApp> {
 const page = async (running: RunningApp, path = '/inputs?step=comparableWork'): Promise<string> => (await fetch(new URL(path, running.url))).text()
 
 const post = (running: RunningApp, path: string, fields: Record<string, string> | Choice): Promise<Response> =>
-  fetch(new URL(path, running.url), { method: 'POST', body: new URLSearchParams({ ...fields }), redirect: 'manual' })
+  fetch(new URL(path, running.url), {
+    method: 'POST',
+    body: new URLSearchParams({ ...fields }),
+    headers: { origin: new URL(running.url).origin },
+    redirect: 'manual',
+  })
 
 /** The Comparable work step. */
 function stepOf(html: string): string {

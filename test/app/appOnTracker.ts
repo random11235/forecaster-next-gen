@@ -45,7 +45,7 @@ export async function appOnTracker(fixture: CannedFixture, { today = TODAY, now 
 
 /** Posts `fields` to `path`, as a form does, not following a redirect. */
 export const post = (running: RunningApp, path: string, fields: Record<string, string> | URLSearchParams): Promise<Response> =>
-  fetch(new URL(path, running.url), { method: 'POST', body: new URLSearchParams(fields), redirect: 'manual' })
+  fetch(new URL(path, running.url), { method: 'POST', body: new URLSearchParams(fields), headers: { origin: new URL(running.url).origin }, redirect: 'manual' })
 
 /** The page at `path`, as HTML. */
 export const page = async (running: RunningApp, path: string): Promise<string> => (await fetch(new URL(path, running.url))).text()
