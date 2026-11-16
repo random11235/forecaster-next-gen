@@ -265,7 +265,9 @@ describe('no reads to count', () => {
     expect(pace?.periods).toEqual(paired({ comparableWork: PAYMENTS_COUNTS }))
     expect(pace?.comparison).toBeUndefined()
     const tracker = { ...using, timeZone: 'UTC' }
-    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS, TODAY, { tracker }).milestone.ticketsSource).toMatchObject({ reading: { count: 3, incomplete: true } })
+    submitInputs(storage, TEAM, DEFAULT_SETTINGS, TODAY, { kind: 'setTicketsSource', ticketsSource: 'tracker' }, { tracker })
+    const why = 'GitHub gave only part of the milestone’s tickets, so tickets remaining isn’t known. Narrow the milestone query, or type tickets remaining.'
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS, TODAY, { tracker }).milestone.notes).toContainEqual({ input: 'ticketsRemaining', message: why })
   })
 
   test('an incomplete comparable-work read isn’t counted: pace is the milestone’s own', async () => {
