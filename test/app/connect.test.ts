@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
+import { post } from './forms.js'
 import { openWebApp } from '../../src/app/webApp.js'
 import type { Connecting } from '../../src/forecast/connection.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
@@ -48,9 +49,6 @@ async function startConnecting(answer: Answer = CHOICES): Promise<{ app: Running
 }
 
 const inputsPage = async (running: RunningApp): Promise<string> => (await fetch(new URL('/inputs?step=connect', running.url))).text()
-
-const post = (running: RunningApp, path: string, fields: Record<string, string>): Promise<Response> =>
-  fetch(new URL(path, running.url), { method: 'POST', body: new URLSearchParams(fields), headers: { origin: new URL(running.url).origin }, redirect: 'manual' })
 
 /** The Connect form for a GitHub repo, as the EM fills it in. */
 const github = (repo: string, token = TOKEN): Record<string, string> => ({ tracker: 'github', repo, token })

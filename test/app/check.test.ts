@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import type { CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
 import { CHECKOUT, finishedOn, open } from '../trackerScenario.js'
-import { appOnTracker, page, post, type AppOnTracker } from './appOnTracker.js'
+import { appOnTracker, page, type AppOnTracker } from './appOnTracker.js'
+import { post } from './forms.js'
 
 // The Check step (#220), through the local server as the EM's browser sees it, on the canned connector: how its rows
 // render, and how a choice's form is read. What Check offers and what "Use these" saves are Seam B's

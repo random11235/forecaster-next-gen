@@ -6,7 +6,10 @@ import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js
 import { SAVE_IN_PLACE } from '../../src/app/inputsScript.js'
 import { defaultTeam } from '../../src/app/routes.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
-import type { Storage } from '../../src/storage/storage.js'
+import type { QueryTarget, Storage } from '../../src/storage/storage.js'
+import { CHECKOUT, TEAM } from '../trackerScenario.js'
+import { appOnTracker, page, type AppOnTracker } from './appOnTracker.js'
+import { post } from './forms.js'
 
 /** The app's one version, as `package.json` sets it. */
 const VERSION: unknown = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version
@@ -46,16 +49,8 @@ describe('one-command launch', () => {
 
   test('on first launch, the EM can enter a milestone and its pace on the Inputs screen and see it forecast', async () => {
     app = await startOnFreePort()
-    const post = (path: string, fields: Record<string, string>): Promise<Response> =>
-      fetch(new URL(path, app!.url), {
-        method: 'POST',
-        body: new URLSearchParams(fields),
-        headers: { origin: new URL(app!.url).origin },
-        redirect: 'manual',
-      })
-
-    await post('/inputs/milestone', { name: 'Launch', startDate: '2026-11-02', ticketsRemaining: '30' })
-    await post('/inputs/pace', { low: '5', high: '10' })
+    await post(app, '/inputs/milestone', { name: 'Launch', startDate: '2026-11-02', ticketsRemaining: '30' })
+    await post(app, '/inputs/pace', { low: '5', high: '10' })
     const home = await (await fetch(app.url)).text()
 
     expect(home).toContain('Launch · 30 tickets remaining')
@@ -184,7 +179,7 @@ describe('refuses requests from other sites', () => {
   /** A milestone typed on the Inputs screen, as its form posts it. */
   const MILESTONE = { name: 'Launch', startDate: '2026-11-02', ticketsRemaining: '30' }
 
-  /** What the app answered a request sent with `send`. */
+  /** What the app answered a request sent with `send`: a stream's status and headers, with no body read. */
   interface Answer {
     status: number
     contentType: string | undefined
@@ -193,26 +188,38 @@ describe('refuses requests from other sites', () => {
 
   /**
    * Sends a request to the running app with exactly the headers given, `Host` among them: `fetch` sets its own `Host`,
-   * as a browser does, so a rebound domain's can only be sent this way.
+   * as a browser does, so a rebound domain's can only be sent this way. A stream (`/live`) never ends, so it answers
+   * once its headers arrive.
    */
-  const send = (method: string, path: string, headers: Record<string, string>, body = ''): Promise<Answer> =>
+  const send = (running: RunningApp, method: string, path: string, headers: Record<string, string>, body = ''): Promise<Answer> =>
     new Promise((resolve, reject) => {
-      const request = httpRequest(new URL(path, app!.url), { method, headers }, (response) => {
-        let text = ''
+      const request = httpRequest(new URL(path, running.url), { method, headers }, (response) => {
+        const answer = { status: response.statusCode ?? 0, contentType: response.headers['content-type'], body: '' }
+        if (answer.contentType === 'text/event-stream') {
+          response.destroy()
+          return resolve(answer)
+        }
         response.setEncoding('utf8')
-        response.on('data', (chunk: string) => (text += chunk))
-        response.on('end', () => resolve({ status: response.statusCode ?? 0, contentType: response.headers['content-type'], body: text }))
+        response.on('data', (chunk: string) => (answer.body += chunk))
+        response.on('end', () => resolve(answer))
       })
       request.on('error', reject)
       request.end(body)
     })
 
+  /** What the app answered a `fetch`, as `send` gives it. */
+  const answerOf = async (response: Response): Promise<Answer> => ({
+    status: response.status,
+    contentType: response.headers.get('content-type') ?? undefined,
+    body: await response.text(),
+  })
+
   /** Posts the milestone form with the given headers. */
-  const postMilestone = (headers: Record<string, string>): Promise<Answer> =>
-    send('POST', '/inputs/milestone', { 'content-type': 'application/x-www-form-urlencoded', ...headers }, new URLSearchParams(MILESTONE).toString())
+  const postMilestone = (running: RunningApp, headers: Record<string, string>): Promise<Answer> =>
+    send(running, 'POST', '/inputs/milestone', { 'content-type': 'application/x-www-form-urlencoded', ...headers }, new URLSearchParams(MILESTONE).toString())
 
   /** Whether the posted milestone was saved, as the Inputs screen shows its name. */
-  const milestoneSaved = async (): Promise<boolean> => (await (await fetch(new URL('/inputs', app!.url))).text()).includes('name="name" value="Launch"')
+  const milestoneSaved = async (running: RunningApp): Promise<boolean> => (await page(running, '/inputs')).includes('name="name" value="Launch"')
 
   /** A refusal: 403 with a short plain-text body, not a page. */
   const expectRefused = (answer: Answer): void => {
@@ -225,17 +232,17 @@ describe('refuses requests from other sites', () => {
     app = await startOnFreePort()
     const { port } = new URL(app.url)
 
-    expectRefused(await send('GET', '/', { host: `attacker.example:${port}` }))
+    expectRefused(await send(app, 'GET', '/', { host: `attacker.example:${port}` }))
   })
 
   test('a POST whose Host is another site is refused with 403, and saves nothing', async () => {
     app = await startOnFreePort()
     const { port } = new URL(app.url)
 
-    const answer = await postMilestone({ host: `attacker.example:${port}`, origin: `http://attacker.example:${port}` })
+    const answer = await postMilestone(app, { host: `attacker.example:${port}`, origin: `http://attacker.example:${port}` })
 
     expectRefused(answer)
-    expect(await milestoneSaved()).toBe(false)
+    expect(await milestoneSaved(app)).toBe(false)
   })
 
   test.each([
@@ -246,8 +253,49 @@ describe('refuses requests from other sites', () => {
     app = await startOnFreePort()
     const { host } = new URL(app.url)
 
-    expectRefused(await postMilestone({ host, ...origin }))
-    expect(await milestoneSaved()).toBe(false)
+    expectRefused(await postMilestone(app, { host, ...origin }))
+    expect(await milestoneSaved(app)).toBe(false)
+  })
+
+  describe('on a connected app', () => {
+    let tracker: AppOnTracker | undefined
+
+    afterEach(async () => {
+      await tracker?.close()
+      tracker = undefined
+    })
+
+    /** The team's queries in `target`. */
+    const queriesIn = ({ storage }: AppOnTracker, target: QueryTarget) => {
+      const { milestoneQueries } = storage.teamQueries(target)
+      return { milestone: milestoneQueries.milestoneQuery(TEAM), comparableWork: milestoneQueries.comparableWorkQuery(TEAM) }
+    }
+
+    /** The team's connection, its saved token, and its queries, saved and as setup's steps see them. */
+    const connectionAndQueries = async (tracker: AppOnTracker) => ({
+      connection: tracker.storage.connection(TEAM),
+      token: await tracker.secrets.token(TEAM),
+      saved: queriesIn(tracker, 'saved'),
+      current: queriesIn(tracker, 'current'),
+    })
+
+    test.each([
+      ['connecting another repo', '/inputs/connect', { tracker: 'github', repo: 'attacker/repo', token: 'theirs' }],
+      ['disconnecting', '/inputs/connect/disconnect', {}],
+      ['adding to the milestone query', '/inputs/milestone-query/add', { kind: 'milestone', name: 'Other', query: 'milestone:"Other"' }],
+    ])('a cross-site POST %s is refused with 403, leaving the connection, its saved token and the queries as they were', async (_, path, fields) => {
+      tracker = await appOnTracker({ milestoneChoices: [{ kind: 'milestone', choices: [CHECKOUT], pastLimit: false }], reads: {} })
+      await post(tracker.running, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
+      await post(tracker.running, '/inputs/milestone-query/add', { ...CHECKOUT })
+      const before = await connectionAndQueries(tracker)
+      expect(before.connection).toEqual({ tracker: 'github', owner: 'shop-team', repo: 'shop' })
+      expect(before.token).toBe('token')
+
+      const refused = await post(tracker.running, path, fields, { origin: 'https://attacker.example' })
+
+      expectRefused(await answerOf(refused))
+      expect(await connectionAndQueries(tracker)).toEqual(before)
+    })
   })
 
   // Started on port 0, so these also show the checks use the port the server bound.
@@ -255,38 +303,32 @@ describe('refuses requests from other sites', () => {
     app = await startOnFreePort()
     const { port } = new URL(app.url)
 
-    const answer = await postMilestone({ host: `${name}:${port}`, origin: `http://${name}:${port}` })
+    const answer = await postMilestone(app, { host: `${name}:${port}`, origin: `http://${name}:${port}` })
 
     expect(answer.status).toBe(303)
-    expect(await milestoneSaved()).toBe(true)
+    expect(await milestoneSaved(app)).toBe(true)
   })
 
   test("the Inputs screen's save in place, from the app, is saved as today", async () => {
     app = await startOnFreePort()
     const { host, origin } = new URL(app.url)
 
-    const answer = await postMilestone({ host, origin, [SAVE_IN_PLACE.header]: SAVE_IN_PLACE.value })
+    const answer = await postMilestone(app, { host, origin, [SAVE_IN_PLACE.header]: SAVE_IN_PLACE.value })
 
     expect(answer.status).toBeLessThan(400)
-    expect(await milestoneSaved()).toBe(true)
+    expect(await milestoneSaved(app)).toBe(true)
   })
 
   test.each(['127.0.0.1', 'localhost'])('GET pages and /live on %s are served as today, with no Origin', async (name) => {
     app = await startOnFreePort()
     const host = `${name}:${new URL(app.url).port}`
 
-    const page = await send('GET', '/inputs', { host })
-    const live = await new Promise<number>((resolve, reject) => {
-      const request = httpRequest(new URL('/live', app!.url), { headers: { host } }, (response) => {
-        resolve(response.statusCode ?? 0)
-        response.destroy()
-      })
-      request.on('error', reject)
-      request.end()
-    })
+    const inputs = await send(app, 'GET', '/inputs', { host })
+    const live = await send(app, 'GET', '/live', { host })
 
-    expect(page.status).toBe(200)
-    expect(page.body).toContain('<html')
-    expect(live).toBe(200)
+    expect(inputs.status).toBe(200)
+    expect(inputs.body).toContain('<html')
+    expect(live.status).toBe(200)
+    expect(live.contentType).toBe('text/event-stream')
   })
 })
