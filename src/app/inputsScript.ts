@@ -1,7 +1,7 @@
 /**
  * The Inputs screen's script: it saves each input as the EM changes it, so the screen needs no save buttons (#100).
  *
- * When a field of a form changes (a radio on click; a text or number field on leaving it, or on Enter), it posts that
+ * When a field of a form changes (a radio on click; a text, number or date field on leaving it, or on Enter), it posts that
  * form to the route its button posts to, asking to save in place. A save answers with the Inputs screen, whose
  * sections replace these, as a save can change what other sections say (a cadence makes pace per sprint); a "Saved"
  * note shows beside the section saved. A refusal answers with the screen to show again, and only the refused section
@@ -110,9 +110,17 @@ export const INPUTS_SCRIPT = `
   const queue = (form) => (saving = saving.then(() => save(form)))
 
   for (const form of document.forms) lastSaved.set(form, bodyOf(form))
+  // A date field fires change as each of its parts is typed, once the date is whole: typing 16 into the day changes
+  // it on the 1. Saving then would swap in a new field, so the 6 would start the day again. It saves on leaving it, or
+  // on Enter, as a text field does.
+  const typingDate = (field) => field.type === 'date' && field === document.activeElement
   main.addEventListener('change', (event) => {
     const form = event.target.form
-    if (form && sectionOf(form)) queue(form)
+    if (form && sectionOf(form) && !typingDate(event.target)) queue(form)
+  })
+  main.addEventListener('focusout', (event) => {
+    const form = event.target.form
+    if (event.target.type === 'date' && form && sectionOf(form)) queue(form)
   })
   // a chip opened on a read not opened before: says so, clearing its dot, with no reply to show
   main.addEventListener('toggle', (event) => {
