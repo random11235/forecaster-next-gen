@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net'
 import type { Connecting } from '../forecast/connection.js'
 import type { Storage } from '../storage/storage.js'
 import { SAVE_IN_PLACE } from './inputsScript.js'
+import { VERSION } from './version.js'
 import { appContext, route, routeSetup, type AppContext, type Reply, type Request } from './routes.js'
 
 /** Localhost only: the Forecaster is a local, single-user tool and is never reachable from the network. */
@@ -63,11 +64,31 @@ export async function startAppAndOpenBrowser(options: LaunchOptions): Promise<Ru
 async function serve(request: IncomingMessage, response: ServerResponse, context: AppContext): Promise<void> {
   const method = request.method ?? 'GET'
   const { pathname, search } = new URL(request.url ?? '/', `http://${HOST}`)
+  if (method === 'GET' && pathname === LIVE_PATH) return streamVersion(response)
   const path = pathname + search
   const form = method === 'POST' ? new URLSearchParams(await readBody(request)) : undefined
   const saveInPlace = request.headers[SAVE_IN_PLACE.header] === SAVE_IN_PLACE.value
   const routed: Request = { method, path, ...(form && { form }), ...(saveInPlace && { saveInPlace }) }
   send(response, await (routeSetup(routed, context) ?? route(routed, context)))
+}
+
+/** Where an open page listens for the version the app is running, to reload when it changes. */
+const LIVE_PATH = '/live'
+
+/**
+ * Carried by every page the server sends (the web build has no server, so its pages don't): it reloads the page when
+ * `/live` streams a version other than the one the page was served with. A dropped stream reconnects by itself, so a
+ * restart on the same version changes nothing.
+ */
+const RELOAD_ON_NEW_VERSION = `new EventSource('${LIVE_PATH}').onmessage = (event) => { if (event.data !== ${JSON.stringify(VERSION)}) location.reload() }`
+
+/**
+ * Sends the version as a server-sent event and keeps the stream open: when the app stops, the stream drops, the page's
+ * `EventSource` reconnects after `retry` milliseconds and reads the version the app restarted on. `close` ends it.
+ */
+function streamVersion(response: ServerResponse): void {
+  response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' })
+  response.write(`retry: 500\ndata: ${VERSION}\n\n`)
 }
 
 /** Form posts are a few bytes; anything over this is refused rather than buffered. */
@@ -86,7 +107,7 @@ function send(response: ServerResponse, reply: Reply): void {
   switch (reply.kind) {
     case 'html':
       response.writeHead(reply.status, { 'content-type': 'text/html; charset=utf-8' })
-      response.end(reply.html)
+      response.end(reply.html.replace('</body>', () => `  <script>${RELOAD_ON_NEW_VERSION}</script>\n</body>`))
       return
     case 'redirect':
       response.writeHead(303, { location: reply.location })

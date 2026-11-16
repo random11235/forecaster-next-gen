@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, test } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { networkInterfaces } from 'node:os'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
 import { defaultTeam } from '../../src/app/routes.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
+
+/** The app's one version, as `package.json` sets it. */
+const VERSION: unknown = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version
 
 /** When the Forecaster was installed for the team the tests store. */
 const INSTALLED = '2026-01-01T00:00:00Z'
@@ -129,5 +133,41 @@ describe('one-command launch', () => {
     const response = await fetch(new URL('/nope', app.url))
 
     expect(response.status).toBe(404)
+  })
+})
+
+describe('version and live reload', () => {
+  test.each(['/', '/inputs', '/how-it-works'])('%s shows the version in its footer', async (path) => {
+    app = await startOnFreePort()
+
+    const html = await (await fetch(new URL(path, app.url))).text()
+
+    expect(VERSION).toMatch(/^\d+\.\d+\.\d+$/)
+    expect(html).toMatch(new RegExp(`<footer[^>]*>Forecaster ${String(VERSION).replaceAll('.', '\\.')}</footer>`))
+  })
+
+  test('/live streams the version and keeps the stream open, and stopping the app is not held up by it', async () => {
+    app = await startOnFreePort()
+
+    const response = await fetch(new URL('/live', app.url))
+    const first = await response.body?.getReader().read()
+    const closing = app.close()
+    app = undefined
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toBe('text/event-stream')
+    expect(new TextDecoder().decode(first?.value)).toBe(`retry: 500\ndata: ${String(VERSION)}\n\n`)
+    await expect(closing).resolves.toBeUndefined()
+  })
+
+  test('every page it serves carries a script that listens on /live and reloads on a version other than its own', async () => {
+    app = await startOnFreePort()
+
+    const html = await (await fetch(app.url)).text()
+    const script = html.match(/<script>([^]*?EventSource[^]*?)<\/script>/)?.[1]
+
+    expect(script).toContain(`new EventSource('/live')`)
+    expect(script).toContain(`!== ${JSON.stringify(VERSION)}`)
+    expect(script).toContain('location.reload()')
   })
 })

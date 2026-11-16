@@ -6,6 +6,16 @@ Write the body with `/pr`'s template (Summary, Evidence, Merge Danger). This rep
 
 Show each change itself: a diff-sketch of the type, call tree or data shape it changes, and a shallow file tree of the files it touches, each with a one-line comment. A prose summary sits beside the sketches, never instead of them.
 
+## Version
+
+A PR that changes the app sets `version` in `package.json` (semver), which every screen's footer shows:
+
+- **Major**: a one-way door, a stored-data change the EM can't go back from.
+- **Minor**: a visible change.
+- **Patch**: no visible change.
+
+A docs-only PR doesn't bump it. An open page reloads itself when the app restarts on a different version.
+
 ## Evidence shows the output
 
 - **Visible change, built:** screenshots of each screen state, before and after, captured and embedded as in [`demos.md`](demos.md). For "before", use the newest demo of that screen on `main`.
@@ -29,5 +39,6 @@ When a PR merges into `main`, the path to production ends on this machine:
 2. Remove the closed tickets' workflow labels, as the [Ticket lifecycle](issue-tracker.md#ticket-lifecycle) sets out.
 3. Restart the local app from `main`, so http://127.0.0.1:5180/ shows what merged:
    - Stop whatever listens on port 5180 (`lsof -tiTCP:5180 -sTCP:LISTEN | xargs kill`).
-   - Run `npm install && npm start` in the background from the repo root, and wait for `Forecaster running at`.
+   - Run `npm install && FORECASTER_NO_BROWSER=1 npm start` in the background from the repo root, and wait for `Forecaster running at`. Open pages reload on the new version by themselves, so no new tab opens.
+   - After a few seconds, if no page has reconnected to `/live` (no established connection to port 5180: `lsof -nP -iTCP:5180 -sTCP:ESTABLISHED` lists none), open one tab: `open http://127.0.0.1:5180/`.
    - If the build fails, say so with its output; don't leave the old app running as if it were updated.
