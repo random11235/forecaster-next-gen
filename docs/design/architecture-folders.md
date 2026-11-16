@@ -19,13 +19,12 @@ src/
     inputs.ts             # Seam B: stored data → the Inputs screen's view; a submitted form saved (and where next) or refused (and the screen to show again)
     milestoneInputs.ts    # behind inputs.ts: the milestone's view and edits
     milestoneAssessment.ts  # behind both views: the milestone's inputs against the settings and today, with the pace in use: what stops a forecast, the warnings, the pace the forecast runs on
-    trackerReads.ts       # behind both views: what the tracker measures from its saved reads: tickets remaining, and the milestone's pace through lib/pace.ts
-    lib/pace.ts           # the pace module, `paceOf`: the only place pace is worked out, and the only import its callers use; tested only through Seam B
+    trackerReads.ts       # behind both views: what the tracker measures from its saved reads: tickets remaining (through queryRead.ts), and the milestone's pace through lib/pace.ts
+    lib/pace.ts           # the pace module, `paceOf`: the only place pace is worked out, and the only import pace's callers use; tested only through Seam B
     lib/periodCounts.ts   # behind lib/pace.ts: the saved reads pace is measured from, their finished tickets counted per period side by side in the EM's time zone
     lib/trackerWindow.ts  # behind lib/pace.ts: the tracker's pace window, the skipped periods it reaches back past, and what its bound says
     lib/paceReading.ts    # behind lib/pace.ts: the tracker's reading of pace, and the pace the latest read replaced
     lib/paceInUse.ts      # behind lib/pace.ts: the pace in use, from the source the EM chose, and its notes
-    lib/queryRead.ts      # behind lib/pace.ts: reading a query, how far back a read reaches (finishedSince), tickets remaining
     growth.ts             # behind inputs.ts: the ambiguity ranges view and edit; the milestone's growth range
     connection.ts         # Seam B: the Connect step's view; a connect checked through a connector from a factory passed in, then saved (with its token, through secrets/) or refused; disconnect; a failing keychain or data file refused, changing nothing
     trackers.ts           # each tracker's facts: its name, its token's permission, where a connection reads, its form and what it lacks, its refusals
@@ -40,6 +39,7 @@ src/
     setupSteps.ts         # the four setup steps in order, and the step a URL asks for
     setupSummary.ts       # setup's summary view: its rows, their picks' counts and note, and problem flags
     setupReads.ts         # Seam B: setup's reads: each pick read at Check for its count (`readPicks`, from `openSetup`), Read again, why a read failed
+    queryRead.ts          # reading a query and saving the read, how far back a read reaches (finishedSince, the tracker's periods), whether it is complete, its tickets remaining and weeks read; tested through Seam B
     queryStep.ts          # Seam B: a query step's view, whole (the Milestone step, or the Comparable work step with its pace and candidates); its searched choices; its submits
     lib/choiceLists.ts    # behind queryStep.ts: each kind's choices as the picker lists them, filtered here or searched in the tracker
     lib/stepQueryEdit.ts  # behind queryStep.ts: the query an edit makes, its picks changed or typed by hand and read back into chips
