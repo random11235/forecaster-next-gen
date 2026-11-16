@@ -169,8 +169,11 @@ describe('the milestone’s own pace', () => {
   const OWN = { from: 'milestone', median: 0.5, low: 0, high: 2 }
 
   test('with no comparable-work query, pace is the milestone’s own finished tickets, over the periods since its start', async () => {
-    expect(await stepPace()).toMatchObject({ inUse: OWN, periods: paired({ milestone: MILESTONE_COUNTS }) })
-    expect((await stepPace())?.flag).toBeUndefined()
+    const pace = await stepPace()
+    expect(pace).toMatchObject({ inUse: OWN })
+    // exactly: no comparable work beside the milestone's own
+    expect(pace?.periods).toEqual(paired({ milestone: MILESTONE_COUNTS }))
+    expect(pace?.flag).toBeUndefined()
   })
 
   test('a comparable-work query matching nothing finished in the window isn’t used: pace falls back to the milestone’s own', async () => {
@@ -256,10 +259,13 @@ describe('no reads to count', () => {
     await submitStepQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
     await addComparable(payments)
 
-    expect(await stepPace()).toMatchObject({
-      inUse: { from: 'comparableWork', median: 0, low: 0, high: 1 },
-      periods: paired({ comparableWork: PAYMENTS_COUNTS }),
-    })
+    const pace = await stepPace()
+    expect(pace).toMatchObject({ inUse: { from: 'comparableWork', median: 0, low: 0, high: 1 } })
+    // exactly: the milestone's own counts are unknown, so none are paired, nor compared with
+    expect(pace?.periods).toEqual(paired({ comparableWork: PAYMENTS_COUNTS }))
+    expect(pace?.comparison).toBeUndefined()
+    const tracker = { ...using, timeZone: 'UTC' }
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS, TODAY, { tracker }).milestone.ticketsSource).toMatchObject({ reading: { count: 3, incomplete: true } })
   })
 
   test('an incomplete comparable-work read isn’t counted: pace is the milestone’s own', async () => {
@@ -273,9 +279,10 @@ describe('no reads to count', () => {
     using = { ...using, connector: () => cannedConnector(partial) }
     await addComparable(payments)
 
-    expect(await stepPace()).toMatchObject({
-      inUse: { from: 'milestone' },
-      periods: paired({ milestone: MILESTONE_COUNTS }),
-    })
+    const pace = await stepPace()
+    expect(pace).toMatchObject({ inUse: { from: 'milestone' } })
+    // exactly: comparable work's incomplete read pairs nothing, and isn't flagged as not used
+    expect(pace?.periods).toEqual(paired({ milestone: MILESTONE_COUNTS }))
+    expect(pace?.flag).toBeUndefined()
   })
 })
