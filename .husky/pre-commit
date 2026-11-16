@@ -1,1 +1,1 @@
-node scripts/preCommit.ts
+node scripts/checkChanges.ts

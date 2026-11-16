@@ -1,5 +1,5 @@
 // File size check: a code or docs file over MAX_TOKENS is refused, with guidance on how to split it.
-// A token is estimated as four bytes. Run by the pre-commit hook on staged files (scripts/preCommit.ts).
+// A token is estimated as four bytes. Run on the files a commit or branch changes (scripts/checkChanges.ts).
 
 /** About 20,000 bytes: past this an agent reads the file in pieces and loses track of it. */
 export const MAX_TOKENS = 5_000
