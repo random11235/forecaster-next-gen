@@ -109,9 +109,15 @@ export interface SetupStorage {
   setupDraft(teamId: string): SetupDraft | undefined
   /** Replaces the team's setup draft whole. */
   saveSetupDraft(teamId: string, draft: SetupDraft): void
-  /** Replaces the sources Check chose in the team's setup draft, keeping the rest of it: a draft started if it has none. */
+  /**
+   * Replaces the sources Check chose in the team's setup draft, keeping the rest of it: a draft started if it has none.
+   * Setup closed, it saves nothing: there is no draft.
+   */
   saveDraftSources(teamId: string, sources: SetupDraft['sources']): void
-  /** Replaces why the draft's picks' reads failed at Check, keeping the rest of it: a draft started if it has none. */
+  /**
+   * Replaces why the draft's picks' reads failed at Check, keeping the rest of it: a draft started if it has none.
+   * Setup closed, it saves nothing: there is no draft.
+   */
   saveDraftPickFailures(teamId: string, pickFailures: SetupDraft['pickFailures']): void
   /** Throws the team's setup draft away (Cancel), if it has one. */
   discardSetupDraft(teamId: string): void
@@ -138,8 +144,8 @@ export interface TeamQueries {
 }
 
 /**
- * Where the local server build keeps the team's queries and reads, by target, the setup draft held behind it, so
- * nothing outside storage overlays the draft itself. The browser build has no connectors, so it keeps none.
+ * Where the local server build keeps the team's queries and reads, by target, the setup draft held behind it: only
+ * storage puts the setup draft over what's saved. The browser build has no connectors, so it keeps none.
  */
 export interface TeamQueryStorage {
   /** The team's queries and reads in `target`. */

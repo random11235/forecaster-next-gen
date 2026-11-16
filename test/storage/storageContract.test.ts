@@ -724,6 +724,18 @@ describe("SQLite storage's query targets", () => {
     expect(reopen().setupDraft('team')).toEqual({ milestoneQuery: EPIC_QUERY, reads: [], sources: { pace: 'range' } })
   })
 
+  test.each([
+    ['done', { open: false, closed: 'done' }],
+    ['skipped', { open: false, closed: 'skipped' }],
+  ] as const)('with setup closed (%s), the draft’s sources and its picks’ failures draft nothing', (_, state) => {
+    const { storage, reopen } = saved(state)
+
+    storage.saveDraftSources('team', { pace: 'range' })
+    reopen().saveDraftPickFailures('team', { 'label:"bug"': { failure: 'notFound', at: '2026-11-12T09:00:00Z' } })
+
+    expect(reopen().setupDraft('team')).toBeUndefined()
+  })
+
   test('applying the draft saves its queries and reads over the saved ones, its picks’ failures over theirs, and discards it', () => {
     const { storage, reopen } = saved({ open: true, reopened: 'done' })
     storage.saveReadFailures('team', {
