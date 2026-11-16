@@ -77,12 +77,16 @@ async function serve(request: IncomingMessage, response: ServerResponse, context
 /**
  * Why a request is refused before any route runs, if it is. Localhost is reachable from any page the EM's browser
  * opens: a page on a domain re-pointed at 127.0.0.1 (DNS rebinding) sends its own domain as `Host`. The port is the
- * one the server actually bound, so a `PORT=0` launch is checked against the port it got.
+ * one the server actually bound, so a `PORT=0` launch is checked against the port it got. A form on any site can POST
+ * here, so a POST must come from the server's own pages: browsers send `Origin` on every POST, the app's own
+ * save-in-place `fetch` among them, so a POST without one is refused too. GETs aren't Origin-checked, so links,
+ * bookmarks, typed URLs and `/live` keep working.
  */
 function refuseOtherSites(request: IncomingMessage, method: string): string | undefined {
   const port = request.socket.localPort
   const ours = (scheme: string): string[] => [`${scheme}${HOST}:${port}`, `${scheme}localhost:${port}`]
   if (!ours('').includes(request.headers.host ?? '')) return 'Refused: this request is not addressed to the Forecaster.'
+  if (method === 'POST' && !ours('http://').includes(request.headers.origin ?? '')) return 'Refused: this form was not sent from the Forecaster.'
   return undefined
 }
 

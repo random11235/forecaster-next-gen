@@ -38,7 +38,7 @@ In [`architecture-language.md`](architecture-language.md): TypeScript, and when 
 
 ## Security
 
-In [`architecture-security.md`](architecture-security.md): credentials, data minimisation, engine input limits and dependencies.
+In [`architecture-security.md`](architecture-security.md): credentials, data minimisation, the local server's checks on who is asking, engine input limits and dependencies.
 
 ## Deferred beyond v1
 
