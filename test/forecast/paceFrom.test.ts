@@ -162,6 +162,25 @@ describe('with a comparable-work query', () => {
     const tracker = { ...using, timeZone: 'UTC' }
     expect(inputsView(storage, TEAM, DEFAULT_SETTINGS, TODAY, { tracker }).milestone.ticketsSource).toMatchObject({ reading: { count: 3 } })
   })
+
+  test('with the milestone query’s read incomplete, tickets remaining aren’t known, though comparable work’s read is complete', async () => {
+    const partial: CannedFixture = {
+      ...FIXTURE,
+      reads: {
+        ...FIXTURE.reads,
+        [checkout.query]: { tickets: MILESTONE_TICKETS, incomplete: true },
+      },
+    }
+    using = { ...using, connector: () => cannedConnector(partial) }
+    storage.saveMilestoneQuery(TEAM, { picks: [], query: '' })
+    await submitStepQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
+    await addComparable(payments)
+
+    const tracker = { ...using, timeZone: 'UTC' }
+    submitInputs(storage, TEAM, DEFAULT_SETTINGS, TODAY, { kind: 'setTicketsSource', ticketsSource: 'tracker' }, { tracker })
+    const why = 'GitHub gave only part of the milestone’s tickets, so tickets remaining isn’t known. Narrow the milestone query, or type tickets remaining.'
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS, TODAY, { tracker }).milestone.notes).toContainEqual({ input: 'ticketsRemaining', message: why })
+  })
 })
 
 describe('the milestone’s own pace', () => {
@@ -246,7 +265,7 @@ describe('no reads to count', () => {
     expect(await stepPace()).toBeUndefined()
   })
 
-  test('the milestone query’s read incomplete, pace still comes from comparable work’s; the milestone’s own and tickets remaining are unknown', async () => {
+  test('the milestone query’s read incomplete, pace still comes from comparable work’s; the milestone’s own is unknown', async () => {
     const partial: CannedFixture = {
       ...FIXTURE,
       reads: {
@@ -264,10 +283,6 @@ describe('no reads to count', () => {
     // exactly: the milestone's own counts are unknown, so none are paired, nor compared with
     expect(pace?.periods).toEqual(paired({ comparableWork: PAYMENTS_COUNTS }))
     expect(pace?.comparison).toBeUndefined()
-    const tracker = { ...using, timeZone: 'UTC' }
-    submitInputs(storage, TEAM, DEFAULT_SETTINGS, TODAY, { kind: 'setTicketsSource', ticketsSource: 'tracker' }, { tracker })
-    const why = 'GitHub gave only part of the milestone’s tickets, so tickets remaining isn’t known. Narrow the milestone query, or type tickets remaining.'
-    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS, TODAY, { tracker }).milestone.notes).toContainEqual({ input: 'ticketsRemaining', message: why })
   })
 
   test('an incomplete comparable-work read isn’t counted: pace is the milestone’s own', async () => {

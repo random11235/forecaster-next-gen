@@ -92,12 +92,12 @@ export function paceOf(of: PaceQuestion): Pace {
   return { ...measured, inUse, ...notesOf(inUse, of, of.settings) }
 }
 
-type Measured = Pick<Pace, 'counts' | 'sideBySide' | 'reading' | 'incomplete'>
+type CountedPace = Pick<Pace, 'counts' | 'sideBySide' | 'reading' | 'incomplete'>
 
-const NOT_MEASURED: Measured = { counts: undefined, sideBySide: undefined, reading: undefined, incomplete: false }
+const NOT_MEASURED: CountedPace = { counts: undefined, sideBySide: undefined, reading: undefined, incomplete: false }
 
 /** Pace as the saved reads measure it, with the connected `tracker`'s reading (none without a tracker). */
-function measuredFrom(saved: SavedPaceReads, tracker: string | undefined, of: ReadCalendar): Measured {
+function measuredFrom(saved: SavedPaceReads, tracker: string | undefined, of: ReadCalendar): CountedPace {
   const sides = sideBySide(saved, of)
   const reading = sides && tracker !== undefined ? readingOf(saved, sides, tracker, of) : undefined
   return { counts: sides?.counts, sideBySide: sides?.sides, reading, incomplete: !reading && latestIncomplete(saved) }
