@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
+import { post } from './forms.js'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
 import type { Choice, Connector } from '../../src/connectors/connector.js'
 import type { Connecting } from '../../src/forecast/connection.js'
@@ -80,20 +81,12 @@ async function startConnected(): Promise<RunningApp> {
   })
   await post(app, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
   await post(app, '/inputs/milestone', { name: 'Checkout v2', startDate: '2026-10-01', ticketsRemaining: '30' })
-  await post(app, '/inputs/milestone-query/add', checkout)
+  await post(app, '/inputs/milestone-query/add', { ...checkout })
   reads = []
   return app
 }
 
 const page = async (running: RunningApp, path = '/inputs?step=comparableWork'): Promise<string> => (await fetch(new URL(path, running.url))).text()
-
-const post = (running: RunningApp, path: string, fields: Record<string, string> | Choice): Promise<Response> =>
-  fetch(new URL(path, running.url), {
-    method: 'POST',
-    body: new URLSearchParams({ ...fields }),
-    headers: { origin: new URL(running.url).origin },
-    redirect: 'manual',
-  })
 
 /** The Comparable work step. */
 function stepOf(html: string): string {
