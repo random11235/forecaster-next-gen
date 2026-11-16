@@ -2,31 +2,32 @@ import type { SavedRead } from '../../model/savedRead.js'
 import type { ForecastSettings } from '../settings.js'
 import { inUseOf, notesOf, type ChosenPace, type PaceInUse, type PaceNote, type PaceWarning } from './paceInUse.js'
 import { readingOf, type PaceReading } from './paceReading.js'
-import { finishedPerPeriod, sideBySide, wholePeriods, type DatedCounts, type PaceLaying, type SavedPaceReads, type SideBySide } from './periodCounts.js'
+import { finishedPerPeriod, sideBySide, wholePeriods, type DatedCounts, type PaceCalendar, type SavedPaceReads, type SideBySide } from './periodCounts.js'
 
 export { actionSaid, withAction, type PaceCounts, type PaceInUse } from './paceInUse.js'
 export { sameCounts, type PaceReading, type WasPace } from './paceReading.js'
-export { calendarDayIn, savedPaceReads, type DatedCounts, type PaceClock, type PaceFrom, type SavedPaceReads } from './periodCounts.js'
-export { finishedSinceFor, readQuery, ticketsRemaining, weeksRead, type QueryRead } from './queryRead.js'
+export { calendarDayIn, completeRead, paceCalendar, savedPaceReads, type DatedCounts, type PaceFrom, type SavedPaceReads } from './periodCounts.js'
+export { TRACKER_PERIODS } from './trackerWindow.js'
 
-// Pace, worked out in one place (#243): `paceOf` is the way in, and the only import its callers use. Behind it, its
-// sibling files: the reads counted per period side by side (periodCounts.ts), the tracker's window (trackerWindow.ts)
-// and reading (paceReading.ts), the pace in use and its notes (paceInUse.ts), and reading a query (queryRead.ts).
-
-/**
- * What pace is measured from: the team's saved reads, with the connected `tracker` that the reading's lines name (none,
- * as in the Comparable work step, which shows no reading) and, for a view, the source the EM `chosen`; with no
- * tracker connected, the chosen source alone; or a candidate's read, kept only by its opening.
- */
-export type PaceMeasuring = { saved: SavedPaceReads; tracker?: string; chosen?: ChosenPace } | { chosen: ChosenPace } | { candidate: SavedRead }
+// Pace, worked out in one place (#243): `paceOf` is the way in, and this file the only import pace's callers use.
+// Behind it, its sibling files: the reads counted per period side by side (periodCounts.ts), the tracker's window
+// (trackerWindow.ts) and reading (paceReading.ts), and the pace in use and its notes (paceInUse.ts). Reading a query
+// is not pace: it has its own entry point, `forecast/queryRead.ts`.
 
 /**
- * What `paceOf` measures pace from (`reads`), and on what: the milestone's pace window (its skipped periods and the
- * pace action applied), its cadence in days, its start date (a candidate is laid from today without one), and today
- * in the EM's time zone (`clock`). With a source `chosen`, the `settings` its notes are judged against.
+ * The reads pace is counted from, with the EM's time zone (an IANA name) each finish is counted on its calendar day
+ * in: the team's saved reads, with the connected `tracker` that the reading's lines name (none, as in the Comparable
+ * work step, which shows no reading); or a candidate's read, kept only by its opening.
  */
-export type PaceOf = PaceLaying &
-  ({ reads: PaceMeasuring & { chosen: ChosenPace }; settings: Pick<ForecastSettings, 'typedCounts'> } | { reads: PaceMeasuring; settings?: undefined })
+export type PaceReads = { saved: SavedPaceReads; tracker?: string; timeZone: string } | { candidate: SavedRead; timeZone: string }
+
+/**
+ * What `paceOf` works pace out from: the milestone's calendar, and the `reads` pace is counted from (none with no
+ * tracker connected). With a source `chosen`, the `settings` its notes are judged against, always both or neither.
+ */
+export type PaceInputs = PaceCalendar & { reads?: PaceReads | undefined } & (
+    { chosen: ChosenPace; settings: Pick<ForecastSettings, 'typedCounts'> } | { chosen?: undefined; settings?: undefined }
+  )
 
 /** Pace, as `paceOf` measures it with a source chosen: with the pace in use. */
 export type ChosenSourcePace = Pace & { inUse: PaceInUse }
@@ -53,30 +54,30 @@ export interface Pace {
 }
 
 /**
- * Seam B, behind the views, the Comparable work step and its candidates: pace measured from `reads`. Once a
- * comparable-work query is added and its read finished something, pace comes from comparable work's finished tickets
- * alone; with no query, or one matching nothing finished in the periods counted, from the milestone's own, over the
- * periods since its start date. Each read's tickets count once by id, on its calendar day in the EM's time zone. A
- * read that is incomplete isn't counted: the milestone query's leaves its own counts unknown, but not a pace from
- * comparable work.
+ * The way into pace for the views, the Comparable work step and its candidates, behind Seam B: pace counted from
+ * `reads` and, with a source `chosen`, the pace in use. Once a comparable-work query is added and its read finished
+ * something, pace comes from comparable work's finished tickets alone; with no query, or one matching nothing finished
+ * in the periods counted, from the milestone's own, over the periods since its start date. Each read's tickets count
+ * once by id, on its calendar day in the EM's time zone. A read that is incomplete isn't counted: the milestone
+ * query's leaves its own counts unknown, but not a pace from comparable work.
  */
-export function paceOf(of: PaceOf & { reads: { chosen: ChosenPace } }): ChosenSourcePace
-export function paceOf(of: PaceOf): Pace
-export function paceOf(of: PaceOf): Pace {
+export function paceOf(of: PaceInputs & { chosen: ChosenPace }): ChosenSourcePace
+export function paceOf(of: PaceInputs): Pace
+export function paceOf(of: PaceInputs): Pace {
   const { reads } = of
-  if ('candidate' in reads) {
-    const laid = { ...of, startDate: of.startDate ?? of.clock.today }
+  if (reads && 'candidate' in reads) {
+    const laid = { ...of, startDate: of.startDate ?? of.today, timeZone: reads.timeZone }
     const { periods } = wholePeriods([reads.candidate], laid)
     return { ...NO_PACE, counts: finishedPerPeriod(reads.candidate, { ...laid, periods }) }
   }
-  const saved = 'saved' in reads ? reads.saved : undefined
-  const tracker = 'saved' in reads ? reads.tracker : undefined
-  const sides = saved && sideBySide(saved, of)
-  const reading = saved && sides && tracker !== undefined ? readingOf(saved, sides, tracker, of) : undefined
-  const incomplete = !reading && [saved?.milestone?.latest, saved?.comparableWork?.latest].some((read) => read?.incomplete === true)
+  const counted = reads && { saved: reads.saved, on: { ...of, timeZone: reads.timeZone } }
+  const tracker = reads?.tracker
+  const sides = counted && sideBySide(counted.saved, counted.on)
+  const reading = counted && sides && tracker !== undefined ? readingOf(counted.saved, sides, tracker, counted.on) : undefined
+  const incomplete = !reading && [reads?.saved.milestone?.latest, reads?.saved.comparableWork?.latest].some((read) => read?.incomplete === true)
   const measured = { counts: sides?.counts, sideBySide: sides?.sides, reading, incomplete }
-  if (!reads.chosen || !of.settings) return { ...NO_PACE, ...measured }
-  const inUse = inUseOf(reads.chosen, tracker !== undefined ? { tracker, reading, incomplete } : undefined, of)
+  if (!of.chosen) return { ...NO_PACE, ...measured }
+  const inUse = inUseOf(of.chosen, tracker !== undefined ? { tracker, reading, incomplete } : undefined, of)
   return { ...measured, inUse, ...notesOf(inUse, of, of.settings) }
 }
 

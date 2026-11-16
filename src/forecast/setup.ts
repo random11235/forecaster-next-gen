@@ -10,7 +10,7 @@ import { readPicks } from './setupReads.js'
 import { summaryOf, type SetupSummary } from './setupSummary.js'
 import { SETUP_STEPS, setupStepOf, type SetupStep } from './setupSteps.js'
 import { hasQuery } from './stepQuery.js'
-import { measure, paceReadingView, trackerPace, type PaceReadingView } from './trackerReads.js'
+import { measure, milestonePace, paceReadingView, type PaceReadingView } from './trackerReads.js'
 
 /**
  * What setup, its summary and its reads read and save with, built once per request: what a query step reads with (the
@@ -195,7 +195,7 @@ function checkOf(settingUp: SetupContext, teamId: string): SetupCheck | undefine
   const inputs = inputsOrNew(settingUp, teamId)
   const chosen = settingUp.setup.setupDraft(teamId)?.sources
   const tickets = measured.ticketsRemaining
-  const { reading: pace, incomplete } = trackerPace(inputs, settingUp.today, measured)
+  const { reading: pace, incomplete } = milestonePace(inputs, settingUp.today, measured)
   const paceSource = chosen?.pace ?? inputs.paceMode
   const own = paceSource === 'tracker' ? inputs.paceMode : paceSource
   return {

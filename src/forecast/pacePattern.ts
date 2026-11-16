@@ -3,7 +3,7 @@ import type { Storage } from '../storage/storage.js'
 import { periodName, type PeriodName } from './cadence.js'
 import { dayMonth, isCalendarDate } from './calendarDate.js'
 import { refuse, type EditResult } from './editResult.js'
-import { actionSaid, withAction, type DatedCounts, type PaceCounts, type PaceInUse } from './lib/pace.js'
+import { actionSaid, withAction, type PaceCounts, type PaceInUse } from './lib/pace.js'
 
 // The rule is the research classifier's, trimmed (docs/research/pace-stability/classify.mjs).
 
@@ -87,7 +87,7 @@ export function pacePattern({ all, window }: PaceCounts, applied: PaceAction | u
   if (cadenceDays < SHORTEST_CADENCE_DAYS) return unread('Patterns are read from weeks or sprints.')
   const period = periodName(cadenceDays)
   const read = window.counts.findIndex((count) => count > 0)
-  const shown = applied ? { applied: appliedLine(all, applied, period) } : {}
+  const shown = applied ? { applied: appliedLine({ all, window }, applied, period) } : {}
   if (read < 0) return { ...unread(`Nothing finished in these ${window.counts.length} ${period}s: no pattern to read.`), ...shown }
   const counts = window.counts.slice(read)
   if (counts.length < FEWEST_TO_READ) return { ...unread(`No pattern yet · ${counts.length} ${period}s is too few to tell`), ...shown }
@@ -106,14 +106,15 @@ export function pacePattern({ all, window }: PaceCounts, applied: PaceAction | u
  */
 export function paceActionApplied(inputs: MilestoneInputs, pace: PaceInUse): string | undefined {
   const action = inputs.paceWindow.action
-  return action && pace.source !== 'range' ? appliedLine(pace.all, action, periodName(inputs.cadenceDays)) : undefined
+  return action && pace.source !== 'range' ? appliedLine(pace, action, periodName(inputs.cadenceDays)) : undefined
 }
 
 /** The applied action, said: what the pace is counted from, and why. */
-function appliedLine(all: DatedCounts, action: PaceAction, period: PeriodName): string {
+function appliedLine({ all, window }: PaceCounts, action: PaceAction, period: PeriodName): string {
   const said = actionSaid(action, period)
   if (action.kind === 'leaveOut') return `${said}, the odd ${period}.`
-  const since = withAction(all, action).counts
+  // the window pace counts is what the action leaves
+  const since = window.counts
   const before = all.counts.slice(0, all.counts.length - since.length)
   return `${said}, after it stepped ${mean(since) >= mean(before) ? 'up' : 'down'}.`
 }

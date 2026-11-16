@@ -69,7 +69,7 @@ export function trackerWindow(
 }
 
 /** What a bound is said from: the tracker, the milestone's period, the window, the reads side by side and the counts pace comes from. */
-export interface Saying {
+export interface BoundFacts {
   tracker: string
   period: PeriodName
   window: DatedCounts
@@ -78,7 +78,7 @@ export interface Saying {
 }
 
 /** What each bound says of the window, in one place: the reading's line, and the problem when it leaves no pace. */
-export const BOUND_SAID: Record<TrackerWindowBound, (saying: Saying) => BoundSaid> = {
+export const BOUND_SAID: Record<TrackerWindowBound, (facts: BoundFacts) => BoundSaid> = {
   full: ({ period }) => ({ periods: `last ${counted(TRACKER_PERIODS, period)}`, bars: true }),
   firstFinished: ({ period, window }) => ({
     periods: counted(window.counts.length, period),
