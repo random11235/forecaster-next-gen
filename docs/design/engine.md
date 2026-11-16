@@ -133,7 +133,7 @@ makeThroughputSampler(config, samples: Float64Array): Sampler
 - `warnAboveWeeks` is not in the case: the threshold changes no draw, so it has no reason to be covered by `caseHash`.
 - `span.periods` is periods to the median finish ('when', null beyond the horizon) or to `byDate` ('howMany'). The warning counts it in time (periods × `periodDays`), so the threshold keeps its meaning if `periodDays` changes. For 'when' it is the median finish, and a median beyond the horizon counts as over; for 'howMany' it is the time to `byDate`.
 - The ticket figure for 'when' is the median remaining work across trials, after growth; for 'howMany', the median count done.
-- The lasting fix is a sampler that keeps runs of weeks together (see "Sampling experiments" under [Deferred](architecture.md#deferred-beyond-v1)).
+- The lasting fix is a sampler that keeps runs of weeks together (see "Sampling experiments" under [Deferred](architecture-deferred.md)).
 
 The forecast states plainly when an input is thin rather than hiding it, e.g. "Only 4 weeks of finished tickets. Forecast needs 8." `forecast/diagnostics.ts` writes these, alongside:
 

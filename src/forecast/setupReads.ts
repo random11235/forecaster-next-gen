@@ -2,7 +2,7 @@ import type { FailedRead, FailedReads, ReadFailures } from '../model/readFailure
 import type { SavedRead } from '../model/savedRead.js'
 import type { SetupStorage } from '../storage/storage.js'
 import { teamConnection, withTeamQueries } from './connection.js'
-import { finishedSinceFor, readQuery, type QueryRead } from './finished.js'
+import { finishedSinceFor, readQuery, type QueryRead } from './queryRead.js'
 import { chipsShow, rejectionOf, type StepReading } from './queryStep.js'
 import { COMPARABLE_WORK, hasQuery, MILESTONE_QUERY } from './stepQuery.js'
 import { trackerOf } from './trackers.js'
