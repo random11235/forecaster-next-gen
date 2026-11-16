@@ -23,3 +23,10 @@ export function daysBetween(from: string, to: string): number {
 export function addDays(date: string, days: number): string {
   return new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
 }
+
+/** A UTC instant as the screens date a read, in `timeZone`: "4 Nov 09:12". */
+export function readOn(instant: string, timeZone: string): string {
+  const format = new Intl.DateTimeFormat('en-GB', { timeZone, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+  const part = (type: Intl.DateTimeFormatPartTypes): string => format.formatToParts(new Date(instant)).find((each) => each.type === type)?.value ?? ''
+  return `${part('day')} ${part('month')} ${part('hour')}:${part('minute')}`
+}
