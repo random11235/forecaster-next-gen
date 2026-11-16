@@ -39,7 +39,7 @@ src/
     setupSteps.ts         # the four setup steps in order, and the step a URL asks for
     setupSummary.ts       # setup's summary view: its rows, their picks' counts and note, and problem flags
     setupReads.ts         # Seam B: setup's reads: each pick read at Check for its count (`readPicks`, from `openSetup`), Read again, why a read failed
-    queryRead.ts          # reading a query and saving the read, how far back a read reaches (finishedSince), its tickets remaining and weeks read; tested through Seam B
+    queryRead.ts          # reading a query and saving the read, how far back a read reaches (finishedSince, the tracker's periods), whether it is complete, its tickets remaining and weeks read; tested through Seam B
     queryStep.ts          # Seam B: a query step's view, whole (the Milestone step, or the Comparable work step with its pace and candidates); its searched choices; its submits
     lib/choiceLists.ts    # behind queryStep.ts: each kind's choices as the picker lists them, filtered here or searched in the tracker
     lib/stepQueryEdit.ts  # behind queryStep.ts: the query an edit makes, its picks changed or typed by hand and read back into chips
