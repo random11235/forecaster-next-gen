@@ -77,7 +77,8 @@ async function reachBackPast(skipping: Skipping, teamId: string, finishedSince: 
   for (const query of short(saved)) {
     if (!(await readQuery(connected.connector, saved.reads, { teamId, query, finishedSince, readAt })).ok) failed.add(query)
   }
-  for (const query of short(current).filter((each) => !failed.has(each))) await readQuery(connected.connector, current.reads, { teamId, query, finishedSince, readAt })
+  for (const query of short(current).filter((each) => !failed.has(each)))
+    await readQuery(connected.connector, current.reads, { teamId, query, finishedSince, readAt })
 }
 
 /** The team's queries in `queries` whose reads reach less far back than `finishedSince`, or that have none. */

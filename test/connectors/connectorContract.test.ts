@@ -17,7 +17,7 @@ describe.each(subjects)('%s connector', (_, subject) => {
   const { queries, batches } = subject
 
   describe('milestone choices', () => {
-    test('come one list per kind, each choice of its list\'s kind', async () => {
+    test("come one list per kind, each choice of its list's kind", async () => {
       const result = await subject.synthetic().milestoneChoices()
 
       if (!result.ok) throw new Error(`milestone choices failed: ${result.failure}`)
@@ -67,7 +67,7 @@ describe.each(subjects)('%s connector', (_, subject) => {
   })
 
   describe('a read', () => {
-    test("returns the tickets its query matches, finished ones with when they finished", async () => {
+    test('returns the tickets its query matches, finished ones with when they finished', async () => {
       const result = await subject.synthetic().read(queries.searchRevamp, batches.cut)
 
       if (!result.ok) throw new Error(`read failed: ${result.failure}`)

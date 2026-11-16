@@ -21,7 +21,8 @@ async function atCheck({ tracker = 'github', incomplete = false }: { tracker?: '
     reads: { [CHECKOUT.query]: { tickets: [...open(7), ...finishedOn('f', '2026-11-03', 6)], incomplete } },
   }
   app = await appOnTracker(fixture)
-  const connection = tracker === 'github' ? { tracker, repo: 'shop-team/shop' } : { tracker, site: 'shop.atlassian.net', projectKey: 'SHOP', email: 'em@shop.test' }
+  const connection =
+    tracker === 'github' ? { tracker, repo: 'shop-team/shop' } : { tracker, site: 'shop.atlassian.net', projectKey: 'SHOP', email: 'em@shop.test' }
   await post(app.running, '/inputs/connect', { ...connection, token: 'token' })
   await post(app.running, '/inputs/milestone', { name: 'Checkout v2', startDate: '2026-09-01', ticketsRemaining: '30' })
   await post(app.running, '/inputs/pace', { low: '4', high: '8' })
@@ -43,7 +44,9 @@ describe('the Check step', () => {
 
     expect(html).toMatch(/<th scope="col">Yours now<\/th>\s*<th scope="col">From GitHub<\/th>\s*<th scope="col">Use<\/th>/)
     expect(html).toMatch(/<th scope="row">Tickets remaining<\/th>\s*<td>30<\/td>\s*<td>7<\/td>/)
-    expect(html).toMatch(/<input type="radio" name="source" value="tracker" required> GitHub<\/label>\s*<label><input type="radio" name="source" value="typed" checked required> Typed<\/label>/)
+    expect(html).toMatch(
+      /<input type="radio" name="source" value="tracker" required> GitHub<\/label>\s*<label><input type="radio" name="source" value="typed" checked required> Typed<\/label>/,
+    )
     expect(html).toMatch(/<th scope="row">Pace<\/th>\s*<td>4–8 a week<\/td>\s*<td>6 <span class="muted">/)
     expect(html).toMatch(/value="tracker" required> GitHub<\/label>\s*<label><input type="radio" name="source" value="range" checked required> Range<\/label>/)
   })
@@ -54,7 +57,9 @@ describe('the Check step', () => {
     const chosen = await post(running.running, '/inputs/setup/source', { value: 'ticketsRemaining', source: 'tracker' })
     expect(chosen.status).toBe(303)
     expect(chosen.headers.get('location')).toBe('/inputs?step=check#check')
-    expect(await check(running)).toMatch(/value="tracker" checked required> GitHub<\/label>\s*<label><input type="radio" name="source" value="typed" required> Typed/)
+    expect(await check(running)).toMatch(
+      /value="tracker" checked required> GitHub<\/label>\s*<label><input type="radio" name="source" value="typed" required> Typed/,
+    )
   })
 
   test('a source Check doesn’t name, as from a form changed by hand, is not found, and changes nothing', async () => {
@@ -70,7 +75,9 @@ describe('the Check step', () => {
     await post(running.running, '/inputs/pace-counts', { counts: '5 6 7' })
     await post(running.running, '/inputs/pace-mode', { paceMode: 'counts' })
 
-    expect(await check(running)).toMatch(/value="range" required> Range<\/label>\s*<label><input type="radio" name="source" value="counts" checked required> Typed counts<\/label>/)
+    expect(await check(running)).toMatch(
+      /value="range" required> Range<\/label>\s*<label><input type="radio" name="source" value="counts" checked required> Typed counts<\/label>/,
+    )
   })
 
   test('says why pace has no reading with no start date yet', async () => {
@@ -82,7 +89,9 @@ describe('the Check step', () => {
     await post(app.running, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
     await post(app.running, '/inputs/milestone-query/add', { ...CHECKOUT })
 
-    expect(await check(app)).toMatch(/<th scope="row">Pace<\/th>\s*<td>—<\/td>\s*<td><span class="note">None yet: pace counts GitHub’s weeks from the milestone’s start date, entered below\.<\/span><\/td>/)
+    expect(await check(app)).toMatch(
+      /<th scope="row">Pace<\/th>\s*<td>—<\/td>\s*<td><span class="note">None yet: pace counts GitHub’s weeks from the milestone’s start date, entered below\.<\/span><\/td>/,
+    )
   })
 
   test('marks an incomplete read on its row', async () => {

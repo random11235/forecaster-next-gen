@@ -118,7 +118,14 @@ describe('the forecast from what the EM enters', () => {
         { date: '2026-09-15', share: 1, finishedBy: 1, capacity: 100 },
       ],
       paceTrend: undefined,
-      capacity: { on: true, open: false, summary: 'none, every week usual', entries: [], past: [], form: { percent: '', from: '', to: '', onward: false, note: '' } },
+      capacity: {
+        on: true,
+        open: false,
+        summary: 'none, every week usual',
+        entries: [],
+        past: [],
+        form: { percent: '', from: '', to: '', onward: false, note: '' },
+      },
     })
   })
 
@@ -609,12 +616,18 @@ describe('typed counts', () => {
 
     expect(edit(storage, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
     storage = openStorage()
-    expect(view(storage)).toMatchObject({ pace: { source: 'counts', counts: [10, 10, 10, 10] }, dates: [50, 70, 85, 95].map((percent) => ({ percent, date: '2026-09-08' })) })
+    expect(view(storage)).toMatchObject({
+      pace: { source: 'counts', counts: [10, 10, 10, 10] },
+      dates: [50, 70, 85, 95].map((percent) => ({ percent, date: '2026-09-08' })),
+    })
     expect(inputsScreenView(storage).milestone).toMatchObject({ paceMode: 'counts', paceRange: { low: 5, high: 5 } })
 
     expect(edit(storage, { kind: 'setPaceMode', paceMode: 'range' })).toEqual({ ok: true })
     storage = openStorage()
-    expect(view(storage)).toMatchObject({ pace: { source: 'range', low: 5, high: 5 }, dates: [50, 70, 85, 95].map((percent) => ({ percent, date: '2026-09-15' })) })
+    expect(view(storage)).toMatchObject({
+      pace: { source: 'range', low: 5, high: 5 },
+      dates: [50, 70, 85, 95].map((percent) => ({ percent, date: '2026-09-15' })),
+    })
     expect(inputsScreenView(storage).milestone).toMatchObject({ paceMode: 'range', paceCounts: [10, 10, 10, 10] })
   })
 
@@ -926,7 +939,7 @@ describe('the milestone on the Inputs screen', () => {
   })
 })
 
-describe('the milestone\'s ambiguity', () => {
+describe("the milestone's ambiguity", () => {
   function ambiguity(storage: Storage) {
     return inputsScreenView(storage).milestone.ambiguity
   }

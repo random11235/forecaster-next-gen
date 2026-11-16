@@ -178,7 +178,9 @@ describe('the Milestone step', () => {
     expect(stepOf(await page(running))).toContain('href="/inputs?edit=query#milestone-tickets"')
     const step = stepOf(await page(running, '/inputs?edit=query'))
 
-    expect(step).toMatch(/<form method="post" action="\/inputs\/milestone-query\/edit#milestone-tickets"[^]*name="query" value="milestone:&#34;Payments v2&#34;"/)
+    expect(step).toMatch(
+      /<form method="post" action="\/inputs\/milestone-query\/edit#milestone-tickets"[^]*name="query" value="milestone:&#34;Payments v2&#34;"/,
+    )
     expect(step).toContain('shop-team/shop')
     expect(step).not.toContain('class="chip"')
     expect(step).not.toContain('type="search"')
@@ -287,7 +289,8 @@ describe('the Milestone step', () => {
   })
 
   describe('an Inputs form posted while connected', () => {
-    const sectionNumbers = (html: string): string[] => [...html.matchAll(/<section[^>]* id="([^"]+)"[^]*?class="number">(\d+)</g)].map(([, id, n]) => `${id} ${n}`)
+    const sectionNumbers = (html: string): string[] =>
+      [...html.matchAll(/<section[^>]* id="([^"]+)"[^]*?class="number">(\d+)</g)].map(([, id, n]) => `${id} ${n}`)
 
     test('refused, shows the screen again with the Milestone step, its sections numbered after it', async () => {
       const running = await startConnected()
@@ -337,7 +340,13 @@ describe('the Milestone step', () => {
 
   test('before connecting, there is none', async () => {
     storage = openSqliteStorage(':memory:')
-    const connecting: Connecting = { connections: storage, queries: storage, setup: storage, secrets: openMemorySecrets(), connector: () => cannedConnector(FIXTURE) }
+    const connecting: Connecting = {
+      connections: storage,
+      queries: storage,
+      setup: storage,
+      secrets: openMemorySecrets(),
+      connector: () => cannedConnector(FIXTURE),
+    }
     app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage, connecting })
 
     expect(await page(app)).not.toContain('id="milestone-tickets"')

@@ -304,11 +304,7 @@
       "incomplete": false
     },
     "milestone:\"Synthetic beta\"": {
-      "tickets": [
-        { "id": "synthetic-beta-01", "finishedAt": "2026-10-15T12:00:00Z" },
-        { "id": "synthetic-beta-02" },
-        { "id": "synthetic-beta-03" }
-      ],
+      "tickets": [{ "id": "synthetic-beta-01", "finishedAt": "2026-10-15T12:00:00Z" }, { "id": "synthetic-beta-02" }, { "id": "synthetic-beta-03" }],
       "incomplete": false
     },
     "label:\"payments\"": {
@@ -352,10 +348,7 @@
       "incomplete": false
     },
     "label:\"repayments\"": {
-      "tickets": [
-        { "id": "synthetic-repayments-01" },
-        { "id": "synthetic-repayments-02" }
-      ],
+      "tickets": [{ "id": "synthetic-repayments-01" }, { "id": "synthetic-repayments-02" }],
       "incomplete": false
     },
     "label:\"checkout\"": {
@@ -369,10 +362,7 @@
       "incomplete": false
     },
     "label:\"bug\"": {
-      "tickets": [
-        { "id": "synthetic-bug-01", "finishedAt": "2026-10-30T16:45:00Z" },
-        { "id": "synthetic-bug-02" }
-      ],
+      "tickets": [{ "id": "synthetic-bug-01", "finishedAt": "2026-10-30T16:45:00Z" }, { "id": "synthetic-bug-02" }],
       "incomplete": false
     },
     "label:\"platform\"": {
@@ -440,11 +430,7 @@
       "incomplete": false
     },
     "is:open": {
-      "tickets": [
-        { "id": "synthetic-open-01" },
-        { "id": "synthetic-open-02" },
-        { "id": "synthetic-open-03" }
-      ],
+      "tickets": [{ "id": "synthetic-open-01" }, { "id": "synthetic-open-02" }, { "id": "synthetic-open-03" }],
       "incomplete": true
     }
   }

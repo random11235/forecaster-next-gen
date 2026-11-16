@@ -1,4 +1,13 @@
-import { MAX_CAPACITY_PERCENT, shifted, type CapacityEdit, type CapacityEntryView, type CapacityForm, type CapacityView, type EntryEffect, type NewUsual } from '../forecast/capacity.js'
+import {
+  MAX_CAPACITY_PERCENT,
+  shifted,
+  type CapacityEdit,
+  type CapacityEntryView,
+  type CapacityForm,
+  type CapacityView,
+  type EntryEffect,
+  type NewUsual,
+} from '../forecast/capacity.js'
 import { periodName, type PeriodName } from '../forecast/cadence.js'
 import { counted } from '../forecast/counted.js'
 import type { InputNote } from '../forecast/milestoneAssessment.js'
@@ -17,7 +26,13 @@ type FormReader = (body: URLSearchParams) => CapacityEdit | PaceActionEdit
 
 /** A capacity sentence's fields, as the add and edit forms name them. */
 function sentence(body: URLSearchParams): CapacityForm {
-  return { percent: body.get('percent') ?? '', from: body.get('from') ?? '', to: body.get('to') ?? '', onward: body.get('onward') !== null, note: body.get('note') ?? '' }
+  return {
+    percent: body.get('percent') ?? '',
+    from: body.get('from') ?? '',
+    to: body.get('to') ?? '',
+    onward: body.get('onward') !== null,
+    note: body.get('note') ?? '',
+  }
 }
 
 /** Each form this screen posts, by its action's path, and how its fields are read. */
@@ -29,7 +44,10 @@ export const FORECAST_FORMS: ReadonlyMap<string, FormReader> = new Map<string, F
   ['/capacity/new-usual', (body) => ({ kind: 'acceptNewUsual', id: body.get('id') ?? '' })],
   ['/capacity/keep', (body) => ({ kind: 'keepCapacity', id: body.get('id') ?? '' })],
   ['/capacity/end-today', (body) => ({ kind: 'endCapacityToday', id: body.get('id') ?? '' })],
-  ['/pace-action/apply', (body) => ({ kind: 'applyPaceAction', action: body.get('action') ?? '', date: body.get('date') ?? '', period: body.get('period') ?? '' })],
+  [
+    '/pace-action/apply',
+    (body) => ({ kind: 'applyPaceAction', action: body.get('action') ?? '', date: body.get('date') ?? '', period: body.get('period') ?? '' }),
+  ],
   ['/pace-action/undo', () => ({ kind: 'undoPaceAction' })],
 ])
 
@@ -113,7 +131,10 @@ function headline(view: Forecast): PageHeader {
   if (!headline || headline.date === null) {
     return { context, heading: `${starting}: not ${view.headlinePercent}% confident of finishing by <span class="risk">${formatDate(view.horizonDate)}</span>` }
   }
-  return { context, heading: `${starting}: ${view.headlinePercent}% confident of finishing by <span class="${headline.alreadyPast ? 'risk' : 'good'}">${formatDate(headline.date)}</span>${pastMark(headline)}` }
+  return {
+    context,
+    heading: `${starting}: ${view.headlinePercent}% confident of finishing by <span class="${headline.alreadyPast ? 'risk' : 'good'}">${formatDate(headline.date)}</span>${pastMark(headline)}`,
+  }
 }
 
 function renderForecast(view: Forecast): string {
@@ -280,7 +301,8 @@ function renderRefusal(refusal: string | undefined, indent: string): string {
 function renderPatternAction(action: PatternAction, horizonDate: string): string {
   const { kind, button, dates } = action
   const dated = (day: string | null): string => (day === null ? `later than ${formatDate(horizonDate)}` : formatDate(day))
-  const [by, field, on] = action.kind === 'startFrom' ? [`from ${dayMonth(action.date)}`, 'date', action.date] : [`leaving out ${dayMonth(action.period)}`, 'period', action.period]
+  const [by, field, on] =
+    action.kind === 'startFrom' ? [`from ${dayMonth(action.date)}`, 'date', action.date] : [`leaving out ${dayMonth(action.period)}`, 'period', action.period]
   return `
           <p class="note">${dates.percent}% confident by <span class="date">${dated(dates.now)}</span> now, <span class="date">${dated(dates.applied)}</span> ${by}.</p>
           <form method="post" action="/pace-action/apply"><input type="hidden" name="action" value="${kind}"><input type="hidden" name="${field}" value="${on}"><button>${escapeHtml(button)}</button></form>`
@@ -293,7 +315,10 @@ function renderPatternAction(action: PatternAction, horizonDate: string): string
  * toggling it goes to the screen with it so.
  */
 function renderCapacity({ on, open, summary, entries, past, form, refusal, editing }: CapacityView, period: PeriodName): string {
-  const listed = entries.length === 0 ? `\n          <p class="note">Every ${period} is at 100%.</p>` : `\n          <ul class="capacity-entries">${entries.map((entry) => renderEntry(entry, editing, period)).join('')}\n          </ul>`
+  const listed =
+    entries.length === 0
+      ? `\n          <p class="note">Every ${period} is at 100%.</p>`
+      : `\n          <ul class="capacity-entries">${entries.map((entry) => renderEntry(entry, editing, period)).join('')}\n          </ul>`
   const error = refusal ? `\n            <p class="error" role="alert">${escapeHtml(refusal)}</p>` : ''
   return `
         <details class="capacity" id="capacity" data-toggle="${open ? '/' : CAPACITY_OPEN_PATH}#capacity"${open ? ' open' : ''}>
@@ -391,8 +416,12 @@ function renderPast(past: readonly CapacityEntry[], editing: CapacityView['editi
     return `
               <li>
                 ${entryLine(entry)}
-                ${editFold(entry.id, refused?.refusal, `Past, so only the note can change.
-            <label>Note <input type="text" name="note" value="${escapeHtml(note)}" aria-label="Why"></label>`)}
+                ${editFold(
+                  entry.id,
+                  refused?.refusal,
+                  `Past, so only the note can change.
+            <label>Note <input type="text" name="note" value="${escapeHtml(note)}" aria-label="Why"></label>`,
+                )}
               </li>`
   })
   return `

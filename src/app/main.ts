@@ -28,11 +28,7 @@ function portFromEnv(value: string | undefined): number {
 function openBrowser(url: string): void {
   // On Windows, `cmd /c start "" <url>` is mangled by Node's argument quoting; rundll32 takes the URL as one plain argument.
   const [command, args] =
-    process.platform === 'darwin'
-      ? ['open', [url]]
-      : process.platform === 'win32'
-        ? ['rundll32', ['url.dll,FileProtocolHandler', url]]
-        : ['xdg-open', [url]]
+    process.platform === 'darwin' ? ['open', [url]] : process.platform === 'win32' ? ['rundll32', ['url.dll,FileProtocolHandler', url]] : ['xdg-open', [url]]
   const child = spawn(command, args, { stdio: 'ignore', detached: true })
   child.on('error', () => {})
   child.unref()

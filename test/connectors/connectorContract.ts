@@ -94,8 +94,7 @@ export function replayedSubject<C extends Connection>(tracker: {
 }): ContractSubject {
   const { connect, cases, recordings, batches } = tracker
   const synthetic = cases.scenarios.synthetic.connection
-  const replaying = (scenario: Scenario) =>
-    connect(cases.scenarios[scenario].connection, REPLAYED_CREDENTIAL, replayTransport(recordings[scenario]), noWait)
+  const replaying = (scenario: Scenario) => connect(cases.scenarios[scenario].connection, REPLAYED_CREDENTIAL, replayTransport(recordings[scenario]), noWait)
   return {
     synthetic: () => replaying('synthetic'),
     refusedToken: () => replaying('refusedToken'),

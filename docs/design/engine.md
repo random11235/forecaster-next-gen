@@ -56,6 +56,7 @@ ForecastResult {
 The engine returns facts, not sentences. Every warning is written by `forecast/diagnostics.ts` from these facts and `ForecastSettings`.
 
 The engine also leaves out provenance: facts that `forecast/buildCase.ts` already knows because it made the choice. `forecast/diagnostics.ts` derives them where `buildCase.ts` makes that choice, and owns their types (`ThroughputScope`, `GrowthSource`):
+
 - `throughputScope`: which tickets the pace counts; in v1 only `'milestoneEpics'`, shown in the UI;
 - `throughputSource`: `'manual'` or `'measured'`;
 - `growthSource`: each epic's source in rank order, `'samples'`, `'ambiguity'` or `'epicSize'` (no children);
@@ -128,6 +129,7 @@ makeThroughputSampler(config, samples: Float64Array): Sampler
 **Pace variation.** For measured pace with 2 or more samples, `diagnostics.paceVariation` is the relative standard error: sample sd / mean / √n, or 0 when every sample is 0. It uses no random draws. It is information for the EM ("your weekly pace varies a lot, so the range is wide"), not a warning: lumpy weeks give a wide range that still holds up. It replaces Magennis's split-halves error, which is the same measure plus random noise ([research](../research/pace-stability/README.md#split-halves-error-is-the-relative-standard-error)). The bands that choose the text belong to the forecast layer.
 
 **Long forecasts.** Each period's pace is drawn independently, so over many periods good and bad weeks average out, and the spread grows only with the square root of the number of periods: a long forecast comes out too confident about the date. The engine reports how far the forecast reaches as `diagnostics.span`. When that is more than `ForecastSettings.warnAboveWeeks` weeks, `forecast/diagnostics.ts` says so in tickets and weeks, never periods, e.g. "This forecast covers about 180 tickets, roughly 30 weeks at your current pace. Forecasts this far out tend to be too confident about the date." The forecast still runs.
+
 - `warnAboveWeeks` is not in the case: the threshold changes no draw, so it has no reason to be covered by `caseHash`.
 - `span.periods` is periods to the median finish ('when', null beyond the horizon) or to `byDate` ('howMany'). The warning counts it in time (periods × `periodDays`), so the threshold keeps its meaning if `periodDays` changes. For 'when' it is the median finish, and a median beyond the horizon counts as over; for 'howMany' it is the time to `byDate`.
 - The ticket figure for 'when' is the median remaining work across trials, after growth; for 'howMany', the median count done.

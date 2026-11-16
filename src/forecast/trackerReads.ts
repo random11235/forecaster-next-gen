@@ -143,7 +143,12 @@ export interface TicketsReading {
 }
 
 /** What the team's tracker measures for the views, from what's saved (`measure` in `saved`); none without a tracker. */
-export function measureSaved(tracker: TrackerReads | undefined, teamId: string, storage: Pick<Storage, 'milestoneInputs'>, today: string): Measured | undefined {
+export function measureSaved(
+  tracker: TrackerReads | undefined,
+  teamId: string,
+  storage: Pick<Storage, 'milestoneInputs'>,
+  today: string,
+): Measured | undefined {
   return measure(tracker && withTeamQueries(tracker, 'saved'), teamId, storage, today)
 }
 
@@ -162,7 +167,13 @@ export function measure(reads: Measuring | undefined, teamId: string, storage: P
   const comparableWorkRead = savedReadOf(reads, teamId, reads.milestoneQueries.comparableWorkQuery(teamId)?.query)
   return {
     tracker,
-    ticketsRemaining: read && { count: ticketsRemaining(read), incomplete: read.incomplete, readOn: readOn(read.readAt, reads.timeZone), readAt: read.readAt, was: wasTickets(reads, teamId, query, ticketsRemaining(read)) },
+    ticketsRemaining: read && {
+      count: ticketsRemaining(read),
+      incomplete: read.incomplete,
+      readOn: readOn(read.readAt, reads.timeZone),
+      readAt: read.readAt,
+      was: wasTickets(reads, teamId, query, ticketsRemaining(read)),
+    },
     pace,
     paceIncomplete: !pace && [read, comparableWorkRead].some((each) => each?.incomplete === true),
   }
@@ -184,7 +195,14 @@ function wasTickets(reads: Measuring, teamId: string, query: string | undefined,
  * day it was made. None when they are the counts pace shows, nor when the latest read, on its own day, counts the same:
  * the read changed nothing. Pace that came from the other query then gives none.
  */
-function wasPace(reads: Measuring, teamId: string, storage: Pick<Storage, 'milestoneInputs'>, from: PaceFrom, query: string | undefined, counts: number[]): WasPace | undefined {
+function wasPace(
+  reads: Measuring,
+  teamId: string,
+  storage: Pick<Storage, 'milestoneInputs'>,
+  from: PaceFrom,
+  query: string | undefined,
+  counts: number[],
+): WasPace | undefined {
   if (!query) return undefined
   const latest = reads.reads.savedRead({ teamId, query })
   const previous = reads.reads.previousRead({ teamId, query })
@@ -195,7 +213,14 @@ function wasPace(reads: Measuring, teamId: string, storage: Pick<Storage, 'miles
 }
 
 /** The counts pace showed with `read` as the query's, on the day it was made; none had pace come from the other query. */
-function countsAsThen(reads: Measuring, teamId: string, storage: Pick<Storage, 'milestoneInputs'>, from: PaceFrom, query: string, read: SavedRead): number[] | undefined {
+function countsAsThen(
+  reads: Measuring,
+  teamId: string,
+  storage: Pick<Storage, 'milestoneInputs'>,
+  from: PaceFrom,
+  query: string,
+  read: SavedRead,
+): number[] | undefined {
   const saved = paceReadsStorage(storage, reads)
   const asThen = { ...saved, savedRead: (teamQuery: TeamQuery) => (teamQuery.query === query ? read : saved.savedRead(teamQuery)) }
   const then = paceReads(asThen, teamId, { today: calendarDayIn(reads.timeZone)(read.readAt), timeZone: reads.timeZone })

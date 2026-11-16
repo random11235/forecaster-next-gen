@@ -24,7 +24,10 @@ export const SETUP_PATHS = {
  * Each form setup posts, by its action's path, and the edit it is, read from its fields; none for a source Check
  * doesn't name, the only form sending any. Read again reads the tracker, so it is routed apart.
  */
-export const SETUP_FORMS: ReadonlyMap<string, (body: URLSearchParams) => SetupEdit | undefined> = new Map<string, (body: URLSearchParams) => SetupEdit | undefined>([
+export const SETUP_FORMS: ReadonlyMap<string, (body: URLSearchParams) => SetupEdit | undefined> = new Map<
+  string,
+  (body: URLSearchParams) => SetupEdit | undefined
+>([
   [SETUP_PATHS.useThese, () => ({ kind: 'useThese' })],
   [SETUP_PATHS.change, () => ({ kind: 'change' })],
   [SETUP_PATHS.changeConnection, () => ({ kind: 'change', at: 'connect' })],
@@ -44,7 +47,12 @@ function chosenSourceOf(value: string | null, source: string | null): SetupEdit 
 export const STEP_FIELD = 'step'
 
 /** Each setup step's section id on the Inputs screen. */
-export const SETUP_STEP_IDS: Readonly<Record<SetupStep, string>> = { connect: 'connect', milestone: 'milestone-tickets', comparableWork: 'comparable-work', check: 'check' }
+export const SETUP_STEP_IDS: Readonly<Record<SetupStep, string>> = {
+  connect: 'connect',
+  milestone: 'milestone-tickets',
+  comparableWork: 'comparable-work',
+  check: 'check',
+}
 
 /** The Inputs screen opened at `step`, with `params` beside it, at the section `id`: `step=comparableWork`, but no step for Milestone, the default. */
 export function inputsAt(step: SetupStep, id: string, ...params: string[]): string {
@@ -53,7 +61,9 @@ export function inputsAt(step: SetupStep, id: string, ...params: string[]): stri
 }
 
 /** Where each setup step is served, at its section: the Milestone step, once connected, at the Inputs screen's own URL. */
-export const SETUP_STEP_PATHS = Object.fromEntries(SETUP_STEPS.map((step) => [step, inputsAt(step, SETUP_STEP_IDS[step])])) as Readonly<Record<SetupStep, string>>
+export const SETUP_STEP_PATHS = Object.fromEntries(SETUP_STEPS.map((step) => [step, inputsAt(step, SETUP_STEP_IDS[step])])) as Readonly<
+  Record<SetupStep, string>
+>
 
 /** Each setup step's name, in the steps' list. */
 const STEP_NAMES: Readonly<Record<SetupStep, string>> = { connect: 'Connect', milestone: 'Milestone', comparableWork: 'Comparable work', check: 'Check' }
@@ -77,9 +87,14 @@ export function setupStepHtml(view: SetupSteps, body: string): string {
     )
     .join('\n')
   const back = view.back === undefined ? '' : `<a href="${escapeHtml(SETUP_STEP_PATHS[view.back])}" class="button">Back</a>`
-  const next = view.next === undefined ? '' : `<a href="${escapeHtml(SETUP_STEP_PATHS[view.next.step])}" class="button primary">${view.next.label === 'skip' ? 'Skip' : 'Next'}</a>`
+  const next =
+    view.next === undefined
+      ? ''
+      : `<a href="${escapeHtml(SETUP_STEP_PATHS[view.next.step])}" class="button primary">${view.next.label === 'skip' ? 'Skip' : 'Next'}</a>`
   const cancel =
-    view.noCancel === undefined ? `<form method="post" action="${SETUP_PATHS.cancel}">\n            <button type="submit">Cancel</button>\n          </form>` : ''
+    view.noCancel === undefined
+      ? `<form method="post" action="${SETUP_PATHS.cancel}">\n            <button type="submit">Cancel</button>\n          </form>`
+      : ''
   const noCancel = view.noCancel === undefined ? '' : `\n        <p class="note">${escapeHtml(view.noCancel)}</p>`
   const nav = `${noCancel}\n        <div class="actions setup-nav">${cancel}${back}${next}</div>`
   return `        <ol class="setup-steps" aria-label="Setup steps">
@@ -120,7 +135,9 @@ const partOf = (tracker: string): string => `${escapeHtml(tracker)} gave only pa
 /** Check's tickets remaining row. */
 function ticketsRowHtml(tracker: string, { yours, reading, incomplete, source }: TicketsCheck): string {
   const read = reading === undefined ? '—' : `${reading}${incomplete ? ` <span class="note warn">${partOf(tracker)}</span>` : ''}`
-  const use = sourceFormHtml('ticketsRemaining', 'Where tickets remaining comes from', ['tracker', 'typed'], source, (each) => (each === 'tracker' ? tracker : 'Typed'))
+  const use = sourceFormHtml('ticketsRemaining', 'Where tickets remaining comes from', ['tracker', 'typed'], source, (each) =>
+    each === 'tracker' ? tracker : 'Typed',
+  )
   return `            <tr>
               <th scope="row">Tickets remaining</th>
               <td>${yours ?? '—'}</td>
@@ -157,7 +174,10 @@ const countsHtml = (counts: readonly number[]): string => (counts.length === 0 ?
 /** A value's sources at Check, as radios posting the one chosen, with a Choose button for a browser without the script. */
 function sourceFormHtml<T extends string>(value: string, ariaLabel: string, sources: readonly T[], chosen: T, name: (source: T) => string): string {
   const radios = sources
-    .map((source) => `<label><input type="radio" name="source" value="${source}"${source === chosen ? ' checked' : ''} required> ${escapeHtml(name(source))}</label>`)
+    .map(
+      (source) =>
+        `<label><input type="radio" name="source" value="${source}"${source === chosen ? ' checked' : ''} required> ${escapeHtml(name(source))}</label>`,
+    )
     .join('\n                  ')
   return `<form method="post" action="${SETUP_PATHS.source}" class="source">
                 <input type="hidden" name="value" value="${value}">
@@ -227,7 +247,9 @@ function rowHtml(name: string, row: SummaryRow): string {
   const shown =
     'query' in row
       ? `<code>${escapeHtml(row.query)}</code>`
-      : row.picks.map((pick) => `${escapeHtml(pick.name)} <span class="kind">(${escapeHtml(pick.kind)})</span>${pick.count === undefined ? '' : ` · ${pick.count}`}`).join(', ')
+      : row.picks
+          .map((pick) => `${escapeHtml(pick.name)} <span class="kind">(${escapeHtml(pick.kind)})</span>${pick.count === undefined ? '' : ` · ${pick.count}`}`)
+          .join(', ')
   return `        <dt>${name}</dt>
         <dd>${shown}</dd>`
 }

@@ -56,7 +56,8 @@ export interface SetupSteps {
 }
 
 /** Why steps opened again can't be cancelled once the connection they opened on was changed: Cancel would keep the change but not what it read. */
-export const NO_CANCEL = 'The connection changed in these steps, so they can’t be cancelled: Cancel would keep the new connection with the old picks and reads. Go on to Check and use these.'
+export const NO_CANCEL =
+  'The connection changed in these steps, so they can’t be cancelled: Cancel would keep the new connection with the old picks and reads. Go on to Check and use these.'
 
 /**
  * Check (#220): for each value the tracker can supply, the EM's value now, the tracker's reading from the setup
@@ -321,4 +322,3 @@ function applySources(settingUp: SetupContext, teamId: string): void {
   const applied = { ...inputs, ticketsSource: sources.ticketsRemaining ?? inputs.ticketsSource, paceMode: sources.pace ?? inputs.paceMode }
   if (saved || applied.ticketsSource !== inputs.ticketsSource || applied.paceMode !== inputs.paceMode) milestoneInputs.saveMilestoneInputs(applied)
 }
-

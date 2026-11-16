@@ -108,7 +108,9 @@ export function comparableWorkPace(storage: PaceReadsStorage, teamId: string, da
     ...(comparison && { comparison }),
     ...(comparableWork && reads.from === 'milestone' && { flag: notUsedFlag(periods.length, period) }),
     periods: periods.slice(-PAIRED_PERIODS),
-    picks: picksPace(storage, teamId, (read) => finishedPerPeriod(read, { ...inputs, ...day, startDate: inputs.startDate!, periods: periods.length }).counts.slice(-PAIRED_PERIODS)),
+    picks: picksPace(storage, teamId, (read) =>
+      finishedPerPeriod(read, { ...inputs, ...day, startDate: inputs.startDate!, periods: periods.length }).counts.slice(-PAIRED_PERIODS),
+    ),
     said: {
       ...(inUse && { inUse: perPeriod(inUse.median, period), from: `pace, from ${FROM_SAID[inUse.from]}, range ${range(inUse)}` }),
       ...(comparison && { comparison: comparisonSaid(comparison, period) }),

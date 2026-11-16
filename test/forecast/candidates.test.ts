@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
 import type { Choice, Connector, Ticket } from '../../src/connectors/connector.js'
-import { openCandidates, type Candidates }  from '../../src/forecast/candidates.js'
+import { openCandidates, type Candidates } from '../../src/forecast/candidates.js'
 import { submitConnection } from '../../src/forecast/connection.js'
 import { submitInputs } from '../../src/forecast/inputs.js'
 import { queryStepView, searchedChoiceList, submitStepQuery, type QueryStepping, type StepCandidates } from '../../src/forecast/queryStep.js'
@@ -39,9 +39,7 @@ const refunds: Choice = { kind: 'label', name: 'refunds', query: 'label:"refunds
 /** Tickets `prefix`1… finished at 10:00 on the Friday of each week in `WEEKS`, `counts[week]` of them. */
 function finishedIn(prefix: string, counts: number[]): Ticket[] {
   let n = 0
-  return counts.flatMap((count, week) =>
-    Array.from({ length: count }, () => ({ id: `${prefix}${++n}`, finishedAt: `${addDays(WEEKS[week]!, 1)}T10:00:00Z` })),
-  )
+  return counts.flatMap((count, week) => Array.from({ length: count }, () => ({ id: `${prefix}${++n}`, finishedAt: `${addDays(WEEKS[week]!, 1)}T10:00:00Z` })))
 }
 
 function addDays(date: string, days: number): string {

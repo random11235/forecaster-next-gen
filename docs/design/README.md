@@ -8,13 +8,13 @@ Read [`architecture.md`](architecture.md) first, then the doc for the module you
 
 ## Contents
 
-| Doc | What it covers |
-|---|---|
-| [`prd-v1.md`](prd-v1.md) | The product requirements for v1, for sharing its intent: problem, goals and non-goals, users, requirements, success metrics, risks. A copy of the [Claude Doc](https://claude.ai/artifact/9oT8Z1jUP5mGQa6v2KAkvn), which also has the diagrams. |
-| [`architecture.md`](architecture.md) | The system as a whole: v1 assumptions, principles, folder structure, dependency rules, test seams, language choice, security, and what is deferred beyond v1. |
-| [`engine.md`](engine.md) | `engine/` (Seam A): the `simulateCase` contract, one trial, the swappable samplers, and what the engine reports when data is thin. |
-| [`forecast-model.md`](forecast-model.md) | `samples/` and `forecast/` (Seam B's logic): the facts, derived samples, settings and calibration ledger, with the rules for committing, pull-backs and growth. |
-| [`frontend-essentials.md`](frontend-essentials.md) | The screens: what each shows and why. |
+| Doc                                                | What it covers                                                                                                                                                                                                                                  |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`prd-v1.md`](prd-v1.md)                           | The product requirements for v1, for sharing its intent: problem, goals and non-goals, users, requirements, success metrics, risks. A copy of the [Claude Doc](https://claude.ai/artifact/9oT8Z1jUP5mGQa6v2KAkvn), which also has the diagrams. |
+| [`architecture.md`](architecture.md)               | The system as a whole: v1 assumptions, principles, folder structure, dependency rules, test seams, language choice, security, and what is deferred beyond v1.                                                                                   |
+| [`engine.md`](engine.md)                           | `engine/` (Seam A): the `simulateCase` contract, one trial, the swappable samplers, and what the engine reports when data is thin.                                                                                                              |
+| [`forecast-model.md`](forecast-model.md)           | `samples/` and `forecast/` (Seam B's logic): the facts, derived samples, settings and calibration ledger, with the rules for committing, pull-backs and growth.                                                                                 |
+| [`frontend-essentials.md`](frontend-essentials.md) | The screens: what each shows and why.                                                                                                                                                                                                           |
 
 ## Elsewhere in `docs/`
 

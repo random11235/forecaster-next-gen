@@ -43,7 +43,15 @@ const GITHUB: CannedFixture = {
 }
 
 const GITHUB_REPO: ConnectionEdit = { kind: 'connect', tracker: 'github', repo: 'shop-team/shop', site: '', projectKey: '', email: '', token: 'token' }
-const JIRA_PROJECT: ConnectionEdit = { kind: 'connect', tracker: 'jira', repo: '', site: 'shop.atlassian.net', projectKey: 'SHOP', email: 'em@shop.test', token: 'token' }
+const JIRA_PROJECT: ConnectionEdit = {
+  kind: 'connect',
+  tracker: 'jira',
+  repo: '',
+  site: 'shop.atlassian.net',
+  projectKey: 'SHOP',
+  email: 'em@shop.test',
+  token: 'token',
+}
 
 let dir: string
 let storage: TeamStorage
@@ -72,7 +80,15 @@ async function pickedFrom(fixture: CannedFixture, connect: ConnectionEdit, picks
       return canned.read(query, since)
     },
   })
-  const using: QueryStepping = { connections: storage, queries: storage, setup: storage, secrets: openMemorySecrets(), connector, milestoneInputs: storage, at: AT }
+  const using: QueryStepping = {
+    connections: storage,
+    queries: storage,
+    setup: storage,
+    secrets: openMemorySecrets(),
+    connector,
+    milestoneInputs: storage,
+    at: AT,
+  }
   await submitConnection(using, TEAM, connect)
   for (const choice of picks) await submitStepQuery(using, TEAM, { kind: 'addPick', choice }, READ_AT)
   queriesRead.length = 0
@@ -105,7 +121,11 @@ describe('renaming the milestone', () => {
   })
 
   test('a milestone past those the tracker lists is searched for by the new name', async () => {
-    const pastLimit: CannedFixture = { milestoneChoices: [{ kind: 'milestone', choices: [checkout], pastLimit: true }], reads: READS, searchable: { milestone: [checkout, loyalty] } }
+    const pastLimit: CannedFixture = {
+      milestoneChoices: [{ kind: 'milestone', choices: [checkout], pastLimit: true }],
+      reads: READS,
+      searchable: { milestone: [checkout, loyalty] },
+    }
     const using = await pickedFrom(pastLimit, GITHUB_REPO, [checkout])
 
     await followRenamedMilestone(using, TEAM, RENAMED, READ_AT)
@@ -123,7 +143,10 @@ describe('renaming the milestone', () => {
   })
 
   test('when the tracker rejects the new name’s query, the query is left as it was, and the tracker asked once', async () => {
-    const rejecting: CannedFixture = { ...GITHUB, reads: { ...READS, 'milestone:"Loyalty launch"': { failure: 'invalidQuery', message: 'No such milestone.' } } }
+    const rejecting: CannedFixture = {
+      ...GITHUB,
+      reads: { ...READS, 'milestone:"Loyalty launch"': { failure: 'invalidQuery', message: 'No such milestone.' } },
+    }
     const using = await pickedFrom(rejecting, GITHUB_REPO, [checkout])
 
     expect(await followRenamedMilestone(using, TEAM, RENAMED, READ_AT)).toMatchObject({ kind: 'refused' })
