@@ -1,8 +1,5 @@
-import type { PaceInUse } from './paceInUse.js'
-import type { PaceFrom } from './paceReads.js'
-import type { DatedCounts } from './paceWindow.js'
+import type { DatedCounts, PaceFrom, PaceInUse, PaceReading } from './lib/pace.js'
 import type { ForecastSettings } from './settings.js'
-import type { PaceReading } from './trackerReads.js'
 
 /**
  * The counts in use, typed or the tracker's, drawn as bars, oldest first, with a straight least-squares line fitted through them. Information

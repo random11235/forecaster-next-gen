@@ -3,8 +3,7 @@ import type { Storage } from '../storage/storage.js'
 import { periodName, type PeriodName } from './cadence.js'
 import { dayMonth, isCalendarDate } from './calendarDate.js'
 import { refuse, type EditResult } from './editResult.js'
-import type { PaceCounts, PaceInUse } from './paceInUse.js'
-import { actionSaid, withAction, type DatedCounts } from './paceWindow.js'
+import { actionSaid, withAction, type DatedCounts, type PaceCounts, type PaceInUse } from './lib/pace.js'
 
 // The rule is the research classifier's, trimmed (docs/research/pace-stability/classify.mjs).
 
@@ -114,6 +113,8 @@ export function paceActionApplied(inputs: MilestoneInputs, pace: PaceInUse): str
 function appliedLine(all: DatedCounts, action: PaceAction, period: PeriodName): string {
   const said = actionSaid(action, period)
   if (action.kind === 'leaveOut') return `${said}, the odd ${period}.`
+  // the action applied here, not taken from the pace window: as with an offered action, the window may not hold it
+  // (before the milestone has a start date, it is every count, the action unapplied)
   const since = withAction(all, action).counts
   const before = all.counts.slice(0, all.counts.length - since.length)
   return `${said}, after it stepped ${mean(since) >= mean(before) ? 'up' : 'down'}.`

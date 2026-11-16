@@ -4,7 +4,7 @@ The Forecaster tells an engineering manager (EM) when a milestone will finish. I
 
 **The MVP comes first.** The MVP is what is built: one milestone per team, forecast from what the EM types in: its start date, tickets remaining and a pace (a range, or typed counts) per period of the team's cadence, grown by the range of its ambiguity. Where it overrides v1's design (epics, commits, pull-backs, blocked epics, per-epic ambiguity, team facts, workflow settings, measured pace and growth, sample data), each doc says so near its top and at the sections it sets aside.
 
-Read [`architecture.md`](architecture.md) first, then the doc for the module you're changing.
+Read [`architecture.md`](architecture.md) first, an index of the architecture's parts, then the doc for the module you're changing.
 
 ## Contents
 
