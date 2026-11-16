@@ -2,8 +2,7 @@ import type { Connection } from '../model/connection.js'
 import type { MilestoneQuery } from '../model/milestoneQuery.js'
 import type { FailedRead } from '../model/readFailures.js'
 import type { SavedRead } from '../model/savedRead.js'
-import type { SetupStorage } from '../storage/storage.js'
-import type { Connecting } from './connection.js'
+import type { SetupStorage, TeamQueries } from '../storage/storage.js'
 import { chipsShow, kindName, LEAF_NOTE, readFlag, rejectionOf } from './queryStep.js'
 import { readSince } from './setupReads.js'
 import { COMPARABLE_WORK, hasQuery, MILESTONE_QUERY, type StepQuery } from './stepQuery.js'
@@ -58,7 +57,7 @@ export interface SummaryFlag {
 }
 
 /** What the summary reads: the saved queries and their reads, dated in the EM's time zone, and why the last reads failed. */
-export type SummaryReading = Pick<Connecting, 'milestoneQueries' | 'reads'> & { setup: Pick<SetupStorage, 'readFailures'>; timeZone: string }
+export type SummaryReading = TeamQueries & { setup: Pick<SetupStorage, 'readFailures'>; timeZone: string }
 
 /**
  * The summary of the team's setup, done, on `connection`: its tracker and where it reads, when the milestone query

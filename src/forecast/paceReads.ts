@@ -1,7 +1,6 @@
 import type { SavedRead } from '../model/savedRead.js'
-import type { MilestoneQueryStorage, SavedReadStorage, Storage } from '../storage/storage.js'
+import type { MilestoneQueryStorage, SavedReadStorage, Storage, TeamQueries } from '../storage/storage.js'
 import { daysBetween } from './calendarDate.js'
-import type { Connecting } from './connection.js'
 import { calendarDayIn, completeRead, finishedPerPeriod, ticketsRemaining, type FinishedPeriods } from './finished.js'
 import type { DatedCounts } from './paceWindow.js'
 
@@ -41,8 +40,8 @@ export interface PaceDay {
 /** What `paceReads` reads of what is stored: the milestone's inputs, the team's two queries, and their saved reads. */
 export type PaceReadsStorage = Pick<Storage, 'milestoneInputs'> & Pick<MilestoneQueryStorage, 'milestoneQuery' | 'comparableWorkQuery'> & Pick<SavedReadStorage, 'savedRead'>
 
-/** What `paceReads` reads, in the local server build: the milestone's inputs from `storage`, the queries and reads from `connecting`. */
-export function paceReadsStorage(storage: Pick<Storage, 'milestoneInputs'>, { milestoneQueries, reads }: Pick<Connecting, 'milestoneQueries' | 'reads'>): PaceReadsStorage {
+/** What `paceReads` reads, in the local server build: the milestone's inputs from `storage`, the queries and reads from `queries`. */
+export function paceReadsStorage(storage: Pick<Storage, 'milestoneInputs'>, { milestoneQueries, reads }: TeamQueries): PaceReadsStorage {
   return {
     milestoneInputs: (teamId) => storage.milestoneInputs(teamId),
     milestoneQuery: (teamId) => milestoneQueries.milestoneQuery(teamId),

@@ -3,13 +3,12 @@ import type { Connection } from '../model/connection.js'
 import type { SavedRead } from '../model/savedRead.js'
 import type { SavedReadStorage, Storage } from '../storage/storage.js'
 import { periodName, type PeriodName } from './cadence.js'
-import { teamConnection, type Connecting } from './connection.js'
+import { teamConnection, withTeamQueries, type Connecting } from './connection.js'
 import { calendarDayIn, completeRead, finishedPerPeriod, finishedSinceFor, ticketsRemaining, weeksRead } from './finished.js'
 import type { ChoiceList } from './queryStep.js'
 import { paceReads, paceReadsStorage, wholePeriods } from './paceReads.js'
 import type { DatedCounts } from './paceWindow.js'
 import { medianOf, paceVersusMilestoneOwn, type PaceVersus } from './paceVersusOwn.js'
-import { throughDraft } from './throughDraft.js'
 import { trackerOf } from './trackers.js'
 
 /**
@@ -93,7 +92,7 @@ export function openCandidates(
   at: CandidatesAt,
 ): CandidateOpening {
   // the milestone's and comparable work's queries as setup's steps hold them
-  const stored = paceReadsStorage(storage, throughDraft(connecting))
+  const stored = paceReadsStorage(storage, withTeamQueries(connecting, 'current'))
   const read = new Map<string, Promise<Candidate>>()
   let connected: ReturnType<typeof teamConnection> | undefined
   const own = paceReads(stored, teamId, at)

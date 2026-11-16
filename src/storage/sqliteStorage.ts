@@ -10,7 +10,8 @@ import type { SavedRead } from '../model/savedRead.js'
 import type { FailedRead, FailedReads, ReadFailures } from '../model/readFailures.js'
 import type { SetupDraft } from '../model/setupDraft.js'
 import type { Team } from '../model/team.js'
-import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage, SetupClosed, SetupState, SetupStorage, Storage } from './storage.js'
+import { applySetupDraft, draftedQueries, saveDraftPickFailures, saveDraftSources, type TeamQueriesWithDraft } from './lib/setupDraft.js'
+import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage, SetupClosed, SetupState, SetupStorage, Storage, TeamQueryStorage } from './storage.js'
 
 /**
  * The schema, as the steps that build it. The file records how many it has applied (`PRAGMA user_version`), and
@@ -352,7 +353,7 @@ CREATE TABLE read_failures (
 type Row = Record<string, SQLInputValue>
 
 /** The local server build's storage: everything, and the team's connection, saved reads, milestone query and comparable work's, and how its setup was closed. */
-export type SqliteStorage = Storage & ConnectionStorage & SavedReadStorage & MilestoneQueryStorage & SetupStorage
+export type SqliteStorage = Storage & ConnectionStorage & SavedReadStorage & MilestoneQueryStorage & SetupStorage & TeamQueryStorage
 
 /** Opens (creating if needed) the SQLite file at `file`. `':memory:'` keeps everything in memory. */
 export function openSqliteStorage(file: string): SqliteStorage {
@@ -460,7 +461,8 @@ export function openSqliteStorage(file: string): SqliteStorage {
   const selectReadFailures = db.prepare('SELECT of, query, failure, message, at FROM read_failures WHERE team_id = ? ORDER BY rowid')
   const deleteReadFailures = db.prepare('DELETE FROM read_failures WHERE team_id = ?')
 
-  return {
+  // what each table keeps; the targets, and the draft's edits and "Use these", are made over it below
+  const kept: Omit<SqliteStorage, keyof TeamQueryStorage | 'saveDraftSources' | 'saveDraftPickFailures'> = {
     isEmpty() {
       return db.prepare('SELECT 1 FROM teams LIMIT 1').get() === undefined
     },
@@ -710,6 +712,14 @@ export function openSqliteStorage(file: string): SqliteStorage {
     close() {
       db.close()
     },
+  }
+  const withDraft: TeamQueriesWithDraft = { milestoneQueries: kept, reads: kept, setup: kept }
+  return {
+    ...kept,
+    saveDraftSources: (teamId, sources) => saveDraftSources(kept, teamId, sources),
+    saveDraftPickFailures: (teamId, pickFailures) => saveDraftPickFailures(kept, teamId, pickFailures),
+    teamQueries: (target) => draftedQueries(withDraft, target),
+    applySetupDraft: (teamId) => applySetupDraft(withDraft, teamId),
   }
 }
 
