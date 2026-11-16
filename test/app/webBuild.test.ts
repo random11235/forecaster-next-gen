@@ -1,10 +1,7 @@
-import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import { beforeAll, describe, expect, test } from 'vitest'
 
-// Builds the web build the way `npm run build:web` does (#114) and reads the one file it writes.
-const root = fileURLToPath(new URL('../..', import.meta.url))
+// Reads the one file the web build writes (#114); test/buildOnce.ts runs `npm run build:web` before any test file.
 
 /** The app's one version, as `package.json` sets it. */
 const VERSION: unknown = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version
@@ -12,9 +9,8 @@ const VERSION: unknown = JSON.parse(readFileSync(new URL('../../package.json', i
 let html: string
 
 beforeAll(() => {
-  execFileSync('npm', ['run', 'build:web'], { cwd: root, stdio: 'ignore' })
   html = readFileSync(new URL('../../dist/web/forecaster.html', import.meta.url), 'utf8')
-}, 60_000)
+})
 
 describe('web build smoke test', () => {
   test('writes one page that opens on the Milestone forecast screen in its empty state, with no sample data', () => {
