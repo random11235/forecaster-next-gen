@@ -6,6 +6,9 @@ import { beforeAll, describe, expect, test } from 'vitest'
 // Builds the web build the way `npm run build:web` does (#114) and reads the one file it writes.
 const root = fileURLToPath(new URL('../..', import.meta.url))
 
+/** The app's one version, as `package.json` sets it. */
+const VERSION: unknown = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version
+
 let html: string
 
 beforeAll(() => {
@@ -31,5 +34,12 @@ describe('web build smoke test', () => {
     // the script names the SVG namespace, `http://www.w3.org/2000/svg`, which loads nothing
     expect(html).not.toMatch(/(?:href=|src=|url\()["']?(?:https?:)?\/\//)
     expect(html).not.toMatch(/@import/)
+  })
+
+  test('shows the version in its footer, and its script carries it for the screens it shows, with no live reload', () => {
+    expect(html).toContain(`<footer class="version">Forecaster ${String(VERSION)}</footer>`)
+    expect(html.match(/<script>([^]*)<\/script>/)?.[1]).toContain(JSON.stringify(VERSION))
+    expect(html).not.toContain('EventSource')
+    expect(html).not.toContain('/live')
   })
 })

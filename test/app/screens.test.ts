@@ -432,13 +432,16 @@ describe('Inputs screen: saving as inputs change', () => {
 
   test('the Inputs screen carries its own script, which saves in place; the forecast carries none', async () => {
     await startOnPreMvpData()
+    // besides the live reload every page the server sends carries (launch.test.ts)
+    const ownScripts = async (path: string) =>
+      [...(await page(path)).matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)].filter(([, , body]) => !body?.includes('EventSource'))
 
-    const scripts = [...(await page('/inputs')).matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)]
+    const scripts = await ownScripts('/inputs')
 
     expect(scripts).toHaveLength(1)
     expect(scripts[0]![1]).toBe('')
     expect(scripts[0]![2]).toContain(`'${SAVE_IN_PLACE.header}': '${SAVE_IN_PLACE.value}'`)
-    expect(await page('/')).not.toContain('<script')
+    expect(await ownScripts('/')).toEqual([])
   })
 })
 

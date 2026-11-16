@@ -1,5 +1,6 @@
 import { dayMonth } from '../forecast/calendarDate.js'
 import { FONT_FACES } from './fonts.js'
+import { VERSION } from './version.js'
 
 /** The screens in the sidebar, by path. */
 const SCREENS = [
@@ -58,6 +59,7 @@ ${links}
       <h1>${header.heading}</h1>${lede}
     </header>
 ${main}
+    <footer class="version">Forecaster ${escapeHtml(VERSION)}</footer>
   </main>${script ? `\n  <script>${script}</script>` : ''}
 </body>
 </html>
@@ -92,6 +94,7 @@ const STYLE = `
     main { padding: 40px 56px 64px; max-width: 1040px; display: flex; flex-direction: column; gap: 40px; }
     header { display: flex; flex-direction: column; gap: 14px; }
     header p { margin: 0; }
+    footer.version { margin-top: auto; font-size: 12px; color: var(--faint); }
     .context { font-size: 13px; color: var(--muted); }
     h1 { margin: 0; font-size: 40px; line-height: 1.15; font-weight: 600; letter-spacing: -0.03em; max-width: 820px; text-wrap: pretty; }
     .risk { color: var(--risk); }
