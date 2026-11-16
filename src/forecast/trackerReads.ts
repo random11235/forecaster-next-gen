@@ -3,16 +3,8 @@ import type { SavedRead } from '../model/savedRead.js'
 import type { TeamQueries } from '../storage/storage.js'
 import { readOn } from './calendarDate.js'
 import { withTeamQueries, type Connecting } from './connection.js'
-import {
-  paceOf,
-  savedPaceReads,
-  ticketsRemaining,
-  type ChosenSourcePace,
-  type DatedCounts,
-  type Pace,
-  type PaceReading,
-  type SavedPaceReads,
-} from './lib/pace.js'
+import { paceCalendar, paceOf, savedPaceReads, type ChosenSourcePace, type DatedCounts, type Pace, type PaceReading, type SavedPaceReads } from './lib/pace.js'
+import { ticketsRemaining } from './queryRead.js'
 import type { ForecastSettings } from './settings.js'
 import { trackerOf } from './trackers.js'
 
@@ -140,19 +132,13 @@ function wasTickets(previous: SavedRead | undefined, count: number, timeZone: st
  * out once, and every part of the view that shows pace takes it from there.
  */
 export function milestonePace(inputs: MilestoneInputs, settings: ForecastSettings, today: string, measured: Measured | undefined): ChosenSourcePace {
-  const of = { paceWindow: inputs.paceWindow, cadence: inputs.cadenceDays, startDate: inputs.startDate, settings }
-  if (!measured) return paceOf({ ...of, reads: { chosen: inputs }, clock: { today, timeZone: 'UTC' } })
+  const chosen = { chosen: inputs, settings }
+  if (!measured) return paceOf({ ...paceCalendar(inputs, today), ...chosen })
   const { paceReads: saved, tracker, timeZone } = measured
-  return paceOf({ ...of, reads: { saved, tracker, chosen: inputs }, clock: { today, timeZone } })
+  return paceOf({ ...paceCalendar(inputs, today), timeZone, reads: { saved, tracker }, ...chosen })
 }
 
 /** The milestone's pace on `today` as the tracker reads it (`paceOf`), whichever source the EM chose: its reading, none until it is read. */
 export function trackerPace(inputs: MilestoneInputs, today: string, { paceReads: saved, tracker, timeZone }: Measured): Pace {
-  return paceOf({
-    paceWindow: inputs.paceWindow,
-    cadence: inputs.cadenceDays,
-    startDate: inputs.startDate,
-    reads: { saved, tracker },
-    clock: { today, timeZone },
-  })
+  return paceOf({ ...paceCalendar(inputs, today), timeZone, reads: { saved, tracker } })
 }

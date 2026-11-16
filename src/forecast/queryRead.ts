@@ -1,12 +1,17 @@
-import type { Connector, Failure } from '../../connectors/connector.js'
-import type { MilestoneInputs } from '../../model/milestoneInputs.js'
-import type { SavedRead } from '../../model/savedRead.js'
-import { DAY_MS } from '../../model/time.js'
-import type { SavedReadStorage } from '../../storage/storage.js'
-import { addDays } from '../calendarDate.js'
-import { TRACKER_PERIODS } from './trackerWindow.js'
+import type { Connector, Failure } from '../connectors/connector.js'
+import type { MilestoneInputs } from '../model/milestoneInputs.js'
+import type { SavedRead } from '../model/savedRead.js'
+import { DAY_MS } from '../model/time.js'
+import type { SavedReadStorage } from '../storage/storage.js'
+import { addDays } from './calendarDate.js'
 
 // Reading a query, as far back as pace needs, and what a read says: tickets remaining, weeks read.
+
+/** The most periods the tracker's pace counts: how far back a query is read. */
+export const TRACKER_PERIODS = 8
+
+/** The read, when it has all its tickets: an incomplete one is never counted as if whole. */
+export const completeRead = (read: SavedRead | undefined): SavedRead | undefined => (read && !read.incomplete ? read : undefined)
 
 /**
  * The UTC instant a read made at `readAt` counts finished tickets from: far enough back, in whole weeks, for the

@@ -6,8 +6,8 @@ import {
   sideBySide,
   type DatedCounts,
   type PaceFrom,
-  type PaceLaying,
   type QueryReads,
+  type ReadCalendar,
   type SavedPaceReads,
   type SideBySide,
 } from './periodCounts.js'
@@ -65,7 +65,7 @@ export function readingOf(
   saved: SavedPaceReads,
   { counts, sides }: { counts: DatedCounts; sides: SideBySide },
   tracker: string,
-  of: PaceLaying,
+  of: ReadCalendar,
 ): PaceReading | undefined {
   const fromReads = sides.from === 'milestone' ? saved.milestone : saved.comparableWork
   const paceRead = fromReads?.latest
@@ -81,7 +81,7 @@ export function readingOf(
     comparableWork: sides.comparableWork,
     said: BOUND_SAID[bound]({ tracker, period, window, sides, counts }),
     skippedLine: skippedLine(skipped, window, period, tracker),
-    readOn: readOn(paceRead.readAt, of.clock.timeZone),
+    readOn: readOn(paceRead.readAt, of.timeZone),
     readAt: paceRead.readAt,
     was: fromReads && wasPace(saved, fromReads, sides.from, window.counts, of),
   }
@@ -97,19 +97,19 @@ export function sameCounts(some: readonly number[], others: readonly number[] | 
  * day it was made. None when they are the counts pace shows, nor when the latest read, on its own day, counts the same:
  * the read changed nothing. Pace that came from the other query then gives none.
  */
-function wasPace(saved: SavedPaceReads, { query, latest, previous }: QueryReads, from: PaceFrom, counts: number[], of: PaceLaying): WasPace | undefined {
+function wasPace(saved: SavedPaceReads, { query, latest, previous }: QueryReads, from: PaceFrom, counts: number[], of: ReadCalendar): WasPace | undefined {
   if (!latest || !previous) return undefined
   const was = countsAsThen(saved, query, previous, from, of)
   if (!was || sameCounts(was, counts) || sameCounts(was, countsAsThen(saved, query, latest, from, of))) return undefined
-  return { counts: was, readOn: readOn(previous.readAt, of.clock.timeZone) }
+  return { counts: was, readOn: readOn(previous.readAt, of.timeZone) }
 }
 
 /** The counts pace showed with `read` as the query's, on the day it was made; none had pace come from the other query. */
-function countsAsThen(saved: SavedPaceReads, query: string, read: SavedRead, from: PaceFrom, of: PaceLaying): number[] | undefined {
+function countsAsThen(saved: SavedPaceReads, query: string, read: SavedRead, from: PaceFrom, of: ReadCalendar): number[] | undefined {
   const asThen = (reads: QueryReads | undefined) => reads && (reads.query === query ? { ...reads, latest: read } : reads)
   const then = sideBySide(
     { ...saved, milestone: asThen(saved.milestone), comparableWork: asThen(saved.comparableWork) },
-    { ...of, clock: { ...of.clock, today: calendarDayIn(of.clock.timeZone)(read.readAt) } },
+    { ...of, today: calendarDayIn(of.timeZone)(read.readAt) },
   )
   return then && then.sides.from === from ? trackerWindow(then.counts, then.sides, of.paceWindow.skippedPeriods).window.counts : undefined
 }

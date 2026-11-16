@@ -4,7 +4,7 @@ import { periodName, type PeriodName } from '../cadence.js'
 import { addDays, dayMonth, daysBetween } from '../calendarDate.js'
 import { counted } from '../counted.js'
 import type { ForecastSettings } from '../settings.js'
-import type { DatedCounts, PaceLaying } from './periodCounts.js'
+import type { DatedCounts, PaceCalendar } from './periodCounts.js'
 import type { PaceReading } from './paceReading.js'
 
 // The pace in use, from the source the EM chose, and what stops or warns of it.
@@ -47,17 +47,17 @@ export interface PaceWarning extends PaceNote {
 export function inUseOf(
   chosen: ChosenPace,
   tracker: { tracker: string; reading: PaceReading | undefined; incomplete: boolean } | undefined,
-  of: PaceLaying,
+  of: PaceCalendar,
 ): PaceInUse {
   if (chosen.paceMode === 'range') return { source: 'range', range: chosen.paceRange }
   if (chosen.paceMode === 'tracker' && tracker) {
     return { source: 'tracker', ...tracker, ...withActionApplied(tracker.reading?.window ?? { counts: [], starts: [] }, of) }
   }
-  return { source: 'counts', ...withActionApplied(typedCounts(chosen.paceCounts, of), of) }
+  return { source: 'counts', ...withActionApplied(datedTypedCounts(chosen.paceCounts, of), of) }
 }
 
 /** `all`, and the window the milestone's pace action leaves of them; all of them with none applied, or no start date. */
-function withActionApplied(all: DatedCounts, { paceWindow: { action }, startDate }: PaceLaying): PaceCounts {
+function withActionApplied(all: DatedCounts, { paceWindow: { action }, startDate }: PaceCalendar): PaceCounts {
   if (action === undefined || startDate === undefined) return { all, window: all }
   return { all, window: withAction(all, action) }
 }
@@ -78,7 +78,7 @@ export function actionSaid(action: PaceAction, period: PeriodName): string {
  * The typed counts, dated back from the current period (the one holding today, in periods counted from the start
  * date): the last count is the most recent whole period. Undated with no start date.
  */
-function typedCounts(typed: readonly number[], { startDate, cadence, clock: { today } }: PaceLaying): DatedCounts {
+function datedTypedCounts(typed: readonly number[], { startDate, cadence, today }: PaceCalendar): DatedCounts {
   if (startDate === undefined) return { counts: [...typed], starts: [] }
   const current = Math.floor(daysBetween(startDate, today) / cadence)
   return { counts: [...typed], starts: typed.map((_, count) => addDays(startDate, (current - typed.length + count) * cadence)) }
@@ -89,7 +89,7 @@ type TypedCountsNeeded = ForecastSettings['typedCounts']
 /** What stops a forecast from the pace in use, and the warnings about it, judged against `typedCounts`. */
 export function notesOf(
   inUse: PaceInUse,
-  of: PaceLaying,
+  of: PaceCalendar,
   { typedCounts: needed }: Pick<ForecastSettings, 'typedCounts'>,
 ): { problems: PaceNote[]; warnings: PaceWarning[] } {
   if (inUse.source === 'range') return { problems: inUse.range ? [] : [{ input: 'pace', message: 'Enter a pace range.' }], warnings: [] }
@@ -104,7 +104,7 @@ export function notesOf(
  */
 function trackerPaceNotes(
   { tracker, reading, incomplete, window }: Extract<PaceInUse, { source: 'tracker' }>,
-  { cadence }: PaceLaying,
+  { cadence }: PaceCalendar,
   { forForecast, reliable }: TypedCountsNeeded,
 ): { problems: PaceNote[]; warnings: PaceWarning[] } {
   const inUse = window.counts.length
@@ -134,7 +134,7 @@ function trackerPaceNotes(
  * The typed counts in use: too few to forecast from (one count isn't a pace), or enough but too few for a range the EM
  * can rely on.
  */
-function typedCountsNotes(inUse: number, of: PaceLaying, { forForecast, reliable }: TypedCountsNeeded): { problems: PaceNote[]; warnings: PaceWarning[] } {
+function typedCountsNotes(inUse: number, of: PaceCalendar, { forForecast, reliable }: TypedCountsNeeded): { problems: PaceNote[]; warnings: PaceWarning[] } {
   if (inUse < forForecast) {
     const message = `${typedCountsEntered(inUse, of)} The forecast needs at least ${forForecast}. Add another count, or switch pace to the range.`
     return { problems: [{ input: 'typedCounts', message }], warnings: [] }
@@ -156,7 +156,7 @@ function typedCountsNotes(inUse: number, of: PaceLaying, { forForecast, reliable
  * How many typed counts the pace is drawn from (`inUse`), in the milestone's periods: "Typed counts: 4 weeks
  * entered." With an action applied, how many it leaves: "Counting pace from 12 Oct leaves 4 weeks."
  */
-function typedCountsEntered(inUse: number, { cadence, paceWindow: { action } }: PaceLaying): string {
+function typedCountsEntered(inUse: number, { cadence, paceWindow: { action } }: PaceCalendar): string {
   const period = periodName(cadence)
   const periods = counted(inUse, period)
   return action ? `${actionSaid(action, period)} leaves ${periods}.` : `Typed counts: ${periods} entered.`

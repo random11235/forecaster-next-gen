@@ -1,12 +1,10 @@
 import type { PeriodName } from '../cadence.js'
 import { dayMonth } from '../calendarDate.js'
 import { counted } from '../counted.js'
+import { TRACKER_PERIODS } from '../queryRead.js'
 import type { DatedCounts, SideBySide } from './periodCounts.js'
 
 // The tracker's pace window: the periods it counts, the skipped ones it reaches back past, and what its bound says.
-
-/** The most periods the tracker's pace counts. */
-export const TRACKER_PERIODS = 8
 
 /**
  * What bounds the tracker's window: it is `full`, at `TRACKER_PERIODS`; or shorter, as the periods the reads reach run
@@ -69,7 +67,7 @@ export function trackerWindow(
 }
 
 /** What a bound is said from: the tracker, the milestone's period, the window, the reads side by side and the counts pace comes from. */
-export interface Saying {
+export interface BoundFacts {
   tracker: string
   period: PeriodName
   window: DatedCounts
@@ -78,7 +76,7 @@ export interface Saying {
 }
 
 /** What each bound says of the window, in one place: the reading's line, and the problem when it leaves no pace. */
-export const BOUND_SAID: Record<TrackerWindowBound, (saying: Saying) => BoundSaid> = {
+export const BOUND_SAID: Record<TrackerWindowBound, (facts: BoundFacts) => BoundSaid> = {
   full: ({ period }) => ({ periods: `last ${counted(TRACKER_PERIODS, period)}`, bars: true }),
   firstFinished: ({ period, window }) => ({
     periods: counted(window.counts.length, period),

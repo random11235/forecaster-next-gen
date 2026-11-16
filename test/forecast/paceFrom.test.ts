@@ -162,6 +162,25 @@ describe('with a comparable-work query', () => {
     const tracker = { ...using, timeZone: 'UTC' }
     expect(inputsView(storage, TEAM, DEFAULT_SETTINGS, TODAY, { tracker }).milestone.ticketsSource).toMatchObject({ reading: { count: 3 } })
   })
+
+  test('with the milestone query’s read incomplete, tickets remaining aren’t known, though comparable work’s read is complete', async () => {
+    const partial: CannedFixture = {
+      ...FIXTURE,
+      reads: {
+        ...FIXTURE.reads,
+        [checkout.query]: { tickets: MILESTONE_TICKETS, incomplete: true },
+      },
+    }
+    using = { ...using, connector: () => cannedConnector(partial) }
+    storage.saveMilestoneQuery(TEAM, { picks: [], query: '' })
+    await submitStepQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
+    await addComparable(payments)
+
+    const tracker = { ...using, timeZone: 'UTC' }
+    submitInputs(storage, TEAM, DEFAULT_SETTINGS, TODAY, { kind: 'setTicketsSource', ticketsSource: 'tracker' }, { tracker })
+    const why = 'GitHub gave only part of the milestone’s tickets, so tickets remaining isn’t known. Narrow the milestone query, or type tickets remaining.'
+    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS, TODAY, { tracker }).milestone.notes).toContainEqual({ input: 'ticketsRemaining', message: why })
+  })
 })
 
 describe('the milestone’s own pace', () => {
@@ -169,8 +188,11 @@ describe('the milestone’s own pace', () => {
   const OWN = { from: 'milestone', median: 0.5, low: 0, high: 2 }
 
   test('with no comparable-work query, pace is the milestone’s own finished tickets, over the periods since its start', async () => {
-    expect(await stepPace()).toMatchObject({ inUse: OWN, periods: paired({ milestone: MILESTONE_COUNTS }) })
-    expect((await stepPace())?.flag).toBeUndefined()
+    const pace = await stepPace()
+    expect(pace).toMatchObject({ inUse: OWN })
+    // exactly: no comparable work beside the milestone's own
+    expect(pace?.periods).toEqual(paired({ milestone: MILESTONE_COUNTS }))
+    expect(pace?.flag).toBeUndefined()
   })
 
   test('a comparable-work query matching nothing finished in the window isn’t used: pace falls back to the milestone’s own', async () => {
@@ -243,7 +265,7 @@ describe('no reads to count', () => {
     expect(await stepPace()).toBeUndefined()
   })
 
-  test('the milestone query’s read incomplete, pace still comes from comparable work’s; the milestone’s own and tickets remaining are unknown', async () => {
+  test('the milestone query’s read incomplete, pace still comes from comparable work’s; the milestone’s own is unknown', async () => {
     const partial: CannedFixture = {
       ...FIXTURE,
       reads: {
@@ -256,10 +278,11 @@ describe('no reads to count', () => {
     await submitStepQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
     await addComparable(payments)
 
-    expect(await stepPace()).toMatchObject({
-      inUse: { from: 'comparableWork', median: 0, low: 0, high: 1 },
-      periods: paired({ comparableWork: PAYMENTS_COUNTS }),
-    })
+    const pace = await stepPace()
+    expect(pace).toMatchObject({ inUse: { from: 'comparableWork', median: 0, low: 0, high: 1 } })
+    // exactly: the milestone's own counts are unknown, so none are paired, nor compared with
+    expect(pace?.periods).toEqual(paired({ comparableWork: PAYMENTS_COUNTS }))
+    expect(pace?.comparison).toBeUndefined()
   })
 
   test('an incomplete comparable-work read isn’t counted: pace is the milestone’s own', async () => {
@@ -273,9 +296,10 @@ describe('no reads to count', () => {
     using = { ...using, connector: () => cannedConnector(partial) }
     await addComparable(payments)
 
-    expect(await stepPace()).toMatchObject({
-      inUse: { from: 'milestone' },
-      periods: paired({ milestone: MILESTONE_COUNTS }),
-    })
+    const pace = await stepPace()
+    expect(pace).toMatchObject({ inUse: { from: 'milestone' } })
+    // exactly: comparable work's incomplete read pairs nothing, and isn't flagged as not used
+    expect(pace?.periods).toEqual(paired({ milestone: MILESTONE_COUNTS }))
+    expect(pace?.flag).toBeUndefined()
   })
 })

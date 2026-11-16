@@ -113,6 +113,8 @@ export function paceActionApplied(inputs: MilestoneInputs, pace: PaceInUse): str
 function appliedLine(all: DatedCounts, action: PaceAction, period: PeriodName): string {
   const said = actionSaid(action, period)
   if (action.kind === 'leaveOut') return `${said}, the odd ${period}.`
+  // the action applied here, not taken from the pace window: as with an offered action, the window may not hold it
+  // (before the milestone has a start date, it is every count, the action unapplied)
   const since = withAction(all, action).counts
   const before = all.counts.slice(0, all.counts.length - since.length)
   return `${said}, after it stepped ${mean(since) >= mean(before) ? 'up' : 'down'}.`

@@ -1,7 +1,8 @@
-import type { PaceWindow } from '../../model/milestoneInputs.js'
+import type { MilestoneInputs, PaceWindow } from '../../model/milestoneInputs.js'
 import type { SavedRead } from '../../model/savedRead.js'
 import type { TeamQueries } from '../../storage/storage.js'
 import { addDays, daysBetween } from '../calendarDate.js'
+import { completeRead } from '../queryRead.js'
 
 // Pace's saved reads, and their finished tickets counted per period side by side, on the EM's calendar days.
 
@@ -11,22 +12,34 @@ export interface DatedCounts {
   starts: string[]
 }
 
-/** Today, and the EM's time zone (an IANA name), which each finish is counted on its calendar day in. */
+/** When pace is counted: today, and the EM's time zone (an IANA name) each finish is counted on its calendar day in. */
 export interface PaceClock {
   today: string
   timeZone: string
 }
 
 /**
- * What pace is laid on: the milestone's pace window (its skipped periods and the pace action applied), its cadence in
- * days, its start date (a candidate is laid from today without one), and today in the EM's time zone (`clock`).
+ * The milestone's calendar pace is counted on: its pace window (its skipped periods and the pace action applied), its
+ * cadence in days, its start date (a candidate is laid from today without one), and today. Without a time zone: where
+ * a read is counted, it is a `ReadCalendar`.
  */
-export interface PaceLaying {
+export interface PaceCalendar {
   paceWindow: PaceWindow
   cadence: number
   startDate: string | undefined
-  clock: PaceClock
+  today: string
 }
+
+/** The milestone's calendar pace is counted on, from its inputs, on `today`. */
+export function paceCalendar(
+  { paceWindow, cadenceDays, startDate }: Pick<MilestoneInputs, 'paceWindow' | 'cadenceDays' | 'startDate'>,
+  today: string,
+): PaceCalendar {
+  return { paceWindow, cadence: cadenceDays, startDate, today }
+}
+
+/** The calendar a read's finishes are counted on, on the clock's calendar days. */
+export type ReadCalendar = PaceCalendar & PaceClock
 
 /** One of the team's queries, with its latest saved read and the one that read replaced. */
 export interface QueryReads {
@@ -86,18 +99,14 @@ export function calendarDayIn(timeZone: string): (instant: string) => string {
   return (instant) => format.format(new Date(instant))
 }
 
-/** The periods to count finished tickets in, laid on the milestone's cadence from its start date, on `clock`. */
-interface Laid {
-  startDate: string
-  cadence: number
-  clock: PaceClock
-}
-
 /**
  * The tickets the read finished in each of the `periods` before the current one (the one holding today), oldest
  * first, each finish counted on its calendar day in the EM's time zone. A quiet period counts 0.
  */
-export function finishedPerPeriod(read: SavedRead, { startDate, cadence, clock: { today, timeZone }, periods }: Laid & { periods: number }): DatedCounts {
+export function finishedPerPeriod(
+  read: SavedRead,
+  { startDate, cadence, today, timeZone, periods }: ReadCalendar & { startDate: string; periods: number },
+): DatedCounts {
   const current = Math.floor(daysBetween(startDate, today) / cadence)
   const first = current - periods
   const counts = Array.from({ length: periods }, () => 0)
@@ -115,14 +124,19 @@ export function finishedPerPeriod(read: SavedRead, { startDate, cadence, clock: 
  * The periods the reads all reach whole, up to the current one, which is left out: the `first`, counted from the start
  * date (negative before it), and how many (`periods`). A period a read reaches only part of would pass for a quiet one.
  */
-export function wholePeriods(reads: readonly SavedRead[], { startDate, cadence, clock: { today, timeZone } }: Laid): { first: number; periods: number } {
+export function wholePeriods(
+  reads: readonly SavedRead[],
+  { startDate, cadence, today, timeZone }: ReadCalendar & { startDate: string },
+): { first: number; periods: number } {
   const current = Math.floor(daysBetween(startDate, today) / cadence)
   const first = Math.max(...reads.map((read) => Math.ceil((daysBetween(startDate, calendarDayIn(timeZone)(read.finishedSince)) + 1) / cadence)))
   return { first, periods: Math.max(0, current - first) }
 }
 
-/** The read, when it has all its tickets. */
-const complete = (read: SavedRead | undefined): SavedRead | undefined => (read && !read.incomplete ? read : undefined)
+/** Whether the latest read of the milestone query, or of comparable work, is incomplete. */
+export function latestIncomplete({ milestone, comparableWork }: SavedPaceReads): boolean {
+  return [milestone, comparableWork].some((reads) => reads?.latest?.incomplete === true)
+}
 
 /**
  * The saved reads side by side, and the counts pace comes from; none before the milestone has a start date, nor
@@ -130,27 +144,28 @@ const complete = (read: SavedRead | undefined): SavedRead | undefined => (read &
  */
 export function sideBySide(
   { milestone: milestoneReads, comparableWork: comparableReads, picks }: SavedPaceReads,
-  { startDate, cadence, clock }: Pick<PaceLaying, 'startDate' | 'cadence' | 'clock'>,
+  of: ReadCalendar,
 ): { counts: DatedCounts; sides: SideBySide } | undefined {
+  const { startDate } = of
   if (startDate === undefined) return undefined
-  const milestoneRead = complete(milestoneReads?.latest)
-  const comparableRead = complete(comparableReads?.latest)
+  const milestoneRead = completeRead(milestoneReads?.latest)
+  const comparableRead = completeRead(comparableReads?.latest)
   const reads = [milestoneRead, comparableRead].filter((read) => read !== undefined)
   if (reads.length === 0) return undefined
-  const laid = { startDate, cadence, clock }
+  const laid = { ...of, startDate }
   const { first, periods } = wholePeriods(reads, laid)
   const counted = (read: SavedRead): DatedCounts => finishedPerPeriod(read, { ...laid, periods })
   const milestone = milestoneRead && counted(milestoneRead)
   const comparableWork = comparableRead && counted(comparableRead)
   // a query matching nothing finished in the periods counted is flagged as not used, so pace falls back to the milestone's own
   const usesComparable = comparableWork !== undefined && comparableWork.counts.some((count) => count > 0)
-  if (milestone === undefined && !usesComparable) return undefined
   const beforeStart = Math.min(periods, Math.max(0, -first))
   const picked = picks.flatMap(({ query, read }) => {
-    const own = complete(read)
+    const own = completeRead(read)
     return own ? [{ query, counts: counted(own) }] : []
   })
   const both = { milestone, beforeStart, comparableWork, picks: picked }
   if (usesComparable) return { counts: comparableWork, sides: { from: 'comparableWork', ...both } }
-  return { counts: { counts: milestone!.counts.slice(beforeStart), starts: milestone!.starts.slice(beforeStart) }, sides: { from: 'milestone', ...both } }
+  if (milestone === undefined) return undefined
+  return { counts: { counts: milestone.counts.slice(beforeStart), starts: milestone.starts.slice(beforeStart) }, sides: { from: 'milestone', ...both } }
 }
