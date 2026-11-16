@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
-import { post } from './appOnTracker.js'
+import { post } from './forms.js'
 import { openWebApp } from '../../src/app/webApp.js'
 import type { Connecting } from '../../src/forecast/connection.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'

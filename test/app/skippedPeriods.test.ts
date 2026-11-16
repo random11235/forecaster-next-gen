@@ -2,7 +2,8 @@ import { afterEach, describe, expect, test } from 'vitest'
 import type { RunningApp } from '../../src/app/launch.js'
 import type { CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
 import type { Ticket } from '../../src/connectors/connector.js'
-import { appOnTracker, inputsSection, page, post, type AppOnTracker } from './appOnTracker.js'
+import { appOnTracker, inputsSection, page, type AppOnTracker } from './appOnTracker.js'
+import { post } from './forms.js'
 
 // Skipping GitHub's weeks on the Inputs screen and the forecast (#213), through the local server as the EM's browser
 // sees it, on the canned connector.

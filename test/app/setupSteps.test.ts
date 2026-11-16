@@ -5,7 +5,8 @@ import type { Connecting } from '../../src/forecast/connection.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import { CHECKOUT, TODAY, type TeamStorage } from '../trackerScenario.js'
-import { appOnTracker, page, post, type AppOnTracker } from './appOnTracker.js'
+import { appOnTracker, page, type AppOnTracker } from './appOnTracker.js'
+import { post } from './forms.js'
 
 // The Inputs screen's setup steps (#217), through the local server as the EM's browser sees it, on the canned
 // connector: one step at a time, Back and Next between them, closing with "Use these" to a summary.
