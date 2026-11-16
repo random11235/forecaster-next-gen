@@ -19,10 +19,10 @@ import { counted } from './counted.js'
 import { milestoneGrowth } from './growth.js'
 import { assessMilestone, type ForecastableInputs, type ForecastPace, type InputNote } from './milestoneAssessment.js'
 import { paceActionApplied, pacePattern, type PacePatternView } from './pacePattern.js'
-import { paceInUse, type PaceInUse } from './paceInUse.js'
+import type { PaceInUse } from './lib/pace.js'
 import { paceTrend, type PaceTrend } from './paceTrend.js'
 import type { ForecastSettings } from './settings.js'
-import { measureSaved, type ReadingTracker } from './trackerReads.js'
+import { measureSaved, milestonePace, type ReadingTracker } from './trackerReads.js'
 
 /** The confidence level the headline states. */
 export const HEADLINE_PERCENT = 85
@@ -129,9 +129,10 @@ export function milestoneForecastView(
 ): MilestoneForecastView {
   const saved = storage.milestoneInputs(teamId)
   if (!saved) return { kind: 'empty' }
-  const measured = measureSaved(tracker, teamId, storage, today)
-  const inUse = paceInUse(saved, today, measured)
-  const assessment = assessMilestone(saved, settings, today, inUse, measured)
+  const measured = measureSaved(tracker, teamId)
+  const milestone = milestonePace(saved, settings, today, measured)
+  const { inUse } = milestone
+  const assessment = assessMilestone(saved, today, milestone, measured)
   if (!assessment.forecastable) {
     const applied = paceActionApplied(saved, inUse)
     return { kind: 'problems', name: saved.name, problems: assessment.problems, ...(applied && { paceApplied: applied }) }

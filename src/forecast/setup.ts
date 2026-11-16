@@ -10,7 +10,7 @@ import { readPicks } from './setupReads.js'
 import { summaryOf, type SetupSummary } from './setupSummary.js'
 import { SETUP_STEPS, setupStepOf, type SetupStep } from './setupSteps.js'
 import { hasQuery } from './stepQuery.js'
-import { measure, paceReadingView, type PaceReadingView } from './trackerReads.js'
+import { measure, paceReadingView, trackerPace, type PaceReadingView } from './trackerReads.js'
 
 /**
  * What setup, its summary and its reads read and save with, built once per request: what a query step reads with (the
@@ -190,12 +190,12 @@ function nextOf(step: SetupStep, picked: boolean, comparable: boolean): SetupSte
 
 /** Check's rows: the saved values and sources, the draft's choices over them, and what the draft reads measure. */
 function checkOf(settingUp: SetupContext, teamId: string): SetupCheck | undefined {
-  const measured = measure(withTeamQueries(settingUp, 'current'), teamId, settingUp.milestoneInputs, settingUp.today)
+  const measured = measure(withTeamQueries(settingUp, 'current'), teamId)
   if (!measured) return undefined
   const inputs = inputsOrNew(settingUp, teamId)
   const chosen = settingUp.setup.setupDraft(teamId)?.sources
   const tickets = measured.ticketsRemaining
-  const pace = measured.pace
+  const { reading: pace, incomplete } = trackerPace(inputs, settingUp.today, measured)
   const paceSource = chosen?.pace ?? inputs.paceMode
   const own = paceSource === 'tracker' ? inputs.paceMode : paceSource
   return {
@@ -210,8 +210,8 @@ function checkOf(settingUp: SetupContext, teamId: string): SetupCheck | undefine
       yours: own === 'counts' ? { source: 'counts', counts: inputs.paceCounts } : { source: 'range', range: inputs.paceRange },
       period: periodName(inputs.cadenceDays),
       ...(pace && { reading: paceReadingView(pace) }),
-      incomplete: measured.paceIncomplete,
-      noStartDate: !pace && !measured.paceIncomplete && inputs.startDate === undefined,
+      incomplete,
+      noStartDate: !pace && !incomplete && inputs.startDate === undefined,
       source: paceSource,
       choices: paceChoices(inputs),
     },
