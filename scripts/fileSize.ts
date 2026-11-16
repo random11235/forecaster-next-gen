@@ -29,13 +29,13 @@ export function oversized(files: Sized[]): Oversized[] {
 }
 
 const HOW_TO_SPLIT = {
-  src: `Source in src/: split along the module's seams (docs/design/architecture.md, Folder structure and Test seams).
+  src: `Source in src/: split along the module's seams (docs/design/architecture-folders.md and architecture-test-seams.md).
   - Keep this file as the entry point: the functions and types callers import stay here, with the same names.
   - Move what it hides into the module's lib/ subfolder, one file per concept, named with the GLOSSARY.md term
     (src/storage/lib/setupDraft.ts is the pattern). Callers outside the module keep importing the root file.
   - A file holding several screens, sections or steps becomes one file per section beside it.
   - Avoid a barrel or a utils file: each new file owns one concept.`,
-  test: `Tests in test/: split by behaviour, keeping each test at the seam it tests (architecture.md, Test seams).
+  test: `Tests in test/: split by behaviour, keeping each test at the seam it tests (docs/design/architecture-test-seams.md).
   - One file per entry point, or per top-level describe block, named for the behaviour (setup.rename.test.ts).
   - Move shared arrangement into a helper beside the tests, arranging through the module's own functions.
   - Every case keeps its assertions: a split moves tests, it changes none.`,
