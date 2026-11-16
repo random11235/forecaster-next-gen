@@ -3,7 +3,8 @@ import type { RunningApp } from '../../src/app/launch.js'
 import type { CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
 import type { Ticket } from '../../src/connectors/connector.js'
 import { CHECKOUT, finishedInWeeks, open } from '../trackerScenario.js'
-import { appOnTracker, page, post, type AppOnTracker } from './appOnTracker.js'
+import { appOnTracker, page, type AppOnTracker } from './appOnTracker.js'
+import { post } from './forms.js'
 
 // The faint previous value on the Inputs screen (#214), through the local server as the EM's browser sees it, on the
 // canned connector.

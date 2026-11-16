@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import type { RunningApp } from '../../src/app/launch.js'
 import type { CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
-import { appOnTracker, inputsSection, post, type AppOnTracker } from './appOnTracker.js'
+import { appOnTracker, inputsSection, type AppOnTracker } from './appOnTracker.js'
+import { post } from './forms.js'
 
 // Tickets remaining's source on the Inputs screen (#211), through the local server as the EM's browser sees it, on
 // the canned connector.

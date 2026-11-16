@@ -283,7 +283,7 @@ describe('refuses requests from other sites', () => {
       ['connecting another repo', '/inputs/connect', { tracker: 'github', repo: 'attacker/repo', token: 'theirs' }],
       ['disconnecting', '/inputs/connect/disconnect', {}],
       ['adding to the milestone query', '/inputs/milestone-query/add', { kind: 'milestone', name: 'Other', query: 'milestone:"Other"' }],
-    ])('a cross-site POST %s is refused with 403, leaving the connection and queries as they were', async (_, path, fields) => {
+    ])('a cross-site POST %s is refused with 403, leaving the connection, its saved token and the queries as they were', async (_, path, fields) => {
       tracker = await appOnTracker({ milestoneChoices: [{ kind: 'milestone', choices: [CHECKOUT], pastLimit: false }], reads: {} })
       await post(tracker.running, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
       await post(tracker.running, '/inputs/milestone-query/add', { ...CHECKOUT })
