@@ -20,3 +20,14 @@ Show each change itself: a diff-sketch of the type, call tree or data shape it c
 - A "Merged so far" section gives each merged ticket's diff-sketch.
 - After each merge, the orchestrator updates the body: the ticket's status, its diff-sketch, and its demo screenshots, which replace the proposed ones for the states it builds.
 - The body ends with `Closes #n` for the spec and every ticket.
+
+## After a PR merges
+
+When a PR merges into `main`, the path to production ends on this machine:
+
+1. Update `main` locally (`git checkout main && git pull --ff-only`) and delete the merged branch.
+2. Remove the closed tickets' workflow labels, as the [Ticket lifecycle](issue-tracker.md#ticket-lifecycle) sets out.
+3. Restart the local app from `main`, so http://127.0.0.1:5180/ shows what merged:
+   - Stop whatever listens on port 5180 (`lsof -tiTCP:5180 -sTCP:LISTEN | xargs kill`).
+   - Run `npm install && npm start` in the background from the repo root, and wait for `Forecaster running at`.
+   - If the build fails, say so with its output; don't leave the old app running as if it were updated.
