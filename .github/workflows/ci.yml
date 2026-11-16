@@ -19,6 +19,8 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run check:migrations
+      # Prettier and the 5,000-token limit on the files this branch changes, as the pre-commit hook checks a commit
+      - run: npm run check:changes -- origin/${{ github.base_ref || 'main' }}
       - name: Tests, with test coverage
         run: |
           set -o pipefail
