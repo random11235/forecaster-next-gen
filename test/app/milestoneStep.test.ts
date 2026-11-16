@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
+import { post, saveInPlace } from './appOnTracker.js'
 import { openWebApp } from '../../src/app/webApp.js'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
 import type { Choice, ChoicesOfKind } from '../../src/connectors/connector.js'
@@ -61,9 +62,6 @@ async function startConnected(fixture: CannedFixture = FIXTURE): Promise<Running
 }
 
 const page = async (running: RunningApp, path = '/inputs'): Promise<string> => (await fetch(new URL(path, running.url))).text()
-
-const post = (running: RunningApp, path: string, fields: Record<string, string>): Promise<Response> =>
-  fetch(new URL(path, running.url), { method: 'POST', body: new URLSearchParams(fields), headers: { origin: new URL(running.url).origin }, redirect: 'manual' })
 
 /** The Milestone step's section of the Inputs screen. */
 function stepOf(html: string): string {
@@ -309,11 +307,7 @@ describe('the Milestone step', () => {
       const running = await startConnected()
       await post(running, '/inputs/milestone', { name: 'Payments v2', startDate: '2026-10-01', ticketsRemaining: '20' })
 
-      const saved = await fetch(new URL('/inputs/cadence', running.url), {
-        method: 'POST',
-        body: new URLSearchParams({ cadenceDays: '14' }),
-        headers: { origin: new URL(running.url).origin, 'forecaster-save': 'in-place' },
-      })
+      const saved = await saveInPlace(running, '/inputs/cadence', { cadenceDays: '14' })
 
       expect(saved.status).toBe(200)
       expect(sectionNumbers(await saved.text()).slice(0, 2)).toEqual(['milestone-tickets 01', 'milestone 02'])
@@ -329,11 +323,7 @@ describe('the Milestone step', () => {
 
     expect(renamed.status).toBe(303)
     expect(stepOf(await page(running))).toMatch(/class="chip"[^]*Checkout[^]*This query matches nothing/)
-    const back = await fetch(new URL('/inputs/milestone', running.url), {
-      method: 'POST',
-      body: new URLSearchParams({ name: 'Payments v2', startDate: '2026-10-01', ticketsRemaining: '20' }),
-      headers: { origin: new URL(running.url).origin, 'forecaster-save': 'in-place' },
-    })
+    const back = await saveInPlace(running, '/inputs/milestone', { name: 'Payments v2', startDate: '2026-10-01', ticketsRemaining: '20' })
     expect(back.status).toBe(200)
     expect(stepOf(await page(running))).toContain('1 open · 1 finished in the last 9 weeks')
   })
