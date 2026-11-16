@@ -15,7 +15,8 @@
     "record:github": "npm run build && node scripts/record.ts github",
     "record:jira": "npm run build && node scripts/record.ts jira",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@fontsource-variable/geist": "^5.3.0",
