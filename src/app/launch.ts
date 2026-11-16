@@ -84,9 +84,10 @@ async function serve(request: IncomingMessage, response: ServerResponse, context
  */
 function refuseOtherSites(request: IncomingMessage, method: string): string | undefined {
   const port = request.socket.localPort
-  const ours = (scheme: string): string[] => [`${scheme}${HOST}:${port}`, `${scheme}localhost:${port}`]
-  if (!ours('').includes(request.headers.host ?? '')) return 'Refused: this request is not addressed to the Forecaster.'
-  if (method === 'POST' && !ours('http://').includes(request.headers.origin ?? '')) return 'Refused: this form was not sent from the Forecaster.'
+  const ownHosts = [`${HOST}:${port}`, `localhost:${port}`]
+  const ownOrigins = ownHosts.map((host) => `http://${host}`)
+  if (!ownHosts.includes(request.headers.host ?? '')) return 'Refused: this request is not addressed to the Forecaster.'
+  if (method === 'POST' && !ownOrigins.includes(request.headers.origin ?? '')) return 'Refused: this form was not sent from the Forecaster.'
   return undefined
 }
 
