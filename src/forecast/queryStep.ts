@@ -3,8 +3,7 @@ import type { Storage, TeamQueries } from '../storage/storage.js'
 import { narrowedToAFew, openCandidates, type CandidateOpening, type Candidates, type CandidatesAt } from './candidates.js'
 import { comparableWorkPace, type ComparableWorkPace } from './comparableWorkPace.js'
 import { teamConnection, withTeamQueries, type Connecting } from './connection.js'
-import { finishedSinceFor, readQuery, type QueryRead } from './finished.js'
-import { paceReadsStorage } from './paceReads.js'
+import { finishedSinceFor, readQuery, type QueryRead } from './lib/pace.js'
 import { MILESTONE_QUERY, type StepQuery } from './stepQuery.js'
 import { trackerOf } from './trackers.js'
 import { CHOICES_FAILED, foundInTracker, KEYCHAIN_FAILED, listedHere, markedThisMilestone, notPicked, type ChoiceList } from './lib/choiceLists.js'
@@ -173,7 +172,7 @@ async function comparableWorkStep(
   { opened = [] }: QueryStepOpening,
 ): Promise<ComparableWorkStep> {
   const { milestoneInputs, at } = stepping
-  const pace = comparableWorkPace(paceReadsStorage(milestoneInputs, stepping), teamId, at)
+  const pace = comparableWorkPace(stepping, milestoneInputs.milestoneInputs(teamId), teamId, at)
   const step: ComparableWorkStep = { kind: 'comparableWorkStep', ...picked, ...(pace && { pace }) }
   if (picked.editing) return step
   const opening = openCandidates(stepping, milestoneInputs, teamId, at)

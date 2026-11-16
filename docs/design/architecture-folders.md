@@ -19,11 +19,13 @@ src/
     inputs.ts             # Seam B: stored data → the Inputs screen's view; a submitted form saved (and where next) or refused (and the screen to show again)
     milestoneInputs.ts    # behind inputs.ts: the milestone's view and edits
     milestoneAssessment.ts  # behind both views: the milestone's inputs against the settings and today, with the pace in use: what stops a forecast, the warnings, the pace the forecast runs on
-    paceInUse.ts          # behind both views: the pace in use, worked out once per view: the range, the typed counts or the tracker's, with its counts and window
-    trackerReads.ts       # behind both views: what the tracker measures from its saved reads: tickets remaining, and pace's reading with each window bound's line and problem
-    paceReads.ts          # the team's two saved reads, the milestone query's and comparable work's, counted per period side by side
-    paceWindow.ts         # pure: the tracker's pace window (up to 8 periods, skips reached back past, what bounds it) and a pace action applied
-    finished.ts           # reading a query and saving its read; how far back a read reaches (finishedSince); finished tickets per period in the EM's time zone
+    trackerReads.ts       # behind both views: what the tracker measures from its saved reads: tickets remaining, and the milestone's pace through lib/pace.ts
+    lib/pace.ts           # the pace module, `paceOf`: the only place pace is worked out, and the only import its callers use; tested only through Seam B
+    lib/periodCounts.ts   # behind lib/pace.ts: the saved reads pace is measured from, their finished tickets counted per period side by side in the EM's time zone
+    lib/trackerWindow.ts  # behind lib/pace.ts: the tracker's pace window, the skipped periods it reaches back past, and what its bound says
+    lib/paceReading.ts    # behind lib/pace.ts: the tracker's reading of pace, and the pace the latest read replaced
+    lib/paceInUse.ts      # behind lib/pace.ts: the pace in use, from the source the EM chose, and its notes
+    lib/queryRead.ts      # behind lib/pace.ts: reading a query, how far back a read reaches (finishedSince), tickets remaining
     growth.ts             # behind inputs.ts: the ambiguity ranges view and edit; the milestone's growth range
     connection.ts         # Seam B: the Connect step's view; a connect checked through a connector from a factory passed in, then saved (with its token, through secrets/) or refused; disconnect; a failing keychain or data file refused, changing nothing
     trackers.ts           # each tracker's facts: its name, its token's permission, where a connection reads, its form and what it lacks, its refusals

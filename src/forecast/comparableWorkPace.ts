@@ -1,9 +1,9 @@
-import type { SavedRead } from '../model/savedRead.js'
+import type { MilestoneInputs } from '../model/milestoneInputs.js'
+import type { TeamQueries } from '../storage/storage.js'
 import { periodName } from './cadence.js'
-import { completeRead, finishedPerPeriod } from './finished.js'
 import type { PeriodName } from './cadence.js'
+import { paceOf, savedPaceReads, type PaceClock, type PaceFrom, type SavedPaceReads } from './lib/pace.js'
 import { COMPARABLE_WORK } from './stepQuery.js'
-import { paceReads, type PaceDay, type PaceFrom, type PaceReadsStorage } from './paceReads.js'
 import { medianOf, paceVersusMilestoneOwn, type PaceVersus } from './paceVersusOwn.js'
 
 /** The pace in use: where it comes from, and its median and range a period. */
@@ -78,15 +78,28 @@ export interface ComparableWorkPace {
 }
 
 /**
- * The Comparable work step's pace, which its view leads with (`queryStepView`), from the team's saved reads
- * (`paceReads`), asking the tracker nothing. None before the milestone has a start date and a complete read of its query.
+ * The Comparable work step's pace, which its view leads with (`queryStepView`), from the team's saved reads in the
+ * target `queries` keeps them in (`paceOf`), asking the tracker nothing, for the milestone's `inputs` on `clock`. None
+ * before the milestone has a start date and a complete read of its query.
  */
-export function comparableWorkPace(storage: PaceReadsStorage, teamId: string, day: PaceDay): ComparableWorkPace | undefined {
-  const reads = paceReads(storage, teamId, day)
-  const inputs = storage.milestoneInputs(teamId)
-  if (!reads || !inputs) return undefined
+export function comparableWorkPace(
+  queries: TeamQueries,
+  inputs: MilestoneInputs | undefined,
+  teamId: string,
+  clock: PaceClock,
+): ComparableWorkPace | undefined {
+  if (!inputs) return undefined
+  const saved = savedPaceReads(queries, teamId)
+  const { counts: pace, sideBySide: reads } = paceOf({
+    reads: { saved },
+    paceWindow: inputs.paceWindow,
+    cadence: inputs.cadenceDays,
+    startDate: inputs.startDate,
+    clock,
+  })
+  if (!pace || !reads) return undefined
   const period = periodName(inputs.cadenceDays)
-  const counts = reads.pace.counts
+  const counts = pace.counts
   const inUse: PaceInUse | undefined =
     counts.length === 0 ? undefined : { from: reads.from, median: medianOf(counts), low: Math.min(...counts), high: Math.max(...counts) }
   const own = reads.milestone?.counts.slice(reads.beforeStart) ?? []
@@ -108,9 +121,7 @@ export function comparableWorkPace(storage: PaceReadsStorage, teamId: string, da
     ...(comparison && { comparison }),
     ...(comparableWork && reads.from === 'milestone' && { flag: notUsedFlag(periods.length, period) }),
     periods: periods.slice(-PAIRED_PERIODS),
-    picks: picksPace(storage, teamId, (read) =>
-      finishedPerPeriod(read, { ...inputs, ...day, startDate: inputs.startDate!, periods: periods.length }).counts.slice(-PAIRED_PERIODS),
-    ),
+    picks: picksPace(saved, (query) => reads.picks.find((pick) => pick.query === query)?.counts.counts.slice(-PAIRED_PERIODS) ?? []),
     said: {
       ...(inUse && { inUse: perPeriod(inUse.median, period), from: `pace, from ${FROM_SAID[inUse.from]}, range ${range(inUse)}` }),
       ...(comparison && { comparison: comparisonSaid(comparison, period) }),
@@ -153,19 +164,15 @@ function range({ low, high }: PaceInUse): string {
  * picks, each one's only-here count needs every other pick's read: with any unread, it is unknown for all of them, as
  * a ticket the unread pick shares would count as only here.
  */
-function picksPace(storage: PaceReadsStorage, teamId: string, strip: (read: SavedRead) => number[]): PickPace[] {
-  const picks = storage.comparableWorkQuery(teamId)?.picks ?? []
-  const read = picks.flatMap((pick) => {
-    const saved = completeRead(storage, teamId, pick.query)
-    return saved ? [{ query: pick.query, read: saved }] : []
-  })
+function picksPace({ picks }: SavedPaceReads, strip: (query: string) => number[]): PickPace[] {
+  const read = picks.flatMap(({ query, read: saved }) => (saved && !saved.incomplete ? [{ query, read: saved }] : []))
   const comparing = picks.length > 1 && read.length === picks.length
   return read.map(({ query, read: own }) => {
     const elsewhere = new Set(read.filter((other) => other.query !== query).flatMap((other) => other.read.tickets.map((ticket) => ticket.id)))
     const finished = own.tickets.filter((ticket) => ticket.finishedAt !== undefined)
     return {
       query,
-      strip: strip(own),
+      strip: strip(query),
       finished: finished.length,
       ...(comparing && { onlyHere: finished.filter((ticket) => !elsewhere.has(ticket.id)).length }),
     }
