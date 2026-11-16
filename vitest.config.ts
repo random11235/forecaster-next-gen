@@ -4,6 +4,8 @@ export default defineConfig({
   test: {
     // agents' git worktrees under .claude/ each hold a full copy of the repo and its tests
     exclude: [...configDefaults.exclude, '.claude/**'],
+    // `npm run build:web` once, before any test file: the smoke and web build tests read what it writes
+    globalSetup: ['test/buildOnce.ts'],
     // with --coverage (`npm run test:coverage`): what the tests run, failing a little below the figures at #101
     coverage: {
       include: ['src/**'],
