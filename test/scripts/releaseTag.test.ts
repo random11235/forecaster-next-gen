@@ -55,10 +55,14 @@ describe('the release tag, run as the release job runs it', () => {
   const script = fileURLToPath(new URL('../../scripts/releaseTag.ts', import.meta.url))
   const tag = `v${APP_VERSION}`
   let repo: string
+  // Without git's own variables: run from a git hook (pre-push runs the tests), GIT_DIR and the like name the real
+  // repo, and git would init, commit and tag there in place of the repo of its own.
+  const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_')))
 
   const git = (...args: string[]): string =>
     execFileSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false', ...args], {
       cwd: repo,
+      env,
       encoding: 'utf8',
     })
   /** Commits `path`, made up, as a merge to main would bring it. */
@@ -68,7 +72,7 @@ describe('the release tag, run as the release job runs it', () => {
     git('add', path)
     git('commit', '-q', '-m', path)
   }
-  const release = () => spawnSync('node', [script], { cwd: repo, encoding: 'utf8' })
+  const release = () => spawnSync('node', [script], { cwd: repo, env, encoding: 'utf8' })
 
   beforeEach(() => {
     repo = mkdtempSync(join(tmpdir(), 'forecaster-release-'))
