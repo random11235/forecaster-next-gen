@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'vitest'
-import { startOnPreMvpData, startWithNoMilestone, page, text, submitMilestone, submitPace, submitCadence } from './screensHarness.js'
+import { startOnSavedData, startWithNoMilestone, page, text, submitMilestone, submitPace, submitCadence } from './screensHarness.js'
 
 // The screens through the local server: see screensHarness.ts.
 
 describe('Inputs screen', () => {
   test('asks for the milestone name, start date and tickets remaining, and pace as a low–high range per week', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
 
     const html = await page('/inputs')
 
@@ -18,7 +18,7 @@ describe('Inputs screen', () => {
   })
 
   test('offers no committed date, no epics and no measured pace', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
 
     const html = await page('/inputs')
 
@@ -37,7 +37,7 @@ describe('Inputs screen', () => {
   })
 
   test('shows no absence or capacity input: capacity is typed beside the forecast', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
 
     const html = await page('/inputs')
 
@@ -58,7 +58,7 @@ describe('Inputs screen', () => {
   })
 
   test('saving a pace range goes to the Milestone forecast screen, and the Inputs screen shows the saved range', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
 
     const response = await submitPace('3', '6')
 
@@ -74,7 +74,7 @@ describe('Inputs screen', () => {
     [['Checkout v2', '2026-09-01', '-1'], 'Enter tickets remaining as a whole number, 0 or more.'],
     [['Checkout v2', '2026-09-01', '2.5'], 'Enter tickets remaining as a whole number, 0 or more.'],
   ])('refuses the milestone %j, saying why, keeping what was typed and changing nothing', async ([name, startDate, tickets], error) => {
-    await startOnPreMvpData()
+    await startOnSavedData()
 
     const response = await submitMilestone(name!, startDate!, tickets!)
 
@@ -87,7 +87,7 @@ describe('Inputs screen', () => {
   })
 
   test('refuses a pace the rules forbid, saying why and keeping what was typed', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
 
     const response = await submitPace(' 6 ', '3')
 
@@ -99,7 +99,7 @@ describe('Inputs screen', () => {
   })
 
   test('every form posts to a fragment naming where it sits, so the browser lands on why, should it be refused', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
 
     const html = await page('/inputs')
 
@@ -114,7 +114,7 @@ describe('Inputs screen', () => {
   })
 
   test('shows a warning beside the input it is about', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('0', '0')
 
     const html = await page('/inputs')
@@ -125,7 +125,7 @@ describe('Inputs screen', () => {
 
 describe('Inputs screen: a start date in the past', () => {
   test('notes beside the start date how many days before today it is', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
 
     const html = await page('/inputs')
 
@@ -135,7 +135,7 @@ describe('Inputs screen: a start date in the past', () => {
   })
 
   test('shows no note for a start date of today', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitMilestone('Checkout v2', '2026-10-24', '40')
 
     expect(text(await page('/inputs'))).not.toContain('before today')
@@ -144,7 +144,7 @@ describe('Inputs screen: a start date in the past', () => {
 
 describe('Inputs screen: cadence', () => {
   test('offers the cadence length in days, 7 for an untouched milestone', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
 
     const html = await page('/inputs')
 
@@ -154,7 +154,7 @@ describe('Inputs screen: cadence', () => {
   })
 
   test('saving a 14-day cadence shows it, and the pace input and its warning say per sprint', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('0', '0')
 
     const response = await submitCadence('14')
@@ -170,7 +170,7 @@ describe('Inputs screen: cadence', () => {
   })
 
   test.each(['0', '1.5', 'two'])('refuses a cadence of %j, saying why, keeping what was typed and changing nothing', async (typed) => {
-    await startOnPreMvpData()
+    await startOnSavedData()
 
     const response = await submitCadence(typed)
 

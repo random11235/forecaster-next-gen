@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'vitest'
-import { startOnPreMvpData, page, text, post, submitPace, submitCounts, choosePace, addCapacity, editCapacity } from './screensHarness.js'
+import { startOnSavedData, page, text, post, submitPace, submitCounts, choosePace, addCapacity, editCapacity } from './screensHarness.js'
 
 // The screens through the local server: see screensHarness.ts.
 
 describe('Milestone forecast screen: editing capacity, and Past', () => {
   test('each entry has an Edit, holding its sentence as saved with Save and Cancel', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
     await addCapacity('0', '2026-11-02', '2026-11-06', 'Offsite')
 
@@ -22,7 +22,7 @@ describe('Milestone forecast screen: editing capacity, and Past', () => {
   })
 
   test('an edit saved comes back to the forecast, the entry changed', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
     await addCapacity('0', '2026-11-02', '2026-11-06', 'Offsite')
 
@@ -33,7 +33,7 @@ describe('Milestone forecast screen: editing capacity, and Past', () => {
   })
 
   test('an edit refused shows the forecast again with that entry’s edit open, as typed, saying why', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
     await addCapacity('0', '2026-11-02', '2026-11-06', 'Offsite')
 
@@ -50,7 +50,7 @@ describe('Milestone forecast screen: editing capacity, and Past', () => {
   })
 
   test('an entry that has ended is folded under Past, kept, with only its note to edit and no Remove', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
     await addCapacity('0', '2026-09-07', '2026-09-11', 'Offsite')
 
@@ -66,7 +66,7 @@ describe('Milestone forecast screen: editing capacity, and Past', () => {
   })
 
   test('a past entry’s note saved changes the note alone', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
     await addCapacity('0', '2026-09-07', '2026-09-11', 'Offsite')
 
@@ -82,7 +82,7 @@ describe('Milestone forecast screen: editing capacity, and Past', () => {
 describe('Milestone forecast screen: new usual', () => {
   /** Four typed counts, the weeks from 22 Sep to 13 Oct, and a lasting change from `from`. */
   async function lastingChangeOnTypedCounts(from: string): Promise<void> {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitCounts('4, 6, 5, 7')
     await choosePace('counts')
     await addCapacity('80', from, '', 'Two left', true)
@@ -133,7 +133,7 @@ describe('Milestone forecast screen: new usual', () => {
   })
 
   test('with a pace range, a lasting change offers End it today, which ends it yesterday', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
     await addCapacity('80', '2026-09-22', '', 'Two left', true)
 
