@@ -1,9 +1,11 @@
 import { readFileSync } from 'node:fs'
-import { APP_VERSION } from '../../src/forecast/appVersion.js'
 import { runInNewContext } from 'node:vm'
 import { beforeAll, describe, expect, test } from 'vitest'
 
 // Reads the one file the web build writes (#114); test/buildOnce.ts runs `npm run build:web` before any test file.
+
+/** `package.json`, read here rather than through the app, so the version the page shows is checked against it. */
+const PACKAGE: { version: string; scripts: Record<string, string> } = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'))
 
 let html: string
 
@@ -32,10 +34,16 @@ describe('web build smoke test', () => {
   })
 
   test('shows the version in its footer, and its script carries it for the screens it shows, with no live reload', () => {
-    expect(html).toContain(`<footer class="version">Forecaster ${APP_VERSION}</footer>`)
-    expect(html.match(/<script>([^]*)<\/script>/)?.[1]).toContain(JSON.stringify(APP_VERSION))
+    expect(html).toContain(`<footer class="version">Forecaster ${PACKAGE.version}</footer>`)
+    expect(html.match(/<script>([^]*)<\/script>/)?.[1]).toContain(JSON.stringify(PACKAGE.version))
     expect(html).not.toContain('EventSource')
     expect(html).not.toContain('/live')
+  })
+
+  test("carries package.json's version alone, none of its scripts or dependencies: the page is shared", () => {
+    expect(html).not.toContain('devDependencies')
+    // a script's name can be an everyday word (`check`); its command is package.json's alone
+    for (const command of Object.values(PACKAGE.scripts)) expect(html).not.toContain(command)
   })
 
   test('its script, as bundled, forecasts the milestone and pace the EM enters (#280)', async () => {
