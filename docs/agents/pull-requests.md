@@ -31,9 +31,9 @@ A docs-only PR doesn't bump it. An open page reloads itself when the app restart
 - After each merge, the orchestrator updates the body: the ticket's status, its diff-sketch, and its demo screenshots, which replace the proposed ones for the states it builds.
 - The body ends with `Closes #n` for the spec and every ticket.
 
-## A PR merges only on a green `check`
+## A PR merges only on a green `check` and `browser`
 
-A PR merges only when CI's `check` job is green. Nothing on GitHub enforces it (branch protection needs the repo public or on GitHub Pro), so the merger checks. Locally, the pre-push hook (`.husky/pre-push`, installed by `npm install`) runs `npm run check`, the typecheck and the tests, and refuses a push that fails it. Don't bypass it with `--no-verify`.
+A PR merges only when CI's `check` and `browser` jobs are both green: the two the release after a merge to `main` waits on. Nothing on GitHub enforces it (branch protection needs the repo public or on GitHub Pro), so the merger checks. Locally, the pre-push hook (`.husky/pre-push`, installed by `npm install`) runs `npm run check`, the typecheck and the tests, and refuses a push that fails it. Don't bypass it with `--no-verify`.
 
 ## After a PR merges
 
