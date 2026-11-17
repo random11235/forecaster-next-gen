@@ -8,13 +8,15 @@ Show each change itself: a diff-sketch of the type, call tree or data shape it c
 
 ## Version
 
-A PR that changes the app sets `version` in `package.json` (semver), which every screen's footer shows:
+A PR that changes the app, any file under `src/` even if only reformatted, sets `version` in `package.json` (semver), which every screen's footer shows:
 
 - **Major**: a one-way door, a stored-data change the EM can't go back from.
 - **Minor**: a visible change.
 - **Patch**: no visible change.
 
-A docs-only PR doesn't bump it. An open page reloads itself when the app restarts on a different version.
+The same PR adds the new version's entry at the top of [`CHANGELOG.md`](../../CHANGELOG.md): the version, the date it merges, and one line per change in it, naming its ticket and PR. Since the PR number is known only once the PR is open, add it then. So anyone can read from the footer whether a fix is in the app they're running.
+
+A docs-only PR doesn't bump the version or add an entry. An open page reloads itself when the app restarts on a different version.
 
 ## Evidence shows the output
 
