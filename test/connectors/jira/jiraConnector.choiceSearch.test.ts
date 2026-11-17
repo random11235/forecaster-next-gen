@@ -1,11 +1,12 @@
 import { describe, expect, test } from 'vitest'
 import { jiraConnector } from '../../../src/connectors/jira.js'
-import { mustNotWait } from '../backoff.js'
-import { answeringPastTenant, CONNECTION, jiraListing, json, many } from './jiraStandIn.js'
+import { json, mustNotWait } from '../backoff.js'
+import { numbered } from '../../numbered.js'
+import { answeringPastTenant, CONNECTION, jiraListing } from './jiraStandIn.js'
 
 describe('Jira milestone choices searched past the limit', () => {
   test('a fix version, which Jira gives all at once, is found among the unreleased ones, matching part of a word', async () => {
-    const versions = many(150, (n) => ({ id: String(n), name: `Release ${n}`, released: n === 14, archived: n === 140 }))
+    const versions = numbered(150, (n) => ({ id: String(n), name: `Release ${n}`, released: n === 14, archived: n === 140 }))
     const connector = jiraConnector(CONNECTION, 'token', jiraListing({ versions }).transport, mustNotWait)
 
     const found = await connector.searchChoices('fixVersion', 'ASE 14')

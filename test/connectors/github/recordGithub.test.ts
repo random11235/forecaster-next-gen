@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import type { Transport } from '../../../src/connectors/connector.js'
+import { json as jsonResponse } from '../backoff.js'
 import { githubConnector } from '../../../src/connectors/github.js'
 import { recordGithub } from '../../../scripts/record.js'
 
@@ -9,9 +10,8 @@ import { recordGithub } from '../../../scripts/record.js'
 const TOKEN = 'github_pat_recording-token-under-test'
 const REPO_ID = 4242
 
-function json(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'x-ratelimit-remaining': '4999' } })
-}
+/** A response from the stand-in GitHub, with the rate-limit header GitHub sends. */
+const json = (status: number, body: unknown) => jsonResponse(status, body, { 'x-ratelimit-remaining': '4999' })
 
 /** A stand-in GitHub that accepts only TOKEN, knows only the synthetic repo, and answers with more fields than are read. */
 const github: Transport = async (url, init) => {

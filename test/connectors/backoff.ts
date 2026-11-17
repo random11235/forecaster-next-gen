@@ -2,7 +2,7 @@ import type { Transport } from '../../src/connectors/connector.js'
 import type { Wait } from '../../src/connectors/remote.js'
 
 // What the backoff tests share, beside the contract suite and in each tracker's folder: a stand-in tracker that keeps
-// what it was sent, and waits that are never waited out.
+// what it was sent, the JSON responses it answers with, and waits that are never waited out.
 
 /** A stand-in tracker answering each request with `answer`; `sent` keeps each request's URL, in order. */
 export function answering(answer: Transport): { transport: Transport; sent: string[] } {
@@ -14,6 +14,11 @@ export function answering(answer: Transport): { transport: Transport; sent: stri
       return answer(url, init)
     },
   }
+}
+
+/** A stand-in tracker's JSON response, with any `headers` beside its content type. */
+export function json(status: number, body: unknown, headers: Record<string, string> = {}): Response {
+  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } })
 }
 
 /** A backoff that is never waited out. */

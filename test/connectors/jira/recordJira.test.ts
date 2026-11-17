@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import type { Transport } from '../../../src/connectors/connector.js'
+import { json as jsonResponse } from '../backoff.js'
 import { jiraConnector } from '../../../src/connectors/jira.js'
 import { recordJira } from '../../../scripts/record.js'
 
@@ -10,9 +11,8 @@ const EMAIL = 'recorder@example.com'
 const TOKEN = 'ATATT-recording-token-under-test'
 const CLOUD = 'cloud-under-test'
 
-function json(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'x-arequestid': 'abc' } })
-}
+/** A response from the stand-in Jira, with a header the recording drops. */
+const json = (status: number, body: unknown) => jsonResponse(status, body, { 'x-arequestid': 'abc' })
 
 /** A stand-in Jira that accepts only EMAIL:TOKEN, knows only the space SYN, and answers with more fields than are read. */
 const jira: Transport = async (url, init) => {
