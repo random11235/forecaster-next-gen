@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest'
 import type { MilestoneQuery } from '../../src/model/milestoneQuery.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
-import { TEAM, writeFile, open, versionOf, rowsOf } from './migrationsHarness.js'
-import { VERSION_10_SCHEMA, VERSION_11_SCHEMA, VERSION_12_SCHEMA, VERSION_13_SCHEMA, VERSION_14_SCHEMA, VERSION_15_SCHEMA } from './pastSchemas.js'
+import { writeFile, open, versionOf, rowsOf } from './migrationsHarness.js'
+import { TEAM, VERSION_10_SCHEMA, VERSION_11_SCHEMA, VERSION_12_SCHEMA, VERSION_13_SCHEMA, VERSION_14_SCHEMA, VERSION_15_SCHEMA } from './pastSchemas.js'
 
 // Opening a data file an earlier release left: see migrationsHarness.ts.
 

@@ -1,8 +1,12 @@
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, test } from 'vitest'
+import { inputsView, submitInputs } from '../../src/forecast/inputs.js'
 import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
-import { CREATED, fileIn, closeStorage, open, rowsOf, EDITED_RANGES } from './migrationsHarness.js'
+import type { MilestoneInputs } from '../../src/model/milestoneInputs.js'
+import type { Team } from '../../src/model/team.js'
+import { fileIn, closeStorage, open, rowsOf, EDITED_RANGES } from './migrationsHarness.js'
+import { CREATED } from './pastSchemas.js'
 
 // Opening a data file an earlier release left: see migrationsHarness.ts.
 
@@ -26,21 +30,21 @@ INSERT INTO epic_ambiguities (team_id, milestone_id, epic_id, ambiguity) VALUES 
 INSERT INTO ambiguity_ranges (team_id, low_low, low_high, medium_low, medium_high, high_low, high_high, medium_measured) VALUES
   ('${PAY}', 1, 1.5, 1, 2, 1.5, 3, 1);
 `
-  const PAYMENTS = { id: PAY, name: 'Payments', source: 'jira' as const, sourceRef: PAY, installedAt: '2026-08-31T09:00:00Z' }
+  const PAYMENTS: Team = { id: PAY, name: 'Payments', source: 'jira', sourceRef: PAY, installedAt: '2026-08-31T09:00:00Z' }
   /** The milestone as the EM entered it after the upgrade. */
-  const CHECKOUT = {
+  const CHECKOUT: MilestoneInputs = {
     teamId: PAY,
     name: 'Checkout v2',
     startDate: '2026-09-01',
     ticketsRemaining: 40,
-    ambiguity: 'medium' as const,
+    ambiguity: 'medium',
     cadenceDays: 7,
-    paceMode: 'range' as const,
+    paceMode: 'range',
     paceRange: { low: 4, high: 8 },
     paceCounts: [],
     paceCadenceDays: 7,
     paceWindow: { action: undefined, skippedPeriods: [] },
-    ticketsSource: 'typed' as const,
+    ticketsSource: 'typed',
     seenReads: { ticketsRemaining: undefined, pace: undefined },
   }
   const earlierTables = {
@@ -89,6 +93,21 @@ INSERT INTO ambiguity_ranges (team_id, low_low, low_high, medium_low, medium_hig
       pace: { source: 'range', low: 4, high: 8 },
     })
     expect(JSON.stringify(view)).not.toMatch(/Card vaulting|Refunds|PAY-\d|2026-12-18|committed/i)
+  })
+
+  test('takes medium ambiguity for the milestone entered after the upgrade, not the high an epic had before the MVP', () => {
+    const storage = open(preMvpFile())
+    expect(inputsView(storage, PAY, DEFAULT_SETTINGS, '2026-10-24').milestone.ambiguity).toBe('medium')
+
+    const entered = submitInputs(storage, PAY, DEFAULT_SETTINGS, '2026-10-24', {
+      kind: 'setMilestone',
+      name: 'Checkout v2',
+      startDate: '2026-09-01',
+      ticketsRemaining: '40',
+    })
+
+    expect(entered).toMatchObject({ saved: true })
+    expect(storage.milestoneInputs(PAY)?.ambiguity).toBe('medium')
   })
 
   test("keeps the earlier release's rows as they were, through saving the MVP's fields and reopening", () => {
