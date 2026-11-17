@@ -2,6 +2,9 @@ import type { RunningApp } from '../../src/app/launch.js'
 
 // Forms posted to the local server as the app's own pages post them, for any test of the running app.
 
+/** The header the Inputs screen's script sends when it saves in place, staying on the Inputs screen. */
+export const SAVE_IN_PLACE = { header: 'forecaster-save', value: 'in-place' } as const
+
 /** A form's fields, in any shape `URLSearchParams` takes. */
 type FormFields = Record<string, string> | [string, string][] | URLSearchParams
 
@@ -19,4 +22,4 @@ export const post = (running: Pick<RunningApp, 'url'>, path: string, fields: For
 
 /** Posts `fields` as the Inputs screen's script does when a field changes: it asks to stay on the Inputs screen. */
 export const saveInPlace = (running: Pick<RunningApp, 'url'>, path: string, fields: FormFields): Promise<Response> =>
-  post(running, path, fields, { 'forecaster-save': 'in-place' })
+  post(running, path, fields, { [SAVE_IN_PLACE.header]: SAVE_IN_PLACE.value })
