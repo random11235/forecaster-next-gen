@@ -16,13 +16,17 @@ const { VERSION }: typeof import('../src/app/version.js') = await import(new URL
 
 /**
  * `src/app/fonts.ts` reads its font files from disk, and `src/app/version.ts` reads `package.json`, which a browser
- * can't: the bundle gets what they read.
+ * can't: the bundle gets what they read. Only their own imports, from `src/app/`, are swapped: another folder's
+ * `./version.js`, such as the engine's, is its own file (#280).
  */
+const appDir = fileURLToPath(new URL('../src/app', import.meta.url))
 const inlineReadOnDisk: Plugin = {
   name: 'inline-read-on-disk',
   setup(build) {
     const inline = (file: string, contents: string): void => {
-      build.onResolve({ filter: new RegExp(`^\\./${file}\\.js$`) }, () => ({ path: file, namespace: 'inline-read-on-disk' }))
+      build.onResolve({ filter: new RegExp(`^\\./${file}\\.js$`) }, (args) =>
+        args.resolveDir === appDir ? { path: file, namespace: 'inline-read-on-disk' } : undefined,
+      )
       build.onLoad({ filter: new RegExp(`^${file}$`), namespace: 'inline-read-on-disk' }, () => ({ contents, loader: 'js' }))
     }
     inline('fonts', `export const FONT_FACES = ${JSON.stringify(FONT_FACES)}`)
