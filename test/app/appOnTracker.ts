@@ -1,6 +1,7 @@
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned.js'
 import type { Connecting } from '../../src/forecast/connection.js'
+import type { Team } from '../../src/model/team.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import type { Secrets } from '../../src/secrets/secrets.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
@@ -58,3 +59,6 @@ export async function inputsSection(running: RunningApp, id: string): Promise<st
   if (start === -1) throw new Error(`no section ${id} on the Inputs screen`)
   return html.slice(start, html.indexOf('</section>', start))
 }
+
+/** The team either build adds on first open, when nothing is stored yet, installed at `installedAt`. */
+export const defaultTeam = (installedAt: string): Team => ({ id: 'team', name: 'My team', source: 'manual', sourceRef: '', installedAt })

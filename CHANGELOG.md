@@ -2,6 +2,10 @@
 
 What each version of the app shipped, newest first. The version is the one in every screen's footer: a fix is in the app you're running if its version is the footer's or older. Each PR that bumps the version adds its line here, as [`docs/agents/pull-requests.md`](docs/agents/pull-requests.md#version) sets out.
 
+## 0.2.5 (2026-11-17)
+
+- Each test folder imports only its seam's entry points, with no change to the app (#261, PR #287)
+
 ## 0.2.4 (2026-11-17)
 
 - Code outside the connectors reaches each one only through a small entry point, with no change to the app (#229, PR #285)
