@@ -1,49 +1,10 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { dirname, join, relative, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { statSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { describe, expect, test } from 'vitest'
+import { importsBeside, importsFrom, importsOf, src } from './importScan.js'
 
 // The dependency rules in docs/design/architecture-dependency-rules.md that keep connectors/ and secrets/ at the edge,
 // and that keep package.json's one importer the module the web build gives its version alone.
-
-const src = fileURLToPath(new URL('../src', import.meta.url))
-
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name)
-    if (entry.isDirectory()) return sourceFiles(path)
-    return entry.name.endsWith('.ts') ? [path] : []
-  })
-}
-
-/**
- * What the file at `path` imports, each its relative import resolved to a path relative to `src/`: `connectors/jira.js`
- * for one in `src/`, `../test/...` or `../package.json` for one outside it; `import type` too, unless `runtimeOnly`.
- */
-function importsAt(path: string, runtimeOnly = false): string[] {
-  return [...readFileSync(path, 'utf8').matchAll(/(import|export)(\s+type\b)?[^'"]*from\s+'(\.[^']+)'/g)]
-    .filter((match) => !(runtimeOnly && match[1] === 'import' && match[2]))
-    .map((match) => relative(src, resolve(dirname(path), match[3]!)))
-}
-
-/** What `file` (a path under `src/`) imports, as `importsAt` gives it; `import type` too, unless `runtimeOnly`. */
-function importsOf(file: string, runtimeOnly = false): string[] {
-  return importsAt(join(src, file), runtimeOnly)
-}
-
-/** Each file under the repo's `folder` (beside `src/`) with what it imports, as `importsAt` gives it. */
-function importsBeside(folder: string): { file: string; imported: string }[] {
-  const dir = join(src, '..', folder)
-  return sourceFiles(dir).flatMap((path) => importsAt(path).map((imported) => ({ file: join(folder, relative(dir, path)), imported })))
-}
-
-/** Each file under `src/<folder>` with what it imports, as `importsAt` gives it. */
-function importsFrom(folder: string): { file: string; imported: string }[] {
-  return sourceFiles(join(src, folder)).flatMap((path) => {
-    const file = relative(src, path)
-    return importsOf(file).map((imported) => ({ file, imported }))
-  })
-}
 
 /** Every file under `src/` that `entry` loads when it runs, itself included; `import type` loads nothing. */
 function loadedBy(entry: string): Set<string> {
