@@ -3,7 +3,8 @@ import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
 
-// The dependency rules in docs/design/architecture-dependency-rules.md that keep connectors/ and secrets/ at the edge.
+// The dependency rules in docs/design/architecture-dependency-rules.md that keep connectors/ and secrets/ at the edge,
+// and that keep package.json's one importer the module the web build gives its version alone.
 
 const src = fileURLToPath(new URL('../src', import.meta.url))
 
@@ -48,6 +49,12 @@ function loadedBy(entry: string): Set<string> {
 }
 
 describe('dependency rules', () => {
+  test('only forecast/appVersion.ts imports package.json, whose version alone the web build gives the page it shares', () => {
+    const importers = importsFrom('').filter(({ imported }) => imported === '../package.json')
+
+    expect(importers.map(({ file }) => file)).toEqual(['forecast/appVersion.ts'])
+  })
+
   test('forecast/ reaches connectors only through the interface, never a concrete connector', () => {
     const concrete = importsFrom('forecast').filter(({ imported }) => imported.startsWith('connectors/') && imported !== 'connectors/connector.js')
 

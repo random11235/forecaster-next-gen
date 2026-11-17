@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
-import { TEAM, writeFile, open, versionOf } from './migrationsHarness.js'
-import { VERSION_16_SCHEMA, VERSION_17_SCHEMA, VERSION_18_SCHEMA, VERSION_19_SCHEMA } from './pastSchemas.js'
+import { writeFile, open, versionOf } from './migrationsHarness.js'
+import { TEAM, VERSION_16_SCHEMA, VERSION_17_SCHEMA, VERSION_18_SCHEMA, VERSION_19_SCHEMA } from './pastSchemas.js'
 
 // Opening a data file an earlier release left: see migrationsHarness.ts.
 

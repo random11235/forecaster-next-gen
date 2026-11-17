@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
-import { TEAM, AN_ISO_TIMESTAMP, writeFile, open, rowsOf, EDITED_RANGES } from './migrationsHarness.js'
-import { UNVERSIONED_SCHEMA, VERSION_2_SCHEMA, VERSION_4_SCHEMA, VERSION_5_SCHEMA } from './pastSchemas.js'
+import { AN_ISO_TIMESTAMP, writeFile, open, rowsOf, EDITED_RANGES } from './migrationsHarness.js'
+import { TEAM, UNVERSIONED_SCHEMA, VERSION_2_SCHEMA, VERSION_4_SCHEMA, VERSION_5_SCHEMA } from './pastSchemas.js'
 
 // Opening a data file an earlier release left: see migrationsHarness.ts.
 

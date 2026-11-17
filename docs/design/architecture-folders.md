@@ -2,7 +2,7 @@
 
 Part of the architecture design; the index is [`architecture.md`](architecture.md).
 
-The tree is `src/` as it stands in the MVP, with `connectors/` and `secrets/`. v1 adds `samples/` (Layer 2: commits, throughput, growth and epic-size samples derived from `model/`), `ledger/` (Layer 5), and the deleted epic-era files (work items, workflow settings, epic commits, team facts, measured pace and growth); [`forecast-model.md`](forecast-model.md) describes them.
+The tree is `src/` as it stands in the MVP, with `connectors/` and `secrets/`. v1 adds `samples/` (Layer 2: commits, throughput, growth and epic-size samples derived from `model/`) and the deleted epic-era files (work items, workflow settings, epic commits, team facts, measured pace and growth), which [`forecast-model-facts.md`](forecast-model-facts.md) describes, and `ledger/` (Layer 5), which [`forecast-model.md`](forecast-model.md) describes.
 
 ```
 src/
@@ -30,7 +30,7 @@ src/
     trackers.ts           # each tracker's facts: its name, its token's permission, where a connection reads, its form and what it lacks, its refusals
     milestoneForecastView.ts  # Seam B: stored data → the Milestone forecast screen's view, through the engine
     settings.ts           # ForecastSettings and AmbiguityRanges defaults
-    appVersion.ts         # the app's version from `package.json`, the release a merge to main is tagged as: in every screen's footer, and known where a forecast is made, beside the engine's
+    appVersion.ts         # the app's version, `APP_VERSION`, imported from `package.json` with no file read: the release a merge to main is tagged as, in every screen's footer, and importable where a forecast is made, beside the engine's
     cadence.ts            # what the screens call a period: a week or a sprint
     calendarDate.ts       # ISO calendar dates: checking and counting days between
     counted.ts            # a count with its words: "1 ticket", "40 tickets"
@@ -65,7 +65,7 @@ src/
 
   storage/                # interface and its v1 SQLite file, with the schema's migrations; the web build's browser storage
     lib/setupDraft.ts     # behind sqliteStorage.ts: the team's queries and reads in each target, the setup draft over what's saved; the draft's fields saved; "Use these" applying it
-  app/                    # local server (localhost only), screens, `npm start` entry point; each screen's HTML, and reading the fields of the forms it posts; the web build's app and page script (`webApp.ts`, `webMain.ts`); the app's version (`version.ts`, `forecast/appVersion.ts`'s) in every screen's footer and streamed on the server's `/live`, which each page it serves listens on to reload when the version changes (the web build's pages don't)
+  app/                    # local server (localhost only), screens, `npm start` entry point; each screen's HTML, and reading the fields of the forms it posts; the web build's app and page script (`webApp.ts`, `webMain.ts`); the stylesheet every page shares (`html.ts`), each screen's styles in `lib/`; the app's version (`forecast/appVersion.ts`'s `APP_VERSION`) in every screen's footer and streamed on the server's `/live`, which each page it serves listens on to reload when the version changes (the web build's pages don't)
 
 test/
   app/                    # the screens, launch, and the launch smoke test: start the app, check the screen is served; the web build's app and its smoke test

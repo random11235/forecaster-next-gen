@@ -2,8 +2,8 @@ import { describe, expect, test } from 'vitest'
 import { submitInputs } from '../../src/forecast/inputs.js'
 import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
-import { TEAM, writeFile, open } from './migrationsHarness.js'
-import { VERSION_6_SCHEMA, VERSION_7_SCHEMA, VERSION_8_SCHEMA, VERSION_9_SCHEMA } from './pastSchemas.js'
+import { writeFile, open } from './migrationsHarness.js'
+import { TEAM, VERSION_6_SCHEMA, VERSION_7_SCHEMA, VERSION_8_SCHEMA, VERSION_9_SCHEMA } from './pastSchemas.js'
 
 // Opening a data file an earlier release left: see migrationsHarness.ts.
 

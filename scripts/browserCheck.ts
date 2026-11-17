@@ -39,16 +39,33 @@ function browser(...args: string[]): string {
 
 /** The milestone and pace typed on Inputs, and what the forecast screen must then say. */
 const TYPED = { name: 'Launch', ticketsRemaining: '30', low: '5', high: '10' }
-const SHOWN = ['Launch · 30 tickets remaining', /85% confident of finishing by \d{1,2} \w{3} \d{4}/] as const
+const SHOWN = [`${TYPED.name} · ${TYPED.ticketsRemaining} tickets remaining`, /85% confident of finishing by \d{1,2} \w{3} \d{4}/] as const
 
 /** The errors the page's script has thrown since the last `errors --clear`, each with its stack. */
 function pageErrors(): string[] {
-  const { data } = JSON.parse(browser('errors', '--json')) as { data: { errors: { text: string }[] } }
-  return data.errors.map((error) => error.text)
+  const printed = browser('errors', '--json')
+  const parsed: unknown = JSON.parse(printed)
+  const errors = typeof parsed === 'object' && parsed !== null && 'data' in parsed ? errorsOf(parsed.data) : undefined
+  if (!errors) throw new Error(`agent-browser errors --json printed no list of errors:\n${printed}`)
+  return errors
 }
 
+/** The text of each error in `errors --json`'s `data`, `{ errors: { text }[] }`, or nothing when it isn't that shape. */
+function errorsOf(data: unknown): string[] | undefined {
+  if (typeof data !== 'object' || data === null || !('errors' in data) || !Array.isArray(data.errors)) return undefined
+  const texts = data.errors.map((error: unknown) =>
+    typeof error === 'object' && error !== null && 'text' in error && typeof error.text === 'string' ? error.text : undefined,
+  )
+  return texts.every((text) => text !== undefined) ? texts : undefined
+}
+
+/** The builds the check drives: each one's name in what it prints, and its screenshot's file. */
+const BUILDS = { localApp: 'local app', webBuild: 'web build' } as const
+type Build = keyof typeof BUILDS
+
 /** Checks one build, opened at `home`, the Milestone forecast screen. */
-function check(build: string, home: string): void {
+function check(build: Build, home: string): void {
+  const name = BUILDS[build]
   const started = Date.now()
   try {
     browser('open', home)
@@ -79,21 +96,21 @@ function check(build: string, home: string): void {
     // a step that timed out waiting often did so because the page's script threw: say what it threw
     try {
       const errors = pageErrors()
-      if (errors.length > 0) console.error(`The ${build}'s page errors:\n${errors.join('\n')}`)
+      if (errors.length > 0) console.error(`The ${name}'s page errors:\n${errors.join('\n')}`)
     } catch {
       // the check's own failure is the one to report
     }
     mkdirSync(screenshots, { recursive: true })
-    const screenshot = join(screenshots, `${build.replaceAll(' ', '-')}.png`)
+    const screenshot = join(screenshots, `${build}.png`)
     try {
       browser('screenshot', screenshot)
       console.error(`The page it failed on: ${screenshot}`)
     } catch {
       // the check's own failure is the one to report
     }
-    throw new Error(`The ${build} failed the browser check.`, { cause: error })
+    throw new Error(`The ${name} failed the browser check.`, { cause: error })
   }
-  console.log(`✓ ${build}: typed a milestone and pace, shown their forecast, no page errors (${Date.now() - started} ms)`)
+  console.log(`✓ ${name}: typed a milestone and pace, shown their forecast, no page errors (${Date.now() - started} ms)`)
 }
 
 /** Starts the built app on a free port and a throwaway data file, and resolves once it prints its URL. */
@@ -121,8 +138,8 @@ rmSync(screenshots, { recursive: true, force: true })
 try {
   const started = await startApp()
   app = started.app
-  check('local app', started.url)
-  check('web build', pathToFileURL(join(root, 'dist', 'web', 'forecaster.html')).href)
+  check('localApp', started.url)
+  check('webBuild', pathToFileURL(join(root, 'dist', 'web', 'forecaster.html')).href)
 } finally {
   try {
     browser('close')

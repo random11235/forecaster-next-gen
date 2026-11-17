@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, test } from 'vitest'
-import { TEAM, AN_ISO_TIMESTAMP, fileIn, closeStorage, writeFile, open, versionOf, schemaOf, rowsOf, EDITED_RANGES } from './migrationsHarness.js'
-import { UNVERSIONED_SCHEMA } from './pastSchemas.js'
+import { AN_ISO_TIMESTAMP, fileIn, closeStorage, writeFile, open, versionOf, schemaOf, rowsOf, EDITED_RANGES } from './migrationsHarness.js'
+import { TEAM, UNVERSIONED_SCHEMA } from './pastSchemas.js'
 
 // Opening a data file an earlier release left: see migrationsHarness.ts.
 

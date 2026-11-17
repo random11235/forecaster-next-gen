@@ -10,8 +10,6 @@ import { TEAM } from './pastSchemas.js'
 // The migration tests' shared arrangement: each test writes a data file the way an earlier release left it (from
 // pastSchemas.ts), opens it through openSqliteStorage, and checks what reads back.
 
-export { CREATED, TEAM } from './pastSchemas.js'
-
 /** What these tests read back from a migrated file: its inputs, and the milestone's query and saved reads. */
 export type Opened = Storage & MilestoneQueryStorage & SavedReadStorage & SetupStorage
 
