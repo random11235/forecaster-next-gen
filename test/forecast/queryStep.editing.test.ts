@@ -11,7 +11,6 @@ import {
   repay,
   bug,
   FIXTURE,
-  storage,
   connecting,
   connected,
   add,
@@ -21,10 +20,11 @@ import {
   connectedToJira,
   useTeamDatabase,
 } from './queryStepScenario.js'
-
-useTeamDatabase()
+import { currentStorage } from '../tempDatabase.js'
 
 // The Milestone step (#191): editing the milestone query by hand, the queries refused before reading, and going back to finding.
+
+useTeamDatabase()
 
 describe('editing as a query', () => {
   test('a hand-edited query is saved as written and read once, when submitted', async () => {
@@ -34,7 +34,7 @@ describe('editing as a query', () => {
     const view = await queryStepView(using, TEAM)
 
     expect(using.calls.reads).toEqual(['label:checkout -label:bug'])
-    expect(storage().milestoneQuery(TEAM)).toEqual({ picks: [], query: 'label:checkout -label:bug' })
+    expect(currentStorage().milestoneQuery(TEAM)).toEqual({ picks: [], query: 'label:checkout -label:bug' })
     expect(view).toMatchObject({ picks: [], query: 'label:checkout -label:bug', read: '1 open · 0 finished in the last 9 weeks' })
   })
 
@@ -94,7 +94,7 @@ describe('editing as a query', () => {
     await submitStepQuery(using, TEAM, edit('label:"bug" OR milestone:"Payments v2" OR label:"bug"'), READ_AT)
     const view = await queryStepView(using, TEAM)
 
-    expect(storage().milestoneQuery(TEAM)).toEqual({ picks: [], query: 'label:"bug" OR milestone:"Payments v2" OR label:"bug"' })
+    expect(currentStorage().milestoneQuery(TEAM)).toEqual({ picks: [], query: 'label:"bug" OR milestone:"Payments v2" OR label:"bug"' })
     expect(view.kind !== 'noQueryStep' && view.editing?.backClears).toBeDefined()
   })
 
@@ -104,7 +104,7 @@ describe('editing as a query', () => {
     await submitStepQuery(using, TEAM, edit('(label:"bug" OR milestone:"Payments v2")'), READ_AT)
     await submitStepQuery(using, TEAM, edit('label:"bug OR milestone"'), READ_AT)
 
-    expect(storage().milestoneQuery(TEAM)).toEqual({ picks: [], query: 'label:"bug OR milestone"' })
+    expect(currentStorage().milestoneQuery(TEAM)).toEqual({ picks: [], query: 'label:"bug OR milestone"' })
   })
 
   describe('naming a choice of a kind with more than 100 entries', () => {
@@ -135,7 +135,7 @@ describe('editing as a query', () => {
       const view = await queryStepView(using, TEAM)
 
       expect(using.calls.searches).toContainEqual(['label', 'zebra'])
-      expect(storage().milestoneQuery(TEAM)).toEqual({ picks: [zebra, payments], query: 'label:"zebra" OR milestone:"Payments v2"' })
+      expect(currentStorage().milestoneQuery(TEAM)).toEqual({ picks: [zebra, payments], query: 'label:"zebra" OR milestone:"Payments v2"' })
       expect(view.kind !== 'noQueryStep' && view.editing).toBeUndefined()
     })
 
@@ -145,7 +145,7 @@ describe('editing as a query', () => {
       await submitStepQuery(using, TEAM, edit('label:"bug" OR milestone:"Payments v2"'), READ_AT)
 
       expect(using.calls.searches).toEqual([])
-      expect(storage().milestoneQuery(TEAM)?.picks).toEqual([bug, payments])
+      expect(currentStorage().milestoneQuery(TEAM)?.picks).toEqual([bug, payments])
     })
 
     test('one already picked, though unlisted, keeps its chip without a search', async () => {
@@ -155,7 +155,7 @@ describe('editing as a query', () => {
       await submitStepQuery(using, TEAM, edit('label:"bug" OR parent-issue:shop-team/shop#140'), READ_AT)
 
       expect(using.calls.searches).toEqual([])
-      expect(storage().milestoneQuery(TEAM)?.picks).toEqual([bug, cardPayments])
+      expect(currentStorage().milestoneQuery(TEAM)?.picks).toEqual([bug, cardPayments])
     })
 
     test('one no search finds leaves the query for editing by hand', async () => {
@@ -163,7 +163,7 @@ describe('editing as a query', () => {
 
       await submitStepQuery(using, TEAM, edit('label:"zebra" OR label:"no such label"'), READ_AT)
 
-      expect(storage().milestoneQuery(TEAM)).toEqual({ picks: [], query: 'label:"zebra" OR label:"no such label"' })
+      expect(currentStorage().milestoneQuery(TEAM)).toEqual({ picks: [], query: 'label:"zebra" OR label:"no such label"' })
     })
   })
 
@@ -197,7 +197,7 @@ describe('a hand-edited query refused before reading', () => {
     const refusal = '“payments” is free text, which isn’t read. Pick tickets by epic, label or milestone, such as label:"checkout".'
     expect(submitted).toEqual({ kind: 'refused', query: 'label:checkout payments', refusal })
     expect(using.calls.reads).toEqual(['milestone:"Payments v2"'])
-    expect(storage().milestoneQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
+    expect(currentStorage().milestoneQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
     expect(view).toMatchObject({
       query: 'milestone:"Payments v2"',
       editing: { typed: 'label:checkout payments', readIn: 'shop-team/shop', refusal },
@@ -223,7 +223,7 @@ describe('a hand-edited query refused before reading', () => {
 
     expect(submitted?.kind === 'refused' && submitted.refusal).toBe('label: names nothing. Give it one, such as label:"checkout".')
     expect(using.calls.reads).toEqual([])
-    expect(storage().milestoneQuery(TEAM)).toBeUndefined()
+    expect(currentStorage().milestoneQuery(TEAM)).toBeUndefined()
   })
 
   test('a mistyped qualifier the tracker accepts is read as written, unflagged', async () => {
@@ -285,7 +285,7 @@ describe('going back to finding', () => {
     const view = await queryStepView(using, TEAM, '', { confirmingBack: true })
 
     expect(submitted).toEqual({ kind: 'confirmClear' })
-    expect(storage().milestoneQuery(TEAM)).toEqual({ picks: [], query: 'label:checkout -label:bug' })
+    expect(currentStorage().milestoneQuery(TEAM)).toEqual({ picks: [], query: 'label:checkout -label:bug' })
     expect(view.kind !== 'noQueryStep' && view.editing).toEqual({
       typed: 'label:checkout -label:bug',
       readIn: 'shop-team/shop',
@@ -311,7 +311,7 @@ describe('going back to finding', () => {
     const view = await queryStepView(using, TEAM)
 
     expect(using.calls.reads).toEqual(['label:checkout -label:bug'])
-    expect(storage().milestoneQuery(TEAM)).toEqual({ picks: [], query: '' })
+    expect(currentStorage().milestoneQuery(TEAM)).toEqual({ picks: [], query: '' })
     expect(view).toMatchObject({ picks: [], query: '' })
     expect(view.kind !== 'noQueryStep' && (view.editing ?? view.read)).toBeUndefined()
   })

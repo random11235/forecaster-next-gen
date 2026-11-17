@@ -1,11 +1,12 @@
 import { describe, expect, test } from 'vitest'
 import { queryStepView, submitStepQuery } from '../../src/forecast/queryStep.js'
 import { COMPARABLE_WORK } from '../../src/forecast/stepQuery.js'
-import { TEAM, READ_AT, payments, bug, storage, connected, add, edit, reading, connectedToJira, useTeamDatabase } from './queryStepScenario.js'
-
-useTeamDatabase()
+import { TEAM, READ_AT, payments, bug, connected, add, edit, reading, connectedToJira, useTeamDatabase } from './queryStepScenario.js'
+import { currentStorage } from '../tempDatabase.js'
 
 // The flags (#197): a query the tracker rejects or that reaches outside the connection, and a read matching nothing or incomplete.
+
+useTeamDatabase()
 
 describe('a query the tracker rejects', () => {
   test('shows the tracker’s own message beside the query, keeping the last query that worked in use, with its read', async () => {
@@ -19,7 +20,7 @@ describe('a query the tracker rejects', () => {
     const refusal = `GitHub rejected this query: ${message}`
     expect(submitted).toEqual({ kind: 'refused', query: 'closed:>2026-13-45', refusal })
     expect(using.calls.reads).toEqual(['milestone:"Payments v2"', 'closed:>2026-13-45'])
-    expect(storage().milestoneQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
+    expect(currentStorage().milestoneQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
     expect(view).toMatchObject({
       picks: [payments],
       query: 'milestone:"Payments v2"',
@@ -37,7 +38,7 @@ describe('a query the tracker rejects', () => {
     const view = submitted.kind === 'refused' && (await queryStepView(using, TEAM, '', { refused: submitted }))
 
     const refusal = `GitHub rejected this query: ${message}`
-    expect(storage().milestoneQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
+    expect(currentStorage().milestoneQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
     expect(view).toMatchObject({ picks: [payments], query: 'milestone:"Payments v2"', read: '2 open · 1 finished in the last 9 weeks', refusal })
     expect(view && view.kind !== 'noQueryStep' && view.editing).toBeUndefined()
   })
@@ -49,7 +50,7 @@ describe('a query the tracker rejects', () => {
     const submitted = await submitStepQuery(using, TEAM, edit('labels == comparable'), READ_AT)
 
     expect(submitted).toEqual({ kind: 'refused', query: 'labels == comparable', refusal: `Jira rejected this query: ${message}` })
-    expect(storage().milestoneQuery(TEAM)).toBeUndefined()
+    expect(currentStorage().milestoneQuery(TEAM)).toBeUndefined()
   })
 })
 
@@ -65,7 +66,7 @@ describe('a query reaching outside the connection', () => {
       query: 'repo:someone/else',
       refusal: 'This query reaches outside shop-team/shop, the connected repo. Take out what names another repo, owner or organisation.',
     })
-    expect(storage().milestoneQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
+    expect(currentStorage().milestoneQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
   })
 
   test('on Jira, is an error naming the connected project', async () => {
@@ -89,7 +90,7 @@ describe('a read flagged', () => {
     const view = await queryStepView(using, TEAM)
 
     expect(submitted.kind).toBe('saved')
-    expect(storage().milestoneQuery(TEAM)?.query).toBe('label:"no such label"')
+    expect(currentStorage().milestoneQuery(TEAM)?.query).toBe('label:"no such label"')
     expect(view).toMatchObject({
       read: '0 open · 0 finished in the last 9 weeks',
       flag: 'This query matches nothing: no open tickets, and none finished in the last 9 weeks. Check it picks out the milestone’s tickets.',
@@ -126,7 +127,7 @@ describe('the Comparable work step, flagged', () => {
     const view = await queryStepView(using, TEAM, '', {}, COMPARABLE_WORK)
 
     expect(submitted.kind).toBe('saved')
-    expect(storage().comparableWorkQuery(TEAM)?.query).toBe('label:"wip"')
+    expect(currentStorage().comparableWorkQuery(TEAM)?.query).toBe('label:"wip"')
     expect(view).toMatchObject({
       read: '0 finished in the last 9 weeks',
     })
@@ -163,7 +164,7 @@ describe('the Comparable work step, flagged', () => {
 
     const refusal = `GitHub rejected this query: ${message}`
     expect(submitted).toEqual({ kind: 'refused', query: 'closed:>2026-13-45', refusal })
-    expect(storage().comparableWorkQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
+    expect(currentStorage().comparableWorkQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
     expect(view).toMatchObject({
       picks: [payments],
       query: 'milestone:"Payments v2"',
@@ -181,7 +182,7 @@ describe('the Comparable work step, flagged', () => {
     const view = submitted.kind === 'refused' && (await queryStepView(using, TEAM, '', { refused: submitted }, COMPARABLE_WORK))
 
     const refusal = `GitHub rejected this query: ${message}`
-    expect(storage().comparableWorkQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
+    expect(currentStorage().comparableWorkQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
     expect(view).toMatchObject({ picks: [payments], query: 'milestone:"Payments v2"', read: '1 finished in the last 9 weeks', refusal })
     expect(view && view.kind !== 'noQueryStep' && view.editing).toBeUndefined()
   })
@@ -195,7 +196,7 @@ describe('the Comparable work step, flagged', () => {
 
     const refusal = 'This query reaches outside shop-team/shop, the connected repo. Take out what names another repo, owner or organisation.'
     expect(submitted).toEqual({ kind: 'refused', query: 'repo:someone/else', refusal })
-    expect(storage().comparableWorkQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
+    expect(currentStorage().comparableWorkQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
     expect(view).toMatchObject({ picks: [payments], read: '1 finished in the last 9 weeks', editing: { typed: 'repo:someone/else', refusal } })
   })
 
@@ -206,7 +207,7 @@ describe('the Comparable work step, flagged', () => {
     const submitted = await submitStepQuery(using, TEAM, add(bug), READ_AT, COMPARABLE_WORK)
     const view = submitted.kind === 'refused' && (await queryStepView(using, TEAM, '', { refused: submitted }, COMPARABLE_WORK))
 
-    expect(storage().comparableWorkQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
+    expect(currentStorage().comparableWorkQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
     expect(view).toMatchObject({ picks: [payments], refusal: expect.stringContaining('reaches outside shop-team/shop') })
     expect(view && view.kind !== 'noQueryStep' && view.editing).toBeUndefined()
   })
@@ -219,7 +220,7 @@ describe('the Comparable work step, flagged', () => {
     const view = submitted.kind === 'refused' && (await queryStepView(using, TEAM, '', { refused: submitted }, COMPARABLE_WORK))
 
     expect(submitted).toEqual({ kind: 'refused', query: 'labels == comparable', refusal: `Jira rejected this query: ${message}` })
-    expect(storage().comparableWorkQuery(TEAM)).toBeUndefined()
+    expect(currentStorage().comparableWorkQuery(TEAM)).toBeUndefined()
     expect(view).toMatchObject({ query: '' })
   })
 })

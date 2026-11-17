@@ -4,13 +4,11 @@ import type { Choice, Connector } from '../../src/connectors/connector.js'
 import { submitConnection, type ConnectionEdit } from '../../src/forecast/connection.js'
 import type { QueryStepping } from '../../src/forecast/queryStep.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
-import { openedStorage, openStorage, useTempDatabase } from '../tempDatabase.js'
+import { currentStorage, openStorage, useTempDatabase } from '../tempDatabase.js'
 
 // The arrangement shared by the Milestone step's tests (#191): a team in a fresh database for each test, the canned
 // connector's choices and reads, and the means to connect and to change the step. Each test file calls
-// `useTeamDatabase()`; `storage()` is the test's open storage, and `openStorage()` opens the file again, as a restart would.
-
-export { openedStorage as storage, openStorage }
+// `useTeamDatabase()`, and reaches its storage through test/tempDatabase.ts.
 
 export const TEAM = 'team'
 export const READ_AT = '2026-11-12T09:00:00Z'
@@ -67,7 +65,7 @@ export function connecting(fixture: CannedFixture = FIXTURE): QueryStepping & { 
       return canned.read(query, since)
     },
   })
-  const storage = openedStorage()
+  const storage = currentStorage()
   return { connections: storage, queries: storage, setup: storage, secrets: openMemorySecrets(), connector, milestoneInputs: storage, at: AT, calls }
 }
 

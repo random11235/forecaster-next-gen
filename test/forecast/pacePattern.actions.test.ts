@@ -1,11 +1,12 @@
 import { describe, expect, test } from 'vitest'
 import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
-import { TEAM, TODAY, forecast, openStorage, submit, useTempFile, withTypedCounts } from './pacePatternScenario.js'
+import { openStorage, useTempDatabase } from '../tempDatabase.js'
+import { TEAM, TODAY, forecast, submit, withTypedCounts } from './pacePatternScenario.js'
 
 // A pattern's forecast action (#161): the 85% date it offers both ways, and the action applied and undone.
 
-useTempFile()
+useTempDatabase('forecaster-pace-pattern-')
 
 /** The 85% date of the milestone forecast from these typed counts, in a fresh file. */
 function dateAt85(counts: readonly number[]): string | null | undefined {

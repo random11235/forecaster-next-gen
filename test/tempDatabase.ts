@@ -7,7 +7,7 @@ import { openSqliteStorage, type SqliteStorage } from '../src/storage/sqliteStor
 // A database file of each test's own, for the test files that open storage on a real file: a fresh temporary
 // directory per test, and the storage opened in it closed after.
 
-let dir: string
+let dir: string | undefined
 let storage: SqliteStorage | undefined
 
 /** Gives each test of the calling file a fresh temporary directory named from `prefix`, closing its storage and removing it after. */
@@ -19,19 +19,21 @@ export function useTempDatabase(prefix: string): void {
   afterEach(() => {
     storage?.close()
     storage = undefined
-    rmSync(dir, { recursive: true, force: true })
+    if (dir) rmSync(dir, { recursive: true, force: true })
+    dir = undefined
   })
 }
 
 /** Opens the test's database file, as a restart would, closing any storage it had open. */
 export function openStorage(): SqliteStorage {
+  if (!dir) throw new Error('no temporary directory: call useTempDatabase() in the test file first')
   storage?.close()
   storage = openSqliteStorage(join(dir, 'forecaster.db'))
   return storage
 }
 
 /** The storage the test opened last. */
-export function openedStorage(): SqliteStorage {
+export function currentStorage(): SqliteStorage {
   if (!storage) throw new Error('no storage open: call openStorage() first')
   return storage
 }

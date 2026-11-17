@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'vitest'
-import { forecast, submit, useTempFile, withTypedCounts } from './pacePatternScenario.js'
+import { useTempDatabase } from '../tempDatabase.js'
+import { forecast, submit, withTypedCounts } from './pacePatternScenario.js'
 
 // The pattern the tool names from typed counts (#161), and when it names none.
 
-useTempFile()
+useTempDatabase('forecaster-pace-pattern-')
 
 describe('the pattern named from typed counts', () => {
   test('counts that vary a little and keep level are Steady, with their spread', () => {
