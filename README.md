@@ -24,6 +24,8 @@ The How it works screen, `http://127.0.0.1:5180/how-it-works`, explains in pictu
 
 To use another port: `PORT=5181 npm start`. `PORT=0` picks a free port.
 
+Each merge to `main` is a release, named by the version every screen's footer shows ("Forecaster 0.3.0"). Its GitHub release (tag `v0.3.0`) carries the built app, `forecaster-v0.3.0.tar.gz` (unpack it, `npm ci`, then `node dist/app/main.js`), and the web build's page, `forecaster-v0.3.0.html`, which opens in a browser with nothing installed.
+
 ## Data
 
 Everything is kept in one local SQLite file, `data/forecaster.db` (git-ignored). On first launch, with no data yet, the Forecaster opens empty and asks for your milestone on the Inputs screen. To keep the file elsewhere: `FORECASTER_DATA_FILE=/path/to/forecaster.db npm start`. Delete the file to start again from empty.
