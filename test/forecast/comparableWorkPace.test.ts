@@ -4,10 +4,9 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned.js'
 import type { Choice, Ticket } from '../../src/connectors/connector.js'
-import type { ComparableWorkPace } from '../../src/forecast/comparableWorkPace.js'
 import { submitConnection } from '../../src/forecast/connection.js'
 import { submitInputs } from '../../src/forecast/inputs.js'
-import { queryStepView, submitStepQuery, type QueryStepping } from '../../src/forecast/queryStep.js'
+import { queryStepView, submitStepQuery, type ComparableWorkStep, type QueryStepping } from '../../src/forecast/queryStep.js'
 import { COMPARABLE_WORK } from '../../src/forecast/stepQuery.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
@@ -112,7 +111,7 @@ function startOn(startDate: string): void {
 const addComparable = (choice: Choice) => submitStepQuery(using, TEAM, { kind: 'addPick', choice }, READ_AT, COMPARABLE_WORK)
 
 /** The pace the Comparable work step's view leads with. */
-async function paceOf(): Promise<ComparableWorkPace | undefined> {
+async function paceOf(): Promise<ComparableWorkStep['pace']> {
   const step = await queryStepView(using, TEAM, '', {}, COMPARABLE_WORK)
   return step.kind === 'comparableWorkStep' ? step.pace : undefined
 }

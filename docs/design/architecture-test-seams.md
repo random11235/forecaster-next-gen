@@ -7,6 +7,7 @@ Part of the architecture design; the index is [`architecture.md`](architecture.m
 - **Seam A** is `simulateCase`, tested with fixed seeds ([`engine.md`](engine.md)).
 - **Seam B** is `forecast/`: stored facts, settings and the ledger go in, with what the local server build connects with (`Connecting`, or `QueryStepping` for a query step); each screen's and step's view comes out, whole, and each submit is saved or refused with the view to show again. `app/` keeps only reading form fields and query parameters, keeping a candidates opening by its id, and rendering, so refused re-display and each step's behaviour are tested here, without the server, reading through the canned connector and `openMemorySecrets`. The browser build connects nothing, so its views have no Connect or query step. What each view shows is in [`forecast-model.md`](forecast-model.md) and [`frontend-essentials.md`](frontend-essentials.md). Its entry points:
   - `milestoneForecastView`: the Milestone forecast screen, through the engine.
+  - `howItWorksView`: the How it works screen, from the settings.
   - `inputsView`, `submitInputs`: the Inputs screen; a form as typed (`InputsEdit`) saved, saying which screen comes next, or refused, with the screen to show again (Capacity's forms are on the Milestone forecast screen) and its view.
   - These three take the team's tracker reads (`TrackerReads`) in the local server build: its connection and saved reads, which a value following the tracker takes (`measure`), and a typed one is compared with for its chip (`readsDifferently`). With none, or no connection, every value is typed, as in the MVP.
   - `submitSkip`: the tracker's periods skipped or counted again, reading the tracker further back where a skip needs it; saved, or refused with the Inputs screen to show again (`Submitted`, as `submitInputs` gives).
@@ -32,6 +33,8 @@ Warning text and provenance are tested at Seam B, not Seam A. These cases moved 
 - the uncommitted epics listed in rank order, and none for a scope of committed epics.
 
 Seam B tests read tickets through the canned connector (`connectors/canned.ts`), which returns its fixture's tickets, an empty list for a query that matches nothing, and any failure on cue; `test/connectors/` tests it.
+
+Each test folder imports from `src/` only its seam's entry points and what its tests read through (the canned connector, `openMemorySecrets`, storage and `model/`): `TEST_SEAMS` in `test/dependencyRules.test.ts` maps each `test/<folder>/` to those files, and fails naming any other import, beside the temporary exceptions it lists with why each is still there.
 
 ### Seam C: connectors
 
