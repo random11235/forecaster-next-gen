@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'vitest'
-import { startOnPreMvpData, page, text, post, submitPace, dateAt, addCapacity } from './screensHarness.js'
+import { startOnSavedData, page, text, post, submitPace, dateAt, addCapacity } from './screensHarness.js'
 
 // The screens through the local server: see screensHarness.ts.
 
 describe('Milestone forecast screen: capacity', () => {
   test('beside the forecast, under Pace, every week is at 100% until capacity is typed, as a sentence posting to its section', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
 
     const html = await page('/')
@@ -17,7 +17,7 @@ describe('Milestone forecast screen: capacity', () => {
   })
 
   test('a week off, typed, comes back to the forecast with the entry listed and the 85% date later', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
     const before = dateAt(text(await page('/')), 85)
 
@@ -31,7 +31,7 @@ describe('Milestone forecast screen: capacity', () => {
   })
 
   test('lists a one-day entry by its day and an onward one from its start', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
 
     await addCapacity('0', '2026-11-16', '', 'Holiday')
@@ -43,7 +43,7 @@ describe('Milestone forecast screen: capacity', () => {
   })
 
   test('refused, shows the forecast again with the section open, saying why, keeping what was typed', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
 
     const response = await addCapacity('50', '2026-09-14', '2026-09-07', 'Half on <leave>')
@@ -58,7 +58,7 @@ describe('Milestone forecast screen: capacity', () => {
   })
 
   test('an entry far above usual is warned of beside it', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
 
     await addCapacity('300', '2026-09-07', '', '', true)
@@ -67,7 +67,7 @@ describe('Milestone forecast screen: capacity', () => {
   })
 
   test('removing an entry takes it off the forecast', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
     await addCapacity('0', '2026-10-26', '2026-10-30', 'Offsite')
 
@@ -80,7 +80,7 @@ describe('Milestone forecast screen: capacity', () => {
   })
 
   test('with capacity in use, the dates are compared with usual capacity, and the headline says it includes capacity', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
     const usual = dateAt(text(await page('/')), 85)
 
@@ -95,7 +95,7 @@ describe('Milestone forecast screen: capacity', () => {
   })
 
   test('switched off, the forecast is without capacity and says its entries are kept; switched on, it is back', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
     await addCapacity('0', '2026-11-16', '2026-11-20', 'Offsite')
     const withCapacity = dateAt(text(await page('/')), 85)
@@ -119,7 +119,7 @@ describe('Milestone forecast screen: capacity', () => {
   })
 
   test('the week-by-week chart shades each week capacity changes and labels it with its %, leaving usual weeks plain', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
     const plain = (await page('/')).match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
     expect(plain).not.toContain('capacity')
@@ -139,7 +139,7 @@ describe('Milestone forecast screen: capacity', () => {
   })
 
   test('folded, the section gives no entry’s effect; opening it, at its own URL, gives each entry’s effect on the 85% date', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
     await addCapacity('0', '2026-11-02', '2026-11-06', 'Offsite')
     await addCapacity('120', '2027-06-01', '', '', true)
@@ -159,7 +159,7 @@ describe('Milestone forecast screen: capacity', () => {
   })
 
   test('the section stays open across saves, its effects shown, and across a refusal', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
     expect(await page('/?capacity=open')).toContain('<form method="post" action="/capacity/add?capacity=open#capacity"')
 
@@ -182,7 +182,7 @@ describe('Milestone forecast screen: capacity', () => {
   })
 
   test("the Inputs screen's pace says where capacity is set", async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
 
     expect(text(await page('/inputs'))).toContain('Capacity is set beside the forecast, under Pace.')
   })
