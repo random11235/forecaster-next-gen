@@ -1,14 +1,10 @@
 import type { Transport } from '../../../src/connectors/connector.js'
-import { answering } from '../backoff.js'
+import { answering, json } from '../standIn.js'
 
 // The arrangement the Jira connector's test files share: a connection, a window's start, and stand-in Jiras.
 
 export const CONNECTION = { tracker: 'jira', site: 'example.atlassian.net', projectKey: 'SYN', email: 'someone@example.com' } as const
 export const SINCE = '2026-01-01T00:00:00Z'
-
-export function json(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
-}
 
 /** A stand-in Jira that gives its cloud id, then answers each call through the gateway with `answer`. */
 export function answeringPastTenant(answer: Transport) {
@@ -41,9 +37,4 @@ export function jiraListing(listing: Listing) {
     if (url.includes('/label?')) return json(200, { values: listing.labels ?? [], isLast: !listing.moreLabels })
     return json(404, {})
   })
-}
-
-/** `count` things, each made by `make` from its number, counting from 1. */
-export function many<T>(count: number, make: (n: number) => T): T[] {
-  return Array.from({ length: count }, (_, i) => make(i + 1))
 }

@@ -10,11 +10,12 @@ import { submitSkip, type Skipping } from '../../src/forecast/skippedPeriods.js'
 import type { TrackerReads } from '../../src/forecast/trackerReads.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import type { Storage } from '../../src/storage/storage.js'
-import { TEAM, TODAY, openStorage, submit, useTempFile } from './pacePatternScenario.js'
+import { openStorage, useTempDatabase } from '../tempDatabase.js'
+import { TEAM, TODAY, submit } from './pacePatternScenario.js'
 
 // The pattern read from the tracker's weeks (#213), not only from typed counts.
 
-useTempFile()
+useTempDatabase('forecaster-pace-pattern-')
 
 describe('from the tracker’s weeks (#213)', () => {
   const checkout: Choice = { kind: 'milestone', name: 'Launch', query: 'milestone:"Launch"' }

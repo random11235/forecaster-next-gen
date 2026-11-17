@@ -2,8 +2,9 @@ import { describe, expect, test } from 'vitest'
 import type { Transport } from '../../../src/connectors/connector.js'
 import { jiraConnector } from '../../../src/connectors/jira.js'
 import { mustNotWait, noWait } from '../backoff.js'
+import { json } from '../standIn.js'
 import { replayTransport } from '../replayTransport.js'
-import { answeringPastTenant, CONNECTION, jiraListing, json, SINCE, throughGateway } from './jiraStandIn.js'
+import { answeringPastTenant, CONNECTION, jiraListing, SINCE, throughGateway } from './jiraStandIn.js'
 
 // Jira-only quirks, beside the contract suite. A read's JQL is wrapped as `project = "KEY" AND (query)`, so a query
 // naming a project, or closing the wrapper's parenthesis, would reach past the connection. JQL reads date literals in
