@@ -96,12 +96,10 @@ jobs:
           path: reports/mutation/
           if-no-files-found: ignore
 
-  # Each merge to main is a release an EM can name and run, its version set from the change files PRs add, as
-  # docs/design/architecture.md#release sets out. Once the checks and the browser check pass, scripts/release.ts
-  # releases the change files both main's tip and the commit this run checked hold: it commits the version and the
-  # CHANGELOG.md section onto main's tip, tags it, and pushes both, with the job's token, which starts no workflow.
-  # Then a GitHub release of the last tag, made now or by a run that failed before publishing it, carries the built app
-  # and the web build's page. Checked by a real merge; the script by test/scripts/release.run.test.ts.
+  # Each merge to main is a release: once the checks and the browser check pass, scripts/release.ts commits, tags and
+  # pushes the version the change files set, and a GitHub release of the last tag carries the built app and the web
+  # build's page. docs/design/architecture.md#release sets it out. Checked by a real merge; the script by
+  # test/scripts/release.run.test.ts.
   release:
     needs: [check, browser]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -109,8 +107,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write # to push the release commit and its tag, and create the release
-    # One release at a time. A pending one a newer merge's replaces is cancelled: that newer run's checked tree holds
-    # its change files, so releases them.
+    # One release at a time (docs/design/architecture.md#release says what a replaced one leaves).
     concurrency:
       group: release
       cancel-in-progress: false
@@ -121,6 +118,8 @@ jobs:
           fetch-depth: 0 # the tags, to find the last release, and main's merges, for each change file's PR
       - uses: ./.github/actions/setup
       - id: release
+        env:
+          HUSKY: '0' # no git hooks: the release commits and pushes only what release.ts writes, not a PR's code
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
@@ -130,8 +129,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.release.outputs.tag }}
+        # only "release not found" means unpublished; any other failure (auth, network) fails the step
         run: |
-          if gh release view "$TAG" > /dev/null 2>&1; then echo published=true; else echo published=false; fi >> "$GITHUB_OUTPUT"
+          if view=$(gh release view "$TAG" 2>&1); then echo published=true
+          elif [[ "$view" == *"release not found"* ]]; then echo published=false
+          else echo "$view" >&2; exit 1
+          fi >> "$GITHUB_OUTPUT"
       # the app and the web build's page, dist/web/forecaster.html, as the tag holds them
       - if: steps.published.outputs.published == 'false'
         env:

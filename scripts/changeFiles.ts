@@ -2,7 +2,7 @@
 // `changes/<ticket>.md`, and the release (scripts/release.ts) sets the version and writes CHANGELOG.md from them, as
 // docs/design/architecture.md#release sets out. This module holds both sides of that contract: the change file's form
 // and what the check refuses on a branch (`node scripts/checkChanges.ts <base>`, which `check:static` runs), and the
-// version's places and CHANGELOG.md's layout, which the release writes.
+// version's places and CHANGELOG.md's layout, its sections and where they go, which the release writes.
 
 /**
  * The files that make the app an EM runs: its source, its dependencies and how it is built. A branch that changes one
@@ -75,7 +75,7 @@ export function changeFileProblems(changed: readonly string[], read: ReadAt): st
     if (set !== -1)
       problems.push(`This branch sets ${path}'s version (${base[set]} to ${head[set]}): leave it, as the release sets it from the change files, ${HOW}.`)
   }
-  if (changed.includes('CHANGELOG.md') && entriesIn(read('CHANGELOG.md', 'base')) !== entriesIn(read('CHANGELOG.md', 'head')))
+  if (changed.includes('CHANGELOG.md') && split(read('CHANGELOG.md', 'base') ?? '').entries !== split(read('CHANGELOG.md', 'head') ?? '').entries)
     problems.push(`This branch edits the entries in CHANGELOG.md: leave them, as the release writes each from its change file, ${HOW}.`)
   return problems
 }
@@ -105,8 +105,9 @@ function split(changelog: string): { header: string; entries: string } {
   return first === -1 ? { header: changelog, entries: '' } : { header: changelog.slice(0, first), entries: changelog.slice(first) }
 }
 
-function entriesIn(changelog = ''): string {
-  return split(changelog).entries
+/** A release's section in CHANGELOG.md: its version, dated `date`, and a bullet for each of `lines`. */
+export function changelogSection(version: string, date: string, lines: readonly string[]): string {
+  return `## ${version} (${date})\n\n${lines.map((line) => `- ${line}\n`).join('')}`
 }
 
 /** CHANGELOG.md, its text `changelog`, with a release's `section` above the newest release's, below the header. */
