@@ -1,11 +1,9 @@
 import { readFileSync } from 'node:fs'
+import { APP_VERSION } from '../../src/forecast/appVersion.js'
 import { runInNewContext } from 'node:vm'
 import { beforeAll, describe, expect, test } from 'vitest'
 
 // Reads the one file the web build writes (#114); test/buildOnce.ts runs `npm run build:web` before any test file.
-
-/** The app's one version, as `package.json` sets it. */
-const VERSION: unknown = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version
 
 let html: string
 
@@ -34,8 +32,8 @@ describe('web build smoke test', () => {
   })
 
   test('shows the version in its footer, and its script carries it for the screens it shows, with no live reload', () => {
-    expect(html).toContain(`<footer class="version">Forecaster ${String(VERSION)}</footer>`)
-    expect(html.match(/<script>([^]*)<\/script>/)?.[1]).toContain(JSON.stringify(VERSION))
+    expect(html).toContain(`<footer class="version">Forecaster ${APP_VERSION}</footer>`)
+    expect(html.match(/<script>([^]*)<\/script>/)?.[1]).toContain(JSON.stringify(APP_VERSION))
     expect(html).not.toContain('EventSource')
     expect(html).not.toContain('/live')
   })

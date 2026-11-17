@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { APP_VERSION } from '../../src/forecast/appVersion.js'
 import { request as httpRequest } from 'node:http'
 import { networkInterfaces } from 'node:os'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
@@ -10,9 +10,6 @@ import type { QueryTarget, Storage } from '../../src/storage/storage.js'
 import { CHECKOUT, TEAM } from '../trackerScenario.js'
 import { appOnTracker, page, type AppOnTracker } from './appOnTracker.js'
 import { post } from './forms.js'
-
-/** The app's one version, as `package.json` sets it. */
-const VERSION: unknown = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version
 
 /** When the Forecaster was installed for the team the tests store. */
 const INSTALLED = '2026-01-01T00:00:00Z'
@@ -144,8 +141,8 @@ describe('version and live reload', () => {
 
     const html = await (await fetch(new URL(path, app.url))).text()
 
-    expect(VERSION).toMatch(/^\d+\.\d+\.\d+$/)
-    expect(html).toMatch(new RegExp(`<footer[^>]*>Forecaster ${String(VERSION).replaceAll('.', '\\.')}</footer>`))
+    expect(APP_VERSION).toMatch(/^\d+\.\d+\.\d+$/)
+    expect(html).toMatch(new RegExp(`<footer[^>]*>Forecaster ${APP_VERSION.replaceAll('.', '\\.')}</footer>`))
   })
 
   test('/live streams the version and keeps the stream open, and stopping the app is not held up by it', async () => {
@@ -158,7 +155,7 @@ describe('version and live reload', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toBe('text/event-stream')
-    expect(new TextDecoder().decode(first?.value)).toBe(`retry: 500\ndata: ${String(VERSION)}\n\n`)
+    expect(new TextDecoder().decode(first?.value)).toBe(`retry: 500\ndata: ${APP_VERSION}\n\n`)
     await expect(closing).resolves.toBeUndefined()
   })
 
@@ -169,7 +166,7 @@ describe('version and live reload', () => {
     const script = html.match(/<script>([^]*?EventSource[^]*?)<\/script>/)?.[1]
 
     expect(script).toContain(`new EventSource('/live')`)
-    expect(script).toContain(`!== ${JSON.stringify(VERSION)}`)
+    expect(script).toContain(`!== ${JSON.stringify(APP_VERSION)}`)
     expect(script).toContain('location.reload()')
   })
 })

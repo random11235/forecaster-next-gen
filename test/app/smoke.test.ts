@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, test } from 'vitest'
+import { APP_VERSION } from '../../src/forecast/appVersion.js'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { once } from 'node:events'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -10,9 +11,6 @@ import { post } from './forms.js'
 // Starts the app the way `npm start` does: runs the built entry point, which test/buildOnce.ts builds before any test file.
 const root = fileURLToPath(new URL('../..', import.meta.url))
 const entry = 'dist/app/main.js'
-
-/** The app's one version, as `package.json` sets it. */
-const VERSION: unknown = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version
 
 let child: ChildProcess | undefined
 let dataDir: string | undefined
@@ -85,8 +83,8 @@ describe('launch smoke test', () => {
     const live = await fetch(new URL('/live', url))
     const first = await live.body?.getReader().read()
 
-    expect(html).toContain(`<footer class="version">Forecaster ${String(VERSION)}</footer>`)
-    expect(new TextDecoder().decode(first?.value)).toBe(`retry: 500\ndata: ${String(VERSION)}\n\n`)
+    expect(html).toContain(`<footer class="version">Forecaster ${APP_VERSION}</footer>`)
+    expect(new TextDecoder().decode(first?.value)).toBe(`retry: 500\ndata: ${APP_VERSION}\n\n`)
   }, 15_000)
 
   test('in demo mode, the built entry point starts on the canned connector and serves the Milestone forecast screen', async () => {
