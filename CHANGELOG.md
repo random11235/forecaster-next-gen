@@ -8,6 +8,10 @@ What each version of the app shipped, newest first. The version is the one in ev
 - A pre-push hook runs the checks CI runs, so red code doesn't reach main (#240, PR #284)
 - Each merge to main is a release, tagged with the footer's version (#241, PR #284)
 
+## 0.2.2 (2026-11-17)
+
+- The web build forecasts again: the build swaps only the app's own version module, not the engine's (#280, PR #282)
+
 ## 0.2.1 (2026-11-16)
 
 - The local server refuses requests from other sites (#270, PR #277)
