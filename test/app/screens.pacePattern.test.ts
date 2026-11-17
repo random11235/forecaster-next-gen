@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { startOnPreMvpData, page, text, post, submitPace, dateAt, submitCounts, choosePace } from './screensHarness.js'
+import { startOnSavedData, page, text, post, submitPace, dateAt, submitCounts, choosePace } from './screensHarness.js'
 
 // The screens through the local server: see screensHarness.ts.
 
@@ -8,7 +8,7 @@ describe('Milestone forecast screen: pace pattern', () => {
   const STEPPED_UP = '4, 3, 5, 4, 4, 3, 4, 5, 3, 4, 8, 9, 7, 8'
 
   test('under the pace bars, one folded line names the pattern; opened, it says what it means and what to do, with the 85% date both ways and a button', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitCounts(STEPPED_UP)
     await choosePace('counts')
 
@@ -25,7 +25,7 @@ describe('Milestone forecast screen: pace pattern', () => {
   })
 
   test('the button counts pace from the step, saying so with Undo, which brings every count back', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitCounts(STEPPED_UP)
     await choosePace('counts')
     const offered = text(await page('/')).match(/(\d{1,2} [A-Z][a-z]{2} 2026) from 22 Sep/)![1]!
@@ -49,7 +49,7 @@ describe('Milestone forecast screen: pace pattern', () => {
   })
 
   test('an action leaving too few counts to forecast from shows what to fix, with the action said and Undo', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitCounts('4, 3, 4, 5, 4, 9, 8, 9')
     await choosePace('counts')
     const date = (await page('/')).match(/name="date" value="(\d{4}-\d{2}-\d{2})"/)![1]!
@@ -66,7 +66,7 @@ describe('Milestone forecast screen: pace pattern', () => {
   })
 
   test('one odd week posts the period it leaves out, and the forecast says it is left out', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitCounts('5, 6, 5, 4, 6, 5, 5, 4, 6, 5, 23, 5, 6, 4')
     await choosePace('counts')
     const period = (await page('/')).match(
@@ -82,7 +82,7 @@ describe('Milestone forecast screen: pace pattern', () => {
   })
 
   test('with too few weeks to read, the line says so, faintly, and opens to nothing', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitCounts('5, 4, 6, 5, 5')
     await choosePace('counts')
 
@@ -90,7 +90,7 @@ describe('Milestone forecast screen: pace pattern', () => {
   })
 
   test('with the pace as a range, there is no pattern line', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
 
     expect(await page('/')).not.toContain('class="pace-pattern')

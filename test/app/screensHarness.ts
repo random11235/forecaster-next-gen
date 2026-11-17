@@ -1,7 +1,6 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
 import { afterEach } from 'vitest'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
 import type { MilestoneInputs } from '../../src/model/milestoneInputs.js'
@@ -9,32 +8,13 @@ import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
 import { post as postForm, saveInPlace as saveFormInPlace } from './forms.js'
 
-// The screens through the local server, as the EM's browser sees them, on a data file from before the MVP: beside the
-// milestone's MVP fields, it holds the tables earlier releases wrote (epics, commits, workflow settings, adopted
-// measured pace and growth), which the MVP no longer reads.
+// The screens through the local server, as the EM's browser sees them, on a data file written through `Storage`. A file
+// from before the MVP, holding the tables earlier releases wrote, is test/storage/migrations.test.ts's case.
 
 export const TEAM = 'PAY'
 export const CREATED = '2026-08-31T09:00:00Z'
 
-/** Rows an earlier release left in the file: what the screens must not show. */
-export const PRE_MVP_ROWS = `
-INSERT INTO work_items (team_id, id, source_key, type, title, parent_id, labels, created_at, started_at, done_at, cancelled_at, last_synced_at) VALUES
-  ('${TEAM}', 'PAY-1', 'PAY-1', 'epic', 'Card vaulting', NULL, '["committed"]', '${CREATED}', NULL, NULL, NULL, '${CREATED}'),
-  ('${TEAM}', 'PAY-2', 'PAY-2', 'epic', 'Refunds', NULL, '[]', '${CREATED}', NULL, NULL, NULL, '${CREATED}'),
-  ('${TEAM}', 'PAY-11', 'PAY-11', 'story', NULL, 'PAY-1', '[]', '${CREATED}', NULL, NULL, NULL, '${CREATED}');
-INSERT INTO milestones (team_id, id, name, committed_date) VALUES ('${TEAM}', 'M1', 'Checkout v2', '2026-12-18');
-INSERT INTO milestone_epics (team_id, milestone_id, rank, epic_id) VALUES ('${TEAM}', 'M1', 0, 'PAY-1'), ('${TEAM}', 'M1', 1, 'PAY-2');
-INSERT INTO pace_settings (team_id, milestone_id, mode, low, high) VALUES ('${TEAM}', 'M1', 'measured', 2, 9);
-INSERT INTO workflow_settings (team_id, statuses, started_status, commit_label, blocked_statuses, blocked_labels) VALUES
-  ('${TEAM}', '[{"status":"To Do","category":"notStarted"},{"status":"In Progress","category":"started"},{"status":"Done","category":"done"}]',
-   'In Progress', 'committed', '[]', '["blocked"]');
-INSERT INTO epic_commits (team_id, epic_id, committed_at, child_count_at_commit) VALUES ('${TEAM}', 'PAY-2', '2026-09-07T10:00:00Z', 1);
-INSERT INTO epic_ambiguities (team_id, milestone_id, epic_id, ambiguity) VALUES ('${TEAM}', 'M1', 'PAY-1', 'high');
-INSERT INTO ambiguity_ranges (team_id, low_low, low_high, medium_low, medium_high, high_low, high_high, medium_measured) VALUES
-  ('${TEAM}', 1, 1.5, 1, 2, 1.5, 3, 1);
-`
-
-/** The milestone as the EM entered it after the upgrade: its name, start date and tickets remaining, but no pace yet. */
+/** The milestone as the EM entered it: its name, start date and tickets remaining, but no pace yet. */
 export const CHECKOUT: MilestoneInputs = {
   teamId: TEAM,
   name: 'Checkout v2',
@@ -65,14 +45,11 @@ afterEach(async () => {
 })
 
 /** Starts the app on 24 Oct 2026 on a data file holding the team, and its milestone unless `milestone` is false. */
-export async function startOnPreMvpData({ milestone = true } = {}): Promise<RunningApp> {
+export async function startOnSavedData({ milestone = true } = {}): Promise<RunningApp> {
   dir = mkdtempSync(join(tmpdir(), 'forecaster-screens-'))
   const file = join(dir, 'forecaster.db')
   storage = openSqliteStorage(file)
   storage.saveTeam({ id: TEAM, name: 'Payments', source: 'jira', sourceRef: TEAM, installedAt: CREATED })
-  const earlierRelease = new DatabaseSync(file)
-  earlierRelease.exec(PRE_MVP_ROWS)
-  earlierRelease.close()
   if (milestone) storage.saveMilestoneInputs(CHECKOUT)
   app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage, today: () => '2026-10-24' })
   return app
@@ -80,7 +57,7 @@ export async function startOnPreMvpData({ milestone = true } = {}): Promise<Runn
 
 /** Starts the app on the team with no milestone entered yet. */
 export function startWithNoMilestone(): Promise<RunningApp> {
-  return startOnPreMvpData({ milestone: false })
+  return startOnSavedData({ milestone: false })
 }
 
 /** The app the test started; a test that started none has nothing to ask. */
