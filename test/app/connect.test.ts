@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
+import { cannedConnector, type CannedFixture } from '../../src/connectors/canned.js'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
 import { post } from './forms.js'
 import { openWebApp } from '../../src/app/webApp.js'
