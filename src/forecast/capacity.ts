@@ -4,7 +4,6 @@ import type { PeriodName } from './cadence.js'
 import { addDays, daysBetween, isCalendarDate } from './calendarDate.js'
 import { counted } from './counted.js'
 import { refuse, type EditResult, type Refusal } from './editResult.js'
-import type { ComparedDate } from './milestoneForecastView.js'
 
 /** Far above any real team's growth, as the engine's own limit: keeps typos like 5000% out of the forecast. */
 export const MAX_CAPACITY_PERCENT = 1000
@@ -128,6 +127,16 @@ export function capacityView(
   })
   const past = all.filter((entry) => isPast(entry, today))
   return { on: storage.capacityOn(teamId), open, summary: capacitySummary(entries.length, use, period), entries, past, form: BLANK_CAPACITY_FORM }
+}
+
+/** One confidence level with capacity and at usual capacity, from the same draws. */
+export interface ComparedDate {
+  percent: number
+  /** ISO calendar dates, or null: later than the horizon date. */
+  withCapacity: string | null
+  atUsual: string | null
+  /** How many periods later (negative: sooner) capacity moves the date; null when either is later than the horizon. */
+  shift: number | null
 }
 
 /**
