@@ -32,6 +32,15 @@ In [`architecture-dependency-rules.md`](architecture-dependency-rules.md): what 
 
 In [`architecture-test-seams.md`](architecture-test-seams.md): Seams A, B and C, and the tests beside them.
 
+## Release
+
+Each merge to `main` is a release an EM can name and run (#241). The app's one version is `version` in `package.json`, set by each PR that changes the app ([`pull-requests.md`](../agents/pull-requests.md#version)). Every screen's footer shows it ("Forecaster 0.3.0"), the web build's page included.
+
+- **When.** The `release` job in `.github/workflows/ci.yml` runs on a push to `main` once its `check` and `browser` jobs pass; a red one runs no release and makes no tag.
+- **The tag.** `scripts/releaseTag.ts` gives the merge the tag `v` and its version (`v0.3.0`). A version already tagged, as a docs-only merge leaves it, releases nothing: the app is the one already released. A version below the last release fails the job, saying so.
+- **What it carries.** A GitHub release of that tag with notes from its PRs, the built app (`forecaster-v0.3.0.tar.gz`: `dist/` and `package.json`, run with `npm ci`, then `node dist/app/main.js`) and the web build's page (`forecaster-v0.3.0.html`), the file an EM shares.
+- **Which release made a forecast.** `forecast/appVersion.ts` gives the version (`APP_VERSION`) where a forecast is made, beside the engine's `ENGINE_VERSION`, so the forecast ledger (#27) records both with each `ForecastLog`. It sits outside `SimulationCase`: a new release with the same engine gives the same case, `caseHash` and all.
+
 ## Language choice
 
 In [`architecture-language.md`](architecture-language.md): TypeScript, and when to revisit it.
