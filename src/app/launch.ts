@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net'
 import type { Connecting } from '../forecast/connection.js'
 import type { Storage } from '../storage/storage.js'
 import { SAVE_IN_PLACE } from './inputsScript.js'
-import { VERSION } from './version.js'
+import { APP_VERSION } from '../forecast/appVersion.js'
 import { appContext, route, routeSetup, type AppContext, type Reply, type Request } from './routes.js'
 
 /** Localhost only: the Forecaster is a local, single-user tool and is never reachable from the network. */
@@ -104,7 +104,7 @@ const LIVE_PATH = '/live'
  * `/live` streams a version other than the one the page was served with. A dropped stream reconnects by itself, so a
  * restart on the same version changes nothing.
  */
-const RELOAD_ON_NEW_VERSION = `new EventSource('${LIVE_PATH}').onmessage = (event) => { if (event.data !== ${JSON.stringify(VERSION)}) location.reload() }`
+const RELOAD_ON_NEW_VERSION = `new EventSource('${LIVE_PATH}').onmessage = (event) => { if (event.data !== ${JSON.stringify(APP_VERSION)}) location.reload() }`
 
 /**
  * Sends the version as a server-sent event and keeps the stream open: when the app stops, the stream drops, the page's
@@ -112,7 +112,7 @@ const RELOAD_ON_NEW_VERSION = `new EventSource('${LIVE_PATH}').onmessage = (even
  */
 function streamVersion(response: ServerResponse): void {
   response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' })
-  response.write(`retry: 500\ndata: ${VERSION}\n\n`)
+  response.write(`retry: 500\ndata: ${APP_VERSION}\n\n`)
 }
 
 /** Form posts are a few bytes; anything over this is refused rather than buffered. */

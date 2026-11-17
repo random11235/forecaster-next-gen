@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'vitest'
 import { SAVE_IN_PLACE } from '../../src/app/inputsScript.js'
-import { startOnPreMvpData, page, text, post, submitPace, submitCounts, choosePace, saveInPlace } from './screensHarness.js'
+import { startOnSavedData, page, text, post, submitPace, submitCounts, choosePace, saveInPlace } from './screensHarness.js'
 
 // The screens through the local server: see screensHarness.ts.
 
 describe('Inputs screen: typed counts', () => {
   test('offers pace as a range or as typed counts, the range chosen for an untouched milestone, and says typed counts need 4 for a forecast and 8 to be reliable', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
 
     const html = await page('/inputs')
 
@@ -17,7 +17,7 @@ describe('Inputs screen: typed counts', () => {
   })
 
   test('saving typed counts keeps them on the Inputs screen, oldest first', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
 
     const response = await submitCounts('6 4,9')
 
@@ -27,7 +27,7 @@ describe('Inputs screen: typed counts', () => {
   })
 
   test('adding a count puts it last, and removing the last takes it off again', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitCounts('6, 4, 9')
 
     expect((await post('/inputs/pace-counts/add', [['count', '7']])).status).toBe(303)
@@ -38,7 +38,7 @@ describe('Inputs screen: typed counts', () => {
   })
 
   test('refuses typed counts that are not whole numbers, saying why, keeping what was typed and changing nothing', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitCounts('6, 4')
 
     const response = await submitCounts('6, -1')
@@ -51,7 +51,7 @@ describe('Inputs screen: typed counts', () => {
   })
 
   test('refuses a count to add that is not a whole number, saying why and keeping what was typed', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitCounts('6, 4')
 
     const response = await post('/inputs/pace-counts/add', [['count', '2.5']])
@@ -64,7 +64,7 @@ describe('Inputs screen: typed counts', () => {
   })
 
   test('choosing typed counts goes to the forecast, keeps the range, and shows typed counts chosen', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
     await submitCounts('6, 4, 9')
 
@@ -78,7 +78,7 @@ describe('Inputs screen: typed counts', () => {
   })
 
   test('with 3 typed counts in use, notes beside the typed counts that the forecast needs at least 4', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitCounts('6, 4, 9')
 
     await choosePace('counts')
@@ -89,7 +89,7 @@ describe('Inputs screen: typed counts', () => {
   })
 
   test('with 4 typed counts in use, notes beside the typed counts that 8 are needed for reliable results', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitCounts('6, 4, 9, 7')
 
     await choosePace('counts')
@@ -100,7 +100,7 @@ describe('Inputs screen: typed counts', () => {
 
 describe('Inputs screen: saving as inputs change', () => {
   test('choosing typed counts saves it and answers with the Inputs screen showing it chosen, not the forecast', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitCounts('6, 4, 9')
 
     const response = await saveInPlace('/inputs/pace-mode', [['paceMode', 'counts']])
@@ -111,7 +111,7 @@ describe('Inputs screen: saving as inputs change', () => {
   })
 
   test('the Inputs screen carries its own script, which saves in place; the forecast carries none', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     // besides the live reload every page the server sends carries (launch.test.ts)
     const ownScripts = async (path: string) =>
       [...(await page(path)).matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)].filter(([, , body]) => !body?.includes('EventSource'))
@@ -126,8 +126,8 @@ describe('Inputs screen: saving as inputs change', () => {
 })
 
 describe('Inputs screen: workflow', () => {
-  test('offers no workflow settings, even with a workflow saved before the MVP', async () => {
-    await startOnPreMvpData()
+  test('offers no workflow settings', async () => {
+    await startOnSavedData()
 
     const html = await page('/inputs')
 

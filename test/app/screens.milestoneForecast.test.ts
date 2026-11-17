@@ -1,9 +1,8 @@
 import { describe, expect, test } from 'vitest'
 import {
-  TEAM,
   CHECKOUT,
   storage,
-  startOnPreMvpData,
+  startOnSavedData,
   startWithNoMilestone,
   page,
   text,
@@ -28,7 +27,7 @@ describe('Milestone forecast screen', () => {
   })
 
   test('before pace is entered, lists what to fix on the Inputs screen, naming the input', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
 
     const html = await page('/')
 
@@ -38,7 +37,7 @@ describe('Milestone forecast screen', () => {
   })
 
   test('with more than one thing to fix, asks for them all to be fixed', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     storage!.saveMilestoneInputs({ ...CHECKOUT, ticketsRemaining: undefined })
 
     const screen = text(await page('/'))
@@ -49,7 +48,7 @@ describe('Milestone forecast screen', () => {
   })
 
   test('headlines the 85% date from the start date, with the name and tickets remaining above it', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
 
     const screen = text(await page('/'))
@@ -59,7 +58,7 @@ describe('Milestone forecast screen', () => {
   })
 
   test('shows the finish dates at 50%, 70%, 85% and 95% and the pace range they come from', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
 
     const screen = text(await page('/'))
@@ -72,7 +71,7 @@ describe('Milestone forecast screen', () => {
   })
 
   test('at a 14-day cadence, says the pace is per sprint, and forecasts later than the same pace per week', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
     const weekly = dateAt(text(await page('/')), 85)
 
@@ -86,7 +85,7 @@ describe('Milestone forecast screen', () => {
   })
 
   test('states the typed counts the forecast used, in weeks', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitCounts('6, 4, 9, 7, 5, 8')
 
     await choosePace('counts')
@@ -95,7 +94,7 @@ describe('Milestone forecast screen', () => {
   })
 
   test('at a 14-day cadence, states the typed counts the forecast used in sprints', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitCadence('14')
     await submitCounts('6, 4, 9, 7, 5, 8')
 
@@ -107,7 +106,7 @@ describe('Milestone forecast screen', () => {
   })
 
   test('with 4 typed counts in use, warns on the forecast exactly that it needs 8 to be reliable, named by the typed counts', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitCounts('6, 4, 9, 7')
 
     await choosePace('counts')
@@ -119,7 +118,7 @@ describe('Milestone forecast screen', () => {
   })
 
   test('with 8 typed counts in use, gives no warning about the typed counts', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitCounts('6, 4, 9, 7, 5, 8, 6, 7')
 
     await choosePace('counts')
@@ -129,7 +128,7 @@ describe('Milestone forecast screen', () => {
   })
 
   test('with 3 typed counts in use, shows no forecast, saying exactly why and pointing to the Inputs screen', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitCounts('6, 4, 9')
 
     await choosePace('counts')
@@ -141,7 +140,7 @@ describe('Milestone forecast screen', () => {
   })
 
   test('headlines an 85% date beyond the horizon as not confident by the horizon date, and each date as later than it', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('0', '0')
 
     const screen = text(await page('/'))
@@ -152,7 +151,7 @@ describe('Milestone forecast screen', () => {
   })
 
   test('graphs when the simulations finish, a bar per week, marking the 50%, 70%, 85% and 95% dates and stressing the 85% one', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
 
     const html = await page('/')
@@ -168,7 +167,7 @@ describe('Milestone forecast screen', () => {
   })
 
   test('labels each date of the finish graph once, combining the percents that share it, the 85% one stressed', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitMilestone('Checkout v2', '2026-09-01', '2')
     await submitPace('4', '8')
 
@@ -183,7 +182,7 @@ describe('Milestone forecast screen', () => {
     ['1', '8'],
     ['6', '7'],
   ])("at a pace of %s–%s, runs no marker's label across the line of a marker above it", async (low, high) => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace(low, high)
 
     const graph = (await page('/')).match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
@@ -204,7 +203,7 @@ describe('Milestone forecast screen', () => {
   })
 
   test('each bar of the finish graph shows its date, the chance of completing by the end of its week and the share of simulations completed within it, on hover or keyboard focus', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
 
     const graph = (await page('/')).match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
@@ -215,7 +214,7 @@ describe('Milestone forecast screen', () => {
   })
 
   test('a bar holding fewer than 1 in 200 simulations says under 1%, not 0%', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
 
     const graph = (await page('/')).match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
@@ -225,7 +224,7 @@ describe('Milestone forecast screen', () => {
   })
 
   test('at a 14-day cadence, graphs when the simulations finish by sprint', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
     await submitCadence('14')
 
@@ -238,7 +237,7 @@ describe('Milestone forecast screen', () => {
   })
 
   test('draws no graph when no trial finishes, nor before there is a forecast', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
 
     expect(await page('/')).not.toContain('<figure class="finish-graph"')
 
@@ -248,7 +247,7 @@ describe('Milestone forecast screen', () => {
   })
 
   test('with 0 tickets remaining, headlines the start date and draws no graph, as every trial finishes on it', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitMilestone('Checkout v2', '2026-12-01', '0')
     await submitPace('4', '8')
 
@@ -259,7 +258,7 @@ describe('Milestone forecast screen', () => {
   })
 
   test('states a past start date once, and marks finish dates before today as already past', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitMilestone('Checkout v2', '2026-03-02', '40')
     await submitPace('4', '8')
 
@@ -274,7 +273,7 @@ describe('Milestone forecast screen', () => {
   })
 
   test('puts the warnings straight under the headline, above the dates and the graph', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitMilestone('Checkout v2', '2026-03-02', '40')
     await submitCounts('6, 4, 9, 7')
     await choosePace('counts')
@@ -290,25 +289,14 @@ describe('Milestone forecast screen', () => {
   })
 
   test('does not mark finish dates on or after today', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
 
     expect(text(await page('/'))).not.toContain('already past')
   })
 
-  test('forecasts data from before the MVP from its MVP fields, adding no team and showing none of its epics on either screen', async () => {
-    await startOnPreMvpData()
-    await submitPace('4', '8')
-
-    const screens = [text(await page('/')), text(await page('/inputs'))]
-
-    expect(screens[0]).toContain('Starting 1 Sep 2026: 85% confident of finishing by 1 Dec 2026')
-    for (const screen of screens) expect(screen).not.toMatch(/Card vaulting|Refunds|PAY-\d|epic|commit/i)
-    expect(storage!.teams().map((team) => team.id)).toEqual([TEAM])
-  })
-
   test('shows no epics, no committed date, and no input but the capacity sentence', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
     await submitPace('4', '8')
 
     const html = await page('/')

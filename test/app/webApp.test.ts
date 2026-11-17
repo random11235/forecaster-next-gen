@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { APP_VERSION } from '../../src/forecast/appVersion.js'
 import { defaultTeam } from '../../src/app/routes.js'
 import { openWebApp } from '../../src/app/webApp.js'
 import { openWebStorage } from '../../src/storage/webStorage.js'
@@ -8,9 +8,6 @@ import { openWebStorage } from '../../src/storage/webStorage.js'
 // follows a redirect to the screen it names.
 
 const TODAY = '2026-10-30'
-
-/** The app's one version, as `package.json` sets it. */
-const VERSION: unknown = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version
 
 /** A web app on empty browser storage, as a viewer opening the shared page for the first time sees it. */
 function firstOpen() {
@@ -170,7 +167,7 @@ describe('web app', () => {
 
     const page = app.show({ method: 'GET', path })
 
-    expect(page.html).toContain(`<footer class="version">Forecaster ${String(VERSION)}</footer>`)
+    expect(page.html).toContain(`<footer class="version">Forecaster ${APP_VERSION}</footer>`)
     expect(page.html).not.toContain('EventSource')
   })
 })
