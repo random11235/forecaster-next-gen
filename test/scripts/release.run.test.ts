@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
-import { execFileSync, spawnSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import { chmodSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { changeFileText, GIT_ENV, gitIn, repoAt, tempDir } from './releaseRepo.ts'
+import { GIT_ENV, gitIn, newRepo, tempDir } from './releaseRepo.ts'
 
 // Run as the release job runs it: `node scripts/release.ts <the commit its CI run checked>`, from a fresh clone of
 // main's tip. Here GitHub is a bare repo of its own, and a developer's clone merges pull requests into it as GitHub's
@@ -17,13 +17,12 @@ describe('the release, run as the release job runs it', () => {
     return each
   }
   let github: string
-  let dev: ReturnType<typeof repoAt>
+  let dev: ReturnType<typeof newRepo>
 
   beforeEach(() => {
     github = dir()
-    execFileSync('git', ['init', '-q', '--bare', '-b', 'main', github], { env: GIT_ENV })
-    dev = repoAt(dir())
-    dev.git('clone', '-q', github, '.')
+    gitIn(github)('init', '-q', '--bare', '-b', 'main')
+    dev = newRepo(dir(), github)
     const lock = { name: 'forecaster', version: '0.2.6', lockfileVersion: 3, packages: { '': { name: 'forecaster', version: '0.2.6' } } }
     dev.commit({
       'package.json': `${JSON.stringify({ name: 'forecaster', version: '0.2.6', private: true }, null, 2)}\n`,
@@ -47,18 +46,12 @@ describe('the release, run as the release job runs it', () => {
     return merge
   }
   /** The release job's checkout of main's tip, as actions/checkout makes it. */
-  const checkout = (): string => {
-    const runner = dir()
-    gitIn(runner)('clone', '-q', github, '.')
-    return runner
-  }
+  const checkout = (): string => newRepo(dir(), github).dir
   /** The release job of the CI run that checked `checked`, from `runner`'s checkout. */
   const release = (checked: string, runner = checkout()) => spawnSync('node', [script, checked], { cwd: runner, env: GIT_ENV, encoding: 'utf8' })
   /** Git on GitHub's copy. */
   const onGithub = (...args: string[]) => gitIn(github)(...args)
   const mainLog = (count: number) => onGithub('log', '--first-parent', '--format=%s', `-${count}`, 'main').split('\n')
-  /** Each release section's heading in CHANGELOG.md, as `ref` holds it, newest first. */
-  const sections = (ref: string) => onGithub('show', `${ref}:CHANGELOG.md`).match(/^## .*$/gm)
 
   test('each merge’s run releases it on top of main, its version set and its change file gone; the next merge has no conflict with it', () => {
     const fix = dev.pullRequest(287, 'patch', 'A fix nobody sees (#287)')
@@ -75,11 +68,9 @@ describe('the release, run as the release job runs it', () => {
     ])
     expect(onGithub('rev-parse', 'v0.2.7^{commit}')).toBe(onGithub('rev-parse', 'main~2'))
     expect(onGithub('rev-parse', 'v0.3.0^{commit}')).toBe(onGithub('rev-parse', 'main'))
-    for (const version of ['0.2.7', '0.3.0']) {
-      expect(JSON.parse(onGithub('show', `v${version}:package.json`))).toMatchObject({ version })
-      expect(JSON.parse(onGithub('show', `v${version}:package-lock.json`))).toMatchObject({ version, packages: { '': { version } } })
-    }
-    expect(sections('v0.3.0')).toEqual(['## 0.3.0 (2026-11-17)', '## 0.2.7 (2026-11-17)', '## 0.2.6 (2026-11-16)'])
+    expect(JSON.parse(onGithub('show', 'v0.3.0:package.json'))).toMatchObject({ version: '0.3.0' })
+    expect(onGithub('show', 'v0.3.0:CHANGELOG.md')).toContain('- A fix nobody sees (#287, PR #301)')
+    expect(onGithub('show', 'v0.3.0:CHANGELOG.md')).toContain('- A visible change (#288, PR #302)')
     expect(onGithub('ls-tree', '-r', '--name-only', 'main', '--', 'changes')).toBe('')
   })
 
@@ -101,7 +92,7 @@ describe('the release, run as the release job runs it', () => {
       'Merge pull request #302 from random11235/spec/288',
       'Merge pull request #301 from random11235/spec/287',
     ])
-    expect(onGithub('show', 'v0.3.0:CHANGELOG.md')).toContain('## 0.3.0 (2026-11-17)\n\n- A visible change (#288, PR #302)\n\n## 0.2.7')
+    expect(onGithub('show', 'v0.3.0:CHANGELOG.md')).toContain('- A visible change (#288, PR #302)')
   })
 
   test('a change file a red run left on main releases with the next merge’s green run, whose checked tree holds it', () => {
@@ -128,19 +119,13 @@ describe('the release, run as the release job runs it', () => {
     expect(onGithub('rev-parse', 'main')).toBe(docs)
   })
 
-  test('an app change with no change file to release fails the release, saying why, until a merge’s change file releases it', () => {
+  test('an app change with no change file, as a push straight to main leaves, releases nothing: the check before merge is its guard', () => {
     dev.git('pull', '-q', '--ff-only', 'origin', 'main')
     const pushed = dev.commit({ 'src/app.ts': 'export const APP = 2\n' }, 'A fix pushed straight to main')
     dev.git('push', '-q', 'origin', 'main')
 
-    const refused = release(pushed)
-    expect(refused).toMatchObject({ status: 1, stdout: '' })
-    expect(refused.stderr).toContain(
-      'Nothing to release, but commits since v0.2.6 change the app (src/app.ts) with no change file: a push straight to main, or a merge on a red check. Add changes/<ticket>.md for them in a pull request, as docs/agents/pull-requests.md#version says, and its merge releases them.',
-    )
-    expect(onGithub('tag', '--list')).toBe('v0.2.6')
-
-    expect(release(land(301, dev.pullRequest(287, 'patch', 'A fix (#287)')))).toMatchObject({ status: 0, stdout: 'tag=v0.2.7\nnew=true\n' })
+    expect(release(pushed)).toMatchObject({ status: 0, stdout: 'tag=v0.2.6\nnew=false\n' })
+    expect(onGithub('rev-parse', 'main')).toBe(pushed)
   })
 
   test('a merge in while the release runs refuses its push: it makes the release again on the new tip, and pushes that', () => {

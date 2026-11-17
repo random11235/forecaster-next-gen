@@ -5,8 +5,11 @@
 export const MAX_TOKENS = 5_000
 
 const COVERED = /\.(ts|js|cjs|mjs|md|html|css)$/
-/** Kept as written or imported from elsewhere, like `.prettierignore`'s second group. */
-const EXEMPT = [/^docs\/research\//, /^docs\/design\/.*\.html$/, /^\.claude\//]
+/**
+ * Kept as written or imported from elsewhere, like `.prettierignore`'s second group; and CHANGELOG.md, which grows by a
+ * section each release, written by the release, not a PR (docs/design/architecture.md#release).
+ */
+const EXEMPT = [/^docs\/research\//, /^docs\/design\/.*\.html$/, /^\.claude\//, /^CHANGELOG\.md$/]
 
 export interface Sized {
   path: string

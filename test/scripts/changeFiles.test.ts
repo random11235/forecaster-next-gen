@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { addSection, changeFileProblems } from '../../scripts/changeFiles.ts'
+import { addSection, changeFileProblems, withVersion } from '../../scripts/changeFiles.ts'
 import { changeFileText } from './releaseRepo.ts'
 
 /** A branch as the check reads it: each file at its base and at its head, a file missing from one absent there. */
@@ -107,6 +107,20 @@ describe('the change-file check on a branch', () => {
       branch({ 'CHANGELOG.md': changelog('What shipped.', released) }, { 'CHANGELOG.md': changelog('What shipped.', `- A new line (#288)\n${released}`) }),
     ).toEqual([`This branch edits the entries in CHANGELOG.md: leave them, as the release writes each from its change file, ${HOW}.`])
     expect(branch({ 'CHANGELOG.md': changelog('What shipped.', released) }, { 'CHANGELOG.md': changelog('What each version shipped.', released) })).toEqual([])
+  })
+})
+
+// The release sets the version in each place package.json and package-lock.json hold it.
+describe('the version the release sets', () => {
+  test('in package.json’s `version`, and in package-lock.json’s and its own package’s there, leaving the rest', () => {
+    const lock = { name: 'forecaster', version: '0.2.6', packages: { '': { name: 'forecaster', version: '0.2.6' }, 'node_modules/x': { version: '1.0.0' } } }
+
+    expect(JSON.parse(withVersion('{ "name": "forecaster", "version": "0.2.6" }', '0.3.0'))).toEqual({ name: 'forecaster', version: '0.3.0' })
+    expect(JSON.parse(withVersion(JSON.stringify(lock), '0.3.0'))).toEqual({
+      name: 'forecaster',
+      version: '0.3.0',
+      packages: { '': { name: 'forecaster', version: '0.3.0' }, 'node_modules/x': { version: '1.0.0' } },
+    })
   })
 })
 

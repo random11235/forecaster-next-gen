@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
-import { execFileSync } from 'node:child_process'
 import { rmSync } from 'node:fs'
 import { mergedChangeFiles, nextRelease } from '../../scripts/release.ts'
-import { changeFileText, GIT_ENV, rawGitIn, repoAt, tempDir } from './releaseRepo.ts'
+import { changeFileText, newRepo, rawGitIn } from './releaseRepo.ts'
 
 /** A change file of `bump` on main, brought by PR `pr`. */
 const change = (bump: string, line: string, pr?: number, path = 'changes/230.md') => ({ path, text: changeFileText(bump, line), pr })
@@ -74,12 +73,10 @@ describe('the release the change files make', () => {
 // Which change files a release takes, from a checkout of main's tip, and the PR that brought each onto main: here in a
 // repo of its own, its main made of merges as GitHub's merge button makes them.
 describe('the change files on main a release takes', () => {
-  let main: ReturnType<typeof repoAt>
+  let main: ReturnType<typeof newRepo>
 
   beforeEach(() => {
-    const dir = tempDir()
-    execFileSync('git', ['init', '-q', '-b', 'main', dir], { env: GIT_ENV })
-    main = repoAt(dir)
+    main = newRepo()
     main.commit({ 'src/app.ts': 'export const APP = 1\n' })
   })
 
@@ -114,6 +111,31 @@ describe('the change files on main a release takes', () => {
     main.merge(302, visible)
 
     expect(taken(checked).map(({ path }) => path)).toEqual(['changes/287.md'])
+  })
+
+  test('only those as the checked commit holds them: one a later merge re-adds or edits is left to that merge’s run', () => {
+    const released = main.merge(301, main.pullRequest(287, 'patch', 'A fix (#287)'))
+    main.git('rm', '-q', 'changes/287.md')
+    main.git('commit', '-q', '-m', 'Version 0.2.7')
+    main.git('checkout', '-q', '-b', 'spec/287-more')
+    main.commit({ 'changes/287.md': changeFileText('minor', 'The rest of the fix (#287)') })
+    main.git('checkout', '-q', 'main')
+    main.merge(305, 'spec/287-more')
+
+    expect(taken(released)).toEqual([])
+    expect(taken()).toEqual([{ path: 'changes/287.md', text: changeFileText('minor', 'The rest of the fix (#287)'), pr: 305 }])
+
+    const edited = main.merge(306, main.pullRequest(288, 'patch', 'A fix (#288)'))
+    main.git('checkout', '-q', '-b', 'spec/288-bigger')
+    main.commit({ 'changes/288.md': changeFileText('minor', 'A visible fix (#288)') })
+    main.git('checkout', '-q', 'main')
+    main.merge(307, 'spec/288-bigger')
+
+    expect(taken(edited).map(({ path }) => path)).toEqual(['changes/287.md'])
+    expect(taken().map(({ path, text }) => ({ path, text }))).toEqual([
+      { path: 'changes/287.md', text: changeFileText('minor', 'The rest of the fix (#287)') },
+      { path: 'changes/288.md', text: changeFileText('minor', 'A visible fix (#288)') },
+    ])
   })
 
   test('one a push straight to main added has no PR, and keeps its place among the merges', () => {
