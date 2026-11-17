@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import type { Transport } from '../../../src/connectors/connector.js'
-import { jiraConnector } from '../../../src/connectors/jira/jiraConnector.js'
+import { jiraConnector } from '../../../src/connectors/jira.js'
 import { recordJira } from '../../../scripts/record.js'
 
 // The recording script's Jira logic, on a stand-in Jira: what it keeps of each response, and what it says when the

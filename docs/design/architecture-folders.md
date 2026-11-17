@@ -52,6 +52,9 @@ src/
   connectors/             # what reads the team's tickets from its tracker; everything tracker-specific stays inside one
     connector.ts          # the interface and its shared types: Ticket, Failure, ReadResult, Choice, ChoicesOfKind; a connector takes its Connection from `model/`
     remote.ts             # what the network connectors share: sending a request (only a network failure is unavailable), status to failure, the scope check, the finishedSince filter
+    canned.ts             # the canned connector's entry point: its factory, its fixture's type and demo mode's connector; outside code imports this, never canned/
+    github.ts             # the GitHub connector's entry point: its factory; outside code imports this, never github/
+    jira.ts               # the Jira connector's entry point: its factory; outside code imports this, never jira/
     canned/               # the canned connector, answering from a fixture in the connector's own shape; Seam B tests use it
       demo.ts             # demo mode's connector: the synthetic fixture, refusing the token `refused` and a repo or project named `unknown`
       demoFixture.json    # demo mode's synthetic fixture: made up, no real team's data
