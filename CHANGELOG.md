@@ -2,6 +2,12 @@
 
 What each version of the app shipped, newest first. The version is the one in every screen's footer: a fix is in the app you're running if its version is the footer's or older. Each PR that bumps the version adds its line here, as [`docs/agents/pull-requests.md`](docs/agents/pull-requests.md#version) sets out.
 
+## 0.2.3 (2026-11-17)
+
+- The pre-MVP data-file case moves to the migration tests, with no change to the app (#239, PR #284)
+- A pre-push hook runs the checks CI runs, so red code doesn't reach main (#240, PR #284)
+- Each merge to main is a release, tagged with the footer's version (#241, PR #284)
+
 ## 0.2.1 (2026-11-16)
 
 - The local server refuses requests from other sites (#270, PR #277)
