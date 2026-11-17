@@ -33,7 +33,7 @@ A docs-only PR doesn't bump it. An open page reloads itself when the app restart
 
 ## A PR merges only on a green `check` and `browser`
 
-A PR merges only when CI's `check` and `browser` jobs are both green: the two the release after a merge to `main` waits on. Nothing on GitHub enforces it (branch protection needs the repo public or on GitHub Pro), so the merger checks. Locally, the pre-push hook (`.husky/pre-push`, installed by `npm install`) runs `npm run check`, the typecheck and the tests, and refuses a push that fails it. Don't bypass it with `--no-verify`.
+A PR merges only when CI's `check` and `browser` jobs are both green: the two the release after a merge to `main` waits on. Nothing on GitHub enforces it (branch protection needs the repo public or on GitHub Pro), so the merger checks. Locally, the pre-push hook (`.husky/pre-push`, installed by `npm install`) runs `npm run check`, the checks CI's `check` job runs (the typecheck, the migration check, Prettier and the file-size limit on the branch's changes since `origin/main`, then the tests), and refuses a push that fails it. Don't bypass it with `--no-verify`.
 
 ## After a PR merges
 
