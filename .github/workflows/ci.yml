@@ -111,8 +111,9 @@ jobs:
   # Each merge to main is a release an EM can name and run (#241): once the checks and the browser check pass, the
   # merge is tagged `v` and package.json's version (scripts/releaseTag.ts), which every screen's footer shows, and a
   # GitHub release carries the built app and the web build's page. A red check runs no release, so makes no tag. A merge
-  # that doesn't bump the version (docs only) releases nothing: its version is released already, with the same app. A
-  # version below the last release fails the job, saying so. Checked by a real merge, not by tests.
+  # that doesn't bump the version and changes no app file (docs only) releases nothing: its version is released already,
+  # with the same app. One that changes the app without bumping it, or sets a version below the last release, fails the
+  # job, saying so. Checked by a real merge, not by tests.
   release:
     needs: [check, browser]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
