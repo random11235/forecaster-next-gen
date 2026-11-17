@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'vitest'
 import { jiraConnector } from '../../../src/connectors/jira.js'
 import { mustNotWait } from '../backoff.js'
-import { CONNECTION, jiraListing, type Listing, many } from './jiraStandIn.js'
+import { numbered } from '../../numbered.js'
+import { CONNECTION, jiraListing, type Listing } from './jiraStandIn.js'
 import { jiraSubject } from './jiraSubject.js'
 
 /** The milestone choices from a stand-in Jira listing `listing`. */
@@ -54,7 +55,7 @@ describe('Jira milestone choices', () => {
   })
 
   test('with more than 100 unreleased fix versions, list 100, marked past the limit', async () => {
-    const versions = many(102, (n) => ({ id: String(n), name: `V${n}`, released: n === 1, archived: false }))
+    const versions = numbered(102, (n) => ({ id: String(n), name: `V${n}`, released: n === 1, archived: false }))
 
     const [fixVersions] = await choicesListing({ versions })
 
@@ -64,7 +65,7 @@ describe('Jira milestone choices', () => {
   })
 
   test('with exactly 100 unreleased fix versions, list them all, not past the limit', async () => {
-    const versions = many(101, (n) => ({ id: String(n), name: `V${n}`, released: false, archived: n === 101 }))
+    const versions = numbered(101, (n) => ({ id: String(n), name: `V${n}`, released: false, archived: n === 101 }))
 
     const [fixVersions] = await choicesListing({ versions })
 
@@ -85,7 +86,7 @@ describe('Jira milestone choices', () => {
   })
 
   test('with a page of epics after the first 100, list 100, marked past the limit', async () => {
-    const [, epics] = await choicesListing({ epics: many(100, (n) => ({ key: `SYN-${n}`, summary: `E${n}` })), moreEpics: true })
+    const [, epics] = await choicesListing({ epics: numbered(100, (n) => ({ key: `SYN-${n}`, summary: `E${n}` })), moreEpics: true })
 
     expect(epics!.choices).toHaveLength(100)
     expect(epics!.pastLimit).toBe(true)
@@ -101,7 +102,7 @@ describe('Jira milestone choices', () => {
   })
 
   test('with a page of labels after the first 100, list 100, marked past the limit', async () => {
-    const [, , labels] = await choicesListing({ labels: many(100, (n) => `l${n}`), moreLabels: true })
+    const [, , labels] = await choicesListing({ labels: numbered(100, (n) => `l${n}`), moreLabels: true })
 
     expect(labels!.choices).toHaveLength(100)
     expect(labels!.pastLimit).toBe(true)

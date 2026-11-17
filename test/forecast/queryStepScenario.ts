@@ -1,17 +1,14 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { afterEach, beforeEach } from 'vitest'
+import { beforeEach } from 'vitest'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned.js'
 import type { Choice, Connector } from '../../src/connectors/connector.js'
-import { submitConnection } from '../../src/forecast/connection.js'
+import { submitConnection, type ConnectionEdit } from '../../src/forecast/connection.js'
 import type { QueryStepping } from '../../src/forecast/queryStep.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
-import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
-import type { TeamStorage } from '../trackerScenario.js'
+import { currentStorage, openStorage, useTempDatabase } from '../tempDatabase.js'
 
 // The arrangement shared by the Milestone step's tests (#191): a team in a fresh database for each test, the canned
-// connector's choices and reads, and the means to connect and to change the step. Importing it sets the database up.
+// connector's choices and reads, and the means to connect and to change the step. Each test file calls
+// `useTeamDatabase()`, and reaches its storage through test/tempDatabase.ts.
 
 export const TEAM = 'team'
 export const READ_AT = '2026-11-12T09:00:00Z'
@@ -40,26 +37,14 @@ export const FIXTURE: CannedFixture = {
   },
 }
 
-let dir: string
-let file: string
-export let storage: TeamStorage
-
-beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), 'forecaster-milestone-step-'))
-  file = join(dir, 'forecaster.db')
-  storage = openSqliteStorage(file)
-  storage.saveTeam({ id: TEAM, name: 'My team', source: 'manual', sourceRef: '', installedAt: '2026-01-01T00:00:00Z' })
-  storage.saveSetupState(TEAM, { open: false, closed: 'done' })
-})
-
-afterEach(() => {
-  storage.close()
-  rmSync(dir, { recursive: true, force: true })
-})
-
-/** Opens the database file again, as a restart would, in place of `storage`. */
-export function reopenStorage(): void {
-  storage = openSqliteStorage(file)
+/** Gives each test of the calling file the team, set up, in a fresh database file, closed and removed after. */
+export function useTeamDatabase(): void {
+  useTempDatabase('forecaster-milestone-step-')
+  beforeEach(() => {
+    const storage = openStorage()
+    storage.saveTeam({ id: TEAM, name: 'My team', source: 'manual', sourceRef: '', installedAt: '2026-01-01T00:00:00Z' })
+    storage.saveSetupState(TEAM, { open: false, closed: 'done' })
+  })
 }
 
 /** The local build's means to connect, on the canned connector answering from `fixture`, counting its calls. */
@@ -80,15 +65,21 @@ export function connecting(fixture: CannedFixture = FIXTURE): QueryStepping & { 
       return canned.read(query, since)
     },
   })
+  const storage = currentStorage()
   return { connections: storage, queries: storage, setup: storage, secrets: openMemorySecrets(), connector, milestoneInputs: storage, at: AT, calls }
 }
 
-/** Connected to a GitHub repo, with no calls counted yet. */
-export async function connected(fixture: CannedFixture = FIXTURE): Promise<ReturnType<typeof connecting>> {
+/** The means to connect on `fixture`, connected as `edit` says, with no calls counted yet. */
+async function connectedAs(fixture: CannedFixture, edit: Extract<ConnectionEdit, { kind: 'connect' }>): Promise<ReturnType<typeof connecting>> {
   const using = connecting(fixture)
-  await submitConnection(using, TEAM, { kind: 'connect', tracker: 'github', repo: 'shop-team/shop', site: '', projectKey: '', email: '', token: 'token' })
+  await submitConnection(using, TEAM, edit)
   using.calls.choices = 0
   return using
+}
+
+/** Connected to a GitHub repo, with no calls counted yet. */
+export function connected(fixture: CannedFixture = FIXTURE): Promise<ReturnType<typeof connecting>> {
+  return connectedAs(fixture, { kind: 'connect', tracker: 'github', repo: 'shop-team/shop', site: '', projectKey: '', email: '', token: 'token' })
 }
 
 export const add = (choice: Choice) => ({ kind: 'addPick', choice }) as const
@@ -102,10 +93,9 @@ export function reading(query: string, read: CannedFixture['reads'][string]): Ca
   return { ...FIXTURE, reads: { ...FIXTURE.reads, [query]: read } }
 }
 
-/** The means to connect on `fixture`, connected to the Jira project SHOP. */
-export async function connectedToJira(fixture: CannedFixture): Promise<ReturnType<typeof connecting>> {
-  const using = connecting(fixture)
-  await submitConnection(using, TEAM, {
+/** Connected to the Jira project SHOP, with no calls counted yet. */
+export function connectedToJira(fixture: CannedFixture): Promise<ReturnType<typeof connecting>> {
+  return connectedAs(fixture, {
     kind: 'connect',
     tracker: 'jira',
     repo: '',
@@ -114,5 +104,4 @@ export async function connectedToJira(fixture: CannedFixture): Promise<ReturnTyp
     email: 'em@shop.test',
     token: 'token',
   })
-  return using
 }

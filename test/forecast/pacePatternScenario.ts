@@ -1,16 +1,13 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { afterEach, beforeEach } from 'vitest'
 import { submitInputs, type InputsEdit } from '../../src/forecast/inputs.js'
 import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
-import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
+import { openStorage } from '../tempDatabase.js'
 
 // Pace patterns (#161): the tool reads the shape of the counts the Pace bars show and names it, with the team's
 // numbers and never a cause, and where there's a forecast action it offers it with the 85% date both ways.
 // The arrangement shared by the pacePattern.*.test.ts files: a milestone in a fresh file, its pace typed counts.
+// Each calls `useTempDatabase()` for the file.
 
 export const TEAM = 'ACME'
 /** A Wednesday, in the second week from the start date. */
@@ -20,29 +17,6 @@ export const TODAY = '2026-11-11'
  * one: the week of 2 Nov. Ten counts are the weeks from 31 Aug to 2 Nov.
  */
 export const START = '2026-11-02'
-
-let dir: string
-let storage: SqliteStorage | undefined
-
-/** Gives each test of the calling file a fresh temporary directory, closing its storage and removing it after. */
-export function useTempFile(): void {
-  beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), 'forecaster-pace-pattern-'))
-  })
-
-  afterEach(() => {
-    storage?.close()
-    storage = undefined
-    rmSync(dir, { recursive: true, force: true })
-  })
-}
-
-/** Opens the test's file, closing any storage it had open. */
-export function openStorage(): SqliteStorage {
-  storage?.close()
-  storage = openSqliteStorage(join(dir, 'forecaster.db'))
-  return storage
-}
 
 export function submit(storage: Storage, edit: InputsEdit) {
   return submitInputs(storage, TEAM, DEFAULT_SETTINGS, TODAY, edit)
