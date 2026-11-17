@@ -13,26 +13,34 @@ const out = new URL('../dist/web/forecaster.html', import.meta.url)
 const { openWebApp }: typeof import('../src/app/webApp.js') = await import(new URL('../dist/app/webApp.js', import.meta.url).href)
 const { openWebStorage }: typeof import('../src/storage/webStorage.js') = await import(new URL('../dist/storage/webStorage.js', import.meta.url).href)
 const { FONT_FACES }: typeof import('../src/app/fonts.js') = await import(new URL('../dist/app/fonts.js', import.meta.url).href)
+const { APP_VERSION }: typeof import('../src/forecast/appVersion.js') = await import(new URL('../dist/forecast/appVersion.js', import.meta.url).href)
+
 /**
- * `src/app/fonts.ts` reads its font files from disk, which a browser can't: the bundle gets the faces it read. Only that
- * module is swapped, matched by the file an import resolves to: another folder's file of the same name is its own (#280).
+ * What the bundle gets in place of a file, matched by the file an import resolves to: another folder's file of the same
+ * name is its own (#280). `src/app/fonts.ts` reads its font files from disk, which a browser can't, so the bundle gets
+ * the faces it read. `src/forecast/appVersion.ts` imports `package.json`, which the page is shared without (#57): the
+ * bundle gets its version alone, none of its scripts or dependencies.
  */
-const fonts = fileURLToPath(new URL('../src/app/fonts.js', import.meta.url))
-const inlineFonts: Plugin = {
-  name: 'inline-fonts',
+const INLINED: Record<string, string> = {
+  [fileURLToPath(new URL('../src/app/fonts.js', import.meta.url))]: `export const FONT_FACES = ${JSON.stringify(FONT_FACES)}`,
+  [fileURLToPath(new URL('../package.json', import.meta.url))]: `export default { version: ${JSON.stringify(APP_VERSION)} }`,
+}
+const inline: Plugin = {
+  name: 'inline',
   setup(build) {
-    build.onResolve({ filter: /\/fonts\.js$/ }, (args) =>
-      resolve(args.resolveDir, args.path) === fonts ? { path: 'fonts', namespace: 'inline-fonts' } : undefined,
-    )
-    build.onLoad({ filter: /^fonts$/, namespace: 'inline-fonts' }, () => ({
-      contents: `export const FONT_FACES = ${JSON.stringify(FONT_FACES)}`,
-      loader: 'js',
-    }))
+    build.onResolve({ filter: /\/(fonts\.js|package\.json)$/ }, (args) => {
+      const file = resolve(args.resolveDir, args.path)
+      return file in INLINED ? { path: file, namespace: 'inline' } : undefined
+    })
+    build.onLoad({ filter: /.*/, namespace: 'inline' }, (args) => {
+      const contents = INLINED[args.path]
+      return contents === undefined ? undefined : { contents, loader: 'js' }
+    })
   },
 }
 
 const bundled = await build({
-  plugins: [inlineFonts],
+  plugins: [inline],
   absWorkingDir: root,
   entryPoints: ['src/app/webMain.ts'],
   bundle: true,
