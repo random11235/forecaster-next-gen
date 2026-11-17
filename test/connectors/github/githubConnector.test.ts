@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import type { Transport } from '../../../src/connectors/connector.js'
-import { githubConnector } from '../../../src/connectors/github/githubConnector.js'
+import { githubConnector } from '../../../src/connectors/github.js'
 import { answering, mustNotWait, recordingWait } from '../backoff.js'
 import { replayTransport } from '../replayTransport.js'
 import { FROM_THE_START, GITHUB_QUIRKS } from '../scenarios.js'
