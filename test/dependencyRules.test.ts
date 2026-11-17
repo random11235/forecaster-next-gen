@@ -3,7 +3,8 @@ import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
 
-// The dependency rules in docs/design/architecture-dependency-rules.md that keep connectors/ and secrets/ at the edge.
+// The dependency rules in docs/design/architecture-dependency-rules.md that keep connectors/ and secrets/ at the edge,
+// and that keep package.json's one importer the module the web build gives its version alone.
 
 const src = fileURLToPath(new URL('../src', import.meta.url))
 
