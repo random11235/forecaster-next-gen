@@ -65,13 +65,26 @@ const TEST_SEAMS: Record<string, readonly string[]> = {
   scripts: ['forecast/appVersion.js'],
 }
 
-/** Imports outside their folder's seam, kept until each is fixed; each says why it is still here. */
-const TEMPORARY_EXCEPTIONS: { file: string; imported: string; why: string }[] = [
+type Exception = { file: string; imported: string; why: string }
+
+/** Imports outside their folder's seam that stay, each a test reading through a second seam on purpose; each says why. */
+const ALLOWED_BEYOND_SEAM: Exception[] = [
   {
     file: 'test/forecast/milestoneForecastView.test.ts',
     imported: 'engine/index.js',
-    why: 'the pace trend case expects the dates Seam A gives for the typed counts, run directly, rather than known-good dates',
+    why: 'the pace trend case expects the dates Seam A gives for the typed counts, an independent check of what Seam B shows',
   },
+  ...['forecast/inputs.js', 'forecast/milestoneForecastView.js', 'forecast/settings.js'].flatMap((imported) =>
+    ['test/storage/migrations.beforeTheMvp.test.ts', 'test/storage/migrations.v6to9.test.ts'].map((file) => ({
+      file,
+      imported,
+      why: "a migrated file is checked by what the forecast reads back from it, through Seam B's views",
+    })),
+  ),
+]
+
+/** Imports outside their folder's seam, kept until each is fixed; each says why it is still here. */
+const TEMPORARY_EXCEPTIONS: Exception[] = [
   {
     file: 'test/forecast/paceVersusOwn.test.ts',
     imported: 'forecast/paceVersusOwn.js',
@@ -82,13 +95,6 @@ const TEMPORARY_EXCEPTIONS: { file: string; imported: string; why: string }[] = 
     imported,
     why: 'names SetupStep and COUNTS_WAIT from below Seam B; the file is over the size limit, so the fix waits for its split',
   })),
-  ...['forecast/inputs.js', 'forecast/milestoneForecastView.js', 'forecast/settings.js'].flatMap((imported) =>
-    ['test/storage/migrations.beforeTheMvp.test.ts', 'test/storage/migrations.v6to9.test.ts'].map((file) => ({
-      file,
-      imported,
-      why: "a migration test checks what reads back through storage, but this one reads back through Seam B's views",
-    })),
-  ),
 ]
 
 describe('test seams', () => {
@@ -98,15 +104,18 @@ describe('test seams', () => {
       const allowed = TEST_SEAMS[parts.length > 2 ? parts[1]! : ''] ?? []
       return allowed.some((entry) => (entry.endsWith('/') ? dirname(imported) === entry.slice(0, -1) : imported === entry))
     }
-    const excepted = (file: string, imported: string) => TEMPORARY_EXCEPTIONS.some((ex) => ex.file === file && ex.imported === imported)
+    const excepted = (file: string, imported: string) =>
+      [...ALLOWED_BEYOND_SEAM, ...TEMPORARY_EXCEPTIONS].some((ex) => ex.file === file && ex.imported === imported)
     const outside = importsBeside('test').filter(({ file, imported }) => !imported.startsWith('../') && !allowedIn(file, imported) && !excepted(file, imported))
 
     expect(outside).toEqual([])
   })
 
-  test('each temporary exception is still needed', () => {
+  test('each exception is still needed', () => {
     const imports = importsBeside('test')
-    const fixed = TEMPORARY_EXCEPTIONS.filter((ex) => !imports.some(({ file, imported }) => file === ex.file && imported === ex.imported))
+    const fixed = [...ALLOWED_BEYOND_SEAM, ...TEMPORARY_EXCEPTIONS].filter(
+      (ex) => !imports.some(({ file, imported }) => file === ex.file && imported === ex.imported),
+    )
 
     expect(fixed).toEqual([])
   })
