@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import type { Transport } from '../../../src/connectors/connector.js'
-import { json as jsonResponse } from '../backoff.js'
+import { json as jsonResponse } from '../standIn.js'
 import { jiraConnector } from '../../../src/connectors/jira.js'
 import { recordJira } from '../../../scripts/record.js'
 

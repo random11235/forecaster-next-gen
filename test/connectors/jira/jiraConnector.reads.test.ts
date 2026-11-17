@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'vitest'
 import type { Transport } from '../../../src/connectors/connector.js'
 import { jiraConnector } from '../../../src/connectors/jira.js'
-import { json, mustNotWait, noWait } from '../backoff.js'
+import { mustNotWait, noWait } from '../backoff.js'
+import { json } from '../standIn.js'
 import { replayTransport } from '../replayTransport.js'
 import { answeringPastTenant, CONNECTION, jiraListing, SINCE, throughGateway } from './jiraStandIn.js'
 

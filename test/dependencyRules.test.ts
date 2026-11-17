@@ -16,25 +16,28 @@ function sourceFiles(dir: string): string[] {
   })
 }
 
-/** What the file at `path` imports, as paths relative to `src/`; `import type` too, unless `runtimeOnly`. */
+/**
+ * What the file at `path` imports, each its relative import resolved to a path relative to `src/`: `connectors/jira.js`
+ * for one in `src/`, `../test/...` or `../package.json` for one outside it; `import type` too, unless `runtimeOnly`.
+ */
 function importsAt(path: string, runtimeOnly = false): string[] {
   return [...readFileSync(path, 'utf8').matchAll(/(import|export)(\s+type\b)?[^'"]*from\s+'(\.[^']+)'/g)]
     .filter((match) => !(runtimeOnly && match[1] === 'import' && match[2]))
     .map((match) => relative(src, resolve(dirname(path), match[3]!)))
 }
 
-/** What `file` (a path under `src/`) imports from `src/`, as paths relative to `src/`; `import type` too, unless `runtimeOnly`. */
+/** What `file` (a path under `src/`) imports, as `importsAt` gives it; `import type` too, unless `runtimeOnly`. */
 function importsOf(file: string, runtimeOnly = false): string[] {
   return importsAt(join(src, file), runtimeOnly)
 }
 
-/** Each file under the repo's `folder` (beside `src/`) with what it imports, as paths relative to `src/`. */
+/** Each file under the repo's `folder` (beside `src/`) with what it imports, as `importsAt` gives it. */
 function importsBeside(folder: string): { file: string; imported: string }[] {
   const dir = join(src, '..', folder)
   return sourceFiles(dir).flatMap((path) => importsAt(path).map((imported) => ({ file: join(folder, relative(dir, path)), imported })))
 }
 
-/** Each file under `src/<folder>` with what it imports from `src/`, as paths relative to `src/`. */
+/** Each file under `src/<folder>` with what it imports, as `importsAt` gives it. */
 function importsFrom(folder: string): { file: string; imported: string }[] {
   return sourceFiles(join(src, folder)).flatMap((path) => {
     const file = relative(src, path)

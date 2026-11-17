@@ -1,5 +1,5 @@
 import type { Transport } from '../../../src/connectors/connector.js'
-import { answering, json } from '../backoff.js'
+import { answering, json } from '../standIn.js'
 
 // The arrangement the Jira connector's test files share: a connection, a window's start, and stand-in Jiras.
 

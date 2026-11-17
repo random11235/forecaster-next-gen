@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { jiraConnector } from '../../../src/connectors/jira.js'
-import { json, mustNotWait } from '../backoff.js'
+import { mustNotWait } from '../backoff.js'
+import { json } from '../standIn.js'
 import { numbered } from '../../numbered.js'
 import { answeringPastTenant, CONNECTION, jiraListing } from './jiraStandIn.js'
 
