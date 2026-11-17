@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest'
 import type { Transport } from '../../../src/connectors/connector.js'
 import { jiraConnector } from '../../../src/connectors/jira.js'
-import { mustNotWait } from '../backoff.js'
-import { CONNECTION, json, SINCE } from './jiraStandIn.js'
+import { json, mustNotWait } from '../backoff.js'
+import { CONNECTION, SINCE } from './jiraStandIn.js'
 
 /** A ticket in a stand-in Jira's hierarchy: its key, id and hierarchy level, and its parent's key. */
 interface Nested {
