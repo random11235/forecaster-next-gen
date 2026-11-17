@@ -16,42 +16,41 @@ const root = fileURLToPath(new URL('..', import.meta.url))
 const git = (...args: string[]): Buffer => execFileSync('git', args, { cwd: root, maxBuffer: 64 * 1024 * 1024 })
 
 const base = process.argv[2]
-// added, copied, modified or renamed: a deleted file has nothing to check
-const changed = (
-  base === undefined
-    ? git('diff', '--cached', '--name-only', '--diff-filter=ACMR', '-z')
-    : git('diff', '--name-only', '--diff-filter=ACMR', '-z', `${base}...HEAD`)
-)
-  .toString('utf8')
-  .split('\0')
-  .filter(Boolean)
-// the index for a commit, HEAD for a branch
+// for a branch, its merge-base with <base>: what `<base>...HEAD` diffs from
+const mergeBase = base === undefined ? undefined : git('merge-base', base, 'HEAD').toString('utf8').trim()
+// Every file the commit or branch changes, a deleted one too (deleting a source file changes the app), each with
+// whether it is deleted; renames as a deletion and an addition, so each path is one the commit or branch holds or not.
+const diff = git('diff', '--name-status', '--no-renames', '-z', ...(mergeBase === undefined ? ['--cached'] : [mergeBase, 'HEAD'])).toString('utf8')
+// each entry its status letter, then its path
+const changed = [...diff.matchAll(/([A-Z])\0([^\0]+)\0/g)].map(([, status, path = '']) => ({ path, deleted: status === 'D' }))
+// the index for a commit, HEAD for a branch; a deleted file has nothing to format or size
 const committed = (path: string): Buffer => git('show', base === undefined ? `:${path}` : `HEAD:${path}`)
-const files = changed.map((path) => ({ path, held: committed(path) }))
+const files = changed.filter(({ deleted }) => !deleted).map(({ path }) => ({ path, content: committed(path) }))
 let failed = false
 
-const notFormatted = await unformatted(files.map(({ path, held }) => ({ path, content: held.toString('utf8') })))
+const notFormatted = await unformatted(files.map(({ path, content }) => ({ path, content: content.toString('utf8') })))
 if (notFormatted.length > 0) {
   console.error(`Not formatted with Prettier:\n${notFormatted.map((path) => `  ${path}`).join('\n')}`)
   console.error('Run `npm run format` (or `npx prettier --write <file>`), then stage the result.\n')
   failed = true
 }
 
-const tooBig = oversized(files.map(({ path, held }) => ({ path, bytes: held.length })))
+const tooBig = oversized(files.map(({ path, content }) => ({ path, bytes: content.length })))
 if (tooBig.length > 0) {
   console.error(splitGuidance(tooBig))
   failed = true
 }
 
-if (base !== undefined) {
-  const mergeBase = git('merge-base', base, 'HEAD').toString('utf8').trim()
-  // deleted files too: deleting a source file changes the app
-  const branchChanged = git('diff', '--name-only', '-z', mergeBase, 'HEAD').toString('utf8').split('\0').filter(Boolean)
-  const held = (ref: string, path: string): string | undefined => {
+if (mergeBase !== undefined) {
+  /** The file at `path` as the commit `ref` holds it, or undefined where it holds none. */
+  const fileAt = (ref: string, path: string): string | undefined => {
     const listed = git('ls-tree', '--name-only', ref, '--', path).toString('utf8').trim()
     return listed === path ? git('show', `${ref}:${path}`).toString('utf8') : undefined
   }
-  const problems = changeFileProblems(branchChanged, (path, at) => held(at === 'base' ? mergeBase : 'HEAD', path))
+  const problems = changeFileProblems(
+    changed.map(({ path }) => path),
+    (path, at) => fileAt(at === 'base' ? mergeBase : 'HEAD', path),
+  )
   if (problems.length > 0) {
     console.error(`Change file:\n${problems.map((problem) => `  ${problem}`).join('\n')}\n`)
     failed = true

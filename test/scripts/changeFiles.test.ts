@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
-import { changeFileProblems } from '../../scripts/changeFiles.ts'
+import { addSection, changeFileProblems } from '../../scripts/changeFiles.ts'
+import { changeFileText } from './releaseRepo.ts'
 
 /** A branch as the check reads it: each file at its base and at its head, a file missing from one absent there. */
 function branch(base: Record<string, string>, head: Record<string, string>) {
@@ -7,16 +8,18 @@ function branch(base: Record<string, string>, head: Record<string, string>) {
   return changeFileProblems(changed, (path, at) => (at === 'base' ? base : head)[path])
 }
 
-const PATCH = '---\nbump: patch\n---\n\nNo import cycles in `src/`, with no change to the app (#230)\n'
+/** Where each of the check's messages points the developer. */
+const HOW = 'as docs/agents/pull-requests.md#version says'
+const noChangeFile = (app: string) =>
+  `This branch changes the app (${app}) but adds no change file: add changes/<ticket>.md, with \`bump: patch\`, \`minor\` or \`major\` in its front matter and the changelog line as its body, ${HOW}.`
+const PATCH = changeFileText('patch', 'No import cycles in `src/`, with no change to the app (#230)')
 
 // Before merge, `check:static` (so the pre-push hook and CI's check job) runs this on the files a branch changes since
 // its base: a branch that changes the app says how big its change is in a change file, and leaves the version alone.
 describe('the change-file check on a branch', () => {
   test('a branch that changes an app file but adds no change file fails, saying what to add', () => {
     for (const app of ['src/forecast/inputs.ts', 'package.json', 'package-lock.json', 'tsconfig.json', 'tsconfig.build.json', 'scripts/buildWeb.ts'])
-      expect(branch({ [app]: '{"before":1}' }, { [app]: '{"after":1}', 'docs/design/README.md': 'docs' })).toEqual([
-        `This branch changes the app (${app}) but adds no change file: add changes/<ticket>.md, with \`bump: patch\`, \`minor\` or \`major\` in its front matter and the changelog line as its body, as docs/agents/pull-requests.md#version says.`,
-      ])
+      expect(branch({ [app]: '{"before":1}' }, { [app]: '{"after":1}', 'docs/design/README.md': 'docs' })).toEqual([noChangeFile(app)])
   })
 
   test('a branch that changes the app and adds its change file passes', () => {
@@ -24,13 +27,25 @@ describe('the change-file check on a branch', () => {
   })
 
   test('a branch that changes no app file (docs, tests, CI, other scripts) needs no change file', () => {
-    const docsOnly = { 'README.md': 'after', 'docs/design/architecture.md': 'after', '.github/workflows/ci.yml': 'after', 'test/app/smoke.test.ts': 'after' }
+    const noAppFile = { 'README.md': 'after', 'docs/design/architecture.md': 'after', '.github/workflows/ci.yml': 'after', 'test/app/smoke.test.ts': 'after' }
 
-    expect(branch({}, { ...docsOnly, 'scripts/releaseTag.ts': 'after' })).toEqual([])
+    expect(branch({}, { ...noAppFile, 'scripts/release.ts': 'after' })).toEqual([])
   })
 
-  test('a branch that only deletes a change file adds none', () => {
-    expect(branch({ 'src/app/html.ts': 'before', 'changes/230.md': PATCH }, { 'src/app/html.ts': 'after' })).toHaveLength(1)
+  test('a branch that only deletes a change file, or edits one already on its base, adds none', () => {
+    expect(branch({ 'src/app/html.ts': 'before', 'changes/230.md': PATCH }, { 'src/app/html.ts': 'after' })).toEqual([noChangeFile('src/app/html.ts')])
+    expect(
+      branch(
+        { 'src/app/html.ts': 'before', 'changes/230.md': PATCH },
+        { 'src/app/html.ts': 'after', 'changes/230.md': changeFileText('minor', 'Bigger (#230)') },
+      ),
+    ).toEqual([noChangeFile('src/app/html.ts')])
+  })
+
+  test('a README in changes/ is not a change file: it neither counts as one nor is read as one', () => {
+    expect(branch({ 'src/app/html.ts': 'before' }, { 'src/app/html.ts': 'after', 'changes/README.md': '# Change files\n' })).toEqual([
+      noChangeFile('src/app/html.ts'),
+    ])
   })
 
   test('a change file whose bump is missing or not patch, minor or major fails, naming it', () => {
@@ -59,17 +74,19 @@ describe('the change-file check on a branch', () => {
     ])
   })
 
-  test('a branch that sets the version fails: the release sets it', () => {
-    const lock = (version: string) => JSON.stringify({ name: 'forecaster', version, packages: { '': { version } } }, null, 2)
+  test('a branch that sets the version fails, in package.json or either place package-lock.json holds it: the release sets it', () => {
+    const lock = (version: string, own = version) => JSON.stringify({ name: 'forecaster', version, packages: { '': { version: own } } }, null, 2)
+    const setIn = (path: string, from: string, to: string) =>
+      `This branch sets ${path}'s version (${from} to ${to}): leave it, as the release sets it from the change files, ${HOW}.`
 
     expect(
       branch(
         { 'package.json': '{ "version": "0.2.6", "private": true }', 'package-lock.json': lock('0.2.6') },
         { 'package.json': '{ "version": "0.2.7", "private": true }', 'package-lock.json': lock('0.2.7'), 'changes/230.md': PATCH },
       ),
-    ).toEqual([
-      `This branch sets package.json's version (0.2.6 to 0.2.7): leave it, as the release sets it from the change files, ${HOW}.`,
-      `This branch sets package-lock.json's version (0.2.6 to 0.2.7): leave it, as the release sets it from the change files, ${HOW}.`,
+    ).toEqual([setIn('package.json', '0.2.6', '0.2.7'), setIn('package-lock.json', '0.2.6', '0.2.7')])
+    expect(branch({ 'package-lock.json': lock('0.2.6') }, { 'package-lock.json': lock('0.2.6', '0.2.7'), 'changes/230.md': PATCH })).toEqual([
+      setIn('package-lock.json', '0.2.6', '0.2.7'),
     ])
   })
 
@@ -93,4 +110,18 @@ describe('the change-file check on a branch', () => {
   })
 })
 
-const HOW = 'as docs/agents/pull-requests.md#version says'
+// The release writes each version's section into CHANGELOG.md, newest first, below the header a branch may edit.
+describe('a release’s section in CHANGELOG.md', () => {
+  const HEADER = '# Changelog\n\nWhat each version of the app shipped, newest first.\n'
+  const SECTION = '## 0.2.7 (2026-11-17)\n\n- A fix (#287, PR #301)\n'
+
+  test('goes above the newest release’s, below the header', () => {
+    expect(addSection(`${HEADER}\n## 0.2.6 (2026-11-16)\n\n- Before (#230)\n`, SECTION)).toBe(
+      `${HEADER}\n${SECTION}\n## 0.2.6 (2026-11-16)\n\n- Before (#230)\n`,
+    )
+  })
+
+  test('in a CHANGELOG.md with no release yet, goes below the header, after a blank line', () => {
+    expect(addSection(HEADER, SECTION)).toBe(`${HEADER}\n${SECTION}`)
+  })
+})
