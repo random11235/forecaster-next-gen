@@ -9,7 +9,7 @@ import type { Storage } from '../../src/storage/storage.js'
 import { post as postForm, saveInPlace as saveFormInPlace } from './forms.js'
 
 // The screens through the local server, as the EM's browser sees them, on a data file written through `Storage`. A file
-// from before the MVP, holding the tables earlier releases wrote, is test/storage/migrations.test.ts's case.
+// from before the MVP, holding the tables earlier releases wrote, is test/storage/migrations.beforeTheMvp.test.ts's case.
 
 export const TEAM = 'PAY'
 export const CREATED = '2026-08-31T09:00:00Z'
