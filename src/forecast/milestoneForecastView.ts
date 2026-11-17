@@ -11,6 +11,7 @@ import {
   entryEffect,
   type CapacityUse,
   type CapacityView,
+  type ComparedDate,
   type EntryEffect,
   type PacePeriods,
 } from './capacity.js'
@@ -23,6 +24,8 @@ import type { PaceInUse } from './lib/pace.js'
 import { paceTrend, type PaceTrend } from './paceTrend.js'
 import type { ForecastSettings } from './settings.js'
 import { measureSaved, milestonePace, type ReadingTracker } from './trackerReads.js'
+
+export type { ComparedDate } from './capacity.js'
 
 /** The confidence level the headline states. */
 export const HEADLINE_PERCENT = 85
@@ -37,16 +40,6 @@ export interface ForecastDate {
   date: string | null
   /** The date is before today: a past start date can give a finish that has already gone by. */
   alreadyPast: boolean
-}
-
-/** One confidence level with capacity and at usual capacity, from the same draws. */
-export interface ComparedDate {
-  percent: number
-  /** ISO calendar dates, or null: later than the horizon date. */
-  withCapacity: string | null
-  atUsual: string | null
-  /** How many periods later (negative: sooner) capacity moves the date; null when either is later than the horizon. */
-  shift: number | null
 }
 
 /** One period's bar on the finish graph. Shares are fractions of all trials, from 0 to 1. */
