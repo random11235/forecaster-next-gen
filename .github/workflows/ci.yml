@@ -12,21 +12,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # the migration check reads main's schema
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      # The typecheck and tests below are `npm run check`'s steps, which the pre-push hook runs, split so the tests
-      # report coverage: a check added to `npm run check` is added here too
-      - run: npm run typecheck
-      - run: npm run check:migrations
-      # Prettier and the 5,000-token limit on the files this branch changes, as the pre-commit hook checks a commit
-      - run: npm run check:changes -- origin/${{ github.base_ref || 'main' }}
-      - name: Tests, with test coverage
+      - uses: ./.github/actions/setup
+      # `npm run check:ci` is `npm run check`, which the pre-push hook runs, with test coverage: both run one list of
+      # checks (`check:static`: the typecheck, the migration check, and Prettier and the 5,000-token limit on the files
+      # this branch changes since CHECK_BASE), then the tests. A check added there runs in both.
+      - name: Checks and tests, with test coverage
+        env:
+          CHECK_BASE: origin/${{ github.base_ref || 'main' }}
         run: |
           set -o pipefail
-          npm run test:coverage -- --exclude test/engine/benchmark.test.ts | tee test-coverage.txt
+          npm run check:ci | tee test-coverage.txt
       # timed apart from coverage, whose instrumentation slows the engine several times over
       - name: Benchmark
         run: npx vitest run test/engine/benchmark.test.ts
@@ -57,11 +52,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
+      - uses: ./.github/actions/setup
       # Chrome for Testing, and the libraries it needs on Linux
       - run: npx agent-browser install --with-deps
       - run: npm run check:browser
@@ -82,11 +73,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # the diff starts at the merge-base with the base branch
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
+      - uses: ./.github/actions/setup
       - name: Mutation tests
         run: |
           set -o pipefail
@@ -129,14 +116,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # the tags, to find the last release
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
+      - uses: ./.github/actions/setup
       - id: version
         run: node scripts/releaseTag.ts >> "$GITHUB_OUTPUT"
-      - if: steps.version.outputs.new == 'true'
-        run: npm ci
       # builds the app into dist/ and the web build's page into dist/web/forecaster.html
       - if: steps.version.outputs.new == 'true'
         run: npm run build:web
