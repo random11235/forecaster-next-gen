@@ -1,6 +1,6 @@
 # Changelog
 
-What each version of the app shipped, newest first. The version is the one in every screen's footer: a fix is in the app you're running if its version is the footer's or older. Each PR that bumps the version adds its line here, as [`docs/agents/pull-requests.md`](docs/agents/pull-requests.md#version) sets out.
+What each version of the app shipped, newest first. The version is the one in every screen's footer: a fix is in the app you're running if its version is the footer's or older. The release after each merge to `main` writes its section here, a line from each change file (`changes/<ticket>.md`) a PR that changes the app adds, as [`docs/agents/pull-requests.md`](docs/agents/pull-requests.md#version) sets out: a PR doesn't edit the entries below.
 
 ## 0.2.6 (2026-11-17)
 
