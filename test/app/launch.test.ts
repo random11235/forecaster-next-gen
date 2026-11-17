@@ -3,8 +3,6 @@ import { APP_VERSION } from '../../src/forecast/appVersion.js'
 import { request as httpRequest } from 'node:http'
 import { networkInterfaces } from 'node:os'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
-import { SAVE_IN_PLACE } from '../../src/app/inputsScript.js'
-import { defaultTeam } from '../../src/app/routes.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { QueryTarget, Storage } from '../../src/storage/storage.js'
 import { CHECKOUT, TEAM } from '../trackerScenario.js'
@@ -63,7 +61,7 @@ describe('one-command launch', () => {
     app = await startOnFreePort(storage)
 
     const [team] = storage.teams()
-    expect(storage.teams()).toEqual([defaultTeam(team!.installedAt)])
+    expect(storage.teams()).toEqual([{ id: 'team', name: 'My team', source: 'manual', sourceRef: '', installedAt: team!.installedAt }])
     expect(Date.parse(team!.installedAt)).toBeGreaterThanOrEqual(before)
     expect(Date.parse(team!.installedAt)).toBeLessThanOrEqual(Date.now())
   })
@@ -310,7 +308,7 @@ describe('refuses requests from other sites', () => {
     app = await startOnFreePort()
     const { host, origin } = new URL(app.url)
 
-    const answer = await postMilestone(app, { host, origin, [SAVE_IN_PLACE.header]: SAVE_IN_PLACE.value })
+    const answer = await postMilestone(app, { host, origin, 'forecaster-save': 'in-place' })
 
     expect(answer.status).toBeLessThan(400)
     expect(await milestoneSaved(app)).toBe(true)

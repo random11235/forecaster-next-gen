@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'vitest'
 import { APP_VERSION } from '../../src/forecast/appVersion.js'
-import { defaultTeam } from '../../src/app/routes.js'
 import { openWebApp } from '../../src/app/webApp.js'
 import { openWebStorage } from '../../src/storage/webStorage.js'
 
@@ -26,7 +25,7 @@ describe('web app', () => {
     expect(page).toMatchObject({ path: '/', status: 200 })
     expect(page.html).toContain('No milestone defined yet')
     expect(page.html).not.toContain('Checkout v2')
-    expect(storage.teams()).toEqual([defaultTeam(storage.teams()[0]!.installedAt)])
+    expect(storage.teams()).toEqual([{ id: 'team', name: 'My team', source: 'manual', sourceRef: '', installedAt: storage.teams()[0]!.installedAt }])
   })
 
   test('opened again on the same storage, adds no other team', () => {

@@ -1,5 +1,4 @@
 import { describe, expect, test } from 'vitest'
-import { SAVE_IN_PLACE } from '../../src/app/inputsScript.js'
 import { startOnSavedData, page, text, post, submitPace, submitCounts, choosePace, saveInPlace } from './screensHarness.js'
 
 // The screens through the local server: see screensHarness.ts.
@@ -120,7 +119,7 @@ describe('Inputs screen: saving as inputs change', () => {
 
     expect(scripts).toHaveLength(1)
     expect(scripts[0]![1]).toBe('')
-    expect(scripts[0]![2]).toContain(`'${SAVE_IN_PLACE.header}': '${SAVE_IN_PLACE.value}'`)
+    expect(scripts[0]![2]).toContain(`'forecaster-save': 'in-place'`)
     expect(await ownScripts('/')).toEqual([])
   })
 })

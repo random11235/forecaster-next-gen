@@ -1,4 +1,3 @@
-import { SAVE_IN_PLACE } from '../../src/app/inputsScript.js'
 import type { RunningApp } from '../../src/app/launch.js'
 
 // Forms posted to the local server as the app's own pages post them, for any test of the running app.
@@ -20,4 +19,4 @@ export const post = (running: Pick<RunningApp, 'url'>, path: string, fields: For
 
 /** Posts `fields` as the Inputs screen's script does when a field changes: it asks to stay on the Inputs screen. */
 export const saveInPlace = (running: Pick<RunningApp, 'url'>, path: string, fields: FormFields): Promise<Response> =>
-  post(running, path, fields, { [SAVE_IN_PLACE.header]: SAVE_IN_PLACE.value })
+  post(running, path, fields, { 'forecaster-save': 'in-place' })
