@@ -14,7 +14,7 @@ Give a ticket with a visible change the acceptance criterion `- [ ] Demo: screen
 2. Bring the screen into the state to show by entering its inputs as the EM would: the app starts empty, with no sample data. Post the Inputs screen's forms (for example `curl -d name=Launch -d startDate=2026-11-02 -d ticketsRemaining=30 http://127.0.0.1:5199/inputs/milestone`, then `curl -d low=5 -d high=10 http://127.0.0.1:5199/inputs/pace`), or type them in a browser.
 3. Screenshot it with headless Chrome, giving the Geist web fonts time to load (without `--timeout`, Chrome can shoot the page in the narrower system font). Use `--timeout`, not `--virtual-time-budget`: each page keeps its `/live` stream open, and virtual time doesn't pass while a request is open, so Chrome would never shoot:
    `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless --hide-scrollbars --window-size=1280,800 --timeout=5000 --screenshot=docs/demos/<issue>-<screen>-<state>.png <url>`
-   A state that a URL alone can't reach (it needs clicks or typing) is captured with a browser automation tool instead.
+   A state that a URL alone can't reach (it needs clicks or typing) is captured by driving a browser instead, as [`browser.md`](browser.md) sets out.
 4. Open the image and check it shows the state, then stop the app.
 5. Commit the image to the ticket branch under `docs/demos/`.
 
