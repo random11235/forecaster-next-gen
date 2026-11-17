@@ -17,6 +17,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # The typecheck and tests below are `npm run check`'s steps, which the pre-push hook runs, split so the tests
+      # report coverage: a check added to `npm run check` is added here too
       - run: npm run typecheck
       - run: npm run check:migrations
       # Prettier and the 5,000-token limit on the files this branch changes, as the pre-commit hook checks a commit
