@@ -1,8 +1,8 @@
 // The release each merge to main makes. The `release` job in .github/workflows/ci.yml runs
 // `node scripts/release.ts "$GITHUB_SHA"` at the root of a checkout of main's tip: it commits the version and the
 // CHANGELOG.md section the change files make (scripts/changeFiles.ts) onto the tip, tags it and pushes both, then
-// prints, for $GITHUB_OUTPUT, the last release's tag (`tag=v…`) and whether it made one now (`new=true`). Which change
-// files it takes, and what it does when main moves on, docs/design/architecture.md#release sets out.
+// prints, for $GITHUB_OUTPUT, the last release's tag (`tag=v…`), made now or before. Which change files it takes, and
+// what it does when main moves on, docs/design/architecture.md#release sets out.
 
 import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -93,23 +93,28 @@ export function mergedChangeFiles(git: Git, checked: string): MergedChangeFile[]
     )
   const asChecked = changeFilesAt(checked)
   // main's own commits, newest first: each one's subject, then the change files it added, a merge's against main before
-  // it; a rename as a deletion and an addition, so a merge that renames one adds it
+  // it; a rename as a deletion and an addition, so a merge that renames one adds it. \x01 starts each commit; -z ends
+  // its subject and each path with a NUL, the paths unquoted as ls-tree -z gives them, the first after a newline.
   const commits = git(
     'log',
+    '-z',
     '--first-parent',
     '--diff-merges=first-parent',
     '--no-renames',
     '--diff-filter=A',
     '--name-only',
-    '--format=%x00%s',
+    '--format=%x01%s',
     'HEAD',
     '--',
     'changes',
   )
-    .split('\0')
+    .split('\x01')
     .slice(1)
     .map((commit) => {
-      const [subject = '', ...added] = commit.split('\n').filter(Boolean)
+      const [subject = '', ...added] = commit
+        .split('\0')
+        .map((each) => each.replace(/^\n/, ''))
+        .filter(Boolean)
       return { subject, added }
     })
   return [...changeFilesAt('HEAD')]
@@ -147,13 +152,13 @@ function commitRelease(git: Git, checked: string): Release | undefined {
 const TRIES = 3
 
 /** Makes the release `checked`'s change files make, and pushes it, its commit and tag together, to main on origin. */
-function pushRelease(git: Git, checked: string): Release | undefined {
+function pushRelease(git: Git, checked: string): void {
   for (let tried = 1; ; tried++) {
     const release = commitRelease(git, checked)
-    if (!release) return undefined
+    if (!release) return
     try {
       git('push', '--quiet', '--atomic', 'origin', 'HEAD:main', `refs/tags/${release.tag}`)
-      return release
+      return
     } catch {
       // git has said why; most likely main moved on since the checkout: make the release again on its tip now
       git('tag', '--delete', release.tag)
@@ -170,9 +175,9 @@ if (import.meta.main) {
   const [checked] = process.argv.slice(2)
   try {
     if (checked === undefined) throw new Error('Name the commit CI checked: node scripts/release.ts "$GITHUB_SHA".')
-    const release = pushRelease(git, checked)
+    pushRelease(git, checked)
     const [last] = releasesIn(tagsIn(git))
-    console.log(`${last ? `tag=${last.tag}\n` : ''}new=${release !== undefined}`)
+    if (last) console.log(`tag=${last.tag}`)
   } catch (error) {
     console.error(error instanceof Error ? error.message : error)
     process.exit(1)

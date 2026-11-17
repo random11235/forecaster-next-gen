@@ -57,8 +57,8 @@ describe('the release, run as the release job runs it', () => {
     const fix = dev.pullRequest(287, 'patch', 'A fix nobody sees (#287)')
     const visible = dev.pullRequest(288, 'minor', 'A visible change (#288)')
 
-    expect(release(land(301, fix))).toMatchObject({ status: 0, stdout: 'tag=v0.2.7\nnew=true\n' })
-    expect(release(land(302, visible))).toMatchObject({ status: 0, stdout: 'tag=v0.3.0\nnew=true\n' })
+    expect(release(land(301, fix))).toMatchObject({ status: 0, stdout: 'tag=v0.2.7\n' })
+    expect(release(land(302, visible))).toMatchObject({ status: 0, stdout: 'tag=v0.3.0\n' })
 
     expect(mainLog(4)).toEqual([
       'Version 0.3.0',
@@ -80,11 +80,11 @@ describe('the release, run as the release job runs it', () => {
     const first = land(301, fix)
     const second = land(302, visible)
 
-    expect(release(first)).toMatchObject({ status: 0, stdout: 'tag=v0.2.7\nnew=true\n' })
+    expect(release(first)).toMatchObject({ status: 0, stdout: 'tag=v0.2.7\n' })
     // the second merge's code is in the tag, its line not: its own run, still going when the tag was made, releases it
     expect(onGithub('show', 'v0.2.7:CHANGELOG.md')).not.toContain('#288')
     expect(onGithub('ls-tree', '--name-only', 'v0.2.7', '--', 'changes/')).toBe('changes/288.md')
-    expect(release(second)).toMatchObject({ status: 0, stdout: 'tag=v0.3.0\nnew=true\n' })
+    expect(release(second)).toMatchObject({ status: 0, stdout: 'tag=v0.3.0\n' })
 
     expect(mainLog(4)).toEqual([
       'Version 0.3.0',
@@ -101,13 +101,15 @@ describe('the release, run as the release job runs it', () => {
     dev.commit({ 'README.md': 'How to run it\n' })
     dev.git('checkout', '-q', 'main')
 
-    expect(release(land(303, 'docs/readme'))).toMatchObject({ status: 0, stdout: 'tag=v0.2.7\nnew=true\n' })
+    expect(release(land(303, 'docs/readme'))).toMatchObject({ status: 0, stdout: 'tag=v0.2.7\n' })
     expect(onGithub('show', 'v0.2.7:CHANGELOG.md')).toContain('- A fix nobody sees (#287, PR #301)')
-    // the red run, re-run once fixed, finds it released
-    expect(release(red)).toMatchObject({ status: 0, stdout: 'tag=v0.2.7\nnew=false\n' })
+    // the red run, re-run once fixed, finds it released, and leaves main as it is
+    const released = onGithub('rev-parse', 'main')
+    expect(release(red)).toMatchObject({ status: 0, stdout: 'tag=v0.2.7\n' })
+    expect(onGithub('rev-parse', 'main')).toBe(released)
   })
 
-  test('a docs-only merge after a release releases nothing, the release’s own commit not counted as changing the app', () => {
+  test('a docs-only merge after a release releases nothing', () => {
     expect(release(land(301, dev.pullRequest(287, 'patch', 'A fix (#287)')))).toMatchObject({ status: 0 })
     dev.git('checkout', '-q', '-b', 'docs/readme')
     dev.commit({ 'README.md': 'How to run it\n' })
@@ -115,7 +117,7 @@ describe('the release, run as the release job runs it', () => {
     const docs = land(303, 'docs/readme')
 
     // the last release's tag all the same, so the job can publish it if its GitHub release is missing
-    expect(release(docs)).toMatchObject({ status: 0, stdout: 'tag=v0.2.7\nnew=false\n' })
+    expect(release(docs)).toMatchObject({ status: 0, stdout: 'tag=v0.2.7\n' })
     expect(onGithub('rev-parse', 'main')).toBe(docs)
   })
 
@@ -124,7 +126,7 @@ describe('the release, run as the release job runs it', () => {
     const pushed = dev.commit({ 'src/app.ts': 'export const APP = 2\n' }, 'A fix pushed straight to main')
     dev.git('push', '-q', 'origin', 'main')
 
-    expect(release(pushed)).toMatchObject({ status: 0, stdout: 'tag=v0.2.6\nnew=false\n' })
+    expect(release(pushed)).toMatchObject({ status: 0, stdout: 'tag=v0.2.6\n' })
     expect(onGithub('rev-parse', 'main')).toBe(pushed)
   })
 
@@ -135,7 +137,7 @@ describe('the release, run as the release job runs it', () => {
     const runner = checkout()
     land(303, later)
 
-    expect(release(checked, runner)).toMatchObject({ status: 0, stdout: 'tag=v0.2.7\nnew=true\n' })
+    expect(release(checked, runner)).toMatchObject({ status: 0, stdout: 'tag=v0.2.7\n' })
     expect(mainLog(3)).toEqual(['Version 0.2.7', 'Merge pull request #303 from random11235/spec/289', 'Merge pull request #301 from random11235/spec/287'])
     expect(onGithub('ls-tree', '--name-only', 'main', '--', 'changes/')).toBe('changes/289.md')
   })

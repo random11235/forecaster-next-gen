@@ -160,4 +160,13 @@ describe('the change files on main a release takes', () => {
 
     expect(taken().map(({ path, pr }) => ({ path, pr }))).toEqual([{ path: 'changes/290.md', pr: 305 }])
   })
+
+  test('one whose name isn’t plain ASCII, which git quotes by default, has the PR that merged it', () => {
+    main.git('checkout', '-q', '-b', 'spec/290')
+    main.commit({ 'changes/café "menu".md': changeFileText('patch', 'A fix to the café menu (#290)') })
+    main.git('checkout', '-q', 'main')
+    main.merge(305, 'spec/290')
+
+    expect(taken().map(({ path, pr }) => ({ path, pr }))).toEqual([{ path: 'changes/café "menu".md', pr: 305 }])
+  })
 })

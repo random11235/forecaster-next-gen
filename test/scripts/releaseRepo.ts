@@ -41,9 +41,14 @@ export const gitIn =
   (...args: string[]): string =>
     rawGitIn(dir)(...args).trim()
 
-/** The repo at `dir`, already made, worked on as a developer and GitHub's merge button would. */
-export function repoAt(dir: string) {
+/**
+ * A new repo at `dir`, a clone of the repo at `from` or with no `from` an empty one whose branch is main, worked on as a
+ * developer and GitHub's merge button would.
+ */
+export function newRepo(dir = tempDir(), from?: string) {
   const git = gitIn(dir)
+  if (from === undefined) git('init', '-q', '-b', 'main')
+  else git('clone', '-q', from, '.')
   /** Writes each of `files` and commits them on the branch checked out, giving the commit. */
   const commit = (files: Record<string, string>, message = Object.keys(files).join(', ')): string => {
     for (const [path, text] of Object.entries(files)) {
@@ -69,12 +74,4 @@ export function repoAt(dir: string) {
     return git('rev-parse', 'HEAD')
   }
   return { dir, git, commit, pullRequest, merge }
-}
-
-/** A new repo at `dir`: a clone of the repo at `from`, or with no `from` an empty one whose branch is main. */
-export function newRepo(dir = tempDir(), from?: string) {
-  const repo = repoAt(dir)
-  if (from === undefined) repo.git('init', '-q', '-b', 'main')
-  else repo.git('clone', '-q', from, '.')
-  return repo
 }
