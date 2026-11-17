@@ -34,7 +34,7 @@ Warning text and provenance are tested at Seam B, not Seam A. These cases moved 
 
 Seam B tests read tickets through the canned connector (`connectors/canned.ts`), which returns its fixture's tickets, an empty list for a query that matches nothing, and any failure on cue; `test/connectors/` tests it.
 
-Each test folder imports from `src/` only its seam's entry points and what its tests read through (the canned connector, `openMemorySecrets`, storage and `model/`): `TEST_SEAMS` in `test/dependencyRules.test.ts` maps each `test/<folder>/` to those files, and fails naming any other import, beside the temporary exceptions it lists with why each is still there.
+Each test folder imports from `src/` only the files of its seam's entry points and what that seam's tests read through. The one list of those files, by folder, is `TEST_SEAMS` in [`test/testSeams.test.ts`](../../test/testSeams.test.ts), which fails naming any other import; add a file there when a seam gains an entry point. The imports that still break the rule are its `TEMPORARY_EXCEPTIONS`, each with why it is still there.
 
 ### Seam C: connectors
 

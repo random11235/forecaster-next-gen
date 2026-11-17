@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { submitInputs, type InputsEdit } from '../../src/forecast/inputs.js'
-import { milestoneForecastView, type MilestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
+import { milestoneForecastView, type CapacityView } from '../../src/forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
@@ -61,7 +61,7 @@ function onward(storage: Storage, percent: string, from: string): void {
   submit(storage, { kind: 'addCapacity', percent, from, to: '', onward: true, note: 'Two left' })
 }
 
-function capacity(storage: Storage): Extract<MilestoneForecastView, { kind: 'forecast' }>['capacity'] {
+function capacity(storage: Storage): CapacityView {
   const view = milestoneForecastView(storage, TEAM, DEFAULT_SETTINGS, TODAY)
   if (view.kind !== 'forecast') throw new Error(`no forecast: ${view.kind}`)
   return view.capacity

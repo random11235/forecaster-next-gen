@@ -6,8 +6,8 @@ import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { QueryTarget, Storage } from '../../src/storage/storage.js'
 import { CHECKOUT, TEAM } from '../trackerScenario.js'
-import { appOnTracker, page, type AppOnTracker } from './appOnTracker.js'
-import { post } from './forms.js'
+import { appOnTracker, defaultTeam, page, type AppOnTracker } from './appOnTracker.js'
+import { post, SAVE_IN_PLACE } from './forms.js'
 
 /** When the Forecaster was installed for the team the tests store. */
 const INSTALLED = '2026-01-01T00:00:00Z'
@@ -60,10 +60,11 @@ describe('one-command launch', () => {
 
     app = await startOnFreePort(storage)
 
-    const [team] = storage.teams()
-    expect(storage.teams()).toEqual([{ id: 'team', name: 'My team', source: 'manual', sourceRef: '', installedAt: team!.installedAt }])
-    expect(Date.parse(team!.installedAt)).toBeGreaterThanOrEqual(before)
-    expect(Date.parse(team!.installedAt)).toBeLessThanOrEqual(Date.now())
+    const teams = storage.teams()
+    expect(teams).toEqual([{ ...defaultTeam(''), installedAt: expect.any(String) }])
+    const [installed] = teams.map(({ installedAt }) => Date.parse(installedAt))
+    expect(installed).toBeGreaterThanOrEqual(before)
+    expect(installed).toBeLessThanOrEqual(Date.now())
   })
 
   test('serves the Milestone forecast screen in its empty state when no milestone is defined', async () => {
@@ -308,7 +309,7 @@ describe('refuses requests from other sites', () => {
     app = await startOnFreePort()
     const { host, origin } = new URL(app.url)
 
-    const answer = await postMilestone(app, { host, origin, 'forecaster-save': 'in-place' })
+    const answer = await postMilestone(app, { host, origin, [SAVE_IN_PLACE.header]: SAVE_IN_PLACE.value })
 
     expect(answer.status).toBeLessThan(400)
     expect(await milestoneSaved(app)).toBe(true)
