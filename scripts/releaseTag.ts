@@ -1,9 +1,9 @@
 // The tag a merge to main is released as (the `release` job in .github/workflows/ci.yml): `v` and the app's version,
 // `version` in package.json (semver), which every screen's footer shows, so an EM names the release by what their app
 // says. `node scripts/releaseTag.ts` prints `tag=v…` and `new=true` or `new=false` for $GITHUB_OUTPUT, reading the
-// repo's tags and what changed since the version's tag, and fails, saying why, on a version it can't release.
+// tags and what changed since the version's tag in the checkout it runs from, and fails, saying why, on a version it
+// can't release.
 import { execFileSync } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
 import { APP_VERSION } from '../src/forecast/appVersion.ts'
 
 /** What a merge to main releases: a new release tagged `tag`, or nothing, its version `tag` already released. */
@@ -24,9 +24,10 @@ function compare(a: Semver, b: Semver): number {
 
 /**
  * The files that make the app an EM runs: its source, its dependencies and how it is built. A merge that changes one
- * changes the app, so must bump the version; a merge that changes none (docs, tests, CI) releases nothing.
+ * changes the app, so must bump the version; a merge that changes none (docs, tests, CI, the typecheck's
+ * tsconfig.json) releases nothing.
  */
-const APP_FILES = /^(src\/|package(-lock)?\.json$|tsconfig(\.build)?\.json$|scripts\/buildWeb\.ts$)/
+const APP_FILES = /^(src\/|package(-lock)?\.json$|tsconfig\.build\.json$|scripts\/buildWeb\.ts$)/
 
 /**
  * The release for a merge to main whose `package.json` sets `version`, given the repo's tags and the files changed
@@ -58,8 +59,8 @@ export function releaseTag(version: string, tags: readonly string[], changedSinc
 }
 
 if (import.meta.main) {
-  const root = fileURLToPath(new URL('..', import.meta.url))
-  const git = (...args: string[]): string[] => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean)
+  // the checkout it runs from, its root as the release job runs it
+  const git = (...args: string[]): string[] => execFileSync('git', args, { encoding: 'utf8' }).split('\n').filter(Boolean)
   const release = releaseTag(APP_VERSION, git('tag', '--list'), (tag) => git('diff', '--name-only', tag, 'HEAD'))
   console.log(`tag=${release.tag}\nnew=${release.kind === 'new'}`)
 }
