@@ -4,6 +4,7 @@
 // inline at the end: once it runs, it shows the screen and data the EM's browser has kept.
 import { build, type Plugin } from 'esbuild'
 import { mkdirSync, writeFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
@@ -12,30 +13,34 @@ const out = new URL('../dist/web/forecaster.html', import.meta.url)
 const { openWebApp }: typeof import('../src/app/webApp.js') = await import(new URL('../dist/app/webApp.js', import.meta.url).href)
 const { openWebStorage }: typeof import('../src/storage/webStorage.js') = await import(new URL('../dist/storage/webStorage.js', import.meta.url).href)
 const { FONT_FACES }: typeof import('../src/app/fonts.js') = await import(new URL('../dist/app/fonts.js', import.meta.url).href)
-const { VERSION }: typeof import('../src/app/version.js') = await import(new URL('../dist/app/version.js', import.meta.url).href)
+const { APP_VERSION }: typeof import('../src/forecast/appVersion.js') = await import(new URL('../dist/forecast/appVersion.js', import.meta.url).href)
 
 /**
- * `src/app/fonts.ts` reads its font files from disk, and `src/app/version.ts` reads `package.json`, which a browser
- * can't: the bundle gets what they read. Only their own imports, from `src/app/`, are swapped: another folder's
- * `./version.js`, such as the engine's, is its own file (#280).
+ * What the bundle gets in place of a file, matched by the file an import resolves to: another folder's file of the same
+ * name is its own (#280). `src/app/fonts.ts` reads its font files from disk, which a browser can't, so the bundle gets
+ * the faces it read. `src/forecast/appVersion.ts` imports `package.json`, which the page is shared without (#57): the
+ * bundle gets its version alone, none of its scripts or dependencies.
  */
-const appDir = fileURLToPath(new URL('../src/app', import.meta.url))
-const inlineReadOnDisk: Plugin = {
-  name: 'inline-read-on-disk',
+const INLINED: Record<string, string> = {
+  [fileURLToPath(new URL('../src/app/fonts.js', import.meta.url))]: `export const FONT_FACES = ${JSON.stringify(FONT_FACES)}`,
+  [fileURLToPath(new URL('../package.json', import.meta.url))]: `export default { version: ${JSON.stringify(APP_VERSION)} }`,
+}
+const inline: Plugin = {
+  name: 'inline',
   setup(build) {
-    const inline = (file: string, contents: string): void => {
-      build.onResolve({ filter: new RegExp(`^\\./${file}\\.js$`) }, (args) =>
-        args.resolveDir === appDir ? { path: file, namespace: 'inline-read-on-disk' } : undefined,
-      )
-      build.onLoad({ filter: new RegExp(`^${file}$`), namespace: 'inline-read-on-disk' }, () => ({ contents, loader: 'js' }))
-    }
-    inline('fonts', `export const FONT_FACES = ${JSON.stringify(FONT_FACES)}`)
-    inline('version', `export const VERSION = ${JSON.stringify(VERSION)}`)
+    build.onResolve({ filter: /\/(fonts\.js|package\.json)$/ }, (args) => {
+      const file = resolve(args.resolveDir, args.path)
+      return file in INLINED ? { path: file, namespace: 'inline' } : undefined
+    })
+    build.onLoad({ filter: /.*/, namespace: 'inline' }, (args) => {
+      const contents = INLINED[args.path]
+      return contents === undefined ? undefined : { contents, loader: 'js' }
+    })
   },
 }
 
 const bundled = await build({
-  plugins: [inlineReadOnDisk],
+  plugins: [inline],
   absWorkingDir: root,
   entryPoints: ['src/app/webMain.ts'],
   bundle: true,

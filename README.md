@@ -24,6 +24,8 @@ The How it works screen, `http://127.0.0.1:5180/how-it-works`, explains in pictu
 
 To use another port: `PORT=5181 npm start`. `PORT=0` picks a free port.
 
+Each merge to `main` is a release, named by the version every screen's footer shows ("Forecaster 0.3.0"). Its GitHub release (tag `v0.3.0`) carries the built app, `forecaster-v0.3.0.tar.gz` (unpack it, `npm ci`, then `node dist/app/main.js`), and the web build's page, `forecaster-v0.3.0.html`, which opens in a browser with nothing installed.
+
 ## Data
 
 Everything is kept in one local SQLite file, `data/forecaster.db` (git-ignored). On first launch, with no data yet, the Forecaster opens empty and asks for your milestone on the Inputs screen. To keep the file elsewhere: `FORECASTER_DATA_FILE=/path/to/forecaster.db npm start`. Delete the file to start again from empty.
@@ -37,5 +39,5 @@ The file holds no private data: see the review on [#57](https://github.com/rando
 ## Development
 
 - `npm test` runs the tests. The launch smoke test builds the app and runs it with `FORECASTER_NO_BROWSER=1`, which stops it opening a browser, and its data in a temporary `FORECASTER_DATA_FILE`. It runs it again with `FORECASTER_DEMO=1`, demo mode, which reads tickets from a synthetic fixture instead of a tracker, so no token is needed.
-- `npm run typecheck` checks types.
+- `npm run typecheck` checks types. `npm run check`, which the pre-push hook runs, runs every check CI's `check` job runs: the typecheck, the migration check, Prettier and the file-size limit on the branch's changes, then the tests.
 - `npm run record` refreshes the recorded tracker responses the connector tests replay (`npm run record:github` or `npm run record:jira` for one tracker). GitHub's come from the synthetic repo `random11235/forecaster-synthetic`, with a token from the macOS Keychain item `forecaster-github-recording`. Jira's come from the synthetic space `SYN` on `ralphhockley.atlassian.net`, with a token from the Keychain item `forecaster-jira-recording`. That token belongs to the shared test account `forecastertest3@gmail.com`: make it while signed in to Atlassian as that account, since a token works only with its own account's email. Set `FORECASTER_JIRA_EMAIL` only to record as a different account. The tests themselves need no token or network.

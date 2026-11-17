@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { running, startOnPreMvpData, startWithNoMilestone, page, text } from './screensHarness.js'
+import { running, startOnSavedData, startWithNoMilestone, page, text } from './screensHarness.js'
 
 // The screens through the local server: see screensHarness.ts.
 
@@ -33,7 +33,7 @@ describe('How it works screen', () => {
 
 describe('Every screen', () => {
   test('links the favicon in its head, inline as an SVG', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
 
     for (const path of ['/', '/inputs']) {
       const head = (await page(path)).match(/<head>[\s\S]*?<\/head>/)![0]
@@ -42,7 +42,7 @@ describe('Every screen', () => {
   })
 
   test('has its fonts, Geist and Geist Mono, inline in its head, so it loads nothing from outside', async () => {
-    await startOnPreMvpData()
+    await startOnSavedData()
 
     for (const path of ['/', '/inputs', '/how-it-works']) {
       const screen = await page(path)

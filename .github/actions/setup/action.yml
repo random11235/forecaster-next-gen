@@ -1,0 +1,13 @@
+# What every job in ci.yml does after its checkout (a local action can't check out the repo it lives in): Node 24, with
+# npm's cache, and the locked dependencies.
+name: Set up
+description: Node 24 and the locked dependencies (npm ci)
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 24
+        cache: npm
+    - run: npm ci
+      shell: bash
