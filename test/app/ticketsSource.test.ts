@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import type { RunningApp } from '../../src/app/launch.js'
-import type { CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
+import type { CannedFixture } from '../../src/connectors/canned.js'
 import { appOnTracker, inputsSection, type AppOnTracker } from './appOnTracker.js'
 import { post } from './forms.js'
 

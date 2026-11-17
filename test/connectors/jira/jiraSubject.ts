@@ -1,4 +1,4 @@
-import { jiraConnector } from '../../../src/connectors/jira/jiraConnector.js'
+import { jiraConnector } from '../../../src/connectors/jira.js'
 import manifest from '../../../scripts/synthetic/manifest-jira.json' with { type: 'json' }
 import { replayedSubject } from '../connectorContract.js'
 import { JIRA_CASES } from '../scenarios.js'

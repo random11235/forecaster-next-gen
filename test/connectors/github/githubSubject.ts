@@ -1,7 +1,8 @@
-import { githubConnector } from '../../../src/connectors/github/githubConnector.js'
+import { githubConnector } from '../../../src/connectors/github.js'
 import manifest from '../../../scripts/synthetic/manifest-github.json' with { type: 'json' }
 import type { Transport } from '../../../src/connectors/connector.js'
 import { noWait } from '../backoff.js'
+import { json } from '../standIn.js'
 import { REPLAYED_CREDENTIAL, replayedSubject } from '../connectorContract.js'
 import { GITHUB_CASES } from '../scenarios.js'
 import refusedToken from './recordings/refusedToken.json' with { type: 'json' }
@@ -12,10 +13,6 @@ import unknown from './recordings/unknown.json' with { type: 'json' }
 // random11235/forecaster-synthetic. A ticket's id is its node id.
 
 const issues: Record<string, { node_id: string }> = manifest.issues
-
-function json(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
-}
 
 /**
  * A GitHub whose search finds 1,500 issues: as GitHub does, it gives pages of them up to the 1,000th result, and
