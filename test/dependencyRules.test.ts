@@ -48,6 +48,12 @@ function loadedBy(entry: string): Set<string> {
 }
 
 describe('dependency rules', () => {
+  test('only forecast/appVersion.ts imports package.json, whose version alone the web build gives the page it shares', () => {
+    const importers = importsFrom('').filter(({ imported }) => imported === '../package.json')
+
+    expect(importers.map(({ file }) => file)).toEqual(['forecast/appVersion.ts'])
+  })
+
   test('forecast/ reaches connectors only through the interface, never a concrete connector', () => {
     const concrete = importsFrom('forecast').filter(({ imported }) => imported.startsWith('connectors/') && imported !== 'connectors/connector.js')
 
