@@ -2,7 +2,7 @@
 
 Part of the architecture design; the index is [`architecture.md`](architecture.md).
 
-The tree is `src/` as it stands in the MVP, with `connectors/` and `secrets/`. v1 adds `samples/` (Layer 2: commits, throughput, growth and epic-size samples derived from `model/`), `ledger/` (Layer 5), and the deleted epic-era files (work items, workflow settings, epic commits, team facts, measured pace and growth); [`forecast-model.md`](forecast-model.md) describes them.
+The tree is `src/` as it stands in the MVP, with `connectors/` and `secrets/`. v1 adds `samples/` (Layer 2: commits, throughput, growth and epic-size samples derived from `model/`) and the deleted epic-era files (work items, workflow settings, epic commits, team facts, measured pace and growth), which [`forecast-model-facts.md`](forecast-model-facts.md) describes, and `ledger/` (Layer 5), which [`forecast-model.md`](forecast-model.md) describes.
 
 ```
 src/
