@@ -6,8 +6,7 @@ import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { QueryTarget, Storage } from '../../src/storage/storage.js'
 import { CHECKOUT, TEAM } from '../trackerScenario.js'
-import { appOnTracker, page, type AppOnTracker } from './appOnTracker.js'
-import { defaultTeam } from './defaultTeam.js'
+import { appOnTracker, defaultTeam, page, type AppOnTracker } from './appOnTracker.js'
 import { post, SAVE_IN_PLACE } from './forms.js'
 
 /** When the Forecaster was installed for the team the tests store. */
@@ -62,7 +61,7 @@ describe('one-command launch', () => {
     app = await startOnFreePort(storage)
 
     const teams = storage.teams()
-    expect(teams).toEqual([defaultTeam(expect.any(String))])
+    expect(teams).toEqual([{ ...defaultTeam(''), installedAt: expect.any(String) }])
     const [installed] = teams.map(({ installedAt }) => Date.parse(installedAt))
     expect(installed).toBeGreaterThanOrEqual(before)
     expect(installed).toBeLessThanOrEqual(Date.now())

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { APP_VERSION } from '../../src/forecast/appVersion.js'
 import { openWebApp } from '../../src/app/webApp.js'
 import { openWebStorage } from '../../src/storage/webStorage.js'
-import { defaultTeam } from './defaultTeam.js'
+import { defaultTeam } from './appOnTracker.js'
 
 // The web build's screens, as its page asks for them (#114): no server, so the app answers each request itself and
 // follows a redirect to the screen it names.
@@ -26,7 +26,7 @@ describe('web app', () => {
     expect(page).toMatchObject({ path: '/', status: 200 })
     expect(page.html).toContain('No milestone defined yet')
     expect(page.html).not.toContain('Checkout v2')
-    expect(storage.teams()).toEqual([defaultTeam(expect.any(String))])
+    expect(storage.teams()).toEqual([{ ...defaultTeam(''), installedAt: expect.any(String) }])
   })
 
   test('opened again on the same storage, adds no other team', () => {

@@ -122,9 +122,10 @@ describe('reading imports', () => {
       "const e = await import('./e.js')",
       "type F = typeof import('./f.js')",
       "import { g } from 'vitest'",
+      "export type { H } from './h.js'",
     ].join('\n')
 
-    expect(importedPaths(source)).toEqual(['./a.js', './b.js', './c.js', './d.js', './e.js', './f.js'])
+    expect(importedPaths(source)).toEqual(['./a.js', './b.js', './c.js', './d.js', './e.js', './f.js', './h.js'])
     expect(importedPaths(source, true)).toEqual(['./a.js', './c.js', './d.js', './e.js'])
   })
 })
