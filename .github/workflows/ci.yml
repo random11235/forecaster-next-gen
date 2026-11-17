@@ -13,9 +13,10 @@ jobs:
         with:
           fetch-depth: 0 # the migration check reads main's schema
       - uses: ./.github/actions/setup
-      # `npm run check:ci` is `npm run check`, which the pre-push hook runs, with test coverage: both run one list of
-      # checks (`check:static`: the typecheck, the migration check, and Prettier and the 5,000-token limit on the files
-      # this branch changes since CHECK_BASE), then the tests. A check added there runs in both.
+      # `npm run check:ci` and `npm run check`, which the pre-push hook runs, run one list of checks (`check:static`: the
+      # typecheck, the migration check, and Prettier and the 5,000-token limit on the files this branch changes since
+      # CHECK_BASE), so a check added there runs in both. Then `check` runs every test; `check:ci` runs them with
+      # coverage, all but the benchmark, which the next step runs on its own.
       - name: Checks and tests, with test coverage
         env:
           CHECK_BASE: origin/${{ github.base_ref || 'main' }}

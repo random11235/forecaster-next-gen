@@ -1,8 +1,9 @@
 #!/bin/sh
-# Restore project skills from skills-lock.json when a checkout (e.g. a new
-# worktree) is missing any of them. Skills already in .claude/skills, including
-# the ones git tracks for their local edits, are left as they are. Never blocks the checkout.
-# Husky runs it (core.hooksPath, set by `npm install`), as it runs the other hooks here.
+# Restore project skills from skills-lock.json when a checkout is missing any of them. Skills already in
+# .claude/skills, including the ones git tracks for their local edits, are left as they are. Never blocks the checkout.
+# When it runs: on a branch checkout, in a checkout where `npm install` has run. Git finds hooks through husky's
+# core.hooksPath, `.husky/_`, which `npm install` creates and git ignores, so a new `git worktree add` runs no hook,
+# this one included, until `npm install` runs there; then a branch checkout in it runs this.
 
 [ "$3" = "1" ] || exit 0                      # branch checkouts only
 [ -f skills-lock.json ] || exit 0
