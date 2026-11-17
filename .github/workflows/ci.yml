@@ -96,16 +96,10 @@ jobs:
           path: reports/mutation/
           if-no-files-found: ignore
 
-  # Each merge to main is a release an EM can name and run (#241, #288): once the checks and the browser check pass, the
-  # release sets the version from the change files each PR adds (`changes/<ticket>.md`, its bump and changelog line), so
-  # no two PRs edit the same line. scripts/releaseTag.ts, on main's tip, raises the last release's version by the biggest
-  # bump, sets it in package.json and package-lock.json (every screen's footer shows it), adds its section to the top of
-  # CHANGELOG.md, deletes the change files, commits and tags `v` and the version; this job pushes both and a GitHub
-  # release carries the built app and the web build's page. A red check runs no release, so makes no tag. With no
-  # change file on main's tip (a docs-only merge, or one an earlier release took in) it releases nothing. The commit is
-  # pushed with the job's token, which starts no workflow, so CI doesn't run again on it; restart-local.yml waits for
-  # this run instead. `check:static` refuses, before merge, a branch that changes the app with no change file. Checked
-  # by a real merge, not by tests.
+  # Each merge to main is a release: once the checks and the browser check pass, scripts/release.ts commits, tags and
+  # pushes the version the change files set, and a GitHub release of the last tag carries the built app and the web
+  # build's page. docs/design/architecture.md#release sets it out. Checked by a real merge; the script by
+  # test/scripts/release.run.test.ts.
   release:
     needs: [check, browser]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -113,38 +107,49 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write # to push the release commit and its tag, and create the release
-    # One release at a time: a later merge waits for the one before to push. A merge in before the release runs is on
-    # main's tip, so releases with it, as one version; the later merge's release then finds no change file. If main
-    # moves on while a release runs, its push is refused and the job fails: re-run it, and it releases from the new tip.
+    env:
+      HUSKY: '0' # no git hooks: the job commits only what release.ts writes and checks out only its own tag
+    # One release at a time (docs/design/architecture.md#release says what a replaced one leaves).
     concurrency:
       group: release
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main # main's tip, which an earlier release may have committed to since this merge
+          ref: main # main's tip, which a later merge or an earlier release may have moved on since this run's commit
           fetch-depth: 0 # the tags, to find the last release, and main's merges, for each change file's PR
       - uses: ./.github/actions/setup
-      - id: version
+      - id: release
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          node scripts/releaseTag.ts >> "$GITHUB_OUTPUT"
-      # builds the app into dist/ and the web build's page into dist/web/forecaster.html, of the version just set
-      - if: steps.version.outputs.new == 'true'
-        run: npm run build:web
-      # the release commit and its tag together, or neither; only once the build has passed
-      - if: steps.version.outputs.new == 'true'
+          node scripts/release.ts "$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+      - id: published
+        if: steps.release.outputs.tag != ''
         env:
-          TAG: ${{ steps.version.outputs.tag }}
-        run: git push --atomic origin HEAD:main "refs/tags/$TAG"
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+        # only "release not found" means unpublished; any other failure (auth, network) fails the step
+        run: |
+          if view=$(gh release view "$TAG" 2>&1); then echo published=true
+          elif [[ "$view" == *"release not found"* ]]; then echo published=false
+          else echo "$view" >&2; exit 1
+          fi >> "$GITHUB_OUTPUT"
+      # the app and the web build's page, dist/web/forecaster.html, as the tag holds them
+      - if: steps.published.outputs.published == 'false'
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          git checkout --quiet "$TAG"
+          npm ci
+          npm run build:web
       # The app runs from its archive as from a checkout: unpack it, `npm ci`, then `node dist/app/main.js`.
       # package.json is the version it reads; the fonts come from its packages, so the dev ones are needed too.
       - name: Release
-        if: steps.version.outputs.new == 'true'
+        if: steps.published.outputs.published == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.version.outputs.tag }}
+          TAG: ${{ steps.release.outputs.tag }}
         run: |
           tar -czf "forecaster-$TAG.tar.gz" --exclude=dist/web dist package.json package-lock.json
           cp dist/web/forecaster.html "forecaster-$TAG.html"

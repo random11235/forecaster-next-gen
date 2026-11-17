@@ -26,6 +26,7 @@ describe('the file size check', () => {
       'docs/research/forecasting-approaches.md',
       'docs/design/redesign-1b/B1-Forecast.dc.html',
       '.claude/skills/tdd/SKILL.md',
+      'CHANGELOG.md', // the release writes it, a section each version, and no PR edits its entries
     ]
     expect(oversized(paths.map((path) => ({ path, bytes: huge })))).toEqual([])
   })
