@@ -6,7 +6,7 @@ import { cannedConnector, type CannedFixture } from '../../src/connectors/canned
 import type { Choice } from '../../src/connectors/connector.js'
 import { submitConnection } from '../../src/forecast/connection.js'
 import { inputsView, submitInputs } from '../../src/forecast/inputs.js'
-import { queryStepView, submitStepQuery, type ComparableWorkStep, type StepReading } from '../../src/forecast/queryStep.js'
+import { queryStepView, submitStepQuery, type ComparableWorkPace, type StepReading } from '../../src/forecast/queryStep.js'
 import { COMPARABLE_WORK } from '../../src/forecast/stepQuery.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
@@ -119,7 +119,7 @@ afterEach(() => {
 const addComparable = (choice: Choice) => submitStepQuery(using, TEAM, { kind: 'addPick', choice }, READ_AT, COMPARABLE_WORK)
 
 /** The pace the Comparable work step leads with, from the team's saved reads. */
-async function stepPace(): Promise<ComparableWorkStep['pace']> {
+async function stepPace(): Promise<ComparableWorkPace | undefined> {
   const step = await queryStepView({ ...using, at: AT }, TEAM, '', {}, COMPARABLE_WORK)
   return step.kind === 'comparableWorkStep' ? step.pace : undefined
 }

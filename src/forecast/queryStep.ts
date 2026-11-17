@@ -13,6 +13,7 @@ import { chipsShow, editedQuery, NO_QUERY, picksChanged, type PicksEdit } from '
 export { kindName, type ChoiceList } from './lib/choiceLists.js'
 export { readFlag, rejectionOf } from './lib/readSaid.js'
 export { chipsShow } from './lib/stepQueryEdit.js'
+export type { ComparableWorkPace } from './comparableWorkPace.js'
 
 /** What the Milestone step says once, beside the milestone query: the only two things a read adds to it. */
 export const LEAF_NOTE = 'Leaf tickets only. Epics include their sub-epics.'

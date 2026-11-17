@@ -24,6 +24,8 @@ import { paceTrend, type PaceTrend } from './paceTrend.js'
 import type { ForecastSettings } from './settings.js'
 import { measureSaved, milestonePace, type ReadingTracker } from './trackerReads.js'
 
+export type { CapacityView } from './capacity.js'
+
 /** The confidence level the headline states. */
 export const HEADLINE_PERCENT = 85
 
