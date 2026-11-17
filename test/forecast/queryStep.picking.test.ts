@@ -2,7 +2,24 @@ import { describe, expect, test } from 'vitest'
 import type { CannedFixture } from '../../src/connectors/canned.js'
 import type { Choice, ChoicesOfKind } from '../../src/connectors/connector.js'
 import { queryStepView, searchedChoiceList, submitStepQuery } from '../../src/forecast/queryStep.js'
-import { TEAM, READ_AT, payments, checkout, repay, bug, FIXTURE, storage, reopenStorage, connecting, connected, add, remove } from './queryStepScenario.js'
+import {
+  TEAM,
+  READ_AT,
+  payments,
+  checkout,
+  repay,
+  bug,
+  FIXTURE,
+  storage,
+  openStorage,
+  connecting,
+  connected,
+  add,
+  remove,
+  useTeamDatabase,
+} from './queryStepScenario.js'
+
+useTeamDatabase()
 
 // The Milestone step (#191): opening it, its lists of choices, and picking the milestone’s tickets.
 
@@ -185,17 +202,15 @@ describe('picking', () => {
     await submitStepQuery(using, TEAM, add(payments), READ_AT)
 
     expect(using.calls.reads).toEqual(['milestone:"Payments v2"'])
-    expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
+    expect(storage().milestoneQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
   })
 
   test('the picks and query are saved, and still there after a restart', async () => {
     const using = await connected()
     await submitStepQuery(using, TEAM, add(payments), READ_AT)
     await submitStepQuery(using, TEAM, add(bug), READ_AT)
-    storage.close()
-
-    reopenStorage()
-    const view = await queryStepView({ ...using, connections: storage, queries: storage, milestoneInputs: storage, setup: storage }, TEAM)
+    const reopened = openStorage()
+    const view = await queryStepView({ ...using, connections: reopened, queries: reopened, milestoneInputs: reopened, setup: reopened }, TEAM)
 
     expect(view).toMatchObject({
       picks: [payments, bug],
