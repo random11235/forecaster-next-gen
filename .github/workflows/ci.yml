@@ -107,6 +107,8 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write # to push the release commit and its tag, and create the release
+    env:
+      HUSKY: '0' # no git hooks: the job commits only what release.ts writes and checks out only its own tag
     # One release at a time (docs/design/architecture.md#release says what a replaced one leaves).
     concurrency:
       group: release
@@ -118,8 +120,6 @@ jobs:
           fetch-depth: 0 # the tags, to find the last release, and main's merges, for each change file's PR
       - uses: ./.github/actions/setup
       - id: release
-        env:
-          HUSKY: '0' # no git hooks: the release commits and pushes only what release.ts writes, not a PR's code
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
