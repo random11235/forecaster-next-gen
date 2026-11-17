@@ -1,10 +1,10 @@
 name: Restart local app
 
 # Each merge to main, however it's made, restarts the dev's local app (http://127.0.0.1:5180/) once CI's run on it
-# completes, from main's tip, so after the release job (ci.yml) has committed the version it sets: the footer shows the
-# version just released. CI pushes that commit with its own token, which starts no workflow, so this waits for CI's run
-# rather than a push. Only a green run restarts it, a change from before #288, when every merge did: a red one (a check,
-# the browser check or the release failing) leaves the app from before running, on its own version. It runs on the
+# completes green, from main's tip, after that run's release job has pushed the version it sets
+# (docs/design/architecture.md#release), so the footer shows it. That push starts no workflow, so this waits for CI's
+# run rather than a push. A red run (a check, the browser check or the release failing) leaves the app from before
+# running, on its own version. It runs on the
 # self-hosted runner on the dev's Mac, which scripts/setupRunner.sh sets up. The app runs from the runner's own
 # checkout, not the dev's working copy, so switching branches or running the tests there leaves it serving main.
 # Only CI's run on a push to main starts it, never a pull request's, and it checks out main, so no fork's code runs on

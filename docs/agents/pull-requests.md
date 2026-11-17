@@ -24,7 +24,7 @@ No import cycles in `src/`, with no change to the app (#230)
 
 The line names the ticket, not the PR: the release adds the PR's number from its merge commit, as `(#230, PR #286)`. A PR with several tickets adds a file for each. Each file has its own name, so two PRs in flight never edit the same line and the second to merge doesn't conflict.
 
-The PR doesn't set `version` in `package.json` or `package-lock.json`, or edit the entries in [`CHANGELOG.md`](../../CHANGELOG.md). Once `check` and `browser` pass on `main`, the `release` job ([`architecture.md`](../design/architecture.md#release)) raises the last release's version by the biggest bump among the change files on `main`, sets it, adds its dated section to the top of `CHANGELOG.md`, deletes the change files, and commits and tags that on `main`. Every screen's footer shows the version, so anyone can read from it whether a fix is in the app they're running. Until the release, a branch's footer shows the last released version, not the one it will become.
+The PR doesn't set `version` in `package.json` or `package-lock.json`, or edit the entries in [`CHANGELOG.md`](../../CHANGELOG.md). Once CI's run on its merge is green, its `release` job releases its change files as a version, committed and tagged on `main`, as [`architecture.md`](../design/architecture.md#release) sets out. Every screen's footer shows the version, so anyone can read from it whether a fix is in the app they're running. Until the release, a branch's footer shows the last released version, not the one it will become.
 
 `check:static`, so the pre-push hook and CI's `check` job, fails a branch that changes an app file with no change file, has a change file with no valid `bump` or not one line of body, or sets the version or edits the `CHANGELOG.md` entries (its header is fine), saying what to fix. A docs-only PR adds no change file and releases nothing. An open page reloads itself when the app restarts on a different version.
 
@@ -51,7 +51,7 @@ A PR merges only when CI's `check` and `browser` jobs are both green: the two th
 
 When a PR merges into `main`, the path to production ends on this machine:
 
-1. Wait for CI's run on the merge (`gh run watch`, or `gh run list --workflow ci.yml --branch main`): its `release` job commits the version to `main` after the merge. A red run releases nothing and doesn't restart the app: report it with the failing job's output.
+1. Wait for CI's run on the merge (`gh run watch`, or `gh run list --workflow ci.yml --branch main`): its `release` job commits the version to `main` after the merge. A red run releases nothing and doesn't restart the app: report it with the failing job's output. A failed `release` job says why and what to do ([`architecture.md`](../design/architecture.md#release)).
 2. Update `main` locally (`git checkout main && git pull --ff-only`), so it holds the release commit, and delete the merged branch.
 3. Remove the closed tickets' workflow labels, as the [Ticket lifecycle](issue-tracker.md#ticket-lifecycle) sets out.
 
