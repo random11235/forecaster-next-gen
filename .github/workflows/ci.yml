@@ -107,3 +107,47 @@ jobs:
           name: mutation-report
           path: reports/mutation/
           if-no-files-found: ignore
+
+  # Each merge to main is a release an EM can name and run (#241): once the checks and the browser check pass, the
+  # merge is tagged `v` and package.json's version (scripts/releaseTag.ts), which every screen's footer shows, and a
+  # GitHub release carries the built app and the web build's page. A red check runs no release, so makes no tag. A merge
+  # that doesn't bump the version (docs only) releases nothing: its version is released already, with the same app. A
+  # version below the last release fails the job, saying so. Checked by a real merge, not by tests.
+  release:
+    needs: [check, browser]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # to push the tag and create the release
+    # one release at a time, in merge order: a later merge waits for the one before to tag
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the tags, to find the last release
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - id: version
+        run: node scripts/releaseTag.ts >> "$GITHUB_OUTPUT"
+      - if: steps.version.outputs.new == 'true'
+        run: npm ci
+      # builds the app into dist/ and the web build's page into dist/web/forecaster.html
+      - if: steps.version.outputs.new == 'true'
+        run: npm run build:web
+      # The app runs from its archive as from a checkout: unpack it, `npm ci`, then `node dist/app/main.js`.
+      # package.json is the version it reads; the fonts come from its packages, so the dev ones are needed too.
+      - name: Release
+        if: steps.version.outputs.new == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          tar -czf "forecaster-$TAG.tar.gz" --exclude=dist/web dist package.json package-lock.json
+          cp dist/web/forecaster.html "forecaster-$TAG.html"
+          gh release create "$TAG" --target "$GITHUB_SHA" --title "Forecaster $TAG" --generate-notes \
+            "forecaster-$TAG.tar.gz" "forecaster-$TAG.html"
