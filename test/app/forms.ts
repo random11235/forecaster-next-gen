@@ -2,7 +2,10 @@ import type { RunningApp } from '../../src/app/launch.js'
 
 // Forms posted to the local server as the app's own pages post them, for any test of the running app.
 
-/** The header the Inputs screen's script sends when it saves in place, staying on the Inputs screen. */
+/**
+ * The header the Inputs screen's script sends when it saves in place, staying on the Inputs screen. It pins the wire value
+ * of `SAVE_IN_PLACE` in `src/app/inputsScript.ts` on purpose: TEST_SEAMS doesn't let app tests import that file.
+ */
 export const SAVE_IN_PLACE = { header: 'forecaster-save', value: 'in-place' } as const
 
 /** A form's fields, in any shape `URLSearchParams` takes. */

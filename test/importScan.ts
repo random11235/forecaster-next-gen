@@ -17,12 +17,12 @@ function sourceFiles(dir: string): string[] {
 
 /**
  * The relative paths `source` imports, as written: by `import`/`export … from`, a side-effect `import '…'` or a dynamic
- * `import('…')`; `import type` and `typeof import('…')` too, unless `runtimeOnly`.
+ * `import('…')`; `import type`, `export type` and `typeof import('…')` too, unless `runtimeOnly`.
  */
 export function importedPaths(source: string, runtimeOnly = false): string[] {
-  return [...source.matchAll(/(typeof\s+)?\b(import|export)(\s+type\b)?(?:[^'"]*from\s+|\s*\(\s*|\s+)'(\.[^']+)'/g)]
-    .filter(([, typeOf, keyword, typeOnly]) => !(runtimeOnly && (typeOf || (keyword === 'import' && typeOnly))))
-    .map((match) => match[4]!)
+  return [...source.matchAll(/(typeof\s+)?\b(?:import|export)(\s+type\b)?(?:[^'"]*from\s+|\s*\(\s*|\s+)'(\.[^']+)'/g)]
+    .filter(([, typeOf, typeOnly]) => !(runtimeOnly && (typeOf || typeOnly)))
+    .map((match) => match[3]!)
 }
 
 /**
