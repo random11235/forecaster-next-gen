@@ -24,10 +24,10 @@ function compare(a: Semver, b: Semver): number {
 
 /**
  * The files that make the app an EM runs: its source, its dependencies and how it is built. A merge that changes one
- * changes the app, so must bump the version; a merge that changes none (docs, tests, CI, the typecheck's
- * tsconfig.json) releases nothing.
+ * changes the app, so must bump the version; a merge that changes none (docs, tests, CI) releases nothing. Both
+ * tsconfig files count: tsconfig.build.json extends tsconfig.json, whose target, module and strictness the build uses.
  */
-const APP_FILES = /^(src\/|package(-lock)?\.json$|tsconfig\.build\.json$|scripts\/buildWeb\.ts$)/
+const APP_FILES = /^(src\/|package(-lock)?\.json$|tsconfig(\.build)?\.json$|scripts\/buildWeb\.ts$)/
 
 /**
  * The release for a merge to main whose `package.json` sets `version`, given the repo's tags and the files changed

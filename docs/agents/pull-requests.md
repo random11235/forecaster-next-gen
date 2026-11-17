@@ -8,7 +8,7 @@ Show each change itself: a diff-sketch of the type, call tree or data shape it c
 
 ## Version
 
-A PR that changes the app, any file under `src/` even if only reformatted, sets `version` in `package.json` (semver), which every screen's footer shows:
+A PR that changes the app, any of the files `APP_FILES` in [`scripts/releaseTag.ts`](../../scripts/releaseTag.ts) names even if only reformatted, sets `version` in `package.json` (semver), which every screen's footer shows:
 
 - **Major**: a one-way door, a stored-data change the EM can't go back from.
 - **Minor**: a visible change.
