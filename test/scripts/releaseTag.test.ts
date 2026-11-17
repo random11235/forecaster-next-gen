@@ -19,15 +19,13 @@ describe('the release tag for a merge to main', () => {
 
   test('a version already released, as a docs-only merge leaves it, releases nothing: the app is the same', () => {
     const docsOnly = (tag: string) =>
-      tag === 'v0.2.2'
-        ? ['README.md', 'docs/design/architecture.md', '.github/workflows/ci.yml', 'tsconfig.json', 'test/app/smoke.test.ts']
-        : ['src/app/html.ts']
+      tag === 'v0.2.2' ? ['README.md', 'docs/design/architecture.md', '.github/workflows/ci.yml', 'test/app/smoke.test.ts'] : ['src/app/html.ts']
 
     expect(releaseTag('0.2.2', ['v0.2.1', 'v0.2.2'], docsOnly)).toEqual({ kind: 'released', tag: 'v0.2.2' })
   })
 
   test('a version already released, with the app changed since its tag, is refused: the merge should have bumped it', () => {
-    for (const changed of ['src/forecast/inputs.ts', 'package.json', 'package-lock.json', 'tsconfig.build.json', 'scripts/buildWeb.ts'])
+    for (const changed of ['src/forecast/inputs.ts', 'package.json', 'package-lock.json', 'tsconfig.json', 'tsconfig.build.json', 'scripts/buildWeb.ts'])
       expect(() => releaseTag('0.2.2', ['v0.2.2'], () => ['docs/design/README.md', changed])).toThrow(
         `package.json's version 0.2.2 is released already, as v0.2.2, but the app has changed since (${changed}): set a higher one, as docs/agents/pull-requests.md says.`,
       )
@@ -56,15 +54,15 @@ describe('the release tag, run as the release job runs it', () => {
   const tag = `v${APP_VERSION}`
   let repo: string
   // Without git's own variables: run from a git hook (pre-push runs the tests), GIT_DIR and the like name the real
-  // repo, and git would init, commit and tag there in place of the repo of its own.
-  const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_')))
+  // repo, and git would init, commit and tag there in place of the repo of its own. Nor the developer's global or system
+  // config (signed tags, a hooks path): the repo's own config, its committer included, is all git reads.
+  const env = {
+    ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))),
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_CONFIG_NOSYSTEM: '1',
+  }
 
-  const git = (...args: string[]): string =>
-    execFileSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false', ...args], {
-      cwd: repo,
-      env,
-      encoding: 'utf8',
-    })
+  const git = (...args: string[]): string => execFileSync('git', args, { cwd: repo, env, encoding: 'utf8' })
   /** Commits `path`, made up, as a merge to main would bring it. */
   const commit = (path: string): void => {
     mkdirSync(join(repo, path, '..'), { recursive: true })
@@ -77,6 +75,8 @@ describe('the release tag, run as the release job runs it', () => {
   beforeEach(() => {
     repo = mkdtempSync(join(tmpdir(), 'forecaster-release-'))
     git('init', '-q')
+    git('config', 'user.name', 'Test')
+    git('config', 'user.email', 'test@example.com')
     commit('README.md')
   })
 
