@@ -1,0 +1,2 @@
+# Red code doesn't reach main: a push goes ahead only if `npm run check`, which CI's check job runs too, passes.
+npm run check || { echo "pre-push: npm run check failed, so the push is refused" >&2; exit 1; }
