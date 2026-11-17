@@ -31,7 +31,7 @@ Warning text and provenance are tested at Seam B, not Seam A. These cases moved 
 - the throughput source: `'measured'` for samples, `'manual'` for a range;
 - the uncommitted epics listed in rank order, and none for a scope of committed epics.
 
-Seam B tests read tickets through the canned connector (`connectors/canned/`), which returns its fixture's tickets, an empty list for a query that matches nothing, and any failure on cue; `test/connectors/` tests it.
+Seam B tests read tickets through the canned connector (`connectors/canned.ts`), which returns its fixture's tickets, an empty list for a query that matches nothing, and any failure on cue; `test/connectors/` tests it.
 
 ### Seam C: connectors
 

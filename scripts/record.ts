@@ -261,14 +261,14 @@ const TRACKERS: Record<string, () => Promise<Recorded | undefined>> = {
   github: async () => {
     const token = keychain(GITHUB_KEYCHAIN)
     if (token === undefined) return undefined
-    const { githubConnector } = await built<typeof import('../src/connectors/github/githubConnector.ts')>('connectors/github/githubConnector.js')
+    const { githubConnector } = await built<typeof import('../src/connectors/github.ts')>('connectors/github.js')
     return recordGithub(token, fetch, githubConnector)
   },
   jira: async () => {
     const email = process.env[JIRA_EMAIL_VARIABLE] || JIRA_ACCOUNT_EMAIL
     const token = keychain(JIRA_KEYCHAIN)
     if (token === undefined) return undefined
-    const { jiraConnector } = await built<typeof import('../src/connectors/jira/jiraConnector.ts')>('connectors/jira/jiraConnector.js')
+    const { jiraConnector } = await built<typeof import('../src/connectors/jira.ts')>('connectors/jira.js')
     return recordJira(email, token, fetch, jiraConnector)
   },
 }

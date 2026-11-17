@@ -1,4 +1,4 @@
-import { githubConnector } from '../../../src/connectors/github/githubConnector.js'
+import { githubConnector } from '../../../src/connectors/github.js'
 import manifest from '../../../scripts/synthetic/manifest-github.json' with { type: 'json' }
 import type { Transport } from '../../../src/connectors/connector.js'
 import { noWait } from '../backoff.js'

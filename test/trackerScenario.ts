@@ -1,4 +1,4 @@
-import { cannedConnector, type CannedFixture } from '../src/connectors/canned/cannedConnector.js'
+import { cannedConnector, type CannedFixture } from '../src/connectors/canned.js'
 import type { Choice, Ticket } from '../src/connectors/connector.js'
 import { submitConnection } from '../src/forecast/connection.js'
 import { inputsView, submitInputs, type InputsEdit, type InputsView, type Submitted } from '../src/forecast/inputs.js'
