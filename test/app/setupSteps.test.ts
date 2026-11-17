@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
-import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
+import { cannedConnector, type CannedFixture } from '../../src/connectors/canned.js'
 import type { Connecting } from '../../src/forecast/connection.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'

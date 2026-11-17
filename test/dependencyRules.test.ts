@@ -55,19 +55,26 @@ describe('dependency rules', () => {
     expect(importers.map(({ file }) => file)).toEqual(['forecast/appVersion.ts'])
   })
 
-  test('forecast/ reaches connectors only through the interface, never a concrete connector', () => {
+  test('forecast/ reaches connectors only through the interface, never a concrete connector or its entry point', () => {
     const concrete = importsFrom('forecast').filter(({ imported }) => imported.startsWith('connectors/') && imported !== 'connectors/connector.js')
 
     expect(concrete).toEqual([])
   })
 
-  test("connectors/ import only the interface's types, what the network connectors share, their own folder, and model/", () => {
+  test("connectors/ import only the interface's types, what the network connectors share, their own folder, and model/; an entry point, its connector's folder", () => {
     const shared = ['connectors/connector.js', 'connectors/remote.js']
+    const ownFolder = (file: string, imported: string) => dirname(imported) === dirname(file) || dirname(imported) === file.replace(/\.ts$/, '')
     const outside = importsFrom('connectors').filter(
-      ({ file, imported }) => !imported.startsWith('model/') && !shared.includes(imported) && dirname(imported) !== dirname(file),
+      ({ file, imported }) => !imported.startsWith('model/') && !shared.includes(imported) && !ownFolder(file, imported),
     )
 
     expect(outside).toEqual([])
+  })
+
+  test('outside connectors/, code reaches a concrete connector only through its entry point at the root of connectors/', () => {
+    const inside = importsFrom('').filter(({ file, imported }) => !file.startsWith('connectors/') && /^connectors\/[^/]+\//.test(imported))
+
+    expect(inside).toEqual([])
   })
 
   test('secrets/ imports nothing from the rest of the app', () => {

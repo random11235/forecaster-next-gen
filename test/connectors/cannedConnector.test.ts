@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { cannedConnector, type CannedFixture } from '../../src/connectors/canned/cannedConnector.js'
-import { demoConnector } from '../../src/connectors/canned/demo.js'
+import { cannedConnector, demoConnector, type CannedFixture } from '../../src/connectors/canned.js'
 import type { Choice, Failure } from '../../src/connectors/connector.js'
 import type { Connection } from '../../src/model/connection.js'
 
