@@ -4,7 +4,7 @@ import { MILESTONE_FORECAST_STYLE } from './lib/milestoneForecastStyle.js'
 import { INPUTS_STYLE } from './lib/inputsStyle.js'
 import { SETUP_STEPS_STYLE } from './lib/setupStepsStyle.js'
 import { HOW_IT_WORKS_STYLE } from './lib/howItWorksStyle.js'
-import { VERSION } from './version.js'
+import { APP_VERSION } from '../forecast/appVersion.js'
 
 /** The screens in the sidebar, by path. */
 const SCREENS = [
@@ -61,7 +61,7 @@ ${links}
       <h1>${header.heading}</h1>${lede}
     </header>
 ${main}
-    <footer class="version">Forecaster ${escapeHtml(VERSION)}</footer>
+    <footer class="version">Forecaster ${escapeHtml(APP_VERSION)}</footer>
   </main>${script ? `\n  <script>${script}</script>` : ''}
 </body>
 </html>
