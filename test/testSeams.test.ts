@@ -61,8 +61,6 @@ const TEST_SEAMS: Record<string, readonly string[]> = {
     'secrets/secrets.js',
     'secrets/memorySecrets.js',
   ],
-  // The release tag, named by the app's version.
-  scripts: ['forecast/appVersion.js'],
 }
 
 type Exception = { file: string; imported: string; why: string }
