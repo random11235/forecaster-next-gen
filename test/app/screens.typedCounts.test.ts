@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { SAVE_IN_PLACE } from '../../src/app/inputsScript.js'
+import { SAVE_IN_PLACE } from './forms.js'
 import { startOnSavedData, page, text, post, submitPace, submitCounts, choosePace, saveInPlace } from './screensHarness.js'
 
 // The screens through the local server: see screensHarness.ts.
