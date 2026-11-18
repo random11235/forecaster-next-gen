@@ -1,8 +1,10 @@
+import type { InputsForm } from '../../forecast/inputs.js'
 import type { InputNote, MilestoneInput } from '../../forecast/milestoneAssessment.js'
 import { escapeHtml } from '../html.js'
 
-// A section of the Inputs screen, and the parts its sections share: the label each input goes by, its notes and
-// errors, and radio buttons.
+// Behind inputsScreen.ts: a section of the Inputs screen, and the parts its sections share: the label each input goes
+// by, its notes and errors, radio buttons, the mark of a read that was part of what its query matched, and where a
+// form posts.
 
 /** Each input of the milestone by its label on this screen, which notes about it are named by everywhere. */
 export const INPUT_LABELS: Record<MilestoneInput, string> = {
@@ -33,11 +35,6 @@ ${body}
     </section>`
 }
 
-/** A value's mark when the read it is from was part of what its query matched; nothing when whole. */
-export function incompleteMark(incomplete: boolean): string {
-  return incomplete ? ' <span class="incomplete">incomplete</span>' : ''
-}
-
 /** The notes about one input, shown beside it. */
 export function notesFor(input: MilestoneInput, notes: readonly InputNote[]): string {
   return notes
@@ -46,6 +43,10 @@ export function notesFor(input: MilestoneInput, notes: readonly InputNote[]): st
     .join('')
 }
 
+/** Why the form was refused, when the refusal was the form's; nothing when it wasn't. */
+export type FormError = (form: InputsForm) => string | undefined
+
+/** A refusal's error, said where the form is; nothing without one. */
 export function errorLine(error: string | undefined): string {
   return error ? `\n          <p class="error" role="alert">${escapeHtml(error)}</p>` : ''
 }
@@ -71,3 +72,17 @@ export function radios<T extends string>(
 ${buttons.join('\n')}
           </fieldset>`
 }
+
+/** A value's mark when the tracker's read it is from was part of what its query matched; nothing when whole. */
+export function incompleteMark(incomplete: boolean): string {
+  return incomplete ? ' <span class="incomplete">incomplete</span>' : ''
+}
+
+/** Where a section's form posts: to `path`, the answer opening at the section `anchor`. */
+export interface FormTarget {
+  path: string
+  anchor: string
+}
+
+/** The action of a form posting to `target`. */
+export const formAction = ({ path, anchor }: FormTarget): string => `${path}#${anchor}`

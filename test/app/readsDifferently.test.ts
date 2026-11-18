@@ -112,11 +112,13 @@ describe('pace', () => {
     const running = await start()
     await post(running, '/inputs/pace', { low: '1', high: '9' })
 
-    const shown = chip(await section(running, 'pace'))
+    const paceShown = await section(running, 'pace')
+    const shown = chip(paceShown)
 
     expect(shown).toMatch(/<summary><span class="dot"[^>]*><\/span>GitHub reads differently<\/summary>/)
     expect(shown).toContain('class="pace-bars"')
     expect(shown).toMatch(/<button type="submit" form="follow-pace"[^>]*>Follow GitHub<\/button>/)
+    expect(paceShown).toMatch(/<form method="post" action="\/inputs\/pace-mode#pace" id="follow-pace">\s*<input type="hidden" name="paceMode" value="tracker">/)
 
     await post(running, '/inputs/reading-opened', { reading: 'pace' })
     expect(chip(await section(running, 'pace'))).toMatch(/<summary>GitHub reads differently<\/summary>/)

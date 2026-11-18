@@ -1,12 +1,31 @@
-import type { PeriodName } from '../forecast/cadence.js'
-import { dayMonth } from '../forecast/calendarDate.js'
-import { MAX_TICKETS_PER_PERIOD, type TrackerPaceView } from '../forecast/milestoneInputs.js'
-import type { InputsForm, InputsView } from '../forecast/inputs.js'
-import type { PaceMode } from '../model/milestoneInputs.js'
-import { escapeHtml } from './html.js'
-import { errorLine, incompleteMark, INPUT_LABELS, inputSection, notesFor, radios, type Section } from './lib/inputSection.js'
-import { chip, chipForms, PACE_CHIP } from './lib/readsDifferentlyChip.js'
-import { renderPaceTrend } from './paceTrendGraph.js'
+import type { PeriodName } from '../../forecast/cadence.js'
+import { dayMonth } from '../../forecast/calendarDate.js'
+import { MAX_TICKETS_PER_PERIOD, type TrackerPaceView } from '../../forecast/milestoneInputs.js'
+import type { InputsView } from '../../forecast/inputs.js'
+import type { PaceMode } from '../../model/milestoneInputs.js'
+import { escapeHtml } from '../html.js'
+import { renderPaceTrend } from '../paceTrendGraph.js'
+import {
+  errorLine,
+  formAction,
+  incompleteMark,
+  INPUT_LABELS,
+  inputSection,
+  notesFor,
+  radios,
+  type FormError,
+  type FormTarget,
+  type Section,
+} from './inputSection.js'
+import { chip, chipForms, type Chip } from './readsDifferently.js'
+
+// Behind inputsScreen.ts: its Pace section.
+
+/** Where the form choosing the pace the forecast uses posts. */
+const PACE_MODE_TARGET: FormTarget = { path: '/inputs/pace-mode', anchor: 'pace' }
+
+/** The chip on the pace: its Follow posts as that form does, choosing the tracker's. */
+const PACE_CHIP: Chip = { id: 'pace', reading: 'pace', follow: { ...PACE_MODE_TARGET, fields: { paceMode: 'tracker' } } }
 
 /** Each pace's name; the tracker's is the connected tracker's own, GitHub or Jira. */
 const PACE_MODE_NAMES: Record<Exclude<PaceMode, 'tracker'>, string> = { range: 'Range', counts: INPUT_LABELS.typedCounts }
@@ -15,7 +34,7 @@ const PACE_MODE_NAMES: Record<Exclude<PaceMode, 'tracker'>, string> = { range: '
  * The pace: which one the forecast uses, the tracker's with a connection, the range, and the typed counts, the notes
  * and the trend beside the one in use.
  */
-export function paceSection(screen: InputsView, error: (form: InputsForm) => string | undefined, period: PeriodName): Section {
+export function paceSection(screen: InputsView, error: FormError, period: PeriodName): Section {
   const { paceMode, paceUsed: inUse, trackerPace, notes, typedCountsNeeded: typedCounts, paceTrend } = screen.milestone
   const notesIfUsed = (mode: PaceMode): string => (mode === inUse ? notesFor('pace', notes) + notesFor('typedCounts', notes) : '')
   const trendIfUsed = (mode: PaceMode): string => (mode === inUse ? renderPaceTrend(paceTrend, period, '          ') : '')
@@ -33,10 +52,10 @@ export function paceSection(screen: InputsView, error: (form: InputsForm) => str
     INPUT_LABELS.pace,
     INPUT_LABELS.pace,
     `How many tickets the team finishes in a ${period}: ${trackerPace ? `the ${period}s ${escapeHtml(trackerPace.tracker)} reads, ` : ''}a range from a slow ${period} to a good one, or typed counts of past ${period}s. Typed counts need at least ${typedCounts.forForecast} for a forecast, and ${typedCounts.reliable} to be reliable. Capacity is set beside the forecast, under Pace.`,
-    `        <form method="post" action="/inputs/pace-mode#pace">${errorLine(error('paceMode'))}
+    `        <form method="post" action="${formAction(PACE_MODE_TARGET)}">${errorLine(error('paceMode'))}
 ${radios('paceMode', 'Pace the forecast uses', modes, paceMode, name)}
           <div class="actions"><button type="submit" class="primary">Use this pace</button></div>
-        </form>${trackerPace?.readsDifferently ? chipForms(PACE_CHIP, '/inputs/pace-mode#pace', { paceMode: 'tracker' }) : ''}${tracker}
+        </form>${chipForms(PACE_CHIP, trackerPace?.readsDifferently)}${tracker}
         <form method="post" action="/inputs/pace#pace-range" id="pace-range">${errorLine(error('paceRange'))}
           <h3>${PACE_MODE_NAMES.range}</h3>
           <div class="pace">
