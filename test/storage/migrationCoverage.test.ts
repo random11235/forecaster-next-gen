@@ -9,7 +9,8 @@ import { stepNamedBy, versionBefore } from './migrationStep.js'
 // that opens a data file as it was before that step, named in a `describe('step N: …')` (migrationStep.ts). This file
 // checks the names: each step is named by exactly one describe, none names a step MIGRATIONS doesn't have, and a file
 // naming one arranges through migrationsHarness.ts, which checks what each test under a step's describe writes as it
-// runs, and skips no test, so each step's describe holds a test that runs (Vitest fails one holding none).
+// runs, and has no word that skips, todos, singles out or runs concurrently a test, so each step's describe holds a
+// test that runs, one at a time (Vitest fails one holding none).
 // migrations.beforeTheMvp.test.ts names no step on purpose: it writes a file at the current version, so it runs none.
 
 const root = fileURLToPath(new URL('../..', import.meta.url))
@@ -42,17 +43,24 @@ function stepsNamedIn(source: string): number[] {
  */
 const usesHarness = (source: string): boolean => /^import\s+(?!type\s)(?:[^'"]*?\sfrom\s+)?'\.\/migrationsHarness\.js'/m.test(source)
 
+/** The words that skip, todo, single out or run concurrently a test or describe in Vitest, in any of its forms. */
+const NOT_RUN_ONE_AT_A_TIME = /\b(?:skip|todo|only|skipIf|runIf|concurrent)\b/
+
 /**
- * Whether `source` skips, todos or singles out a test or describe, so a step's describe may hold no test that runs:
- * Vitest itself fails a describe holding no test at all.
+ * The first word of NOT_RUN_ONE_AT_A_TIME in `source`, outside its comments, if any: a file that has one may hold a step
+ * whose tests none ran (Vitest itself fails a describe holding no test), or run them at once, which the harness's one
+ * list of writes can't follow. A word meaning something else fails too, loudly.
  */
-const runsSometimes = (source: string): boolean => /\b(?:describe|test|it)\.(?:skip|todo|only|skipIf|runIf)\b/.test(source.replace(/\/\*[\s\S]*?\*\//g, ''))
+function wordNotRunningOneAtATime(source: string): string | undefined {
+  const uncommented = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1')
+  return NOT_RUN_ONE_AT_A_TIME.exec(uncommented)?.[0]
+}
 
 /**
  * What is wrong with how `tests` name the steps of MIGRATIONS (`steps`, each step's text as migrationSteps gives
  * it), one sentence each: a step no describe names, naming it by its comment; a step named more than once; a step
- * named that MIGRATIONS doesn't have; a file naming a step that doesn't arrange through the harness, or that skips, todos
- * or singles out a test. Each names the files.
+ * named that MIGRATIONS doesn't have; a file naming a step that doesn't arrange through the harness, or that has a word of
+ * NOT_RUN_ONE_AT_A_TIME. Each names the files.
  */
 function stepNamingProblems(steps: readonly string[], tests: readonly TestFile[]): string[] {
   const filesNaming = new Map<number, string[]>()
@@ -75,10 +83,13 @@ function stepNamingProblems(steps: readonly string[], tests: readonly TestFile[]
   const unchecked = tests
     .filter(({ source }) => stepsNamedIn(source).length > 0 && !usesHarness(source))
     .map(({ file }) => `${file} names a step but doesn't import migrationsHarness.ts, which checks what each step's test writes`)
-  const sometimes = tests
-    .filter(({ source }) => stepsNamedIn(source).length > 0 && runsSometimes(source))
-    .map(({ file }) => `${file} names a step and skips, todos or singles out a test: every test in a file naming a step runs, so each step has a test that ran`)
-  return [...untested, ...misnamed, ...unchecked, ...sometimes]
+  const notOneAtATime = tests.flatMap(({ file, source }) => {
+    const word = stepsNamedIn(source).length > 0 ? wordNotRunningOneAtATime(source) : undefined
+    return word === undefined
+      ? []
+      : [`${file} names a step and has \`${word}\`: every test in a file naming a step must run, one at a time, so each step has a test that runs`]
+  })
+  return [...untested, ...misnamed, ...unchecked, ...notOneAtATime]
 }
 
 describe('migration coverage', () => {
@@ -168,17 +179,35 @@ describe('migration coverage', () => {
   })
 
   test.each([
-    ['describe.skip', "describe.skip('step 2: a data file', () => {})"],
-    ['test.skip', "describe('step 2: a data file', () => {\n  test.skip('keeps it', () => {})\n})"],
-    ['test.todo', "describe('step 2: a data file', () => {\n  test.todo('keeps it')\n})"],
-    ['it.skipIf', "describe('step 2: a data file', () => {\n  it.skipIf(slow)('keeps it', () => {})\n})"],
-    ['test.only', "describe('step 2: a data file', () => {\n  test.only('keeps it', () => {})\n})"],
-  ])('fails on a file naming a step that runs a test only some of the time, with %s, naming it', (_, source) => {
-    const sometimes = { file: 'migrations.b.test.ts', source: `${HARNESS}describe('step 2: before', () => {})\n${source}` }
+    ['describe.skip', "describe.skip('step 2: a data file', () => {})", 'skip'],
+    ['test.skip', "test.skip('keeps it', () => {})", 'skip'],
+    ['test.todo', "test.todo('keeps it')", 'todo'],
+    ['it.skipIf', "it.skipIf(slow)('keeps it', () => {})", 'skipIf'],
+    ['it.runIf', "it.runIf(fast)('keeps it', () => {})", 'runIf'],
+    ['test.only', "test.only('keeps it', () => {})", 'only'],
+    ['test.concurrent.skip', "test.concurrent.skip('keeps it', () => {})", 'concurrent'],
+    ['describe.sequential.only', "describe.sequential.only('a group', () => {})", 'only'],
+    ['suite.skip', "suite.skip('a group', () => {})", 'skip'],
+    ['the skip option', "test('keeps it', { skip: true }, () => {})", 'skip'],
+    ['ctx.skip()', "test('keeps it', (ctx) => {\n  ctx.skip()\n})", 'skip'],
+    ['a skip fixture', "test('keeps it', ({ skip }) => skip())", 'skip'],
+    ['describe.concurrent', "describe.concurrent('a group', () => {})", 'concurrent'],
+  ])('fails on a file naming a step that has %s, naming the file and the word', (_, code, word) => {
+    const file = { file: 'migrations.b.test.ts', source: `${HARNESS}describe('step 2: a data file', () => {\n  ${code}\n})` }
 
-    expect(stepNamingProblems(STEPS, [STEP_1, sometimes])).toContain(
-      'migrations.b.test.ts names a step and skips, todos or singles out a test: every test in a file naming a step runs, so each step has a test that ran',
-    )
+    expect(stepNamingProblems(STEPS, [STEP_1, file])).toEqual([
+      `migrations.b.test.ts names a step and has \`${word}\`: every test in a file naming a step must run, one at a time, so each step has a test that runs`,
+    ])
+  })
+
+  test.each([
+    ['a line comment', '// skip this one only when the tracker is down'],
+    ['a block comment', '/* only the todo here */'],
+    ['a word that only contains one', "const skipped = 'onlyOne'"],
+  ])('takes the words in %s', (_, code) => {
+    const file = { file: 'migrations.b.test.ts', source: `${HARNESS}${code}\ndescribe('step 2: a data file', () => {})` }
+
+    expect(stepNamingProblems(STEPS, [STEP_1, file])).toEqual([])
   })
 
   test("fails on a file naming a step that doesn't arrange through the harness, naming it", () => {

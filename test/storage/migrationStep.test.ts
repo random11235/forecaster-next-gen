@@ -32,6 +32,15 @@ describe('the describes above a test', () => {
   })
 })
 
+describe('the describes above a test, from describe.each', () => {
+  test("leave out a describe.each's titles, as the coverage check does", () => {
+    const file = { name: 'migrations.v1to5.test.ts' }
+    const each = { name: 'step 5: a data file', each: true, suite: file }
+
+    expect(describesAbove({ name: 'keeps it', suite: each })).toEqual(['migrations.v1to5.test.ts'])
+  })
+})
+
 describe("a step test's writes", () => {
   const STEP_5 = ['migrations.v1to5.test.ts', 'step 5: a data file from schema version 4']
 
