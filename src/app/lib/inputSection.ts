@@ -3,7 +3,7 @@ import type { InputNote, MilestoneInput } from '../../forecast/milestoneAssessme
 import { escapeHtml } from '../html.js'
 
 // Behind inputsScreen.ts: a section of the Inputs screen, and the parts its sections share: the label each input goes
-// by, its notes and errors, and radio buttons.
+// by, its notes and errors, radio buttons, and the mark of a read that was part of what its query matched.
 
 /** Each input of the milestone by its label on this screen, which notes about it are named by everywhere. */
 export const INPUT_LABELS: Record<MilestoneInput, string> = {
@@ -70,4 +70,9 @@ export function radios<T extends string>(
   return `          <fieldset class="levels" aria-label="${ariaLabel}">
 ${buttons.join('\n')}
           </fieldset>`
+}
+
+/** A value's mark when the tracker's read it is from was part of what its query matched; nothing when whole. */
+export function incompleteMark(incomplete: boolean): string {
+  return incomplete ? ' <span class="incomplete">incomplete</span>' : ''
 }
