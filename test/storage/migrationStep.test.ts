@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { describesAbove, stepNamedBy, stepWriteProblems, versionBefore } from './migrationStep.js'
+import { stepNamedBy, stepWriteProblems, topLevelDescribe, versionBefore } from './migrationStep.js'
 
 // The step a migration test's describe names, and the rule migrationsHarness.ts checks its writes by.
 
@@ -22,37 +22,35 @@ describe('the version before a step', () => {
   })
 })
 
-describe('the describes above a test', () => {
-  test("are its describes' titles, outermost first, its file's first and not its own", () => {
-    const file = { name: 'migrations.v1to5.test.ts' }
-    const outer = { name: 'a group', suite: file }
+// As Vitest gives a test: its `suite` is the describe it is in, and a describe at the top of its file has none.
+describe('the top-level describe a test is in', () => {
+  test('is the outermost describe, at the top of the file, whatever is nested under it', () => {
+    const step = { name: 'step 5: a data file' }
+    const inner = { name: 'a group', suite: step }
+
+    expect(topLevelDescribe({ name: 'keeps it', suite: step })).toBe('step 5: a data file')
+    expect(topLevelDescribe({ name: 'keeps it', suite: inner })).toBe('step 5: a data file')
+  })
+
+  test('is the outer describe for a step describe nested in another, so the nested one names no step, as for the coverage check', () => {
+    const outer = { name: 'a group' }
     const step = { name: 'step 5: a data file', suite: outer }
 
-    expect(describesAbove({ name: 'step 6: keeps it', suite: step })).toEqual(['migrations.v1to5.test.ts', 'a group', 'step 5: a data file'])
+    expect(topLevelDescribe({ name: 'keeps it', suite: step })).toBe('a group')
   })
-})
 
-describe('the describes above a test, from describe.each', () => {
-  test("leave out a describe.each's titles, as the coverage check does", () => {
-    const file = { name: 'migrations.v1to5.test.ts' }
-    const each = { name: 'step 5: a data file', each: true, suite: file }
-
-    expect(describesAbove({ name: 'keeps it', suite: each })).toEqual(['migrations.v1to5.test.ts'])
+  test("is none for a test at the file's top level, or under a describe.each, which the coverage check doesn't read", () => {
+    expect(topLevelDescribe({ name: 'step 5: keeps it' })).toBeUndefined()
+    expect(topLevelDescribe({ name: 'keeps it', suite: { name: 'step 5: a data file', each: true } })).toBeUndefined()
   })
 })
 
 describe("a step test's writes", () => {
-  const STEP_5 = ['migrations.v1to5.test.ts', 'step 5: a data file from schema version 4']
+  const STEP_5 = 'step 5: a data file from schema version 4'
 
   test('passes a test under step N writing files at version N - 1, and step 1 writing one at 0', () => {
     expect(stepWriteProblems(STEP_5, [4, 4])).toEqual([])
-    expect(stepWriteProblems(['step 1: a data file written before schema versions'], [0])).toEqual([])
-  })
-
-  test('takes a step named by a describe at any level', () => {
-    expect(stepWriteProblems(['migrations.v1to5.test.ts', 'version 4', 'step 5: a data file'], [3])).toEqual([
-      'a test under `step 5: …` writes a file at version 3: step 5 runs on a file at version 4',
-    ])
+    expect(stepWriteProblems('step 1: a data file written before schema versions', [0])).toEqual([])
   })
 
   test('fails a test under step N writing a file at another version, naming the step and the version', () => {
@@ -60,10 +58,10 @@ describe("a step test's writes", () => {
   })
 
   test('says step 1 runs on a file from before schema versions, as the coverage check does', () => {
-    expect(stepWriteProblems(['step 1: a data file'], [1])).toEqual([
+    expect(stepWriteProblems('step 1: a data file', [1])).toEqual([
       'a test under `step 1: …` writes a file at version 1: step 1 runs on a file from before schema versions',
     ])
-    expect(stepWriteProblems(['step 1: a data file'], [])).toEqual([
+    expect(stepWriteProblems('step 1: a data file', [])).toEqual([
       'a test under `step 1: …` writes no file: write one from before schema versions, as the release before step 1 left it',
     ])
   })
@@ -72,12 +70,9 @@ describe("a step test's writes", () => {
     expect(stepWriteProblems(STEP_5, [])).toEqual(['a test under `step 5: …` writes no file: write one at version 4, as the release before step 5 left it'])
   })
 
-  test('fails a test under two steps', () => {
-    expect(stepWriteProblems(['step 4: outer', 'step 5: inner'], [4])).toEqual(['a test under `step 4: …` and `step 5: …` names more than one step: name one'])
-  })
-
-  test('takes any writes from a test under no step describe', () => {
-    expect(stepWriteProblems(['schema version'], [])).toEqual([])
-    expect(stepWriteProblems(['a data file from before the MVP, at the current version'], [20])).toEqual([])
+  test('takes any writes from a test under no step describe, or none', () => {
+    expect(stepWriteProblems('schema version', [])).toEqual([])
+    expect(stepWriteProblems('a data file from before the MVP, at the current version', [20])).toEqual([])
+    expect(stepWriteProblems(undefined, [3])).toEqual([])
   })
 })
