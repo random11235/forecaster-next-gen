@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { Event, HTMLElement, HTMLInputElement } from 'happy-dom'
+import { Event, HTMLElement, HTMLInputElement, type Element } from 'happy-dom'
 import type { CannedFixture } from '../../src/connectors/canned.js'
 import type { Choice } from '../../src/connectors/connector.js'
 import { CHECKOUT, finishedOn, open } from '../trackerScenario.js'
@@ -38,17 +38,20 @@ function setFind(shown: BrowserPage, text: string): void {
   find.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
-/** The names of the choices the step's `kind` list shows now; none while the list is hidden. */
+/** Whether `element` is displayed, by the page's styles: an element the script hides, they must not show. */
+const displayed = (shown: BrowserPage, element: Element): boolean => shown.window.getComputedStyle(element).display !== 'none'
+
+/** The names of the choices the step's `kind` list shows now; none while the list isn't shown. */
 function shownIn(shown: BrowserPage, kind: Choice['kind']): string[] {
   const list = shown.find(`${STEP} .kind-list[data-kind="${kind}"]`, HTMLElement)
-  if (list.hidden) return []
+  if (!displayed(shown, list)) return []
   return [...list.querySelectorAll('form[data-name]')]
-    .filter((choice) => choice instanceof HTMLElement && !choice.hidden)
+    .filter((choice) => displayed(shown, choice))
     .map((choice) => choice.querySelector(`input[name=name]`)?.getAttribute('value') ?? '')
 }
 
 /** Whether the step says nothing matches. */
-const noneFound = (shown: BrowserPage): boolean => !shown.find(`${STEP} .none-found`, HTMLElement).hidden
+const noneFound = (shown: BrowserPage): boolean => displayed(shown, shown.find(`${STEP} .none-found`, HTMLElement))
 
 describe('the Milestone step’s find box', () => {
   const openStep = async (): Promise<BrowserPage> =>
