@@ -1,6 +1,15 @@
+import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 import { codeOf } from './sourceCode.js'
-import type { SourceFile } from './sourceFiles.js'
+import { type SourceFile, typeScriptSourcesUnder } from './sourceFiles.js'
+
+// No `any`, and `!` only on an index: both switch the type checker off where you are least sure. A `!` on an index that
+// is in range by construction (`counts[at]!` over the same array's own indices) is allowed, as `noUncheckedIndexedAccess`
+// can't see it. A value that can really be missing gets a check, and a type you can't name means the shape is wrong.
+// oxlint's `no-non-null-assertion` bans every `!`, so it can't allow the index: hence this scan.
+
+/** The repo's root, which src/ and test/ sit in. */
+const root = join(import.meta.dirname, '..')
 
 /** Where in a file the type checker is switched off, as `file:line`, and what switches it off. */
 interface TypeCheckOff {
@@ -30,6 +39,13 @@ function typeCheckOffs({ file, source }: SourceFile): TypeCheckOff[] {
 }
 
 describe('type check rules', () => {
+  test('no file in src/ or test/ has any in a type position, or a ! but on an index', () => {
+    const files = ['src', 'test'].flatMap((folder) => typeScriptSourcesUnder(join(root, folder), root))
+
+    expect(files.map(({ file }) => file)).toContain('src/app/html.ts')
+    expect(files.flatMap(typeCheckOffs)).toEqual([])
+  })
+
   test.each([
     ['a parameter typed any', 'function f(value: any) {}'],
     ['a cast to any', 'const loose = value as any'],
