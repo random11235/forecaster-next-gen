@@ -50,13 +50,12 @@ export function setupTables(db: DatabaseSync, transaction: Transaction): Omit<Se
       if (row === undefined) return undefined
       const reads = selectDraftReads.all(teamId).map((read) => ({
         query: String(read.query),
-        read: readRow(read, () => selectDraftReadTickets.all(teamId, String(read.query)))!,
+        read: readRow(read, selectDraftReadTickets.all(teamId, String(read.query))),
       }))
       const pickFailures = failedReadsIn(selectDraftFailures.all(teamId))
-      const sources = {
-        ...(ticketsSourceOf(row.tickets_source) && { ticketsRemaining: ticketsSourceOf(row.tickets_source)! }),
-        ...(paceModeOf(row.pace_mode) && { pace: paceModeOf(row.pace_mode)! }),
-      }
+      const ticketsRemaining = ticketsSourceOf(row.tickets_source)
+      const pace = paceModeOf(row.pace_mode)
+      const sources = { ...(ticketsRemaining && { ticketsRemaining }), ...(pace && { pace }) }
       const milestoneQuery = queryIn(row.milestone_query, row.milestone_picks, 'setup_drafts.milestone_picks')
       const comparableWorkQuery = queryIn(row.comparable_work_query, row.comparable_work_picks, 'setup_drafts.comparable_work_picks')
       return {

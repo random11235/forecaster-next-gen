@@ -128,7 +128,8 @@ export function routeSetup(request: Request, context: AppContext): Promise<Reply
   if (searchedFor) return searchedChoices(setup, searchedFor)
   if (request.method === 'GET' && pathname === CANDIDATES_PATH) return candidatesAsked(setup)
   const editedIn = request.method === 'POST' ? STEP_SECTIONS.find((section) => section.forms.has(pathname)) : undefined
-  if (editedIn) return queryEdited(setup, editedIn, editedIn.forms.get(pathname)!)
+  const readEdit = editedIn?.forms.get(pathname)
+  if (editedIn && readEdit) return queryEdited(setup, editedIn, readEdit)
   const readConnect = request.method === 'POST' ? CONNECT_FORMS.get(pathname) : undefined
   if (readConnect) return connected(setup, readConnect)
   const readSkip = request.method === 'POST' ? SKIP_FORMS.get(pathname) : undefined

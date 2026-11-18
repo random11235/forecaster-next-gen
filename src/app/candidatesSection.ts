@@ -39,7 +39,8 @@ export function openingKept(id: string, open: () => CandidateOpening): Candidate
 /** Keeps `opening` under `id`, dropping the oldest past `OPENINGS_KEPT`. */
 function kept(id: string, opening: CandidateOpening): CandidateOpening {
   openings.set(id, opening)
-  if (openings.size > OPENINGS_KEPT) openings.delete(openings.keys().next().value!)
+  const oldest = openings.keys().next()
+  if (openings.size > OPENINGS_KEPT && !oldest.done) openings.delete(oldest.value)
   return opening
 }
 

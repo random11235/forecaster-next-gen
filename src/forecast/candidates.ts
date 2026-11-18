@@ -163,9 +163,9 @@ function candidateRead(
   const all = counts ?? { counts: [], starts: [] }
   const strip = { counts: all.counts.slice(-STRIP_PERIODS), starts: all.starts.slice(-STRIP_PERIODS) }
   const median = strip.counts.length === 0 ? 0 : medianOf(strip.counts)
-  const finished = read.tickets.filter((ticket) => ticket.finishedAt !== undefined)
+  const finished = read.tickets.flatMap(({ id, finishedAt }) => (finishedAt === undefined ? [] : [{ id, finishedAt }]))
   const last = finished
-    .map((ticket) => ticket.finishedAt!)
+    .map(({ finishedAt }) => finishedAt)
     .sort()
     .at(-1)
   return {
