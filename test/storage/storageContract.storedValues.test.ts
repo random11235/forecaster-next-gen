@@ -9,7 +9,7 @@ import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteS
 import { STORED_UNIONS } from './storedUnions.js'
 
 // What the typecheck can't see in the SQLite file, against STORED_UNIONS: that it writes read_failures.of as exactly
-// ReadFailureOf's values, which no `save…` method takes, so renaming one in sqliteStorage.ts fails here; and that it
+// ReadFailureOf's values, which no `save…` method takes, so renaming one in src/storage/lib/setupTables.ts fails here; and that it
 // reads back every value of each union it reads through a list of its own, so one added to a union but not the list
 // fails.
 
