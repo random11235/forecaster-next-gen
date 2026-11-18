@@ -2,17 +2,27 @@ import { MAX_TICKETS_REMAINING, type TicketsSourceView } from '../../forecast/mi
 import type { InputsView } from '../../forecast/inputs.js'
 import type { TicketsSource } from '../../model/milestoneInputs.js'
 import { escapeHtml } from '../html.js'
-import { errorLine, incompleteMark, INPUT_LABELS, inputSection, notesFor, radios, type FormError, type Section } from './inputSection.js'
-import { chip, chipForms, formAction, type Chip } from './readsDifferently.js'
+import {
+  errorLine,
+  formAction,
+  incompleteMark,
+  INPUT_LABELS,
+  inputSection,
+  notesFor,
+  radios,
+  type FormError,
+  type FormTarget,
+  type Section,
+} from './inputSection.js'
+import { chip, chipForms, type Chip } from './readsDifferently.js'
 
 // Behind inputsScreen.ts: its Milestone section.
 
-/** The chip on tickets remaining: its Follow posts the source's form, choosing the tracker. */
-const TICKETS_CHIP: Chip = {
-  id: 'tickets',
-  reading: 'ticketsRemaining',
-  follow: { path: '/inputs/tickets-source', anchor: 'milestone', fields: { ticketsSource: 'tracker' } },
-}
+/** Where the form choosing where tickets remaining comes from posts. */
+const TICKETS_SOURCE_TARGET: FormTarget = { path: '/inputs/tickets-source', anchor: 'milestone' }
+
+/** The chip on tickets remaining: its Follow posts as that form does, choosing the tracker. */
+const TICKETS_CHIP: Chip = { id: 'tickets', reading: 'ticketsRemaining', follow: { ...TICKETS_SOURCE_TARGET, fields: { ticketsSource: 'tracker' } } }
 
 /**
  * The milestone's name, start date and tickets remaining. With a connection, tickets remaining has a source to choose
@@ -44,7 +54,7 @@ export function milestoneSection(screen: InputsView, error: FormError): Section 
         </form>${
           ticketsSource
             ? `
-        <form method="post" action="${formAction(TICKETS_CHIP.follow)}" id="${TICKETS_SOURCE_FORM}">${errorLine(error('ticketsSource'))}
+        <form method="post" action="${formAction(TICKETS_SOURCE_TARGET)}" id="${TICKETS_SOURCE_FORM}">${errorLine(error('ticketsSource'))}
           <div class="actions"><button type="submit">Use this source</button></div>
         </form>${
           // opening a reading is posted by the page's script, which shows no reply; a refusal shows here, by the first chip

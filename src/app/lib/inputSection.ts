@@ -3,7 +3,8 @@ import type { InputNote, MilestoneInput } from '../../forecast/milestoneAssessme
 import { escapeHtml } from '../html.js'
 
 // Behind inputsScreen.ts: a section of the Inputs screen, and the parts its sections share: the label each input goes
-// by, its notes and errors, radio buttons, and the mark of a read that was part of what its query matched.
+// by, its notes and errors, radio buttons, the mark of a read that was part of what its query matched, and where a
+// form posts.
 
 /** Each input of the milestone by its label on this screen, which notes about it are named by everywhere. */
 export const INPUT_LABELS: Record<MilestoneInput, string> = {
@@ -76,3 +77,12 @@ ${buttons.join('\n')}
 export function incompleteMark(incomplete: boolean): string {
   return incomplete ? ' <span class="incomplete">incomplete</span>' : ''
 }
+
+/** Where a section's form posts: to `path`, the answer opening at the section `anchor`. */
+export interface FormTarget {
+  path: string
+  anchor: string
+}
+
+/** The action of a form posting to `target`. */
+export const formAction = ({ path, anchor }: FormTarget): string => `${path}#${anchor}`
