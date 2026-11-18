@@ -8,7 +8,8 @@ import { stepNamedBy, versionBefore } from './migrationStep.js'
 // The Migration tests section of docs/design/architecture-test-seams-storage.md: every step of MIGRATIONS has a test
 // that opens a data file as it was before that step, named in a `describe('step N: …')` (migrationStep.ts). This file
 // checks the names: each step is named by exactly one describe, none names a step MIGRATIONS doesn't have, and a file
-// naming one arranges through migrationsHarness.ts, which checks what each named test writes as it runs.
+// naming one arranges through migrationsHarness.ts, which checks what each test under a step's describe writes as it
+// runs, and skips no test, so each step's describe holds a test that runs (Vitest fails one holding none).
 // migrations.beforeTheMvp.test.ts names no step on purpose: it writes a file at the current version, so it runs none.
 
 const root = fileURLToPath(new URL('../..', import.meta.url))
@@ -35,13 +36,23 @@ function stepsNamedIn(source: string): number[] {
   return [...uncommented.matchAll(/^[ \t]*describe\(\s*(['"`])(.*?)\1/gm)].flatMap((match) => stepNamedBy(match[2] ?? '') ?? [])
 }
 
-/** Whether `source` imports migrationsHarness.ts, which checks what each step's test writes. */
-const usesHarness = (source: string): boolean => /^import [^\n]* from '\.\/migrationsHarness\.js'/m.test(source)
+/**
+ * Whether `source` imports migrationsHarness.ts, which checks what each step's test writes: its bindings, wrapped over
+ * lines or not, or the bare module. A type-only import runs none of it.
+ */
+const usesHarness = (source: string): boolean => /^import\s+(?!type\s)(?:[^'"]*?\sfrom\s+)?'\.\/migrationsHarness\.js'/m.test(source)
+
+/**
+ * Whether `source` skips, todos or singles out a test or describe, so a step's describe may hold no test that runs:
+ * Vitest itself fails a describe holding no test at all.
+ */
+const runsSometimes = (source: string): boolean => /\b(?:describe|test|it)\.(?:skip|todo|only|skipIf|runIf)\b/.test(source.replace(/\/\*[\s\S]*?\*\//g, ''))
 
 /**
  * What is wrong with how `tests` name the steps of MIGRATIONS (`steps`, each step's text as migrationSteps gives
  * it), one sentence each: a step no describe names, naming it by its comment; a step named more than once; a step
- * named that MIGRATIONS doesn't have; a file naming a step that doesn't arrange through the harness. Each names the files.
+ * named that MIGRATIONS doesn't have; a file naming a step that doesn't arrange through the harness, or that skips, todos
+ * or singles out a test. Each names the files.
  */
 function stepNamingProblems(steps: readonly string[], tests: readonly TestFile[]): string[] {
   const filesNaming = new Map<number, string[]>()
@@ -64,7 +75,10 @@ function stepNamingProblems(steps: readonly string[], tests: readonly TestFile[]
   const unchecked = tests
     .filter(({ source }) => stepsNamedIn(source).length > 0 && !usesHarness(source))
     .map(({ file }) => `${file} names a step but doesn't import migrationsHarness.ts, which checks what each step's test writes`)
-  return [...untested, ...misnamed, ...unchecked]
+  const sometimes = tests
+    .filter(({ source }) => stepsNamedIn(source).length > 0 && runsSometimes(source))
+    .map(({ file }) => `${file} names a step and skips, todos or singles out a test: every test in a file naming a step runs, so each step has a test that ran`)
+  return [...untested, ...misnamed, ...unchecked, ...sometimes]
 }
 
 describe('migration coverage', () => {
@@ -134,6 +148,37 @@ describe('migration coverage', () => {
     const stale = { file: 'migrations.b.test.ts', source: `${HARNESS}describe('step 2: a data file', () => {})\ndescribe('step 3: from the future', () => {})` }
 
     expect(stepNamingProblems(STEPS, [STEP_1, stale])).toEqual(['migrations.b.test.ts names step 3, but MIGRATIONS has steps 1–2'])
+  })
+
+  test.each([
+    ['an import wrapped over lines', "import {\n  open,\n  writeFile,\n} from './migrationsHarness.js'\n"],
+    ['a bare import', "import './migrationsHarness.js'\n"],
+  ])('takes %s of the harness', (_, harness) => {
+    const step2 = { file: 'migrations.b.test.ts', source: `${harness}describe('step 2: a data file', () => {})` }
+
+    expect(stepNamingProblems(STEPS, [STEP_1, step2])).toEqual([])
+  })
+
+  test('takes no type-only import of the harness, which runs none of its checks', () => {
+    const typeOnly = { file: 'migrations.b.test.ts', source: "import type { Opened } from './migrationsHarness.js'\ndescribe('step 2: a data file', () => {})" }
+
+    expect(stepNamingProblems(STEPS, [STEP_1, typeOnly])).toEqual([
+      "migrations.b.test.ts names a step but doesn't import migrationsHarness.ts, which checks what each step's test writes",
+    ])
+  })
+
+  test.each([
+    ['describe.skip', "describe.skip('step 2: a data file', () => {})"],
+    ['test.skip', "describe('step 2: a data file', () => {\n  test.skip('keeps it', () => {})\n})"],
+    ['test.todo', "describe('step 2: a data file', () => {\n  test.todo('keeps it')\n})"],
+    ['it.skipIf', "describe('step 2: a data file', () => {\n  it.skipIf(slow)('keeps it', () => {})\n})"],
+    ['test.only', "describe('step 2: a data file', () => {\n  test.only('keeps it', () => {})\n})"],
+  ])('fails on a file naming a step that runs a test only some of the time, with %s, naming it', (_, source) => {
+    const sometimes = { file: 'migrations.b.test.ts', source: `${HARNESS}describe('step 2: before', () => {})\n${source}` }
+
+    expect(stepNamingProblems(STEPS, [STEP_1, sometimes])).toContain(
+      'migrations.b.test.ts names a step and skips, todos or singles out a test: every test in a file naming a step runs, so each step has a test that ran',
+    )
   })
 
   test("fails on a file naming a step that doesn't arrange through the harness, naming it", () => {
