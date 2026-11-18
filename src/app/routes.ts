@@ -32,6 +32,7 @@ import {
   KIND_FIELD,
   MILESTONE_STEP,
   OPEN_FIELD,
+  STEP_FORMS,
   STEP_SECTIONS,
   type StepSection,
 } from './queryStepSection.js'
@@ -127,9 +128,8 @@ export function routeSetup(request: Request, context: AppContext): Promise<Reply
   const searchedFor = request.method === 'GET' ? STEP_SECTIONS.find((section) => section.searchedChoicesPath === pathname) : undefined
   if (searchedFor) return searchedChoices(setup, searchedFor)
   if (request.method === 'GET' && pathname === CANDIDATES_PATH) return candidatesAsked(setup)
-  const editedIn = request.method === 'POST' ? STEP_SECTIONS.find((section) => section.forms.has(pathname)) : undefined
-  const readEdit = editedIn?.forms.get(pathname)
-  if (editedIn && readEdit) return queryEdited(setup, editedIn, readEdit)
+  const edited = request.method === 'POST' ? STEP_FORMS.get(pathname) : undefined
+  if (edited) return queryEdited(setup, edited.section, edited.read)
   const readConnect = request.method === 'POST' ? CONNECT_FORMS.get(pathname) : undefined
   if (readConnect) return connected(setup, readConnect)
   const readSkip = request.method === 'POST' ? SKIP_FORMS.get(pathname) : undefined
