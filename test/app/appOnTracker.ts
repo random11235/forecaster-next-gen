@@ -1,6 +1,5 @@
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned.js'
-import type { Choice } from '../../src/connectors/connector.js'
 import type { Connecting } from '../../src/forecast/connection.js'
 import type { Team } from '../../src/model/team.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
@@ -54,10 +53,10 @@ export async function appOnTracker(fixture: CannedFixture, { today = TODAY, now 
 /** The connection the app's tests connect with: GitHub's shop-team/shop, with a token the canned connector takes. */
 export const GITHUB_SHOP = { tracker: 'github', repo: 'shop-team/shop', token: 'token' } as const
 
-/** Connects `running` to `GITHUB_SHOP`, and picks `choice` (Checkout v2's milestone) as the milestone's query. */
-export async function connectAndPick(running: RunningApp, choice: Choice = CHECKOUT): Promise<void> {
+/** Connects `running` to `GITHUB_SHOP`, and picks Checkout v2's milestone as the milestone's query. */
+export async function connectAndPick(running: RunningApp): Promise<void> {
   await post(running, '/inputs/connect', GITHUB_SHOP)
-  await post(running, '/inputs/milestone-query/add', { ...choice })
+  await post(running, '/inputs/milestone-query/add', { ...CHECKOUT })
 }
 
 /** The page at `path`, as HTML. */
