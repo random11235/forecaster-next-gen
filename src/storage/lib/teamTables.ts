@@ -5,7 +5,8 @@ import type { MilestoneInputs, PaceMode, PaceWindow, SeenReads, TicketsSource } 
 import type { Team } from '../../model/team.js'
 import type { Storage } from '../storage.js'
 import type { Row, Transaction } from './sqliteDatabase.js'
-import { isPaceCounts, isStoredPaceWindow, isStoredSeenReads, parseStored } from './storedJson.js'
+import { isPaceCounts, isStoredPaceWindow, isStoredSeenReads } from './milestoneInputsJson.js'
+import { parseStored } from './storedJson.js'
 
 /*
  * The team and its milestone's inputs in the SQLite file, behind sqliteStorage.ts: the teams, each team's milestone

@@ -3,7 +3,7 @@ import { choiceKindOf, type Choice } from '../../connectors/connector.js'
 import type { MilestoneQuery } from '../../model/milestoneQuery.js'
 import type { MilestoneQueryStorage } from '../storage.js'
 import type { Row } from './sqliteDatabase.js'
-import { isStoredPicks, parseStored } from './storedJson.js'
+import { isListOf, isObject, isString, parseStored } from './storedJson.js'
 
 /*
  * The milestone query and comparable work's in the SQLite file, behind sqliteStorage.ts: each its picks, in order, and
@@ -27,7 +27,8 @@ export function milestoneQueryTables(db: DatabaseSync): MilestoneQueryStorage {
     },
 
     milestoneQuery(teamId) {
-      return queryIn(selectMilestoneQuery.get(teamId), 'milestone_queries')
+      const row = selectMilestoneQuery.get(teamId)
+      return queryIn(row?.query, row?.picks, 'milestone_queries.picks')
     },
 
     saveComparableWorkQuery(teamId, comparableWorkQuery) {
@@ -35,7 +36,8 @@ export function milestoneQueryTables(db: DatabaseSync): MilestoneQueryStorage {
     },
 
     comparableWorkQuery(teamId) {
-      return queryIn(selectComparableWorkQuery.get(teamId), 'comparable_work_queries')
+      const row = selectComparableWorkQuery.get(teamId)
+      return queryIn(row?.query, row?.picks, 'comparable_work_queries.picks')
     },
   }
 }
@@ -45,10 +47,16 @@ export function picksKept(picks: readonly Choice[]): string {
   return JSON.stringify(picks.map(({ kind, name, query }) => ({ kind, name, query })))
 }
 
-/** The picks and query a row of `table`, `milestone_queries` or `comparable_work_queries`, keeps; none for no row. */
-function queryIn(row: Row | undefined, table: string): MilestoneQuery | undefined {
-  if (row === undefined) return undefined
-  return { picks: picksIn(String(row.picks), `${table}.picks`), query: String(row.query) }
+/** Each column a query's picks are kept in, named as a refusal of its JSON names it. */
+type PicksColumn = 'milestone_queries.picks' | 'comparable_work_queries.picks' | 'setup_drafts.milestone_picks' | 'setup_drafts.comparable_work_picks'
+
+/**
+ * The query a row keeps, from its query column and its picks column, `column`; none when the query column holds none
+ * (no row, or a draft with no query of this kind).
+ */
+export function queryIn(query: unknown, picks: unknown, column: PicksColumn): MilestoneQuery | undefined {
+  if (query === null || query === undefined) return undefined
+  return { picks: picksIn(String(picks), column), query: String(query) }
 }
 
 /**
@@ -56,10 +64,14 @@ function queryIn(row: Row | undefined, table: string): MilestoneQuery | undefine
  * it couldn't show as a chip. The query is kept as written, so it stays in use: the step opens it for editing, as its
  * picks no longer make it. Picks of a shape it doesn't know are refused, naming `column`.
  */
-export function picksIn(json: string, column: string): Choice[] {
-  const stored = parseStored(json, column, isStoredPicks)
+function picksIn(json: string, column: PicksColumn): Choice[] {
+  const stored = parseStored(json, column, isListOf(isStoredPick))
   return stored.flatMap(({ kind, name, query }) => {
     const known = choiceKindOf(kind)
     return known ? [{ kind: known, name, query }] : []
   })
 }
+
+/** A pick as stored: its kind (one this version may not know), name and query. */
+const isStoredPick = (value: unknown): value is { kind: string; name: string; query: string } =>
+  isObject(value) && isString(value.kind) && isString(value.name) && isString(value.query)

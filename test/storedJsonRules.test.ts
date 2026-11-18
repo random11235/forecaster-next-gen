@@ -6,7 +6,7 @@ import { src } from './importScan.js'
 // The One-way doors rule in CODING_STANDARDS.md, for persisted JSON: storage reads every stored JSON value through
 // one parser, which checks its shape, never `JSON.parse` cast straight to a type.
 
-/** The one file in `src/storage/` that may call `JSON.parse`: the parser that checks each value's shape. */
+/** The one file in `src/storage/` that may use the `JSON` global but to write: the parser that checks each value's shape. */
 const PARSER = 'lib/storedJson.ts'
 
 /** Each `.ts` file under `src/storage/`, relative to it, with its source. */
@@ -17,10 +17,37 @@ function storageFiles(): { file: string; source: string }[] {
     .map((file) => ({ file, source: readFileSync(join(dir, file), 'utf8') }))
 }
 
+/**
+ * Whether `source` uses the `JSON` global in any way but `JSON.stringify`, in its code, not its comments: so a parse
+ * reached by `JSON?.parse`, `JSON["parse"]`, destructuring it or naming `JSON` again is caught too.
+ */
+function usesJsonButStringify(source: string): boolean {
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
+  return [...code.matchAll(/\bJSON\b(?!\s*\.\s*stringify\b)/g)].length > 0
+}
+
 describe('stored JSON rules', () => {
-  test(`in src/storage/, only ${PARSER} calls JSON.parse; everything else reads stored JSON through it`, () => {
-    const bare = storageFiles().filter(({ file, source }) => file !== PARSER && /\bJSON\s*\.\s*parse\b/.test(source))
+  test(`in src/storage/, only ${PARSER} uses JSON but JSON.stringify; everything else reads stored JSON through it`, () => {
+    const bare = storageFiles().filter(({ file, source }) => file !== PARSER && usesJsonButStringify(source))
 
     expect(bare.map(({ file }) => file)).toEqual([])
+  })
+
+  test.each([
+    ['a bare JSON.parse', 'const inputs = JSON.parse(text) as MilestoneInputs'],
+    ['JSON?.parse', 'const inputs = JSON?.parse(text)'],
+    ['JSON["parse"]', 'const inputs = JSON["parse"](text)'],
+    ['parse destructured from JSON', 'const { parse } = JSON'],
+    ['JSON named again', 'const j = JSON\nconst inputs = j.parse(text)'],
+  ])('catches %s', (_, source) => {
+    expect(usesJsonButStringify(source)).toBe(true)
+  })
+
+  test.each([
+    ['JSON.stringify', 'store.setItem(KEY, JSON.stringify(data))'],
+    ['a line comment mentioning JSON.parse', '// never JSON.parse a stored value\nconst kept = 1'],
+    ['a block comment mentioning JSON.parse', '/** Not read by `JSON.parse`. */\nconst kept = 1'],
+  ])('passes %s', (_, source) => {
+    expect(usesJsonButStringify(source)).toBe(false)
   })
 })
