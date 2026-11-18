@@ -110,23 +110,27 @@ describe('the candidates script', () => {
 
   test('typing that narrows the lists to a few, as few as the step opens or fewer, opens those once the typing has paused; to more, none', async () => {
     const page = await openStep(NARROWING)
-    const { few } = runsBy(page)
+    const { few, pauseMs } = runsBy(page)
+    expect(few).toBeGreaterThanOrEqual(1)
     expect(few).toBeLessThan(NARROWING.length)
     const toOneMore = LETTERS.slice(0, LETTERS.length - few)
+    const theFew = [NARROWING.slice(-few).map(({ query }) => query)]
 
     // narrows the labels to one more than a few
     typeInFind(page, toOneMore)
     await page.settled()
     expect(asked(page)).toEqual([])
 
-    // one letter more, to a few
-    typeInFind(page, LETTERS[toOneMore.length]!)
-    // a moment after the typing, before the pause it waits for
-    await wait(0)
+    // one letter more, to a few: nothing asked until nearly the pause after it, then those asked once just past it,
+    // as the page's timers and these waits run in the order they are due
+    typeInFind(page, LETTERS.charAt(toOneMore.length))
+    await wait(pauseMs * 0.9)
     expect(asked(page)).toEqual([])
+    await wait(pauseMs * 0.3)
+    expect(asked(page)).toEqual(theFew)
     await page.settled()
 
-    expect(asked(page)).toEqual([NARROWING.slice(-few).map(({ query }) => query)])
+    expect(asked(page)).toEqual(theFew)
     expect(candidates(page)).toContain('Nothing finished')
     expect(candidates(page)).not.toContain('Couldn’t be read')
   })
