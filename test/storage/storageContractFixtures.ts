@@ -3,11 +3,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach } from 'vitest'
 import type { MilestoneInputs } from '../../src/model/milestoneInputs.js'
+import type { MilestoneQuery } from '../../src/model/milestoneQuery.js'
 import type { Team } from '../../src/model/team.js'
 import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
 
-// What the Storage contract's files share (storageContract*.test.ts): the team and its milestone's inputs, and a
-// SQLite file to keep them in.
+// What the Storage contract's files share (storageContract*.test.ts): the team, its milestone's inputs and picks, and
+// a SQLite file to keep them in.
 
 export const TEAM: Team = { id: 'team', name: 'My team', source: 'manual', sourceRef: '', installedAt: '2026-01-01T00:00:00Z' }
 
@@ -25,6 +26,15 @@ export const LAUNCH: MilestoneInputs = {
   paceCadenceDays: 14,
   paceWindow: { action: { kind: 'startFrom', date: '2026-10-12' }, skippedPeriods: [] },
   seenReads: { ticketsRemaining: undefined, pace: undefined },
+}
+
+/** Picks of two kinds and the query they make, for the milestone or comparable work. */
+export const PICKED: MilestoneQuery = {
+  picks: [
+    { kind: 'epic', name: 'Checkout redesign', query: 'parent-issue:acme/checkout#106' },
+    { kind: 'label', name: 'payments', query: 'label:"payments"' },
+  ],
+  query: 'parent-issue:acme/checkout#106 OR label:"payments"',
 }
 
 /** A SQLite file in a folder of its own: its path, storage opened on it, and `reopen`, which closes that and opens it again. */

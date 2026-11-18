@@ -1,7 +1,6 @@
-import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, test } from 'vitest'
-import type { MilestoneQuery } from '../../src/model/milestoneQuery.js'
-import { TEAM, temporarySqliteFiles } from './storageContractFixtures.js'
+import { writeStraight } from './sqliteStraight.js'
+import { PICKED, TEAM, temporarySqliteFiles } from './storageContractFixtures.js'
 
 // The Storage contract's cases for stored values this version doesn't know, as a later version would leave them,
 // beside storageContract.setup.test.ts and storageContract.sqlite.test.ts: each is written straight into the SQLite
@@ -14,15 +13,11 @@ describe("SQLite storage's setup, with values it doesn't know", () => {
     const { file, storage, reopen } = sqliteFile()
     storage.saveTeam(TEAM)
     storage.saveSetupState('team', { open: false, closed: 'done' })
-    const db = new DatabaseSync(file)
-    db.prepare("UPDATE setups SET closed = 'archived'").run()
-    db.close()
+    writeStraight(file, "UPDATE setups SET closed = 'archived'")
     expect(reopen().setupState('team')).toStrictEqual({ open: true })
 
     reopen().saveSetupState('team', { open: true, reopened: 'done', connection: 'made' })
-    const again = new DatabaseSync(file)
-    again.prepare("UPDATE setups SET connection = 'moved'").run()
-    again.close()
+    writeStraight(file, "UPDATE setups SET connection = 'moved'")
     expect(reopen().setupState('team')).toStrictEqual({ open: true, reopened: 'done' })
   })
 
@@ -35,9 +30,7 @@ describe("SQLite storage's setup, with values it doesn't know", () => {
       reads: [],
       sources: { ticketsRemaining: 'typed', pace: 'counts' },
     })
-    const db = new DatabaseSync(file)
-    db.prepare("UPDATE setup_drafts SET tickets_source = 'estimated', pace_mode = 'velocity'").run()
-    db.close()
+    writeStraight(file, "UPDATE setup_drafts SET tickets_source = 'estimated', pace_mode = 'velocity'")
 
     expect(reopen().setupDraft('team')).toStrictEqual({
       milestoneQuery: { picks: [{ kind: 'label', name: 'payments', query: 'label:"payments"' }], query: 'label:"payments"' },
@@ -52,31 +45,19 @@ describe("SQLite storage's setup, with values it doesn't know", () => {
       whole: { failure: 'unavailable', at: '2026-11-12T09:00:00Z' },
       picks: { 'label:bug': { failure: 'notFound', at: '2026-11-12T09:00:00Z' } },
     })
-    const db = new DatabaseSync(file)
-    db.prepare("UPDATE read_failures SET failure = 'melted' WHERE of = 'whole'").run()
-    db.close()
+    writeStraight(file, "UPDATE read_failures SET failure = 'melted' WHERE of = 'whole'")
 
     expect(reopen().readFailures('team')).toStrictEqual({ picks: { 'label:bug': { failure: 'notFound', at: '2026-11-12T09:00:00Z' } } })
   })
 })
 
 describe("SQLite storage's milestone and comparable work queries, with picks it doesn't know", () => {
-  const PICKED: MilestoneQuery = {
-    picks: [
-      { kind: 'epic', name: 'Checkout redesign', query: 'parent-issue:acme/checkout#106' },
-      { kind: 'label', name: 'payments', query: 'label:"payments"' },
-    ],
-    query: 'parent-issue:acme/checkout#106 OR label:"payments"',
-  }
-
   test('reads back no pick of a kind it doesn’t know, keeping the query and the other picks', () => {
     const { file, storage, reopen } = sqliteFile()
     storage.saveTeam(TEAM)
     storage.saveMilestoneQuery('team', PICKED)
-    const db = new DatabaseSync(file)
     const stored = [{ kind: 'component', name: 'Payments', query: 'component = Payments' }, ...PICKED.picks]
-    db.prepare('UPDATE milestone_queries SET picks = ?').run(JSON.stringify(stored))
-    db.close()
+    writeStraight(file, 'UPDATE milestone_queries SET picks = ?', JSON.stringify(stored))
 
     expect(reopen().milestoneQuery('team')).toEqual(PICKED)
   })
@@ -85,10 +66,8 @@ describe("SQLite storage's milestone and comparable work queries, with picks it 
     const { file, storage, reopen } = sqliteFile()
     storage.saveTeam(TEAM)
     storage.saveComparableWorkQuery('team', PICKED)
-    const db = new DatabaseSync(file)
     const stored = [{ kind: 'component', name: 'Payments', query: 'component = Payments' }, ...PICKED.picks]
-    db.prepare('UPDATE comparable_work_queries SET picks = ?').run(JSON.stringify(stored))
-    db.close()
+    writeStraight(file, 'UPDATE comparable_work_queries SET picks = ?', JSON.stringify(stored))
 
     expect(reopen().comparableWorkQuery('team')).toEqual(PICKED)
   })
