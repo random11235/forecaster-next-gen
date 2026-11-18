@@ -2,10 +2,17 @@ import { MAX_TICKETS_REMAINING, type TicketsSourceView } from '../../forecast/mi
 import type { InputsView } from '../../forecast/inputs.js'
 import type { TicketsSource } from '../../model/milestoneInputs.js'
 import { escapeHtml } from '../html.js'
-import { errorLine, INPUT_LABELS, inputSection, notesFor, radios, type FormError, type Section } from './inputSection.js'
-import { chip, chipForms, incompleteMark, TICKETS_CHIP } from './trackerReading.js'
+import { errorLine, incompleteMark, INPUT_LABELS, inputSection, notesFor, radios, type FormError, type Section } from './inputSection.js'
+import { chip, chipForms, formAction, type Chip } from './readsDifferently.js'
 
 // Behind inputsScreen.ts: its Milestone section.
+
+/** The chip on tickets remaining: its Follow posts the source's form, choosing the tracker. */
+const TICKETS_CHIP: Chip = {
+  id: 'tickets',
+  reading: 'ticketsRemaining',
+  follow: { path: '/inputs/tickets-source', anchor: 'milestone', fields: { ticketsSource: 'tracker' } },
+}
 
 /**
  * The milestone's name, start date and tickets remaining. With a connection, tickets remaining has a source to choose
@@ -37,7 +44,7 @@ export function milestoneSection(screen: InputsView, error: FormError): Section 
         </form>${
           ticketsSource
             ? `
-        <form method="post" action="/inputs/tickets-source#milestone" id="${TICKETS_SOURCE_FORM}">${errorLine(error('ticketsSource'))}
+        <form method="post" action="${formAction(TICKETS_CHIP.follow)}" id="${TICKETS_SOURCE_FORM}">${errorLine(error('ticketsSource'))}
           <div class="actions"><button type="submit">Use this source</button></div>
         </form>${
           // opening a reading is posted by the page's script, which shows no reply; a refusal shows here, by the first chip

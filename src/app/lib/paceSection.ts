@@ -5,10 +5,13 @@ import type { InputsView } from '../../forecast/inputs.js'
 import type { PaceMode } from '../../model/milestoneInputs.js'
 import { escapeHtml } from '../html.js'
 import { renderPaceTrend } from '../paceTrendGraph.js'
-import { errorLine, INPUT_LABELS, inputSection, notesFor, radios, type FormError, type Section } from './inputSection.js'
-import { chip, chipForms, incompleteMark, PACE_CHIP } from './trackerReading.js'
+import { errorLine, incompleteMark, INPUT_LABELS, inputSection, notesFor, radios, type FormError, type Section } from './inputSection.js'
+import { chip, chipForms, formAction, type Chip } from './readsDifferently.js'
 
 // Behind inputsScreen.ts: its Pace section.
+
+/** The chip on the pace: its Follow posts the form choosing the pace, choosing the tracker's. */
+const PACE_CHIP: Chip = { id: 'pace', reading: 'pace', follow: { path: '/inputs/pace-mode', anchor: 'pace', fields: { paceMode: 'tracker' } } }
 
 /** Each pace's name; the tracker's is the connected tracker's own, GitHub or Jira. */
 const PACE_MODE_NAMES: Record<Exclude<PaceMode, 'tracker'>, string> = { range: 'Range', counts: INPUT_LABELS.typedCounts }
@@ -35,7 +38,7 @@ export function paceSection(screen: InputsView, error: FormError, period: Period
     INPUT_LABELS.pace,
     INPUT_LABELS.pace,
     `How many tickets the team finishes in a ${period}: ${trackerPace ? `the ${period}s ${escapeHtml(trackerPace.tracker)} reads, ` : ''}a range from a slow ${period} to a good one, or typed counts of past ${period}s. Typed counts need at least ${typedCounts.forForecast} for a forecast, and ${typedCounts.reliable} to be reliable. Capacity is set beside the forecast, under Pace.`,
-    `        <form method="post" action="/inputs/pace-mode#pace">${errorLine(error('paceMode'))}
+    `        <form method="post" action="${formAction(PACE_CHIP.follow)}">${errorLine(error('paceMode'))}
 ${radios('paceMode', 'Pace the forecast uses', modes, paceMode, name)}
           <div class="actions"><button type="submit" class="primary">Use this pace</button></div>
         </form>${chipForms(PACE_CHIP, trackerPace?.readsDifferently)}${tracker}
