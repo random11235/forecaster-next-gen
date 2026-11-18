@@ -24,17 +24,17 @@ describe('Check', () => {
     await connect(to)
     submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-11-16', ticketsRemaining: '30' })
     submit({ kind: 'setPaceRange', low: '4', high: '8' })
-    await scenario!.pick(READ_AT)
-    await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
-    await submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })
-    const drafted = scenario!.using
+    await scenario().pick(READ_AT)
+    await submitSetup(settingUp(scenario()), TEAM, { kind: 'useThese' })
+    await submitSetup(settingUp(scenario()), TEAM, { kind: 'change' })
+    const drafted = scenario().using
     await submitStepQuery(drafted, TEAM, { kind: 'editQuery', query: BOTH }, NEXT_READ_AT)
     await submitStepQuery(drafted, TEAM, { kind: 'addPick', choice: Q3_POLISH }, NEXT_READ_AT, COMPARABLE_WORK)
-    return scenario!
+    return scenario()
   }
-  const check = () => (setupView(settingUp(scenario!), TEAM, 'check') as { check?: unknown }).check
+  const check = () => (setupView(settingUp(scenario()), TEAM, 'check') as { check?: unknown }).check
   const choose = (...[value, source]: [ChosenSource['value'], ChosenSource['source']]) =>
-    submitSetup(settingUp(scenario!), TEAM, { kind: 'chooseSource', value, source } as SetupEdit)
+    submitSetup(settingUp(scenario()), TEAM, { kind: 'chooseSource', value, source } as SetupEdit)
 
   test('shows the EM’s value now and the draft reading of tickets remaining and pace, each row on its current source', async () => {
     await changedInSetup()
@@ -60,14 +60,14 @@ describe('Check', () => {
     expect(check()).toMatchObject({ pace: { yours: { source: 'counts', counts: [5, 6, 7] }, source: 'counts', choices: ['tracker', 'range', 'counts'] } })
     expect(await choose('pace', 'range')).toMatchObject({ saved: true })
     expect(check()).toMatchObject({ pace: { yours: { source: 'range', range: { low: 4, high: 8 } }, source: 'range' } })
-    await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
+    await submitSetup(settingUp(scenario()), TEAM, { kind: 'useThese' })
     expect(storage.milestoneInputs(TEAM)).toMatchObject({ paceMode: 'range', paceCounts: [5, 6, 7] })
   })
 
   test('is shown only at Check', async () => {
     await changedInSetup()
 
-    expect(setupView(settingUp(scenario!), TEAM, 'comparableWork')).not.toHaveProperty('check')
+    expect(setupView(settingUp(scenario()), TEAM, 'comparableWork')).not.toHaveProperty('check')
   })
 
   test('choosing the tracker for tickets and keeping the range for pace changes nothing until "Use these", which saves those sources and the draft together', async () => {
@@ -80,7 +80,7 @@ describe('Check', () => {
     expect(inputs()).toEqual(before.inputs)
     expect(forecast()).toEqual(before.forecast)
 
-    expect(await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })).toMatchObject({ saved: true })
+    expect(await submitSetup(settingUp(scenario()), TEAM, { kind: 'useThese' })).toMatchObject({ saved: true })
     expect(storage.milestoneInputs(TEAM)).toMatchObject({ ticketsSource: 'tracker', ticketsRemaining: 30, paceMode: 'range', paceRange: { low: 4, high: 8 } })
     expect(storage.milestoneQuery(TEAM)?.query).toBe(BOTH)
     expect(inputs().milestone.ticketsSource).toMatchObject({ source: 'tracker', reading: { count: 7 } })
@@ -91,7 +91,7 @@ describe('Check', () => {
     const { storage, inputs } = await changedInSetup()
     await choose('pace', 'tracker')
     await choose('ticketsRemaining', 'typed')
-    await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
+    await submitSetup(settingUp(scenario()), TEAM, { kind: 'useThese' })
 
     expect(storage.milestoneInputs(TEAM)).toMatchObject({ ticketsSource: 'typed', ticketsRemaining: 30, paceMode: 'tracker', paceRange: { low: 4, high: 8 } })
     expect(inputs().milestone).toMatchObject({ paceUsed: 'tracker', ticketsRemaining: 30 })
@@ -102,12 +102,12 @@ describe('Check', () => {
     await choose('ticketsRemaining', 'tracker')
     await choose('pace', 'tracker')
 
-    expect(setupView(settingUp(scenario!), TEAM, 'comparableWork')).toMatchObject({ step: 'comparableWork' })
+    expect(setupView(settingUp(scenario()), TEAM, 'comparableWork')).toMatchObject({ step: 'comparableWork' })
     expect(check()).toMatchObject({ ticketsRemaining: { source: 'tracker' }, pace: { source: 'tracker' } })
 
-    await submitSetup(settingUp(scenario!), TEAM, { kind: 'cancel' })
+    await submitSetup(settingUp(scenario()), TEAM, { kind: 'cancel' })
     expect(storage.milestoneInputs(TEAM)).toMatchObject({ ticketsSource: 'typed', paceMode: 'range' })
-    await submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })
+    await submitSetup(settingUp(scenario()), TEAM, { kind: 'change' })
     expect(check()).toMatchObject({ ticketsRemaining: { source: 'typed', reading: 3 }, pace: { source: 'range' } })
   })
 
@@ -121,7 +121,7 @@ describe('Check', () => {
 
   test('refuses a choice once setup is closed', async () => {
     const { storage } = await changedInSetup()
-    await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
+    await submitSetup(settingUp(scenario()), TEAM, { kind: 'useThese' })
 
     expect(await choose('ticketsRemaining', 'tracker')).toMatchObject({ saved: false })
     expect(storage.setupDraft(TEAM)).toBeUndefined()
@@ -144,14 +144,14 @@ describe('Check', () => {
   test('with no milestone entered yet, starts on a new milestone’s sources, and "Use these" saves those chosen', async () => {
     const { connect, storage } = team()
     await connect()
-    await scenario!.pick(READ_AT)
+    await scenario().pick(READ_AT)
 
     expect(check()).toMatchObject({ ticketsRemaining: { reading: 0, source: 'typed' }, pace: { source: 'range', choices: ['tracker', 'range'] } })
     expect(await choose('ticketsRemaining', 'tracker')).toMatchObject({ saved: true })
     expect(await choose('pace', 'tracker')).toMatchObject({ saved: true })
     expect(storage.milestoneInputs(TEAM)).toBeUndefined()
 
-    await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
+    await submitSetup(settingUp(scenario()), TEAM, { kind: 'useThese' })
     expect(storage.milestoneInputs(TEAM)).toMatchObject({ name: '', ticketsSource: 'tracker', paceMode: 'tracker' })
   })
 
@@ -159,7 +159,7 @@ describe('Check', () => {
     const { connect, submit, fixture } = team()
     fixture.reads[CHECKOUT.query] = { tickets: [...open(3), ...finishedOn('f', '2026-11-03', 6)], incomplete: false }
     await connect()
-    await scenario!.pick(READ_AT)
+    await scenario().pick(READ_AT)
 
     expect(check()).toMatchObject({ pace: { incomplete: false, noStartDate: true } })
     expect(check()).not.toHaveProperty('pace.reading')
@@ -171,10 +171,10 @@ describe('Check', () => {
   test('with no milestone entered yet and its sources left as they start, "Use these" enters no milestone', async () => {
     const { connect, storage } = team()
     await connect()
-    await scenario!.pick(READ_AT)
+    await scenario().pick(READ_AT)
     await choose('ticketsRemaining', 'typed')
 
-    await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
+    await submitSetup(settingUp(scenario()), TEAM, { kind: 'useThese' })
     expect(storage.milestoneInputs(TEAM)).toBeUndefined()
   })
 })

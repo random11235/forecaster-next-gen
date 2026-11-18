@@ -30,12 +30,12 @@ describe('the setup steps', () => {
   test('once connected, open at Milestone, back to Connect, and on to Comparable work only once the milestone has a query', async () => {
     const { connect, pick } = team()
     await connect()
-    const before = setupView(settingUp(scenario!), TEAM)
+    const before = setupView(settingUp(scenario()), TEAM)
     await pick(READ_AT)
 
     expect(before).toMatchObject({ step: 'milestone', back: 'connect' })
     expect(before).not.toHaveProperty('next')
-    expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({
+    expect(setupView(settingUp(scenario()), TEAM)).toMatchObject({
       step: 'milestone',
       steps: [
         { step: 'connect', mark: 'done' },
@@ -52,7 +52,7 @@ describe('the setup steps', () => {
     const { connect, pick } = team()
     await connect()
     await pick(READ_AT)
-    const at = (step: SetupStep) => setupView(settingUp(scenario!), TEAM, step)
+    const at = (step: SetupStep) => setupView(settingUp(scenario()), TEAM, step)
 
     expect(at('connect')).toMatchObject({ step: 'connect', next: { step: 'milestone', label: 'next' } })
     expect(at('connect')).not.toHaveProperty('back')
@@ -78,12 +78,12 @@ describe('the setup steps', () => {
     await connect()
     await pick(READ_AT)
     await pick(READ_AT, Q3_POLISH, COMPARABLE_WORK)
-    const at = (step: SetupStep) => setupView(settingUp(scenario!), TEAM, step)
+    const at = (step: SetupStep) => setupView(settingUp(scenario()), TEAM, step)
 
-    await submitStepQuery(scenario!.using, TEAM, { kind: 'startAfresh' }, READ_AT, COMPARABLE_WORK)
+    await submitStepQuery(scenario().using, TEAM, { kind: 'startAfresh' }, READ_AT, COMPARABLE_WORK)
     expect(at('comparableWork')).toMatchObject({ next: { step: 'check', label: 'skip' } })
 
-    await submitStepQuery(scenario!.using, TEAM, { kind: 'removePick', query: CHECKOUT.query }, READ_AT)
+    await submitStepQuery(scenario().using, TEAM, { kind: 'removePick', query: CHECKOUT.query }, READ_AT)
     expect(at('check')).toMatchObject({ step: 'milestone' })
     expect(at('milestone')).not.toHaveProperty('next')
   })
@@ -92,15 +92,15 @@ describe('the setup steps', () => {
     const { connect } = team()
     await connect()
 
-    expect(setupView(settingUp(scenario!), TEAM, 'check')).toMatchObject({ step: 'milestone' })
-    expect(setupView(settingUp(scenario!), TEAM, 'comparableWork')).toMatchObject({ step: 'milestone' })
+    expect(setupView(settingUp(scenario()), TEAM, 'check')).toMatchObject({ step: 'milestone' })
+    expect(setupView(settingUp(scenario()), TEAM, 'comparableWork')).toMatchObject({ step: 'milestone' })
   })
 
   test('open, as the Inputs screen asks, at the step its URL names, or at a step whose form was just refused', async () => {
     const { connect, pick } = team()
     await connect()
     await pick(READ_AT)
-    const opened = (opening: { asked?: string; refused?: SetupStep }) => openSetup(settingUp(scenario!), TEAM, opening, READ_AT)
+    const opened = (opening: { asked?: string; refused?: SetupStep }) => openSetup(settingUp(scenario()), TEAM, opening, READ_AT)
 
     expect(await opened({ asked: 'comparableWork' })).toMatchObject({ step: 'comparableWork' })
     expect(await opened({ asked: 'nonsense' })).toMatchObject({ step: 'milestone' })
@@ -109,7 +109,7 @@ describe('the setup steps', () => {
 
   test('go on, after a setup edit, to Check for a source, Connect for Change from a refused token, Milestone as the steps open there, else the screen as it opens', async () => {
     const { connect, pick } = team()
-    const submit = (edit: SetupEdit) => submitSetup(settingUp(scenario!), TEAM, edit)
+    const submit = (edit: SetupEdit) => submitSetup(settingUp(scenario()), TEAM, edit)
     expect(await submit({ kind: 'change' })).not.toHaveProperty('next')
     await connect()
     await pick(READ_AT)
@@ -133,8 +133,8 @@ describe('"Use these"', () => {
     await connect()
     await pick(READ_AT)
 
-    expect(await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })).toMatchObject({ saved: true })
-    expect(setupView({ ...settingUp(scenario!), timeZone: 'Australia/Sydney' }, TEAM)).toEqual({
+    expect(await submitSetup(settingUp(scenario()), TEAM, { kind: 'useThese' })).toMatchObject({ saved: true })
+    expect(setupView({ ...settingUp(scenario()), timeZone: 'Australia/Sydney' }, TEAM)).toEqual({
       kind: 'summary',
       tracker: 'GitHub',
       where: 'shop-team/shop',
@@ -149,18 +149,18 @@ describe('"Use these"', () => {
     const { connect, pick } = team()
     await connect('jira')
     await pick(READ_AT)
-    await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
+    await submitSetup(settingUp(scenario()), TEAM, { kind: 'useThese' })
 
-    expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({ kind: 'summary', tracker: 'Jira', where: 'shop.atlassian.net · SHOP' })
+    expect(setupView(settingUp(scenario()), TEAM)).toMatchObject({ kind: 'summary', tracker: 'Jira', where: 'shop.atlassian.net · SHOP' })
   })
 
   test('is refused, and setup stays open, until the team is connected and the milestone has a query', async () => {
     const { connect } = team()
-    expect(await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })).toMatchObject({ saved: false })
+    expect(await submitSetup(settingUp(scenario()), TEAM, { kind: 'useThese' })).toMatchObject({ saved: false })
     await connect()
-    expect(await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })).toMatchObject({ saved: false })
+    expect(await submitSetup(settingUp(scenario()), TEAM, { kind: 'useThese' })).toMatchObject({ saved: false })
 
-    expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({ kind: 'steps', step: 'milestone' })
+    expect(setupView(settingUp(scenario()), TEAM)).toMatchObject({ kind: 'steps', step: 'milestone' })
   })
 })
 
@@ -175,15 +175,15 @@ describe('the summary’s rows', () => {
     for (const choice of [SEARCH, BUG]) fixture.reads[choice.query] = { tickets: [{ id: choice.name, finishedAt: '2026-11-10T00:00:00Z' }], incomplete: false }
     await connect()
     for (const choice of choices) await pick(READ_AT, choice)
-    return scenario!
+    return scenario()
   }
-  const summary = async () => (await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' }), setupView(settingUp(scenario!), TEAM))
+  const summary = async () => (await submitSetup(settingUp(scenario()), TEAM, { kind: 'useThese' }), setupView(settingUp(scenario()), TEAM))
 
   test('name the milestone’s and comparable work’s picks, in the order picked, each with its kind', async () => {
     const { fixture } = await setUp([CHECKOUT, SEARCH])
     fixture.reads[Q3_POLISH.query] = { tickets: [{ id: 'q', finishedAt: '2026-11-10T00:00:00Z' }], incomplete: false }
-    await scenario!.pick(READ_AT, BUG, COMPARABLE_WORK)
-    await scenario!.pick(READ_AT, Q3_POLISH, COMPARABLE_WORK)
+    await scenario().pick(READ_AT, BUG, COMPARABLE_WORK)
+    await scenario().pick(READ_AT, Q3_POLISH, COMPARABLE_WORK)
 
     expect(await summary()).toMatchObject({
       milestone: {
@@ -205,7 +205,7 @@ describe('the summary’s rows', () => {
     const { fixture } = await setUp()
     const written = 'milestone:"Checkout v2" -label:wontfix'
     fixture.reads[written] = { tickets: open(3), incomplete: false }
-    await submitStepQuery(scenario!.using, TEAM, { kind: 'editQuery', query: written }, READ_AT)
+    await submitStepQuery(scenario().using, TEAM, { kind: 'editQuery', query: written }, READ_AT)
 
     const view = await summary()
     expect(view).toMatchObject({ milestone: { query: written } })
@@ -218,8 +218,8 @@ describe('the summary’s rows', () => {
     const LABEL: Choice = { kind: 'label', name: 'checkout', query: 'labels = checkout' }
     const { fixture } = team()
     for (const choice of [VERSION, EPIC, LABEL]) fixture.reads[choice.query] = { tickets: open(1, choice.name), incomplete: false }
-    await scenario!.connect('jira')
-    for (const choice of [VERSION, EPIC, LABEL]) await scenario!.pick(READ_AT, choice)
+    await scenario().connect('jira')
+    for (const choice of [VERSION, EPIC, LABEL]) await scenario().pick(READ_AT, choice)
 
     expect(await summary()).toMatchObject({
       milestone: {
@@ -239,11 +239,11 @@ describe('Change', () => {
     await connect()
     await pick(READ_AT)
     await pick(READ_AT, Q3_POLISH, COMPARABLE_WORK)
-    await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
+    await submitSetup(settingUp(scenario()), TEAM, { kind: 'useThese' })
 
-    expect(await submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })).toMatchObject({ saved: true })
-    expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({ kind: 'steps', step: 'milestone', next: { step: 'comparableWork' } })
-    expect(setupView(settingUp(scenario!), TEAM, 'comparableWork')).toMatchObject({ next: { step: 'check', label: 'next' } })
+    expect(await submitSetup(settingUp(scenario()), TEAM, { kind: 'change' })).toMatchObject({ saved: true })
+    expect(setupView(settingUp(scenario()), TEAM)).toMatchObject({ kind: 'steps', step: 'milestone', next: { step: 'comparableWork' } })
+    expect(setupView(settingUp(scenario()), TEAM, 'comparableWork')).toMatchObject({ next: { step: 'check', label: 'next' } })
     expect(storage.connection(TEAM)).toMatchObject({ tracker: 'github', repo: 'shop' })
     expect(storage.milestoneQuery(TEAM)?.query).toBe('milestone:"Checkout v2"')
     expect(storage.comparableWorkQuery(TEAM)?.query).toBe('milestone:"Q3 polish"')
@@ -254,11 +254,11 @@ describe('skipping connecting', () => {
   test('closes setup to the inputs typed, as the MVP has them, until the EM connects a tracker', async () => {
     team()
 
-    expect(await submitSetup(settingUp(scenario!), TEAM, { kind: 'skipConnecting' })).toMatchObject({ saved: true })
-    expect(setupView(settingUp(scenario!), TEAM)).toEqual({ kind: 'skipped' })
-    expect(scenario!.inputs({ connected: false })).toEqual(scenario!.inputs())
+    expect(await submitSetup(settingUp(scenario()), TEAM, { kind: 'skipConnecting' })).toMatchObject({ saved: true })
+    expect(setupView(settingUp(scenario()), TEAM)).toEqual({ kind: 'skipped' })
+    expect(scenario().inputs({ connected: false })).toEqual(scenario().inputs())
 
-    await submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })
-    expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({ kind: 'steps', step: 'connect' })
+    await submitSetup(settingUp(scenario()), TEAM, { kind: 'change' })
+    expect(setupView(settingUp(scenario()), TEAM)).toMatchObject({ kind: 'steps', step: 'connect' })
   })
 })

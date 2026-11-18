@@ -22,10 +22,10 @@ describe('Read again', () => {
     submit({ kind: 'setPaceRange', low: '4', high: '8' })
     await pick(READ_AT)
     await pick(READ_AT, Q3_POLISH, COMPARABLE_WORK)
-    await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
-    return scenario!
+    await submitSetup(settingUp(scenario()), TEAM, { kind: 'useThese' })
+    return scenario()
   }
-  const readAgain = () => submitReadAgain(settingUp(scenario!), TEAM, LATER)
+  const readAgain = () => submitReadAgain(settingUp(scenario()), TEAM, LATER)
 
   test('reads the milestone query and comparable work’s, and the summary’s read time updates', async () => {
     const { fixture, storage } = await setUp()
@@ -33,7 +33,7 @@ describe('Read again', () => {
     fixture.reads[Q3_POLISH.query] = { tickets: finishedOn('q', '2026-11-11', 4), incomplete: false }
 
     expect(await readAgain()).toEqual({ kind: 'read' })
-    expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({ kind: 'summary', readOn: '12 Nov 14:30', flags: [] })
+    expect(setupView(settingUp(scenario()), TEAM)).toMatchObject({ kind: 'summary', readOn: '12 Nov 14:30', flags: [] })
     expect(storage.savedRead({ teamId: TEAM, query: Q3_POLISH.query })).toMatchObject({ readAt: LATER, tickets: { length: 4 } })
   })
 
@@ -42,13 +42,13 @@ describe('Read again', () => {
     fixture.reads[CHECKOUT.query] = { tickets: open(5), incomplete: false }
 
     await readAgain()
-    expect(scenario!.inputs().milestone.ticketsSource).toMatchObject({ source: 'typed', reading: { count: 5, readOn: '12 Nov 14:30' } })
-    expect(scenario!.forecast()).toMatchObject({ kind: 'forecast', ticketsRemaining: 30 })
+    expect(scenario().inputs().milestone.ticketsSource).toMatchObject({ source: 'typed', reading: { count: 5, readOn: '12 Nov 14:30' } })
+    expect(scenario().forecast()).toMatchObject({ kind: 'forecast', ticketsRemaining: 30 })
 
     submit({ kind: 'setTicketsSource', ticketsSource: 'tracker' })
     fixture.reads[CHECKOUT.query] = { tickets: open(7), incomplete: false }
     await readAgain()
-    expect(scenario!.forecast()).toMatchObject({ kind: 'forecast', ticketsRemaining: 7 })
+    expect(scenario().forecast()).toMatchObject({ kind: 'forecast', ticketsRemaining: 7 })
   })
 
   test('reads the queries alone, not each of several picks: their counts show none until Check reads them again, noted once beneath the rows', async () => {
@@ -56,16 +56,16 @@ describe('Read again', () => {
     const { fixture } = await setUp()
     fixture.reads[BUG.query] = { tickets: open(2, 'b'), incomplete: false }
     fixture.reads[`${CHECKOUT.query} OR ${BUG.query}`] = { tickets: [...open(3), ...open(2, 'b')], incomplete: false }
-    await submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })
-    await scenario!.pick(READ_AT, BUG)
+    await submitSetup(settingUp(scenario()), TEAM, { kind: 'change' })
+    await scenario().pick(READ_AT, BUG)
     await atCheck()
-    await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
+    await submitSetup(settingUp(scenario()), TEAM, { kind: 'useThese' })
     fixture.reads[`${CHECKOUT.query} OR ${BUG.query}`] = { tickets: [...open(3), ...open(4, 'b')], incomplete: false }
-    scenario!.asked.length = 0
+    scenario().asked.length = 0
 
     await readAgain()
-    expect(scenario!.asked).toHaveLength(2)
-    const view = setupView(settingUp(scenario!), TEAM)
+    expect(scenario().asked).toHaveLength(2)
+    const view = setupView(settingUp(scenario()), TEAM)
     expect(view).toMatchObject({ milestone: { picks: [{ name: 'Checkout v2' }, { name: 'bug' }] }, countsWait: COUNTS_WAIT })
     expect(view).not.toHaveProperty('milestone.note')
     expect(view.kind === 'summary' && 'picks' in view.milestone && view.milestone.picks.some((pick) => 'count' in pick)).toBe(false)
@@ -77,33 +77,33 @@ describe('Read again', () => {
     fixture.reads[BUG.query] = { tickets: open(2, 'b'), incomplete: false }
     fixture.reads[`${CHECKOUT.query} OR ${BUG.query}`] = { tickets: [...open(3), ...open(2, 'b')], incomplete: false }
     await readAgain()
-    expect(setupView(settingUp(scenario!), TEAM)).not.toHaveProperty('countsWait')
+    expect(setupView(settingUp(scenario()), TEAM)).not.toHaveProperty('countsWait')
 
-    await submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })
-    await scenario!.pick(READ_AT, BUG)
+    await submitSetup(settingUp(scenario()), TEAM, { kind: 'change' })
+    await scenario().pick(READ_AT, BUG)
     await atCheck(LATER)
-    await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
-    expect(setupView(settingUp(scenario!), TEAM)).toMatchObject({ milestone: { picks: [{ count: 3 }, { count: 2 }] } })
-    expect(setupView(settingUp(scenario!), TEAM)).not.toHaveProperty('countsWait')
+    await submitSetup(settingUp(scenario()), TEAM, { kind: 'useThese' })
+    expect(setupView(settingUp(scenario()), TEAM)).toMatchObject({ milestone: { picks: [{ count: 3 }, { count: 2 }] } })
+    expect(setupView(settingUp(scenario()), TEAM)).not.toHaveProperty('countsWait')
   })
 
   test('reads nothing while setup is open again with Change', async () => {
     await setUp()
-    await submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })
-    scenario!.asked.length = 0
+    await submitSetup(settingUp(scenario()), TEAM, { kind: 'change' })
+    scenario().asked.length = 0
 
     expect(await readAgain()).toEqual({ kind: 'unchanged' })
-    expect(scenario!.asked).toEqual([])
+    expect(scenario().asked).toEqual([])
   })
 
   test('reads nothing until setup is done', async () => {
     const { connect, pick } = team()
     await connect()
     await pick(READ_AT)
-    scenario!.asked.length = 0
+    scenario().asked.length = 0
 
     expect(await readAgain()).toEqual({ kind: 'unchanged' })
-    expect(scenario!.asked).toEqual([])
+    expect(scenario().asked).toEqual([])
   })
 })
 
@@ -117,11 +117,11 @@ describe('a failed read', () => {
     await connect()
     await pick(READ_AT)
     await pick(READ_AT, Q3_POLISH, COMPARABLE_WORK)
-    await submitSetup(settingUp(scenario!), TEAM, { kind: 'useThese' })
-    return scenario!
+    await submitSetup(settingUp(scenario()), TEAM, { kind: 'useThese' })
+    return scenario()
   }
-  const readAgain = () => submitReadAgain(settingUp(scenario!), TEAM, LATER)
-  const summary = () => setupView(settingUp(scenario!), TEAM)
+  const readAgain = () => submitReadAgain(settingUp(scenario()), TEAM, LATER)
+  const summary = () => setupView(settingUp(scenario()), TEAM)
 
   test('of a tracker unreachable or rate-limited keeps the saved read in use, and the summary says why, until a read is made', async () => {
     const { fixture, storage } = await setUp()
@@ -153,18 +153,18 @@ describe('a failed read', () => {
         },
       ],
     })
-    expect(await submitSetup(settingUp(scenario!), TEAM, { kind: 'change' })).toMatchObject({ saved: true })
-    expect(setupView(settingUp(scenario!), TEAM, 'connect')).toMatchObject({ kind: 'steps', step: 'connect' })
+    expect(await submitSetup(settingUp(scenario()), TEAM, { kind: 'change' })).toMatchObject({ saved: true })
+    expect(setupView(settingUp(scenario()), TEAM, 'connect')).toMatchObject({ kind: 'steps', step: 'connect' })
   })
 
   test('with this computer’s keychain failing reads nothing, and the summary says why', async () => {
     await setUp()
-    scenario!.asked.length = 0
-    const keychainFailing = { ...scenario!.using, secrets: { ...scenario!.using.secrets, token: () => Promise.reject(new Error('locked')) } }
+    scenario().asked.length = 0
+    const keychainFailing = { ...scenario().using, secrets: { ...scenario().using.secrets, token: () => Promise.reject(new Error('locked')) } }
 
     expect(await submitReadAgain(keychainFailing, TEAM, LATER)).toEqual({ kind: 'failed' })
     expect(summary()).toMatchObject({ flags: [{ flag: expect.stringContaining('keychain couldn’t be used') }] })
-    expect(scenario!.asked).toEqual([])
+    expect(scenario().asked).toEqual([])
   })
 
   test('of a query the tracker now rejects, or that reaches outside the repo, flags that query, keeping its saved read', async () => {

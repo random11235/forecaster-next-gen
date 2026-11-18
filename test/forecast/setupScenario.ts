@@ -9,22 +9,28 @@ import { CHECKOUT, TEAM, TODAY, trackerScenario, type TrackerScenario } from '..
 export const READ_AT = '2026-11-12T09:05:00Z'
 export const Q3_POLISH: Choice = { kind: 'milestone', name: 'Q3 polish', query: 'milestone:"Q3 polish"' }
 
-export let scenario: TrackerScenario | undefined
+let current: TrackerScenario | undefined
 
 afterEach(() => {
-  scenario?.close()
-  scenario = undefined
+  current?.close()
+  current = undefined
 })
+
+/** The team the test arranged with `team()`. */
+export function scenario(): TrackerScenario {
+  if (current === undefined) throw new Error('No team yet: arrange one with team() first')
+  return current
+}
 
 /** A team not yet connected, with Q3 polish to pick as comparable work. */
 export function team(): TrackerScenario {
-  scenario = trackerScenario({ firstSetup: true })
-  scenario.fixture.milestoneChoices = [{ kind: 'milestone', choices: [CHECKOUT, Q3_POLISH], pastLimit: false }]
-  scenario.fixture.reads[Q3_POLISH.query] = { tickets: [], incomplete: false }
-  return scenario
+  current = trackerScenario({ firstSetup: true })
+  current.fixture.milestoneChoices = [{ kind: 'milestone', choices: [CHECKOUT, Q3_POLISH], pastLimit: false }]
+  current.fixture.reads[Q3_POLISH.query] = { tickets: [], incomplete: false }
+  return current
 }
 
 export const settingUp = ({ using }: TrackerScenario): SetupContext => ({ ...using, timeZone: 'UTC', today: TODAY })
 
 /** The Inputs screen opened at Check, as at `readAt`, which reads each pick the summary has no count for yet. */
-export const atCheck = (readAt = READ_AT) => openSetup(settingUp(scenario!), TEAM, { asked: 'check' }, readAt)
+export const atCheck = (readAt = READ_AT) => openSetup(settingUp(scenario()), TEAM, { asked: 'check' }, readAt)
