@@ -1,7 +1,14 @@
 import type { Choice } from '../connectors/connector.js'
 import type { PeriodName } from '../forecast/cadence.js'
 import { dayMonth } from '../forecast/calendarDate.js'
-import { FEW_CANDIDATES, type Candidate, type CandidateGroupKind, type CandidateOpening, type Candidates } from '../forecast/candidates.js'
+import {
+  FEW_CANDIDATES,
+  NARROWED_DEBOUNCE_MS,
+  type Candidate,
+  type CandidateGroupKind,
+  type CandidateOpening,
+  type Candidates,
+} from '../forecast/candidates.js'
 import { kindName } from '../forecast/queryStep.js'
 import type { PaceVersus } from '../forecast/paceVersusOwn.js'
 import { escapeHtml } from './html.js'
@@ -131,9 +138,6 @@ export function choicesAsked(params: URLSearchParams, kindOf: (text: string) => 
   const choices = kinds.map((kind, at) => ({ kind: kindOf(kind), name: names[at]!, query: queries[at]! }))
   return choices.every((choice): choice is Choice => choice.kind !== undefined) ? choices : undefined
 }
-
-/** How long the script waits after the last key typed before it reads the candidates the lists are narrowed to. */
-const NARROWED_DEBOUNCE_MS = 450
 
 /**
  * The step's candidates script: a candidate's link opens it in place, and typing that narrows the lists to
