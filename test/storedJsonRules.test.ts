@@ -1,20 +1,14 @@
-import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 import { src } from './importScan.js'
-import { codeOf, typeScriptFilesUnder } from './sourceCode.js'
+import { codeOf } from './sourceCode.js'
+import { typeScriptSourcesUnder } from './sourceFiles.js'
 
 // The One-way doors rule in CODING_STANDARDS.md, for persisted JSON: storage reads every stored JSON value through
 // one parser, which checks its shape, never `JSON.parse` cast straight to a type.
 
 /** The one file in `src/storage/` that may use the `JSON` global but to write: the parser that checks each value's shape. */
 const PARSER = 'lib/storedJson.ts'
-
-/** Each `.ts` file under `src/storage/`, relative to it, with its source. */
-function storageFiles(): { file: string; source: string }[] {
-  const dir = join(src, 'storage')
-  return typeScriptFilesUnder(dir).map((file) => ({ file, source: readFileSync(join(dir, file), 'utf8') }))
-}
 
 /**
  * Whether `source` uses the `JSON` global in any way but `JSON.stringify`, in its code, not its comments or strings: so
@@ -26,7 +20,7 @@ function usesJsonButStringify(source: string): boolean {
 
 describe('stored JSON rules', () => {
   test(`in src/storage/, only ${PARSER} uses JSON but JSON.stringify; everything else reads stored JSON through it`, () => {
-    const bare = storageFiles().filter(({ file, source }) => file !== PARSER && usesJsonButStringify(source))
+    const bare = typeScriptSourcesUnder(join(src, 'storage')).filter(({ file, source }) => file !== PARSER && usesJsonButStringify(source))
 
     expect(bare.map(({ file }) => file)).toEqual([])
   })

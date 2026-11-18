@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { codeOf } from './sourceCode.js'
+import { codeOf, templateTextsOf } from './sourceCode.js'
 
 // Reading a file's code apart from its comments, strings, regex literals and template text: each case ends in a
 // `kept()` call, or holds it where it isn't code, so the case passes when `kept` is in the code `codeOf` gives just when
@@ -43,5 +43,14 @@ describe('the code of a source file', () => {
     ['a regex', 'const call = /kept\\(\\)/'],
   ])('blanks out %s', (_, source) => {
     expect(codeOf(source)).not.toContain('kept')
+  })
+
+  test.each([
+    ['a template', 'run(`CREATE TABLE a (b TEXT)`)', ['CREATE TABLE a (b TEXT)']],
+    ['a template with a substitution, in pieces', 'const shown = `a ${b} c`', ['a ', ' c']],
+    ['a template nested in one', '`a ${`b`} c`', ['a ', 'b', ' c']],
+    ['no template in a comment, string or regex', "// `a`\nconst b = '`c`'; const d = /`e`/", []],
+  ])('reads the text of %s', (_, source, expected) => {
+    expect(templateTextsOf(source)).toEqual(expected)
   })
 })
