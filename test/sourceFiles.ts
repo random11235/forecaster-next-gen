@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
-// Listing and reading the repo's `.ts` files, for the scan tests: importScan.ts, storedJsonRules.test.ts and
+// Listing and reading the repo's `.ts` files, for the scan tests: importScan.ts, arrangeRules.test.ts, storedJsonRules.test.ts and
 // stringValueRules.test.ts.
 
 /** A source file: its path, relative to the folder its reader was given as the base, and its text. */

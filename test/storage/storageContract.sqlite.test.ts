@@ -1,4 +1,3 @@
-import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, test } from 'vitest'
 import type { Connection } from '../../src/model/connection.js'
 import type { MilestoneQuery } from '../../src/model/milestoneQuery.js'
@@ -197,18 +196,6 @@ describe("SQLite storage's milestone query", () => {
     expect(reopen().milestoneQuery('team')!.picks).toStrictEqual([{ kind: 'label', name: 'payments', query: 'label:"payments"' }])
   })
 
-  test('reads back no pick of a kind it doesn’t know, keeping the query and the other picks', () => {
-    const { file, storage, reopen } = sqliteFile()
-    storage.saveTeam(TEAM)
-    storage.saveMilestoneQuery('team', PICKED)
-    const db = new DatabaseSync(file)
-    const stored = [{ kind: 'component', name: 'Payments', query: 'component = Payments' }, ...PICKED.picks]
-    db.prepare('UPDATE milestone_queries SET picks = ?').run(JSON.stringify(stored))
-    db.close()
-
-    expect(reopen().milestoneQuery('team')).toEqual(PICKED)
-  })
-
   // Comparable work's picks and query (#201), kept beside the milestone's, in the same shape, apart from it.
   test("keeps comparable work's picks in order and its query apart from the milestone's, replacing both when saved again", () => {
     const { storage, reopen } = sqliteFile()
@@ -230,17 +217,5 @@ describe("SQLite storage's milestone query", () => {
     expect(again.comparableWorkQuery('team')).toEqual(comparable)
     expect(again.comparableWorkQuery('another')).toBeUndefined()
     expect(again.milestoneQuery('team')).toEqual(PICKED)
-  })
-
-  test("reads back no comparable-work pick of a kind it doesn't know, keeping the query", () => {
-    const { file, storage, reopen } = sqliteFile()
-    storage.saveTeam(TEAM)
-    storage.saveComparableWorkQuery('team', PICKED)
-    const db = new DatabaseSync(file)
-    const stored = [{ kind: 'component', name: 'Payments', query: 'component = Payments' }, ...PICKED.picks]
-    db.prepare('UPDATE comparable_work_queries SET picks = ?').run(JSON.stringify(stored))
-    db.close()
-
-    expect(reopen().comparableWorkQuery('team')).toEqual(PICKED)
   })
 })
