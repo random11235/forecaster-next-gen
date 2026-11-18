@@ -4,7 +4,7 @@ import { TEAM, UNVERSIONED_SCHEMA, VERSION_2_SCHEMA, VERSION_4_SCHEMA, VERSION_5
 
 // Opening a data file an earlier release left: see migrationsHarness.ts.
 
-describe('a data file from schema version 1, before workflow settings', () => {
+describe('step 2: a data file from schema version 1, before workflow settings', () => {
   // Version 1's tables are the unversioned schema's, recorded as version 1.
   test("keeps its data, gives each team the sample board's workflow, and opens again unchanged", () => {
     const file = writeFile('v1.db', UNVERSIONED_SCHEMA, 1)
@@ -32,7 +32,7 @@ describe('a data file from schema version 1, before workflow settings', () => {
   })
 })
 
-describe('a data file from schema version 2, before epic commits', () => {
+describe('step 3: a data file from schema version 2, before epic commits', () => {
   test('keeps its workflow settings and milestone, and has no epic commits', () => {
     const file = writeFile('v2.db', VERSION_2_SCHEMA, 2)
 
@@ -44,7 +44,7 @@ describe('a data file from schema version 2, before epic commits', () => {
   })
 })
 
-describe('a data file from schema version 3, with spike rules', () => {
+describe('step 4: a data file from schema version 3, with spike rules', () => {
   /** Version 3's tables: version 2's, plus epic commits as #19 shipped them. Kept verbatim: it is a past release. */
   const VERSION_3_SCHEMA = `${VERSION_2_SCHEMA}
 CREATE TABLE epic_commits (
@@ -75,7 +75,7 @@ INSERT INTO epic_commits VALUES ('ACME', 'E1', '2026-10-02T12:00:00Z', 1);
   })
 })
 
-describe('a data file from schema version 4, before ambiguity', () => {
+describe('step 5: a data file from schema version 4, before ambiguity', () => {
   test('has no ambiguity ranges, and takes them, and they survive reopening', () => {
     const file = writeFile('v4.db', VERSION_4_SCHEMA, 4)
 
@@ -88,7 +88,7 @@ describe('a data file from schema version 4, before ambiguity', () => {
   })
 })
 
-describe('a data file from schema version 5, before installation dates', () => {
+describe('step 6: a data file from schema version 5, before installation dates', () => {
   test('counts its own teams from the upgrade and the sample team from its canned date, and keeps chosen measured pace', () => {
     const file = writeFile('v5.db', VERSION_5_SCHEMA, 5)
     // the upgrade records whole seconds

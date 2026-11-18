@@ -5,7 +5,7 @@ import { TEAM, VERSION_16_SCHEMA, VERSION_17_SCHEMA, VERSION_18_SCHEMA, VERSION_
 
 // Opening a data file an earlier release left: see migrationsHarness.ts.
 
-describe("a data file from schema version 16, before the values' sources, skips and reads seen", () => {
+describe("step 17: a data file from schema version 16, before the values' sources, skips and reads seen", () => {
   test.each(['range', 'counts'])('keeps its milestone inputs with tickets typed, its pace mode %s unchanged, no skips and nothing seen', (paceMode) => {
     const file = writeFile('v16.db', `${VERSION_16_SCHEMA}\nUPDATE milestone_inputs SET pace_mode = '${paceMode}';`, 16)
     const storage = open(file)
@@ -44,7 +44,7 @@ describe("a data file from schema version 16, before the values' sources, skips 
   })
 })
 
-describe('a data file from schema version 17, before previous reads', () => {
+describe('step 18: a data file from schema version 17, before previous reads', () => {
   test('keeps its saved read with no previous read, and its next read keeps it as the previous one, which survives reopening', () => {
     const file = writeFile('v17.db', VERSION_17_SCHEMA, 17)
     const query = 'milestone:"Launch"'
@@ -72,7 +72,7 @@ describe('a data file from schema version 17, before previous reads', () => {
   })
 })
 
-describe('a data file from schema version 18, before reads reached back past skipped periods', () => {
+describe('step 19: a data file from schema version 18, before reads reached back past skipped periods', () => {
   test('keeps its saved and previous reads, each reaching back the 8 weeks it was read with', () => {
     const file = writeFile('v18.db', VERSION_18_SCHEMA, 18)
     const storage = open(file)
@@ -104,7 +104,7 @@ describe('a data file from schema version 18, before reads reached back past ski
   })
 })
 
-describe('a data file from schema version 19, before setup', () => {
+describe('step 20: a data file from schema version 19, before setup', () => {
   // ACME is connected with a milestone query; EMPTY connected with its query emptied; BARE connected with none; the sample team not connected
   const file = (): string =>
     writeFile(
