@@ -41,14 +41,15 @@ function render(page: Page, fragment: string | undefined): void {
     script.textContent = parsed.textContent
     parsed.replaceWith(script)
   }
-  if (page.path !== pathInUrl()) {
+  // a page with no path (a failed post) leaves the URL as it was
+  if (page.path !== undefined && page.path !== pathInUrl()) {
     try {
       history.pushState(null, '', `#${page.path}`)
     } catch {
       // a sandboxed frame may refuse; the screen still shows, only a reload won't find it
     }
   }
-  shownPath = page.path
+  shownPath = page.path ?? shownPath
   const target = fragment && document.getElementById(fragment)
   if (target) target.scrollIntoView()
   else window.scrollTo(0, 0)
