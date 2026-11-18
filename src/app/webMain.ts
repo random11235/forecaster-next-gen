@@ -6,7 +6,7 @@
  */
 import { openWebStorage } from '../storage/webStorage.js'
 import { SAVE_IN_PLACE } from './inputsScript.js'
-import type { Request } from './routes.js'
+import type { Request } from './appContext.js'
 import { openWebApp, type Page } from './webApp.js'
 
 const app = openWebApp({ storage: openWebStorage(browserStorage()) })
