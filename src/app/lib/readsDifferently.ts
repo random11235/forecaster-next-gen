@@ -1,17 +1,9 @@
 import type { ReadsDifferently } from '../../forecast/milestoneInputs.js'
 import { escapeHtml } from '../html.js'
+import { formAction, type FormTarget } from './inputSection.js'
 
 // Behind inputsScreen.ts: the chip on a typed value the tracker reads differently, which the Milestone and Pace
 // sections each show beside their value, each with its own Chip.
-
-/** Where a form posts: to `path`, the answer opening at the section `anchor`. */
-export interface FormTarget {
-  path: string
-  anchor: string
-}
-
-/** The action of a form posting to `target`. */
-export const formAction = ({ path, anchor }: FormTarget): string => `${path}#${anchor}`
 
 /**
  * A chip: what its forms are ids from, which value's reading it opens, and its Follow: the fields posted to the
@@ -55,7 +47,7 @@ export function chipForms({ id, reading, follow }: Chip, readsDifferently: Reads
         <form method="post" action="${formAction(follow)}" id="follow-${id}">
           ${hidden}
         </form>
-        <form method="post" action="/inputs/reading-opened#${follow.anchor}" id="open-${id}-reading">
+        <form method="post" action="${formAction({ path: '/inputs/reading-opened', anchor: follow.anchor })}" id="open-${id}-reading">
           <input type="hidden" name="reading" value="${reading}">
         </form>`
 }
