@@ -20,9 +20,6 @@ import { trackerOf } from './trackers.js'
 /** The most candidates the EM's typing narrows the list to that are read at once. */
 export const FEW_CANDIDATES = 5
 
-/** How long the EM's typing pauses, after the last key, before the candidates it narrowed the list to are read. */
-export const NARROWED_DEBOUNCE_MS = 450
-
 /** The most periods a candidate's strip shows. */
 export const STRIP_PERIODS = 8
 
