@@ -1,5 +1,6 @@
 import type { ThroughputRange } from '../engine/index.js'
 import type { Ambiguity } from './ambiguity.js'
+import type { NoneMissing } from './noneMissing.js'
 
 /**
  * Which pace the forecast uses, the pace's source: the EM's low–high range, their typed counts of past periods, or the
@@ -11,6 +12,11 @@ export const PACE_MODES: readonly PaceMode[] = ['range', 'counts', 'tracker']
 
 /** Where tickets remaining comes from: the tracker's reading of the milestone, or the EM's typed number (#159). */
 export type TicketsSource = 'tracker' | 'typed'
+
+export const TICKETS_SOURCES = ['tracker', 'typed'] as const satisfies readonly TicketsSource[]
+
+// fails to compile while TICKETS_SOURCES leaves out a tickets source
+type _ = NoneMissing<Exclude<TicketsSource, (typeof TICKETS_SOURCES)[number]>>
 
 /**
  * The milestone as the EM enters it on the Inputs screen, one per team. Every field the MVP forecasts from is here,

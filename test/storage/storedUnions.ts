@@ -115,12 +115,12 @@ type UnionsIn<T> =
 type StoredBy<S> = UnionsIn<{ [K in keyof S as K extends `save${string}` ? K : never]: S[K] extends (...args: infer A) => unknown ? A : never }>
 /**
  * Which of the team's read failures a `read_failures` row holds, its `of`: the read by hand as a whole, a step's
- * query's own read, or a pick's at Check. sqliteStorage.ts writes these as literals no `save…` method takes, so they
+ * query's own read, or a pick's at Check. The SQLite file writes these as literals (src/storage/lib/setupTables.ts) no `save…` method takes, so they
  * are typed here, where the snapshot freezes them. The typecheck can't tie them to the literals it writes:
  * storageContract.storedValues.test.ts checks the file holds these and no others.
  */
 type ReadFailureOf = 'whole' | 'query' | 'pick'
-/** The unions sqliteStorage.ts encodes itself, that no `save…` method takes. */
+/** The unions the SQLite file encodes itself, that no `save…` method takes. */
 interface SqliteEncodings {
   readFailureOf: ReadFailureOf
 }
