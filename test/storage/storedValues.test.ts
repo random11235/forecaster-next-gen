@@ -2,9 +2,9 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
-import { checkBase, mergeBase } from '../../scripts/mergeBase.ts'
+import { checkBase, GET_CHECK_BASE, mergeBase } from '../../scripts/mergeBase.ts'
 import { STORED_UNIONS } from './storedUnions.js'
-import { FILES, storedValueProblems, type Branch, type StoredUnion } from './storedValues.js'
+import { FILES, storedValueProblems, type Branch, type Column, type StoredUnion } from './storedValues.js'
 
 // The stored-value part of CODING_STANDARDS.md's One-way doors: a value saved data can hold is renamed or removed only
 // with a migration that maps it. storedUnions.ts lists the stored unions, bound to their types by the typecheck.
@@ -23,7 +23,7 @@ function branchOf(read: (path: string) => string | undefined): Branch {
 
 /** The branch at its merge-base with CHECK_BASE (origin/main by default), as `check:static` and the migration check diff from. */
 function branchAtBase(): Branch {
-  const at = mergeBase(root, checkBase())
+  const at = mergeBase(root, checkBase(), GET_CHECK_BASE)
   return branchOf((path) => {
     try {
       return execFileSync('git', ['show', `${at}:${path}`], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
@@ -39,14 +39,14 @@ test('on this branch, the snapshot holds every stored value, and a value renamed
   expect(storedValueProblems(STORED_UNIONS, branchAtBase(), head)).toEqual([])
 })
 
-/** A stored union of `values`, kept in `columns` (`table.column`), and by the web build's storage too when `web`. */
-const union = (values: string[], columns: string[], web: boolean): StoredUnion => ({
+/** A stored union of `values`, kept in `columns`, and by the web build's storage too when `web`. */
+const union = (values: string[], columns: Column[], web: boolean): StoredUnion => ({
   values: Object.fromEntries(values.map((value) => [value, true])),
   columns,
   web,
 })
-const ticketsSource = (...values: string[]) => union(values, ['tickets.source'], true)
-const setupClosed = (...values: string[]) => union(values, ['setups.closed'], false)
+const ticketsSource = (...values: string[]) => union(values, [{ table: 'tickets', column: 'source' }], true)
+const setupClosed = (...values: string[]) => union(values, [{ table: 'setups', column: 'closed' }], false)
 /** The snapshot of the two unions below, holding these values. */
 const snapshotOf = (ticketsSources: string, setupsClosed: string) =>
   `TicketsSource (tickets.source): ${ticketsSources}\nSetupClosed (setups.closed): ${setupsClosed}\n`
@@ -106,7 +106,7 @@ describe('stored values', () => {
     })
 
     test('a released step, or a comment, naming the old value maps nothing', () => {
-      const typedGone = { ...listed, TicketsSource: union(['tracker'], ['tickets.source'], false) }
+      const typedGone = { ...listed, TicketsSource: union(['tracker'], [{ table: 'tickets', column: 'source' }], false) }
       const commented = stepsWith("SELECT 1; -- 'typed'").replace('// 2: a change', "// 2: 'typed' goes -- and 'typed' again")
 
       expect(storedValueProblems(typedGone, released, { ...released, snapshot: snapshotOf('tracker', 'done, skipped'), migrations: commented })).toEqual([
@@ -132,7 +132,7 @@ describe('stored values', () => {
 
   describe('a value is mapped only where its union is stored', () => {
     test("a step on another union's column that names the value maps nothing", () => {
-      const withPaceMode = { ...listed, PaceMode: union(['range', 'tracker'], ['inputs.pace_mode'], false) }
+      const withPaceMode = { ...listed, PaceMode: union(['range', 'tracker'], [{ table: 'inputs', column: 'pace_mode' }], false) }
       const base = { ...released, snapshot: `${snapshot}PaceMode (inputs.pace_mode): range, tracker\n` }
       const head: Branch = {
         snapshot: `${snapshotOf('read, typed', 'done, skipped')}PaceMode (inputs.pace_mode): range, tracker\n`,
@@ -146,7 +146,17 @@ describe('stored values', () => {
     })
 
     test('a union stored in two columns is mapped in both', () => {
-      const twoColumns = (...values: string[]) => ({ ...listed, SetupClosed: union(values, ['setups.closed', 'drafts.closed'], false) })
+      const twoColumns = (...values: string[]) => ({
+        ...listed,
+        SetupClosed: union(
+          values,
+          [
+            { table: 'setups', column: 'closed' },
+            { table: 'drafts', column: 'closed' },
+          ],
+          false,
+        ),
+      })
       const base = { ...released, snapshot: 'TicketsSource (tickets.source): tracker, typed\nSetupClosed (setups.closed, drafts.closed): done, skipped\n' }
       const head = { ...released, snapshot: 'TicketsSource (tickets.source): tracker, typed\nSetupClosed (setups.closed, drafts.closed): done, passed\n' }
       const setups = "UPDATE setups SET closed = 'passed' WHERE closed = 'skipped';"
@@ -178,6 +188,9 @@ describe('stored values', () => {
     expect(storedValueProblems(listed, released, { ...released, snapshot: snapshot.replace('setups.closed', 'setups.ended') })).toEqual([
       'SetupClosed is stored in setups.closed, but the snapshot says setups.ended: write its columns in test/storage/storedValues.snapshot as STORED_UNIONS lists them.',
     ])
+    expect(() => storedValueProblems(listed, released, { ...released, snapshot: snapshot.replace('setups.closed', 'setups') })).toThrow(
+      'test/storage/storedValues.snapshot: `setups` in `SetupClosed (setups): done, skipped` is not `table.column`',
+    )
   })
 
   test('a value added on this branch and gone again before it merges needs no migration, only taking out of the snapshot', () => {

@@ -10,7 +10,7 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { changeFileProblems } from './changeFiles.ts'
 import { oversized, splitGuidance } from './fileSize.ts'
-import { mergeBase as mergeBaseWith } from './mergeBase.ts'
+import { GET_CHECK_BASE, mergeBase } from './mergeBase.ts'
 import { unformatted } from './formatting.ts'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
@@ -18,10 +18,10 @@ const git = (...args: string[]): Buffer => execFileSync('git', args, { cwd: root
 
 const base = process.argv[2]
 // for a branch, its merge-base with <base>: what `<base>...HEAD` diffs from
-const mergeBase = base === undefined ? undefined : mergeBaseWith(root, base)
+const baseCommit = base === undefined ? undefined : mergeBase(root, base, GET_CHECK_BASE)
 // Every file the commit or branch changes, a deleted one too (deleting a source file changes the app), each with
 // whether it is deleted; renames as a deletion and an addition, so each path is one the commit or branch holds or not.
-const diff = git('diff', '--name-status', '--no-renames', '-z', ...(mergeBase === undefined ? ['--cached'] : [mergeBase, 'HEAD'])).toString('utf8')
+const diff = git('diff', '--name-status', '--no-renames', '-z', ...(baseCommit === undefined ? ['--cached'] : [baseCommit, 'HEAD'])).toString('utf8')
 // each entry its status letter, then its path
 const changed = [...diff.matchAll(/([A-Z])\0([^\0]+)\0/g)].map(([, status, path = '']) => ({ path, deleted: status === 'D' }))
 // the index for a commit, HEAD for a branch; a deleted file has nothing to format or size
@@ -42,7 +42,7 @@ if (tooBig.length > 0) {
   failed = true
 }
 
-if (mergeBase !== undefined) {
+if (baseCommit !== undefined) {
   /** The file at `path` as the commit `ref` holds it, or undefined where it holds none. */
   const fileAt = (ref: string, path: string): string | undefined => {
     const listed = git('ls-tree', '--name-only', ref, '--', path).toString('utf8').trim()
@@ -50,7 +50,7 @@ if (mergeBase !== undefined) {
   }
   const problems = changeFileProblems(
     changed.map(({ path }) => path),
-    (path, at) => fileAt(at === 'base' ? mergeBase : 'HEAD', path),
+    (path, at) => fileAt(at === 'base' ? baseCommit : 'HEAD', path),
   )
   if (problems.length > 0) {
     console.error(`Change file:\n${problems.map((problem) => `  ${problem}`).join('\n')}\n`)

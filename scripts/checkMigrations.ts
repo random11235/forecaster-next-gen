@@ -1,18 +1,19 @@
 // Migration check: a branch adds at most one step to MIGRATIONS and edits none that main has released.
-// Compares src/storage/sqliteStorage.ts at HEAD with the same file at the merge-base with main (default origin/main,
-// or the ref passed as the first argument). Steps are found by their `// N:` comment, numbered from 1.
+// Compares src/storage/sqliteStorage.ts at HEAD with the same file at the merge-base with main (the ref passed as the
+// first argument, else CHECK_BASE, else origin/main, as check:static's base). Steps are found by their `// N:` comment, numbered from 1.
 // Run with `npm run check:migrations`; exits 1 with the reason when the branch breaks either rule.
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { mergeBase } from './mergeBase.ts'
+import { checkBase, GET_CHECK_BASE, mergeBase } from './mergeBase.ts'
 import { MIGRATIONS_FILE, migrationSteps } from './migrationSteps.ts'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' })
 
-const mainRef = process.argv[2] ?? 'origin/main'
-const base = mergeBase(root, mainRef)
+const given = process.argv[2]
+const mainRef = given ?? checkBase()
+const base = mergeBase(root, mainRef, given === undefined ? GET_CHECK_BASE : 'fetch it (`git fetch origin`), or pass a branch this repo has')
 const released = migrationSteps(git('show', `${base}:${MIGRATIONS_FILE}`), `${mainRef} (${base.slice(0, 7)})`)
 const branch = migrationSteps(readFileSync(new URL(`../${MIGRATIONS_FILE}`, import.meta.url), 'utf8'), 'HEAD')
 
