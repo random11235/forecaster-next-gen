@@ -65,14 +65,20 @@ function namesElsewhere({ file, alias }: UnionMember): boolean {
 /** A quoted SQL string, its quote doubled inside it. */
 const SQL_STRING = /'(?:[^']|'')*'/
 
+/** `sql` without its comments (`--` to the end of the line, and block comments), its strings kept whatever they hold. */
+function withoutSqlComments(sql: string): string {
+  const stringOrComment = new RegExp(String.raw`${SQL_STRING.source}|/\*[\s\S]*?\*/|--[^\n]*`, 'g')
+  return sql.replace(stringOrComment, (found) => (found.startsWith("'") ? found : ' '))
+}
+
 /**
- * The SQL in `source`: the text of each of its templates that creates or alters a table, without its comments (`--` to
- * the end of the line, and block comments). The code around it, and its comments and strings, don't count.
+ * The SQL in `source`: the text of each of its templates that creates or alters a table, a whole template whatever its
+ * `${…}`s, without its comments. The code around it, and its comments and strings, don't count.
  */
 function sqlOf(source: string): string[] {
   return templateTextsOf(source)
     .filter((text) => /\b(?:CREATE|ALTER)\s+TABLE\b/i.test(text))
-    .map((sql) => sql.replace(/\/\*[\s\S]*?\*\/|--[^\n]*/g, ' '))
+    .map(withoutSqlComments)
 }
 
 /** The text of each `CHECK (…)` constraint in `sql`, inside its parentheses: nested ones, and any in its strings, too. */
@@ -168,8 +174,18 @@ describe('string value rules', () => {
     ['a CHECK that allows NULL too', "closed_by TEXT CHECK (closed_by IS NULL OR closed_by IN ('used', 'cancelled_early'))", ['used', 'cancelled_early']],
     ['a CHECK that also rules values out', "closed_by TEXT CHECK (closed_by NOT IN ('old_value') AND closed_by IN ('used'))", ['used']],
     ['a CHECK allowing a parenthesis', "kind TEXT CHECK (kind IN ('(', 'it''s')),\n  closed_by TEXT CHECK (closed_by IN ('used'))", ['(', "it's", 'used']],
+    ['a CHECK allowing a comment marker', "kind TEXT CHECK (kind IN ('a--b', 'used'))", ['a--b', 'used']],
+    [
+      'a CHECK between strings holding block comment markers',
+      "open TEXT DEFAULT '/*',\n  kind TEXT CHECK (kind IN ('used')),\n  close TEXT DEFAULT '*/'",
+      ['used'],
+    ],
   ])('finds the values %s allows', (_, column, expected) => {
     expect(checkValues(`db.exec(\`CREATE TABLE setups (\n  ${column}\n);\`)`)).toEqual(expected)
+  })
+
+  test('finds the values a CHECK allows after a substitution in the SQL', () => {
+    expect(checkValues("db.exec(`CREATE TABLE ${table} (kind TEXT CHECK (kind IN ('used')))`)")).toEqual(['used'])
   })
 
   test('finds the values a CHECK allows in the SQL whatever the code around it holds', () => {

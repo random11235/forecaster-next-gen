@@ -4,7 +4,7 @@ import { join, relative } from 'node:path'
 // Listing and reading the repo's `.ts` files, for the scan tests: importScan.ts, storedJsonRules.test.ts and
 // stringValueRules.test.ts.
 
-/** A source file: its path, relative to the folder it was read from, and its text. */
+/** A source file: its path, relative to the folder its reader was given as the base, and its text. */
 export interface SourceFile {
   file: string
   source: string

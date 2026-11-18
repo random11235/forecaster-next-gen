@@ -16,12 +16,17 @@ export function codeOf(source: string): string {
 }
 
 /**
- * The text of each template in `source`'s code, as written: a template with a `${…}` in pieces, the text before it and
- * after, and a template nested in it as a piece of its own, in the order they start. Templates in comments, strings and
- * regex literals don't count.
+ * The text of each template in `source`'s code, as written, each `${…}` in it marked `${…}`, in the order they start: a
+ * template nested in a `${…}` is one of its own. Templates in comments, strings and regex literals don't count.
  */
 export function templateTextsOf(source: string): string[] {
   return lexed(source).templateTexts
+}
+
+/** A template being read: where its text goes in `templateTexts`, and its text so far. */
+interface OpenTemplate {
+  slot: number
+  text: string
 }
 
 /** `source`'s code, as `codeOf` gives it, and its templates' text, as `templateTextsOf` gives it. */
@@ -31,8 +36,8 @@ function lexed(source: string): { code: string; templateTexts: string[] } {
   let at = 0
   /** Whether the last token is a value, so that a `/` after it is division. */
   let afterValue = false
-  /** For each template whose `${…}` is open, the braces opened in it and not yet closed. */
-  const substitutions: number[] = []
+  /** For each template whose `${…}` is open, the template and the braces opened in its `${…}` and not yet closed. */
+  const substitutions: { template: OpenTemplate; braces: number }[] = []
   const keep = (length = 1): void => {
     code += source.slice(at, at + length)
     at += length
@@ -52,16 +57,19 @@ function lexed(source: string): { code: string; templateTexts: string[] } {
     while (end < source.length && isPart(source[end]!)) end++
     return end
   }
-  /** Template text from `at`, up to its closing backtick, a value, or a `${` opening code. */
-  const templateText = (): void => {
+  /** `template`'s text from `at`, up to its closing backtick, a value, or a `${` opening code. */
+  const templateText = (template: OpenTemplate): void => {
     const end = textEnd('`', '${')
-    templateTexts.push(source.slice(at, end))
+    template.text += source.slice(at, end)
     blankTo(end)
     afterValue = !source.startsWith('${', at)
-    if (afterValue) keep()
-    else {
+    if (afterValue) {
+      templateTexts[template.slot] = template.text
+      keep()
+    } else {
+      template.text += '${…}'
       keep(2)
-      substitutions.push(0)
+      substitutions.push({ template, braces: 0 })
     }
   }
   /** Where the regex literal from `at`, past its opening `/`, ends: at its closing `/`, outside a character class. */
@@ -77,6 +85,7 @@ function lexed(source: string): { code: string; templateTexts: string[] } {
   }
   while (at < source.length) {
     const char = source[at]!
+    const substitution = substitutions.at(-1)
     if (source.startsWith('//', at)) blankTo(textEnd('\n'))
     else if (source.startsWith('/*', at)) {
       const end = source.indexOf('*/', at + 2)
@@ -94,11 +103,11 @@ function lexed(source: string): { code: string; templateTexts: string[] } {
       afterValue = true
     } else if (char === '`') {
       keep()
-      templateText()
-    } else if (char === '}' && substitutions.at(-1) === 0) {
+      templateText({ slot: templateTexts.push('') - 1, text: '' })
+    } else if (char === '}' && substitution?.braces === 0) {
       substitutions.pop()
       keep()
-      templateText()
+      templateText(substitution.template)
     } else if (/[\p{L}_$]/u.test(char)) {
       const isProperty = /(?<!\.\.)\.$/.test(code.trimEnd())
       const word = source.slice(
@@ -114,7 +123,7 @@ function lexed(source: string): { code: string; templateTexts: string[] } {
       keep(2)
       afterValue = true
     } else {
-      if (substitutions.length > 0 && (char === '{' || char === '}')) substitutions[substitutions.length - 1]! += char === '{' ? 1 : -1
+      if (substitution && (char === '{' || char === '}')) substitution.braces += char === '{' ? 1 : -1
       keep()
       afterValue = char === ')' || char === ']'
     }

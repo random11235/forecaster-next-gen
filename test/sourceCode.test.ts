@@ -47,8 +47,8 @@ describe('the code of a source file', () => {
 
   test.each([
     ['a template', 'run(`CREATE TABLE a (b TEXT)`)', ['CREATE TABLE a (b TEXT)']],
-    ['a template with a substitution, in pieces', 'const shown = `a ${b} c`', ['a ', ' c']],
-    ['a template nested in one', '`a ${`b`} c`', ['a ', 'b', ' c']],
+    ['a template with a substitution, marked where it was', 'const shown = `a ${b} c ${d}`', ['a ${…} c ${…}']],
+    ['a template nested in one, each in the order it starts', '`a ${`b`} c` + `d`', ['a ${…} c', 'b', 'd']],
     ['no template in a comment, string or regex', "// `a`\nconst b = '`c`'; const d = /`e`/", []],
   ])('reads the text of %s', (_, source, expected) => {
     expect(templateTextsOf(source)).toEqual(expected)
