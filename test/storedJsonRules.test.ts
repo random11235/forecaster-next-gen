@@ -17,14 +17,20 @@ function storageFiles(): { file: string; source: string }[] {
     .map((file) => ({ file, source: readFileSync(join(dir, file), 'utf8') }))
 }
 
+/** The keywords a regex literal can follow, where a `/` after any other word is division. */
+const BEFORE_REGEX = new Set(['return', 'typeof', 'case', 'in', 'of', 'void', 'delete', 'yield', 'await', 'instanceof', 'new', 'throw', 'else', 'do'])
+
 /**
  * `source` with only its code left: the contents of its comments, quoted strings, regex literals and template text
- * blanked out, the code in a template's `${…}` kept, a template nested in it too. A `/` starts a regex literal unless the
- * token before it is an identifier, a number, `)` or `]`.
+ * blanked out, the code in a template's `${…}` kept, a template nested in it too. A `/` is division after a value: a
+ * word but one of `BEFORE_REGEX`, a number, a string, template or regex literal, `)`, `]`, `++` or `--`. After anything
+ * else (another punctuator, `}`, one of those keywords, or nothing) it starts a regex literal.
  */
 function codeOf(source: string): string {
   let code = ''
   let at = 0
+  /** Whether the last token is a value, so that a `/` after it is division. */
+  let afterValue = false
   /** For each template whose `${…}` is open, the braces opened in it and not yet closed. */
   const substitutions: number[] = []
   const keep = (length = 1): void => {
@@ -40,13 +46,21 @@ function codeOf(source: string): string {
     while (end < source.length && !ends.some((each) => source.startsWith(each, end))) end += source[end] === '\\' ? 2 : 1
     return end
   }
-  /** Template text from `at`, up to its closing backtick or a `${` opening code. */
+  /** Where the run of characters from `at` that `isPart` takes ends. */
+  const runEnd = (isPart: (char: string) => boolean): number => {
+    let end = at
+    while (end < source.length && isPart(source[end]!)) end++
+    return end
+  }
+  /** Template text from `at`, up to its closing backtick, a value, or a `${` opening code. */
   const templateText = (): void => {
     blankTo(textEnd('`', '${'))
-    if (source.startsWith('${', at)) {
+    afterValue = !source.startsWith('${', at)
+    if (afterValue) keep()
+    else {
       keep(2)
       substitutions.push(0)
-    } else keep()
+    }
   }
   /** Where the regex literal from `at`, past its opening `/`, ends: at its closing `/`, outside a character class. */
   const regexEnd = (): number => {
@@ -59,22 +73,23 @@ function codeOf(source: string): string {
     }
     return end
   }
-  /** Whether a `/` here starts a regex literal: it does unless the token before it ends an identifier, number, `)` or `]`. */
-  const startsRegex = (): boolean => !/[\w$)\]]$/.test(code.trimEnd())
   while (at < source.length) {
-    const char = source[at]
+    const char = source[at]!
     if (source.startsWith('//', at)) blankTo(textEnd('\n'))
     else if (source.startsWith('/*', at)) {
       const end = source.indexOf('*/', at + 2)
       blankTo(end === -1 ? source.length : end + 2)
-    } else if (char === '/' && startsRegex()) {
+    } else if (/\s/.test(char)) keep()
+    else if (char === '/' && !afterValue) {
       keep()
       blankTo(regexEnd())
       keep()
+      afterValue = true
     } else if (char === "'" || char === '"') {
       keep()
       blankTo(textEnd(char))
       keep()
+      afterValue = true
     } else if (char === '`') {
       keep()
       templateText()
@@ -82,9 +97,23 @@ function codeOf(source: string): string {
       substitutions.pop()
       keep()
       templateText()
+    } else if (/[\p{L}_$]/u.test(char)) {
+      const word = source.slice(
+        at,
+        runEnd((each) => /[\p{L}\p{N}_$]/u.test(each)),
+      )
+      keep(word.length)
+      afterValue = !BEFORE_REGEX.has(word)
+    } else if (/\d/.test(char) || (char === '.' && /\d/.test(source[at + 1] ?? ''))) {
+      keep(runEnd((each) => /[\w.]/.test(each)) - at)
+      afterValue = true
+    } else if (source.startsWith('++', at) || source.startsWith('--', at)) {
+      keep(2)
+      afterValue = true
     } else {
       if (substitutions.length > 0 && (char === '{' || char === '}')) substitutions[substitutions.length - 1]! += char === '{' ? 1 : -1
       keep()
+      afterValue = char === ')' || char === ']'
     }
   }
   return code
@@ -121,6 +150,13 @@ describe('stored JSON rules', () => {
     ['a JSON.parse after a regex that looks like a block comment', 'const slashes = /\\/*/; JSON.parse(x)'],
     ['a JSON.parse after a regex that looks like a line comment', 'const slashes = /\\/\\//; JSON.parse(x)'],
     ['a JSON.parse after a division', 'const half = a / b; JSON.parse(x)'],
+    ['a JSON.parse after a regex returned', "return /'/ }; JSON.parse(x)"],
+    ['a JSON.parse after the typeof a regex', "typeof /'/; JSON.parse(x)"],
+    ['a JSON.parse after a division of an increment', 'x++ / 2; JSON.parse(x)'],
+    ['a JSON.parse after a division of a decrement', 'x-- / 2; JSON.parse(x)'],
+    ['a JSON.parse after a division of a string', "'a' / 2; JSON.parse(x)"],
+    ['a JSON.parse after a division of a template', '`a` / 2; JSON.parse(x)'],
+    ['a JSON.parse after a division of a regex', '/a/ / 2; JSON.parse(x)'],
   ])('catches %s', (_, source) => {
     expect(usesJsonButStringify(source)).toBe(true)
   })
