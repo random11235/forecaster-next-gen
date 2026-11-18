@@ -2,6 +2,10 @@
 
 What each version of the app shipped, newest first. The version is the one in every screen's footer: a fix is in the app you're running if its version is the footer's or older. Each merge's release ([`docs/design/architecture.md`](docs/design/architecture.md#release)) writes its section here, a line from each change file (`changes/<ticket>.md`) a PR that changes the app adds: a PR doesn't edit the entries below ([`docs/agents/pull-requests.md`](docs/agents/pull-requests.md#version)).
 
+## 0.2.7 (2026-11-18)
+
+- Each merge's release sets the version from the change files its PRs add, so two PRs in flight never conflict on it, with no change to the app (#288, PR #289)
+
 ## 0.2.6 (2026-11-17)
 
 - No import cycles in `src/`, with no change to the app (#230, PR #286)
