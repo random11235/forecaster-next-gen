@@ -75,8 +75,8 @@ describe.each(subjects)('%s connector', (_, subject) => {
       expect([...byId.keys()].sort()).toEqual(['search-1', 'search-2', 'search-3', 'search-4', 'search-5'].map(subject.idOf).sort())
       for (const role of ['search-1', 'search-2']) {
         const finishedAt = byId.get(subject.idOf(role))?.finishedAt
-        expect(Date.parse(finishedAt!)).toBeGreaterThanOrEqual(Date.parse(batches.laterStart) - 1000)
-        expect(Date.parse(finishedAt!)).toBeLessThanOrEqual(Date.parse(batches.laterEnd) + 1000)
+        expect(Date.parse(finishedAt ?? '')).toBeGreaterThanOrEqual(Date.parse(batches.laterStart) - 1000)
+        expect(Date.parse(finishedAt ?? '')).toBeLessThanOrEqual(Date.parse(batches.laterEnd) + 1000)
       }
       for (const role of ['search-3', 'search-4', 'search-5']) expect(byId.get(subject.idOf(role))).toEqual({ id: subject.idOf(role) })
       expect(result.incomplete).toBe(false)
@@ -119,8 +119,8 @@ describe.each(subjects)('%s connector', (_, subject) => {
 
       if (!result.ok) throw new Error(`read failed: ${result.failure}`)
       const finishedAt = result.tickets.find((ticket) => ticket.id === subject.idOf('reopened-finished'))?.finishedAt
-      expect(Date.parse(finishedAt!)).toBeGreaterThanOrEqual(Date.parse(batches.laterStart) - 1000)
-      expect(Date.parse(finishedAt!)).toBeLessThanOrEqual(Date.parse(batches.laterEnd) + 1000)
+      expect(Date.parse(finishedAt ?? '')).toBeGreaterThanOrEqual(Date.parse(batches.laterStart) - 1000)
+      expect(Date.parse(finishedAt ?? '')).toBeLessThanOrEqual(Date.parse(batches.laterEnd) + 1000)
     })
 
     test('a reopened ticket still open is open', async () => {
@@ -171,7 +171,7 @@ describe.each(subjects)('%s connector', (_, subject) => {
     })
 
     test.runIf(subject.capped)('reading as far as a search cap allows, the read is incomplete', async () => {
-      const result = await subject.capped!().read(queries.checkout, FROM_THE_START)
+      const result = await subject.capped?.().read(queries.checkout, FROM_THE_START)
 
       expect(result).toMatchObject({ ok: true, incomplete: true })
     })
