@@ -257,8 +257,9 @@ function article(text: string): string {
 }
 
 function alternatives(names: string[]): string {
-  if (names.length === 0) return 'choice'
-  return names.length === 1 ? names[0]! : `${names.slice(0, -1).join(', ')} or ${names.at(-1)!}`
+  const last = names.at(-1)
+  if (last === undefined) return 'choice'
+  return names.length === 1 ? last : `${names.slice(0, -1).join(', ')} or ${last}`
 }
 
 /** How long the step's script waits after the last key typed before it searches the tracker, in milliseconds. */
