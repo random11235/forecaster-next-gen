@@ -53,6 +53,27 @@ describe('the page a browser test drives', () => {
     held.release()
   })
 
+  test('waits for nothing when the page already shows it', async () => {
+    const { page } = await pages.open(NOTHING, '/inputs')
+
+    await expect(page.until('the page as it opened', () => true)).resolves.toBeUndefined()
+  })
+
+  test('stops watching the page once it shows what it waited for', async () => {
+    const { page } = await pages.open(NOTHING, '/inputs')
+    const body = page.find('body', HTMLElement)
+    let looked = 0
+    const shown = page.until('the body marked', () => (looked++, body.hasAttribute('data-marked')))
+    body.setAttribute('data-marked', '')
+    await shown
+    const lookedWhenShown = looked
+
+    body.setAttribute('data-changed-after', '')
+    await page.settled()
+
+    expect(looked).toBe(lookedWhenShown)
+  })
+
   test('fails waiting for what the page never shows, saying what it waited for', async () => {
     const { page } = await pages.open(NOTHING, '/inputs')
 
