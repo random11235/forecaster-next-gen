@@ -1,0 +1,12 @@
+# The string values saved data can hold, by stored union, as test/storage/storedUnions.ts lists them. A value added
+# is added here in the same diff; one renamed or removed needs a migration that maps it (test/storage/storedValues.test.ts).
+Team.source: manual, sample, jira, github
+Ambiguity: low, medium, high
+PaceMode: range, counts, tracker
+TicketsSource: tracker, typed
+PaceAction.kind: startFrom, leaveOut
+Connection.tracker: github, jira
+Choice.kind: epic, label, milestone, fixVersion
+SetupClosed: done, skipped
+SetupState.connection: made, changed
+FailedRead.failure: invalidQuery, outOfScope, notFound, unauthorised, unavailable, keychainFailed
