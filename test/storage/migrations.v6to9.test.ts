@@ -7,7 +7,7 @@ import { TEAM, VERSION_6_SCHEMA, VERSION_7_SCHEMA, VERSION_8_SCHEMA, VERSION_9_S
 
 // Opening a data file an earlier release left: see migrationsHarness.ts.
 
-describe('a data file from schema version 6, before milestone inputs', () => {
+describe('step 7: a data file from schema version 6, before milestone inputs', () => {
   test("keeps each team's first milestone by name and manual pace, and leaves its start date and tickets to enter", () => {
     const file = writeFile('v6.db', VERSION_6_SCHEMA, 6)
 
@@ -86,7 +86,7 @@ describe('a data file from schema version 6, before milestone inputs', () => {
   })
 })
 
-describe('a data file from schema version 7, before the cadence the pace was entered in', () => {
+describe('step 8: a data file from schema version 7, before the cadence the pace was entered in', () => {
   test('counts a pace already saved as entered in its cadence, so it forecasts with no warning', () => {
     const storage = open(writeFile('v7.db', VERSION_7_SCHEMA, 7))
 
@@ -111,7 +111,7 @@ describe('a data file from schema version 7, before the cadence the pace was ent
   })
 })
 
-describe('a data file from schema version 8, before capacity', () => {
+describe('step 9: a data file from schema version 8, before capacity', () => {
   test('has no capacity entries, forecasts as before, and takes entries that survive reopening', () => {
     const file = writeFile('v8.db', VERSION_8_SCHEMA, 8)
     const storage = open(file)
@@ -125,7 +125,7 @@ describe('a data file from schema version 8, before capacity', () => {
   })
 })
 
-describe('a data file from schema version 9, before the capacity switch', () => {
+describe('step 10: a data file from schema version 9, before the capacity switch', () => {
   test('keeps its capacity entries, has capacity on, and takes the switch, which survives reopening', () => {
     const file = writeFile('v9.db', VERSION_9_SCHEMA, 9)
     const storage = open(file)
