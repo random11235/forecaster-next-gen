@@ -24,10 +24,17 @@ export type StoredUnions = Readonly<Record<string, StoredUnion>>
 /** The files of a branch the check reads, by the part each plays. */
 export const FILES = { snapshot: 'test/storage/storedValues.snapshot', migrations: MIGRATIONS_FILE, webStorage: 'src/storage/webStorage.ts' } as const
 
-/** What a branch holds that the check reads, each of FILES: the snapshot is missing on a base from before it. */
+/** What the check reads of a branch, at its base or its head: the snapshot is missing on a base from before it. */
 export interface Branch {
   snapshot: string | undefined
   migrations: string
+}
+
+/**
+ * What the check reads of the branch at its head: its Branch files, and the web build's storage, read at the head only,
+ * since it must still read a value gone.
+ */
+export interface Head extends Branch {
   webStorage: string
 }
 
@@ -100,7 +107,7 @@ function namings(source: string, value: string): number {
  * the base, and where the web build's storage keeps the union too, its code must still name it, to map it as it reads.
  * A union only renamed, its values stored where they were, needs no migration.
  */
-export function storedValueProblems(listed: StoredUnions, base: Branch, head: Branch): string[] {
+export function storedValueProblems(listed: StoredUnions, base: Branch, head: Head): string[] {
   const inSnapshot = snapshotUnions(head.snapshot ?? '')
   // what saved data may hold: the base's snapshot, or this branch's when the base has none
   const saved = snapshotUnions(base.snapshot ?? head.snapshot ?? '')

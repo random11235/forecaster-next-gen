@@ -11,15 +11,7 @@ export const MAIN_REF = 'origin/main'
 /** How to get a missing MAIN_REF. */
 export const MAIN_REF_HINT = 'fetch it (`git fetch origin`)'
 
-/**
- * The branch this one merges into, as `check:static` passes it to `check:changes`: CHECK_BASE, or MAIN_REF when that
- * is unset or empty, as `${CHECK_BASE:-origin/main}` in package.json.
- */
-export function checkBase(env: NodeJS.ProcessEnv = process.env): string {
-  return env.CHECK_BASE || MAIN_REF
-}
-
-/** How to get a missing checkBase(). */
+/** How to get a missing base `check:static` passes to `check:changes`: `${CHECK_BASE:-origin/main}` in package.json. */
 export const CHECK_BASE_HINT = `${MAIN_REF_HINT}, or set CHECK_BASE to the branch this one merges into`
 
 /**
