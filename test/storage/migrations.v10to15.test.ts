@@ -6,7 +6,7 @@ import { TEAM, VERSION_10_SCHEMA, VERSION_11_SCHEMA, VERSION_12_SCHEMA, VERSION_
 
 // Opening a data file an earlier release left: see migrationsHarness.ts.
 
-describe('a data file from schema version 10, before the new usual', () => {
+describe('step 11: a data file from schema version 10, before the new usual', () => {
   test('keeps its entries, none accepted or kept, and takes an accept and a keep, which survive reopening', () => {
     const file = writeFile('v10.db', VERSION_10_SCHEMA, 10)
     const storage = open(file)
@@ -21,7 +21,7 @@ describe('a data file from schema version 10, before the new usual', () => {
   })
 })
 
-describe('a data file from schema version 11, before the pace window', () => {
+describe('step 12: a data file from schema version 11, before the pace window', () => {
   test('keeps its milestone with no action on its pace, and takes one, which survives reopening', () => {
     const file = writeFile('v11.db', VERSION_11_SCHEMA, 11)
     const storage = open(file)
@@ -35,7 +35,7 @@ describe('a data file from schema version 11, before the pace window', () => {
   })
 })
 
-describe('a data file from schema version 12, before the connection', () => {
+describe('step 13: a data file from schema version 12, before the connection', () => {
   test('keeps its milestone, has no connection, and takes one, which survives reopening with no token in the file', () => {
     const file = writeFile('v12.db', VERSION_12_SCHEMA, 12)
     const storage = openSqliteStorage(file)
@@ -56,7 +56,7 @@ describe('a data file from schema version 12, before the connection', () => {
   })
 })
 
-describe('a data file from schema version 13, before saved reads', () => {
+describe('step 14: a data file from schema version 13, before saved reads', () => {
   test('keeps its connection, has no saved reads, and takes one, which survives reopening', () => {
     const file = writeFile('v13.db', VERSION_13_SCHEMA, 13)
     const query = 'repo:acme/checkout is:issue milestone:"Launch"'
@@ -80,7 +80,7 @@ describe('a data file from schema version 13, before saved reads', () => {
   })
 })
 
-describe("a data file from schema version 14, before the milestone's picks and query", () => {
+describe("step 15: a data file from schema version 14, before the milestone's picks and query", () => {
   test('keeps its milestone inputs unchanged, has no picks and no query, and takes them, which survive reopening', () => {
     const file = writeFile('v14.db', VERSION_14_SCHEMA, 14)
     const storage = openSqliteStorage(file)
@@ -112,7 +112,7 @@ describe("a data file from schema version 14, before the milestone's picks and q
   })
 })
 
-describe("a data file from schema version 15, before comparable work's picks and query", () => {
+describe("step 16: a data file from schema version 15, before comparable work's picks and query", () => {
   test("keeps the milestone's picks and query unchanged, has no comparable work, and takes it, which survives reopening", () => {
     const file = writeFile('v15.db', VERSION_15_SCHEMA, 15)
     const storage = openSqliteStorage(file)
