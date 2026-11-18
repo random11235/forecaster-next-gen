@@ -1,11 +1,13 @@
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned.js'
+import type { Choice } from '../../src/connectors/connector.js'
 import type { Connecting } from '../../src/forecast/connection.js'
 import type { Team } from '../../src/model/team.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import type { Secrets } from '../../src/secrets/secrets.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
-import { TODAY, type TeamStorage } from '../trackerScenario.js'
+import { CHECKOUT, TODAY, type TeamStorage } from '../trackerScenario.js'
+import { post } from './forms.js'
 
 // The local server build on the canned connector, for tests of what the tracker reads through the EM's browser
 // (#211–#215): its storage in memory, and the requests the browser makes.
@@ -47,6 +49,15 @@ export async function appOnTracker(fixture: CannedFixture, { today = TODAY, now 
       storage.close()
     },
   }
+}
+
+/** The connection the app's tests connect with: GitHub's shop-team/shop, with a token the canned connector takes. */
+export const GITHUB_SHOP = { tracker: 'github', repo: 'shop-team/shop', token: 'token' } as const
+
+/** Connects `running` to `GITHUB_SHOP`, and picks `choice` (Checkout v2's milestone) as the milestone's query. */
+export async function connectAndPick(running: RunningApp, choice: Choice = CHECKOUT): Promise<void> {
+  await post(running, '/inputs/connect', GITHUB_SHOP)
+  await post(running, '/inputs/milestone-query/add', { ...choice })
 }
 
 /** The page at `path`, as HTML. */
