@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest'
+import { assert, describe, expect, test } from 'vitest'
 import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import { openStorage, useTempDatabase } from '../tempDatabase.js'
@@ -9,8 +9,10 @@ import { TEAM, TODAY, forecast, submit, withTypedCounts } from './pacePatternSce
 useTempDatabase('forecaster-pace-pattern-')
 
 /** The 85% date of the milestone forecast from these typed counts, in a fresh file. */
-function dateAt85(counts: readonly number[]): string | null | undefined {
-  return forecast(withTypedCounts(counts)).dates.find(({ percent }) => percent === 85)?.date
+function dateAt85(counts: readonly number[]): string {
+  const date = forecast(withTypedCounts(counts)).dates.find(({ percent }) => percent === 85)?.date
+  assert(date, 'the forecast has an 85% date')
+  return date
 }
 
 describe("an action's 85% date, with and without it", () => {
@@ -18,9 +20,10 @@ describe("an action's 85% date, with and without it", () => {
     const applied = dateAt85([8, 9, 7, 8])
     const now = dateAt85([4, 3, 5, 4, 4, 3, 4, 5, 3, 4, 8, 9, 7, 8])
     const action = forecast(withTypedCounts([4, 3, 5, 4, 4, 3, 4, 5, 3, 4, 8, 9, 7, 8])).pacePattern?.action
+    assert(action, 'the pace pattern has an action')
 
-    expect(action?.dates).toEqual({ percent: 85, now, applied })
-    expect(applied && now && applied < now).toBe(true)
+    expect(action.dates).toEqual({ percent: 85, now, applied })
+    expect(applied < now).toBe(true)
   })
 
   test('leaving out the odd week gives the date the other weeks give', () => {
@@ -28,9 +31,10 @@ describe("an action's 85% date, with and without it", () => {
     const counts = [5, 6, 5, 4, 6, 5, 5, 4, 6, 5, 23, 5, 6, 4]
     const now = dateAt85(counts)
     const action = forecast(withTypedCounts(counts)).pacePattern?.action
+    assert(action, 'the pace pattern has an action')
 
-    expect(action?.dates).toEqual({ percent: 85, now, applied })
-    expect(applied && now && applied > now).toBe(true)
+    expect(action.dates).toEqual({ percent: 85, now, applied })
+    expect(applied > now).toBe(true)
   })
 })
 

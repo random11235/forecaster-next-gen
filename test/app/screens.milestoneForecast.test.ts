@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest'
+import { assert, describe, expect, test } from 'vitest'
 import {
   CHECKOUT,
   stored,
@@ -219,9 +219,10 @@ describe('Milestone forecast screen', () => {
     await submitPace('4', '8')
 
     const graph = found(await page('/'), /<figure class="finish-graph"[\s\S]*?<\/figure>/)
-    const bars = graph.match(/<div class="bar[^"]*"[^>]*data-date="[^"]*"[\s\S]*?<\/div>/g) ?? []
+    const last = graph.match(/<div class="bar[^"]*"[^>]*data-date="[^"]*"[\s\S]*?<\/div>/g)?.at(-1)
+    assert(last, 'the finish graph has bars')
 
-    expect(text(bars.at(-1) ?? '')).toContain('under 1% of simulations are completed within.')
+    expect(text(last)).toContain('under 1% of simulations are completed within.')
   })
 
   test('at a 14-day cadence, graphs when the simulations finish by sprint', async () => {
