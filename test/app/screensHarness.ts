@@ -7,6 +7,7 @@ import type { MilestoneInputs } from '../../src/model/milestoneInputs.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
 import { post as postForm, saveInPlace as saveFormInPlace } from './forms.js'
+import { found } from './found.js'
 
 // The screens through the local server, as the EM's browser sees them, on a data file written through `Storage`. A file
 // from before the MVP, holding the tables earlier releases wrote, is test/storage/migrations.beforeTheMvp.test.ts's case.
@@ -34,6 +35,12 @@ export const CHECKOUT: MilestoneInputs = {
 export let dir: string | undefined
 let app: RunningApp | undefined
 export let storage: Storage | undefined
+
+/** The data file the app started on, by `startOnSavedData` or `startWithNoMilestone`. */
+export function stored(): Storage {
+  if (storage === undefined) throw new Error('No data file yet: start the app first')
+  return storage
+}
 
 afterEach(async () => {
   await app?.close()
@@ -107,7 +114,7 @@ export function submitCadence(cadenceDays: string): Promise<Response> {
 
 /** The date the forecast list gives at `percent`. */
 export function dateAt(screen: string, percent: number): string {
-  return screen.match(new RegExp(`${percent}% confident by (\\d{1,2} [A-Z][a-z]{2} 20\\d\\d)`))![1]!
+  return found(screen, new RegExp(`${percent}% confident by (\\d{1,2} [A-Z][a-z]{2} 20\\d\\d)`), 1)
 }
 
 /** Submits the Inputs screen's typed counts list as the browser does. */

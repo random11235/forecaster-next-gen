@@ -160,7 +160,7 @@ describe('the Jira recording script', () => {
     for (const { url, body } of requests) {
       if (url.endsWith('/_edge/tenant_info')) expect(url).toBe('https://ralphhockley.atlassian.net/_edge/tenant_info')
       // Changelogs are fetched by id, only for tickets the space's search found.
-      else if (url.endsWith('/changelog/bulkfetch')) expect(JSON.parse(body!)).toMatchObject({ issueIdsOrKeys: ['10134'] })
+      else if (url.endsWith('/changelog/bulkfetch')) expect(JSON.parse(body ?? '')).toMatchObject({ issueIdsOrKeys: ['10134'] })
       // Jira keeps labels for the whole site, not per project.
       else if (url.includes('/label?')) expect(url).toBe(`https://api.atlassian.com/ex/jira/${CLOUD}/rest/api/3/label?maxResults=100`)
       else if (url.includes('/suggestions?'))

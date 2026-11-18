@@ -104,8 +104,8 @@ export function comparableWorkPace(
       : undefined
   const { milestone, comparableWork, beforeStart } = reads
   // the milestone's own read, or else comparable work's, lays out the periods; both reads are laid the same
-  const laid = (milestone ?? comparableWork)!
-  const periods = laid.starts.map((start, at) => ({
+  const laid = milestone ?? comparableWork
+  const periods = (laid?.starts ?? []).map((start, at) => ({
     start,
     ...(milestone && { milestone: milestone.counts[at]! }),
     ...(comparableWork && { comparableWork: comparableWork.counts[at]! }),

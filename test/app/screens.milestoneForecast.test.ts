@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import {
   CHECKOUT,
-  storage,
+  stored,
   startOnSavedData,
   startWithNoMilestone,
   page,
@@ -13,6 +13,7 @@ import {
   submitCounts,
   choosePace,
 } from './screensHarness.js'
+import { found } from './found.js'
 
 // The screens through the local server: see screensHarness.ts.
 
@@ -38,7 +39,7 @@ describe('Milestone forecast screen', () => {
 
   test('with more than one thing to fix, asks for them all to be fixed', async () => {
     await startOnSavedData()
-    storage!.saveMilestoneInputs({ ...CHECKOUT, ticketsRemaining: undefined })
+    stored().saveMilestoneInputs({ ...CHECKOUT, ticketsRemaining: undefined })
 
     const screen = text(await page('/'))
 
@@ -155,10 +156,10 @@ describe('Milestone forecast screen', () => {
     await submitPace('4', '8')
 
     const html = await page('/')
-    const graph = html.match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
+    const graph = found(html, /<figure class="finish-graph"[\s\S]*?<\/figure>/)
 
     expect(graph).toContain('aria-label="When the simulations finish, by week"')
-    expect(graph.match(/class="bar[ "]/g)!.length).toBeGreaterThan(10)
+    expect(graph.match(/class="bar[ "]/g)?.length).toBeGreaterThan(10)
     expect(text(graph)).toContain('50% 10 Nov 2026')
     expect(text(graph)).toContain('70% 24 Nov 2026')
     expect(text(graph)).toContain('95% 8 Dec 2026')
@@ -171,7 +172,7 @@ describe('Milestone forecast screen', () => {
     await submitMilestone('Checkout v2', '2026-09-01', '2')
     await submitPace('4', '8')
 
-    const graph = (await page('/')).match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
+    const graph = found(await page('/'), /<figure class="finish-graph"[\s\S]*?<\/figure>/)
 
     expect(graph.match(/class="marker[ "]/g)).toHaveLength(1)
     expect(graph).toMatch(/<span class="mark headline">50% · 70% · 85% · 95% <span class="date">8 Sep 2026<\/span><\/span>/)
@@ -185,9 +186,9 @@ describe('Milestone forecast screen', () => {
     await startOnSavedData()
     await submitPace(low, high)
 
-    const graph = (await page('/')).match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
+    const graph = found(await page('/'), /<figure class="finish-graph"[\s\S]*?<\/figure>/)
     const markers = [...graph.matchAll(/<div class="marker([^"]*)" style="left: ([\d.]+)%; top: (\d+)px"/g)].map(([, classes, left, top]) => ({
-      runsLeft: classes!.split(' ').includes('end'),
+      runsLeft: (classes ?? '').split(' ').includes('end'),
       left: Number(left),
       top: Number(top),
     }))
@@ -206,8 +207,8 @@ describe('Milestone forecast screen', () => {
     await startOnSavedData()
     await submitPace('4', '8')
 
-    const graph = (await page('/')).match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
-    const bar = graph.match(/<div class="bar[^"]*"[^>]*data-date="2026-12-01"[\s\S]*?<\/div>/)![0]
+    const graph = found(await page('/'), /<figure class="finish-graph"[\s\S]*?<\/figure>/)
+    const bar = found(graph, /<div class="bar[^"]*"[^>]*data-date="2026-12-01"[\s\S]*?<\/div>/)
 
     expect(bar).toContain('tabindex="0"')
     expect(text(bar)).toContain('1 Dec 2026: 92% chance of completing by the end of this week, 12% of simulations are completed within.')
@@ -217,10 +218,10 @@ describe('Milestone forecast screen', () => {
     await startOnSavedData()
     await submitPace('4', '8')
 
-    const graph = (await page('/')).match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
-    const bars = graph.match(/<div class="bar[^"]*"[^>]*data-date="[^"]*"[\s\S]*?<\/div>/g)!
+    const graph = found(await page('/'), /<figure class="finish-graph"[\s\S]*?<\/figure>/)
+    const bars = graph.match(/<div class="bar[^"]*"[^>]*data-date="[^"]*"[\s\S]*?<\/div>/g) ?? []
 
-    expect(text(bars.at(-1)!)).toContain('under 1% of simulations are completed within.')
+    expect(text(bars.at(-1) ?? '')).toContain('under 1% of simulations are completed within.')
   })
 
   test('at a 14-day cadence, graphs when the simulations finish by sprint', async () => {
@@ -228,7 +229,7 @@ describe('Milestone forecast screen', () => {
     await submitPace('4', '8')
     await submitCadence('14')
 
-    const graph = (await page('/')).match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
+    const graph = found(await page('/'), /<figure class="finish-graph"[\s\S]*?<\/figure>/)
 
     expect(text(await page('/'))).toContain('Sprint by sprint')
     expect(graph).toContain('aria-label="When the simulations finish, by sprint"')

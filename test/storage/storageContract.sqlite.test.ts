@@ -139,7 +139,7 @@ describe("SQLite storage's saved reads", () => {
 
     storage.saveRead({ teamId: 'team', query: OPEN_TICKETS }, { ...READ, tickets: [handed] })
 
-    expect(reopen().savedRead({ teamId: 'team', query: OPEN_TICKETS })!.tickets).toStrictEqual([{ id: 'I_1', finishedAt: '2026-11-06T22:30:00Z' }])
+    expect(reopen().savedRead({ teamId: 'team', query: OPEN_TICKETS })?.tickets).toStrictEqual([{ id: 'I_1', finishedAt: '2026-11-06T22:30:00Z' }])
   })
 })
 
@@ -194,7 +194,7 @@ describe("SQLite storage's milestone query", () => {
 
     storage.saveMilestoneQuery('team', { picks: [handed], query: 'label:"payments"' })
 
-    expect(reopen().milestoneQuery('team')!.picks).toStrictEqual([{ kind: 'label', name: 'payments', query: 'label:"payments"' }])
+    expect(reopen().milestoneQuery('team')?.picks).toStrictEqual([{ kind: 'label', name: 'payments', query: 'label:"payments"' }])
   })
 
   test('reads back no pick of a kind it doesn’t know, keeping the query and the other picks', () => {
