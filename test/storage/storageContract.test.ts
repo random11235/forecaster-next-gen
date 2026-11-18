@@ -1,14 +1,10 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { afterEach, describe, expect, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import type { AmbiguityRanges } from '../../src/model/ambiguity.js'
 import type { CapacityEntry } from '../../src/model/capacity.js'
 import type { MilestoneInputs } from '../../src/model/milestoneInputs.js'
-import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
 import { openWebStorage, type KeyValueStore } from '../../src/storage/webStorage.js'
-import { LAUNCH, TEAM } from './storageContractFixtures.js'
+import { LAUNCH, TEAM, temporarySqliteFiles } from './storageContractFixtures.js'
 
 // What every Storage keeps, whatever it keeps it in: the local app's SQLite file and the web build's browser storage.
 
@@ -43,32 +39,10 @@ function memoryStore(): KeyValueStore {
   return { getItem: (key) => items.get(key) ?? null, setItem: (key, value) => void items.set(key, value) }
 }
 
-let dir: string | undefined
-let open: Storage | undefined
-
-afterEach(() => {
-  open?.close()
-  open = undefined
-  if (dir) rmSync(dir, { recursive: true, force: true })
-  dir = undefined
-})
+const sqliteFile = temporarySqliteFiles()
 
 const kinds: [string, () => Opened][] = [
-  [
-    'SQLite',
-    () => {
-      dir = mkdtempSync(join(tmpdir(), 'forecaster-'))
-      const file = join(dir, 'forecaster.db')
-      open = openSqliteStorage(file)
-      return {
-        storage: open,
-        reopen: () => {
-          open?.close()
-          return (open = openSqliteStorage(file))
-        },
-      }
-    },
-  ],
+  ['SQLite', sqliteFile],
   [
     'browser',
     () => {

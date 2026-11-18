@@ -18,8 +18,9 @@ function storageFiles(): { file: string; source: string }[] {
 }
 
 /**
- * `source` with only its code left: the contents of its comments, quoted strings and template text blanked out, the
- * code in a template's `${…}` kept, a template nested in it too. Regex literals are read as code.
+ * `source` with only its code left: the contents of its comments, quoted strings, regex literals and template text
+ * blanked out, the code in a template's `${…}` kept, a template nested in it too. A `/` starts a regex literal unless the
+ * token before it is an identifier, a number, `)` or `]`.
  */
 function codeOf(source: string): string {
   let code = ''
@@ -47,12 +48,29 @@ function codeOf(source: string): string {
       substitutions.push(0)
     } else keep()
   }
+  /** Where the regex literal from `at`, past its opening `/`, ends: at its closing `/`, outside a character class. */
+  const regexEnd = (): number => {
+    let end = at
+    let inClass = false
+    for (; end < source.length && source[end] !== '\n' && (inClass || source[end] !== '/'); end++) {
+      if (source[end] === '\\') end++
+      else if (source[end] === '[') inClass = true
+      else if (source[end] === ']') inClass = false
+    }
+    return end
+  }
+  /** Whether a `/` here starts a regex literal: it does unless the token before it ends an identifier, number, `)` or `]`. */
+  const startsRegex = (): boolean => !/[\w$)\]]$/.test(code.trimEnd())
   while (at < source.length) {
     const char = source[at]
     if (source.startsWith('//', at)) blankTo(textEnd('\n'))
     else if (source.startsWith('/*', at)) {
       const end = source.indexOf('*/', at + 2)
       blankTo(end === -1 ? source.length : end + 2)
+    } else if (char === '/' && startsRegex()) {
+      keep()
+      blankTo(regexEnd())
+      keep()
     } else if (char === "'" || char === '"') {
       keep()
       blankTo(textEnd(char))
@@ -97,6 +115,12 @@ describe('stored JSON rules', () => {
     ['a JSON.parse inside a template', 'const shown = `${String(JSON.parse(text))}`'],
     ['a JSON.parse in a template nested in a template', 'const shown = `a ${`b ${JSON.parse(text)}`} c`'],
     ['a JSON.parse after a template holding braces', 'const shown = `${{ a: 1 }.a}`; const inputs = JSON.parse(text)'],
+    ['a JSON.parse after a regex holding a single quote', "const quote = /'/; JSON.parse(x)"],
+    ['a JSON.parse after a regex holding a double quote', 'const quote = /"/; JSON.parse(x)'],
+    ['a JSON.parse after a regex holding a backtick', 'const quote = /`/; JSON.parse(x)'],
+    ['a JSON.parse after a regex that looks like a block comment', 'const slashes = /\\/*/; JSON.parse(x)'],
+    ['a JSON.parse after a regex that looks like a line comment', 'const slashes = /\\/\\//; JSON.parse(x)'],
+    ['a JSON.parse after a division', 'const half = a / b; JSON.parse(x)'],
   ])('catches %s', (_, source) => {
     expect(usesJsonButStringify(source)).toBe(true)
   })

@@ -1,7 +1,7 @@
 import type { PaceCheck, SetupCheck, SetupEdit, SetupSteps, TicketsCheck } from '../forecast/setup.js'
 import { SETUP_STEPS, type SetupStep } from '../forecast/setupSteps.js'
 import type { SetupSummary, SummaryFlag, SummaryRow } from '../forecast/setupSummary.js'
-import { PACE_MODES, type PaceMode } from '../model/milestoneInputs.js'
+import { PACE_MODES, TICKETS_SOURCES, type PaceMode } from '../model/milestoneInputs.js'
 import { COMPARABLE_WORK, MILESTONE_QUERY, type StepQuery } from '../forecast/stepQuery.js'
 import { escapeHtml } from './html.js'
 
@@ -135,7 +135,7 @@ const partOf = (tracker: string): string => `${escapeHtml(tracker)} gave only pa
 /** Check's tickets remaining row. */
 function ticketsRowHtml(tracker: string, { yours, reading, incomplete, source }: TicketsCheck): string {
   const read = reading === undefined ? '—' : `${reading}${incomplete ? ` <span class="note warn">${partOf(tracker)}</span>` : ''}`
-  const use = sourceFormHtml('ticketsRemaining', 'Where tickets remaining comes from', ['tracker', 'typed'], source, (each) =>
+  const use = sourceFormHtml('ticketsRemaining', 'Where tickets remaining comes from', TICKETS_SOURCES, source, (each) =>
     each === 'tracker' ? tracker : 'Typed',
   )
   return `            <tr>

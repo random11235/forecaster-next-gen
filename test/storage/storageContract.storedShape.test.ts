@@ -9,8 +9,10 @@ import { LAUNCH as SAVED, TEAM, temporarySqliteFiles } from './storageContractFi
 
 // The Storage contract's cases for stored JSON of a shape this version doesn't read, beside storageContract.test.ts,
 // run against both storages: each refuses it, naming where it is kept, rather than reading it as something it isn't,
-// and never writes over it. Only the seeding differs: each case writes the value straight into the store, as a later
-// version or a damaged file would leave it.
+// and keeps it through the Storage contract's saves. Browser storage, one record, refuses every save; the SQLite file
+// takes them, but its save of the milestone inputs replaces a refused value in that record whole. The saves of the
+// SQLite-only tables (the queries', the setup draft's) aren't tried. Only the seeding differs: each case writes the
+// value straight into the store, as a later version or a damaged file would leave it.
 
 const LAUNCH: MilestoneInputs = {
   ...SAVED,
@@ -177,7 +179,7 @@ describe.each([
   ['SQLite', sqlite],
   ['browser', browser],
 ])('%s storage holding stored JSON of a shape it does not read', (_, subject) => {
-  test('reads back each stored JSON value as saved', () => {
+  test('reads back the milestone inputs as saved', () => {
     expect(subject.saved().milestoneInputs('team')).toEqual(LAUNCH)
   })
 
