@@ -1,22 +1,20 @@
-import type { InputNote } from '../forecast/milestoneAssessment.js'
-import { MAX_TICKETS_REMAINING, type TicketsSourceView } from '../forecast/milestoneInputs.js'
-import type { InputsForm, TypedForms } from '../forecast/inputs.js'
-import type { TicketsSource } from '../model/milestoneInputs.js'
-import { escapeHtml } from './html.js'
-import { errorLine, incompleteMark, INPUT_LABELS, inputSection, notesFor, radios, type Section } from './lib/inputSection.js'
-import { chip, chipForms, TICKETS_CHIP } from './lib/readsDifferentlyChip.js'
+import { MAX_TICKETS_REMAINING, type TicketsSourceView } from '../../forecast/milestoneInputs.js'
+import type { InputsView } from '../../forecast/inputs.js'
+import type { TicketsSource } from '../../model/milestoneInputs.js'
+import { escapeHtml } from '../html.js'
+import { errorLine, INPUT_LABELS, inputSection, notesFor, radios, type FormError, type Section } from './inputSection.js'
+import { chip, chipForms, incompleteMark, TICKETS_CHIP } from './trackerReading.js'
+
+// Behind inputsScreen.ts: its Milestone section.
 
 /**
  * The milestone's name, start date and tickets remaining. With a connection, tickets remaining has a source to choose
  * (`ticketsSource`): following the tracker, it shows the latest read's count, with no field to type in; typed, the
  * field as in the MVP. The source's radios sit by the field but post their own form, saved as soon as one is chosen.
  */
-export function milestoneSection(
-  form: TypedForms['milestone'],
-  ticketsSource: TicketsSourceView | undefined,
-  error: (form: InputsForm) => string | undefined,
-  notes: readonly InputNote[],
-): Section {
+export function milestoneSection(screen: InputsView, error: FormError): Section {
+  const { ticketsSource, notes } = screen.milestone
+  const form = screen.forms.milestone
   const following = ticketsSource?.source === 'tracker'
   const typedField = `<label>${INPUT_LABELS.ticketsRemaining} <input type="number" name="ticketsRemaining" min="0" max="${MAX_TICKETS_REMAINING}" step="1" value="${escapeHtml(form.ticketsRemaining)}" required></label>`
   const tickets = ticketsSource
@@ -44,7 +42,7 @@ export function milestoneSection(
         </form>${
           // opening a reading is posted by the page's script, which shows no reply; a refusal shows here, by the first chip
           errorLine(error('readingOpened'))
-        }${ticketsSource.readsDifferently ? chipForms(TICKETS_CHIP, '/inputs/tickets-source#milestone', { ticketsSource: 'tracker' }) : ''}`
+        }${chipForms(TICKETS_CHIP, ticketsSource.readsDifferently)}`
             : ''
         }`,
   )
