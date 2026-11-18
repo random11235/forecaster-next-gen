@@ -88,11 +88,16 @@ const TEMPORARY_EXCEPTIONS: Exception[] = [
     imported: 'forecast/paceVersusOwn.js',
     why: "tests the comparison with the milestone's own pace below Seam B, rather than through the candidates and Comparable work views that show it",
   },
-  ...['forecast/setupSteps.js', 'forecast/setupSummary.js'].map((imported) => ({
+  {
     file: 'test/forecast/setup.test.ts',
-    imported,
-    why: 'names SetupStep and COUNTS_WAIT from below Seam B; the file is over the size limit, so the fix waits for its split',
-  })),
+    imported: 'forecast/setupSteps.js',
+    why: 'names SetupStep from below Seam B',
+  },
+  {
+    file: 'test/forecast/setup.reads.test.ts',
+    imported: 'forecast/setupSummary.js',
+    why: 'names COUNTS_WAIT from below Seam B',
+  },
 ]
 
 describe('test seams', () => {
