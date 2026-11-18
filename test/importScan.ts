@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { typeScriptFilesUnder } from './sourceCode.js'
+import { typeScriptFilesUnder } from './sourceFiles.js'
 
 // Reading what the repo's files import, for the tests that check who may import what: dependencyRules.test.ts and
 // testSeams.test.ts.

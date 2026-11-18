@@ -1,15 +1,5 @@
-import { readdirSync } from 'node:fs'
-
-// Reading the repo's source files for the scan tests: listing them, for importScan.ts, storedJsonRules.test.ts and
-// stringValueRules.test.ts, and reading a file's code apart from its comments, strings and regex literals, for the two
-// rules tests.
-
-/** Each `.ts` file under `dir`, at any depth, as a path relative to `dir`, sorted. */
-export function typeScriptFilesUnder(dir: string): string[] {
-  return readdirSync(dir, { recursive: true, encoding: 'utf8' })
-    .filter((file) => file.endsWith('.ts'))
-    .sort()
-}
+// Reading a source file's code apart from its comments, strings and regex literals, and the text of its templates, for
+// the scan tests that check what code says: storedJsonRules.test.ts and stringValueRules.test.ts.
 
 /** The keywords a regex literal can follow, where a `/` after any other word is division. */
 const BEFORE_REGEX = new Set(['return', 'typeof', 'case', 'in', 'of', 'void', 'delete', 'yield', 'await', 'instanceof', 'new', 'throw', 'else', 'do'])
@@ -22,7 +12,22 @@ const BEFORE_REGEX = new Set(['return', 'typeof', 'case', 'in', 'of', 'void', 'd
  * those keywords not as a property name, or nothing) it starts a regex literal.
  */
 export function codeOf(source: string): string {
+  return lexed(source).code
+}
+
+/**
+ * The text of each template in `source`'s code, as written: a template with a `${…}` in pieces, the text before it and
+ * after, and a template nested in it as a piece of its own, in the order they start. Templates in comments, strings and
+ * regex literals don't count.
+ */
+export function templateTextsOf(source: string): string[] {
+  return lexed(source).templateTexts
+}
+
+/** `source`'s code, as `codeOf` gives it, and its templates' text, as `templateTextsOf` gives it. */
+function lexed(source: string): { code: string; templateTexts: string[] } {
   let code = ''
+  const templateTexts: string[] = []
   let at = 0
   /** Whether the last token is a value, so that a `/` after it is division. */
   let afterValue = false
@@ -49,7 +54,9 @@ export function codeOf(source: string): string {
   }
   /** Template text from `at`, up to its closing backtick, a value, or a `${` opening code. */
   const templateText = (): void => {
-    blankTo(textEnd('`', '${'))
+    const end = textEnd('`', '${')
+    templateTexts.push(source.slice(at, end))
+    blankTo(end)
     afterValue = !source.startsWith('${', at)
     if (afterValue) keep()
     else {
@@ -112,5 +119,5 @@ export function codeOf(source: string): string {
       afterValue = char === ')' || char === ']'
     }
   }
-  return code
+  return { code, templateTexts }
 }
