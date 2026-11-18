@@ -67,6 +67,13 @@ src/
     memorySecrets.ts      # in memory: the fake Seam B tests use
 
   storage/                # interface and its v1 SQLite file, with the schema's migrations; the web build's browser storage
+    sqliteStorage.ts      # the SQLite file: the schema's steps (MIGRATIONS), opening and migrating it, its parts in lib/ put together
+    lib/sqliteDatabase.ts # behind sqliteStorage.ts: the open SQLite file, its rows, and a transaction over it
+    lib/teamTables.ts     # behind sqliteStorage.ts: the teams, each team's milestone inputs, ambiguity ranges and capacity
+    lib/connectionTable.ts # behind sqliteStorage.ts: the team's connection
+    lib/savedReadTables.ts # behind sqliteStorage.ts: each query's last read and previous read, with their tickets
+    lib/milestoneQueryTables.ts # behind sqliteStorage.ts: the milestone query and comparable work's, and the picks as a row keeps them
+    lib/setupTables.ts    # behind sqliteStorage.ts: where setup stands, the setup draft's rows, and why the last reads failed
     lib/setupDraft.ts     # behind sqliteStorage.ts: the team's queries and reads in each target, the setup draft over what's saved; the draft's fields saved; "Use these" applying it
   app/                    # local server (localhost only), screens, `npm start` entry point; each screen's HTML, and reading the fields of the forms it posts; the web build's app and page script (`webApp.ts`, `webMain.ts`); the stylesheet every page shares (`html.ts`), each screen's styles in `lib/`; the app's version (`forecast/appVersion.ts`'s `APP_VERSION`) in every screen's footer and streamed on the server's `/live`, which each page it serves listens on to reload when the version changes (the web build's pages don't)
 
