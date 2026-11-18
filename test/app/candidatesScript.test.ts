@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { HTMLAnchorElement, HTMLInputElement } from 'happy-dom'
 import type { CannedFixture } from '../../src/connectors/canned.js'
 import type { Choice } from '../../src/connectors/connector.js'
+import { FEW_CANDIDATES, NARROWED_DEBOUNCE_MS } from '../../src/forecast/candidates.js'
 import { CHECKOUT, finishedOn, label } from '../trackerScenario.js'
 import { connectAndPick } from './appOnTracker.js'
 import { typed, type BrowserPage } from './browserPage.js'
@@ -17,8 +18,8 @@ const CANDIDATES_PATH = '/inputs/comparable-work-candidates'
 const payments = label('payments')
 const bug = label('bug')
 const broken = label('broken')
-// with bug and broken, six labels with a "b", five of them with "bu": more than a few (FEW_CANDIDATES, 5), then a few
-const MORE_BU = ['build', 'bulk', 'buffer', 'bundle'].map(label)
+// with bug and broken, more than a few labels with a "b"; with bug, a few with "bu"
+const MORE_BU = Array.from({ length: FEW_CANDIDATES - 1 }, (_, n) => label(`bulk ${n}`))
 
 /** A ticket finished on each day in `days`. */
 const finishedEachOf = (prefix: string, days: readonly string[]) => days.flatMap((day) => finishedOn(prefix, day, 1))
@@ -101,15 +102,15 @@ describe('the candidates script', () => {
     expect(candidates(page)).toContain('payments')
   })
 
-  test('typing that narrows the lists to a few, five or fewer, opens those once the typing has paused; to more, none', async () => {
+  test(`typing that narrows the lists to a few, ${FEW_CANDIDATES} or fewer, opens those once the typing has paused; to more, none`, async () => {
     const page = await openStep(MORE_BU)
 
-    // "b" narrows the labels to six
+    // "b" narrows the labels to more than a few
     typeInFind(page, 'b')
     await page.settled()
     expect(asked(page)).toEqual([])
 
-    // "bu" to five
+    // "bu" to a few
     typeInFind(page, 'u')
     // a moment after the typing, before the pause it waits for
     await wait(0)
@@ -124,11 +125,12 @@ describe('the candidates script', () => {
   test('typing that goes on opens nothing until it pauses, however long it goes on', async () => {
     const page = await openStep()
 
-    // the pause it waits for is 450ms: each key comes sooner, though the second comes later than that after the first
+    // each key comes sooner than the pause it waits for, though the second comes later than that after the first
+    const sooner = (NARROWED_DEBOUNCE_MS * 2) / 3
     typeInFind(page, 'b')
-    await wait(300)
+    await wait(sooner)
     typeInFind(page, 'u')
-    await wait(300)
+    await wait(sooner)
     expect(asked(page)).toEqual([])
     await page.settled()
 
