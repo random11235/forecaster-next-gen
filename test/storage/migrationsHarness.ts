@@ -2,10 +2,10 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { afterEach, beforeEach, expect, type TestContext } from 'vitest'
+import { afterEach, beforeEach, expect } from 'vitest'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { MilestoneQueryStorage, SavedReadStorage, SetupStorage, Storage } from '../../src/storage/storage.js'
-import { stepWriteProblems } from './migrationStep.js'
+import { describesAbove, stepWriteProblems } from './migrationStep.js'
 import { TEAM } from './pastSchemas.js'
 
 // The migration tests' shared arrangement: each test writes a data file the way an earlier release left it (from
@@ -32,16 +32,9 @@ afterEach(({ task }) => {
   rmSync(dir, { recursive: true, force: true })
   // a test that already failed, before it wrote a file perhaps, has its own error to show
   if (task.result?.state === 'fail') return
-  const problems = stepWriteProblems(titlesOf(task), written)
+  const problems = stepWriteProblems(describesAbove(task), written)
   if (problems.length > 0) throw new Error(problems.join('\n'))
 })
-
-/** The titles `task` is under, outermost first: its file's, its describes' and its own. */
-function titlesOf(task: TestContext['task']): string[] {
-  const titles = [task.name]
-  for (let suite = task.suite; suite !== undefined; suite = suite.suite) titles.unshift(suite.name)
-  return titles
-}
 
 /** The path of `name` in the test's own directory. */
 export function fileIn(name: string): string {

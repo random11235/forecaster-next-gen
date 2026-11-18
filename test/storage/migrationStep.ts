@@ -13,20 +13,30 @@ export function versionBefore(step: number): { version: number; described: strin
   return step === 1 ? { version: 0, described: 'from before schema versions' } : { version: step - 1, described: `at version ${step - 1}` }
 }
 
+/** A test or describe, as Vitest gives it: its title, and the describe or file it is in. */
+type Task = { name: string; suite?: Task }
+
+/** The titles of the describes `task` is in, outermost first, its file's first: not its own, so a test's title names no step. */
+export function describesAbove(task: Task): string[] {
+  const titles: string[] = []
+  for (let suite = task.suite; suite !== undefined; suite = suite.suite) titles.unshift(suite.name)
+  return titles
+}
+
 /**
- * What is wrong with the versions of the data files a test wrote, one sentence each, from `titles`, its file's, its
- * describes' and its own: a test under a `step N: …` describe writes at least one file, and each at versionBefore(N),
- * and is under one step only. A test under no step may write any.
+ * What is wrong with the versions of the data files a test wrote, one sentence each, from `describes`, the titles of
+ * the describes it is in (describesAbove): a test under a `step N: …` describe writes at least one file, and each as
+ * versionBefore(N) says, and is under one step only. A test under no step may write any.
  */
-export function stepWriteProblems(titles: readonly string[], versions: readonly number[]): string[] {
-  const steps = [...new Set(titles.flatMap((title) => stepNamedBy(title) ?? []))]
+export function stepWriteProblems(describes: readonly string[], versions: readonly number[]): string[] {
+  const steps = [...new Set(describes.flatMap((title) => stepNamedBy(title) ?? []))]
   if (steps.length > 1) return [`a test under ${steps.map((step) => `\`step ${step}: …\``).join(' and ')} names more than one step: name one`]
   const [step] = steps
   if (step === undefined) return []
-  const before = versionBefore(step).version
+  const before = versionBefore(step)
   if (versions.length === 0)
-    return [`a test under \`step ${step}: …\` writes no file: write one at version ${before}, as the release before step ${step} left it`]
+    return [`a test under \`step ${step}: …\` writes no file: write one ${before.described}, as the release before step ${step} left it`]
   return [...new Set(versions)]
-    .filter((version) => version !== before)
-    .map((version) => `a test under \`step ${step}: …\` writes a file at version ${version}: step ${step} runs on a file at version ${before}`)
+    .filter((version) => version !== before.version)
+    .map((version) => `a test under \`step ${step}: …\` writes a file at version ${version}: step ${step} runs on a file ${before.described}`)
 }
