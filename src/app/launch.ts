@@ -4,7 +4,8 @@ import type { Connecting } from '../forecast/connection.js'
 import type { Storage } from '../storage/storage.js'
 import { SAVE_IN_PLACE } from './inputsScript.js'
 import { APP_VERSION } from '../forecast/appVersion.js'
-import { appContext, route, routeSetup, type AppContext, type Reply, type Request } from './routes.js'
+import { appContext, type AppContext, type Reply, type Request } from './appContext.js'
+import { route, routeSetup } from './routes.js'
 
 /** Localhost only: the Forecaster is a local, single-user tool and is never reachable from the network. */
 const HOST = '127.0.0.1'
