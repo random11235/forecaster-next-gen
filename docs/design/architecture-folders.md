@@ -75,6 +75,7 @@ src/
     lib/milestoneQueryTables.ts # behind sqliteStorage.ts: the milestone query and comparable work's, and the picks as a row keeps them
     lib/setupTables.ts    # behind sqliteStorage.ts: where setup stands, the setup draft's rows, and why the last reads failed
     lib/setupDraft.ts     # behind sqliteStorage.ts: the team's queries and reads in each target, the setup draft over what's saved; the draft's fields saved; "Use these" applying it
+    lib/storedJson.ts     # the one parser for stored JSON (`parseStored`): each value's shape checked, a shape it doesn't know refused, naming its column
   app/                    # local server (localhost only), screens, `npm start` entry point; each screen's HTML, and reading the fields of the forms it posts; the web build's app and page script (`webApp.ts`, `webMain.ts`); the stylesheet every page shares (`html.ts`), each screen's styles in `lib/`; the app's version (`forecast/appVersion.ts`'s `APP_VERSION`) in every screen's footer and streamed on the server's `/live`, which each page it serves listens on to reload when the version changes (the web build's pages don't)
 
 test/
@@ -86,5 +87,6 @@ test/
   storage/                # the schema's migrations; the Storage contract, run against SQLite and browser storage
   dependencyRules.test.ts # the dependency rules (architecture-dependency-rules.md) that keep connectors/ and secrets/ at the edge
   testSeams.test.ts       # each test folder imports only its seam's entry points (architecture-test-seams.md): TEST_SEAMS, the one list
+  storedJsonRules.test.ts # nothing in src/storage/ calls JSON.parse but lib/storedJson.ts
   importScan.ts           # reading what files import, for the two tests above
 ```

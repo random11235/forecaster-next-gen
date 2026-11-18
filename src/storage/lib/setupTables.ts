@@ -58,9 +58,14 @@ export function setupTables(db: DatabaseSync, transaction: Transaction): Omit<Se
         ...(paceModeOf(row.pace_mode) && { pace: paceModeOf(row.pace_mode)! }),
       }
       return {
-        ...(row.milestone_query !== null && { milestoneQuery: { picks: picksIn(String(row.milestone_picks)), query: String(row.milestone_query) } }),
+        ...(row.milestone_query !== null && {
+          milestoneQuery: { picks: picksIn(String(row.milestone_picks), 'setup_drafts.milestone_picks'), query: String(row.milestone_query) },
+        }),
         ...(row.comparable_work_query !== null && {
-          comparableWorkQuery: { picks: picksIn(String(row.comparable_work_picks)), query: String(row.comparable_work_query) },
+          comparableWorkQuery: {
+            picks: picksIn(String(row.comparable_work_picks), 'setup_drafts.comparable_work_picks'),
+            query: String(row.comparable_work_query),
+          },
         }),
         reads,
         ...(Object.keys(sources).length > 0 && { sources }),
