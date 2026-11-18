@@ -2,6 +2,7 @@ import type { AmbiguityRanges } from '../model/ambiguity.js'
 import type { CapacityEntry } from '../model/capacity.js'
 import type { MilestoneInputs } from '../model/milestoneInputs.js'
 import type { Team } from '../model/team.js'
+import { isListOf, isObject, isString, parseStored } from './lib/storedJson.js'
 import type { Storage } from './storage.js'
 
 /** The part of the browser's `localStorage` this uses: strings by key. */
@@ -126,8 +127,25 @@ function read(store: KeyValueStore | undefined): Stored {
   const empty: Stored = { teams: [], milestoneInputs: {}, ambiguityRanges: {}, capacityEntries: {}, capacityOff: [] }
   try {
     const json = store?.getItem(KEY)
-    return json ? { ...empty, ...(JSON.parse(json) as Partial<Stored>) } : empty
+    return json ? { ...empty, ...parseStored(json, `browser storage's "${KEY}"`, isStored) } : empty
   } catch {
     return empty
   }
+}
+
+const isTeam = (value: unknown): value is Team =>
+  isObject(value) && ['id', 'name', 'source', 'sourceRef', 'installedAt'].every((field) => isString(value[field]))
+
+/**
+ * Everything stored, as far as reading it needs: an object whose parts, each missing in data from an earlier build, are
+ * the teams, records by team ID, and the IDs of the teams with capacity off.
+ */
+function isStored(value: unknown): value is Partial<Stored> {
+  if (!isObject(value)) return false
+  const { teams, milestoneInputs, ambiguityRanges, capacityEntries, capacityOff } = value
+  return (
+    (teams === undefined || isListOf(isTeam)(teams)) &&
+    [milestoneInputs, ambiguityRanges, capacityEntries].every((records) => records === undefined || isObject(records)) &&
+    (capacityOff === undefined || isListOf(isString)(capacityOff))
+  )
 }

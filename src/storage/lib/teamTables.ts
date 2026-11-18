@@ -5,6 +5,7 @@ import type { MilestoneInputs, PaceMode, PaceWindow, SeenReads, TicketsSource } 
 import type { Team } from '../../model/team.js'
 import type { Storage } from '../storage.js'
 import type { Row, Transaction } from './sqliteDatabase.js'
+import { isPaceCounts, isStoredPaceWindow, isStoredSeenReads, parseStored } from './storedJson.js'
 
 /*
  * The team and its milestone's inputs in the SQLite file, behind sqliteStorage.ts: the teams, each team's milestone
@@ -99,7 +100,7 @@ export function teamTables(db: DatabaseSync, transaction: Transaction): Omit<Sto
         cadenceDays: Number(row.cadence_days),
         paceMode: String(row.pace_mode) as PaceMode,
         paceRange: row.pace_low === null ? undefined : { low: Number(row.pace_low), high: Number(row.pace_high) },
-        paceCounts: JSON.parse(String(row.pace_counts)) as number[],
+        paceCounts: parseStored(String(row.pace_counts), 'milestone_inputs.pace_counts', isPaceCounts),
         paceCadenceDays: row.pace_cadence_days === null ? undefined : Number(row.pace_cadence_days),
         paceWindow: paceWindowOf(String(row.pace_window)),
         ticketsSource: String(row.tickets_source) as TicketsSource,
@@ -160,12 +161,12 @@ export function teamTables(db: DatabaseSync, transaction: Transaction): Omit<Sto
 
 /** The pace window as saved: a file from before #161 has no action, and one from before #210 no skipped periods. */
 function paceWindowOf(json: string): PaceWindow {
-  const { action, skippedPeriods } = JSON.parse(json) as Partial<PaceWindow>
+  const { action, skippedPeriods } = parseStored(json, 'milestone_inputs.pace_window', isStoredPaceWindow)
   return { action, skippedPeriods: skippedPeriods ?? [] }
 }
 
 /** The reads seen as saved: JSON drops an undefined `readAt`, and a file from before #210 has seen none. */
 function seenReadsOf(json: string): SeenReads {
-  const { ticketsRemaining, pace } = JSON.parse(json) as Partial<SeenReads>
+  const { ticketsRemaining, pace } = parseStored(json, 'milestone_inputs.seen_reads', isStoredSeenReads)
   return { ticketsRemaining, pace }
 }
