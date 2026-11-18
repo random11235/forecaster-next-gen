@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest'
 import type { Connection } from '../../src/model/connection.js'
 import type { MilestoneQuery } from '../../src/model/milestoneQuery.js'
 import type { SavedRead } from '../../src/model/savedRead.js'
-import { LAUNCH, TEAM, temporarySqliteFiles } from './storageContractFixtures.js'
+import { LAUNCH, PICKED, TEAM, temporarySqliteFiles } from './storageContractFixtures.js'
 
 // The Storage contract's cases for what only the SQLite file keeps, beside storageContract.test.ts: the team's
 // connection, each query's saved reads, and the milestone query and comparable work's.
@@ -144,14 +144,6 @@ describe("SQLite storage's saved reads", () => {
 
 // Only the local server build keeps the milestone's picks and query: the browser build has no connectors (#190).
 describe("SQLite storage's milestone query", () => {
-  const PICKED: MilestoneQuery = {
-    picks: [
-      { kind: 'epic', name: 'Checkout redesign', query: 'parent-issue:acme/checkout#106' },
-      { kind: 'label', name: 'payments', query: 'label:"payments"' },
-    ],
-    query: 'parent-issue:acme/checkout#106 OR label:"payments"',
-  }
-
   test("keeps the milestone's picks in order and its query, replacing both when saved again", () => {
     const { storage, reopen } = sqliteFile()
     storage.saveTeam(TEAM)

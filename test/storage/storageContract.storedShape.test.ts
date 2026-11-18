@@ -1,10 +1,10 @@
-import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, test } from 'vitest'
 import type { MilestoneInputs } from '../../src/model/milestoneInputs.js'
 import type { MilestoneQuery } from '../../src/model/milestoneQuery.js'
 import type { SqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
 import { openWebStorage, type KeyValueStore } from '../../src/storage/webStorage.js'
+import { readStraight, writeStraight } from './sqliteStraight.js'
 import { LAUNCH as SAVED, TEAM, temporarySqliteFiles } from './storageContractFixtures.js'
 
 // The Storage contract's cases for stored JSON of a shape this version doesn't read, beside storageContract.test.ts,
@@ -82,15 +82,8 @@ const inSqlite =
     ...(ownSave && { ownSave }),
     opened() {
       const { file, reopen } = savedSqlite()
-      const db = new DatabaseSync(file)
-      db.prepare(`UPDATE ${table} SET ${column} = ?`).run(stored)
-      db.close()
-      const kept = (): unknown => {
-        const again = new DatabaseSync(file)
-        const row = again.prepare(`SELECT ${column} FROM ${table}`).get()
-        again.close()
-        return row?.[column]
-      }
+      writeStraight(file, `UPDATE ${table} SET ${column} = ?`, stored)
+      const kept = (): unknown => readStraight(file, `SELECT ${column} FROM ${table}`)?.[column]
       return { storage: reopen, read: () => read(reopen()), kept }
     },
   })
