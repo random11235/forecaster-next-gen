@@ -13,13 +13,16 @@ export function versionBefore(step: number): { version: number; described: strin
   return step === 1 ? { version: 0, described: 'from before schema versions' } : { version: step - 1, described: `at version ${step - 1}` }
 }
 
-/** A test or describe, as Vitest gives it: its title, and the describe or file it is in. */
-type Task = { name: string; suite?: Task }
+/** A test or describe, as Vitest gives it: its title, whether a `.each` made it, and the describe or file it is in. */
+type Task = { name: string; each?: boolean; suite?: Task }
 
-/** The titles of the describes `task` is in, outermost first, its file's first: not its own, so a test's title names no step. */
+/**
+ * The titles of the plain describes `task` is in, outermost first, its file's first: not its own, so a test's title
+ * names no step, and not a `describe.each`'s, which the coverage check doesn't read either.
+ */
 export function describesAbove(task: Task): string[] {
   const titles: string[] = []
-  for (let suite = task.suite; suite !== undefined; suite = suite.suite) titles.unshift(suite.name)
+  for (let suite = task.suite; suite !== undefined; suite = suite.suite) if (suite.each !== true) titles.unshift(suite.name)
   return titles
 }
 
