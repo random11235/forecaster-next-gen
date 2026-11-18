@@ -8,8 +8,9 @@ import { stepNamedBy, versionBefore } from './migrationStep.js'
 // The Migration tests section of docs/design/architecture-test-seams-storage.md: every step of MIGRATIONS has a test
 // that opens a data file as it was before that step, named in a top-level `describe('step N: …')`, at column 0
 // (migrationStep.ts). This file checks the names: each step is named by exactly one describe, none names a step
-// MIGRATIONS doesn't have, no step describe is indented (inside an `if`, a function or another describe, it may never
-// register), and a file naming one arranges through migrationsHarness.ts, which checks what each test under a step's
+// MIGRATIONS doesn't have, no step describe is indented (inside an `if`, a helper nobody calls or an empty
+// `describe.each` it may never register, and inside another describe it isn't the top-level one the harness reads),
+// and a file naming one arranges through migrationsHarness.ts, which checks what each test under a step's
 // describe writes as it runs, and has no word that skips, todos, singles out, runs concurrently or expects to fail a
 // test, so each step's describe holds a test that runs, one at a time, and must pass (Vitest fails one holding none).
 // migrations.beforeTheMvp.test.ts names no step on purpose: it writes a file at the current version, so it runs none.
@@ -42,7 +43,10 @@ function stepDescribes(source: string, at: RegExp): number[] {
  */
 const stepsNamedIn = (source: string): number[] => stepDescribes(source, /^describe\(\s*(['"`])(.*?)\1/gm)
 
-/** The steps `source` has an indented `describe('step N: …')` for, which names none and may never register. */
+/**
+ * The steps `source` has an indented `describe('step N: …')` for, which names none: in an `if`, an uncalled helper or
+ * an empty `describe.each` it may never register, and in another describe it isn't the top-level one the harness reads.
+ */
 const indentedSteps = (source: string): number[] => stepDescribes(source, /^[ \t]+describe\(\s*(['"`])(.*?)\1/gm)
 
 /**
@@ -150,14 +154,17 @@ describe('migration coverage', () => {
     ['in an if', "if (process.env.SLOW_MIGRATIONS) {\n  describe('step 2: a data file', () => {})\n}"],
     ['in a helper nobody calls', "function slow(): void {\n  describe('step 2: a data file', () => {})\n}"],
     ['in a describe.each', "describe.each([])('%s', () => {\n  describe('step 2: a data file', () => {})\n})"],
-  ])('fails on a step describe %s, which may never register, naming the file, and counts no step for it', (_, code) => {
-    const indented = { file: 'migrations.b.test.ts', source: `${HARNESS}${code}` }
+  ])(
+    'fails on a step describe %s, which may never register or is not the top-level one the harness reads, naming the file, and counts no step for it',
+    (_, code) => {
+      const indented = { file: 'migrations.b.test.ts', source: `${HARNESS}${code}` }
 
-    expect(stepNamingProblems(STEPS, [STEP_1, indented])).toEqual([
-      UNTESTED_STEP_2,
-      "migrations.b.test.ts has an indented describe('step 2: …'): a step's describe sits at the top level of its file, with no indent, so it always registers",
-    ])
-  })
+      expect(stepNamingProblems(STEPS, [STEP_1, indented])).toEqual([
+        UNTESTED_STEP_2,
+        "migrations.b.test.ts has an indented describe('step 2: …'): a step's describe sits at the top level of its file, with no indent, so it always registers",
+      ])
+    },
+  )
 
   test('takes no mention of a step but a describe naming it', () => {
     const mentions = { file: 'migrations.b.test.ts', source: `${HARNESS}// step 2: tested later\ntest('step 2: a data file', () => {})` }
