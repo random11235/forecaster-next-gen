@@ -1,17 +1,12 @@
-import { mkdirSync } from 'node:fs'
-import { dirname } from 'node:path'
-import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
-import { choiceKindOf, type Choice } from '../connectors/connector.js'
-import type { Ambiguity, AmbiguityRanges } from '../model/ambiguity.js'
-import type { CapacityEntry } from '../model/capacity.js'
-import { PACE_MODES, type MilestoneInputs, type PaceMode, type PaceWindow, type SeenReads, type TicketsSource } from '../model/milestoneInputs.js'
-import type { MilestoneQuery } from '../model/milestoneQuery.js'
-import type { SavedRead } from '../model/savedRead.js'
-import type { FailedRead, FailedReads, ReadFailures } from '../model/readFailures.js'
-import type { SetupDraft } from '../model/setupDraft.js'
-import type { Team } from '../model/team.js'
+import type { DatabaseSync } from 'node:sqlite'
+import { connectionTable } from './lib/connectionTable.js'
+import { milestoneQueryTables } from './lib/milestoneQueryTables.js'
+import { savedReadTables } from './lib/savedReadTables.js'
+import { setupTables } from './lib/setupTables.js'
 import { applySetupDraft, draftedQueries, saveDraftPickFailures, saveDraftSources, type TeamQueriesWithDraft } from './lib/setupDraft.js'
-import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage, SetupClosed, SetupState, SetupStorage, Storage, TeamQueryStorage } from './storage.js'
+import { openDatabase, type Transaction } from './lib/sqliteDatabase.js'
+import { teamTables } from './lib/teamTables.js'
+import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage, SetupStorage, Storage, TeamQueryStorage } from './storage.js'
 
 /**
  * The schema, as the steps that build it. The file records how many it has applied (`PRAGMA user_version`), and
@@ -350,353 +345,24 @@ CREATE TABLE read_failures (
 `,
 ]
 
-type Row = Record<string, SQLInputValue>
-
 /** The local server build's storage: everything, and the team's connection, saved reads, milestone query and comparable work's, and how its setup was closed. */
 export type SqliteStorage = Storage & ConnectionStorage & SavedReadStorage & MilestoneQueryStorage & SetupStorage & TeamQueryStorage
 
-/** Opens (creating if needed) the SQLite file at `file`. `':memory:'` keeps everything in memory. */
+/**
+ * Opens (creating if needed) the SQLite file at `file`. `':memory:'` keeps everything in memory. Each part of it is
+ * kept in lib/, a file per part: the team and its inputs, the connection, saved reads, the queries, and setup.
+ */
 export function openSqliteStorage(file: string): SqliteStorage {
-  if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true })
-  const db = new DatabaseSync(file)
-
-  function transaction(work: () => void): void {
-    db.exec('BEGIN')
-    try {
-      work()
-      db.exec('COMMIT')
-    } catch (error) {
-      db.exec('ROLLBACK')
-      throw error
-    }
-  }
-
-  db.exec('PRAGMA foreign_keys = ON')
+  const { db, transaction } = openDatabase(file)
   migrate(db, file, transaction)
-
-  const upsertTeam = db.prepare(`
-    INSERT INTO teams (id, name, source, source_ref, installed_at) VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT (id) DO UPDATE SET name = excluded.name, source = excluded.source, source_ref = excluded.source_ref`)
-  const upsertMilestoneInputs = db.prepare(`
-    INSERT INTO milestone_inputs
-      (team_id, name, start_date, tickets_remaining, ambiguity, cadence_days, pace_mode, pace_low, pace_high, pace_counts,
-       pace_cadence_days, pace_window, tickets_source, seen_reads)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT (team_id) DO UPDATE SET
-      name = excluded.name, start_date = excluded.start_date, tickets_remaining = excluded.tickets_remaining,
-      ambiguity = excluded.ambiguity, cadence_days = excluded.cadence_days, pace_mode = excluded.pace_mode,
-      pace_low = excluded.pace_low, pace_high = excluded.pace_high, pace_counts = excluded.pace_counts,
-      pace_cadence_days = excluded.pace_cadence_days, pace_window = excluded.pace_window,
-      tickets_source = excluded.tickets_source, seen_reads = excluded.seen_reads`)
-  const selectMilestoneInputs = db.prepare('SELECT * FROM milestone_inputs WHERE team_id = ?')
-  // medium_measured is left as it is: nothing reads it since measured growth went with the MVP (#84)
-  const upsertAmbiguityRanges = db.prepare(`
-    INSERT INTO ambiguity_ranges (team_id, low_low, low_high, medium_low, medium_high, high_low, high_high, medium_measured)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 0)
-    ON CONFLICT (team_id) DO UPDATE SET
-      low_low = excluded.low_low, low_high = excluded.low_high, medium_low = excluded.medium_low,
-      medium_high = excluded.medium_high, high_low = excluded.high_low, high_high = excluded.high_high`)
-  const selectAmbiguityRanges = db.prepare('SELECT * FROM ambiguity_ranges WHERE team_id = ?')
-  const deleteCapacityEntries = db.prepare('DELETE FROM capacity_entries WHERE team_id = ?')
-  const insertCapacityEntry = db.prepare(
-    'INSERT INTO capacity_entries (team_id, id, from_date, to_date, percent, note, new_usual_on, kept) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-  )
-  const selectCapacityEntries = db.prepare('SELECT * FROM capacity_entries WHERE team_id = ? ORDER BY rowid')
-  const upsertCapacitySwitch = db.prepare(
-    'INSERT INTO capacity_switch (team_id, capacity_on) VALUES (?, ?) ON CONFLICT (team_id) DO UPDATE SET capacity_on = excluded.capacity_on',
-  )
-  const selectCapacitySwitch = db.prepare('SELECT capacity_on FROM capacity_switch WHERE team_id = ?')
-  const upsertConnection = db.prepare(`
-    INSERT INTO connections (team_id, tracker, owner, repo, site, project_key, email) VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT (team_id) DO UPDATE SET
-      tracker = excluded.tracker, owner = excluded.owner, repo = excluded.repo, site = excluded.site,
-      project_key = excluded.project_key, email = excluded.email`)
-  const selectConnection = db.prepare('SELECT * FROM connections WHERE team_id = ?')
-  const deleteConnection = db.prepare('DELETE FROM connections WHERE team_id = ?')
-  const deleteSavedRead = db.prepare('DELETE FROM saved_reads WHERE team_id = ? AND query = ?')
-  const insertSavedRead = db.prepare('INSERT INTO saved_reads (team_id, query, incomplete, read_at, finished_since) VALUES (?, ?, ?, ?, ?)')
-  const insertSavedReadTicket = db.prepare('INSERT INTO saved_read_tickets (team_id, query, position, id, finished_at) VALUES (?, ?, ?, ?, ?)')
-  const selectSavedRead = db.prepare('SELECT incomplete, read_at, finished_since FROM saved_reads WHERE team_id = ? AND query = ?')
-  const selectSavedReadTickets = db.prepare('SELECT id, finished_at FROM saved_read_tickets WHERE team_id = ? AND query = ? ORDER BY position')
-  const deletePreviousRead = db.prepare('DELETE FROM previous_reads WHERE team_id = ? AND query = ?')
-  const keepPreviousRead = db.prepare(
-    'INSERT INTO previous_reads (team_id, query, incomplete, read_at, finished_since) SELECT team_id, query, incomplete, read_at, finished_since FROM saved_reads WHERE team_id = ? AND query = ?',
-  )
-  const keepPreviousReadTickets = db.prepare(`
-    INSERT INTO previous_read_tickets (team_id, query, position, id, finished_at)
-    SELECT team_id, query, position, id, finished_at FROM saved_read_tickets WHERE team_id = ? AND query = ?`)
-  const selectPreviousRead = db.prepare('SELECT incomplete, read_at, finished_since FROM previous_reads WHERE team_id = ? AND query = ?')
-  const selectPreviousReadTickets = db.prepare('SELECT id, finished_at FROM previous_read_tickets WHERE team_id = ? AND query = ? ORDER BY position')
-  const upsertMilestoneQuery = db.prepare(`
-    INSERT INTO milestone_queries (team_id, query, picks) VALUES (?, ?, ?)
-    ON CONFLICT (team_id) DO UPDATE SET query = excluded.query, picks = excluded.picks`)
-  const selectMilestoneQuery = db.prepare('SELECT query, picks FROM milestone_queries WHERE team_id = ?')
-  const upsertComparableWorkQuery = db.prepare(`
-    INSERT INTO comparable_work_queries (team_id, query, picks) VALUES (?, ?, ?)
-    ON CONFLICT (team_id) DO UPDATE SET query = excluded.query, picks = excluded.picks`)
-  const selectComparableWorkQuery = db.prepare('SELECT query, picks FROM comparable_work_queries WHERE team_id = ?')
-  const upsertSetup = db.prepare(`
-    INSERT INTO setups (team_id, open, closed, connection) VALUES (?, ?, ?, ?)
-    ON CONFLICT (team_id) DO UPDATE SET open = excluded.open, closed = excluded.closed, connection = excluded.connection`)
-  const selectSetup = db.prepare('SELECT open, closed, connection FROM setups WHERE team_id = ?')
-  const insertSetupDraft = db.prepare(`
-    INSERT INTO setup_drafts (team_id, milestone_query, milestone_picks, comparable_work_query, comparable_work_picks, tickets_source, pace_mode)
-    VALUES (?, ?, ?, ?, ?, ?, ?)`)
-  const selectSetupDraft = db.prepare(`
-    SELECT milestone_query, milestone_picks, comparable_work_query, comparable_work_picks, tickets_source, pace_mode FROM setup_drafts WHERE team_id = ?`)
-  const deleteSetupDraft = db.prepare('DELETE FROM setup_drafts WHERE team_id = ?')
-  const insertDraftRead = db.prepare('INSERT INTO setup_draft_reads (team_id, query, incomplete, read_at, finished_since) VALUES (?, ?, ?, ?, ?)')
-  const insertDraftReadTicket = db.prepare('INSERT INTO setup_draft_read_tickets (team_id, query, position, id, finished_at) VALUES (?, ?, ?, ?, ?)')
-  const selectDraftReads = db.prepare('SELECT query, incomplete, read_at, finished_since FROM setup_draft_reads WHERE team_id = ? ORDER BY rowid')
-  const selectDraftReadTickets = db.prepare('SELECT id, finished_at FROM setup_draft_read_tickets WHERE team_id = ? AND query = ? ORDER BY position')
-  const insertDraftFailure = db.prepare('INSERT INTO setup_draft_failures (team_id, query, failure, message, at) VALUES (?, ?, ?, ?, ?)')
-  const selectDraftFailures = db.prepare('SELECT query, failure, message, at FROM setup_draft_failures WHERE team_id = ? ORDER BY rowid')
-  const insertReadFailure = db.prepare('INSERT INTO read_failures (team_id, of, query, failure, message, at) VALUES (?, ?, ?, ?, ?, ?)')
-  const selectReadFailures = db.prepare('SELECT of, query, failure, message, at FROM read_failures WHERE team_id = ? ORDER BY rowid')
-  const deleteReadFailures = db.prepare('DELETE FROM read_failures WHERE team_id = ?')
 
   // what each table keeps; the targets, and the draft's edits and "Use these", are made over it below
   const kept: Omit<SqliteStorage, keyof TeamQueryStorage | 'saveDraftSources' | 'saveDraftPickFailures'> = {
-    isEmpty() {
-      return db.prepare('SELECT 1 FROM teams LIMIT 1').get() === undefined
-    },
-
-    saveTeam(team) {
-      upsertTeam.run(team.id, team.name, team.source, team.sourceRef, team.installedAt)
-    },
-
-    teams() {
-      return db
-        .prepare('SELECT id, name, source, source_ref, installed_at FROM teams ORDER BY rowid')
-        .all()
-        .map((row: Row) => ({
-          id: String(row.id),
-          name: String(row.name),
-          source: String(row.source) as Team['source'],
-          sourceRef: String(row.source_ref),
-          installedAt: String(row.installed_at),
-        }))
-    },
-
-    saveMilestoneInputs(inputs) {
-      upsertMilestoneInputs.run(
-        inputs.teamId,
-        inputs.name,
-        inputs.startDate ?? null,
-        inputs.ticketsRemaining ?? null,
-        inputs.ambiguity,
-        inputs.cadenceDays,
-        inputs.paceMode,
-        inputs.paceRange?.low ?? null,
-        inputs.paceRange?.high ?? null,
-        JSON.stringify(inputs.paceCounts),
-        inputs.paceCadenceDays ?? null,
-        JSON.stringify(inputs.paceWindow),
-        inputs.ticketsSource,
-        JSON.stringify(inputs.seenReads),
-      )
-    },
-
-    milestoneInputs(teamId) {
-      const row = selectMilestoneInputs.get(teamId)
-      if (row === undefined) return undefined
-      return {
-        teamId: String(row.team_id),
-        name: String(row.name),
-        startDate: row.start_date === null ? undefined : String(row.start_date),
-        ticketsRemaining: row.tickets_remaining === null ? undefined : Number(row.tickets_remaining),
-        ambiguity: String(row.ambiguity) as Ambiguity,
-        cadenceDays: Number(row.cadence_days),
-        paceMode: String(row.pace_mode) as PaceMode,
-        paceRange: row.pace_low === null ? undefined : { low: Number(row.pace_low), high: Number(row.pace_high) },
-        paceCounts: JSON.parse(String(row.pace_counts)) as number[],
-        paceCadenceDays: row.pace_cadence_days === null ? undefined : Number(row.pace_cadence_days),
-        paceWindow: paceWindowOf(String(row.pace_window)),
-        ticketsSource: String(row.tickets_source) as TicketsSource,
-        seenReads: seenReadsOf(String(row.seen_reads)),
-      } satisfies MilestoneInputs
-    },
-
-    saveAmbiguityRanges(ranges) {
-      upsertAmbiguityRanges.run(ranges.teamId, ranges.low.low, ranges.low.high, ranges.medium.low, ranges.medium.high, ranges.high.low, ranges.high.high)
-    },
-
-    ambiguityRanges(teamId) {
-      const row = selectAmbiguityRanges.get(teamId)
-      if (row === undefined) return undefined
-      const range = (level: string) => ({ low: Number(row[`${level}_low`]), high: Number(row[`${level}_high`]) })
-      return {
-        teamId: String(row.team_id),
-        low: range('low'),
-        medium: range('medium'),
-        high: range('high'),
-      } satisfies AmbiguityRanges
-    },
-
-    saveCapacityEntries(teamId, entries) {
-      transaction(() => {
-        deleteCapacityEntries.run(teamId)
-        for (const entry of entries) {
-          insertCapacityEntry.run(teamId, entry.id, entry.from, entry.to ?? null, entry.percent, entry.note, entry.newUsualOn ?? null, entry.kept ? 1 : 0)
-        }
-      })
-    },
-
-    capacityEntries(teamId) {
-      return selectCapacityEntries.all(teamId).map(
-        (row: Row) =>
-          ({
-            id: Number(row.id),
-            from: String(row.from_date),
-            to: row.to_date === null ? undefined : String(row.to_date),
-            percent: Number(row.percent),
-            note: String(row.note),
-            ...(row.new_usual_on !== null && { newUsualOn: String(row.new_usual_on) }),
-            ...(Number(row.kept) === 1 && { kept: true as const }),
-          }) satisfies CapacityEntry,
-      )
-    },
-
-    saveCapacityOn(teamId, on) {
-      upsertCapacitySwitch.run(teamId, on ? 1 : 0)
-    },
-
-    capacityOn(teamId) {
-      const row = selectCapacitySwitch.get(teamId)
-      return row === undefined || Number(row.capacity_on) === 1
-    },
-
-    saveConnection(teamId, connection) {
-      if (connection.tracker === 'github') upsertConnection.run(teamId, 'github', connection.owner, connection.repo, null, null, null)
-      else upsertConnection.run(teamId, 'jira', null, null, connection.site, connection.projectKey, connection.email)
-    },
-
-    connection(teamId) {
-      const row = selectConnection.get(teamId)
-      if (row === undefined) return undefined
-      if (row.tracker === 'github') return { tracker: 'github', owner: String(row.owner), repo: String(row.repo) }
-      return { tracker: 'jira', site: String(row.site), projectKey: String(row.project_key), email: String(row.email) }
-    },
-
-    removeConnection(teamId) {
-      deleteConnection.run(teamId)
-    },
-
-    saveRead({ teamId, query }, read) {
-      transaction(() => {
-        // the read this one replaces is kept as the previous read, replacing the one before it
-        deletePreviousRead.run(teamId, query)
-        keepPreviousRead.run(teamId, query)
-        keepPreviousReadTickets.run(teamId, query)
-        deleteSavedRead.run(teamId, query)
-        insertSavedRead.run(teamId, query, read.incomplete ? 1 : 0, read.readAt, read.finishedSince)
-        read.tickets.forEach((ticket, position) => {
-          insertSavedReadTicket.run(teamId, query, position, ticket.id, ticket.finishedAt ?? null)
-        })
-      })
-    },
-
-    savedRead({ teamId, query }) {
-      return readRow(selectSavedRead.get(teamId, query), () => selectSavedReadTickets.all(teamId, query))
-    },
-
-    previousRead({ teamId, query }) {
-      return readRow(selectPreviousRead.get(teamId, query), () => selectPreviousReadTickets.all(teamId, query))
-    },
-
-    saveMilestoneQuery(teamId, milestoneQuery) {
-      upsertMilestoneQuery.run(teamId, milestoneQuery.query, picksKept(milestoneQuery.picks))
-    },
-
-    milestoneQuery(teamId) {
-      return queryIn(selectMilestoneQuery.get(teamId))
-    },
-
-    saveComparableWorkQuery(teamId, comparableWorkQuery) {
-      upsertComparableWorkQuery.run(teamId, comparableWorkQuery.query, picksKept(comparableWorkQuery.picks))
-    },
-
-    comparableWorkQuery(teamId) {
-      return queryIn(selectComparableWorkQuery.get(teamId))
-    },
-
-    setupState(teamId) {
-      return setupStateIn(selectSetup.get(teamId))
-    },
-
-    saveSetupState(teamId, state) {
-      if (!state.open) upsertSetup.run(teamId, 0, state.closed, null)
-      else upsertSetup.run(teamId, 1, state.reopened ?? null, state.connection ?? null)
-    },
-
-    setupDraft(teamId) {
-      const row = selectSetupDraft.get(teamId)
-      if (row === undefined) return undefined
-      const reads = selectDraftReads.all(teamId).map((read) => ({
-        query: String(read.query),
-        read: readRow(read, () => selectDraftReadTickets.all(teamId, String(read.query)))!,
-      }))
-      const pickFailures = failedReadsIn(selectDraftFailures.all(teamId))
-      const sources = {
-        ...(ticketsSourceOf(row.tickets_source) && { ticketsRemaining: ticketsSourceOf(row.tickets_source)! }),
-        ...(paceModeOf(row.pace_mode) && { pace: paceModeOf(row.pace_mode)! }),
-      }
-      return {
-        ...(row.milestone_query !== null && { milestoneQuery: { picks: picksIn(String(row.milestone_picks)), query: String(row.milestone_query) } }),
-        ...(row.comparable_work_query !== null && {
-          comparableWorkQuery: { picks: picksIn(String(row.comparable_work_picks)), query: String(row.comparable_work_query) },
-        }),
-        reads,
-        ...(Object.keys(sources).length > 0 && { sources }),
-        ...(pickFailures && { pickFailures }),
-      } satisfies SetupDraft
-    },
-
-    saveSetupDraft(teamId, draft) {
-      transaction(() => {
-        // its reads and failures go with it
-        deleteSetupDraft.run(teamId)
-        const { milestoneQuery: milestone, comparableWorkQuery: comparable, sources } = draft
-        insertSetupDraft.run(
-          teamId,
-          milestone?.query ?? null,
-          milestone ? picksKept(milestone.picks) : null,
-          comparable?.query ?? null,
-          comparable ? picksKept(comparable.picks) : null,
-          sources?.ticketsRemaining ?? null,
-          sources?.pace ?? null,
-        )
-        for (const { query, read } of draft.reads) {
-          insertDraftRead.run(teamId, query, read.incomplete ? 1 : 0, read.readAt, read.finishedSince)
-          read.tickets.forEach((ticket, position) => insertDraftReadTicket.run(teamId, query, position, ticket.id, ticket.finishedAt ?? null))
-        }
-        for (const [query, failed] of Object.entries(draft.pickFailures ?? {})) insertDraftFailure.run(teamId, query, ...failureKept(failed))
-      })
-    },
-
-    discardSetupDraft(teamId) {
-      deleteSetupDraft.run(teamId)
-    },
-
-    readFailures(teamId) {
-      const rows = selectReadFailures.all(teamId)
-      const of = (kind: string): Row[] => rows.filter((row) => row.of === kind)
-      const whole = failedReadsIn(of('whole'))?.['']
-      const queries = failedReadsIn(of('query'))
-      const picks = failedReadsIn(of('pick'))
-      const failures = { ...(whole && { whole }), ...(queries && { queries }), ...(picks && { picks }) } satisfies ReadFailures
-      return Object.keys(failures).length === 0 ? undefined : failures
-    },
-
-    saveReadFailures(teamId, { whole, queries = {}, picks = {} }) {
-      transaction(() => {
-        deleteReadFailures.run(teamId)
-        if (whole) insertReadFailure.run(teamId, 'whole', '', ...failureKept(whole))
-        for (const [query, failed] of Object.entries(queries)) insertReadFailure.run(teamId, 'query', query, ...failureKept(failed))
-        for (const [query, failed] of Object.entries(picks)) insertReadFailure.run(teamId, 'pick', query, ...failureKept(failed))
-      })
-    },
-
+    ...teamTables(db, transaction),
+    ...connectionTable(db),
+    ...savedReadTables(db, transaction),
+    ...milestoneQueryTables(db),
+    ...setupTables(db, transaction),
     close() {
       db.close()
     },
@@ -711,88 +377,8 @@ export function openSqliteStorage(file: string): SqliteStorage {
   }
 }
 
-/** How setup can be closed. */
-const SETUP_CLOSED: readonly SetupClosed[] = ['done', 'skipped']
-
-/** What an opening of setup can have done to the connection. */
-const CONNECTION_CHANGES = ['made', 'changed'] as const
-
-/**
- * Where setup stands, from its row: open in a first setup with no row. Closed in a way this version doesn't know (from
- * a later one, say), it is open, so the steps show; an opening's change to the connection it doesn't know is none.
- */
-function setupStateIn(row: Row | undefined): SetupState {
-  const closed = SETUP_CLOSED.find((known) => known === row?.closed)
-  if (row !== undefined && Number(row.open) === 0) return closed ? { open: false, closed } : { open: true }
-  const connection = CONNECTION_CHANGES.find((known) => known === row?.connection)
-  return { open: true, ...(closed && { reopened: closed }), ...(connection && { connection }) }
-}
-
-/** A drafted source of tickets remaining, from its column: none for none, or one this version doesn't know. */
-const ticketsSourceOf = (value: unknown): TicketsSource | undefined => (['tracker', 'typed'] as const).find((known) => known === value)
-
-/** A drafted pace mode, from its column: none for none, or one this version doesn't know. */
-const paceModeOf = (value: unknown): PaceMode | undefined => PACE_MODES.find((known) => known === value)
-
-/** Every failure a read can have. */
-const FAILURES: readonly FailedRead['failure'][] = ['invalidQuery', 'outOfScope', 'notFound', 'unauthorised', 'unavailable', 'keychainFailed']
-
-/** A failed read's failure, message (an `invalidQuery`'s only) and when it was asked for, as its row keeps them. */
-function failureKept(failed: FailedRead): [string, string | null, string] {
-  return [failed.failure, failed.failure === 'invalidQuery' ? failed.message : null, failed.at]
-}
-
-/** Each failed read in `rows`, by its query; none for no rows. A failure this version doesn't know (from a later one) is left out. */
-function failedReadsIn(rows: readonly Row[]): FailedReads | undefined {
-  const failed = rows.flatMap((row): [string, FailedRead][] => {
-    const failure = FAILURES.find((known) => known === row.failure)
-    const at = String(row.at)
-    if (!failure) return []
-    return [[String(row.query), failure === 'invalidQuery' ? { failure, message: String(row.message ?? ''), at } : { failure, at }]]
-  })
-  return failed.length === 0 ? undefined : Object.fromEntries(failed)
-}
-
-/** The picks as a row keeps them: a JSON array of each one's kind, name and query, in order, and nothing else of it. */
-function picksKept(picks: readonly Choice[]): string {
-  return JSON.stringify(picks.map(({ kind, name, query }) => ({ kind, name, query })))
-}
-
-/** The picks and query a row of `milestone_queries` or `comparable_work_queries` keeps; none for no row. */
-function queryIn(row: Row | undefined): MilestoneQuery | undefined {
-  if (row === undefined) return undefined
-  return { picks: picksIn(String(row.picks)), query: String(row.query) }
-}
-
-/**
- * The picks a row keeps, in order, less any of a kind this version doesn't know (written by a later one, say), which
- * it couldn't show as a chip. The query is kept as written, so it stays in use: the step opens it for editing, as its
- * picks no longer make it.
- */
-function picksIn(json: string): Choice[] {
-  const stored = JSON.parse(json) as { kind: string; name: string; query: string }[]
-  return stored.flatMap(({ kind, name, query }) => {
-    const known = choiceKindOf(kind)
-    return known ? [{ kind: known, name, query }] : []
-  })
-}
-
-/** A saved or previous read from its row and its tickets' rows; none without a row. */
-function readRow(row: Row | undefined, tickets: () => Row[]): SavedRead | undefined {
-  if (row === undefined) return undefined
-  return {
-    tickets: tickets().map((ticket) => ({
-      id: String(ticket.id),
-      ...(ticket.finished_at !== null && { finishedAt: String(ticket.finished_at) }),
-    })),
-    incomplete: Number(row.incomplete) === 1,
-    readAt: String(row.read_at),
-    finishedSince: String(row.finished_since),
-  } satisfies SavedRead
-}
-
 /** Brings the file up to the latest schema, one step per transaction, recording the version after each. */
-function migrate(db: DatabaseSync, file: string, transaction: (work: () => void) => void): void {
+function migrate(db: DatabaseSync, file: string, transaction: Transaction): void {
   const version = Number(db.prepare('PRAGMA user_version').get()?.user_version)
   if (version > MIGRATIONS.length) {
     db.close()
@@ -807,16 +393,4 @@ function migrate(db: DatabaseSync, file: string, transaction: (work: () => void)
       db.exec(`PRAGMA user_version = ${next + 1}`)
     })
   }
-}
-
-/** The pace window as saved: a file from before #161 has no action, and one from before #210 no skipped periods. */
-function paceWindowOf(json: string): PaceWindow {
-  const { action, skippedPeriods } = JSON.parse(json) as Partial<PaceWindow>
-  return { action, skippedPeriods: skippedPeriods ?? [] }
-}
-
-/** The reads seen as saved: JSON drops an undefined `readAt`, and a file from before #210 has seen none. */
-function seenReadsOf(json: string): SeenReads {
-  const { ticketsRemaining, pace } = JSON.parse(json) as Partial<SeenReads>
-  return { ticketsRemaining, pace }
 }
