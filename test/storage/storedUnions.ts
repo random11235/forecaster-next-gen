@@ -16,39 +16,62 @@ import type { StoredUnions } from './storedValues.js'
 type Values<T extends string> = Record<T, true>
 
 /**
- * Each union whose values reach storage, by name: its values, the columns that store them (`table.column`, where a
- * migration maps a value renamed or removed), and whether the web build's storage keeps it too.
+ * Each union whose values reach storage, by name: its values, the columns that store them (where a migration maps a
+ * value renamed or removed), and whether the web build's storage keeps it too.
  */
 export const STORED_UNIONS = {
   'Team.source': {
     values: { manual: true, sample: true, jira: true, github: true } satisfies Values<Team['source']>,
-    columns: ['teams.source'],
+    columns: [{ table: 'teams', column: 'source' }],
     web: true,
   },
-  Ambiguity: { values: { low: true, medium: true, high: true } satisfies Values<Ambiguity>, columns: ['milestone_inputs.ambiguity'], web: true },
+  Ambiguity: {
+    values: { low: true, medium: true, high: true } satisfies Values<Ambiguity>,
+    columns: [{ table: 'milestone_inputs', column: 'ambiguity' }],
+    web: true,
+  },
   PaceMode: {
     values: { range: true, counts: true, tracker: true } satisfies Values<PaceMode>,
-    columns: ['milestone_inputs.pace_mode', 'setup_drafts.pace_mode'],
+    columns: [
+      { table: 'milestone_inputs', column: 'pace_mode' },
+      { table: 'setup_drafts', column: 'pace_mode' },
+    ],
     web: true,
   },
   TicketsSource: {
     values: { tracker: true, typed: true } satisfies Values<TicketsSource>,
-    columns: ['milestone_inputs.tickets_source', 'setup_drafts.tickets_source'],
+    columns: [
+      { table: 'milestone_inputs', column: 'tickets_source' },
+      { table: 'setup_drafts', column: 'tickets_source' },
+    ],
     web: true,
   },
   'PaceAction.kind': {
     values: { startFrom: true, leaveOut: true } satisfies Values<PaceAction['kind']>,
-    columns: ['milestone_inputs.pace_window'],
+    columns: [{ table: 'milestone_inputs', column: 'pace_window' }],
     web: true,
   },
-  'Connection.tracker': { values: { github: true, jira: true } satisfies Values<Connection['tracker']>, columns: ['connections.tracker'], web: false },
-  'Choice.kind': {
-    values: { epic: true, label: true, milestone: true, fixVersion: true } satisfies Values<MilestoneQuery['picks'][number]['kind']>,
-    columns: ['milestone_queries.picks', 'comparable_work_queries.picks', 'setup_drafts.milestone_picks', 'setup_drafts.comparable_work_picks'],
+  'Connection.tracker': {
+    values: { github: true, jira: true } satisfies Values<Connection['tracker']>,
+    columns: [{ table: 'connections', column: 'tracker' }],
     web: false,
   },
-  SetupClosed: { values: { done: true, skipped: true } satisfies Values<SetupClosed>, columns: ['setups.closed'], web: false },
-  ConnectionChange: { values: { made: true, changed: true } satisfies Values<ConnectionChange>, columns: ['setups.connection'], web: false },
+  'Choice.kind': {
+    values: { epic: true, label: true, milestone: true, fixVersion: true } satisfies Values<MilestoneQuery['picks'][number]['kind']>,
+    columns: [
+      { table: 'milestone_queries', column: 'picks' },
+      { table: 'comparable_work_queries', column: 'picks' },
+      { table: 'setup_drafts', column: 'milestone_picks' },
+      { table: 'setup_drafts', column: 'comparable_work_picks' },
+    ],
+    web: false,
+  },
+  SetupClosed: { values: { done: true, skipped: true } satisfies Values<SetupClosed>, columns: [{ table: 'setups', column: 'closed' }], web: false },
+  ConnectionChange: {
+    values: { made: true, changed: true } satisfies Values<ConnectionChange>,
+    columns: [{ table: 'setups', column: 'connection' }],
+    web: false,
+  },
   'FailedRead.failure': {
     values: {
       invalidQuery: true,
@@ -58,10 +81,17 @@ export const STORED_UNIONS = {
       unavailable: true,
       keychainFailed: true,
     } satisfies Values<FailedRead['failure']>,
-    columns: ['setup_draft_failures.failure', 'read_failures.failure'],
+    columns: [
+      { table: 'setup_draft_failures', column: 'failure' },
+      { table: 'read_failures', column: 'failure' },
+    ],
     web: false,
   },
-  ReadFailureOf: { values: { whole: true, query: true, pick: true } satisfies Values<ReadFailureOf>, columns: ['read_failures.of'], web: false },
+  ReadFailureOf: {
+    values: { whole: true, query: true, pick: true } satisfies Values<ReadFailureOf>,
+    columns: [{ table: 'read_failures', column: 'of' }],
+    web: false,
+  },
 } as const satisfies StoredUnions
 
 /** `T`'s string literals: none for `string` itself. */
@@ -86,7 +116,8 @@ type StoredBy<S> = UnionsIn<{ [K in keyof S as K extends `save${string}` ? K : n
 /**
  * Which of the team's read failures a `read_failures` row holds, its `of`: the read by hand as a whole, a step's
  * query's own read, or a pick's at Check. sqliteStorage.ts writes these as literals no `save…` method takes, so they
- * are typed here, where the snapshot freezes them; the typecheck can't tie them to the literals it writes.
+ * are typed here, where the snapshot freezes them. The typecheck can't tie them to the literals it writes:
+ * storageContract.storedValues.test.ts checks the file holds these and no others.
  */
 type ReadFailureOf = 'whole' | 'query' | 'pick'
 /** The unions sqliteStorage.ts encodes itself, that no `save…` method takes. */
