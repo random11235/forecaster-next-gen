@@ -94,7 +94,10 @@ export type SetupClosed = 'done' | 'skipped'
  * `made` it, where there was none, which Cancel undoes, or `changed` it, which Cancel can't undo. A team with nothing
  * stored is open, in a first setup that has made nothing.
  */
-export type SetupState = { open: false; closed: SetupClosed } | { open: true; reopened?: SetupClosed; connection?: 'made' | 'changed' }
+export type SetupState = { open: false; closed: SetupClosed } | { open: true; reopened?: SetupClosed; connection?: ConnectionChange }
+
+/** What an opening of the team's setup steps did to its connection: `made` it, where there was none, or `changed` it. */
+export type ConnectionChange = 'made' | 'changed'
 
 /**
  * Where the team's setup steps stand (#217), and beside it the setup draft: what the EM has chosen in the steps and not

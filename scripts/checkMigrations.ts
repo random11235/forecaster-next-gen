@@ -5,27 +5,16 @@
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { mergeBase } from './mergeBase.ts'
+import { MIGRATIONS_FILE, migrationSteps } from './migrationSteps.ts'
 
-const FILE = 'src/storage/sqliteStorage.ts'
 const root = fileURLToPath(new URL('..', import.meta.url))
 const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' })
 
-/** Each step's text, in order, from the `const MIGRATIONS` array: a step runs from its `// N:` comment to the next. */
-function stepsOf(source: string, where: string): string[] {
-  const block = /^const MIGRATIONS[^\n]*\n([\s\S]*?)^\]/m.exec(source)?.[1]
-  if (block === undefined) throw new Error(`${where}: no \`const MIGRATIONS\` array in ${FILE}`)
-  const parts = block.split(/^(?=  \/\/ \d+:)/m).filter((part) => /^  \/\/ \d+:/.test(part))
-  parts.forEach((part, i) => {
-    const number = Number(/^  \/\/ (\d+):/.exec(part)![1])
-    if (number !== i + 1) throw new Error(`${where}: step comment \`// ${number}:\` should be \`// ${i + 1}:\``)
-  })
-  return parts.map((part) => part.trimEnd())
-}
-
 const mainRef = process.argv[2] ?? 'origin/main'
-const base = git('merge-base', mainRef, 'HEAD').trim()
-const released = stepsOf(git('show', `${base}:${FILE}`), `${mainRef} (${base.slice(0, 7)})`)
-const branch = stepsOf(readFileSync(new URL(`../${FILE}`, import.meta.url), 'utf8'), 'HEAD')
+const base = mergeBase(root, mainRef)
+const released = migrationSteps(git('show', `${base}:${MIGRATIONS_FILE}`), `${mainRef} (${base.slice(0, 7)})`)
+const branch = migrationSteps(readFileSync(new URL(`../${MIGRATIONS_FILE}`, import.meta.url), 'utf8'), 'HEAD')
 
 const problems: string[] = []
 released.forEach((step, i) => {
@@ -40,7 +29,7 @@ if (added > 1) {
 if (added < 0) problems.push(`this branch removes released steps ${branch.length + 1}–${released.length}`)
 
 if (problems.length > 0) {
-  console.error(`Migration check failed (${FILE}):\n${problems.map((p) => `- ${p}`).join('\n')}`)
+  console.error(`Migration check failed (${MIGRATIONS_FILE}):\n${problems.map((p) => `- ${p}`).join('\n')}`)
   process.exit(1)
 }
 console.log(`Migration check passed: ${released.length} released steps unchanged, ${added} added.`)
