@@ -20,7 +20,7 @@ describe("an action's 85% date, with and without it", () => {
     const action = forecast(withTypedCounts([4, 3, 5, 4, 4, 3, 4, 5, 3, 4, 8, 9, 7, 8])).pacePattern?.action
 
     expect(action?.dates).toEqual({ percent: 85, now, applied })
-    expect(applied! < now!).toBe(true)
+    expect(applied && now && applied < now).toBe(true)
   })
 
   test('leaving out the odd week gives the date the other weeks give', () => {
@@ -30,7 +30,7 @@ describe("an action's 85% date, with and without it", () => {
     const action = forecast(withTypedCounts(counts)).pacePattern?.action
 
     expect(action?.dates).toEqual({ percent: 85, now, applied })
-    expect(applied! > now!).toBe(true)
+    expect(applied && now && applied > now).toBe(true)
   })
 })
 

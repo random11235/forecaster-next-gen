@@ -9,8 +9,7 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 
 /** `2026-10-12` → `12 Oct`, as a line about recent periods says it. */
 export function dayMonth(isoDate: string): string {
-  const [, month, day] = isoDate.split('-').map(Number)
-  return `${day} ${MONTHS[month! - 1]}`
+  return `${Number(isoDate.slice(8, 10))} ${MONTHS[Number(isoDate.slice(5, 7)) - 1]}`
 }
 
 /** Whole days from calendar date `from` to `to`, both `YYYY-MM-DD`: negative when `to` is earlier. */
