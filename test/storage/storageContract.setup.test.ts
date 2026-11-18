@@ -1,38 +1,13 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { afterEach, describe, expect, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import type { SavedRead } from '../../src/model/savedRead.js'
-import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
-import type { SetupStorage, Storage } from '../../src/storage/storage.js'
-import { TEAM } from './storageContractFixtures.js'
+import { TEAM, temporarySqliteFiles } from './storageContractFixtures.js'
 
 // The Storage contract's cases for the team's setup, which only the SQLite file keeps, beside storageContract.test.ts.
 
-let dir: string | undefined
-let open: Storage | undefined
-
-afterEach(() => {
-  open?.close()
-  open = undefined
-  if (dir) rmSync(dir, { recursive: true, force: true })
-  dir = undefined
-})
+const sqliteFile = temporarySqliteFiles()
 
 describe("SQLite storage's setup", () => {
-  function sqliteFile(): { storage: Storage & SetupStorage; reopen: () => Storage & SetupStorage } {
-    dir = mkdtempSync(join(tmpdir(), 'forecaster-'))
-    const file = join(dir, 'forecaster.db')
-    const reopen = (): Storage & SetupStorage => {
-      open?.close()
-      const storage = openSqliteStorage(file)
-      open = storage
-      return storage
-    }
-    return { storage: reopen(), reopen }
-  }
-
   // Where the team's setup steps stand (#217): open in a first setup until closed, done with "Use these" or connecting
   // skipped, and open again from how they were closed, with what that opening did to the connection.
   test('keeps where setup stands, open in a first setup until saved otherwise, replacing it each time', () => {
@@ -56,16 +31,16 @@ describe("SQLite storage's setup", () => {
   })
 
   test('reads back setup closed in a way it doesn’t know, from a later version, as open, and a connection change it doesn’t know as none', () => {
-    const { storage, reopen } = sqliteFile()
+    const { file, storage, reopen } = sqliteFile()
     storage.saveTeam(TEAM)
     storage.saveSetupState('team', { open: false, closed: 'done' })
-    const db = new DatabaseSync(join(dir!, 'forecaster.db'))
+    const db = new DatabaseSync(file)
     db.prepare("UPDATE setups SET closed = 'archived'").run()
     db.close()
     expect(reopen().setupState('team')).toStrictEqual({ open: true })
 
     reopen().saveSetupState('team', { open: true, reopened: 'done', connection: 'made' })
-    const again = new DatabaseSync(join(dir!, 'forecaster.db'))
+    const again = new DatabaseSync(file)
     again.prepare("UPDATE setups SET connection = 'moved'").run()
     again.close()
     expect(reopen().setupState('team')).toStrictEqual({ open: true, reopened: 'done' })
@@ -110,7 +85,7 @@ describe("SQLite storage's setup", () => {
   })
 
   test('keeps nothing of a drafted pick but its kind, name and query, and reads back no source it doesn’t know', () => {
-    const { storage, reopen } = sqliteFile()
+    const { file, storage, reopen } = sqliteFile()
     storage.saveTeam(TEAM)
     const handed = { kind: 'label' as const, name: 'payments', query: 'label:"payments"', overHundred: true }
     storage.saveSetupDraft('team', {
@@ -118,7 +93,7 @@ describe("SQLite storage's setup", () => {
       reads: [],
       sources: { ticketsRemaining: 'typed', pace: 'counts' },
     })
-    const db = new DatabaseSync(join(dir!, 'forecaster.db'))
+    const db = new DatabaseSync(file)
     db.prepare("UPDATE setup_drafts SET tickets_source = 'estimated', pace_mode = 'velocity'").run()
     db.close()
 
@@ -154,13 +129,13 @@ describe("SQLite storage's setup", () => {
   })
 
   test('reads back no failure it doesn’t know, from a later version', () => {
-    const { storage, reopen } = sqliteFile()
+    const { file, storage, reopen } = sqliteFile()
     storage.saveTeam(TEAM)
     storage.saveReadFailures('team', {
       whole: { failure: 'unavailable', at: '2026-11-12T09:00:00Z' },
       picks: { 'label:bug': { failure: 'notFound', at: '2026-11-12T09:00:00Z' } },
     })
-    const db = new DatabaseSync(join(dir!, 'forecaster.db'))
+    const db = new DatabaseSync(file)
     db.prepare("UPDATE read_failures SET failure = 'melted' WHERE of = 'whole'").run()
     db.close()
 

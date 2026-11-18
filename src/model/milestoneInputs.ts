@@ -12,6 +12,13 @@ export const PACE_MODES: readonly PaceMode[] = ['range', 'counts', 'tracker']
 /** Where tickets remaining comes from: the tracker's reading of the milestone, or the EM's typed number (#159). */
 export type TicketsSource = 'tracker' | 'typed'
 
+export const TICKETS_SOURCES = ['tracker', 'typed'] as const satisfies readonly TicketsSource[]
+
+/** Compiles only when `Missing`, the members a list leaves out, is none. */
+type NoneMissing<Missing extends never> = Missing
+// the list above names every tickets source
+type AllTicketsSources = NoneMissing<Exclude<TicketsSource, (typeof TICKETS_SOURCES)[number]>>
+
 /**
  * The milestone as the EM enters it on the Inputs screen, one per team. Every field the MVP forecasts from is here,
  * with its default, so later inputs need no schema change.

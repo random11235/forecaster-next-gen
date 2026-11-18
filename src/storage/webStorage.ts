@@ -1,7 +1,7 @@
-import { AMBIGUITIES, type AmbiguityRanges } from '../model/ambiguity.js'
+import { AMBIGUITIES, type AmbiguityRanges, type GrowthRange } from '../model/ambiguity.js'
 import type { CapacityEntry } from '../model/capacity.js'
-import { PACE_MODES, type MilestoneInputs, type TicketsSource } from '../model/milestoneInputs.js'
-import type { Team } from '../model/team.js'
+import { PACE_MODES, TICKETS_SOURCES, type MilestoneInputs } from '../model/milestoneInputs.js'
+import { TEAM_SOURCES, type Team } from '../model/team.js'
 import { isPaceCounts, isStoredPaceWindow, isStoredSeenReads } from './lib/milestoneInputsJson.js'
 import { isListOf, isNumber, isObject, isOneOf, isRecordOf, isString, optional, parseStored } from './lib/storedJson.js'
 import type { Storage } from './storage.js'
@@ -42,14 +42,15 @@ interface Stored {
  * When the browser gives no storage, or refuses it (a private window, blocked site data), this starts empty and keeps
  * what is saved only until the page closes. When it holds data this version can't read (text that isn't JSON, or JSON
  * of a shape it doesn't know, left by a later build, say), every read and save throws, naming the key, as the SQLite
- * file refuses a column it can't read, so what is there is never written over.
+ * file refuses a column it can't read, so what is there is kept. Data it can read keeps no field it doesn't know: the
+ * next save drops it.
  */
 export function openWebStorage(store: KeyValueStore | undefined): Storage {
   const kept = read(store)
   /** What is stored, or the refusal of data this version can't read. */
   const stored = (): Stored => {
-    if (kept instanceof Error) throw kept
-    return kept
+    if ('refused' in kept) throw kept.refused
+    return kept.stored
   }
   const write = (): void => {
     try {
@@ -134,28 +135,27 @@ function withDefaults({ paceWindow, ticketsSource, seenReads, ...inputs }: Store
 }
 
 /** What `store` holds: empty when it holds nothing or the browser refuses it, and the refusal when it can't be read. */
-function read(store: KeyValueStore | undefined): Stored | Error {
+function read(store: KeyValueStore | undefined): { stored: Stored } | { refused: unknown } {
   const empty: Stored = { teams: [], milestoneInputs: {}, ambiguityRanges: {}, capacityEntries: {}, capacityOff: [] }
   let json: string | null | undefined
   try {
     json = store?.getItem(KEY)
   } catch {
-    return empty
+    return { stored: empty }
   }
-  if (json === null || json === undefined) return empty
+  if (json === null || json === undefined) return { stored: empty }
   try {
-    return { ...empty, ...parseStored(json, `browser storage's "${KEY}"`, isStored) }
+    return { stored: { ...empty, ...parseStored(json, `browser storage's "${KEY}"`, isStored) } }
   } catch (refused) {
-    return refused as Error
+    return { refused }
   }
 }
 
 const isTeam = (value: unknown): value is Team =>
-  isObject(value) &&
-  ['id', 'name', 'sourceRef', 'installedAt'].every((field) => isString(value[field])) &&
-  isOneOf<Team['source']>(['manual', 'sample', 'jira', 'github'])(value.source)
+  isObject(value) && ['id', 'name', 'sourceRef', 'installedAt'].every((field) => isString(value[field])) && isOneOf(TEAM_SOURCES)(value.source)
 
-const isRange = (value: unknown): value is { low: number; high: number } => isObject(value) && isNumber(value.low) && isNumber(value.high)
+/** A low–high range, as each one stored is: an ambiguity level's growth, or a pace's, the same shape. */
+const isRange = (value: unknown): value is GrowthRange => isObject(value) && isNumber(value.low) && isNumber(value.high)
 
 /** A team's milestone inputs, as an earlier build may have stored them (`Stored`). */
 const isStoredMilestoneInputs = (value: unknown): value is Stored['milestoneInputs'][string] =>
@@ -164,7 +164,7 @@ const isStoredMilestoneInputs = (value: unknown): value is Stored['milestoneInpu
   isString(value.name) &&
   optional(isString)(value.startDate) &&
   optional(isNumber)(value.ticketsRemaining) &&
-  optional(isOneOf<TicketsSource>(['tracker', 'typed']))(value.ticketsSource) &&
+  optional(isOneOf(TICKETS_SOURCES))(value.ticketsSource) &&
   isOneOf(AMBIGUITIES)(value.ambiguity) &&
   isNumber(value.cadenceDays) &&
   isOneOf(PACE_MODES)(value.paceMode) &&

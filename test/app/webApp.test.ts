@@ -64,11 +64,13 @@ describe('web app', () => {
     const storage = openWebStorage({ getItem: (key) => items.get(key) ?? null, setItem: (key, value) => void items.set(key, value) })
     const app = openWebApp({ storage, today: () => TODAY })
 
-    for (const request of [{ method: 'GET', path: '/' }, post('/inputs/milestone', { name: 'Launch', startDate: '2026-11-02', ticketsRemaining: '30' })]) {
-      const page = app.show(request)
-      expect(page).toMatchObject({ path: request.path, status: 500 })
-      expect(page.html).toContain('Forecaster error: Error: browser storage&#39;s &#34;forecaster&#34; holds JSON of a shape')
-    }
+    const shown = app.show({ method: 'GET', path: '/' })
+    // a failed post names no screen, so the URL stays as it was
+    const posted = app.show(post('/inputs/milestone', { name: 'Launch', startDate: '2026-11-02', ticketsRemaining: '30' }))
+
+    expect(shown).toMatchObject({ path: '/', status: 500 })
+    expect(posted).toStrictEqual({ status: 500, html: shown.html })
+    expect(shown.html).toContain('Forecaster error: Error: browser storage&#39;s &#34;forecaster&#34; holds JSON of a shape')
     expect(items.get('forecaster')).toBe(later)
   })
 
