@@ -1,59 +1,52 @@
-import { afterEach, describe, expect, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import { Event, HTMLButtonElement, HTMLDetailsElement, HTMLElement, HTMLFormElement, HTMLInputElement } from 'happy-dom'
 import type { CannedFixture } from '../../src/connectors/canned.js'
-import { appOnTracker, inputsSection, type AppOnTracker } from './appOnTracker.js'
-import { openPage, type BrowserPage } from './browserPage.js'
+import { CHECKOUT, TEAM } from '../trackerScenario.js'
+import { connectAndPick, inputsSection, type AppOnTracker } from './appOnTracker.js'
+import { pagesOnTracker, type BrowserPage } from './browserPage.js'
 import { post } from './forms.js'
 
 // The Inputs screen's script (#100), run in happy-dom against the local server on the canned connector (#275): what
 // the EM's browser saves as each input changes, and what the screen shows after. What each save or refusal answers is
 // tested over HTTP (screens.inputs.test.ts and the rest); these test what the script does with it.
 
-const TEAM = 'team'
 const MILESTONE = '/inputs/milestone#milestone'
+const CADENCE = '/inputs/cadence#cadence'
 
-const CHECKOUT = { kind: 'milestone', name: 'Checkout v2', query: 'milestone:"Checkout v2"' } as const
 // 3 open, so tickets remaining typed as 30 reads differently
 const FIXTURE: CannedFixture = {
   milestoneChoices: [{ kind: 'milestone', choices: [CHECKOUT], pastLimit: false }],
   reads: { [CHECKOUT.query]: { tickets: [{ id: 'm1' }, { id: 'm2' }, { id: 'm3' }], incomplete: false } },
 }
 
-let app: AppOnTracker | undefined
-let page: BrowserPage | undefined
-
-afterEach(async () => {
-  await page?.close()
-  page = undefined
-  await app?.close()
-  app = undefined
-})
+const pages = pagesOnTracker()
 
 /** The Inputs screen open in happy-dom, its milestone entered with 30 tickets remaining; connected, if asked, to GitHub. */
-async function openInputs({ connected = false } = {}): Promise<{ app: AppOnTracker; page: BrowserPage }> {
-  app = await appOnTracker(FIXTURE)
-  const { running } = app
-  await post(running, '/inputs/milestone', { name: 'Checkout v2', startDate: '2026-10-05', ticketsRemaining: '30' })
-  if (connected) {
-    await post(running, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
-    await post(running, '/inputs/milestone-query/add', CHECKOUT)
+const openInputs = ({ connected = false } = {}): Promise<{ app: AppOnTracker; page: BrowserPage }> =>
+  pages.open(FIXTURE, '/inputs', async (running) => {
+    await post(running, '/inputs/milestone', { name: 'Checkout v2', startDate: '2026-10-05', ticketsRemaining: '30' })
+    if (!connected) return
+    await connectAndPick(running)
     await post(running, '/inputs/setup/use-these', {})
-  }
-  page = await openPage(running, '/inputs')
-  return { app, page }
-}
+  })
+
+/** The paths of the forms the page has posted, in the order posted. */
+const posted = (shown: BrowserPage): string[] => shown.requests.filter(({ method }) => method === 'POST').map(({ url }) => url.pathname)
 
 /** The field named `name` in the form posting to `action`, as the page holds it now. */
 const field = (shown: BrowserPage, action: string, name: string): HTMLInputElement => shown.find(`form[action="${action}"] [name="${name}"]`, HTMLInputElement)
 
-/** Types `value` into `input`, and fires its change, as the browser does on Enter or on leaving it. */
+/** Fires `input`'s change, as the browser does on Enter or on leaving it. */
+const changed = (input: HTMLInputElement): boolean => input.dispatchEvent(new Event('change', { bubbles: true }))
+
+/** Types `value` into `input`, and fires its change. */
 function change(input: HTMLInputElement, value: string): void {
   input.value = value
-  input.dispatchEvent(new Event('change', { bubbles: true }))
+  changed(input)
 }
 
 /** The section with `id`, as the page holds it now. */
-const section = (shown: BrowserPage, id: string): HTMLElement => shown.find(`section#${id}`, HTMLElement)
+const sectionOnPage = (shown: BrowserPage, id: string): HTMLElement => shown.find(`section#${id}`, HTMLElement)
 
 /**
  * Clicks `button`, which submits the form its `form` attribute names. happy-dom submits the form around it instead, so
@@ -70,28 +63,39 @@ const NOT_SAVED = 'Not saved: the Forecaster is not answering. Is it still runni
 describe('the Inputs screen’s script', () => {
   test('a changed field is saved, its section says so, and the other sections show what the save changed', async () => {
     const { app, page } = await openInputs()
-    expect(section(page, 'pace').textContent).toContain('tickets per week')
+    expect(sectionOnPage(page, 'pace').textContent).toContain('tickets per week')
 
-    change(field(page, '/inputs/cadence#cadence', 'cadenceDays'), '14')
+    change(field(page, CADENCE, 'cadenceDays'), '14')
     await page.settled()
 
     expect(app.storage.milestoneInputs(TEAM)?.cadenceDays).toBe(14)
-    expect(section(page, 'cadence').textContent).toContain('Saved')
-    expect(section(page, 'pace').textContent).toContain('tickets per sprint')
+    expect(sectionOnPage(page, 'cadence').textContent).toContain('Saved')
+    expect(sectionOnPage(page, 'pace').textContent).toContain('tickets per sprint')
+  })
+
+  test('a save swaps in the screen’s header too, which names the milestone', async () => {
+    const { page } = await openInputs()
+    expect(page.document.querySelector('main > header')?.textContent).toContain('Checkout v2')
+
+    change(field(page, MILESTONE, 'name'), 'Checkout v3')
+    await page.settled()
+
+    expect(page.document.querySelector('main > header')?.textContent).toContain('Checkout v3')
   })
 
   test('a refused value swaps in only its section, saying why and keeping what was typed', async () => {
     const { app, page } = await openInputs()
-    const cadence = section(page, 'cadence')
+    const cadence = sectionOnPage(page, 'cadence')
+    expect(sectionOnPage(page, 'milestone').querySelector('.error')).toBeNull()
 
     change(field(page, MILESTONE, 'ticketsRemaining'), '-1')
     await page.settled()
 
     expect(app.storage.milestoneInputs(TEAM)?.ticketsRemaining).toBe(30)
-    expect(section(page, 'milestone').textContent).toContain('Enter tickets remaining as a whole number, 0 or more.')
-    expect(section(page, 'milestone').textContent).not.toContain('Saved')
+    expect(sectionOnPage(page, 'milestone').querySelector('.error[role=alert]')).not.toBeNull()
+    expect(sectionOnPage(page, 'milestone').textContent).not.toContain('Saved')
     expect(field(page, MILESTONE, 'ticketsRemaining').value).toBe('-1')
-    expect(section(page, 'cadence')).toBe(cadence)
+    expect(sectionOnPage(page, 'cadence')).toBe(cadence)
   })
 
   test('a date field isn’t saved while it has the focus, and is saved on leaving it', async () => {
@@ -107,7 +111,7 @@ describe('the Inputs screen’s script', () => {
     startDate.blur()
     await page.settled()
     expect(app.storage.milestoneInputs(TEAM)?.startDate).toBe('2026-10-12')
-    expect(section(page, 'milestone').textContent).toContain('Saved')
+    expect(sectionOnPage(page, 'milestone').textContent).toContain('Saved')
   })
 
   test('two quick changes are saved in the order they were made, the second once the first is answered', async () => {
@@ -115,17 +119,17 @@ describe('the Inputs screen’s script', () => {
     const first = page.holdAnswer('/inputs/milestone')
 
     change(field(page, MILESTONE, 'ticketsRemaining'), '25')
-    change(field(page, '/inputs/cadence#cadence', 'cadenceDays'), '14')
+    change(field(page, CADENCE, 'cadenceDays'), '14')
     await first.held
-    expect(page.requests).toEqual(['POST /inputs/milestone'])
+    expect(posted(page)).toEqual(['/inputs/milestone'])
     first.release()
     await page.settled()
 
-    expect(page.requests).toEqual(['POST /inputs/milestone', 'POST /inputs/cadence'])
+    expect(posted(page)).toEqual(['/inputs/milestone', '/inputs/cadence'])
     expect(app.storage.milestoneInputs(TEAM)).toMatchObject({ ticketsRemaining: 25, cadenceDays: 14 })
     expect(field(page, MILESTONE, 'ticketsRemaining').value).toBe('25')
-    expect(field(page, '/inputs/cadence#cadence', 'cadenceDays').value).toBe('14')
-    expect(section(page, 'pace').textContent).toContain('tickets per sprint')
+    expect(field(page, CADENCE, 'cadenceDays').value).toBe('14')
+    expect(sectionOnPage(page, 'pace').textContent).toContain('tickets per sprint')
   })
 
   test('the focus stays on the field that had it, with its selection, once the sections are swapped in', async () => {
@@ -133,15 +137,32 @@ describe('the Inputs screen’s script', () => {
     const name = field(page, MILESTONE, 'name')
 
     name.focus()
-    change(name, 'Checkout v3')
+    name.value = 'Checkout v3'
     name.setSelectionRange(2, 5)
-    name.dispatchEvent(new Event('change', { bubbles: true }))
+    changed(name)
     await page.settled()
 
     const swapped = field(page, MILESTONE, 'name')
     expect(swapped).not.toBe(name)
     expect(page.document.activeElement).toBe(swapped)
     expect([swapped.selectionStart, swapped.selectionEnd]).toEqual([2, 5])
+  })
+
+  test('what is typed into the focused field while its save is answered stays, over what was saved', async () => {
+    const { page } = await openInputs()
+    const name = field(page, MILESTONE, 'name')
+    const saving = page.holdAnswer('/inputs/milestone')
+
+    name.focus()
+    change(name, 'Checkout v3')
+    await saving.held
+    name.value = 'Checkout v3.1'
+    saving.release()
+    await page.settled()
+
+    const swapped = field(page, MILESTONE, 'name')
+    expect(swapped).not.toBe(name)
+    expect(swapped.value).toBe('Checkout v3.1')
   })
 
   test('the Connect step isn’t saved as it changes, and a save elsewhere leaves what is typed in it', async () => {
@@ -153,7 +174,7 @@ describe('the Inputs screen’s script', () => {
 
     change(field(page, MILESTONE, 'ticketsRemaining'), '25')
     await page.settled()
-    expect(section(page, 'milestone').textContent).toContain('Saved')
+    expect(sectionOnPage(page, 'milestone').textContent).toContain('Saved')
     expect(field(page, '/inputs/connect#connect', 'repo').value).toBe('shop-team/shop')
   })
 
@@ -168,19 +189,18 @@ describe('the Inputs screen’s script', () => {
     await page.settled()
     change(field(page, MILESTONE, 'ticketsRemaining'), '25')
     await page.settled()
-    expect(page.requests).toEqual(['POST /inputs/milestone'])
+    expect(posted(page)).toEqual(['/inputs/milestone'])
   })
 
   test('with the Forecaster not answering, the section says it isn’t saved', async () => {
-    const { app: stopped, page } = await openInputs()
-    await stopped.close()
-    app = undefined
+    const { page } = await openInputs()
+    await pages.stopApp()
 
     change(field(page, MILESTONE, 'ticketsRemaining'), '25')
     await page.settled()
 
-    expect(section(page, 'milestone').textContent).toContain(NOT_SAVED)
-    expect(section(page, 'milestone').textContent).not.toContain('Saved')
+    expect(sectionOnPage(page, 'milestone').textContent).toContain(NOT_SAVED)
+    expect(sectionOnPage(page, 'milestone').textContent).not.toContain('Saved')
   })
 
   test('opening a chip with a dot posts that it was opened, once, and clears the dot', async () => {
@@ -194,7 +214,7 @@ describe('the Inputs screen’s script', () => {
     chip.open = true
     await page.settled()
 
-    expect(page.requests).toEqual(['POST /inputs/reading-opened'])
+    expect(posted(page)).toEqual(['/inputs/reading-opened'])
     expect(chip.querySelector('.dot')).toBeNull()
     expect(await inputsSection(app.running, 'milestone')).not.toContain('class="dot"')
   })
@@ -206,7 +226,7 @@ describe('the Inputs screen’s script', () => {
     await page.settled()
 
     expect(app.storage.milestoneInputs(TEAM)?.ticketsSource).toBe('tracker')
-    expect(section(page, 'milestone').querySelector('.reading-value')?.textContent).toBe('3')
-    expect(section(page, 'milestone').querySelector('details.reads-differently')).toBeNull()
+    expect(sectionOnPage(page, 'milestone').querySelector('.reading-value')?.textContent).toBe('3')
+    expect(sectionOnPage(page, 'milestone').querySelector('details.reads-differently')).toBeNull()
   })
 })
