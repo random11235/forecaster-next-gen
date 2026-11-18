@@ -1,17 +1,26 @@
-// The commit a branch's checks diff from: its merge-base with the branch it merges into. checkChanges.ts,
-// checkMigrations.ts, mutateDiff.ts and test/storage/storedValues.test.ts take it from here.
+// The commit a branch's checks diff from: its merge-base with released main, or with the branch it merges into.
+// checkChanges.ts, checkMigrations.ts, mutateDiff.ts and test/storage/storedValues.test.ts take it from here.
 import { execFileSync } from 'node:child_process'
 
 /**
- * The branch this one merges into, as `check:static` passes it: CHECK_BASE, or origin/main when that is unset or empty,
- * as `${CHECK_BASE:-origin/main}` in package.json.
+ * Released main: what saved data and a released schema come from, so what the migration and stored-value checks
+ * compare against, whatever branch this one merges into.
+ */
+export const MAIN_REF = 'origin/main'
+
+/** How to get a missing MAIN_REF. */
+export const MAIN_REF_HINT = 'fetch it (`git fetch origin`)'
+
+/**
+ * The branch this one merges into, as `check:static` passes it to `check:changes`: CHECK_BASE, or MAIN_REF when that
+ * is unset or empty, as `${CHECK_BASE:-origin/main}` in package.json.
  */
 export function checkBase(env: NodeJS.ProcessEnv = process.env): string {
-  return env.CHECK_BASE || 'origin/main'
+  return env.CHECK_BASE || MAIN_REF
 }
 
-/** How to get a missing checkBase(): what a check that takes its base from there says. */
-export const GET_CHECK_BASE = 'fetch it (`git fetch origin`), or set CHECK_BASE to the branch this one merges into'
+/** How to get a missing checkBase(). */
+export const CHECK_BASE_HINT = `${MAIN_REF_HINT}, or set CHECK_BASE to the branch this one merges into`
 
 /**
  * The merge-base of `base` and HEAD in the repo at `root`. A `base` the repo doesn't have fails naming it, and saying

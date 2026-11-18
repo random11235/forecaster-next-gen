@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
-import { checkBase, GET_CHECK_BASE, mergeBase } from '../../scripts/mergeBase.ts'
+import { MAIN_REF, MAIN_REF_HINT, mergeBase } from '../../scripts/mergeBase.ts'
 import { STORED_UNIONS } from './storedUnions.js'
 import { FILES, storedValueProblems, type Branch, type Column, type StoredUnion } from './storedValues.js'
 
@@ -21,9 +21,9 @@ function branchOf(read: (path: string) => string | undefined): Branch {
   return { snapshot: read(FILES.snapshot), migrations: required(FILES.migrations), webStorage: required(FILES.webStorage) }
 }
 
-/** The branch at its merge-base with CHECK_BASE (origin/main by default), as `check:static` and the migration check diff from. */
+/** The branch at its merge-base with released main (MAIN_REF), as the migration check diffs from: only released values can be in saved data. */
 function branchAtBase(): Branch {
-  const at = mergeBase(root, checkBase(), GET_CHECK_BASE)
+  const at = mergeBase(root, MAIN_REF, MAIN_REF_HINT)
   return branchOf((path) => {
     try {
       return execFileSync('git', ['show', `${at}:${path}`], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
@@ -121,12 +121,24 @@ describe('stored values', () => {
       const read = "const source = (stored: string) => (stored === 'typed' ? 'manual' : stored)"
 
       expect(storedValueProblems(typedManual, released, migrated)).toEqual([
-        "TicketsSource 'typed' is no longer a value, but saved data may hold it: the web build's storage keeps it too, so src/storage/webStorage.ts must map it as it reads, and on this branch it names 'typed' no more than before.",
+        "TicketsSource 'typed' is no longer a value, but saved data may hold it: the web build's storage keeps it too, so src/storage/webStorage.ts must map it as it reads, and on this branch its code doesn't name 'typed'.",
       ])
       expect(storedValueProblems(typedManual, released, { ...migrated, webStorage: read })).toEqual([])
       expect(storedValueProblems(typedManual, released, { ...head, webStorage: read })).toEqual([
         "TicketsSource 'typed' is no longer a value, but saved data may hold it: a migration must map it, and no step in MIGRATIONS (src/storage/sqliteStorage.ts) on this branch names 'typed' in a statement on tickets.source.",
       ])
+    })
+
+    test("the web build's storage maps it when its code still names it, however often it named it before", () => {
+      const typedEntered = { ...listed, TicketsSource: ticketsSource('tracker', 'entered') }
+      const before = { ...released, webStorage: "const source = (stored?: string) => stored ?? 'typed'" }
+      const head = {
+        snapshot: snapshotOf('tracker, entered', 'done, skipped'),
+        migrations: stepsWith("UPDATE tickets SET source = 'entered' WHERE source = 'typed';"),
+        webStorage: "const source = (stored?: string) => (stored === 'typed' ? 'entered' : (stored ?? 'entered'))",
+      }
+
+      expect(storedValueProblems(typedEntered, before, head)).toEqual([])
     })
   })
 
