@@ -6,11 +6,12 @@ import { MIGRATIONS_FILE, migrationSteps } from '../../scripts/migrationSteps.ts
 import { stepNamedBy, versionBefore } from './migrationStep.js'
 
 // The Migration tests section of docs/design/architecture-test-seams-storage.md: every step of MIGRATIONS has a test
-// that opens a data file as it was before that step, named in a `describe('step N: …')` (migrationStep.ts). This file
-// checks the names: each step is named by exactly one describe, none names a step MIGRATIONS doesn't have, and a file
-// naming one arranges through migrationsHarness.ts, which checks what each test under a step's describe writes as it
-// runs, and has no word that skips, todos, singles out, runs concurrently or expects to fail a test, so each step's describe holds a
-// test that runs, one at a time, and must pass (Vitest fails one holding none).
+// that opens a data file as it was before that step, named in a top-level `describe('step N: …')`, at column 0
+// (migrationStep.ts). This file checks the names: each step is named by exactly one describe, none names a step
+// MIGRATIONS doesn't have, no step describe is indented (inside an `if`, a function or another describe, it may never
+// register), and a file naming one arranges through migrationsHarness.ts, which checks what each test under a step's
+// describe writes as it runs, and has no word that skips, todos, singles out, runs concurrently or expects to fail a
+// test, so each step's describe holds a test that runs, one at a time, and must pass (Vitest fails one holding none).
 // migrations.beforeTheMvp.test.ts names no step on purpose: it writes a file at the current version, so it runs none.
 
 const root = fileURLToPath(new URL('../..', import.meta.url))
@@ -28,14 +29,21 @@ function migrationTests(): TestFile[] {
     .map((file) => ({ file, source: readFileSync(`${here}${file}`, 'utf8') }))
 }
 
-/**
- * The steps `source` names, each in a `describe('step N: …')` starting its line, at any level, in any quotes. A
- * describe in a block comment or after `//` names none.
- */
-function stepsNamedIn(source: string): number[] {
+/** The step each `describe('…')` in `source`, outside block comments, names, as `at` finds them: indented or not. */
+function stepDescribes(source: string, at: RegExp): number[] {
   const uncommented = source.replace(/\/\*[\s\S]*?\*\//g, '')
-  return [...uncommented.matchAll(/^[ \t]*describe\(\s*(['"`])(.*?)\1/gm)].flatMap((match) => stepNamedBy(match[2] ?? '') ?? [])
+  return [...uncommented.matchAll(at)].flatMap((match) => stepNamedBy(match[2] ?? '') ?? [])
 }
+
+/**
+ * The steps `source` names, each in a `describe('step N: …')` at the start of its line with no indent, in any quotes:
+ * Prettier indents a describe in anything (an `if`, a function, another describe), so one at column 0 is at the top
+ * level of its file and always registers. A describe in a block comment or after `//` names none.
+ */
+const stepsNamedIn = (source: string): number[] => stepDescribes(source, /^describe\(\s*(['"`])(.*?)\1/gm)
+
+/** The steps `source` has an indented `describe('step N: …')` for, which names none and may never register. */
+const indentedSteps = (source: string): number[] => stepDescribes(source, /^[ \t]+describe\(\s*(['"`])(.*?)\1/gm)
 
 /**
  * Whether `source` imports migrationsHarness.ts, which checks what each step's test writes: its bindings, wrapped over
@@ -62,7 +70,7 @@ function wordNotPlainlyRun(source: string): string | undefined {
 /**
  * What is wrong with how `tests` name the steps of MIGRATIONS (`steps`, each step's text as migrationSteps gives
  * it), one sentence each: a step no describe names, naming it by its comment; a step named more than once; a step
- * named that MIGRATIONS doesn't have; a file naming a step that doesn't arrange through the harness, or that has a word of
+ * named that MIGRATIONS doesn't have; an indented step describe; a file naming a step that doesn't arrange through the harness, or that has a word of
  * NOT_PLAINLY_RUN. Each names the files.
  */
 function stepNamingProblems(steps: readonly string[], tests: readonly TestFile[]): string[] {
@@ -86,6 +94,12 @@ function stepNamingProblems(steps: readonly string[], tests: readonly TestFile[]
   const unchecked = tests
     .filter(({ source }) => stepsNamedIn(source).length > 0 && !usesHarness(source))
     .map(({ file }) => `${file} names a step but doesn't import migrationsHarness.ts, which checks what each step's test writes`)
+  const indented = tests.flatMap(({ file, source }) =>
+    [...new Set(indentedSteps(source))].map(
+      (step) =>
+        `${file} has an indented describe('step ${step}: …'): a step's describe sits at the top level of its file, with no indent, so it always registers`,
+    ),
+  )
   const notPlainlyRun = tests.flatMap(({ file, source }) => {
     const word = stepsNamedIn(source).length > 0 ? wordNotPlainlyRun(source) : undefined
     return word === undefined
@@ -94,7 +108,7 @@ function stepNamingProblems(steps: readonly string[], tests: readonly TestFile[]
           `${file} names a step and has \`${word}\`: every test in a file naming a step must run, one at a time, and pass, so each step has a test that runs and is write-checked`,
         ]
   })
-  return [...untested, ...misnamed, ...unchecked, ...notPlainlyRun]
+  return [...untested, ...misnamed, ...unchecked, ...indented, ...notPlainlyRun]
 }
 
 describe('migration coverage', () => {
@@ -125,10 +139,24 @@ describe('migration coverage', () => {
     ])
   })
 
-  test('passes when each step is named once, in any of the files, in any quotes, at any level', () => {
-    const step2 = { file: 'migrations.b.test.ts', source: `${HARNESS}describe('a group', () => {\n  describe("step 2: a data file", () => {})\n})` }
+  test('passes when each step is named once, in any of the files, in any quotes', () => {
+    const step2 = { file: 'migrations.b.test.ts', source: `${HARNESS}describe("step 2: a data file", () => {\n  describe('a group', () => {})\n})` }
 
     expect(stepNamingProblems(STEPS, [STEP_1, step2])).toEqual([])
+  })
+
+  test.each([
+    ['in another describe', "describe('a group', () => {\n  describe('step 2: a data file', () => {})\n})"],
+    ['in an if', "if (process.env.SLOW_MIGRATIONS) {\n  describe('step 2: a data file', () => {})\n}"],
+    ['in a helper nobody calls', "function slow(): void {\n  describe('step 2: a data file', () => {})\n}"],
+    ['in a describe.each', "describe.each([])('%s', () => {\n  describe('step 2: a data file', () => {})\n})"],
+  ])('fails on a step describe %s, which may never register, naming the file, and counts no step for it', (_, code) => {
+    const indented = { file: 'migrations.b.test.ts', source: `${HARNESS}${code}` }
+
+    expect(stepNamingProblems(STEPS, [STEP_1, indented])).toEqual([
+      UNTESTED_STEP_2,
+      "migrations.b.test.ts has an indented describe('step 2: …'): a step's describe sits at the top level of its file, with no indent, so it always registers",
+    ])
   })
 
   test('takes no mention of a step but a describe naming it', () => {

@@ -5,12 +5,13 @@ import { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, expect } from 'vitest'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { MilestoneQueryStorage, SavedReadStorage, SetupStorage, Storage } from '../../src/storage/storage.js'
-import { describesAbove, stepWriteProblems } from './migrationStep.js'
+import { stepWriteProblems, topLevelDescribe } from './migrationStep.js'
 import { TEAM } from './pastSchemas.js'
 
 // The migration tests' shared arrangement: each test writes a data file the way an earlier release left it (from
-// pastSchemas.ts), opens it through openSqliteStorage, and checks what reads back. A test under a `describe('step N: …')`
-// fails unless it writes a file, and each at version N - 1 (stepWriteProblems in migrationStep.ts).
+// pastSchemas.ts), opens it through openSqliteStorage, and checks what reads back. A test under a top-level
+// `describe('step N: …')` fails unless it writes a file, and each at version N - 1 (stepWriteProblems in
+// migrationStep.ts).
 
 /** What these tests read back from a migrated file: its inputs, and the milestone's query and saved reads. */
 export type Opened = Storage & MilestoneQueryStorage & SavedReadStorage & SetupStorage
@@ -32,7 +33,7 @@ afterEach(({ task }) => {
   rmSync(dir, { recursive: true, force: true })
   // a test that already failed, before it wrote a file perhaps, has its own error to show
   if (task.result?.state === 'fail') return
-  const problems = stepWriteProblems(describesAbove(task), written)
+  const problems = stepWriteProblems(topLevelDescribe(task), written)
   if (problems.length > 0) throw new Error(problems.join('\n'))
 })
 
