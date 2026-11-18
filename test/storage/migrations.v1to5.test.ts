@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest'
+import { assert, describe, expect, test } from 'vitest'
 import { AN_ISO_TIMESTAMP, writeFile, open, rowsOf, EDITED_RANGES } from './migrationsHarness.js'
 import { TEAM, UNVERSIONED_SCHEMA, VERSION_2_SCHEMA, VERSION_4_SCHEMA, VERSION_5_SCHEMA } from './pastSchemas.js'
 
@@ -97,12 +97,13 @@ describe('step 6: a data file from schema version 5, before installation dates',
     const storage = open(file)
     const after = Date.now()
     const [acme, sample] = storage.teams()
-    expect(acme!.installedAt).toEqual(AN_ISO_TIMESTAMP)
-    expect(Date.parse(acme!.installedAt)).toBeGreaterThanOrEqual(before)
-    expect(Date.parse(acme!.installedAt)).toBeLessThanOrEqual(after)
+    assert(acme, 'its own team is kept')
+    expect(acme.installedAt).toEqual(AN_ISO_TIMESTAMP)
+    expect(Date.parse(acme.installedAt)).toBeGreaterThanOrEqual(before)
+    expect(Date.parse(acme.installedAt)).toBeLessThanOrEqual(after)
     expect(sample).toMatchObject({ id: 'sample-team', installedAt: '2026-08-31T09:00:00Z' })
 
-    storage.saveTeam({ ...acme!, name: 'Acme Payments', installedAt: '2030-01-01T00:00:00Z' })
+    storage.saveTeam({ ...acme, name: 'Acme Payments', installedAt: '2030-01-01T00:00:00Z' })
     expect(open(file).teams()[0]).toEqual({ ...acme, name: 'Acme Payments' })
     expect(rowsOf(file, "SELECT mode, low, high FROM pace_settings WHERE team_id = 'sample-team'")).toEqual([{ mode: 'measured', low: null, high: null }])
   })

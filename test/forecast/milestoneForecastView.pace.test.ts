@@ -30,7 +30,7 @@ describe('the cadence', () => {
     const forecast = view(storage)
     expect(forecast).toMatchObject({ cadenceDays: 14, pace: { source: 'range', low: 4, high: 8 }, paceSaid: '4–8 tickets per sprint (range)' })
     if (forecast.kind !== 'forecast') throw new Error('expected a forecast')
-    forecast.dates.forEach(({ date }, index) => expect(date! > DATES_FROM_1_SEP[index]!.date).toBe(true))
+    forecast.dates.forEach(({ date }, index) => expect(date !== null && date > DATES_FROM_1_SEP[index]!.date).toBe(true))
   })
 
   test('changing the cadence after the pace is entered warns that the cadence length has changed, beside the pace and on the forecast', () => {

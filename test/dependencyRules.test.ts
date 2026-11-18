@@ -10,8 +10,7 @@ import { importsBeside, importsFrom, importsOf, src } from './importScan.js'
 function loadedBy(entry: string): Set<string> {
   const loaded = new Set<string>()
   const pending = [entry]
-  while (pending.length > 0) {
-    const file = pending.pop()!
+  for (let file = pending.pop(); file !== undefined; file = pending.pop()) {
     if (loaded.has(file)) continue
     loaded.add(file)
     for (const imported of importsOf(file, true)) {

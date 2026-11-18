@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest'
+import { assert, describe, expect, test } from 'vitest'
 import type { InputsEdit } from '../../src/forecast/inputs.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import type { Storage } from '../../src/storage/storage.js'
@@ -295,7 +295,10 @@ describe("the milestone's ambiguity", () => {
       expect(edit(storage, { kind: 'setAmbiguity', level })).toEqual({ ok: true })
       const forecast = view(storage)
       if (forecast.kind !== 'forecast') throw new Error(`no forecast at ${level} ambiguity`)
-      return forecast.dates.map(({ date }) => date!)
+      return forecast.dates.map(({ percent, date }) => {
+        assert(date !== null, `a ${percent}% date at ${level} ambiguity`)
+        return date
+      })
     }
 
     const [low, medium, high] = [datesAt('low'), datesAt('medium'), datesAt('high')]

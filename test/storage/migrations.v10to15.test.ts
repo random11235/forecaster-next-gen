@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest'
+import { assert, describe, expect, test } from 'vitest'
 import type { MilestoneQuery } from '../../src/model/milestoneQuery.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import { writeFile, open, versionOf, rowsOf } from './migrationsHarness.js'
@@ -25,7 +25,8 @@ describe('step 12: a data file from schema version 11, before the pace window', 
   test('keeps its milestone with no action on its pace, and takes one, which survives reopening', () => {
     const file = writeFile('v11.db', VERSION_11_SCHEMA, 11)
     const storage = open(file)
-    const before = storage.milestoneInputs(TEAM)!
+    const before = storage.milestoneInputs(TEAM)
+    assert(before, 'the milestone is kept')
     expect(before).toMatchObject({ name: 'Launch', paceCounts: [6, 9], paceWindow: { action: undefined } })
 
     const acted = { ...before, paceWindow: { action: { kind: 'leaveOut' as const, period: '2026-08-17' }, skippedPeriods: [] } }
