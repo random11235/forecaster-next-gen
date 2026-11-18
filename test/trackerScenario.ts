@@ -24,6 +24,9 @@ export const TODAY = '2026-11-12'
 
 export const CHECKOUT: Choice = { kind: 'milestone', name: 'Checkout v2', query: 'milestone:"Checkout v2"' }
 
+/** The label `name`, as a choice of the tracker's. */
+export const label = (name: string): Choice => ({ kind: 'label', name, query: `label:"${name}"` })
+
 /** The ISO calendar date the day after `day`. */
 export const addDay = (day: string): string => new Date(Date.parse(`${day}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
 

@@ -4,7 +4,7 @@ import { ambiguityName, MAX_GROWTH, type GrowthView, type TypedRange } from '../
 import type { ConnectionView } from '../forecast/connection.js'
 import type { QueryStepView } from '../forecast/queryStep.js'
 import type { SkipEdit } from '../forecast/skippedPeriods.js'
-import type { InputsEdit, InputsForm, InputsView, TypedForms } from '../forecast/inputs.js'
+import type { InputsEdit, InputsView, TypedForms } from '../forecast/inputs.js'
 import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
 import { CONNECT_HINT, connectSection } from './connectSection.js'
 import type { SetupView } from '../forecast/setup.js'
@@ -13,9 +13,9 @@ import { escapeHtml, htmlPage } from './html.js'
 import { INPUTS_SCRIPT } from './inputsScript.js'
 import { candidatesHtml, candidatesScript } from './candidatesSection.js'
 import { queryStepScript, queryStepSection, type StepSection } from './queryStepSection.js'
-import { errorLine, inputSection, radios, type Section } from './lib/inputSection.js'
-import { milestoneSection } from './milestoneSection.js'
-import { paceSection } from './paceSection.js'
+import { errorLine, inputSection, radios, type FormError, type Section } from './lib/inputSection.js'
+import { milestoneSection } from './lib/milestoneSection.js'
+import { paceSection } from './lib/paceSection.js'
 
 export { INPUT_LABELS } from './lib/inputSection.js'
 
@@ -96,7 +96,7 @@ export function renderInputsScreen(
   setup: SetupView = { kind: 'noSetup' },
 ): string {
   const { milestone, forms } = screen
-  const error = (form: InputsForm): string | undefined => (screen.refusal?.form === form ? screen.refusal.error : undefined)
+  const error: FormError = (form) => (screen.refusal?.form === form ? screen.refusal.error : undefined)
   const pickers = steps.flatMap(({ section, view, openingId }) => {
     const picker = queryStepSection(view, section)
     const candidates =
@@ -105,7 +105,7 @@ export function renderInputsScreen(
   })
   const sections = [
     ...setupStepSection(setup, connection, pickers),
-    milestoneSection(forms.milestone, milestone.ticketsSource, error, milestone.notes),
+    milestoneSection(screen, error),
     cadenceSection(forms.cadence, error('cadence'), milestone.cadenceDays),
     paceSection(screen, error, periodName(milestone.cadenceDays)),
     ambiguitySection(milestone.ambiguity, screen.growth.ranges, error('ambiguity')),

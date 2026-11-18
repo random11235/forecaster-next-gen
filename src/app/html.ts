@@ -76,6 +76,8 @@ const STYLE = `
       --mono: 'Geist Mono', ui-monospace, monospace;
     }
     * { box-sizing: border-box; }
+    /* what a page's script hides stays hidden, over any style that shows the element, as a flex or grid item (#275) */
+    [hidden] { display: none !important; }
     body {
       margin: 0; min-height: 100vh; display: grid; grid-template-columns: 244px minmax(0, 1fr);
       font-family: 'Geist', system-ui, sans-serif; font-size: 14px; color: var(--ink); background: var(--page);
