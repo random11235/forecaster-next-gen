@@ -17,8 +17,11 @@ interface TypeCheckOff {
   found: 'any' | '!'
 }
 
-/** `any` in a type position: after `:`, `as` or `<`, or before `[]`. */
-const ANY = /(?::\s*|\bas\s+|<\s*)any\b|\bany\s*\[\s*\]/g
+/**
+ * `any` in a type position: after `:`, `<`, `,`, `(`, `|`, `&`, `=`, `=>` or a type keyword (`as`, `extends`, `keyof`,
+ * `satisfies`), or before `[]`.
+ */
+const ANY = /(?:[:<,(|&=]\s*|=>\s*|\b(?:as|extends|keyof|satisfies)\s+)any\b|\bany\s*\[\s*\]/g
 
 /**
  * A non-null `!`: one straight after a name, a `)` or a quote, but not the start of `!=` or `!==`. A `!` that starts a
@@ -51,6 +54,16 @@ describe('type check rules', () => {
     ['a cast to any', 'const loose = value as any'],
     ['an old-style cast to any', 'const loose = <any>value'],
     ['an array of any', 'let values: any[] = []'],
+    ['any as a type argument after another', 'let byName: Record<string, any>'],
+    ['any in a union', 'let value: string | any'],
+    ['any in an intersection', 'let value: Named & any'],
+    ['a type alias for any', 'type Loose = any'],
+    ['a function type returning any', 'let read: () => any'],
+    ['any as a type parameter default', 'function f<T = any>() {}'],
+    ['a type parameter extending any', 'function f<T extends any>() {}'],
+    ['keyof any', 'let key: keyof any'],
+    ['satisfies any', 'const value = {} satisfies any'],
+    ['any in brackets', 'let values: (any)[] = []'],
   ])('catches %s', (_, source) => {
     expect(typeCheckOffs({ file: 'example.ts', source })).toEqual([{ at: 'example.ts:1', found: 'any' }])
   })
