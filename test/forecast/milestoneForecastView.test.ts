@@ -136,8 +136,8 @@ describe('the finish graph', () => {
     expect(finishGraph[0]!.date).toBe('2026-09-01')
     expect(finishGraph[1]!.date).toBe('2026-09-08')
     finishGraph.forEach(({ finishedBy }, i) => expect(finishedBy).toBeCloseTo(sum(finishGraph.slice(0, i + 1).map((bar) => bar.share)), 9))
-    expect(finishGraph.at(-1)!.finishedBy).toBe(1)
-    expect(finishGraph.at(-1)!.share).toBeGreaterThan(0)
+    expect(finishGraph.at(-1)?.finishedBy).toBe(1)
+    expect(finishGraph.at(-1)?.share).toBeGreaterThan(0)
   })
 
   test('each bar is the share of trials finishing that week, so the slowest week holds a few trials, not a whole percent', () => {
@@ -147,7 +147,7 @@ describe('the finish graph', () => {
     const { finishGraph } = graph(storage)
     const firstFinish = finishGraph.findIndex(({ share }) => share > 0)
 
-    expect(finishGraph.at(-1)!.share).toBeLessThan(0.01)
+    expect(finishGraph.at(-1)?.share).toBeLessThan(0.01)
     expect(finishGraph.slice(firstFinish).every(({ share }) => share > 0)).toBe(true)
   })
 
@@ -158,7 +158,7 @@ describe('the finish graph', () => {
     const { finishGraph, dates } = graph(storage)
 
     for (const { percent, date } of dates) {
-      expect(finishGraph.find(({ finishedBy }) => finishedBy >= percent / 100)!.date).toBe(date)
+      expect(finishGraph.find(({ finishedBy }) => finishedBy >= percent / 100)?.date).toBe(date)
     }
   })
 
@@ -170,13 +170,13 @@ describe('the finish graph', () => {
     enter(storage, { startDate: '2026-09-01', ticketsRemaining: '150' }, { low: '0', high: '2' })
 
     const { finishGraph, dates, horizonDate } = graph(storage)
-    const finished = finishGraph.at(-1)!.finishedBy
+    const finished = finishGraph.at(-1)?.finishedBy ?? 0
 
-    expect(dates.find(({ percent }) => percent === 85)!.date).toBeNull()
+    expect(dates.find(({ percent }) => percent === 85)?.date).toBeNull()
     expect(finished).toBeGreaterThan(0.5)
     expect(finished).toBeLessThan(0.85)
     expect(sum(finishGraph.map((bar) => bar.share))).toBeCloseTo(finished, 9)
-    expect(finishGraph.at(-1)!.date <= horizonDate).toBe(true)
+    expect(finishGraph.at(-1)?.date.localeCompare(horizonDate)).toBeLessThanOrEqual(0)
   })
 
   test('0 tickets remaining: one bar, on the start date, holding every trial', () => {
