@@ -23,8 +23,9 @@ const BEFORE_REGEX = new Set(['return', 'typeof', 'case', 'in', 'of', 'void', 'd
 /**
  * `source` with only its code left: the contents of its comments, quoted strings, regex literals and template text
  * blanked out, the code in a template's `${…}` kept, a template nested in it too. A `/` is division after a value: a
- * word but one of `BEFORE_REGEX`, a number, a string, template or regex literal, `)`, `]`, `++` or `--`. After anything
- * else (another punctuator, `}`, one of those keywords, or nothing) it starts a regex literal.
+ * word but one of `BEFORE_REGEX`, a property name (any word straight after `.` or `?.`, those keywords too), a number,
+ * a string, template or regex literal, `)`, `]`, `++` or `--`. After anything else (another punctuator, `}`, one of
+ * those keywords not as a property name, or nothing) it starts a regex literal.
  */
 function codeOf(source: string): string {
   let code = ''
@@ -98,12 +99,13 @@ function codeOf(source: string): string {
       keep()
       templateText()
     } else if (/[\p{L}_$]/u.test(char)) {
+      const isProperty = /(?<!\.\.)\.$/.test(code.trimEnd())
       const word = source.slice(
         at,
         runEnd((each) => /[\p{L}\p{N}_$]/u.test(each)),
       )
       keep(word.length)
-      afterValue = !BEFORE_REGEX.has(word)
+      afterValue = isProperty || !BEFORE_REGEX.has(word)
     } else if (/\d/.test(char) || (char === '.' && /\d/.test(source[at + 1] ?? ''))) {
       keep(runEnd((each) => /[\w.]/.test(each)) - at)
       afterValue = true
@@ -157,6 +159,9 @@ describe('stored JSON rules', () => {
     ['a JSON.parse after a division of a string', "'a' / 2; JSON.parse(x)"],
     ['a JSON.parse after a division of a template', '`a` / 2; JSON.parse(x)'],
     ['a JSON.parse after a division of a regex', '/a/ / 2; JSON.parse(x)'],
+    ['a JSON.parse after a division of a property named return', 'a.return / 2; JSON.parse(x)'],
+    ['a JSON.parse after a division of a property named in', 'a.in / 2; JSON.parse(x)'],
+    ['a JSON.parse after a division of an optional property named of', 'a?.of / 2; JSON.parse(x)'],
   ])('catches %s', (_, source) => {
     expect(usesJsonButStringify(source)).toBe(true)
   })
