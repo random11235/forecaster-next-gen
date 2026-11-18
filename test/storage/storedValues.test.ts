@@ -4,21 +4,23 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
 import { MAIN_REF, MAIN_REF_HINT, mergeBase } from '../../scripts/mergeBase.ts'
 import { STORED_UNIONS } from './storedUnions.js'
-import { FILES, storedValueProblems, type Branch, type Column, type StoredUnion } from './storedValues.js'
+import { FILES, storedValueProblems, type Branch, type Column, type Head, type StoredUnion } from './storedValues.js'
 
 // The stored-value part of CODING_STANDARDS.md's One-way doors: a value saved data can hold is renamed or removed only
 // with a migration that maps it. storedUnions.ts lists the stored unions, bound to their types by the typecheck.
 
 const root = fileURLToPath(new URL('../..', import.meta.url))
 
+/** The file at `path`, as `read` gives it: it must be there. */
+function required(read: (path: string) => string | undefined, path: string): string {
+  const text = read(path)
+  if (text === undefined) throw new Error(`no ${path}`)
+  return text
+}
+
 /** The branch as `read` gives each of its files, undefined for one it doesn't have: only the snapshot may be missing. */
 function branchOf(read: (path: string) => string | undefined): Branch {
-  const required = (path: string) => {
-    const text = read(path)
-    if (text === undefined) throw new Error(`no ${path}`)
-    return text
-  }
-  return { snapshot: read(FILES.snapshot), migrations: required(FILES.migrations), webStorage: required(FILES.webStorage) }
+  return { snapshot: read(FILES.snapshot), migrations: required(read, FILES.migrations) }
 }
 
 /** The branch at its merge-base with released main (MAIN_REF), as the migration check diffs from: only released values can be in saved data. */
@@ -34,7 +36,8 @@ function branchAtBase(): Branch {
 }
 
 test('on this branch, the snapshot holds every stored value, and a value renamed or removed since its base is mapped by a migration', () => {
-  const head = branchOf((path) => (existsSync(`${root}/${path}`) ? readFileSync(`${root}/${path}`, 'utf8') : undefined))
+  const read = (path: string) => (existsSync(`${root}/${path}`) ? readFileSync(`${root}/${path}`, 'utf8') : undefined)
+  const head: Head = { ...branchOf(read), webStorage: required(read, FILES.webStorage) }
 
   expect(storedValueProblems(STORED_UNIONS, branchAtBase(), head)).toEqual([])
 })
@@ -62,7 +65,7 @@ const stepsWith = (...more: string[]) =>
     ']',
     '',
   ].join('\n')
-const released: Branch = { snapshot, migrations: stepsWith(), webStorage: 'export {}' }
+const released: Head = { snapshot, migrations: stepsWith(), webStorage: 'export {}' }
 
 describe('stored values', () => {
   test('a branch that changes no stored value has no problem', () => {
@@ -129,16 +132,15 @@ describe('stored values', () => {
       ])
     })
 
-    test("the web build's storage maps it when its code still names it, however often it named it before", () => {
+    test("the web build's storage maps it when its code on this branch names it, in a default or a test alike", () => {
       const typedEntered = { ...listed, TicketsSource: ticketsSource('tracker', 'entered') }
-      const before = { ...released, webStorage: "const source = (stored?: string) => stored ?? 'typed'" }
-      const head = {
+      const head: Head = {
         snapshot: snapshotOf('tracker, entered', 'done, skipped'),
         migrations: stepsWith("UPDATE tickets SET source = 'entered' WHERE source = 'typed';"),
         webStorage: "const source = (stored?: string) => (stored === 'typed' ? 'entered' : (stored ?? 'entered'))",
       }
 
-      expect(storedValueProblems(typedEntered, before, head)).toEqual([])
+      expect(storedValueProblems(typedEntered, released, head)).toEqual([])
     })
   })
 
@@ -146,7 +148,7 @@ describe('stored values', () => {
     test("a step on another union's column that names the value maps nothing", () => {
       const withPaceMode = { ...listed, PaceMode: union(['range', 'tracker'], [{ table: 'inputs', column: 'pace_mode' }], false) }
       const base = { ...released, snapshot: `${snapshot}PaceMode (inputs.pace_mode): range, tracker\n` }
-      const head: Branch = {
+      const head: Head = {
         snapshot: `${snapshotOf('read, typed', 'done, skipped')}PaceMode (inputs.pace_mode): range, tracker\n`,
         migrations: stepsWith("UPDATE inputs SET pace_mode = 'range' WHERE pace_mode = 'tracker';"),
         webStorage: "const source = (stored: string) => (stored === 'tracker' ? 'read' : stored)",

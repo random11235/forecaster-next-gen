@@ -12,8 +12,9 @@ import { MIGRATIONS_FILE, migrationSteps } from './migrationSteps.ts'
 const root = fileURLToPath(new URL('..', import.meta.url))
 const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' })
 
-const mainRef = process.argv[2] ?? MAIN_REF
-const base = mergeBase(root, mainRef, MAIN_REF_HINT)
+const given = process.argv[2]
+const mainRef = given ?? MAIN_REF
+const base = mergeBase(root, mainRef, given === undefined ? MAIN_REF_HINT : `${MAIN_REF_HINT}, or pass a branch this repo has`)
 const released = migrationSteps(git('show', `${base}:${MIGRATIONS_FILE}`), `${mainRef} (${base.slice(0, 7)})`)
 const branch = migrationSteps(readFileSync(new URL(`../${MIGRATIONS_FILE}`, import.meta.url), 'utf8'), 'HEAD')
 
