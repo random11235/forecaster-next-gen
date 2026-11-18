@@ -257,11 +257,4 @@ describe('browser storage the browser refuses', () => {
     expect(read).toEqual(LAUNCH)
     expect(read).toHaveProperty('seenReads', { ticketsRemaining: undefined, pace: undefined })
   })
-
-  test('with stored data it cannot read, starts empty', () => {
-    const store = memoryStore()
-    store.setItem('forecaster', 'not json')
-
-    expect(openWebStorage(store).isEmpty()).toBe(true)
-  })
 })

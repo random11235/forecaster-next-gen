@@ -57,6 +57,21 @@ describe('web app', () => {
     expect(page.html).toContain('value="Launch"')
   })
 
+  test('on browser storage holding data it cannot read, fails each screen as the server does, naming the key, and keeps the data', () => {
+    // a later build's data, written straight into the store: this build can't write it
+    const later = JSON.stringify({ teams: [{ ...defaultTeam(''), source: 'trello' }] })
+    const items = new Map([['forecaster', later]])
+    const storage = openWebStorage({ getItem: (key) => items.get(key) ?? null, setItem: (key, value) => void items.set(key, value) })
+    const app = openWebApp({ storage, today: () => TODAY })
+
+    for (const request of [{ method: 'GET', path: '/' }, post('/inputs/milestone', { name: 'Launch', startDate: '2026-11-02', ticketsRemaining: '30' })]) {
+      const page = app.show(request)
+      expect(page).toMatchObject({ path: request.path, status: 500 })
+      expect(page.html).toContain('Forecaster error: Error: browser storage&#39;s &#34;forecaster&#34; holds JSON of a shape')
+    }
+    expect(items.get('forecaster')).toBe(later)
+  })
+
   test('a refused form shows the Inputs screen again, refused', () => {
     const { app } = firstOpen()
 

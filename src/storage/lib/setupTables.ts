@@ -3,7 +3,7 @@ import { PACE_MODES, type PaceMode, type TicketsSource } from '../../model/miles
 import type { FailedRead, FailedReads, ReadFailures } from '../../model/readFailures.js'
 import type { SetupDraft } from '../../model/setupDraft.js'
 import type { SetupClosed, SetupState, SetupStorage } from '../storage.js'
-import { picksIn, picksKept } from './milestoneQueryTables.js'
+import { picksKept, queryIn } from './milestoneQueryTables.js'
 import { readRow } from './savedReadTables.js'
 import type { Row, Transaction } from './sqliteDatabase.js'
 
@@ -57,16 +57,11 @@ export function setupTables(db: DatabaseSync, transaction: Transaction): Omit<Se
         ...(ticketsSourceOf(row.tickets_source) && { ticketsRemaining: ticketsSourceOf(row.tickets_source)! }),
         ...(paceModeOf(row.pace_mode) && { pace: paceModeOf(row.pace_mode)! }),
       }
+      const milestoneQuery = queryIn(row.milestone_query, row.milestone_picks, 'setup_drafts.milestone_picks')
+      const comparableWorkQuery = queryIn(row.comparable_work_query, row.comparable_work_picks, 'setup_drafts.comparable_work_picks')
       return {
-        ...(row.milestone_query !== null && {
-          milestoneQuery: { picks: picksIn(String(row.milestone_picks), 'setup_drafts.milestone_picks'), query: String(row.milestone_query) },
-        }),
-        ...(row.comparable_work_query !== null && {
-          comparableWorkQuery: {
-            picks: picksIn(String(row.comparable_work_picks), 'setup_drafts.comparable_work_picks'),
-            query: String(row.comparable_work_query),
-          },
-        }),
+        ...(milestoneQuery && { milestoneQuery }),
+        ...(comparableWorkQuery && { comparableWorkQuery }),
         reads,
         ...(Object.keys(sources).length > 0 && { sources }),
         ...(pickFailures && { pickFailures }),
