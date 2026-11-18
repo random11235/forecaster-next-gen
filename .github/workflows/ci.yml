@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # the migration check reads main's schema
+          fetch-depth: 0 # the migration check reads origin/main's schema, and the stored-values test its snapshot
       - uses: ./.github/actions/setup
       # `npm run check:ci` and `npm run check`, which the pre-push hook runs, run one list of checks (`check:static`: the
       # typecheck, the migration check, and Prettier, the 5,000-token limit and the change-file check on the files this
