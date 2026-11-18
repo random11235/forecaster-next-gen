@@ -1,14 +1,20 @@
 name: Restart local app
 
-# Each merge to main, however it's made, restarts the dev's local app (http://127.0.0.1:5180/) from that commit. It runs
-# on the self-hosted runner on the dev's Mac, which scripts/setupRunner.sh sets up. The app runs from the runner's own
-# checkout, not the dev's working copy, so switching branches or running the tests there leaves it serving main.
-# Only a push to main runs it, never a pull request, so no fork's code runs on the dev's machine. With the Mac asleep
-# or the runner stopped, the run waits in the queue until the runner comes back, for up to 24 hours: GitHub cancels it
-# after that, and `gh workflow run restart-local.yml --ref main` restarts the app by hand.
+# Each merge to main, however it's made, restarts the dev's local app (http://127.0.0.1:5180/) once CI's run on it
+# completes green, from main's tip, after that run's release job has pushed the version it sets
+# (docs/design/architecture.md#release), so the footer shows it. That push starts no workflow, so this waits for CI's
+# run rather than a push. A red run (a check, the browser check or the release failing) leaves the app from before
+# running, on its own version. It runs on the self-hosted runner on the dev's Mac, which scripts/setupRunner.sh sets
+# up. The app runs from the runner's own checkout, not the dev's working copy, so switching branches or running the
+# tests there leaves it serving main. Only CI's run on a push to main starts it, never a pull request's, and it checks
+# out main, so no fork's code runs on the dev's machine. With the Mac asleep or the runner stopped, the run waits in
+# the queue until the runner comes back, for up to 24 hours: GitHub cancels it after that, and
+# `gh workflow run restart-local.yml --ref main` restarts the app by hand.
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch: # scripts/setupRunner.sh runs it once, on main, to check the new runner
 
@@ -19,7 +25,11 @@ concurrency:
 
 jobs:
   restart:
-    if: github.ref == 'refs/heads/main'
+    # by hand on main, or after CI's run on a push to main passes; `branches` alone would let in a pull request from a
+    # fork's own branch named main
+    if: >-
+      github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success'))
     runs-on: [self-hosted, macOS, forecaster-dev]
     timeout-minutes: 15
     steps:
@@ -30,7 +40,10 @@ jobs:
         run: |
           : "${FORECASTER_DATA_FILE:?is unset: run scripts/setupRunner.sh, which sets it in the .env of the runner}"
           echo "The app keeps its data in $FORECASTER_DATA_FILE"
+      # main's tip, the release commit included, not the merge CI ran on
       - uses: actions/checkout@v4
+        with:
+          ref: main
       - run: npm ci
       - run: npm run build
       # If the install or build fails, this step doesn't run: the run fails, and the app from before keeps running
