@@ -9,8 +9,8 @@ import { stepNamedBy, versionBefore } from './migrationStep.js'
 // that opens a data file as it was before that step, named in a `describe('step N: …')` (migrationStep.ts). This file
 // checks the names: each step is named by exactly one describe, none names a step MIGRATIONS doesn't have, and a file
 // naming one arranges through migrationsHarness.ts, which checks what each test under a step's describe writes as it
-// runs, and has no word that skips, todos, singles out or runs concurrently a test, so each step's describe holds a
-// test that runs, one at a time (Vitest fails one holding none).
+// runs, and has no word that skips, todos, singles out, runs concurrently or expects to fail a test, so each step's describe holds a
+// test that runs, one at a time, and must pass (Vitest fails one holding none).
 // migrations.beforeTheMvp.test.ts names no step on purpose: it writes a file at the current version, so it runs none.
 
 const root = fileURLToPath(new URL('../..', import.meta.url))
@@ -43,24 +43,27 @@ function stepsNamedIn(source: string): number[] {
  */
 const usesHarness = (source: string): boolean => /^import\s+(?!type\s)(?:[^'"]*?\sfrom\s+)?'\.\/migrationsHarness\.js'/m.test(source)
 
-/** The words that skip, todo, single out or run concurrently a test or describe in Vitest, in any of its forms. */
-const NOT_RUN_ONE_AT_A_TIME = /\b(?:skip|todo|only|skipIf|runIf|concurrent)\b/
+/**
+ * The words that skip, todo, single out, run concurrently or expect to fail a test or describe in Vitest, in any of
+ * its forms.
+ */
+const NOT_PLAINLY_RUN = /\b(?:skip|todo|only|skipIf|runIf|concurrent|fails)\b/
 
 /**
- * The first word of NOT_RUN_ONE_AT_A_TIME in `source`, outside its comments, if any: a file that has one may hold a step
- * whose tests none ran (Vitest itself fails a describe holding no test), or run them at once, which the harness's one
- * list of writes can't follow. A word meaning something else fails too, loudly.
+ * The first word of NOT_PLAINLY_RUN in `source`, outside its comments, if any: a file that has one may hold a step
+ * whose tests none ran (Vitest itself fails a describe holding no test), run them at once, which the harness's one
+ * list of writes can't follow, or expect them to fail, which hides the harness's errors. A word meaning something else fails too, loudly.
  */
-function wordNotRunningOneAtATime(source: string): string | undefined {
+function wordNotPlainlyRun(source: string): string | undefined {
   const uncommented = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1')
-  return NOT_RUN_ONE_AT_A_TIME.exec(uncommented)?.[0]
+  return NOT_PLAINLY_RUN.exec(uncommented)?.[0]
 }
 
 /**
  * What is wrong with how `tests` name the steps of MIGRATIONS (`steps`, each step's text as migrationSteps gives
  * it), one sentence each: a step no describe names, naming it by its comment; a step named more than once; a step
  * named that MIGRATIONS doesn't have; a file naming a step that doesn't arrange through the harness, or that has a word of
- * NOT_RUN_ONE_AT_A_TIME. Each names the files.
+ * NOT_PLAINLY_RUN. Each names the files.
  */
 function stepNamingProblems(steps: readonly string[], tests: readonly TestFile[]): string[] {
   const filesNaming = new Map<number, string[]>()
@@ -83,13 +86,15 @@ function stepNamingProblems(steps: readonly string[], tests: readonly TestFile[]
   const unchecked = tests
     .filter(({ source }) => stepsNamedIn(source).length > 0 && !usesHarness(source))
     .map(({ file }) => `${file} names a step but doesn't import migrationsHarness.ts, which checks what each step's test writes`)
-  const notOneAtATime = tests.flatMap(({ file, source }) => {
-    const word = stepsNamedIn(source).length > 0 ? wordNotRunningOneAtATime(source) : undefined
+  const notPlainlyRun = tests.flatMap(({ file, source }) => {
+    const word = stepsNamedIn(source).length > 0 ? wordNotPlainlyRun(source) : undefined
     return word === undefined
       ? []
-      : [`${file} names a step and has \`${word}\`: every test in a file naming a step must run, one at a time, so each step has a test that runs`]
+      : [
+          `${file} names a step and has \`${word}\`: every test in a file naming a step must run, one at a time, and pass, so each step has a test that runs and is write-checked`,
+        ]
   })
-  return [...untested, ...misnamed, ...unchecked, ...notOneAtATime]
+  return [...untested, ...misnamed, ...unchecked, ...notPlainlyRun]
 }
 
 describe('migration coverage', () => {
@@ -192,19 +197,20 @@ describe('migration coverage', () => {
     ['ctx.skip()', "test('keeps it', (ctx) => {\n  ctx.skip()\n})", 'skip'],
     ['a skip fixture', "test('keeps it', ({ skip }) => skip())", 'skip'],
     ['describe.concurrent', "describe.concurrent('a group', () => {})", 'concurrent'],
+    ['test.fails', "test.fails('writes nothing', () => {\n    throw new Error('no file')\n  })", 'fails'],
   ])('fails on a file naming a step that has %s, naming the file and the word', (_, code, word) => {
     const file = { file: 'migrations.b.test.ts', source: `${HARNESS}describe('step 2: a data file', () => {\n  ${code}\n})` }
 
     expect(stepNamingProblems(STEPS, [STEP_1, file])).toEqual([
-      `migrations.b.test.ts names a step and has \`${word}\`: every test in a file naming a step must run, one at a time, so each step has a test that runs`,
+      `migrations.b.test.ts names a step and has \`${word}\`: every test in a file naming a step must run, one at a time, and pass, so each step has a test that runs and is write-checked`,
     ])
   })
 
   test.each([
-    ['a line comment', '// skip this one only when the tracker is down'],
+    ['a line comment', '// skip this one only when the tracker is down, and it fails'],
     ['a block comment', '/* only the todo here */'],
-    ['a word that only contains one', "const skipped = 'onlyOne'"],
-  ])('takes the words in %s', (_, code) => {
+    ['a longer word', "const skipped = 'onlyOne failsafe'"],
+  ])('flags no word in %s', (_, code) => {
     const file = { file: 'migrations.b.test.ts', source: `${HARNESS}${code}\ndescribe('step 2: a data file', () => {})` }
 
     expect(stepNamingProblems(STEPS, [STEP_1, file])).toEqual([])
