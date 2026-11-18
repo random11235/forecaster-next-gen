@@ -141,6 +141,7 @@ describe('stored values', () => {
       }
 
       expect(storedValueProblems(typedEntered, released, head)).toEqual([])
+      expect(storedValueProblems(typedEntered, released, { ...head, webStorage: "const source = (stored?: string) => stored ?? 'typed'" })).toEqual([])
     })
   })
 
