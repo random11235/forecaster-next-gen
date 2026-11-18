@@ -11,6 +11,7 @@ src/
     milestoneInputs.ts    # MilestoneInputs: what the EM types in for the team's milestone; PaceMode, TicketsSource, the skipped periods and reads seen
     ambiguity.ts          # Ambiguity and AmbiguityRanges: set by the EM
     connection.ts         # Connection: the team's one tracker and repo or Jira project (with Jira's account email); never a token
+    noneMissing.ts        # NoneMissing: a compile-time check that a list of a union's values, such as TEAM_SOURCES, leaves none out
 
   engine/                 # pure: no I/O, no DB, no clock; see src/engine/ for its files
     index.ts              # exports simulateCase, periodEndDate and the types only
