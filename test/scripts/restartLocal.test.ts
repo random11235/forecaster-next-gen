@@ -9,7 +9,9 @@ import { fileURLToPath } from 'node:url'
 
 // Runs scripts/restartLocal.sh, which the restart workflow calls after each merge to main, against the app that
 // test/buildOnce.ts builds into dist/. Each test runs on a spare port, with its data in a fresh directory, and with a
-// stand-in `open` on PATH that writes down the URL it was asked to open instead of opening a browser tab.
+// stand-in `open` on PATH that writes down the URL it was asked to open instead of opening a browser tab. The script
+// has launchd run the app, so it runs on macOS only, as the runner it's for does: these tests skip elsewhere (CI's
+// Linux). The app's launch agent is written to the test's directory, not ~/Library/LaunchAgents, and removed after it.
 const root = fileURLToPath(new URL('../..', import.meta.url))
 const script = join(root, 'scripts/restartLocal.sh')
 /** Beyond the script's own waits: up to 10s for the port to free, then 30s for the app to come up. */
@@ -31,9 +33,19 @@ beforeEach(async () => {
 
 afterEach(() => {
   for (const page of pages.splice(0)) page.close()
+  try {
+    execFileSync('launchctl', ['bootout', agent(port)], { stdio: 'ignore' })
+  } catch {
+    // not loaded
+  }
   for (const pid of listeners(port)) process.kill(Number(pid), 'SIGTERM')
   rmSync(dir, { recursive: true, force: true })
 })
+
+/** The app's launch agent on a port, in this user's login session: launchd's service target for it. */
+function agent(onPort: number): string {
+  return `gui/${process.getuid?.()}/forecaster.local-app.${onPort}`
+}
 
 /** The pids listening on the port. */
 function listeners(onPort: number): string[] {
@@ -70,6 +82,7 @@ async function restart(env: Record<string, string> = {}): Promise<{ code: number
       PATH: `${dir}:${process.env.PATH}`,
       PORT: String(port),
       FORECASTER_DATA_FILE: join(dir, 'forecaster.db'),
+      LAUNCH_AGENTS_DIR: dir,
       ...env,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -91,7 +104,7 @@ async function previousApp(): Promise<ChildProcess> {
   return child
 }
 
-describe('restarting the local app', () => {
+describe.skipIf(process.platform !== 'darwin')('restarting the local app', () => {
   test(
     'stops what listens on the port and leaves the app from this checkout serving it after the script exits',
     async () => {
@@ -104,6 +117,18 @@ describe('restarting the local app', () => {
       await previousExit
       const page = await fetch(`http://127.0.0.1:${port}/`)
       expect(page.status).toBe(200)
+    },
+    TIMEOUT,
+  )
+
+  test(
+    "runs the app as a launch agent in the user's login session, where it can read the keychain, not in the job's (#290)",
+    async () => {
+      const { code, output } = await restart()
+
+      expect(code, output).toBe(0)
+      const [pid] = listeners(port)
+      expect(execFileSync('launchctl', ['print', agent(port)], { encoding: 'utf8' })).toMatch(new RegExp(`\\bpid = ${pid}\\b`))
     },
     TIMEOUT,
   )
