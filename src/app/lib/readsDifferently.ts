@@ -47,7 +47,7 @@ export function chipForms({ id, reading, follow }: Chip, readsDifferently: Reads
         <form method="post" action="${formAction(follow)}" id="follow-${id}">
           ${hidden}
         </form>
-        <form method="post" action="${formAction({ path: '/inputs/reading-opened', anchor: follow.anchor })}" id="open-${id}-reading">
+        <form method="post" action="/inputs/reading-opened" id="open-${id}-reading">
           <input type="hidden" name="reading" value="${reading}">
         </form>`
 }
