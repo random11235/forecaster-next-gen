@@ -5,7 +5,7 @@ import { TEAM, UNVERSIONED_SCHEMA } from './pastSchemas.js'
 
 // Opening a data file an earlier release left: see migrationsHarness.ts.
 
-describe('a data file written before schema versions', () => {
+describe('step 1: a data file written before schema versions', () => {
   test('opens and keeps its team, and its facts, milestone and pace setting', () => {
     const file = writeFile('old.db', UNVERSIONED_SCHEMA)
 
