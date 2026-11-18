@@ -116,14 +116,13 @@ export function renderInputsScreen(
     heading: 'Inputs',
     lede: 'What drives the forecast: the milestone, the team’s pace, and how work grows.',
   }
-  const script =
-    INPUTS_SCRIPT +
-    (setup.kind === 'steps' && setup.step === 'check' ? CHECK_SCRIPT : '') +
-    pickers.map(({ section }) => queryStepScript(section)).join('') +
-    steps
-      .filter(({ openingId }) => openingId !== undefined)
-      .map(({ section }) => candidatesScript(section))
-      .join('')
+  // each script is a call, so one following another would be taken to call its result: `;` ends each (#275)
+  const script = [
+    INPUTS_SCRIPT,
+    ...(setup.kind === 'steps' && setup.step === 'check' ? [CHECK_SCRIPT] : []),
+    ...pickers.map(({ section }) => queryStepScript(section)),
+    ...steps.filter(({ openingId }) => openingId !== undefined).map(({ section }) => candidatesScript(section)),
+  ].join(';')
   const closed = setup.kind === 'summary' ? setupSummaryHtml(setup) : setup.kind === 'skipped' ? setupSkippedHtml() : ''
   return htmlPage('/inputs', header, closed + sections.map((section, index) => section(index + 1)).join('\n'), script)
 }
