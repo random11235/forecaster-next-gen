@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import type { Choice } from '../../src/connectors/connector.js'
-import { openSetup, setupView, submitSetup, type SetupEdit } from '../../src/forecast/setup.js'
-import type { SetupStep } from '../../src/forecast/setupSteps.js'
+import { openSetup, setupView, submitSetup, type SetupEdit, type SetupStep } from '../../src/forecast/setup.js'
 import { submitStepQuery } from '../../src/forecast/queryStep.js'
 import { COMPARABLE_WORK } from '../../src/forecast/stepQuery.js'
 import { CHECKOUT, open, TEAM, type TrackerScenario } from '../trackerScenario.js'
