@@ -1,35 +1,61 @@
-// The stored unions and the check that keeps their values: storedValues.test.ts runs it on this branch.
+// The check that keeps stored string values: storedUnions.ts lists the stored unions, the snapshot freezes their
+// values, and storedValues.test.ts runs this on the branch.
+import { MIGRATIONS_FILE, migrationSteps } from '../../scripts/migrationSteps.ts'
 
-/** Each stored union's values, by its name, and whether the web build's storage keeps it too (`web`). */
-export type Listed = Readonly<Record<string, { values: readonly string[]; web: boolean }>>
+/**
+ * A union whose values reach storage: its values, the columns that store them (`table.column`), and whether the web
+ * build's storage keeps it too.
+ */
+export interface StoredUnion {
+  values: Readonly<Record<string, true>>
+  columns: readonly string[]
+  web: boolean
+}
 
-/** What a branch holds that the check reads: the snapshot, `src/storage/sqliteStorage.ts` and `src/storage/webStorage.ts`. */
+/** Each stored union, by name. */
+export type StoredUnions = Readonly<Record<string, StoredUnion>>
+
+/** The files of a branch the check reads, by the part each plays. */
+export const FILES = { snapshot: 'test/storage/storedValues.snapshot', migrations: MIGRATIONS_FILE, webStorage: 'src/storage/webStorage.ts' } as const
+
+/** What a branch holds that the check reads, each of FILES: the snapshot is missing on a base from before it. */
 export interface Branch {
-  /** `test/storage/storedValues.snapshot`; none on a base from before it. */
   snapshot: string | undefined
   migrations: string
   webStorage: string
 }
 
-const SNAPSHOT = 'test/storage/storedValues.snapshot'
+/** A union as the snapshot holds it: the columns that store it, and its values. */
+type Snapshotted = { columns: readonly string[]; values: readonly string[] }
 
-/** The snapshot's values, by union: a line each, `Name: value, value`; a line starting `#` says what the file is. */
-function snapshotValues(snapshot: string): Map<string, string[]> {
+/** The snapshot's unions, by name: a line each, `Name (table.column, …): value, …`; a line starting `#` says what the file is. */
+function snapshotUnions(snapshot: string): Map<string, Snapshotted> {
   const lines = snapshot.split('\n').filter((line) => line.trim() !== '' && !line.startsWith('#'))
   return new Map(
     lines.map((line) => {
-      const [, name, values] = /^([^:]+):(.*)$/.exec(line) ?? []
-      if (name === undefined || values === undefined) throw new Error(`${SNAPSHOT}: \`${line}\` is not \`Name: value, value\``)
-      return [name.trim(), values.split(',').map((value) => value.trim())]
+      const [, name, columns, values] = /^([^:(]+)\(([^)]*)\):(.*)$/.exec(line) ?? []
+      if (name === undefined || columns === undefined || values === undefined)
+        throw new Error(`${FILES.snapshot}: \`${line}\` is not \`Name (table.column, …): value, …\``)
+      return [name.trim(), { columns: listOf(columns), values: listOf(values) }]
     }),
   )
 }
 
-/** The steps of `const MIGRATIONS` in `sqliteStorage`, the source of `src/storage/sqliteStorage.ts`, less their comments. */
-function migrationSteps(sqliteStorage: string): string {
-  const block = /^const MIGRATIONS[^\n]*\n([\s\S]*?)^\]/m.exec(sqliteStorage)?.[1]
-  if (block === undefined) throw new Error('no `const MIGRATIONS` array in src/storage/sqliteStorage.ts')
-  return block.replace(/^\s*\/\/.*$/gm, '').replace(/--.*$/gm, '')
+const listOf = (commaSeparated: string): string[] => commaSeparated.split(',').map((each) => each.trim())
+
+/** Each SQL statement in the steps of MIGRATIONS in `sqliteStorage`, the source of FILES.migrations, less comments. */
+function migrationStatements(sqliteStorage: string): string[] {
+  return migrationSteps(sqliteStorage, FILES.migrations).flatMap((step) =>
+    step
+      .replace(/^\s*\/\/.*$/gm, '')
+      .replace(/--.*$/gm, '')
+      .split(';'),
+  )
+}
+
+/** Whether `statement` is on `column`, a `table.column`: it names both. */
+function isOn(statement: string, column: string): boolean {
+  return column.split('.').every((name) => new RegExp(`\\b${name}\\b`).test(statement))
 }
 
 /** `source`, a TypeScript file's, less its comments. */
@@ -42,45 +68,76 @@ function namings(source: string, value: string): number {
   return source.split(`'${value}'`).length + source.split(`"${value}"`).length - 2
 }
 
-/** Each value in `values` that `listed` no longer has, with its union's name. */
-function notListed(listed: Listed, values: Map<string, string[]>): { name: string; value: string }[] {
-  return [...values].flatMap(([name, kept]) => kept.filter((value) => !listed[name]?.values.includes(value)).map((value) => ({ name, value })))
-}
-
 /**
  * What is wrong with the stored values `listed` on a branch at `head`, from its base at `base`: one sentence each. The
- * snapshot holds every listed value, and only those. A value on the base's snapshot that is no longer listed is
- * renamed or removed, so saved data may hold it: a migration step must map it, naming it on this branch more often than
- * on the base, and so must the web build's storage where it keeps the value too.
+ * snapshot holds every listed union, where it is stored and its values, and only those. A value on the base's snapshot
+ * that a column no longer stores, under any union's name, is renamed or removed there, so saved data may hold it: a
+ * migration step must map it in that column, its statements on the column naming it on this branch more often than on
+ * the base, and so must the web build's storage where it keeps the union too. A union only renamed, its values stored
+ * where they were, needs no migration.
  */
-export function storedValueProblems(listed: Listed, base: Branch, head: Branch): string[] {
-  const inSnapshot = snapshotValues(head.snapshot ?? '')
-  const added = Object.entries(listed).flatMap(([name, { values }]) =>
-    values
-      .filter((value) => !inSnapshot.get(name)?.includes(value))
-      .map((value) => `${name} '${value}' is stored but not in the snapshot: add it to ${SNAPSHOT}.`),
-  )
+export function storedValueProblems(listed: StoredUnions, base: Branch, head: Branch): string[] {
+  const inSnapshot = snapshotUnions(head.snapshot ?? '')
   // what saved data may hold: the base's snapshot, or this branch's when the base has none
-  const saved = snapshotValues(base.snapshot ?? head.snapshot ?? '')
-  const newlyNamed = (value: string, of: (branch: Branch) => string) => namings(of(head), value) > namings(of(base), value)
-  const gone = notListed(listed, saved).flatMap(({ name, value }) => {
-    const unmapped = [
-      ...(newlyNamed(value, ({ migrations }) => migrationSteps(migrations))
-        ? []
-        : [`a migration must map it, and no step in MIGRATIONS (src/storage/sqliteStorage.ts) on this branch names '${value}'`]),
-      ...(!listed[name]?.web || newlyNamed(value, ({ webStorage }) => code(webStorage))
-        ? []
-        : [
-            `the web build's storage keeps it too, so src/storage/webStorage.ts must map it as it reads, and on this branch it names '${value}' no more than before`,
-          ]),
+  const saved = snapshotUnions(base.snapshot ?? head.snapshot ?? '')
+  const unions = Object.values(listed)
+  const statements = { base: migrationStatements(base.migrations), head: migrationStatements(head.migrations) }
+
+  /** How many times the migration statements on `column` name `value`, at the base or here. */
+  const namedOn = (at: 'base' | 'head', column: string, value: string) =>
+    statements[at].filter((statement) => isOn(statement, column)).reduce((count, statement) => count + namings(statement, value), 0)
+  /** Whether a migration on this branch maps `value` in `column`: its statements there name it more often than the base's. */
+  const mappedIn = (column: string, value: string) => namedOn('head', column, value) > namedOn('base', column, value)
+  /** Whether a listed union, whatever its name, still stores `value` in `column`. */
+  const storedIn = (column: string, value: string) => unions.some((union) => union.columns.includes(column) && union.values[value])
+  /** Whether the web build's storage keeps the union named `name`, or one now stored in its `columns`. */
+  const keptByTheWeb = (name: string, columns: readonly string[]) =>
+    listed[name]?.web === true || unions.some((union) => union.web && union.columns.some((column) => columns.includes(column)))
+  /** Whether the web build's storage on this branch names `value` more often than the base's, so maps it as it reads. */
+  const mappedForTheWeb = (value: string) => namings(code(head.webStorage), value) > namings(code(base.webStorage), value)
+  const inHeadSnapshot = (name: string, value: string) => inSnapshot.get(name)?.values.includes(value) === true
+
+  const added = Object.entries(listed).flatMap(([name, { values }]) =>
+    Object.keys(values)
+      .filter((value) => !inHeadSnapshot(name, value))
+      .map((value) => `${name} '${value}' is stored but not in the snapshot: add it to ${FILES.snapshot}.`),
+  )
+  const misplaced = Object.entries(listed).flatMap(([name, { columns }]) => {
+    const snapshotted = inSnapshot.get(name)?.columns.join(', ')
+    if (snapshotted === undefined || snapshotted === columns.join(', ')) return []
+    return [
+      `${name} is stored in ${columns.join(', ')}, but the snapshot says ${snapshotted}: write its columns in ${FILES.snapshot} as STORED_UNIONS lists them.`,
     ]
-    if (unmapped.length > 0) return [`${name} '${value}' is no longer a value, but saved data may hold it: ${unmapped.join('; ')}.`]
-    return inSnapshot.get(name)?.includes(value)
-      ? [`${name} '${value}' is mapped by a migration on this branch and no longer a value: take it out of ${SNAPSHOT}.`]
-      : []
   })
-  const unsaved = notListed(listed, inSnapshot)
-    .filter(({ name, value }) => !saved.get(name)?.includes(value))
-    .map(({ name, value }) => `${name} '${value}' is in the snapshot but no longer a value, and saved data can't hold it yet: take it out of ${SNAPSHOT}.`)
-  return [...added, ...gone, ...unsaved]
+  const gone = [...saved].flatMap(([name, { columns, values }]) =>
+    values.flatMap((value) => {
+      const goneFrom = columns.filter((column) => !storedIn(column, value))
+      if (goneFrom.length === 0) return []
+      const unmappedIn = goneFrom.filter((column) => !mappedIn(column, value))
+      const unmapped: string[] = []
+      if (unmappedIn.length > 0)
+        unmapped.push(
+          `a migration must map it, and no step in MIGRATIONS (${FILES.migrations}) on this branch names '${value}' in a statement on ${unmappedIn.join(', ')}`,
+        )
+      if (keptByTheWeb(name, columns) && !mappedForTheWeb(value))
+        unmapped.push(
+          `the web build's storage keeps it too, so ${FILES.webStorage} must map it as it reads, and on this branch it names '${value}' no more than before`,
+        )
+      if (unmapped.length > 0) return [`${name} '${value}' is no longer a value, but saved data may hold it: ${unmapped.join('; ')}.`]
+      if (listed[name] !== undefined && inHeadSnapshot(name, value))
+        return [`${name} '${value}' is mapped by a migration on this branch and no longer a value: take it out of ${FILES.snapshot}.`]
+      return []
+    }),
+  )
+  const unsaved = [...inSnapshot].flatMap(([name, { values }]) =>
+    listed[name] === undefined
+      ? []
+      : values
+          .filter((value) => !listed[name]?.values[value] && !saved.get(name)?.values.includes(value))
+          .map((value) => `${name} '${value}' is in the snapshot but no longer a value, and saved data can't hold it yet: take it out of ${FILES.snapshot}.`),
+  )
+  const unlisted = [...inSnapshot.keys()]
+    .filter((name) => listed[name] === undefined)
+    .map((name) => `${name} is in the snapshot, but STORED_UNIONS no longer lists it: take it out of ${FILES.snapshot}.`)
+  return [...added, ...misplaced, ...gone, ...unsaved, ...unlisted]
 }

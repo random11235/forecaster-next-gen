@@ -10,6 +10,7 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { changeFileProblems } from './changeFiles.ts'
 import { oversized, splitGuidance } from './fileSize.ts'
+import { mergeBase as mergeBaseWith } from './mergeBase.ts'
 import { unformatted } from './formatting.ts'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
@@ -17,7 +18,7 @@ const git = (...args: string[]): Buffer => execFileSync('git', args, { cwd: root
 
 const base = process.argv[2]
 // for a branch, its merge-base with <base>: what `<base>...HEAD` diffs from
-const mergeBase = base === undefined ? undefined : git('merge-base', base, 'HEAD').toString('utf8').trim()
+const mergeBase = base === undefined ? undefined : mergeBaseWith(root, base)
 // Every file the commit or branch changes, a deleted one too (deleting a source file changes the app), each with
 // whether it is deleted; renames as a deletion and an addition, so each path is one the commit or branch holds or not.
 const diff = git('diff', '--name-status', '--no-renames', '-z', ...(mergeBase === undefined ? ['--cached'] : [mergeBase, 'HEAD'])).toString('utf8')

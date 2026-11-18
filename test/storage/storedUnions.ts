@@ -5,32 +5,50 @@ import type { MilestoneQuery } from '../../src/model/milestoneQuery.js'
 import type { FailedRead } from '../../src/model/readFailures.js'
 import type { Team } from '../../src/model/team.js'
 import type { SqliteStorage } from '../../src/storage/sqliteStorage.js'
-import type { SetupClosed, SetupState, Storage } from '../../src/storage/storage.js'
+import type { ConnectionChange, SetupClosed, Storage } from '../../src/storage/storage.js'
+import type { StoredUnions } from './storedValues.js'
 
 // Every union whose values reach storage, each its values as a record, so the typecheck fails on a value missing or
-// one the union doesn't have. The checks below fail it on a stored union not listed, one listed but not stored, or one
-// listed `web` wrongly.
+// one the union doesn't have. The checks below fail it on a stored union not listed (one a `save…` method takes, or
+// one in SqliteEncodings below), one listed but not stored, or one listed `web` wrongly.
 
 /** Every value of `T`, each `true`: a value missing, or one `T` doesn't have, fails the typecheck. */
 type Values<T extends string> = Record<T, true>
 
-/** Each union whose values reach storage, by name: its values, and whether the web build's storage keeps it too. */
+/**
+ * Each union whose values reach storage, by name: its values, the columns that store them (`table.column`, where a
+ * migration maps a value renamed or removed), and whether the web build's storage keeps it too.
+ */
 export const STORED_UNIONS = {
-  'Team.source': { values: { manual: true, sample: true, jira: true, github: true } satisfies Values<Team['source']>, web: true },
-  Ambiguity: { values: { low: true, medium: true, high: true } satisfies Values<Ambiguity>, web: true },
-  PaceMode: { values: { range: true, counts: true, tracker: true } satisfies Values<PaceMode>, web: true },
-  TicketsSource: { values: { tracker: true, typed: true } satisfies Values<TicketsSource>, web: true },
-  'PaceAction.kind': { values: { startFrom: true, leaveOut: true } satisfies Values<PaceAction['kind']>, web: true },
-  'Connection.tracker': { values: { github: true, jira: true } satisfies Values<Connection['tracker']>, web: false },
+  'Team.source': {
+    values: { manual: true, sample: true, jira: true, github: true } satisfies Values<Team['source']>,
+    columns: ['teams.source'],
+    web: true,
+  },
+  Ambiguity: { values: { low: true, medium: true, high: true } satisfies Values<Ambiguity>, columns: ['milestone_inputs.ambiguity'], web: true },
+  PaceMode: {
+    values: { range: true, counts: true, tracker: true } satisfies Values<PaceMode>,
+    columns: ['milestone_inputs.pace_mode', 'setup_drafts.pace_mode'],
+    web: true,
+  },
+  TicketsSource: {
+    values: { tracker: true, typed: true } satisfies Values<TicketsSource>,
+    columns: ['milestone_inputs.tickets_source', 'setup_drafts.tickets_source'],
+    web: true,
+  },
+  'PaceAction.kind': {
+    values: { startFrom: true, leaveOut: true } satisfies Values<PaceAction['kind']>,
+    columns: ['milestone_inputs.pace_window'],
+    web: true,
+  },
+  'Connection.tracker': { values: { github: true, jira: true } satisfies Values<Connection['tracker']>, columns: ['connections.tracker'], web: false },
   'Choice.kind': {
     values: { epic: true, label: true, milestone: true, fixVersion: true } satisfies Values<MilestoneQuery['picks'][number]['kind']>,
+    columns: ['milestone_queries.picks', 'comparable_work_queries.picks', 'setup_drafts.milestone_picks', 'setup_drafts.comparable_work_picks'],
     web: false,
   },
-  SetupClosed: { values: { done: true, skipped: true } satisfies Values<SetupClosed>, web: false },
-  'SetupState.connection': {
-    values: { made: true, changed: true } satisfies Values<NonNullable<Extract<SetupState, { open: true }>['connection']>>,
-    web: false,
-  },
+  SetupClosed: { values: { done: true, skipped: true } satisfies Values<SetupClosed>, columns: ['setups.closed'], web: false },
+  ConnectionChange: { values: { made: true, changed: true } satisfies Values<ConnectionChange>, columns: ['setups.connection'], web: false },
   'FailedRead.failure': {
     values: {
       invalidQuery: true,
@@ -40,9 +58,11 @@ export const STORED_UNIONS = {
       unavailable: true,
       keychainFailed: true,
     } satisfies Values<FailedRead['failure']>,
+    columns: ['setup_draft_failures.failure', 'read_failures.failure'],
     web: false,
   },
-} as const
+  ReadFailureOf: { values: { whole: true, query: true, pick: true } satisfies Values<ReadFailureOf>, columns: ['read_failures.of'], web: false },
+} as const satisfies StoredUnions
 
 /** `T`'s string literals: none for `string` itself. */
 type Literals<T> = T extends string ? (string extends T ? never : T) : never
@@ -63,6 +83,18 @@ type UnionsIn<T> =
 
 /** Each union a storage's `save…` methods take, so stores: a tuple each. */
 type StoredBy<S> = UnionsIn<{ [K in keyof S as K extends `save${string}` ? K : never]: S[K] extends (...args: infer A) => unknown ? A : never }>
+/**
+ * Which of the team's read failures a `read_failures` row holds, its `of`: the read by hand as a whole, a step's
+ * query's own read, or a pick's at Check. sqliteStorage.ts writes these as literals no `save…` method takes, so they
+ * are typed here, where the snapshot freezes them; the typecheck can't tie them to the literals it writes.
+ */
+type ReadFailureOf = 'whole' | 'query' | 'pick'
+/** The unions sqliteStorage.ts encodes itself, that no `save…` method takes. */
+interface SqliteEncodings {
+  readFailureOf: ReadFailureOf
+}
+/** Each union the SQLite file stores: those its `save…` methods take, and those it encodes itself (SqliteEncodings). */
+type StoredBySqlite = StoredBy<SqliteStorage> | UnionsIn<SqliteEncodings>
 
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false
 /** Whether one of the `Unions` tuples is `[U]`. */
@@ -73,8 +105,8 @@ type Assert<T extends true> = T
 
 type Listed = typeof STORED_UNIONS
 type ListedUnions = { [N in keyof Listed]: [keyof Listed[N]['values']] }[keyof Listed]
-type Unlisted = StoredBy<SqliteStorage> extends infer U ? (U extends [infer V] ? (Has<ListedUnions, V> extends true ? never : V) : never) : never
-type Unstored = { [N in keyof Listed]: Has<StoredBy<SqliteStorage>, keyof Listed[N]['values']> extends true ? never : N }[keyof Listed]
+type Unlisted = StoredBySqlite extends infer U ? (U extends [infer V] ? (Has<ListedUnions, V> extends true ? never : V) : never) : never
+type Unstored = { [N in keyof Listed]: Has<StoredBySqlite, keyof Listed[N]['values']> extends true ? never : N }[keyof Listed]
 type WebWrong = { [N in keyof Listed]: Has<StoredBy<Storage>, keyof Listed[N]['values']> extends Listed[N]['web'] ? never : N }[keyof Listed]
 
 export type EveryStoredUnionListed = Assert<Check<Unlisted, 'stored, so list its union in STORED_UNIONS, and its values in storedValues.snapshot'>>
