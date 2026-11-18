@@ -5,10 +5,12 @@ import { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, expect } from 'vitest'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { MilestoneQueryStorage, SavedReadStorage, SetupStorage, Storage } from '../../src/storage/storage.js'
+import { stepWriteProblems } from './migrationStepLabel.js'
 import { TEAM } from './pastSchemas.js'
 
 // The migration tests' shared arrangement: each test writes a data file the way an earlier release left it (from
-// pastSchemas.ts), opens it through openSqliteStorage, and checks what reads back.
+// pastSchemas.ts), opens it through openSqliteStorage, and checks what reads back. A test under a `describe('step N: …')`
+// fails unless it writes a file, and each at version N - 1 (stepWriteProblems in migrationStepLabel.ts).
 
 /** What these tests read back from a migrated file: its inputs, and the milestone's query and saved reads. */
 export type Opened = Storage & MilestoneQueryStorage & SavedReadStorage & SetupStorage
@@ -17,14 +19,19 @@ export const AN_ISO_TIMESTAMP = expect.stringMatching(/^\d{4}-\d\d-\d\dT\d\d:\d\
 
 let dir: string
 let storage: Opened | undefined
+/** The version of each data file the running test wrote. */
+let written: number[] = []
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'forecaster-migrations-'))
+  written = []
 })
 
 afterEach(() => {
   closeStorage()
   rmSync(dir, { recursive: true, force: true })
+  const problems = stepWriteProblems(expect.getState().currentTestName, written)
+  if (problems.length > 0) throw new Error(problems.join('\n'))
 })
 
 /** The path of `name` in the test's own directory. */
@@ -45,6 +52,7 @@ export function writeFile(name: string, sql: string, version = 0): string {
   db.exec(sql)
   db.exec(`PRAGMA user_version = ${version}`)
   db.close()
+  written.push(version)
   return file
 }
 
