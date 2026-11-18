@@ -8,9 +8,10 @@ import type { Team } from '../../src/model/team.js'
 import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
 import { STORED_UNIONS } from './storedUnions.js'
 
-// The SQLite file keeps every value of the unions it encodes itself, as STORED_UNIONS lists them, so a value renamed
-// in sqliteStorage.ts, or added to a union but not to the list the file reads it back by, fails here: the typecheck
-// can't see either.
+// What the typecheck can't see in the SQLite file, against STORED_UNIONS: that it writes read_failures.of as exactly
+// ReadFailureOf's values, which no `save…` method takes, so renaming one in sqliteStorage.ts fails here; and that it
+// reads back every value of each union it reads through a list of its own, so one added to a union but not the list
+// fails.
 
 const TEAM: Team = { id: 'team', name: 'My team', source: 'manual', sourceRef: '', installedAt: '2026-01-01T00:00:00Z' }
 const AT = '2026-11-12T09:00:00Z'
@@ -46,7 +47,7 @@ function sqliteFile(): { storage: SqliteStorage; reopen: () => SqliteStorage; fi
 const failedWith = (failure: FailedRead['failure']): FailedRead =>
   failure === 'invalidQuery' ? { failure, message: 'No such label.', at: AT } : { failure, at: AT }
 
-describe('SQLite storage keeps every value of the unions it encodes itself', () => {
+describe('SQLite storage writes each listed value, and reads back each union through a list of its own', () => {
   test('writes which read failures a row holds as ReadFailureOf, every value and nothing else', () => {
     const { storage, file } = sqliteFile()
     storage.saveReadFailures('team', {
