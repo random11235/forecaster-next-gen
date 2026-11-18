@@ -3,7 +3,8 @@ import { Event, HTMLButtonElement, HTMLDetailsElement, HTMLElement, HTMLFormElem
 import type { CannedFixture } from '../../src/connectors/canned.js'
 import { CHECKOUT, TEAM } from '../trackerScenario.js'
 import { connectAndPick, inputsSection, type AppOnTracker } from './appOnTracker.js'
-import { pagesOnTracker, type BrowserPage } from './browserPage.js'
+import { posted, type BrowserPage } from './browserPage.js'
+import { pagesOnTracker } from './pagesOnTracker.js'
 import { post } from './forms.js'
 
 // The Inputs screen's script (#100), run in happy-dom against the local server on the canned connector (#275): what
@@ -29,9 +30,6 @@ const openInputs = ({ connected = false } = {}): Promise<{ app: AppOnTracker; pa
     await connectAndPick(running)
     await post(running, '/inputs/setup/use-these', {})
   })
-
-/** The paths of the forms the page has posted, in the order posted. */
-const posted = (shown: BrowserPage): string[] => shown.requests.filter(({ method }) => method === 'POST').map(({ url }) => url.pathname)
 
 /** The field named `name` in the form posting to `action`, as the page holds it now. */
 const field = (shown: BrowserPage, action: string, name: string): HTMLInputElement => shown.find(`form[action="${action}"] [name="${name}"]`, HTMLInputElement)

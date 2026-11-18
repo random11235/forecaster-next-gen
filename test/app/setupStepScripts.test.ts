@@ -2,9 +2,10 @@ import { describe, expect, test } from 'vitest'
 import { Event, HTMLElement, HTMLInputElement, type Element } from 'happy-dom'
 import type { CannedFixture } from '../../src/connectors/canned.js'
 import type { Choice } from '../../src/connectors/connector.js'
-import { CHECKOUT, finishedOn, open } from '../trackerScenario.js'
+import { CHECKOUT, finishedOn, label, open } from '../trackerScenario.js'
 import { connectAndPick, GITHUB_SHOP } from './appOnTracker.js'
-import { pagesOnTracker, type BrowserPage } from './browserPage.js'
+import { posted, typed, type BrowserPage } from './browserPage.js'
+import { pagesOnTracker } from './pagesOnTracker.js'
 import { post } from './forms.js'
 
 // The setup steps' own scripts, run in happy-dom against the local server on the canned connector (#275): the
@@ -14,7 +15,6 @@ import { post } from './forms.js'
 const STEP = '#milestone-tickets'
 
 const payments: Choice = { kind: 'milestone', name: 'Payments v2', query: 'milestone:"Payments v2"' }
-const bugLabel: Choice = { kind: 'label', name: 'bug', query: 'label:"bug"' }
 const epic = (n: number, name = `Epic ${n}`): Choice => ({ kind: 'epic', name, query: `parent-issue:shop-team/shop#${n}` })
 const listedEpics = Array.from({ length: 100 }, (_, at) => epic(at + 1))
 
@@ -23,7 +23,7 @@ const FIXTURE: CannedFixture = {
   milestoneChoices: [
     { kind: 'epic', choices: listedEpics, pastLimit: true },
     { kind: 'milestone', choices: [payments, CHECKOUT], pastLimit: false },
-    { kind: 'label', choices: [{ kind: 'label', name: 'payments', query: 'label:"payments"' }, bugLabel], pastLimit: false },
+    { kind: 'label', choices: [label('payments'), label('bug')], pastLimit: false },
   ],
   searchable: { epic: [...listedEpics, epic(140, 'Card payments'), epic(141, 'Payouts')] },
   reads: { [CHECKOUT.query]: { tickets: [...open(7), ...finishedOn('f', '2026-11-03', 6)], incomplete: false } },
@@ -32,11 +32,7 @@ const FIXTURE: CannedFixture = {
 const pages = pagesOnTracker()
 
 /** Sets the step's find box to `text`, firing its input, as the browser does on each key. */
-function setFind(shown: BrowserPage, text: string): void {
-  const find = shown.find(`${STEP} input[name=find]`, HTMLInputElement)
-  find.value = text
-  find.dispatchEvent(new Event('input', { bubbles: true }))
-}
+const setFind = (shown: BrowserPage, text: string): void => typed(shown.find(`${STEP} input[name=find]`, HTMLInputElement), text)
 
 /** Whether `element` is displayed, by the page's styles: an element the script hides, they must not show. */
 const displayed = (shown: BrowserPage, element: Element): boolean => shown.window.getComputedStyle(element).display !== 'none'
@@ -113,6 +109,6 @@ describe('the Check step’s sources', () => {
     tracker.dispatchEvent(new Event('change', { bubbles: true }))
     await page.settled()
 
-    expect(page.requests.map(({ method, url }) => `${method} ${url.pathname}`)).toEqual(['POST /inputs/setup/source'])
+    expect(posted(page)).toEqual(['/inputs/setup/source'])
   })
 })

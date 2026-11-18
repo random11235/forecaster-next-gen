@@ -1,10 +1,11 @@
 import { describe, expect, test } from 'vitest'
-import { Event, HTMLAnchorElement, HTMLInputElement } from 'happy-dom'
+import { HTMLAnchorElement, HTMLInputElement } from 'happy-dom'
 import type { CannedFixture } from '../../src/connectors/canned.js'
 import type { Choice } from '../../src/connectors/connector.js'
-import { CHECKOUT } from '../trackerScenario.js'
+import { CHECKOUT, finishedOn, label } from '../trackerScenario.js'
 import { connectAndPick } from './appOnTracker.js'
-import { pagesOnTracker, type BrowserPage } from './browserPage.js'
+import { typed, type BrowserPage } from './browserPage.js'
+import { pagesOnTracker } from './pagesOnTracker.js'
 import { post } from './forms.js'
 
 // The Comparable work step's candidates script (#205), run in happy-dom against the local server on the canned
@@ -13,7 +14,6 @@ import { post } from './forms.js'
 
 const CANDIDATES_PATH = '/inputs/comparable-work-candidates'
 
-const label = (name: string): Choice => ({ kind: 'label', name, query: `label:"${name}"` })
 const payments = label('payments')
 const bug = label('bug')
 const broken = label('broken')
@@ -21,7 +21,7 @@ const broken = label('broken')
 const MORE_BU = ['build', 'bulk', 'buffer', 'bundle'].map(label)
 
 /** A ticket finished on each day in `days`. */
-const finishedOn = (prefix: string, days: string[]) => days.map((day, n) => ({ id: `${prefix}${n}`, finishedAt: `${day}T10:00:00Z` }))
+const finishedEachOf = (prefix: string, days: readonly string[]) => days.flatMap((day) => finishedOn(prefix, day, 1))
 
 /**
  * The milestone finishes 2 a week from 1 Oct, payments 2 in all, so slower; the labels listed with them, `labels`,
@@ -36,14 +36,14 @@ const fixture = (labels: readonly Choice[]): CannedFixture => ({
     [CHECKOUT.query]: {
       tickets: [
         { id: 'm-open' },
-        ...finishedOn(
+        ...finishedEachOf(
           'm',
           ['10-02', '10-03', '10-09', '10-10', '10-16', '10-17', '10-23', '10-24', '10-30', '10-31', '11-06', '11-07'].map((day) => `2026-${day}`),
         ),
       ],
       incomplete: false,
     },
-    [payments.query]: { tickets: [{ id: 'p-open' }, ...finishedOn('p', ['2026-10-02', '2026-10-30'])], incomplete: false },
+    [payments.query]: { tickets: [{ id: 'p-open' }, ...finishedEachOf('p', ['2026-10-02', '2026-10-30'])], incomplete: false },
     [broken.query]: { failure: 'unavailable' },
   },
 })
@@ -72,11 +72,7 @@ function openLink(shown: BrowserPage, choice: Choice): void {
 const findBox = (shown: BrowserPage): HTMLInputElement => shown.find('#comparable-work input[name=comparableFind]', HTMLInputElement)
 
 /** Sets the find box to `text`, firing its input, as the browser does on each key. */
-function setFind(shown: BrowserPage, text: string): void {
-  const find = findBox(shown)
-  find.value = text
-  find.dispatchEvent(new Event('input', { bubbles: true }))
-}
+const setFind = (shown: BrowserPage, text: string): void => typed(findBox(shown), text)
 
 /** Types `text` on into the step's find box, one key at a time, as the browser fires each. */
 function typeInFind(shown: BrowserPage, text: string): void {
@@ -156,7 +152,7 @@ describe('the candidates script', () => {
     openLink(page, payments)
     await first.held
     openLink(page, bug)
-    await page.until(() => candidates(page).includes('Nothing finished'))
+    await page.until('the newer answer', () => candidates(page).includes('Nothing finished'))
     first.release()
     await page.settled()
 

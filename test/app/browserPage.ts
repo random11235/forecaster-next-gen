@@ -1,8 +1,5 @@
-import { afterEach } from 'vitest'
-import { Browser, type BrowserWindow, type Document, type Element } from 'happy-dom'
+import { Browser, Event, type BrowserWindow, type Document, type Element, type HTMLInputElement } from 'happy-dom'
 import type { RunningApp } from '../../src/app/launch.js'
-import type { CannedFixture } from '../../src/connectors/canned.js'
-import { appOnTracker, type AppOnTracker } from './appOnTracker.js'
 
 // A page of the running app in happy-dom, its scripts running (#275): what the EM's browser does with the HTML the
 // other app tests check. Its `fetch` reaches the app's own server, so a script's saves go through the real routes to
@@ -42,10 +39,16 @@ export interface BrowserPage {
    * answers drop theirs. A promise rejection left unhandled isn't the page's: Vitest fails the run on it.
    */
   settled(): Promise<void>
-  /** Waits until `shows()` is true of the page, checking it each time the page changes: for while an answer is held. */
-  until(shows: () => boolean): Promise<void>
+  /**
+   * Waits until `shows()` is true of the page, checking it each time the page changes: for while an answer is held.
+   * It fails, saying it waited for `what`, if the page hasn't shown it within `UNTIL_LIMIT_MS`.
+   */
+  until(what: string, shows: () => boolean): Promise<void>
   close(): Promise<void>
 }
+
+/** How long `until` waits for the page to show what it waits for: far longer than any answer from the local server takes. */
+const UNTIL_LIMIT_MS = 2000
 
 /** A stand-in for the `/live` reload script's `EventSource`, which would hold a connection open: it connects nowhere. */
 class NoEventSource {
@@ -102,13 +105,13 @@ export async function openPage(running: Pick<RunningApp, 'url'>, path: string): 
   })
   const page = browser.newPage()
   /** Throws what the page's scripts threw and left uncaught since last asked. */
-  const thrown = (): void => {
+  const throwUncaught = (): void => {
     if (errors.length > 0) throw new AggregateError(errors.splice(0), 'the page’s scripts threw')
   }
-  const notHeld = (hold: Hold): Error => new Error(`the answer from ${hold.path} is held: release it before the page can settle`)
+  const stillHeld = (hold: Hold): Error => new Error(`the answer from ${hold.path} is held: release it before the page can settle`)
   await page.goto(new URL(path, running.url).href)
   await page.waitUntilComplete()
-  thrown()
+  throwUncaught()
   requests.length = 0
   return {
     get window() {
@@ -140,23 +143,31 @@ export async function openPage(running: Pick<RunningApp, 'url'>, path: string): 
     },
     async settled() {
       const stuck = holds.find(({ state }) => state === 'held')
-      if (stuck) throw notHeld(stuck)
+      if (stuck) throw stillHeld(stuck)
       try {
-        await Promise.race([page.waitUntilComplete(), new Promise<never>((_, reject) => (heldWhileSettling = (hold) => reject(notHeld(hold))))])
+        await Promise.race([page.waitUntilComplete(), new Promise<never>((_, reject) => (heldWhileSettling = (hold) => reject(stillHeld(hold))))])
       } finally {
         heldWhileSettling = () => {}
       }
-      thrown()
+      throwUncaught()
     },
-    until(shows) {
+    until(what, shows) {
       const { window } = page.mainFrame
-      return new Promise((resolve) => {
+      return new Promise((resolve, reject) => {
         if (shows()) return resolve()
         const watching = new window.MutationObserver(() => {
           if (!shows()) return
-          watching.disconnect()
+          done()
           resolve()
         })
+        const limit = setTimeout(() => {
+          done()
+          reject(new Error(`the page didn’t show ${what} within ${UNTIL_LIMIT_MS}ms`))
+        }, UNTIL_LIMIT_MS)
+        const done = (): void => {
+          watching.disconnect()
+          clearTimeout(limit)
+        }
         watching.observe(window.document, { childList: true, subtree: true, characterData: true, attributes: true })
       })
     },
@@ -164,39 +175,11 @@ export async function openPage(running: Pick<RunningApp, 'url'>, path: string): 
   }
 }
 
-/** An app on the canned connector, open in happy-dom; both closed after each test. */
-export interface OpenedPage {
-  app: AppOnTracker
-  page: BrowserPage
+/** Sets `field` to `text`, firing its input, as the browser does on each key. */
+export function typed(field: HTMLInputElement, text: string): void {
+  field.value = text
+  field.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
-/**
- * For a test file of browser pages: opens `path` of an app on `fixture`, once `arrange` has entered what the page
- * needs, and closes both after each test. `stopApp` stops the app early, as when it stops answering.
- */
-export function pagesOnTracker(): {
-  open(fixture: CannedFixture, path: string, arrange?: (running: RunningApp) => Promise<void>): Promise<OpenedPage>
-  stopApp(): Promise<void>
-} {
-  let app: AppOnTracker | undefined
-  let page: BrowserPage | undefined
-  afterEach(async () => {
-    await page?.close()
-    page = undefined
-    await app?.close()
-    app = undefined
-  })
-  return {
-    async open(fixture, path, arrange = async () => {}) {
-      const opened = await appOnTracker(fixture)
-      app = opened
-      await arrange(opened.running)
-      page = await openPage(opened.running, path)
-      return { app: opened, page }
-    },
-    async stopApp() {
-      await app?.close()
-      app = undefined
-    },
-  }
-}
+/** The paths of the forms and fetches `page` has posted, in the order posted. */
+export const posted = (page: BrowserPage): string[] => page.requests.filter(({ method }) => method === 'POST').map(({ url }) => url.pathname)
