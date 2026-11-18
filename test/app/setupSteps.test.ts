@@ -29,6 +29,12 @@ afterEach(async () => {
   asked = 0
 })
 
+/** The app's storage, once `start` has opened it. */
+function stored(): TeamStorage {
+  if (storage === undefined) throw new Error('No storage yet: start the app first')
+  return storage
+}
+
 /** The app, not yet connected, its canned connector counting each thing it is asked. */
 async function start(): Promise<RunningApp> {
   storage = openSqliteStorage(':memory:')
@@ -286,10 +292,10 @@ describe('the draft (#218)', () => {
 
     await post(running, '/inputs/milestone-query/add', { ...CHECKOUT })
 
-    expect(storage!.milestoneQuery('team')).toBeUndefined()
+    expect(stored().milestoneQuery('team')).toBeUndefined()
     expect(await page(running, '/inputs')).toContain('Checkout v2')
     await post(running, '/inputs/setup/use-these', {})
-    expect(storage!.milestoneQuery('team')?.query).toBe(CHECKOUT.query)
+    expect(stored().milestoneQuery('team')?.query).toBe(CHECKOUT.query)
   })
 
   test('Cancel is offered on every step of a first setup, and throws away what was started there', async () => {
@@ -303,8 +309,8 @@ describe('the draft (#218)', () => {
     const cancelled = await post(running, '/inputs/setup/cancel', {})
 
     expect(cancelled.headers.get('location')).toBe('/inputs')
-    expect(storage!.connection('team')).toBeUndefined()
-    expect(storage!.setupDraft('team')).toBeUndefined()
+    expect(stored().connection('team')).toBeUndefined()
+    expect(stored().setupDraft('team')).toBeUndefined()
   })
 
   test('Cancel, offered once Change reopens the steps, throws the draft away, back to the summary', async () => {
@@ -320,7 +326,7 @@ describe('the draft (#218)', () => {
 
     expect(cancelled.headers.get('location')).toBe('/inputs')
     expect(await page(running, '/inputs')).toContain('id="setup-summary"')
-    expect(storage!.milestoneQuery('team')?.query).toBe(CHECKOUT.query)
+    expect(stored().milestoneQuery('team')?.query).toBe(CHECKOUT.query)
   })
 
   test('once the connection is changed in steps Change reopened, says why in place of Cancel', async () => {

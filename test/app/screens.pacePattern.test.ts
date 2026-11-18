@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { startOnSavedData, page, text, post, submitPace, dateAt, submitCounts, choosePace } from './screensHarness.js'
+import { found } from './found.js'
 
 // The screens through the local server: see screensHarness.ts.
 
@@ -28,7 +29,7 @@ describe('Milestone forecast screen: pace pattern', () => {
     await startOnSavedData()
     await submitCounts(STEPPED_UP)
     await choosePace('counts')
-    const offered = text(await page('/')).match(/(\d{1,2} [A-Z][a-z]{2} 2026) from 22 Sep/)![1]!
+    const offered = found(text(await page('/')), /(\d{1,2} [A-Z][a-z]{2} 2026) from 22 Sep/, 1)
 
     const applied = await post('/pace-action/apply', [
       ['action', 'startFrom'],
@@ -52,7 +53,7 @@ describe('Milestone forecast screen: pace pattern', () => {
     await startOnSavedData()
     await submitCounts('4, 3, 4, 5, 4, 9, 8, 9')
     await choosePace('counts')
-    const date = (await page('/')).match(/name="date" value="(\d{4}-\d{2}-\d{2})"/)![1]!
+    const date = found(await page('/'), /name="date" value="(\d{4}-\d{2}-\d{2})"/, 1)
 
     await post('/pace-action/apply', [
       ['action', 'startFrom'],
@@ -69,9 +70,11 @@ describe('Milestone forecast screen: pace pattern', () => {
     await startOnSavedData()
     await submitCounts('5, 6, 5, 4, 6, 5, 5, 4, 6, 5, 23, 5, 6, 4')
     await choosePace('counts')
-    const period = (await page('/')).match(
+    const period = found(
+      await page('/'),
       /<input type="hidden" name="action" value="leaveOut"><input type="hidden" name="period" value="(\d{4}-\d{2}-\d{2})">/,
-    )![1]!
+      1,
+    )
 
     await post('/pace-action/apply', [
       ['action', 'leaveOut'],
