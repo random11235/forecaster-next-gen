@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { PACE_MODES, type PaceMode, type TicketsSource } from '../../model/milestoneInputs.js'
+import { PACE_MODES, TICKETS_SOURCES, type PaceMode, type TicketsSource } from '../../model/milestoneInputs.js'
 import type { FailedRead, FailedReads, ReadFailures } from '../../model/readFailures.js'
 import type { SetupDraft } from '../../model/setupDraft.js'
 import type { SetupClosed, SetupState, SetupStorage } from '../storage.js'
@@ -133,7 +133,7 @@ function setupStateIn(row: Row | undefined): SetupState {
 }
 
 /** A drafted source of tickets remaining, from its column: none for none, or one this version doesn't know. */
-const ticketsSourceOf = (value: unknown): TicketsSource | undefined => (['tracker', 'typed'] as const).find((known) => known === value)
+const ticketsSourceOf = (value: unknown): TicketsSource | undefined => TICKETS_SOURCES.find((known) => known === value)
 
 /** A drafted pace mode, from its column: none for none, or one this version doesn't know. */
 const paceModeOf = (value: unknown): PaceMode | undefined => PACE_MODES.find((known) => known === value)

@@ -2,7 +2,6 @@ import type { DatabaseSync } from 'node:sqlite'
 import { choiceKindOf, type Choice } from '../../connectors/connector.js'
 import type { MilestoneQuery } from '../../model/milestoneQuery.js'
 import type { MilestoneQueryStorage } from '../storage.js'
-import type { Row } from './sqliteDatabase.js'
 import { isListOf, isObject, isString, parseStored } from './storedJson.js'
 
 /*

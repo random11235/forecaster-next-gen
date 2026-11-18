@@ -1,25 +1,14 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { afterEach, describe, expect, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import type { MilestoneQuery } from '../../src/model/milestoneQuery.js'
 import type { SavedRead } from '../../src/model/savedRead.js'
-import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
-import type { SetupState, Storage } from '../../src/storage/storage.js'
-import { TEAM } from './storageContractFixtures.js'
+import type { SqliteStorage } from '../../src/storage/sqliteStorage.js'
+import type { SetupState } from '../../src/storage/storage.js'
+import { TEAM, temporarySqliteFiles } from './storageContractFixtures.js'
 
 // The Storage contract's cases for the team's queries and reads in each target, which only the SQLite file keeps,
 // beside storageContract.test.ts.
 
-let dir: string | undefined
-let open: Storage | undefined
-
-afterEach(() => {
-  open?.close()
-  open = undefined
-  if (dir) rmSync(dir, { recursive: true, force: true })
-  dir = undefined
-})
+const sqliteFile = temporarySqliteFiles()
 
 describe("SQLite storage's query targets", () => {
   const LAUNCH_QUERY: MilestoneQuery = { picks: [{ kind: 'milestone', name: 'Launch', query: 'milestone:"Launch"' }], query: 'milestone:"Launch"' }
@@ -34,18 +23,6 @@ describe("SQLite storage's query targets", () => {
   const THIRD = readAt('2026-11-12T09:00:00Z')
   const launch = { teamId: 'team', query: LAUNCH_QUERY.query }
   const epic = { teamId: 'team', query: EPIC_QUERY.query }
-
-  function sqliteFile(): { storage: SqliteStorage; reopen: () => SqliteStorage } {
-    dir = mkdtempSync(join(tmpdir(), 'forecaster-'))
-    const file = join(dir, 'forecaster.db')
-    const reopen = (): SqliteStorage => {
-      open?.close()
-      const storage = openSqliteStorage(file)
-      open = storage
-      return storage
-    }
-    return { storage: reopen(), reopen }
-  }
 
   /** A team with the Launch milestone saved and read once, its setup as `state`. */
   function saved(state: SetupState): { storage: SqliteStorage; reopen: () => SqliteStorage } {

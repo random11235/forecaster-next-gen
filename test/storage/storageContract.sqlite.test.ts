@@ -1,14 +1,9 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { afterEach, describe, expect, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import type { Connection } from '../../src/model/connection.js'
 import type { MilestoneQuery } from '../../src/model/milestoneQuery.js'
 import type { SavedRead } from '../../src/model/savedRead.js'
-import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
-import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage, Storage } from '../../src/storage/storage.js'
-import { LAUNCH, TEAM } from './storageContractFixtures.js'
+import { LAUNCH, TEAM, temporarySqliteFiles } from './storageContractFixtures.js'
 
 // The Storage contract's cases for what only the SQLite file keeps, beside storageContract.test.ts: the team's
 // connection, each query's saved reads, and the milestone query and comparable work's.
@@ -16,29 +11,9 @@ import { LAUNCH, TEAM } from './storageContractFixtures.js'
 const GITHUB: Connection = { tracker: 'github', owner: 'acme', repo: 'checkout' }
 const JIRA: Connection = { tracker: 'jira', site: 'acme.atlassian.net', projectKey: 'PAY', email: 'em@acme.example' }
 
-let dir: string | undefined
-let open: Storage | undefined
-
-afterEach(() => {
-  open?.close()
-  open = undefined
-  if (dir) rmSync(dir, { recursive: true, force: true })
-  dir = undefined
-})
+const sqliteFile = temporarySqliteFiles()
 
 describe("SQLite storage's connection", () => {
-  function sqliteFile(): { storage: Storage & ConnectionStorage; reopen: () => Storage & ConnectionStorage } {
-    dir = mkdtempSync(join(tmpdir(), 'forecaster-'))
-    const file = join(dir, 'forecaster.db')
-    const reopen = (): Storage & ConnectionStorage => {
-      open?.close()
-      const storage = openSqliteStorage(file)
-      open = storage
-      return storage
-    }
-    return { storage: reopen(), reopen }
-  }
-
   test("keeps the team's connection, replacing it when saved again, until it is removed", () => {
     const { storage, reopen } = sqliteFile()
     storage.saveTeam(TEAM)
@@ -84,18 +59,6 @@ describe("SQLite storage's saved reads", () => {
     incomplete: false,
     readAt: '2026-11-11T08:15:00Z',
     finishedSince: '2026-09-09T08:15:00Z',
-  }
-
-  function sqliteFile(): { storage: Storage & SavedReadStorage; reopen: () => Storage & SavedReadStorage } {
-    dir = mkdtempSync(join(tmpdir(), 'forecaster-'))
-    const file = join(dir, 'forecaster.db')
-    const reopen = (): Storage & SavedReadStorage => {
-      open?.close()
-      const storage = openSqliteStorage(file)
-      open = storage
-      return storage
-    }
-    return { storage: reopen(), reopen }
   }
 
   test("keeps a query's last read, with its tickets in order, whether it was incomplete, when it was read, and how far back", () => {
@@ -190,18 +153,6 @@ describe("SQLite storage's milestone query", () => {
     query: 'parent-issue:acme/checkout#106 OR label:"payments"',
   }
 
-  function sqliteFile(): { storage: Storage & MilestoneQueryStorage; reopen: () => Storage & MilestoneQueryStorage } {
-    dir = mkdtempSync(join(tmpdir(), 'forecaster-'))
-    const file = join(dir, 'forecaster.db')
-    const reopen = (): Storage & MilestoneQueryStorage => {
-      open?.close()
-      const storage = openSqliteStorage(file)
-      open = storage
-      return storage
-    }
-    return { storage: reopen(), reopen }
-  }
-
   test("keeps the milestone's picks in order and its query, replacing both when saved again", () => {
     const { storage, reopen } = sqliteFile()
     storage.saveTeam(TEAM)
@@ -247,10 +198,10 @@ describe("SQLite storage's milestone query", () => {
   })
 
   test('reads back no pick of a kind it doesn’t know, keeping the query and the other picks', () => {
-    const { storage, reopen } = sqliteFile()
+    const { file, storage, reopen } = sqliteFile()
     storage.saveTeam(TEAM)
     storage.saveMilestoneQuery('team', PICKED)
-    const db = new DatabaseSync(join(dir!, 'forecaster.db'))
+    const db = new DatabaseSync(file)
     const stored = [{ kind: 'component', name: 'Payments', query: 'component = Payments' }, ...PICKED.picks]
     db.prepare('UPDATE milestone_queries SET picks = ?').run(JSON.stringify(stored))
     db.close()
@@ -282,10 +233,10 @@ describe("SQLite storage's milestone query", () => {
   })
 
   test("reads back no comparable-work pick of a kind it doesn't know, keeping the query", () => {
-    const { storage, reopen } = sqliteFile()
+    const { file, storage, reopen } = sqliteFile()
     storage.saveTeam(TEAM)
     storage.saveComparableWorkQuery('team', PICKED)
-    const db = new DatabaseSync(join(dir!, 'forecaster.db'))
+    const db = new DatabaseSync(file)
     const stored = [{ kind: 'component', name: 'Payments', query: 'component = Payments' }, ...PICKED.picks]
     db.prepare('UPDATE comparable_work_queries SET picks = ?').run(JSON.stringify(stored))
     db.close()

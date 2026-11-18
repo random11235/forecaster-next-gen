@@ -2,9 +2,12 @@ import type { Storage } from '../storage/storage.js'
 import { escapeHtml } from './html.js'
 import { appContext, route, type AppContext, type Request } from './routes.js'
 
-/** A screen to show: the path it is at, after any redirect, its status and the whole page. */
+/**
+ * A screen to show: its status, the whole page, and the path it is at, after any redirect; a failed post has none, so
+ * the URL stays as it was.
+ */
 export interface Page {
-  path: string
+  path?: string
   status: number
   html: string
 }
@@ -21,22 +24,20 @@ export interface WebAppOptions {
   today?: () => string
 }
 
-const NOT_FOUND = `<!doctype html>
+/** A page with no screen of the app's: `title` and the paragraph `body`, already escaped. */
+const plainPage = (title: string, body: string): string => `<!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Not found · Forecaster</title></head>
-<body><p>Not found. <a href="/">Back to the Milestone forecast</a></p></body>
+<head><meta charset="utf-8"><title>${title} · Forecaster</title></head>
+<body><p>${body}</p></body>
 </html>
 `
 
+const NOT_FOUND = plainPage('Not found', 'Not found. <a href="/">Back to the Milestone forecast</a>')
+
 /** A request that threw, answered as the server answers it (`launch.ts`): a 500 giving the error. */
-function failed(path: string, error: unknown): Page {
-  const html = `<!doctype html>
-<html lang="en">
-<head><meta charset="utf-8"><title>Error · Forecaster</title></head>
-<body><p>${escapeHtml(`Forecaster error: ${String(error)}`)}</p></body>
-</html>
-`
-  return { path, status: 500, html }
+function failed(request: Request, error: unknown): Page {
+  const html = plainPage('Error', escapeHtml(`Forecaster error: ${String(error)}`))
+  return { ...(request.method === 'GET' && { path: request.path }), status: 500, html }
 }
 
 /**
@@ -45,17 +46,17 @@ function failed(path: string, error: unknown): Page {
  * from the first open on.
  */
 export function openWebApp(options: WebAppOptions): WebApp {
-  let context: AppContext | Error
+  let opened: { context: AppContext } | { error: unknown }
   try {
-    context = appContext(options.storage, options.today)
+    opened = { context: appContext(options.storage, options.today) }
   } catch (error) {
-    context = error as Error
+    opened = { error }
   }
   return {
     show(request) {
+      if ('error' in opened) return failed(request, opened.error)
       try {
-        if (context instanceof Error) throw context
-        const reply = route(request, context)
+        const reply = route(request, opened.context)
         switch (reply.kind) {
           case 'html':
             // a post answered with a page names the screen it shows
@@ -66,7 +67,7 @@ export function openWebApp(options: WebAppOptions): WebApp {
             return { path: request.path, status: 404, html: NOT_FOUND }
         }
       } catch (error) {
-        return failed(request.path, error)
+        return failed(request, error)
       }
     },
   }
