@@ -90,7 +90,8 @@ test/
   dependencyRules.test.ts # the dependency rules (architecture-dependency-rules.md) that keep connectors/ and secrets/ at the edge
   testSeams.test.ts       # each test folder imports only its seam's entry points (architecture-test-seams.md): TEST_SEAMS, the one list
   storedJsonRules.test.ts # nothing in src/storage/ uses JSON but to stringify, but lib/storedJson.ts
-  stringValueRules.test.ts # string-literal union values in src/ and the schema's CHECK values are camelCase
+  stringValueRules.test.ts # stored union values (storage/storedUnions.ts), string-literal union values in src/ and the schema's CHECK values are camelCase
   importScan.ts           # reading what files import, for dependencyRules.test.ts and testSeams.test.ts
-  sourceCode.ts           # a file's code apart from its comments, strings and regexes, for the two rules tests above
+  sourceCode.ts           # listing a folder's .ts files, for importScan.ts, storedJsonRules.test.ts and stringValueRules.test.ts; a file's code apart from its comments, strings and regexes, for storedJsonRules.test.ts and stringValueRules.test.ts
+  sourceCode.test.ts      # reading a file's code apart from its comments, strings, regexes and template text
 ```

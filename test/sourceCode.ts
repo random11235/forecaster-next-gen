@@ -1,5 +1,15 @@
-// Reading a source file's code apart from its comments, strings and regex literals, for the scan tests that check
-// what code says: storedJsonRules.test.ts and stringValueRules.test.ts.
+import { readdirSync } from 'node:fs'
+
+// Reading the repo's source files for the scan tests: listing them, for importScan.ts, storedJsonRules.test.ts and
+// stringValueRules.test.ts, and reading a file's code apart from its comments, strings and regex literals, for the two
+// rules tests.
+
+/** Each `.ts` file under `dir`, at any depth, as a path relative to `dir`, sorted. */
+export function typeScriptFilesUnder(dir: string): string[] {
+  return readdirSync(dir, { recursive: true, encoding: 'utf8' })
+    .filter((file) => file.endsWith('.ts'))
+    .sort()
+}
 
 /** The keywords a regex literal can follow, where a `/` after any other word is division. */
 const BEFORE_REGEX = new Set(['return', 'typeof', 'case', 'in', 'of', 'void', 'delete', 'yield', 'await', 'instanceof', 'new', 'throw', 'else', 'do'])
