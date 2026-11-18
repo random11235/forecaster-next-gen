@@ -7,6 +7,10 @@ import { type SourceFile, typeScriptSourcesUnder } from './sourceFiles.js'
 // is in range by construction (`counts[at]!` over the same array's own indices) is allowed, as `noUncheckedIndexedAccess`
 // can't see it. A value that can really be missing gets a check, and a type you can't name means the shape is wrong.
 // oxlint's `no-non-null-assertion` bans every `!`, so it can't allow the index: hence this scan.
+//
+// The scan reads text, not a syntax tree, so it can be wrong both ways. A value named `any` after `:` or `,` (`c ? a :
+// any`, `{ a: any }`, `f(a, any)`) or `=` (`x = any`) is flagged as a type; rename the value. A regex literal straight
+// after `if (…)` is read as division, so its text is scanned as code and may be flagged.
 
 /** The repo's root, which src/ and test/ sit in. */
 const root = join(import.meta.dirname, '..')
@@ -18,15 +22,18 @@ interface TypeCheckOff {
 }
 
 /**
- * `any` in a type position: after `:`, `<`, `,`, `(`, `|`, `&`, `=`, `=>` or a type keyword (`as`, `extends`, `keyof`,
- * `satisfies`), or before `[]`.
+ * `any` in a type position: after `:`, `,`, `=>` or a type keyword (`as`, `extends`, `keyof`, `satisfies`); after `<`
+ * with no space, as Prettier writes a type argument, unlike `n < any`; after one `=`, `|` or `&`, unlike `===`, `||`
+ * and `&&`; after a `(` that doesn't follow a name, `)` or `]`, unlike a call or `if (any)`; or before `[]`.
  */
-const ANY = /(?:[:<,(|&=]\s*|=>\s*|\b(?:as|extends|keyof|satisfies)\s+)any\b|\bany\s*\[\s*\]/g
+const ANY =
+  /(?:[:,]\s*|=>\s*|<|(?<![=!<>])=\s*|(?<![|&])[|&](?![|&])\s*|(?<![\p{L}\p{N}_$)\]]\s*)\(\s*|\b(?:as|extends|keyof|satisfies)\s+)any\b|\bany\s*\[\s*\]/gu
 
 /**
  * A non-null `!`: one straight after a name, a `)` or a quote, but not the start of `!=` or `!==`. A `!` that starts a
  * not follows an operator, a `(` or a space instead; Prettier keeps a space between a keyword and a not (`return !x`).
  * One straight after `]`, on an index, is allowed, so not matched.
+ * TypeScript doesn't read a `!` after a line break as a non-null, so only one on the same line counts.
  */
 const NON_NULL = /(?<=[\p{L}\p{N}_$)'"`])!(?!=)/gu
 
@@ -93,6 +100,10 @@ describe('type check rules', () => {
     ['!= and !==', 'if (a != b || c !== d) return'],
     ['! and any in a comment or a string', "// value! as any\nconst text = 'value! as any'"],
     ['any as a word in a name', 'const many = anything.any'],
+    ['a value named any compared', 'if (n < any || n <= any || n === any) return'],
+    ['a value named any in a logical expression', 'const value = a || any || (b && any)'],
+    ['a value named any as an argument', 'f(any)'],
+    ['a value named any in a condition', 'if (any) return'],
   ])('passes %s', (_, source) => {
     expect(typeCheckOffs({ file: 'example.ts', source })).toEqual([])
   })
