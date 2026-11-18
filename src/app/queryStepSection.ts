@@ -126,6 +126,11 @@ export const COMPARABLE_WORK_STEP: StepSection = stepSection({
 /** The setup steps that pick or write a query, in the order the Inputs screen shows them. */
 export const STEP_SECTIONS: readonly StepSection[] = [MILESTONE_STEP, COMPARABLE_WORK_STEP]
 
+/** Each step's form, by its action's path: the step it edits, and how its fields are read. */
+export const STEP_FORMS: ReadonlyMap<string, { section: StepSection; read: StepFormReader }> = new Map(
+  STEP_SECTIONS.flatMap((section) => [...section.forms].map(([path, read]) => [path, { section, read }] as const)),
+)
+
 /**
  * A step picking or writing one of the team's queries (`section`), in the local server build once connected; none
  * otherwise. Each pick and each removal posts at once; the find box filters the lists as the EM types (see
