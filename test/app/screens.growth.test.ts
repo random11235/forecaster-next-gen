@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { startOnSavedData, page, text, post, submitPace, dateAt, growthForm } from './screensHarness.js'
+import { found } from './found.js'
 
 // The screens through the local server: see screensHarness.ts.
 
@@ -99,7 +100,7 @@ describe('Inputs screen: growth', () => {
     const response = await post('/inputs/growth', growthForm({ 'high-low': '4' }))
 
     expect(response.status).toBe(400)
-    const growth = (await response.text()).match(/<section[^>]*id="growth"[\s\S]*?<\/section>/)![0]
+    const growth = found(await response.text(), /<section[^>]*id="growth"[\s\S]*?<\/section>/)
     expect(growth).toMatch(/<p class="error" role="alert">High ambiguity: the low end must not be above the high end.<\/p>[\s\S]*<table/)
   })
 
