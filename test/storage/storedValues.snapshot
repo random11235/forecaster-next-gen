@@ -1,0 +1,14 @@
+# The string values saved data can hold, by stored union, as test/storage/storedUnions.ts lists them: a line each,
+# `Name (table.column, …): value, …`, the columns those that store it. A value added is added here in the same diff;
+# one renamed or removed needs a migration that maps it in each column (test/storage/storedValues.test.ts).
+Team.source (teams.source): manual, sample, jira, github
+Ambiguity (milestone_inputs.ambiguity): low, medium, high
+PaceMode (milestone_inputs.pace_mode, setup_drafts.pace_mode): range, counts, tracker
+TicketsSource (milestone_inputs.tickets_source, setup_drafts.tickets_source): tracker, typed
+PaceAction.kind (milestone_inputs.pace_window): startFrom, leaveOut
+Connection.tracker (connections.tracker): github, jira
+Choice.kind (milestone_queries.picks, comparable_work_queries.picks, setup_drafts.milestone_picks, setup_drafts.comparable_work_picks): epic, label, milestone, fixVersion
+SetupClosed (setups.closed): done, skipped
+ConnectionChange (setups.connection): made, changed
+FailedRead.failure (setup_draft_failures.failure, read_failures.failure): invalidQuery, outOfScope, notFound, unauthorised, unavailable, keychainFailed
+ReadFailureOf (read_failures.of): whole, query, pick
