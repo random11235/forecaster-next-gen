@@ -6,8 +6,9 @@ const MASK_64 = 0xffffffffffffffffn
 export function hashJson(value: unknown): string {
   let hash = FNV_OFFSET
   for (const char of canonicalJson(value)) {
-    // a character from a string's iterator always has a code point
-    hash ^= BigInt(char.codePointAt(0) ?? 0)
+    const codePoint = char.codePointAt(0)
+    if (codePoint === undefined) throw new Error('A character from a string’s iterator has no code point.')
+    hash ^= BigInt(codePoint)
     hash = (hash * FNV_PRIME) & MASK_64
   }
   return hash.toString(16).padStart(16, '0')
