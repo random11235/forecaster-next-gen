@@ -1,8 +1,7 @@
 import { describe, expect, test } from 'vitest'
-import { HTMLAnchorElement, HTMLInputElement } from 'happy-dom'
+import { HTMLAnchorElement, HTMLElement, HTMLInputElement } from 'happy-dom'
 import type { CannedFixture } from '../../src/connectors/canned.js'
 import type { Choice } from '../../src/connectors/connector.js'
-import { FEW_CANDIDATES, NARROWED_DEBOUNCE_MS } from '../../src/forecast/candidates.js'
 import { CHECKOUT, finishedOn, label } from '../trackerScenario.js'
 import { connectAndPick } from './appOnTracker.js'
 import { typed, type BrowserPage } from './browserPage.js'
@@ -18,8 +17,9 @@ const CANDIDATES_PATH = '/inputs/comparable-work-candidates'
 const payments = label('payments')
 const bug = label('bug')
 const broken = label('broken')
-// with bug and broken, more than a few labels with a "b"; with bug, a few with "bu"
-const MORE_BU = Array.from({ length: FEW_CANDIDATES - 1 }, (_, n) => label(`bulk ${n}`))
+const LETTERS = 'zyxwvutsrqpon'
+// "zy", "zyx" and on, each one letter longer than the last: each letter typed past "zy" narrows the lists by one
+const NARROWING = Array.from({ length: LETTERS.length - 1 }, (_, n) => label(LETTERS.slice(0, n + 2)))
 
 /** A ticket finished on each day in `days`. */
 const finishedEachOf = (prefix: string, days: readonly string[]) => days.flatMap((day) => finishedOn(prefix, day, 1))
@@ -81,6 +81,12 @@ function typeInFind(shown: BrowserPage, text: string): void {
   for (const at of text.split('').keys()) setFind(shown, before + text.slice(0, at + 1))
 }
 
+/** What the step's candidates script runs by, as the page carries it: how few narrowed choices it opens, and the pause it waits for. */
+function runsBy(shown: BrowserPage): { few: number; pauseMs: number } {
+  const { few, pauseMs } = shown.find('#comparable-work .candidates', HTMLElement).dataset
+  return { few: Number(few), pauseMs: Number(pauseMs) }
+}
+
 /** Waits `ms` on the clock the page's timers run on. */
 const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -102,22 +108,25 @@ describe('the candidates script', () => {
     expect(candidates(page)).toContain('payments')
   })
 
-  test(`typing that narrows the lists to a few, ${FEW_CANDIDATES} or fewer, opens those once the typing has paused; to more, none`, async () => {
-    const page = await openStep(MORE_BU)
+  test('typing that narrows the lists to a few, as few as the step opens or fewer, opens those once the typing has paused; to more, none', async () => {
+    const page = await openStep(NARROWING)
+    const { few } = runsBy(page)
+    expect(few).toBeLessThan(NARROWING.length)
+    const toOneMore = LETTERS.slice(0, LETTERS.length - few)
 
-    // "b" narrows the labels to more than a few
-    typeInFind(page, 'b')
+    // narrows the labels to one more than a few
+    typeInFind(page, toOneMore)
     await page.settled()
     expect(asked(page)).toEqual([])
 
-    // "bu" to a few
-    typeInFind(page, 'u')
+    // one letter more, to a few
+    typeInFind(page, LETTERS[toOneMore.length]!)
     // a moment after the typing, before the pause it waits for
     await wait(0)
     expect(asked(page)).toEqual([])
     await page.settled()
 
-    expect(asked(page)).toEqual([[bug, ...MORE_BU].map(({ query }) => query)])
+    expect(asked(page)).toEqual([NARROWING.slice(-few).map(({ query }) => query)])
     expect(candidates(page)).toContain('Nothing finished')
     expect(candidates(page)).not.toContain('Couldn’t be read')
   })
@@ -126,7 +135,7 @@ describe('the candidates script', () => {
     const page = await openStep()
 
     // each key comes sooner than the pause it waits for, though the second comes later than that after the first
-    const sooner = (NARROWED_DEBOUNCE_MS * 2) / 3
+    const sooner = (runsBy(page).pauseMs * 2) / 3
     typeInFind(page, 'b')
     await wait(sooner)
     typeInFind(page, 'u')

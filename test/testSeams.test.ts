@@ -79,11 +79,6 @@ const ALLOWED_BEYOND_SEAM: Exception[] = [
       why: "a migrated file is checked by what the forecast reads back from it, through Seam B's views",
     })),
   ),
-  {
-    file: 'test/app/candidatesScript.test.ts',
-    imported: 'forecast/candidates.js',
-    why: 'the candidates script runs by how few the typing narrows to and how long it pauses, so its test names them rather than repeat them',
-  },
 ]
 
 /** Imports outside their folder's seam, kept until each is fixed; each says why it is still here. */

@@ -1,14 +1,7 @@
 import type { Choice } from '../connectors/connector.js'
 import type { PeriodName } from '../forecast/cadence.js'
 import { dayMonth } from '../forecast/calendarDate.js'
-import {
-  FEW_CANDIDATES,
-  NARROWED_DEBOUNCE_MS,
-  type Candidate,
-  type CandidateGroupKind,
-  type CandidateOpening,
-  type Candidates,
-} from '../forecast/candidates.js'
+import { FEW_CANDIDATES, type Candidate, type CandidateGroupKind, type CandidateOpening, type Candidates } from '../forecast/candidates.js'
 import { kindName } from '../forecast/queryStep.js'
 import type { PaceVersus } from '../forecast/paceVersusOwn.js'
 import { escapeHtml } from './html.js'
@@ -79,7 +72,7 @@ ${candidates.map((candidate) => candidateHtml(candidate, period, section)).join(
     )
     .join('\n')
   return `
-          <div class="candidates" data-opening="${escapeHtml(opening)}" data-path="${CANDIDATES_PATH}">
+          <div class="candidates" data-opening="${escapeHtml(opening)}" data-path="${CANDIDATES_PATH}" data-few="${FEW_CANDIDATES}" data-pause-ms="${NARROWED_DEBOUNCE_MS}">
             <h3>Candidates</h3>
             <p class="note">${note}</p>${groups === '' ? '' : `\n            <div class="groups">\n${groups}\n            </div>`}
           </div>`
@@ -139,10 +132,13 @@ export function choicesAsked(params: URLSearchParams, kindOf: (text: string) => 
   return choices.every((choice): choice is Choice => choice.kind !== undefined) ? choices : undefined
 }
 
+/** How long the EM's typing pauses, after the last key, before the candidates it narrowed the list to are read. */
+const NARROWED_DEBOUNCE_MS = 450
+
 /**
  * The step's candidates script: a candidate's link opens it in place, and typing that narrows the lists to
- * `FEW_CANDIDATES` or fewer opens those; each opened is asked for once, in the page's opening, and the candidates
- * shown are replaced by the answer.
+ * `FEW_CANDIDATES` or fewer opens those once it pauses for `NARROWED_DEBOUNCE_MS`, both read from the candidates
+ * block; each opened is asked for once, in the page's opening, and the candidates shown are replaced by the answer.
  */
 export function candidatesScript({ id, findField }: StepSection): string {
   return `
@@ -194,8 +190,8 @@ export function candidatesScript({ id, findField }: StepSection): string {
     timer = setTimeout(() => {
       if (find.value.trim() === '') return
       const shown = [...found.querySelectorAll('.kind-list:not([hidden]) form[data-name]:not([hidden])')]
-      if (shown.length > 0 && shown.length <= ${FEW_CANDIDATES}) open(shown.map(choiceOf))
-    }, ${NARROWED_DEBOUNCE_MS})
+      if (shown.length > 0 && shown.length <= Number(block.dataset.few)) open(shown.map(choiceOf))
+    }, Number(block.dataset.pauseMs))
   }
   find.addEventListener('input', narrowed)
   new MutationObserver(narrowed).observe(found, { childList: true })
