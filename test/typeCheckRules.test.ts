@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 import { codeOf } from './sourceCode.js'
-import { type SourceFile, typeScriptSourcesUnder } from './sourceFiles.js'
+import { type SourceFile, typeScriptSourcesUnder } from '../scripts/sourceFiles.ts'
 
 // No `any`, and `!` only on an index: both switch the type checker off where you are least sure. A `!` on an index that
 // is in range by construction (`counts[at]!` over the same array's own indices) is allowed, as `noUncheckedIndexedAccess`
