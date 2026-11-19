@@ -6,6 +6,7 @@ import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js
 import type { MilestoneInputs } from '../../src/model/milestoneInputs.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
+import { heldStorage } from './heldStorage.js'
 import { post as postForm, saveInPlace as saveFormInPlace } from './forms.js'
 import { found } from './found.js'
 
@@ -34,19 +35,15 @@ export const CHECKOUT: MilestoneInputs = {
 
 export let dir: string | undefined
 let app: RunningApp | undefined
-export let storage: Storage | undefined
+const storage = heldStorage<Storage>()
 
 /** The data file the app started on, by `startOnSavedData` or `startWithNoMilestone`. */
-export function stored(): Storage {
-  if (storage === undefined) throw new Error('No data file yet: start the app first')
-  return storage
-}
+export const stored = storage.stored
 
 afterEach(async () => {
   await app?.close()
   app = undefined
-  storage?.close()
-  storage = undefined
+  storage.close()
   if (dir) rmSync(dir, { recursive: true, force: true })
   dir = undefined
 })
@@ -55,10 +52,10 @@ afterEach(async () => {
 export async function startOnSavedData({ milestone = true } = {}): Promise<RunningApp> {
   dir = mkdtempSync(join(tmpdir(), 'forecaster-screens-'))
   const file = join(dir, 'forecaster.db')
-  storage = openSqliteStorage(file)
-  storage.saveTeam({ id: TEAM, name: 'Payments', source: 'jira', sourceRef: TEAM, installedAt: CREATED })
-  if (milestone) storage.saveMilestoneInputs(CHECKOUT)
-  app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage, today: () => '2026-10-24' })
+  const saved = storage.hold(openSqliteStorage(file))
+  saved.saveTeam({ id: TEAM, name: 'Payments', source: 'jira', sourceRef: TEAM, installedAt: CREATED })
+  if (milestone) saved.saveMilestoneInputs(CHECKOUT)
+  app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage: saved, today: () => '2026-10-24' })
   return app
 }
 
