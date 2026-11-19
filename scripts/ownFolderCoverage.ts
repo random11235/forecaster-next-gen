@@ -32,7 +32,8 @@ export const NO_OWN_TEST_FOLDER: Record<string, string> = {
 /** A folder's figures: the totals of Vitest's `json-summary` coverage report (`coverage-summary.json`), as read. */
 export function coverageFromSummary(summary: string): Coverage {
   const { total } = JSON.parse(summary) as { total: Record<Measure, { pct: number }> }
-  return { statements: total.statements.pct, branches: total.branches.pct, functions: total.functions.pct, lines: total.lines.pct }
+  // Object.fromEntries can't know its keys are each measure once, so the cast says so
+  return Object.fromEntries(MEASURES.map((measure) => [measure, total[measure].pct])) as Coverage
 }
 
 /** A measure of a folder below its threshold, or a folder with nothing measured, as when its tests failed. */
@@ -43,7 +44,7 @@ const NOT_MEASURED = 'no coverage was measured'
 /** A folder and its own test folder, as the report's rows and drops name them. */
 const byOwnTests = (folder: string) => `\`src/${folder}/\` by \`test/${folder}/\``
 
-const described = (drop: Drop) =>
+const describeDrop = (drop: Drop) =>
   drop.kind === 'not measured'
     ? `${byOwnTests(drop.folder)}: ${NOT_MEASURED}`
     : `${byOwnTests(drop.folder)}: ${drop.measure} ${drop.actual}% is below its threshold, ${drop.threshold}%`
@@ -77,7 +78,7 @@ export function coverageAgainstThresholds(
     '| Module | Statements | Branches | Functions | Lines |',
     '| --- | --- | --- | --- | --- |',
     ...rows,
-    ...(drops.length > 0 ? ['', 'Dropped:', '', ...drops.map((drop) => `- ${described(drop)}`)] : []),
+    ...(drops.length > 0 ? ['', 'Dropped:', '', ...drops.map((drop) => `- ${describeDrop(drop)}`)] : []),
   ].join('\n')
   return { report, drops }
 }
