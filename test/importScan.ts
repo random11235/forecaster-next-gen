@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs'
-import { dirname, join, relative, resolve } from 'node:path'
+import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { importedPaths, typeScriptFilesUnder } from '../scripts/sourceFiles.ts'
+import { importedPaths, resolveImport, typeScriptFilesUnder } from '../scripts/sourceFiles.ts'
 
 // Reading what the repo's files import, for the tests that check who may import what: dependencyRules.test.ts and
-// testSeams.test.ts. Each import is found by `importedPaths` (scripts/sourceFiles.ts).
+// testSeams.test.ts. Each import is found and resolved by scripts/sourceFiles.ts.
 
 export const src = fileURLToPath(new URL('../src', import.meta.url))
 
@@ -13,7 +13,7 @@ export const src = fileURLToPath(new URL('../src', import.meta.url))
  * for one in `src/`, `../test/...` or `../package.json` for one outside it; `import type` too, unless `runtimeOnly`.
  */
 export function importsAt(path: string, runtimeOnly = false): string[] {
-  return importedPaths(readFileSync(path, 'utf8'), runtimeOnly).map((imported) => relative(src, resolve(dirname(path), imported)))
+  return importedPaths(readFileSync(path, 'utf8'), runtimeOnly).map((imported) => relative(src, resolveImport(path, imported)))
 }
 
 /** What `file` (a path under `src/`) imports, as `importsAt` gives it; `import type` too, unless `runtimeOnly`. */

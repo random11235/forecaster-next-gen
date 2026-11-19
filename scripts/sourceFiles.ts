@@ -1,9 +1,8 @@
 import { readdirSync, readFileSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { dirname, join, normalize, relative } from 'node:path'
 
-// Listing and reading the repo's `.ts` files, and what each imports: for the scan tests (test/importScan.ts,
-// arrangeRules.test.ts, storedJsonRules.test.ts, stringValueRules.test.ts and typeCheckRules.test.ts) and the CI
-// summary's shallowest modules (reportShallowModules.ts, moduleDepth.ts). It sits in scripts/ so node can run it there.
+// Listing and reading the repo's `.ts` files, and what each imports. It sits in scripts/ so node can run the scripts
+// that use it; the tests import it from here too.
 
 /** A source file: its path, relative to the folder its reader was given as the base, and its text. */
 export interface SourceFile {
@@ -31,4 +30,12 @@ export function importedPaths(source: string, runtimeOnly = false): string[] {
   return [...source.matchAll(/(typeof\s+)?\b(?:import|export)(\s+type\b)?(?:[^'"]*from\s+|\s*\(\s*|\s+)'(\.[^']+)'/g)]
     .filter(([, typeOf, typeOnly]) => !(runtimeOnly && (typeOf || typeOnly)))
     .map((match) => match[3]!)
+}
+
+/**
+ * The file `file` names by `imported`, a relative path as `importedPaths` gives it: absolute if `file` is, or else
+ * relative to where `file` is: `connectors/remote.js` for `./remote.js` in `connectors/jira.ts`.
+ */
+export function resolveImport(file: string, imported: string): string {
+  return normalize(join(dirname(file), imported))
 }

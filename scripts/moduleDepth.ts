@@ -6,8 +6,7 @@
 // src/connectors/github.ts). What an entry point hides is its own lines and those of each file it reaches through its
 // imports into its private folders, at any depth there: for an `index.ts`, the whole module; for any other, the
 // module's lib/ and the folder of its own name (a connector's, src/connectors/github/).
-import { basename, dirname, join, normalize } from 'node:path'
-import { importedPaths } from './sourceFiles.ts'
+import { importedPaths, resolveImport } from './sourceFiles.ts'
 
 /** How many entry points the CI summary lists. */
 export const SHALLOWEST_LISTED = 10
@@ -19,83 +18,100 @@ export interface ModuleDepth {
   lines: number
 }
 
-/** A function or type it declares after `async` or a type parameter list: `function`, or an arrow's parameters. */
+/** What an exported name is where it is declared: a function or type counts towards an entry point's exports; a value doesn't. */
+type ExportKind = 'function or type' | 'value'
+
+/** A function after `async` or a type parameter list: `function`, or an arrow's parameters. */
 const FUNCTION_VALUE = String.raw`(?:async\s+)?(?:function\b|(?:<[^>]*>\s*)?(?:\([^)]*\)|\w+)\s*(?::[^=]+)?=>)`
 /**
  * A top-level declaration, exported or not: a function, class, enum, interface or type (`counted`), or a `const`,
- * `let` or `var` (`value`), with `fn` if it holds a function.
+ * `let` or `var` (`value`), its type annotation a function's too, with `fn` if it holds a function.
  */
 const DECLARATION = new RegExp(
-  String.raw`^(?<exported>export\s+)?(?:declare\s+)?(?:default\s+)?(?:(?:(?:async\s+)?function\*?|(?:abstract\s+)?class|(?:const\s+)?enum|interface|type)\s+(?<counted>\w+)|(?:const|let|var)\s+(?<value>\w+)(?:\s*:[^=]+)?\s*=\s*(?<fn>${FUNCTION_VALUE})?)`,
+  String.raw`^(?<exported>export\s+)?(?:declare\s+)?(?:default\s+)?(?:(?:(?:async\s+)?function\*?|(?:abstract\s+)?class|(?:const\s+)?enum|interface|type)\s+(?<counted>(?!extends\b)\w+)|(?:const|let|var)\s+(?<value>\w+)(?:\s*:(?:[^=]|=>)+?)?\s*=(?!>)\s*(?<fn>${FUNCTION_VALUE})?)`,
   'gm',
 )
+/** A nameless default function or class: `export default function (`, `export default class {`. */
+const NAMELESS_DEFAULT = /^export\s+default\s+(?:async\s+)?(?:function\*?\s*[(<]|(?:abstract\s+)?class\s*(?:\{|extends\b))/m
 /** An export list, `export { a, type B as C }`, from the file itself or `from './x.js'`. */
 const LISTED = /^export\s+(?<typeOnly>type\s+)?\{(?<names>[^}]*)\}(?:\s*from\s+'(?<from>[^']+)')?/gm
 /** One name in an export list: `a`, `type B`, `b as c`. */
 const LISTED_NAME = /^(?<typeOnly>type\s+)?(?<name>\w+)(?:\s+as\s+(?<alias>\w+))?$/
-/** Everything another file exports, passed on: `export * from './x.js'`. */
-const ALL_FROM = /^export\s+\*\s+from\s+'(?<from>[^']+)'/gm
+/** Everything another file exports, passed on: `export * from './x.js'`, or as a namespace, `export * as ns from …`. */
+const ALL_FROM = /^export\s+\*\s+(?:as\s+(?<namespace>\w+)\s+)?from\s+'(?<from>[^']+)'/gm
 
 const linesOf = (source: string): number => source.replace(/\n$/, '').split('\n').length
 
-/** The file under `src/` that `file` names as `imported`, ending in `.ts`. */
-const resolved = (file: string, imported: string): string => normalize(join(dirname(file), imported)).replace(/\.js$/, '.ts')
+/** The source file under `src/` that `file` imports as `imported`: `./x.js` names `x.ts`. */
+const sourceImported = (file: string, imported: string): string => resolveImport(file, imported).replace(/\.js$/, '.ts')
 
-/** Each name `file` exports, and whether it counts: whether it is a function or a type where it is declared. */
-function exportsOf(file: string, files: Record<string, string>, seen = new Set<string>()): Map<string, boolean> {
-  const exports = new Map<string, boolean>()
-  if (seen.has(file)) return exports
-  seen.add(file)
+/**
+ * Each name `file` exports, with what it is where it is declared. `known` keeps each file's as it is read, so a file
+ * passed on twice is read once, and an import cycle ends.
+ */
+function exportsOf(file: string, files: Record<string, string>, known = new Map<string, Map<string, ExportKind>>()): Map<string, ExportKind> {
+  const cached = known.get(file)
+  if (cached !== undefined) return cached
+  const exports = new Map<string, ExportKind>()
+  known.set(file, exports)
   const source = files[file] ?? ''
-  const declared = new Map<string, boolean>()
+  const declared = new Map<string, ExportKind>()
   for (const { groups = {} } of source.matchAll(DECLARATION)) {
     const name = groups.counted ?? groups.value ?? ''
-    declared.set(name, groups.counted !== undefined || groups.fn !== undefined)
-    if (groups.exported) exports.set(name, declared.get(name) ?? false)
+    const kind = groups.counted !== undefined || groups.fn !== undefined ? 'function or type' : 'value'
+    declared.set(name, kind)
+    if (groups.exported) exports.set(name, kind)
   }
+  if (NAMELESS_DEFAULT.test(source)) exports.set('default', 'function or type')
   for (const { groups = {} } of source.matchAll(LISTED)) {
-    const from = groups.from === undefined ? declared : exportsOf(resolved(file, groups.from), files, seen)
+    const from = groups.from === undefined ? declared : exportsOf(sourceImported(file, groups.from), files, known)
     for (const listed of (groups.names ?? '').split(',')) {
       const { typeOnly, name = '', alias } = LISTED_NAME.exec(listed.trim())?.groups ?? {}
-      if (name !== '') exports.set(alias ?? name, from.get(name) ?? Boolean(groups.typeOnly ?? typeOnly))
+      if (name !== '') exports.set(alias ?? name, from.get(name) ?? ((groups.typeOnly ?? typeOnly) ? 'function or type' : 'value'))
     }
   }
   for (const { groups = {} } of source.matchAll(ALL_FROM)) {
-    for (const [name, counts] of exportsOf(resolved(file, groups.from ?? ''), files, seen)) exports.set(name, counts)
+    for (const [name, kind] of exportsOf(sourceImported(file, groups.from ?? ''), files, known)) {
+      exports.set(groups.namespace === undefined ? name : `${groups.namespace}.${name}`, kind)
+    }
   }
   return exports
 }
 
-/** `entry` and each file it reaches through imports into its private folders. */
-function hiddenBehind(entry: string, files: Record<string, string>): Set<string> {
-  const moduleFolder = `${dirname(entry)}/`
-  const privateFolders = basename(entry) === 'index.ts' ? [moduleFolder] : [`${moduleFolder}lib/`, `${entry.replace(/\.ts$/, '')}/`]
+/**
+ * Each entry point among `files`, with its private folders: a module's `index.ts`, the whole module; each file at the
+ * root of a module without one, the module's lib/ and the folder of its own name.
+ */
+function entryPoints(files: Record<string, string>): { entry: string; privateFolders: string[] }[] {
+  return Object.keys(files).flatMap((entry) => {
+    const [module, name, ...deeper] = entry.split('/')
+    if (name === undefined || deeper.length > 0) return []
+    if (name === 'index.ts') return [{ entry, privateFolders: [`${module}/`] }]
+    if (`${module}/index.ts` in files) return []
+    return [{ entry, privateFolders: [`${module}/lib/`, `${entry.replace(/\.ts$/, '')}/`] }]
+  })
+}
+
+/** `entry` and each file it reaches through imports into `privateFolders`. */
+function hiddenBehind(entry: string, privateFolders: string[], files: Record<string, string>): Set<string> {
   const hidden = new Set<string>()
   const pending = [entry]
   for (let file = pending.pop(); file !== undefined; file = pending.pop()) {
     if (hidden.has(file)) continue
     hidden.add(file)
-    const imported = importedPaths(files[file] ?? '').map((path) => resolved(file, path))
+    const imported = importedPaths(files[file] ?? '').map((path) => sourceImported(file, path))
     pending.push(...imported.filter((path) => path in files && privateFolders.some((folder) => path.startsWith(folder))))
   }
   return hidden
 }
 
-/** Whether `file` is an entry point: at a module's root, and the module's `index.ts` if it has one. */
-function isEntryPoint(file: string, files: Record<string, string>): boolean {
-  const [module, name, ...deeper] = file.split('/')
-  return name !== undefined && deeper.length === 0 && (name === 'index.ts' || !(`${module}/index.ts` in files))
-}
-
 /** Each entry point among `files` (each a path under `src/` with its source), with its depth. */
 export function moduleDepths(files: Record<string, string>): ModuleDepth[] {
-  return Object.keys(files)
-    .filter((file) => isEntryPoint(file, files))
-    .map((file) => ({
-      file,
-      exports: [...exportsOf(file, files).values()].filter(Boolean).length,
-      lines: [...hiddenBehind(file, files)].reduce((lines, hidden) => lines + linesOf(files[hidden] ?? ''), 0),
-    }))
+  return entryPoints(files).map(({ entry, privateFolders }) => ({
+    file: entry,
+    exports: [...exportsOf(entry, files).values()].filter((kind) => kind === 'function or type').length,
+    lines: [...hiddenBehind(entry, privateFolders, files)].reduce((lines, hidden) => lines + linesOf(files[hidden] ?? ''), 0),
+  }))
 }
 
 const perHundredLines = ({ exports, lines }: ModuleDepth): number => (exports * 100) / lines
