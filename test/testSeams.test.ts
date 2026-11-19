@@ -88,16 +88,6 @@ const TEMPORARY_EXCEPTIONS: Exception[] = [
     imported: 'forecast/paceVersusOwn.js',
     why: "tests the comparison with the milestone's own pace below Seam B, rather than through the candidates and Comparable work views that show it",
   },
-  {
-    file: 'test/forecast/setup.test.ts',
-    imported: 'forecast/setupSteps.js',
-    why: 'names SetupStep from below Seam B',
-  },
-  {
-    file: 'test/forecast/setup.reads.test.ts',
-    imported: 'forecast/setupSummary.js',
-    why: 'names COUNTS_WAIT from below Seam B',
-  },
 ]
 
 describe('test seams', () => {

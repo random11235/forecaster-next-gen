@@ -103,9 +103,9 @@ export function comparableWorkPace(
       ? { versus: paceVersusMilestoneOwn(inUse.median, own), ownPeriods: own.length, ...(own.length > 0 && { ownMedian: medianOf(own) }) }
       : undefined
   const { milestone, comparableWork, beforeStart } = reads
-  // the milestone's own read, or else comparable work's, lays out the periods; both reads are laid the same
-  const laid = milestone ?? comparableWork
-  const periods = (laid?.starts ?? []).map((start, at) => ({
+  // the read pace comes from lays out the periods; both reads are laid the same
+  const laid = reads.from === 'milestone' ? reads.milestone : reads.comparableWork
+  const periods = laid.starts.map((start, at) => ({
     start,
     ...(milestone && { milestone: milestone.counts[at]! }),
     ...(comparableWork && { comparableWork: comparableWork.counts[at]! }),

@@ -65,7 +65,10 @@ export type PaceFrom = 'comparableWork' | 'milestone'
  * The team's two reads as pace counts them, per period, side by side: the periods both reads reach whole, oldest
  * first, the current one left out, laid on the milestone's cadence from its start date.
  */
-export interface SideBySide {
+export type SideBySide = SideBySideReads & ({ from: 'comparableWork'; comparableWork: DatedCounts } | { from: 'milestone'; milestone: DatedCounts })
+
+/** The reads side by side, whichever pace comes from: the read it comes from is never missing (`SideBySide`). */
+interface SideBySideReads {
   from: PaceFrom
   /**
    * The milestone's own finished tickets in each period, before its start date too, so the two can be paired; none
@@ -165,7 +168,10 @@ export function sideBySide(
     return own ? [{ query, counts: counted(own) }] : []
   })
   const both = { milestone, beforeStart, comparableWork, picks: picked }
-  if (usesComparable) return { counts: comparableWork, sides: { from: 'comparableWork', ...both } }
+  if (usesComparable) return { counts: comparableWork, sides: { ...both, from: 'comparableWork', comparableWork } }
   if (milestone === undefined) return undefined
-  return { counts: { counts: milestone.counts.slice(beforeStart), starts: milestone.starts.slice(beforeStart) }, sides: { from: 'milestone', ...both } }
+  return {
+    counts: { counts: milestone.counts.slice(beforeStart), starts: milestone.starts.slice(beforeStart) },
+    sides: { ...both, from: 'milestone', milestone },
+  }
 }
