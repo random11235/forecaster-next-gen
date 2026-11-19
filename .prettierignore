@@ -3,6 +3,7 @@ package-lock.json
 dist/
 coverage/
 coverage-usage/
+coverage-folders/
 test/connectors/**/recordings/
 # Kept as written or imported from elsewhere
 docs/research/

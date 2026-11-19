@@ -13,6 +13,7 @@
     "test:coverage": "vitest run --coverage",
     "test:mutation": "node scripts/mutateDiff.ts",
     "coverage:usage": "node scripts/usageCoverage.ts",
+    "coverage:folders": "node scripts/reportOwnFolderCoverage.ts",
     "check:browser": "npm run build:web && node scripts/browserCheck.ts",
     "check:migrations": "node scripts/checkMigrations.ts",
     "start": "npm run build && node dist/app/main.js",
