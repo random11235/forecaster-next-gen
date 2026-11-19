@@ -1,5 +1,6 @@
 // Reading a source file's code apart from its comments, strings and regex literals, and the text of its templates, for
-// the scan tests that check what code says: storedJsonRules.test.ts and stringValueRules.test.ts.
+// the scan tests that check what code says: storedJsonRules.test.ts, stringValueRules.test.ts and
+// typeCheckRules.test.ts.
 
 /** The keywords a regex literal can follow, where a `/` after any other word is division. */
 const BEFORE_REGEX = new Set(['return', 'typeof', 'case', 'in', 'of', 'void', 'delete', 'yield', 'await', 'instanceof', 'new', 'throw', 'else', 'do'])

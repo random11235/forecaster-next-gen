@@ -224,7 +224,7 @@ function read(view: HowItWorksView): string {
   })
   shapes.push(line(left, bottom, right, bottom, 'axis'), label(left, 116, `wk ${first}`), label(right, 116, `wk ${last}`, '', 'end'))
   const [half, sure] = view.weeks
-  return svg(200, 120, `Finishes by week, with 50% done by week ${half!.period} and 85% by week ${sure!.period}.`, shapes)
+  return svg(200, 120, `Finishes by week, with 50% done by week ${half.period} and 85% by week ${sure.period}.`, shapes)
 }
 
 function typedCounts(): string {
