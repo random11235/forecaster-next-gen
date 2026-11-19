@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { startOnSavedData, startWithNoMilestone, page, text, submitMilestone, submitPace, submitCadence } from './screensHarness.js'
+import { found } from './found.js'
 
 // The screens through the local server: see screensHarness.ts.
 
@@ -73,10 +74,10 @@ describe('Inputs screen', () => {
     [['Checkout v2', '', '40'], 'Enter the start date as a calendar date.'],
     [['Checkout v2', '2026-09-01', '-1'], 'Enter tickets remaining as a whole number, 0 or more.'],
     [['Checkout v2', '2026-09-01', '2.5'], 'Enter tickets remaining as a whole number, 0 or more.'],
-  ])('refuses the milestone %j, saying why, keeping what was typed and changing nothing', async ([name, startDate, tickets], error) => {
+  ] as const)('refuses the milestone %j, saying why, keeping what was typed and changing nothing', async ([name, startDate, tickets], error) => {
     await startOnSavedData()
 
-    const response = await submitMilestone(name!, startDate!, tickets!)
+    const response = await submitMilestone(name, startDate, tickets)
 
     expect(response.status).toBe(400)
     const html = await response.text()
@@ -103,12 +104,12 @@ describe('Inputs screen', () => {
 
     const html = await page('/inputs')
 
-    const actions = [...html.matchAll(/<form[^>]*action="([^"]+)"/g)].map(([, action]) => action!)
+    const actions = [...html.matchAll(/<form[^>]*action="([^"]+)"/g)].flatMap(([, action]) => action ?? [])
     expect(actions).toHaveLength(9)
     for (const action of actions) {
       const fragment = action.split('#')[1]
       expect(fragment, action).toMatch(/^[a-z-]+$/)
-      expect(html.match(new RegExp(`<[a-z]+[^>]*id="${fragment}"[\\s\\S]*?</section>`))![0]).toContain(`action="${action}"`)
+      expect(found(html, new RegExp(`<[a-z]+[^>]*id="${fragment}"[\\s\\S]*?</section>`))).toContain(`action="${action}"`)
     }
     expect(html).toContain('action="/inputs/growth#growth"')
   })

@@ -12,6 +12,9 @@ import { SETUP_STEPS, setupStepOf, type SetupStep } from './setupSteps.js'
 import { hasQuery } from './stepQuery.js'
 import { measure, paceReadingView, trackerPace, type PaceReadingView } from './trackerReads.js'
 
+export { COUNTS_WAIT } from './setupSummary.js'
+export type { SetupStep } from './setupSteps.js'
+
 /**
  * What setup, its summary and its reads read and save with, built once per request: what a query step reads with (the
  * team's connection and queries, their reads and setup's state), the milestone's inputs, whose sources Check chooses,

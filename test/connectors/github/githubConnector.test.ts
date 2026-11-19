@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest'
+import { assert, describe, expect, test } from 'vitest'
 import type { Transport } from '../../../src/connectors/connector.js'
 import { githubConnector } from '../../../src/connectors/github.js'
 import { mustNotWait, recordingWait } from '../backoff.js'
@@ -6,6 +6,13 @@ import { answering } from '../standIn.js'
 import { replayTransport } from '../replayTransport.js'
 import { FROM_THE_START, GITHUB_QUIRKS } from '../scenarios.js'
 import { githubSubject } from './githubSubject.js'
+
+/** What a request to GitHub's search asks for, its `q`; one without fails the test. */
+function searchOf(url: string): string {
+  const q = new URL(url).searchParams.get('q')
+  assert(q !== null, `the search names what it searches for: ${url}`)
+  return q
+}
 
 // GitHub-only quirks, beside the contract suite. Search wraps the query as `repo:… is:issue no:sub-issue (query) (…)`, so a query that
 // names another repo, or closes the wrapper's parenthesis, would reach past the connection.
@@ -39,7 +46,7 @@ describe('GitHub connector', () => {
   ])('a query with %s stays in scope and is searched', async (_, query) => {
     const searched: string[] = []
     const connector = githubConnector(CONNECTION, 'token', async (url) => {
-      searched.push(new URL(url).searchParams.get('q')!)
+      searched.push(searchOf(url))
       return new Response(JSON.stringify({ total_count: 0, incomplete_results: false, items: [] }), { status: 200 })
     })
 
@@ -112,12 +119,13 @@ describe('GitHub connector', () => {
         { kind: 'milestone', pastLimit: false },
       ])
       const [epics, labels] = result.kinds
+      assert(epics && labels, 'epics and labels are listed')
       // #106 is the top-level epic; its sub-epic #107 is picked through it, so isn't listed. Short forms of
       // `parent-issue:` match nothing, with no error, so the repo is named in full.
-      expect(epics!.choices).toEqual([{ kind: 'epic', name: 'Epic: payment methods', query: 'parent-issue:random11235/forecaster-synthetic#106' }])
-      expect(labels!.choices).toHaveLength(13)
-      expect(labels!.choices).toContainEqual({ kind: 'label', name: 'good first issue', query: 'label:"good first issue"' })
-      expect(labels!.choices).toContainEqual({ kind: 'label', name: 'comparable', query: 'label:"comparable"' })
+      expect(epics.choices).toEqual([{ kind: 'epic', name: 'Epic: payment methods', query: 'parent-issue:random11235/forecaster-synthetic#106' }])
+      expect(labels.choices).toHaveLength(13)
+      expect(labels.choices).toContainEqual({ kind: 'label', name: 'good first issue', query: 'label:"good first issue"' })
+      expect(labels.choices).toContainEqual({ kind: 'label', name: 'comparable', query: 'label:"comparable"' })
     })
 
     /** How many of each kind a stand-in GitHub has. */
@@ -165,7 +173,7 @@ describe('GitHub connector', () => {
       test('an epic is searched by the words of its title, among the top-level epics, each word quoted', async () => {
         const searched: string[] = []
         const github = answering(async (url) => {
-          searched.push(new URL(url).searchParams.get('q')!)
+          searched.push(searchOf(url))
           const items = [{ node_id: 'I_140', number: 140, title: 'Card payments', state: 'open', closed_at: null }]
           return json({ total_count: 1, incomplete_results: false, items })
         })
@@ -248,7 +256,7 @@ describe('GitHub connector', () => {
     function nested(children: Map<number, number[]>) {
       const searched: string[] = []
       const transport: Transport = async (url) => {
-        const q = new URL(url).searchParams.get('q')!
+        const q = searchOf(url)
         searched.push(q)
         const parents = [...q.matchAll(/parent-issue:random11235\/forecaster-synthetic#(\d+)/g)].map((match) => Number(match[1]))
         const epics = q.includes('has:sub-issue')

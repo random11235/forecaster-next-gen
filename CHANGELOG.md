@@ -2,6 +2,10 @@
 
 What each version of the app shipped, newest first. The version is the one in every screen's footer: a fix is in the app you're running if its version is the footer's or older. Each merge's release ([`docs/design/architecture.md`](docs/design/architecture.md#release)) writes its section here, a line from each change file (`changes/<ticket>.md`) a PR that changes the app adds: a PR doesn't edit the entries below ([`docs/agents/pull-requests.md`](docs/agents/pull-requests.md#version)).
 
+## 0.4.1 (2026-11-19)
+
+- No `any` and no `!` but on an index in the code, checked by a scan test, with no change to the app (#259, PR #298)
+
 ## 0.4.0 (2026-11-18)
 
 - The query steps' scripts run in the browser: the find box narrows the lists, and opens candidates, as the EM types. Tests now run the Inputs screen's scripts in happy-dom, so a broken one fails them (#275, PR #296)

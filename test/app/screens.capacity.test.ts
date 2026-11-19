@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { startOnSavedData, page, text, post, submitPace, dateAt, addCapacity } from './screensHarness.js'
+import { found } from './found.js'
 
 // The screens through the local server: see screensHarness.ts.
 
@@ -121,15 +122,15 @@ describe('Milestone forecast screen: capacity', () => {
   test('the week-by-week chart shades each week capacity changes and labels it with its %, leaving usual weeks plain', async () => {
     await startOnSavedData()
     await submitPace('4', '8')
-    const plain = (await page('/')).match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
+    const plain = found(await page('/'), /<figure class="finish-graph"[\s\S]*?<\/figure>/)
     expect(plain).not.toContain('capacity')
 
     // from Tuesday 1 Sep, a week off from Monday 2 Nov takes one working day of five from the week ending 3 Nov, four from the next
     await addCapacity('0', '2026-11-02', '2026-11-06', 'Offsite')
 
     const html = await page('/')
-    const graph = html.match(/<figure class="finish-graph"[\s\S]*?<\/figure>/)![0]
-    const bar = (date: string) => graph.match(new RegExp(`<div class="bar[^"]*"[^>]*data-date="${date}"[\\s\\S]*?</div>`))![0]
+    const graph = found(html, /<figure class="finish-graph"[\s\S]*?<\/figure>/)
+    const bar = (date: string) => found(graph, new RegExp(`<div class="bar[^"]*"[^>]*data-date="${date}"[\\s\\S]*?</div>`))
     expect(text(html)).toContain('Week by week')
     expect(bar('2026-11-03')).toMatch(/class="bar[^"]* changed"/)
     expect(bar('2026-11-03')).toContain('<span class="capacity">80%</span>')

@@ -7,6 +7,7 @@ import type { Connecting } from '../../src/forecast/connection.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { TeamStorage } from '../trackerScenario.js'
+import { found } from './found.js'
 
 // Candidates for comparable work on the Inputs screen (#205), through the local server, on the canned connector.
 
@@ -96,7 +97,7 @@ function stepOf(html: string): string {
 }
 
 /** The candidates block's opening, as the page names it. */
-const openingOf = (html: string): string => /data-opening="([^"]+)"/.exec(stepOf(html))![1]!
+const openingOf = (html: string): string => found(stepOf(html), /data-opening="([^"]+)"/, 1)
 
 /** What the step's script asks for once `choices` are opened, in `opening`. */
 function candidatesPath(opening: string, choices: Choice[]): string {

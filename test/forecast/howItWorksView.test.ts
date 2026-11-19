@@ -29,10 +29,10 @@ describe('How it works: the example forecast', () => {
 
   test('reads the 50% and the later 85% week from the simulations', () => {
     const [half, sure] = view.weeks
-    expect(half!.percent).toBe(50)
-    expect(sure!.percent).toBe(85)
-    expect(half!.period).toBeGreaterThan(view.averagePace.period)
-    expect(sure!.period).toBeGreaterThan(half!.period)
+    expect(half.percent).toBe(50)
+    expect(sure.percent).toBe(85)
+    expect(half.period).toBeGreaterThan(view.averagePace.period)
+    expect(sure.period).toBeGreaterThan(half.period)
   })
 
   test('shows six simulations finishing in different weeks within the spread', () => {
