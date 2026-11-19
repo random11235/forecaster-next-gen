@@ -2,7 +2,7 @@ import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 import { src } from './importScan.js'
 import { codeOf } from './sourceCode.js'
-import { typeScriptSourcesUnder } from './sourceFiles.js'
+import { typeScriptSourcesUnder } from '../scripts/sourceFiles.ts'
 
 // The One-way doors rule in CODING_STANDARDS.md, for persisted JSON: storage reads every stored JSON value through
 // one parser, which checks its shape, never `JSON.parse` cast straight to a type.

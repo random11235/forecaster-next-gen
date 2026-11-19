@@ -38,7 +38,7 @@ jobs:
             [ -f "$file" ] || continue
             { echo "### $title"; echo '```'; sed -n '/^-*|/,$p' "$file"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           done
-      # A report, not a check (scripts/moduleDepth.ts): the ten entry points exporting the most per line they hide.
+      # A report, not a check (scripts/moduleDepth.ts): the entry points exporting the most per line they hide.
       # It never fails the build.
       - name: Shallowest modules
         if: always()

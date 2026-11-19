@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 import { codeOf } from './sourceCode.js'
-import { type SourceFile, typeScriptSourcesUnder } from './sourceFiles.js'
+import { type SourceFile, typeScriptSourcesUnder } from '../scripts/sourceFiles.ts'
 
 // No `any`, and `!` only on an index: both switch the type checker off where you are least sure. A `!` on an index that
 // is in range by construction (`counts[at]!` over the same array's own indices) is allowed, as `noUncheckedIndexedAccess`
@@ -12,7 +12,7 @@ import { type SourceFile, typeScriptSourcesUnder } from './sourceFiles.js'
 // any`, `{ a: any }`, `f(a, any)`) or `=` (`x = any`) is flagged as a type; rename the value. A regex literal straight
 // after `if (…)` is read as division, so its text is scanned as code and may be flagged.
 
-/** The repo's root, which src/ and test/ sit in. */
+/** The repo's root, which src/, test/ and scripts/ sit in. */
 const root = join(import.meta.dirname, '..')
 
 /** Where in a file the type checker is switched off, as `file:line`, and what switches it off. */
@@ -49,8 +49,8 @@ function typeCheckOffs({ file, source }: SourceFile): TypeCheckOff[] {
 }
 
 describe('type check rules', () => {
-  test('no file in src/ or test/ has any in a type position, or a ! but on an index', () => {
-    const files = ['src', 'test'].flatMap((folder) => typeScriptSourcesUnder(join(root, folder), root))
+  test('no file in src/, test/ or scripts/ has any in a type position, or a ! but on an index', () => {
+    const files = ['src', 'test', 'scripts'].flatMap((folder) => typeScriptSourcesUnder(join(root, folder), root))
 
     expect(files.map(({ file }) => file)).toContain('src/app/html.ts')
     expect(files.flatMap(typeCheckOffs)).toEqual([])
