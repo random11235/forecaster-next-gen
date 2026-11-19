@@ -7,6 +7,7 @@ import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import { CHECKOUT, TODAY, type TeamStorage } from '../trackerScenario.js'
 import { appOnTracker, page, type AppOnTracker } from './appOnTracker.js'
 import { post } from './forms.js'
+import { heldStorage } from './heldStorage.js'
 
 // The Inputs screen's setup steps (#217), through the local server as the EM's browser sees it, on the canned
 // connector: one step at a time, Back and Next between them, closing with "Use these" to a summary.
@@ -17,21 +18,20 @@ const FIXTURE: CannedFixture = {
 }
 
 let app: RunningApp | undefined
-let storage: TeamStorage | undefined
+const { hold, stored, close: closeStorage } = heldStorage<TeamStorage>()
 /** How often the tracker was asked anything, since the app started. */
 let asked = 0
 
 afterEach(async () => {
   await app?.close()
   app = undefined
-  storage?.close()
-  storage = undefined
+  closeStorage()
   asked = 0
 })
 
 /** The app, not yet connected, its canned connector counting each thing it is asked. */
 async function start(): Promise<RunningApp> {
-  storage = openSqliteStorage(':memory:')
+  const storage = hold(openSqliteStorage(':memory:'))
   const counted = (): ReturnType<Connecting['connector']> => {
     const canned = cannedConnector(FIXTURE)
     return {
@@ -286,10 +286,10 @@ describe('the draft (#218)', () => {
 
     await post(running, '/inputs/milestone-query/add', { ...CHECKOUT })
 
-    expect(storage!.milestoneQuery('team')).toBeUndefined()
+    expect(stored().milestoneQuery('team')).toBeUndefined()
     expect(await page(running, '/inputs')).toContain('Checkout v2')
     await post(running, '/inputs/setup/use-these', {})
-    expect(storage!.milestoneQuery('team')?.query).toBe(CHECKOUT.query)
+    expect(stored().milestoneQuery('team')?.query).toBe(CHECKOUT.query)
   })
 
   test('Cancel is offered on every step of a first setup, and throws away what was started there', async () => {
@@ -303,8 +303,8 @@ describe('the draft (#218)', () => {
     const cancelled = await post(running, '/inputs/setup/cancel', {})
 
     expect(cancelled.headers.get('location')).toBe('/inputs')
-    expect(storage!.connection('team')).toBeUndefined()
-    expect(storage!.setupDraft('team')).toBeUndefined()
+    expect(stored().connection('team')).toBeUndefined()
+    expect(stored().setupDraft('team')).toBeUndefined()
   })
 
   test('Cancel, offered once Change reopens the steps, throws the draft away, back to the summary', async () => {
@@ -320,7 +320,7 @@ describe('the draft (#218)', () => {
 
     expect(cancelled.headers.get('location')).toBe('/inputs')
     expect(await page(running, '/inputs')).toContain('id="setup-summary"')
-    expect(storage!.milestoneQuery('team')?.query).toBe(CHECKOUT.query)
+    expect(stored().milestoneQuery('team')?.query).toBe(CHECKOUT.query)
   })
 
   test('once the connection is changed in steps Change reopened, says why in place of Cancel', async () => {

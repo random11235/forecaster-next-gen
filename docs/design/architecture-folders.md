@@ -78,7 +78,7 @@ src/
     lib/setupDraft.ts     # behind sqliteStorage.ts: the team's queries and reads in each target, the setup draft over what's saved; the draft's fields saved; "Use these" applying it
     lib/storedJson.ts     # the one parser for stored JSON (`parseStored`) and the checks each reader builds its shapes from: a shape it doesn't know refused, naming its column
     lib/milestoneInputsJson.ts # the milestone inputs' JSON parts checked, as the SQLite file and browser storage both read them
-  app/                    # local server (localhost only), screens, `npm start` entry point; each screen's HTML, and reading the fields of the forms it posts; the web build's app and page script (`webApp.ts`, `webMain.ts`); the stylesheet every page shares (`html.ts`), each screen's styles in `lib/`, and what is behind the Inputs screen (`inputsScreen.ts`): its Milestone and Pace sections, the parts its sections share (`inputSection.ts`), and the chip on a typed value the tracker reads differently (`readsDifferently.ts`); the app's version (`forecast/appVersion.ts`'s `APP_VERSION`) in every screen's footer and streamed on the server's `/live`, which each page it serves listens on to reload when the version changes (the web build's pages don't)
+  app/                    # local server (localhost only), screens, the routes and the context they run in (`routes.ts`, `appContext.ts`), `npm start` entry point; each screen's HTML, and reading the fields of the forms it posts; the web build's app and page script (`webApp.ts`, `webMain.ts`); the stylesheet every page shares (`html.ts`), each screen's styles in `lib/`, and what is behind the Inputs screen (`inputsScreen.ts`): its Milestone and Pace sections, the parts its sections share (`inputSection.ts`), and the chip on a typed value the tracker reads differently (`readsDifferently.ts`); the Milestone forecast screen's Capacity section (`lib/capacitySection.ts`); the Comparable work step's pace (`lib/stepPace.ts`); the app's version (`forecast/appVersion.ts`'s `APP_VERSION`) in every screen's footer and streamed on the server's `/live`, which each page it serves listens on to reload when the version changes (the web build's pages don't)
 
 test/
   app/                    # the screens, launch, and the launch smoke test: start the app, check the screen is served; the web build's app and its smoke test; the Inputs screen's scripts run in happy-dom (`browserPage.ts` opens a page of the running app, `pagesOnTracker.ts` one for each test)
@@ -91,8 +91,9 @@ test/
   testSeams.test.ts       # each test folder imports only its seam's entry points (architecture-test-seams.md): TEST_SEAMS, the one list
   storedJsonRules.test.ts # nothing in src/storage/ uses JSON but to stringify, but lib/storedJson.ts
   stringValueRules.test.ts # stored union values (storage/storedUnions.ts), string-literal union values in src/ and the schema's CHECK values are camelCase
+  typeCheckRules.test.ts  # no `any` in a type position and no `!` but on an index, in src/ or test/
   importScan.ts           # reading what files import, for dependencyRules.test.ts and testSeams.test.ts
-  sourceFiles.ts          # listing and reading a folder's .ts files, for importScan.ts, storedJsonRules.test.ts and stringValueRules.test.ts
-  sourceCode.ts           # a file's code apart from its comments, strings and regexes, and its templates' text, for storedJsonRules.test.ts and stringValueRules.test.ts
+  sourceFiles.ts          # listing and reading a folder's .ts files, for importScan.ts, storedJsonRules.test.ts, stringValueRules.test.ts and typeCheckRules.test.ts
+  sourceCode.ts           # a file's code apart from its comments, strings and regexes, and its templates' text, for storedJsonRules.test.ts, stringValueRules.test.ts and typeCheckRules.test.ts
   sourceCode.test.ts      # sourceCode.ts: what it keeps as code and blanks out, and the templates' text it reads
 ```

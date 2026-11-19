@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { running, startOnSavedData, startWithNoMilestone, page, text } from './screensHarness.js'
+import { found } from './found.js'
 
 // The screens through the local server: see screensHarness.ts.
 
@@ -36,7 +37,7 @@ describe('Every screen', () => {
     await startOnSavedData()
 
     for (const path of ['/', '/inputs']) {
-      const head = (await page(path)).match(/<head>[\s\S]*?<\/head>/)![0]
+      const head = found(await page(path), /<head>[\s\S]*?<\/head>/)
       expect(head).toMatch(/<link rel="icon" type="image\/svg\+xml" href="data:image\/svg\+xml,[^"]*%3Csvg[^"]*">/)
     }
   })
@@ -46,7 +47,7 @@ describe('Every screen', () => {
 
     for (const path of ['/', '/inputs', '/how-it-works']) {
       const screen = await page(path)
-      const head = screen.match(/<head>[\s\S]*?<\/head>/)![0]
+      const head = found(screen, /<head>[\s\S]*?<\/head>/)
       for (const family of ['Geist', 'Geist Mono']) {
         expect(head).toMatch(new RegExp(`@font-face \\{ font-family: '${family}'; src: url\\(data:font/woff2;base64,[A-Za-z0-9+/=]+\\)`))
       }

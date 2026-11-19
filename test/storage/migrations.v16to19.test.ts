@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest'
+import { assert, describe, expect, test } from 'vitest'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import { writeFile, open, versionOf } from './migrationsHarness.js'
 import { TEAM, VERSION_16_SCHEMA, VERSION_17_SCHEMA, VERSION_18_SCHEMA, VERSION_19_SCHEMA } from './pastSchemas.js'
@@ -30,8 +30,10 @@ describe("step 17: a data file from schema version 16, before the values' source
   test('takes sources, skips and reads seen, which survive reopening', () => {
     const file = writeFile('v16.db', VERSION_16_SCHEMA, 16)
     const storage = open(file)
+    const kept = storage.milestoneInputs(TEAM)
+    assert(kept, 'the milestone is kept')
     const following = {
-      ...storage.milestoneInputs(TEAM)!,
+      ...kept,
       ticketsSource: 'tracker' as const,
       paceMode: 'tracker' as const,
       paceWindow: { action: undefined, skippedPeriods: ['2026-12-21'] },

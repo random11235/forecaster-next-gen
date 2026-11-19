@@ -1,6 +1,7 @@
 import type { Storage } from '../storage/storage.js'
 import { escapeHtml } from './html.js'
-import { appContext, route, type AppContext, type Request } from './routes.js'
+import { appContext, type AppContext, type Request } from './appContext.js'
+import { route } from './routes.js'
 
 /**
  * A screen to show: its status, the whole page, and the path it is at, after any redirect; a failed post has none, so

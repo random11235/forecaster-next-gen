@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, test } from 'vitest'
+import { assert, afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned.js'
 import type { Choice, Connector, Ticket } from '../../src/connectors/connector.js'
 import { openCandidates, type Candidates } from '../../src/forecast/candidates.js'
@@ -246,7 +246,8 @@ describe('reading on demand', () => {
   test('the step’s opening reads more in, each once', async () => {
     const candidates = await shownBy('', [payments.query])
 
-    const more = await candidates!.opening.read([payments, rewards])
+    assert(candidates, 'the step shows candidates')
+    const more = await candidates.opening.read([payments, rewards])
 
     expect(reads).toEqual([payments.query, rewards.query])
     expect(named(more)).toEqual([
