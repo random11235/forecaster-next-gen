@@ -1,12 +1,13 @@
 // Checks each module's coverage by its own test folder (scripts/ownFolderCoverage.ts): runs `test/<folder>/` alone
 // with coverage over `src/<folder>/` alone, for each folder with thresholds, then prints the report as Markdown, for
-// CI's job summary. Exits 1, naming each, when a folder drops below a threshold. Vitest's own output goes to stderr.
+// CI's job summary. Exits 1, the report saying why, when a folder drops below a threshold or its coverage isn't measured
+// (its tests failed). Vitest's own output, and the report again on a drop, go to stderr.
 // Run with `npm run coverage:folders`; each folder's JSON summary lands in coverage-folders/<folder>/.
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { type Coverage, coverageAgainstThresholds, describeDrop, type Measure, MEASURES, OWN_FOLDER_THRESHOLDS } from './ownFolderCoverage.ts'
+import { type Coverage, coverageAgainstThresholds, coverageFromSummary, MEASURES, OWN_FOLDER_THRESHOLDS } from './ownFolderCoverage.ts'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 
@@ -30,17 +31,12 @@ for (const folder of Object.keys(OWN_FOLDER_THRESHOLDS)) {
     ],
     { cwd: root, stdio: ['ignore', process.stderr, process.stderr] },
   )
-  if (run.status !== 0) {
-    console.error(`test/${folder}/ failed, so its coverage isn't measured`)
-    continue
-  }
-  const { total } = JSON.parse(readFileSync(join(reports, 'coverage-summary.json'), 'utf8')) as {
-    total: Record<Measure, { pct: number }>
-  }
-  measured[folder] = Object.fromEntries(MEASURES.map((measure) => [measure, total[measure].pct])) as Coverage
+  if (run.status === 0) measured[folder] = coverageFromSummary(readFileSync(join(reports, 'coverage-summary.json'), 'utf8'))
 }
 
 const { report, drops } = coverageAgainstThresholds(measured)
 console.log(report)
-for (const drop of drops) console.error(describeDrop(drop))
-process.exitCode = drops.length > 0 ? 1 : 0
+if (drops.length > 0) {
+  console.error(report)
+  process.exitCode = 1
+}
