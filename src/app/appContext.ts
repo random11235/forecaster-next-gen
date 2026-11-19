@@ -48,7 +48,7 @@ export function appContext(storage: Storage, today?: () => string, connecting?: 
  * The one team everything is stored under, added on first launch and installed at `installedAt`. The MVP has no team
  * screen, so the EM never sees it: its facts are the ones the EM types in, read from no board or repository.
  */
-export function defaultTeam(installedAt: string): Team {
+function defaultTeam(installedAt: string): Team {
   return { id: 'team', name: 'My team', source: 'manual', sourceRef: '', installedAt }
 }
 
