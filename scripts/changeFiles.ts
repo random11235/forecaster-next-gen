@@ -3,6 +3,8 @@
 // docs/design/architecture.md#release sets out. This module holds both sides of that contract: the change file's form
 // and what the check refuses on a branch (`node scripts/checkChanges.ts <base>`, which `check:static` runs), and the
 // version's places and CHANGELOG.md's layout, its sections and where they go, which the release writes.
+import { bumpFloors } from './bumpFloors.ts'
+import { biggestBump, BUMPS, rank, type Bump, type Need, type ReadAt } from './bumps.ts'
 
 /**
  * The files that make the app an EM runs: its source, its dependencies and how it is built. A branch that changes one
@@ -18,15 +20,6 @@ export const APP_FILES = /^(src\/|package(-lock)?\.json$|tsconfig(\.build)?\.jso
 export const CHANGE_FILE = /^changes\/(?!README\.md$)[^/]+\.md$/
 
 const HOW = 'as docs/agents/pull-requests.md#version says'
-
-/** How big a change is, as docs/agents/pull-requests.md#version sets out: the part of the version a release raises. */
-const BUMPS = ['patch', 'minor', 'major'] as const
-export type Bump = (typeof BUMPS)[number]
-
-/** The biggest of `bumps`, the part of the version a release of them all raises; none, undefined. */
-export function biggestBump(bumps: readonly Bump[]): Bump | undefined {
-  return [...BUMPS].reverse().find((each) => bumps.includes(each))
-}
 
 /** What a change file says: how big its change is, and its line in CHANGELOG.md. */
 type Change = { bump: Bump; line: string }
@@ -47,28 +40,39 @@ export function readChangeFile(path: string, text: string): Change | { problem: 
 /** The files that hold the app's version, which the release sets. */
 export const VERSIONED = ['package.json', 'package-lock.json']
 
-/** A file as a branch's base or head holds it, or undefined where it holds none. */
-type ReadAt = (path: string, at: 'base' | 'head') => string | undefined
-
 /**
  * Why a branch, given the files it changes since its base and how to read each, can't be released as it stands: it
- * changes the app but adds no change file (editing one already on its base adds none), a change file it holds can't be
- * read, or it sets the version or edits CHANGELOG.md's entries, which the release writes. None, it can.
+ * needs a bump but adds no change file (editing one already on its base adds none), the bump its change files set is
+ * below what it needs, a change file it holds can't be read, or it sets the version or edits CHANGELOG.md's entries,
+ * which the release writes. Any app change needs a patch; scripts/bumpFloors.ts sets the bigger floors a diff shows, a
+ * new migration step's major and a new demo screenshot's minor, so a branch adding only a screenshot needs a change file
+ * too. None, it can.
  */
 export function changeFileProblems(changed: readonly string[], read: ReadAt): string[] {
-  const app = changed.filter((path) => APP_FILES.test(path))
   const changeFiles = changed.flatMap((path) => {
     const text = CHANGE_FILE.test(path) ? read(path, 'head') : undefined
     return text === undefined ? [] : [{ path, text, added: read(path, 'base') === undefined }]
   })
-  const problems = changeFiles.flatMap(({ path, text }) => {
+  const problems: string[] = []
+  const bumped: { path: string; bump: Bump }[] = []
+  for (const { path, text, added } of changeFiles) {
     const change = readChangeFile(path, text)
-    return 'problem' in change ? [change.problem] : []
-  })
-  if (app.length > 0 && !changeFiles.some(({ added }) => added))
+    if ('problem' in change) problems.push(change.problem)
+    else if (added) bumped.push({ path, bump: change.bump })
+  }
+  const needs = neededBumps(changed, read)
+  const needed = biggestBump(needs.map(({ bump }) => bump))
+  if (needed !== undefined && !changeFiles.some(({ added }) => added))
     problems.push(
-      `This branch changes the app (${app.join(', ')}) but adds no change file: add changes/<ticket>.md, with \`bump: patch\`, \`minor\` or \`major\` in its front matter and the changelog line as its body, ${HOW}.`,
+      `This branch ${needs.map(({ why }) => why).join(' and ')} but adds no change file: add changes/<ticket>.md, with ${atLeast(needed)} in its front matter and the changelog line as its body, ${HOW}.`,
     )
+  const most = biggestBump(bumped.map(({ bump }) => bump))
+  if (most !== undefined)
+    for (const { why, bump } of needs)
+      if (rank(bump) > rank(most))
+        problems.push(
+          `This branch ${why}, so needs ${atLeast(bump)}, but its change files bump \`${most}\` at most (${bumped.map(({ path }) => path).join(', ')}): raise it, ${HOW}.`,
+        )
   for (const path of VERSIONED.filter((each) => changed.includes(each))) {
     const [base, head] = [versionsIn(read(path, 'base')), versionsIn(read(path, 'head'))]
     const set = base.findIndex((version, at) => version !== head[at])
@@ -78,6 +82,22 @@ export function changeFileProblems(changed: readonly string[], read: ReadAt): st
   if (changed.includes('CHANGELOG.md') && split(read('CHANGELOG.md', 'base') ?? '').entries !== split(read('CHANGELOG.md', 'head') ?? '').entries)
     problems.push(`This branch edits the entries in CHANGELOG.md: leave them, as the release writes each from its change file, ${HOW}.`)
   return problems
+}
+
+/** `bump` or any bigger, as a change file's front matter would set it. */
+function atLeast(bump: Bump): string {
+  return BUMPS.slice(rank(bump))
+    .map((each, i) => (i === 0 ? `\`bump: ${each}\`` : `\`${each}\``))
+    .join(', ')
+    .replace(/, ([^,]*)$/, ' or $1')
+}
+
+/** What the files a branch changes make it need: a patch for any app file, and the floors a diff shows. */
+function neededBumps(changed: readonly string[], read: ReadAt): Need[] {
+  const needs = bumpFloors(changed, read)
+  const app = changed.filter((path) => APP_FILES.test(path))
+  if (app.length > 0) needs.unshift({ bump: 'patch', why: `changes the app (${app.join(', ')})` })
+  return needs
 }
 
 /** package.json, or package-lock.json, whose own package's entry in `packages` holds the version too. */

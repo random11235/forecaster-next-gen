@@ -1,8 +1,9 @@
 // Checks the files a commit or branch changes, on the content it holds rather than the files on disk:
 // 1. Prettier: each file Prettier covers is formatted (scripts/formatting.ts; `npm run format` fixes it).
 // 2. File size: no code or docs file is over 5,000 tokens (scripts/fileSize.ts), with guidance on splitting.
-// 3. Change file, for a branch only: one that changes the app adds a change file and leaves the version and the
-//    CHANGELOG.md entries to the release (scripts/changeFiles.ts).
+// 3. Change file, for a branch only: one that changes the app or adds a demo screenshot adds a change file, bumping
+//    at least what its diff shows it needs (major for a new migration step, minor for a new demo screenshot:
+//    scripts/bumpFloors.ts), and leaves the version and the CHANGELOG.md entries to the release (scripts/changeFiles.ts).
 // `node scripts/checkChanges.ts` checks the staged files: .husky/pre-commit runs it.
 // `node scripts/checkChanges.ts <base>` checks the files changed since the merge-base with <base>: `check:static` runs
 // it, so the pre-push hook and CI do.
