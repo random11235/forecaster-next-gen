@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
 import { MAIN_REF, MAIN_REF_HINT, mergeBase } from '../../scripts/mergeBase.ts'
+import { migrationsSource } from '../migrationsSource.js'
 import { STORED_UNIONS } from './storedUnions.js'
 import { FILES, storedValueProblems, type Branch, type Column, type Head, type StoredUnion } from './storedValues.js'
 
@@ -58,13 +59,7 @@ const listed = { TicketsSource: ticketsSource('tracker', 'typed'), SetupClosed: 
 const snapshot = snapshotOf('tracker, typed', 'done, skipped')
 /** MIGRATIONS with a released first step making the tables, then a step for each of `more`. */
 const stepsWith = (...more: string[]) =>
-  [
-    'const MIGRATIONS: readonly string[] = [',
-    "  // 1: tickets and setups\n  `\nCREATE TABLE tickets (source TEXT NOT NULL DEFAULT 'typed');\nCREATE TABLE setups (closed TEXT);\n`,",
-    ...more.map((sql, i) => `  // ${i + 2}: a change\n  \`\n${sql}\n\`,`),
-    ']',
-    '',
-  ].join('\n')
+  migrationsSource("CREATE TABLE tickets (source TEXT NOT NULL DEFAULT 'typed');\nCREATE TABLE setups (closed TEXT);", ...more)
 const released: Head = { snapshot, migrations: stepsWith(), webStorage: 'export {}' }
 
 describe('stored values', () => {
