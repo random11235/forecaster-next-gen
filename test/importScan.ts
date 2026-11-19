@@ -1,19 +1,12 @@
-import { readdirSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { typeScriptFilesUnder } from './sourceFiles.js'
 
 // Reading what the repo's files import, for the tests that check who may import what: dependencyRules.test.ts and
 // testSeams.test.ts.
 
 export const src = fileURLToPath(new URL('../src', import.meta.url))
-
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name)
-    if (entry.isDirectory()) return sourceFiles(path)
-    return entry.name.endsWith('.ts') ? [path] : []
-  })
-}
 
 /**
  * The relative paths `source` imports, as written: by `import`/`export … from`, a side-effect `import '…'` or a dynamic
@@ -41,13 +34,13 @@ export function importsOf(file: string, runtimeOnly = false): string[] {
 /** Each file under the repo's `folder` (beside `src/`) with what it imports, as `importsAt` gives it. */
 export function importsBeside(folder: string): { file: string; imported: string }[] {
   const dir = join(src, '..', folder)
-  return sourceFiles(dir).flatMap((path) => importsAt(path).map((imported) => ({ file: join(folder, relative(dir, path)), imported })))
+  return typeScriptFilesUnder(dir).flatMap((file) => importsAt(join(dir, file)).map((imported) => ({ file: join(folder, file), imported })))
 }
 
 /** Each file under `src/<folder>` with what it imports, as `importsAt` gives it. */
 export function importsFrom(folder: string): { file: string; imported: string }[] {
-  return sourceFiles(join(src, folder)).flatMap((path) => {
-    const file = relative(src, path)
+  return typeScriptFilesUnder(join(src, folder)).flatMap((inFolder) => {
+    const file = join(folder, inFolder)
     return importsOf(file).map((imported) => ({ file, imported }))
   })
 }

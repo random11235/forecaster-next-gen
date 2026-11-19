@@ -2,6 +2,18 @@
 
 What each version of the app shipped, newest first. The version is the one in every screen's footer: a fix is in the app you're running if its version is the footer's or older. Each merge's release ([`docs/design/architecture.md`](docs/design/architecture.md#release)) writes its section here, a line from each change file (`changes/<ticket>.md`) a PR that changes the app adds: a PR doesn't edit the entries below ([`docs/agents/pull-requests.md`](docs/agents/pull-requests.md#version)).
 
+## 0.4.1 (2026-11-19)
+
+- No `any` and no `!` but on an index in the code, checked by a scan test, with no change to the app (#259, PR #298)
+
+## 0.4.0 (2026-11-18)
+
+- The query steps' scripts run in the browser: the find box narrows the lists, and opens candidates, as the EM types. Tests now run the Inputs screen's scripts in happy-dom, so a broken one fails them (#275, PR #296)
+
+## 0.3.1 (2026-11-18)
+
+- A stored string value renamed or removed fails the tests unless a migration maps it where it is stored, with no change to the app (#255, PR #292)
+
 ## 0.3.0 (2026-11-18)
 
 - Stored JSON is read through one parser that checks its shape, and stored JSON of a shape the Forecaster doesn't know is refused, naming its column or browser storage's key, rather than misread: the web build shows an error page instead of starting empty, and keeps what is stored. A field it doesn't know, in data it can read, is still dropped when it saves that record (#256, PR #293)

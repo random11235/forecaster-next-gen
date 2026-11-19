@@ -1,6 +1,6 @@
 {
   "name": "forecaster",
-  "version": "0.3.0",
+  "version": "0.4.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -35,6 +35,7 @@
     "agent-browser": "0.41.2",
     "c8": "^12.0.0",
     "esbuild": "^0.28.2",
+    "happy-dom": "^21.0.4",
     "husky": "^9.1.7",
     "prettier": "^3.10.1",
     "typescript": "^7.0.2",

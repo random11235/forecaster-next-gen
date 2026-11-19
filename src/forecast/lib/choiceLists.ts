@@ -41,7 +41,10 @@ export function listedHere({ kind, choices, pastLimit }: ChoicesOfKind, typed: s
  */
 export function markedThisMilestone(queries: MilestoneQueryStorage, teamId: string): (list: ChoiceList) => ChoiceList {
   const milestoneQuery = queries.milestoneQuery(teamId)?.query
-  return (list) => (list.choices.some((choice) => choice.query === milestoneQuery) ? { ...list, thisMilestone: milestoneQuery! } : list)
+  return (list) => {
+    const marked = list.choices.find((choice) => choice.query === milestoneQuery)
+    return marked ? { ...list, thisMilestone: marked.query } : list
+  }
 }
 
 /** Whether a choice is none of `picks`. */

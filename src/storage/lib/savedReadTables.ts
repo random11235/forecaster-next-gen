@@ -41,20 +41,21 @@ export function savedReadTables(db: DatabaseSync, transaction: Transaction): Sav
     },
 
     savedRead({ teamId, query }) {
-      return readRow(selectSavedRead.get(teamId, query), () => selectSavedReadTickets.all(teamId, query))
+      const row = selectSavedRead.get(teamId, query)
+      return row && readRow(row, selectSavedReadTickets.all(teamId, query))
     },
 
     previousRead({ teamId, query }) {
-      return readRow(selectPreviousRead.get(teamId, query), () => selectPreviousReadTickets.all(teamId, query))
+      const row = selectPreviousRead.get(teamId, query)
+      return row && readRow(row, selectPreviousReadTickets.all(teamId, query))
     },
   }
 }
 
-/** A saved, previous or drafted read from its row and its tickets' rows; none without a row. */
-export function readRow(row: Row | undefined, tickets: () => Row[]): SavedRead | undefined {
-  if (row === undefined) return undefined
+/** A saved, previous or drafted read from its row and its tickets' rows. */
+export function readRow(row: Row, tickets: Row[]): SavedRead {
   return {
-    tickets: tickets().map((ticket) => ({
+    tickets: tickets.map((ticket) => ({
       id: String(ticket.id),
       ...(ticket.finished_at !== null && { finishedAt: String(ticket.finished_at) }),
     })),

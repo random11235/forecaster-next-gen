@@ -7,13 +7,9 @@ import { HOW_IT_WORKS_STYLE } from './lib/howItWorksStyle.js'
 import { APP_VERSION } from '../forecast/appVersion.js'
 
 /** The screens in the sidebar, by path. */
-const SCREENS = [
-  { path: '/', name: 'Milestone forecast' },
-  { path: '/inputs', name: 'Inputs' },
-  { path: '/how-it-works', name: 'How it works' },
-] as const
+const SCREENS = { '/': 'Milestone forecast', '/inputs': 'Inputs', '/how-it-works': 'How it works' } as const
 
-export type ScreenPath = (typeof SCREENS)[number]['path']
+export type ScreenPath = keyof typeof SCREENS
 
 /** The top of a screen: a context line, the headline and an optional lede. `heading` and `lede` are HTML. */
 export interface PageHeader {
@@ -35,8 +31,10 @@ const FAVICON = `data:image/svg+xml,${encodeURIComponent(
  * (`docs/design/redesign-1b/`). The browser tab shows the screen's name; `script`, if given, is inlined at the end.
  */
 export function htmlPage(path: ScreenPath, header: PageHeader, main: string, script?: string): string {
-  const title = SCREENS.find((screen) => screen.path === path)!.name
-  const links = SCREENS.map((screen) => `      <a href="${screen.path}"${screen.path === path ? ' aria-current="page"' : ''}>${screen.name}</a>`).join('\n')
+  const title = SCREENS[path]
+  const links = Object.entries(SCREENS)
+    .map(([screenPath, name]) => `      <a href="${screenPath}"${screenPath === path ? ' aria-current="page"' : ''}>${name}</a>`)
+    .join('\n')
   const context = header.context ? `\n      <p class="context">${escapeHtml(header.context)}</p>` : ''
   const lede = header.lede ? `\n      <p class="lede">${header.lede}</p>` : ''
   return `<!doctype html>
@@ -76,6 +74,8 @@ const STYLE = `
       --mono: 'Geist Mono', ui-monospace, monospace;
     }
     * { box-sizing: border-box; }
+    /* what a page's script hides stays hidden, over any style that shows the element, as a flex or grid item (#275) */
+    [hidden] { display: none !important; }
     body {
       margin: 0; min-height: 100vh; display: grid; grid-template-columns: 244px minmax(0, 1fr);
       font-family: 'Geist', system-ui, sans-serif; font-size: 14px; color: var(--ink); background: var(--page);
