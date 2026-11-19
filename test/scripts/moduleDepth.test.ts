@@ -1,4 +1,6 @@
 import { execFileSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
 import { moduleDepths, SHALLOWEST_LISTED, shallowestModules } from '../../scripts/moduleDepth.ts'
@@ -217,5 +219,9 @@ describe('the shallowest modules, as the CI summary lists them', () => {
     const listed = [...report.matchAll(/^\| `src\/([^`]+)`/gm)].map(([, file = '']) => file)
     expect(listed).toHaveLength(SHALLOWEST_LISTED)
     expect(listed.filter((file) => !entryPoints.includes(file))).toEqual([])
+    // Independent of the rule under test: each is a file at a module's root, and a module with an index.ts lists only it.
+    const notAtARoot = listed.filter((file) => file.split('/').length !== 2 || !existsSync(join(src, file)))
+    const besideAnIndex = listed.filter((file) => existsSync(join(src, dirname(file), 'index.ts')) && basename(file) !== 'index.ts')
+    expect([...notAtARoot, ...besideAnIndex]).toEqual([])
   })
 })
