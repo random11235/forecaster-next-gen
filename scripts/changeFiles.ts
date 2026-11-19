@@ -3,6 +3,7 @@
 // docs/design/architecture.md#release sets out. This module holds both sides of that contract: the change file's form
 // and what the check refuses on a branch (`node scripts/checkChanges.ts <base>`, which `check:static` runs), and the
 // version's places and CHANGELOG.md's layout, its sections and where they go, which the release writes.
+import { MIGRATIONS_FILE, migrationSteps } from './migrationSteps.ts'
 
 /**
  * The files that make the app an EM runs: its source, its dependencies and how it is built. A branch that changes one
@@ -56,19 +57,30 @@ type ReadAt = (path: string, at: 'base' | 'head') => string | undefined
  * read, or it sets the version or edits CHANGELOG.md's entries, which the release writes. None, it can.
  */
 export function changeFileProblems(changed: readonly string[], read: ReadAt): string[] {
-  const app = changed.filter((path) => APP_FILES.test(path))
   const changeFiles = changed.flatMap((path) => {
     const text = CHANGE_FILE.test(path) ? read(path, 'head') : undefined
     return text === undefined ? [] : [{ path, text, added: read(path, 'base') === undefined }]
   })
-  const problems = changeFiles.flatMap(({ path, text }) => {
+  const problems: string[] = []
+  const bumped: { path: string; bump: Bump }[] = []
+  for (const { path, text, added } of changeFiles) {
     const change = readChangeFile(path, text)
-    return 'problem' in change ? [change.problem] : []
-  })
-  if (app.length > 0 && !changeFiles.some(({ added }) => added))
+    if ('problem' in change) problems.push(change.problem)
+    else if (added) bumped.push({ path, bump: change.bump })
+  }
+  const needs = neededBumps(changed, read)
+  const needed = biggestBump(needs.map(({ bump }) => bump))
+  if (needed !== undefined && !changeFiles.some(({ added }) => added))
     problems.push(
-      `This branch changes the app (${app.join(', ')}) but adds no change file: add changes/<ticket>.md, with \`bump: patch\`, \`minor\` or \`major\` in its front matter and the changelog line as its body, ${HOW}.`,
+      `This branch ${needs.map(({ why }) => why).join(' and ')} but adds no change file: add changes/<ticket>.md, with ${atLeast(needed)} in its front matter and the changelog line as its body, ${HOW}.`,
     )
+  const most = biggestBump(bumped.map(({ bump }) => bump))
+  if (most !== undefined)
+    for (const { why, bump } of needs)
+      if (BUMPS.indexOf(bump) > BUMPS.indexOf(most))
+        problems.push(
+          `This branch ${why}, so needs ${atLeast(bump)}, but its change files bump \`${most}\` at most (${bumped.map(({ path }) => path).join(', ')}): raise it, ${HOW}.`,
+        )
   for (const path of VERSIONED.filter((each) => changed.includes(each))) {
     const [base, head] = [versionsIn(read(path, 'base')), versionsIn(read(path, 'head'))]
     const set = base.findIndex((version, at) => version !== head[at])
@@ -79,6 +91,43 @@ export function changeFileProblems(changed: readonly string[], read: ReadAt): st
     problems.push(`This branch edits the entries in CHANGELOG.md: leave them, as the release writes each from its change file, ${HOW}.`)
   return problems
 }
+
+/** `bump` or any bigger, as a change file's front matter would set it. */
+function atLeast(bump: Bump): string {
+  return BUMPS.slice(BUMPS.indexOf(bump))
+    .map((each, i) => (i === 0 ? `\`bump: ${each}\`` : `\`${each}\``))
+    .join(', ')
+    .replace(/, ([^,]*)$/, ' or $1')
+}
+
+/**
+ * What the files a branch changes make it need, each with the smallest bump that covers it and why, as
+ * docs/agents/pull-requests.md#version sets out: an app file changed needs a patch, a migration step added a major
+ * (a one-way door), and a demo screenshot added a minor (a visible change ships one, as docs/agents/demos.md says).
+ */
+function neededBumps(changed: readonly string[], read: ReadAt): { bump: Bump; why: string }[] {
+  const needs: { bump: Bump; why: string }[] = []
+  const app = changed.filter((path) => APP_FILES.test(path))
+  if (app.length > 0) needs.push({ bump: 'patch', why: `changes the app (${app.join(', ')})` })
+  if (changed.includes(MIGRATIONS_FILE)) {
+    const steps = (at: 'base' | 'head') => {
+      const source = read(MIGRATIONS_FILE, at)
+      try {
+        return source === undefined ? 0 : migrationSteps(source, at).length
+      } catch {
+        return 0 // the migration check (checkMigrations.ts) fails a branch whose steps it can't read
+      }
+    }
+    const [base, head] = [steps('base'), steps('head')]
+    if (head > base) needs.push({ bump: 'major', why: head === base + 1 ? `adds migration step ${head}` : `adds migration steps ${base + 1}–${head}` })
+  }
+  const demos = changed.filter((path) => DEMO.test(path) && read(path, 'base') === undefined && read(path, 'head') !== undefined)
+  if (demos.length > 0) needs.push({ bump: 'minor', why: `adds demo screenshots (${demos.join(', ')})` })
+  return needs
+}
+
+/** A demo screenshot, which a visible change ships (docs/agents/demos.md). */
+const DEMO = /^docs\/demos\/[^/]+\.png$/
 
 /** package.json, or package-lock.json, whose own package's entry in `packages` holds the version too. */
 type Package = { version?: unknown; packages?: Record<string, { version?: unknown }> }
