@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'vitest'
 import { addSection, changeFileProblems, withVersion } from '../../scripts/changeFiles.ts'
+import { MIGRATIONS_FILE } from '../../scripts/migrationSteps.ts'
+import { migrationsSource } from '../migrationsSource.js'
 import { changeFileText } from './releaseRepo.ts'
+
+/** Two migration steps, as text the check counts: the first a branch's base has, and one it adds. */
+const [FIRST, ADDED] = ['SELECT 1;', 'SELECT 2;']
 
 /** A branch as the check reads it: each file at its base and at its head, a file missing from one absent there. */
 function branch(base: Record<string, string>, head: Record<string, string>) {
@@ -88,6 +93,59 @@ describe('the change-file check on a branch', () => {
     expect(branch({ 'package-lock.json': lock('0.2.6') }, { 'package-lock.json': lock('0.2.6', '0.2.7'), 'changes/230.md': PATCH })).toEqual([
       setIn('package-lock.json', '0.2.6', '0.2.7'),
     ])
+  })
+
+  test('a branch that adds several migration steps names them all', () => {
+    expect(
+      branch({ [MIGRATIONS_FILE]: migrationsSource(FIRST) }, { [MIGRATIONS_FILE]: migrationsSource(FIRST, ADDED, ADDED), 'changes/230.md': PATCH }),
+    ).toEqual([
+      `This branch adds migration steps 2–3, so needs \`bump: major\`, but its change files bump \`patch\` at most (changes/230.md): raise it, ${HOW}.`,
+    ])
+  })
+
+  // Each case's head has more steps than its base, read as written, so would need a major were the unreadable side read.
+  test('a migrations file whose steps can’t be read sets no floor: the migration check fails an unreadable head', () => {
+    const misnumbered = (source: string, step: number) => source.replace(`// ${step}:`, '// 7:')
+
+    expect(
+      branch({ [MIGRATIONS_FILE]: misnumbered(migrationsSource(FIRST), 1) }, { [MIGRATIONS_FILE]: migrationsSource(FIRST, ADDED), 'changes/230.md': PATCH }),
+    ).toEqual([])
+    expect(
+      branch(
+        { [MIGRATIONS_FILE]: migrationsSource(FIRST) },
+        { [MIGRATIONS_FILE]: misnumbered(migrationsSource(FIRST, ADDED, ADDED), 3), 'changes/230.md': PATCH },
+      ),
+    ).toEqual([])
+  })
+
+  test('a branch that adds a migration step needs a major bump: a stored-data change the EM can’t go back from', () => {
+    const [before, after] = [migrationsSource(FIRST), migrationsSource(FIRST, ADDED)]
+
+    for (const bump of ['patch', 'minor'])
+      expect(branch({ [MIGRATIONS_FILE]: before }, { [MIGRATIONS_FILE]: after, 'changes/230.md': changeFileText(bump, 'A column (#230)') })).toEqual([
+        `This branch adds migration step 2, so needs \`bump: major\`, but its change files bump \`${bump}\` at most (changes/230.md): raise it, ${HOW}.`,
+      ])
+    expect(branch({ [MIGRATIONS_FILE]: before }, { [MIGRATIONS_FILE]: after })).toEqual([
+      `This branch changes the app (${MIGRATIONS_FILE}) and adds migration step 2 but adds no change file: add changes/<ticket>.md, with \`bump: major\` in its front matter and the changelog line as its body, ${HOW}.`,
+    ])
+    expect(branch({ [MIGRATIONS_FILE]: before }, { [MIGRATIONS_FILE]: after, 'changes/230.md': changeFileText('major', 'A column (#230)') })).toEqual([])
+    expect(branch({ [MIGRATIONS_FILE]: before }, { [MIGRATIONS_FILE]: `${before}// after the steps\n`, 'changes/230.md': PATCH })).toEqual([])
+  })
+
+  test('a branch that adds a demo screenshot needs at least a minor bump: a visible change ships one', () => {
+    const demo = 'docs/demos/263-footer-after.png'
+    const needsMinor = `This branch adds demo screenshots (${demo}), so needs \`bump: minor\` or \`major\`, but its change files bump \`patch\` at most (changes/230.md): raise it, ${HOW}.`
+
+    expect(branch({ 'src/app/html.ts': 'before' }, { 'src/app/html.ts': 'after', [demo]: 'png', 'changes/230.md': PATCH })).toEqual([needsMinor])
+    expect(branch({}, { [demo]: 'png' })).toEqual([
+      `This branch adds demo screenshots (${demo}) but adds no change file: add changes/<ticket>.md, with \`bump: minor\` or \`major\` in its front matter and the changelog line as its body, ${HOW}.`,
+    ])
+    for (const bump of ['minor', 'major'])
+      expect(
+        branch({ 'src/app/html.ts': 'before' }, { 'src/app/html.ts': 'after', [demo]: 'png', 'changes/230.md': changeFileText(bump, 'Seen (#230)') }),
+      ).toEqual([])
+    expect(branch({ [demo]: 'png' }, { [demo]: 'retaken png' })).toEqual([])
+    expect(branch({ [demo]: 'png' }, {})).toEqual([])
   })
 
   test('a branch that changes a dependency but not the version passes', () => {

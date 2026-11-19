@@ -53,6 +53,8 @@ plutil -insert StandardErrorPath -string "$log" "$plist"
 plutil -insert RunAtLoad -bool true "$plist"
 : >"$log" # emptied here, so the wait below can't read the last run's "running"
 launchctl bootstrap "gui/$(id -u)" "$plist"
+# Start it now: launchd may defer a RunAtLoad start ("pended nondemand spawn = speculative") and never get to it (#301).
+launchctl kickstart "$agent"
 
 # Until the app has exited, launchd reports its last exit code as "(never exited)".
 alive() { launchctl print "$agent" 2>/dev/null | grep -q 'last exit code = (never exited)'; }
