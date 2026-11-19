@@ -3,11 +3,8 @@
 // screenshot ships with a visible change (docs/agents/demos.md), so needs a minor. The change-file check
 // (changeFileProblems in scripts/changeFiles.ts) holds a branch's change files to these floors. The bump stays the
 // author's to judge above them: a visible change with no screenshot, or a one-way door that isn't a migration step.
-import type { Bump, ReadAt } from './changeFiles.ts'
+import type { Need, ReadAt } from './bumps.ts'
 import { MIGRATIONS_FILE, migrationSteps } from './migrationSteps.ts'
-
-/** A bump a branch needs at least, and why, as the check's message says it: "This branch <why>". */
-export type Need = { bump: Bump; why: string }
 
 /** A demo screenshot, which a visible change ships (docs/agents/demos.md). */
 const DEMO = /^docs\/demos\/[^/]+\.png$/
@@ -17,7 +14,9 @@ export function bumpFloors(changed: readonly string[], read: ReadAt): Need[] {
   const needs: Need[] = []
   const added = addedSteps(changed, read)
   if (added !== undefined) needs.push({ bump: 'major', why: added })
-  // a changed path its base doesn't hold is one the branch adds (renames come as a deletion and an addition)
+  // A changed path its base doesn't hold is one the branch adds (renames come as a deletion and an addition). A
+  // retaken or deleted screenshot still reads its base PNG to learn that: ReadAt has no existence check, and one read
+  // per changed screenshot is a cost worth less than widening it.
   const demos = changed.filter((path) => DEMO.test(path) && read(path, 'base') === undefined)
   if (demos.length > 0) needs.push({ bump: 'minor', why: `adds demo screenshots (${demos.join(', ')})` })
   return needs
@@ -25,7 +24,8 @@ export function bumpFloors(changed: readonly string[], read: ReadAt): Need[] {
 
 /**
  * The migration steps the branch adds, as "adds migration step N", or undefined where it adds none. A side whose steps
- * can't be read sets no floor: the migration check (scripts/checkMigrations.ts) fails that branch, saying why.
+ * can't be read sets no floor: the migration check (scripts/checkMigrations.ts) fails an unreadable head, and an
+ * unreadable base just sets none (that check reads released main's steps, not this base's).
  */
 function addedSteps(changed: readonly string[], read: ReadAt): string | undefined {
   if (!changed.includes(MIGRATIONS_FILE)) return undefined

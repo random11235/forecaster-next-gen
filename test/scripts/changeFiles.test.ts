@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { addSection, changeFileProblems, withVersion } from '../../scripts/changeFiles.ts'
 import { MIGRATIONS_FILE } from '../../scripts/migrationSteps.ts'
-import { migrationsSource } from '../migrationsSource.ts'
+import { migrationsSource } from '../migrationsSource.js'
 import { changeFileText } from './releaseRepo.ts'
 
 /** Two migration steps, as text the check counts: the first a branch's base has, and one it adds. */
@@ -103,11 +103,19 @@ describe('the change-file check on a branch', () => {
     ])
   })
 
-  test('a migrations file the check can’t read, at its base or its head, sets no bump: the migration check fails it', () => {
-    const unreadable = migrationsSource(FIRST, ADDED).replace('// 2:', '// 7:')
+  // Each case's head has more steps than its base, read as written, so would need a major were the unreadable side read.
+  test('a migrations file whose steps can’t be read sets no floor: the migration check fails an unreadable head', () => {
+    const misnumbered = (source: string, step: number) => source.replace(`// ${step}:`, '// 7:')
 
-    expect(branch({ [MIGRATIONS_FILE]: unreadable }, { [MIGRATIONS_FILE]: migrationsSource(FIRST, ADDED, ADDED), 'changes/230.md': PATCH })).toEqual([])
-    expect(branch({ [MIGRATIONS_FILE]: migrationsSource(FIRST) }, { [MIGRATIONS_FILE]: `${unreadable}// more\n`, 'changes/230.md': PATCH })).toEqual([])
+    expect(
+      branch({ [MIGRATIONS_FILE]: misnumbered(migrationsSource(FIRST), 1) }, { [MIGRATIONS_FILE]: migrationsSource(FIRST, ADDED), 'changes/230.md': PATCH }),
+    ).toEqual([])
+    expect(
+      branch(
+        { [MIGRATIONS_FILE]: migrationsSource(FIRST) },
+        { [MIGRATIONS_FILE]: misnumbered(migrationsSource(FIRST, ADDED, ADDED), 3), 'changes/230.md': PATCH },
+      ),
+    ).toEqual([])
   })
 
   test('a branch that adds a migration step needs a major bump: a stored-data change the EM can’t go back from', () => {
