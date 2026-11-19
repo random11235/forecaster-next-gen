@@ -1,22 +1,12 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { typeScriptFilesUnder } from './sourceFiles.js'
+import { importedPaths, typeScriptFilesUnder } from '../scripts/sourceFiles.ts'
 
 // Reading what the repo's files import, for the tests that check who may import what: dependencyRules.test.ts and
-// testSeams.test.ts.
+// testSeams.test.ts. Each import is found by `importedPaths` (scripts/sourceFiles.ts).
 
 export const src = fileURLToPath(new URL('../src', import.meta.url))
-
-/**
- * The relative paths `source` imports, as written: by `import`/`export … from`, a side-effect `import '…'` or a dynamic
- * `import('…')`; `import type`, `export type` and `typeof import('…')` too, unless `runtimeOnly`.
- */
-export function importedPaths(source: string, runtimeOnly = false): string[] {
-  return [...source.matchAll(/(typeof\s+)?\b(?:import|export)(\s+type\b)?(?:[^'"]*from\s+|\s*\(\s*|\s+)'(\.[^']+)'/g)]
-    .filter(([, typeOf, typeOnly]) => !(runtimeOnly && (typeOf || typeOnly)))
-    .map((match) => match[3]!)
-}
 
 /**
  * What the file at `path` imports, each its relative import resolved to a path relative to `src/`: `connectors/jira.js`

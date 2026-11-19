@@ -2,7 +2,7 @@ import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 import { src } from './importScan.js'
 import { codeOf, templateTextsOf } from './sourceCode.js'
-import { type SourceFile, typeScriptSourcesUnder } from './sourceFiles.js'
+import { type SourceFile, typeScriptSourcesUnder } from '../scripts/sourceFiles.ts'
 import { STORED_UNIONS } from './storage/storedUnions.js'
 
 // String values in union types are camelCase, like the TypeScript identifiers around them: 'howMany',

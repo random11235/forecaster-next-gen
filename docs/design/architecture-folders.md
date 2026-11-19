@@ -93,8 +93,7 @@ test/
   stringValueRules.test.ts # stored union values (storage/storedUnions.ts), string-literal union values in src/ and the schema's CHECK values are camelCase
   typeCheckRules.test.ts  # no `any` in a type position and no `!` but on an index, in src/ or test/
   arrangeRules.test.ts    # no test file but the listed exceptions (migration tests, unreadable stored data) writes SQL or opens the database directly
-  importScan.ts           # reading what files import, for dependencyRules.test.ts and testSeams.test.ts
-  sourceFiles.ts          # listing and reading a folder's .ts files, for importScan.ts, storedJsonRules.test.ts, stringValueRules.test.ts, typeCheckRules.test.ts and arrangeRules.test.ts
+  importScan.ts           # reading what files import, for dependencyRules.test.ts and testSeams.test.ts; listing a folder's .ts files and finding a file's imports are scripts/sourceFiles.ts's, which the scan tests and the CI summary's shallowest modules share
   sourceCode.ts           # a file's code apart from its comments, strings and regexes, and its templates' text, for storedJsonRules.test.ts, stringValueRules.test.ts and typeCheckRules.test.ts
   sourceCode.test.ts      # sourceCode.ts: what it keeps as code and blanks out, and the templates' text it reads
 ```
