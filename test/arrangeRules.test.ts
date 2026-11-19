@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
-import { typeScriptSourcesUnder } from './sourceFiles.js'
+import { typeScriptSourcesUnder } from '../scripts/sourceFiles.ts'
 
 // Tests arrange through the module: test setup calls storage's own functions, never writes rows or stored shapes in
 // SQL or opens the database file itself, so a change to how storage keeps its data leaves the tests alone. Where a

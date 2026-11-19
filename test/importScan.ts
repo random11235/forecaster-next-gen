@@ -1,29 +1,19 @@
 import { readFileSync } from 'node:fs'
-import { dirname, join, relative, resolve } from 'node:path'
+import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { typeScriptFilesUnder } from './sourceFiles.js'
+import { importedPaths, resolveImport, typeScriptFilesUnder } from '../scripts/sourceFiles.ts'
 
 // Reading what the repo's files import, for the tests that check who may import what: dependencyRules.test.ts and
-// testSeams.test.ts.
+// testSeams.test.ts. Each import is found and resolved by scripts/sourceFiles.ts.
 
 export const src = fileURLToPath(new URL('../src', import.meta.url))
-
-/**
- * The relative paths `source` imports, as written: by `import`/`export … from`, a side-effect `import '…'` or a dynamic
- * `import('…')`; `import type`, `export type` and `typeof import('…')` too, unless `runtimeOnly`.
- */
-export function importedPaths(source: string, runtimeOnly = false): string[] {
-  return [...source.matchAll(/(typeof\s+)?\b(?:import|export)(\s+type\b)?(?:[^'"]*from\s+|\s*\(\s*|\s+)'(\.[^']+)'/g)]
-    .filter(([, typeOf, typeOnly]) => !(runtimeOnly && (typeOf || typeOnly)))
-    .map((match) => match[3]!)
-}
 
 /**
  * What the file at `path` imports, each its relative import resolved to a path relative to `src/`: `connectors/jira.js`
  * for one in `src/`, `../test/...` or `../package.json` for one outside it; `import type` too, unless `runtimeOnly`.
  */
 export function importsAt(path: string, runtimeOnly = false): string[] {
-  return importedPaths(readFileSync(path, 'utf8'), runtimeOnly).map((imported) => relative(src, resolve(dirname(path), imported)))
+  return importedPaths(readFileSync(path, 'utf8'), runtimeOnly).map((imported) => relative(src, resolveImport(path, imported)))
 }
 
 /** What `file` (a path under `src/`) imports, as `importsAt` gives it; `import type` too, unless `runtimeOnly`. */

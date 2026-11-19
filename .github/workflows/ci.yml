@@ -38,6 +38,12 @@ jobs:
             [ -f "$file" ] || continue
             { echo "### $title"; echo '```'; sed -n '/^-*|/,$p' "$file"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           done
+      # A report, not a check (scripts/moduleDepth.ts): the entry points exporting the most per line they hide.
+      # It never fails the build.
+      - name: Shallowest modules
+        if: always()
+        continue-on-error: true
+        run: node scripts/reportShallowModules.ts >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
