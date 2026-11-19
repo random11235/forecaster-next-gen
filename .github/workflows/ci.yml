@@ -16,7 +16,7 @@ jobs:
       # `npm run check:ci` and `npm run check`, which the pre-push hook runs, run one list of checks (`check:static`: the
       # typecheck, the migration check, and Prettier, the 5,000-token limit and the change-file check on the files this
       # branch changes since CHECK_BASE), so a check added there runs in both. Then `check` runs every test; `check:ci`
-      # runs them with coverage, all but the benchmark, which the next step runs on its own.
+      # runs them with coverage (`test:coverage`), all but the benchmark, which the next step runs on its own.
       - name: Checks and tests, with test coverage
         env:
           CHECK_BASE: origin/${{ github.base_ref || 'main' }}
@@ -33,6 +33,7 @@ jobs:
       # Each module's coverage by its own test folder alone (scripts/ownFolderCoverage.ts): fails when one drops below
       # its threshold, so behaviour tested only at an outer layer can't creep in. Its Markdown report goes to stdout.
       - name: Coverage by each module's own tests
+        if: always()
         run: npm run --silent coverage:folders > own-folder-coverage.md
       - name: Coverage summary
         if: always()
