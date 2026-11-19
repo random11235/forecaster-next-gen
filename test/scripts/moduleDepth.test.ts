@@ -6,9 +6,9 @@ import { describe, expect, test } from 'vitest'
 import { moduleDepths, SHALLOWEST_LISTED, shallowestModules } from '../../scripts/moduleDepth.ts'
 import { typeScriptSourcesUnder } from '../../scripts/sourceFiles.ts'
 
-/** A source file of `lines` lines, each ending in a newline, the first ones `head`. */
+/** A source file of `lines` code lines, each ending in a newline, the first ones `head`. */
 const sourceOf = (lines: number, ...head: string[]): string =>
-  [...head, ...Array<string>(lines - head.length).fill('// hidden')].map((line) => `${line}\n`).join('')
+  [...head, ...Array<string>(lines - head.length).fill('hidden()')].map((line) => `${line}\n`).join('')
 
 describe('module depth', () => {
   test("an entry point at a module's root counts its exported functions and types, and its own lines", () => {
@@ -24,6 +24,24 @@ describe('module depth', () => {
     })
 
     expect(depths).toEqual([{ file: 'forecast/inputs.ts', exports: 4, lines: 10 }])
+  })
+
+  test('lines hidden are code lines: blank lines and comments, line or block, do not count', () => {
+    const source = [
+      '// A line comment',
+      '/**',
+      ' * A block comment, over lines',
+      ' */',
+      '',
+      'export function a() {} // code, with a comment after it',
+      '   ',
+      '/* a block comment on one line */',
+      'const b = 1 /* code, with a block comment after it */',
+      '/* a block comment that ends before code */ const c = 2',
+      '',
+    ].join('\n')
+
+    expect(moduleDepths({ 'model/dates.ts': source })).toEqual([{ file: 'model/dates.ts', exports: 1, lines: 3 }])
   })
 
   test('a function kept in a const, a class and an enum count; a constant does not', () => {

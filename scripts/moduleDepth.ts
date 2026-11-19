@@ -3,7 +3,7 @@
 //
 // An entry point is what the rest of the app imports of one of src/'s modules. A module with an `index.ts`
 // (src/engine/index.ts) has that one; any other has each file at its root (src/forecast/inputs.ts,
-// src/connectors/github.ts). What an entry point hides is its own lines and those of each file it reaches through its
+// src/connectors/github.ts). What an entry point hides is its own lines of code (not blank, not only comment) and those of each file it reaches through its
 // imports into its private folders, at any depth there: for an `index.ts`, the whole module; for any other, the
 // module's lib/ and the folder of its own name (a connector's, src/connectors/github/).
 import { importedPaths, resolveImport } from './sourceFiles.ts'
@@ -11,7 +11,7 @@ import { importedPaths, resolveImport } from './sourceFiles.ts'
 /** How many entry points the CI summary lists. */
 export const SHALLOWEST_LISTED = 10
 
-/** An entry point's depth: how many functions and types it exports, and how many lines they hide. */
+/** An entry point's depth: how many functions and types it exports, and how many lines of code they hide. */
 export interface ModuleDepth {
   file: string
   exports: number
@@ -40,7 +40,15 @@ const LISTED_NAME = /^(?<typeOnly>type\s+)?(?<name>\w+)(?:\s+as\s+(?<alias>\w+))
 /** Everything another file exports, passed on: `export * from './x.js'`, or as a namespace, `export * as ns from …`. */
 const ALL_FROM = /^export\s+\*\s+(?:as\s+(?<namespace>\w+)\s+)?from\s+'(?<from>[^']+)'/gm
 
-const linesOf = (source: string): number => source.replace(/\n$/, '').split('\n').length
+/** A string literal, kept as it is, or a comment, line or block: so `'//'` in a string is no comment. */
+const STRING_OR_COMMENT = /('(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`)|\/\*[\s\S]*?\*\/|\/\/[^\n]*/g
+
+/** How many of `source`'s lines hold code: not blank, and not only comment. A block comment keeps its line breaks. */
+const codeLinesOf = (source: string): number =>
+  source
+    .replace(STRING_OR_COMMENT, (match, string?: string) => string ?? match.replace(/[^\n]/g, ''))
+    .split('\n')
+    .filter((line) => line.trim() !== '').length
 
 /** The source file under `src/` that `file` imports as `imported`: `./x.js` names `x.ts`. */
 const sourceImported = (file: string, imported: string): string => resolveImport(file, imported).replace(/\.js$/, '.ts')
@@ -110,7 +118,7 @@ export function moduleDepths(files: Record<string, string>): ModuleDepth[] {
   return entryPoints(files).map(({ entry, privateFolders }) => ({
     file: entry,
     exports: [...exportsOf(entry, files).values()].filter((kind) => kind === 'function or type').length,
-    lines: [...hiddenBehind(entry, privateFolders, files)].reduce((lines, hidden) => lines + linesOf(files[hidden] ?? ''), 0),
+    lines: [...hiddenBehind(entry, privateFolders, files)].reduce((lines, hidden) => lines + codeLinesOf(files[hidden] ?? ''), 0),
   }))
 }
 
