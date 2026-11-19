@@ -6,7 +6,8 @@
 
 import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
-import { addSection, biggestBump, CHANGE_FILE, changelogSection, readChangeFile, VERSIONED, withVersion, type Bump } from './changeFiles.ts'
+import { biggestBump, type Bump } from './bumps.ts'
+import { addSection, CHANGE_FILE, changelogSection, readChangeFile, VERSIONED, withVersion } from './changeFiles.ts'
 
 type Git = (...args: string[]) => string
 
