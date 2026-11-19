@@ -1,7 +1,11 @@
 import { describe, expect, test } from 'vitest'
 import { addSection, changeFileProblems, withVersion } from '../../scripts/changeFiles.ts'
 import { MIGRATIONS_FILE } from '../../scripts/migrationSteps.ts'
+import { migrationsSource } from '../migrationsSource.js'
 import { changeFileText } from './releaseRepo.ts'
+
+/** Two migration steps, as text the check counts: the first a branch's base has, and one it adds. */
+const [FIRST, ADDED] = ['SELECT 1;', 'SELECT 2;']
 
 /** A branch as the check reads it: each file at its base and at its head, a file missing from one absent there. */
 function branch(base: Record<string, string>, head: Record<string, string>) {
@@ -91,10 +95,31 @@ describe('the change-file check on a branch', () => {
     ])
   })
 
+  test('a branch that adds several migration steps names them all', () => {
+    expect(
+      branch({ [MIGRATIONS_FILE]: migrationsSource(FIRST) }, { [MIGRATIONS_FILE]: migrationsSource(FIRST, ADDED, ADDED), 'changes/230.md': PATCH }),
+    ).toEqual([
+      `This branch adds migration steps 2–3, so needs \`bump: major\`, but its change files bump \`patch\` at most (changes/230.md): raise it, ${HOW}.`,
+    ])
+  })
+
+  // Each case's head has more steps than its base, read as written, so would need a major were the unreadable side read.
+  test('a migrations file whose steps can’t be read sets no floor: the migration check fails an unreadable head', () => {
+    const misnumbered = (source: string, step: number) => source.replace(`// ${step}:`, '// 7:')
+
+    expect(
+      branch({ [MIGRATIONS_FILE]: misnumbered(migrationsSource(FIRST), 1) }, { [MIGRATIONS_FILE]: migrationsSource(FIRST, ADDED), 'changes/230.md': PATCH }),
+    ).toEqual([])
+    expect(
+      branch(
+        { [MIGRATIONS_FILE]: migrationsSource(FIRST) },
+        { [MIGRATIONS_FILE]: misnumbered(migrationsSource(FIRST, ADDED, ADDED), 3), 'changes/230.md': PATCH },
+      ),
+    ).toEqual([])
+  })
+
   test('a branch that adds a migration step needs a major bump: a stored-data change the EM can’t go back from', () => {
-    const migrations = (...steps: string[]) =>
-      `const MIGRATIONS: readonly string[] = [\n${steps.map((step, i) => `  // ${i + 1}: ${step}\n  \`SQL ${i + 1}\`,\n`).join('')}]\n`
-    const [before, after] = [migrations('teams'), migrations('teams', 'a new column')]
+    const [before, after] = [migrationsSource(FIRST), migrationsSource(FIRST, ADDED)]
 
     for (const bump of ['patch', 'minor'])
       expect(branch({ [MIGRATIONS_FILE]: before }, { [MIGRATIONS_FILE]: after, 'changes/230.md': changeFileText(bump, 'A column (#230)') })).toEqual([

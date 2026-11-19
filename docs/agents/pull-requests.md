@@ -18,15 +18,15 @@ bump: patch
 No import cycles in `src/`, with no change to the app (#230)
 ```
 
-- **`major`**: a one-way door, a stored-data change the EM can't go back from. A new migration step is one.
-- **`minor`**: a visible change. A new demo screenshot (`docs/demos/*.png`) is one, as a visible change ships them ([`demos.md`](demos.md)).
+- **`major`**: a one-way door, a stored-data change the EM can't go back from. A new migration step is one, and so is a change to a stored shape with no step: persisted JSON, or what the web build keeps in web storage.
+- **`minor`**: a visible change. A new demo screenshot (`docs/demos/*.png`) is one, as a visible change ships them ([`demos.md`](demos.md)), and so is a visible change with no screenshot.
 - **`patch`**: no visible change.
 
 The line names the ticket, not the PR: the release adds the PR's number from its merge commit, as `(#230, PR #286)`. A PR with several tickets adds a file for each. Each file has its own name, so two PRs in flight never edit the same line and the second to merge doesn't conflict.
 
 The PR doesn't set `version` in `package.json` or `package-lock.json`, or edit the entries in [`CHANGELOG.md`](../../CHANGELOG.md). Once CI's run on its merge is green, its `release` job releases its change files as a version, committed and tagged on `main`, as [`architecture.md`](../design/architecture.md#release) sets out. Every screen's footer shows the version, so anyone can read from it whether a fix is in the app they're running. Until the release, a branch's footer shows the last released version, not the one it will become.
 
-`check:static`, so the pre-push hook and CI's `check` job, fails a branch that changes an app file and adds no change file (editing one already on its base adds none, and `changes/README.md` isn't one), has a change file with no valid `bump` or not one line of body, adds a migration step without a `major` bump or a demo screenshot without at least a `minor` one (a branch that adds a demo screenshot needs a change file even if it changes no app file), or sets the version or edits the `CHANGELOG.md` entries (its header is fine), saying what to fix. A docs-only PR adds no change file and releases nothing. An app change merged on a red check, or pushed straight to `main`, without a change file releases nothing either: add its change file in a follow-up PR. An open page reloads itself when the app restarts on a different version.
+`check:static`, so the pre-push hook and CI's `check` job, fails a branch that changes an app file and adds no change file (editing one already on its base adds none, and `changes/README.md` isn't one), has a change file with no valid `bump` or not one line of body, adds a migration step without a `major` bump or a demo screenshot without at least a `minor` one (a branch that adds a demo screenshot needs a change file even if it changes no app file; [`scripts/bumpFloors.ts`](../../scripts/bumpFloors.ts) sets these floors), or sets the version or edits the `CHANGELOG.md` entries (its header is fine), saying what to fix. A docs-only PR adds no change file and releases nothing. An app change merged on a red check, or pushed straight to `main`, without a change file releases nothing either: add its change file in a follow-up PR. An open page reloads itself when the app restarts on a different version.
 
 ## Evidence shows the output
 
