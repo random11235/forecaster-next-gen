@@ -14,7 +14,7 @@ export function migrationSteps(source: string, where: string): string[] {
   if (block === undefined) throw new Error(`${where}: no \`const MIGRATIONS\` array in ${MIGRATIONS_FILE}`)
   const parts = block.split(/^(?=  \/\/ \d+:)/m).filter((part) => /^  \/\/ \d+:/.test(part))
   parts.forEach((part, i) => {
-    const number = Number(/^  \/\/ (\d+):/.exec(part)![1])
+    const number = Number(/^  \/\/ (\d+):/.exec(part)?.[1])
     if (number !== i + 1) throw new Error(`${where}: step comment \`// ${number}:\` should be \`// ${i + 1}:\``)
   })
   return parts.map((part) => part.trimEnd())

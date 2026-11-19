@@ -1,9 +1,8 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
-import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
-import { moduleDepths, shallowestModules } from '../../scripts/moduleDepth.ts'
+import { moduleDepths, SHALLOWEST_LISTED, shallowestModules } from '../../scripts/moduleDepth.ts'
+import { typeScriptSourcesUnder } from '../../scripts/sourceFiles.ts'
 
 /** A source file of `lines` lines, each ending in a newline, the first ones `head`. */
 const sourceOf = (lines: number, ...head: string[]): string =>
@@ -63,6 +62,38 @@ describe('module depth', () => {
     })
 
     expect(depths).toEqual([{ file: 'model/team.ts', exports: 2, lines: 4 }])
+  })
+
+  test('names passed on from one file in two export lists all count', () => {
+    const depths = moduleDepths({
+      'engine/index.ts': sourceOf(2, "export { a } from './x.js'", "export { b } from './x.js'"),
+      'engine/x.ts': sourceOf(2, 'export function a() {}', 'export function b() {}'),
+    })
+
+    expect(depths).toEqual([{ file: 'engine/index.ts', exports: 2, lines: 4 }])
+  })
+
+  test('a const typed as a function, and a nameless default function or class, count', () => {
+    const depths = moduleDepths({
+      'model/a.ts': sourceOf(2, 'export const g: (x: number) => number = (x) => x', 'export const LIMIT: number = 5'),
+      'model/b.ts': sourceOf(1, 'export default function (x: number) {}'),
+      'model/c.ts': sourceOf(1, 'export default class {}'),
+    })
+
+    expect(depths.map(({ file, exports }) => ({ file, exports }))).toEqual([
+      { file: 'model/a.ts', exports: 1 },
+      { file: 'model/b.ts', exports: 1 },
+      { file: 'model/c.ts', exports: 1 },
+    ])
+  })
+
+  test("a namespace passed on with `export * as` counts the other file's functions and types", () => {
+    const depths = moduleDepths({
+      'engine/index.ts': sourceOf(1, "export * as types from './types.js'"),
+      'engine/types.ts': sourceOf(3, 'export interface A {}', 'export type B = 1', 'export const C = 2'),
+    })
+
+    expect(depths).toEqual([{ file: 'engine/index.ts', exports: 2, lines: 4 }])
   })
 
   test("everything it passes on with `export *` counts as the other file's exports do", () => {
@@ -176,14 +207,15 @@ describe('the shallowest modules, as the CI summary lists them', () => {
     ])
   })
 
-  test('run over the real src/ as CI runs it, it lists ten of its entry points', () => {
+  test("run over the real src/ as CI runs it, it lists as many as it shows of src/'s entry points", () => {
     const script = fileURLToPath(new URL('../../scripts/reportShallowModules.ts', import.meta.url))
     const src = fileURLToPath(new URL('../../src', import.meta.url))
+    const entryPoints = moduleDepths(Object.fromEntries(typeScriptSourcesUnder(src).map(({ file, source }) => [file, source]))).map(({ file }) => file)
 
     const report = execFileSync(process.execPath, [script], { encoding: 'utf8' })
 
     const listed = [...report.matchAll(/^\| `src\/([^`]+)`/gm)].map(([, file = '']) => file)
-    expect(listed).toHaveLength(10)
-    expect(listed.filter((file) => !existsSync(join(src, file)) || file.split('/').length !== 2)).toEqual([])
+    expect(listed).toHaveLength(SHALLOWEST_LISTED)
+    expect(listed.filter((file) => !entryPoints.includes(file))).toEqual([])
   })
 })
