@@ -30,6 +30,10 @@ jobs:
         run: |
           set -o pipefail
           npm run coverage:usage | tee usage-coverage.txt
+      # Each module's coverage by its own test folder alone (scripts/ownFolderCoverage.ts): fails when one drops below
+      # its threshold, so behaviour tested only at an outer layer can't creep in. Its Markdown report goes to stdout.
+      - name: Coverage by each module's own tests
+        run: npm run --silent coverage:folders > own-folder-coverage.md
       - name: Coverage summary
         if: always()
         run: |
@@ -38,6 +42,9 @@ jobs:
             [ -f "$file" ] || continue
             { echo "### $title"; echo '```'; sed -n '/^-*|/,$p' "$file"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           done
+          if [ -f own-folder-coverage.md ]; then
+            { echo "### Coverage by each module's own tests"; cat own-folder-coverage.md; } >> "$GITHUB_STEP_SUMMARY"
+          fi
       # A report, not a check (scripts/moduleDepth.ts): the entry points exporting the most per line they hide.
       # It never fails the build.
       - name: Shallowest modules
@@ -51,6 +58,7 @@ jobs:
           path: |
             coverage/
             coverage-usage/
+            coverage-folders/
 
   # Drives the local app and the web build in Chrome as the EM would (scripts/browserCheck.ts): each opens empty, takes
   # a milestone and pace on Inputs, then shows their forecast with no error in the page. A failure keeps a screenshot.
