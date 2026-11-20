@@ -1,5 +1,6 @@
 // The forecast module's one entry point: the team's handle (`openForecasting`), what goes in through it, each view and
-// edit the screens show and post, and the limits the screens' fields are given. Everything else is private, in lib/.
+// edit the screens show and post, the limits the screens' fields are given, and the words the screens share: each kind
+// of choice's name (`KIND_NAMES`) and a date as day and month (`dayMonth`). Everything else is private, in lib/.
 
 export { openForecasting, type Forecasting } from './lib/forecasting.js'
 export type {
