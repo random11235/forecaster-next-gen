@@ -5,6 +5,7 @@ Part of the architecture design; the index is [`architecture.md`](architecture.m
 **Dependency rules:**
 
 - `engine/` imports nothing from the rest of the app.
+- `model/` depends only on `engine/`'s types (`import type`), never on `connectors/`: the record types a connector answers in (`Ticket`, `Choice`, `Failure`) live in `model/`, and `connectors/connector.ts` re-exports them. `test/dependencyRules.test.ts` checks this rule.
 - `samples/` imports only `model/`.
 - `forecast/` is the only module that depends on both stored data and `engine/`'s code: it runs the engine on stored inputs. `storage/` reaches only `engine/types.ts` (below).
 - `ledger/` depends only on `engine/types.ts`.

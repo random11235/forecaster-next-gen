@@ -1,4 +1,4 @@
-import type { Failure } from '../connectors/connector.js'
+import type { Failure } from './failure.js'
 
 /** Why a read failed, and when it was asked for (`at`): the tracker's failure, or this computer's keychain not giving the token. */
 export type FailedRead = (Failure | { failure: 'keychainFailed' }) & { at: string }
