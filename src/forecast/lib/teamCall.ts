@@ -34,8 +34,8 @@ export interface ForecastingOptions {
  */
 export interface TeamCall extends TeamContext {
   /**
-   * What both builds reach reads it as it may be, none in the browser build (`reading &&`): the Inputs screen, a
-   * search, a renamed milestone followed. What only the local server build's screens send takes it through
+   * Code both builds reach reads `reading` as optional, as the browser build has none (`reading &&`): the Inputs
+   * screen, a search, a renamed milestone followed. Code only the local server build's screens reach takes it through
    * `connected`, which throws without it: setup's forms, a skip, the candidates.
    */
   reading: (SetupContext & Skipping) | undefined
