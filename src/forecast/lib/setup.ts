@@ -12,7 +12,6 @@ import { SETUP_STEPS, setupStepOf, type SetupStep } from './setupSteps.js'
 import { hasQuery } from './stepQuery.js'
 import { measure, paceReadingView, trackerPace, type PaceReadingView } from './trackerReads.js'
 
-export { COUNTS_WAIT } from './setupSummary.js'
 export type { SetupStep } from './setupSteps.js'
 
 /**
@@ -156,7 +155,7 @@ export async function openSetup(settingUp: SetupContext | undefined, teamId: str
  * until the team is connected, and Milestone, asked for a later step, until the milestone has a query. Once the
  * connection they opened on is changed in them, they say they can't be cancelled (`noCancel`).
  */
-export function setupView(settingUp: SetupContext | undefined, teamId: string, asked?: SetupStep): SetupView {
+function setupView(settingUp: SetupContext | undefined, teamId: string, asked?: SetupStep): SetupView {
   if (!settingUp) return { kind: 'noSetup' }
   const connection = settingUp.connections.connection(teamId)
   const state = settingUp.setup.setupState(teamId)

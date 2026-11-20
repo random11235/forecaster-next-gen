@@ -11,9 +11,7 @@ import { CHOICES_FAILED, foundInTracker, KEYCHAIN_FAILED, KIND_NAMES, listedHere
 import { readFlag, readLine, rejectionOf } from './readSaid.js'
 import { chipsShow, editedQuery, NO_QUERY, picksChanged, type PicksEdit } from './stepQueryEdit.js'
 
-export { kindName, type ChoiceList } from './choiceLists.js'
-export { readFlag, rejectionOf } from './readSaid.js'
-export { chipsShow } from './stepQueryEdit.js'
+export type { ChoiceList } from './choiceLists.js'
 export type { ComparableWorkPace } from './comparableWorkPace.js'
 
 /** What the Milestone step says once, beside the milestone query: the only two things a read adds to it. */

@@ -6,7 +6,7 @@ import type { SetupStep } from './setupSteps.js'
 import { BLANK_CONNECTION_FORM, connectionOf, TRACKERS, trackerOf, type ConnectionForm, type Tracker } from './trackers.js'
 
 /** Builds the connector for a connection and its token: the real one in the local server build, the canned one in tests and demo mode. */
-export type ConnectorFactory = (connection: Connection, token: string) => Connector
+type ConnectorFactory = (connection: Connection, token: string) => Connector
 
 /**
  * What the local server build connects with: where the connection is kept, where its token is kept, how a connector is

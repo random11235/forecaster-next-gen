@@ -25,7 +25,7 @@ export interface GrowthView {
 }
 
 /** The level as a label: "Medium". */
-export function ambiguityName(level: Ambiguity): string {
+function ambiguityName(level: Ambiguity): string {
   return level.charAt(0).toUpperCase() + level.slice(1)
 }
 
