@@ -99,13 +99,12 @@ test/
   connectors/             # Seam C: the connector contract suite, its replay transport, the backoff tests' stand-in tracker and waits, and the scenarios and queries recorded for it; each tracker's quirks and recordings in its own folder; the canned connector
   secrets/                # the Secrets contract, run against the in-memory fake and the OS keychain (where one answers); no error quotes the token
   storage/                # the schema's migrations; the Storage contract, run against SQLite and browser storage; the stored values' snapshot (`storedValues.snapshot`), the unions it freezes (`storedUnions.ts`) and the check that keeps it (`storedValues.ts`, run by `storedValues.test.ts`)
-  dependencyRules.test.ts # the dependency rules (architecture-dependency-rules.md): connectors/ and secrets/ kept at the edge, ledger/ and storage/ reaching the engine only through its types
   testSeams.test.ts       # each test folder imports only its seam's entry points (architecture-test-seams.md): TEST_SEAMS, the one list
   storedJsonRules.test.ts # nothing in src/storage/ uses JSON but to stringify, but lib/storedJson.ts
   stringValueRules.test.ts # stored union values (storage/storedUnions.ts), string-literal union values in src/ and the schema's CHECK values are camelCase
   typeCheckRules.test.ts  # no `any` in a type position and no `!` but on an index, in src/, test/ or scripts/
   arrangeRules.test.ts    # no test file but the listed exceptions (migration tests, unreadable stored data) writes SQL or opens the database directly
-  importScan.ts           # what src/'s and test/'s files import, as paths under src/, for dependencyRules.test.ts and testSeams.test.ts (the scan tests list files and read imports through scripts/sourceFiles.ts)
+  importScan.ts           # what src/'s and test/'s files import, as paths under src/, for testSeams.test.ts (the scan tests list files and read imports through scripts/sourceFiles.ts)
   sourceCode.ts           # a file's code apart from its comments, strings and regexes, and its templates' text, for storedJsonRules.test.ts, stringValueRules.test.ts and typeCheckRules.test.ts
   sourceCode.test.ts      # sourceCode.ts: what it keeps as code and blanks out, and the templates' text it reads
   isoInstant.ts           # ISO_INSTANT, the shape of the instant storage stamps a logged forecast with, for the tests that check it
