@@ -1,13 +1,12 @@
 import { periodName } from '../forecast/cadence.js'
 import { MAX_CADENCE_DAYS } from '../forecast/milestoneInputs.js'
 import { ambiguityName, MAX_GROWTH, type GrowthView, type TypedRange } from '../forecast/growth.js'
-import type { ConnectionView } from '../forecast/connection.js'
-import type { QueryStepView } from '../forecast/queryStep.js'
+import type { InputsScreen } from '../forecast/forecasting.js'
+import type { QueryStep } from '../forecast/queryStep.js'
 import type { SkipEdit } from '../forecast/skippedPeriods.js'
-import type { InputsEdit, InputsView, TypedForms } from '../forecast/inputs.js'
+import type { InputsEdit, TypedForms } from '../forecast/inputs.js'
 import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
 import { CONNECT_HINT, connectSection } from './connectSection.js'
-import type { SetupView } from '../forecast/setup.js'
 import { CHECK_SCRIPT, CHECK_STEP, checkStepHtml, setupSkippedHtml, setupStepHtml, setupSummaryHtml } from './setupSection.js'
 import { escapeHtml, htmlPage } from './html.js'
 import { INPUTS_SCRIPT } from './inputsScript.js'
@@ -76,7 +75,7 @@ export const SKIP_FORMS: ReadonlyMap<string, (body: URLSearchParams) => SkipEdit
 /** A step picking or writing one of the team's queries, as the Inputs screen shows it: its section, and its view. */
 export interface ShownStep {
   section: StepSection
-  view: QueryStepView
+  view: QueryStep
   /**
    * The id its candidates' opening is kept by, for the page's script to read more in (`keepOpening`): the Comparable work
    * step's, while it shows candidates (`ComparableWorkStep.candidates`, #205).
@@ -85,26 +84,23 @@ export interface ShownStep {
 }
 
 /**
- * The Inputs screen: in the local server build, first `setup` (`setupView`): the setup step the EM is on, the Connect
- * step, one of the `steps` picking the team's queries (the Milestone step or the Comparable work step), or Check; or,
- * once setup is closed, its summary. Then the milestone, its pace and the team's growth.
+ * The Inputs screen: in the local server build, first its setup: the setup step the EM is on, the Connect step, the
+ * query step `shown` (the Milestone step or the Comparable work step), or Check; or, once setup is closed, its
+ * summary. Then the milestone, its pace and the team's growth.
  */
-export function renderInputsScreen(
-  screen: InputsView,
-  connection: ConnectionView,
-  steps: readonly ShownStep[] = [],
-  setup: SetupView = { kind: 'noSetup' },
-): string {
+export function renderInputsScreen(view: InputsScreen, shown?: ShownStep): string {
+  const { inputs: screen, setup } = view
   const { milestone, forms } = screen
+  const steps = shown ? [shown] : []
   const error: FormError = (form) => (screen.refusal?.form === form ? screen.refusal.error : undefined)
-  const pickers = steps.flatMap(({ section, view, openingId }) => {
+  const pickers = steps.map(({ section, view, openingId }) => {
     const picker = queryStepSection(view, section)
     const candidates =
       view.kind === 'comparableWorkStep' && view.candidates && openingId !== undefined ? candidatesHtml(view.candidates.shown, openingId, section) : ''
-    return picker === undefined ? [] : [{ section, picker: picker + candidates }]
+    return { section, picker: picker + candidates }
   })
   const sections = [
-    ...setupStepSection(setup, connection, pickers),
+    ...setupStepSection(view, pickers),
     milestoneSection(screen, error),
     cadenceSection(forms.cadence, error('cadence'), milestone.cadenceDays),
     paceSection(screen, error, periodName(milestone.cadenceDays)),
@@ -119,24 +115,26 @@ export function renderInputsScreen(
   // each script is a call, so one following another would be taken to call its result: `;` ends each (#275)
   const script = [
     INPUTS_SCRIPT,
-    ...(setup.kind === 'steps' && setup.step === 'check' ? [CHECK_SCRIPT] : []),
+    ...(setup?.kind === 'steps' && setup.step === 'check' ? [CHECK_SCRIPT] : []),
     ...pickers.map(({ section }) => queryStepScript(section)),
     ...steps.filter(({ openingId }) => openingId !== undefined).map(({ section }) => candidatesScript(section)),
   ].join(';')
-  const closed = setup.kind === 'summary' ? setupSummaryHtml(setup) : setup.kind === 'skipped' ? setupSkippedHtml() : ''
+  const closed = setup?.kind === 'summary' ? setupSummaryHtml(setup) : setup?.kind === 'skipped' ? setupSkippedHtml() : ''
   return htmlPage('/inputs', header, closed + sections.map((section, index) => section(index + 1)).join('\n'), script)
 }
 
 /** The setup step the EM is on, as its section, with the steps' list and Back and Next; none once setup is closed, or in the browser build. */
-function setupStepSection(setup: SetupView, connection: ConnectionView, pickers: readonly { section: StepSection; picker: string }[]): Section[] {
-  if (setup.kind !== 'steps') return []
+function setupStepSection(
+  { setup, connection }: Pick<InputsScreen, 'setup' | 'connection'>,
+  pickers: readonly { section: StepSection; picker: string }[],
+): Section[] {
+  if (setup?.kind !== 'steps') return []
   const step = (label: string, hint: string, body: string, id: string): Section[] => [
     inputSection(label, label, hint, setupStepHtml(setup, body), { postsOnSubmit: true, id }),
   ]
   switch (setup.step) {
     case 'connect': {
-      const connect = connectSection(connection)
-      return connect === undefined ? [] : step('Connect', CONNECT_HINT, connect, 'connect')
+      return connection === undefined ? [] : step('Connect', CONNECT_HINT, connectSection(connection), 'connect')
     }
     case 'check':
       return step(CHECK_STEP.title, CHECK_STEP.hint, checkStepHtml(setup.check), CHECK_STEP.id)
