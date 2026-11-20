@@ -1,4 +1,4 @@
-import type { Choice } from '../connectors/connector.js'
+import type { Choice } from '../model/choice.js'
 import {
   dayMonth,
   FEW_CANDIDATES,
