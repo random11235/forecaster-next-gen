@@ -100,7 +100,7 @@ describe('renaming the milestone', () => {
     }
     const team = await pickedFrom(rejecting, 'github', [checkout])
 
-    expect(await rename(team)).toEqual({ saved: true, next: { screen: 'inputs' } })
+    expect(await rename(team)).toEqual({ kind: 'saved', next: { screen: 'inputs' } })
 
     expect(team.storage.milestoneQuery(TEAM)).toEqual({ picks: [checkout], query: 'milestone:"Checkout v2"' })
     expect(team.calls.reads).toEqual(['milestone:"Loyalty launch"'])

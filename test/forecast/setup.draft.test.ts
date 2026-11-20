@@ -83,7 +83,7 @@ describe('the draft', () => {
     await inSetup({ kind: 'editQuery', query: BOTH })
     await inSetup({ kind: 'addPick', choice: Q3_POLISH }, NEXT_READ_AT, 'comparableWork')
 
-    expect(await setup(current, { kind: 'useThese' })).toMatchObject({ saved: true })
+    expect(await setup(current, { kind: 'useThese' })).toMatchObject({ kind: 'saved' })
 
     expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [CHECKOUT, Q3_POLISH], query: BOTH })
     expect(storage.comparableWorkQuery(TEAM)).toEqual({ picks: [Q3_POLISH], query: Q3_POLISH.query })
@@ -100,7 +100,7 @@ describe('the draft', () => {
     await inSetup({ kind: 'editQuery', query: BOTH })
     await inSetup({ kind: 'addPick', choice: Q3_POLISH }, NEXT_READ_AT, 'comparableWork')
 
-    expect(await setup(current, { kind: 'cancel' })).toMatchObject({ saved: true })
+    expect(await setup(current, { kind: 'cancel' })).toMatchObject({ kind: 'saved' })
 
     expect(storage.setupDraft(TEAM)).toBeUndefined()
     expect(await setupAt(current)).toMatchObject({ kind: 'summary', readOn: '12 Nov 09:05' })
@@ -117,7 +117,7 @@ describe('the draft', () => {
     await connect(current)
     await inSetup({ kind: 'addPick', choice: CHECKOUT }, READ_AT)
 
-    expect(await setup(current, { kind: 'cancel' })).toMatchObject({ saved: true })
+    expect(await setup(current, { kind: 'cancel' })).toMatchObject({ kind: 'saved' })
 
     expect(storage.setupDraft(TEAM)).toBeUndefined()
     expect(storage.connection(TEAM)).toBeUndefined()
@@ -131,7 +131,7 @@ describe('the draft', () => {
     await setUpThenChange()
     current.fixture.reads['is:open'] = { tickets: open(2), incomplete: true }
 
-    expect(await inSetup({ kind: 'editQuery', query: BOTH })).toEqual({ saved: true, next: { screen: 'inputs', step: 'milestone' } })
+    expect(await inSetup({ kind: 'editQuery', query: BOTH })).toEqual({ kind: 'saved', next: { screen: 'inputs', step: 'milestone' } })
     expect(await stepInSetup()).toMatchObject({ query: BOTH, read: '7 open · 0 finished in the last 9 weeks' })
 
     await inSetup({ kind: 'editQuery', query: 'is:open' })
@@ -144,8 +144,8 @@ describe('the draft', () => {
     await inSetup({ kind: 'editQuery', query: BOTH })
     const draft = storage.setupDraft(TEAM)
 
-    expect(await inSetup({ kind: 'editQuery', query: 'closed:>2026-13-45' })).toMatchObject({ saved: false })
-    expect(await inSetup({ kind: 'editQuery', query: 'label:checkout payments' })).toMatchObject({ saved: false })
+    expect(await inSetup({ kind: 'editQuery', query: 'closed:>2026-13-45' })).toMatchObject({ kind: 'refused' })
+    expect(await inSetup({ kind: 'editQuery', query: 'label:checkout payments' })).toMatchObject({ kind: 'refused' })
 
     expect(storage.setupDraft(TEAM)).toEqual(draft)
     expect(await stepInSetup()).toMatchObject({ query: BOTH })
@@ -231,7 +231,7 @@ describe('Cancel', () => {
     await setup(current, { kind: 'change' })
     await connect(current)
 
-    expect(await cancel()).toMatchObject({ saved: true })
+    expect(await cancel()).toMatchObject({ kind: 'saved' })
     expect(storage.connection(TEAM)).toBeUndefined()
     expect(await setupAt(current)).toEqual({ kind: 'skipped' })
   })
@@ -244,7 +244,7 @@ describe('Cancel', () => {
     storage.saveSetupState(TEAM, { open: true })
     await pick(current, READ_AT)
 
-    expect(await cancel()).toMatchObject({ saved: true })
+    expect(await cancel()).toMatchObject({ kind: 'saved' })
     expect(storage.connection(TEAM)).toMatchObject({ tracker: 'github', repo: 'shop' })
     expect(storage.setupDraft(TEAM)).toBeUndefined()
     expect(await setupAt(current)).toMatchObject({ kind: 'steps', step: 'milestone' })
@@ -274,7 +274,7 @@ describe('Cancel', () => {
     await connect(current, 'jira')
 
     expect(await setupAt(current)).not.toHaveProperty('noCancel')
-    expect(await cancel()).toMatchObject({ saved: true })
+    expect(await cancel()).toMatchObject({ kind: 'saved' })
     expect(storage.connection(TEAM)).toBeUndefined()
   })
 })

@@ -119,11 +119,20 @@ function postedForm(pathname: string, form: URLSearchParams, connects: boolean):
  * screen to show again, refused; or the step asking to confirm going back to finding clears its query.
  */
 function outcomeReply(request: Request, outcome: Outcome, { next, confirmingBack }: Posted, capacityOpen: boolean): Reply {
-  if (outcome.saved) return outcome.view ? inputsReply(request, 200, outcome.view) : { kind: 'redirect', location: next(outcome.next, capacityOpen) }
-  if ('confirmClear' in outcome) return { kind: 'redirect', location: confirmingBack ?? SCREEN_PATHS.inputs }
-  if (outcome.screen === 'inputs') return inputsReply(request, 400, outcome.view)
-  const path = capacityOpen ? CAPACITY_OPEN_PATH : SCREEN_PATHS.forecast
-  return { kind: 'html', status: 400, html: renderMilestoneForecastScreen(outcome.view), path }
+  switch (outcome.kind) {
+    case 'saved':
+      return { kind: 'redirect', location: next(outcome.next, capacityOpen) }
+    case 'savedInPlace':
+      return inputsReply(request, 200, outcome.view)
+    case 'confirmClear':
+      return { kind: 'redirect', location: confirmingBack ?? SCREEN_PATHS.inputs }
+    case 'refused':
+      return inputsReply(request, 400, outcome.view)
+    case 'refusedOnForecast': {
+      const path = capacityOpen ? CAPACITY_OPEN_PATH : SCREEN_PATHS.forecast
+      return { kind: 'html', status: 400, html: renderMilestoneForecastScreen(outcome.view), path }
+    }
+  }
 }
 
 /** The Inputs screen, served at `/inputs` with `status`; its candidates' opening kept for the page's script to read more in. */

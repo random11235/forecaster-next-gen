@@ -21,7 +21,7 @@ describe('the switch', () => {
     const before = await view(team)
     await add(team, '0', '2026-09-07', '2026-09-11', { note: 'Offsite' })
 
-    expect(await submit(team, { kind: 'switchCapacity', on: false })).toEqual({ saved: true, next: { screen: 'forecast' } })
+    expect(await submit(team, { kind: 'switchCapacity', on: false })).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
 
     const forecast = await view(team)
     expect(await headline(team)).toBe('2026-09-21')
@@ -43,7 +43,7 @@ describe('the switch', () => {
     const before = await view(team)
     await submit(team, { kind: 'switchCapacity', on: false })
 
-    expect(await submit(team, { kind: 'switchCapacity', on: true })).toEqual({ saved: true, next: { screen: 'forecast' } })
+    expect(await submit(team, { kind: 'switchCapacity', on: true })).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
 
     expect(await view(team)).toEqual(before)
     expect(await headline(team)).toBe('2026-09-28')
@@ -106,7 +106,7 @@ describe('a refused capacity entry', () => {
 
     const result = await add(team, typed.percent, typed.from, typed.to, { note: 'Leave' })
 
-    expect(result.saved).toBe(false)
+    expect(result.kind).toBe('refusedOnForecast')
     expect(refusedOn(result)).toBe('forecast')
     const shown = shownAgain(result)
     expect(shown?.kind === 'forecast' && shown.capacity).toEqual({
@@ -157,7 +157,7 @@ describe('editing an entry', () => {
     await add(team, '0', '2026-09-07', '2026-09-11', { note: 'Offsite' })
     expect(await headline(team)).toBe('2026-09-28')
 
-    expect(await edit(team, '1', '100', '2026-09-14', '2026-09-18', { note: 'Offsite moved' })).toEqual({ saved: true, next: { screen: 'forecast' } })
+    expect(await edit(team, '1', '100', '2026-09-14', '2026-09-18', { note: 'Offsite moved' })).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
 
     expect(await headline(team)).toBe('2026-09-21')
     const forecast = await view(team)
@@ -196,7 +196,7 @@ describe('editing an entry', () => {
     await tenTicketsAtFive(team)
     await add(team, '400', MONDAY, '', { onward: true })
 
-    expect((await edit(team, '1', '1000', MONDAY, '', { onward: true })).saved).toBe(true)
+    expect((await edit(team, '1', '1000', MONDAY, '', { onward: true })).kind).toBe('saved')
   })
 })
 
@@ -249,7 +249,7 @@ describe('past entries', () => {
 
     const result = await submit(team, { kind: 'editCapacity', id: '1', percent: '50', from: MONDAY, to: '', onward: true, note: 'Team offsite in Lisbon' })
 
-    expect(result).toEqual({ saved: true, next: { screen: 'forecast' } })
+    expect(result).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
     const forecast = await view(team)
     expect(forecast.kind === 'forecast' && forecast.capacity.past).toEqual([
       { id: 1, from: AUGUST, to: '2026-08-07', percent: 0, note: 'Team offsite in Lisbon' },
@@ -280,8 +280,8 @@ describe('past entries', () => {
     const edited = await submit(team, { kind: 'editCapacity', id: '2', percent: '350', from: TODAY, to: '', onward: true, note: '' })
 
     expect([added, edited]).toEqual([
-      { saved: true, next: { screen: 'forecast' } },
-      { saved: true, next: { screen: 'forecast' } },
+      { kind: 'saved', next: { screen: 'forecast' } },
+      { kind: 'saved', next: { screen: 'forecast' } },
     ])
   })
 })

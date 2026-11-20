@@ -62,7 +62,7 @@ describe('Check', () => {
     await enter(current, { kind: 'setPaceMode', paceMode: 'counts' })
 
     expect(await check()).toMatchObject({ pace: { yours: { source: 'counts', counts: [5, 6, 7] }, source: 'counts', choices: ['tracker', 'range', 'counts'] } })
-    expect(await choose('pace', 'range')).toMatchObject({ saved: true })
+    expect(await choose('pace', 'range')).toMatchObject({ kind: 'saved' })
     expect(await check()).toMatchObject({ pace: { yours: { source: 'range', range: { low: 4, high: 8 } }, source: 'range' } })
     await setup(current, { kind: 'useThese' })
     expect(storage.milestoneInputs(TEAM)).toMatchObject({ paceMode: 'range', paceCounts: [5, 6, 7] })
@@ -78,13 +78,13 @@ describe('Check', () => {
     const { storage } = await changedInSetup()
     const before = { inputs: await inputs(current), forecast: await current.milestoneForecastView() }
 
-    expect(await choose('ticketsRemaining', 'tracker')).toMatchObject({ saved: true })
-    expect(await choose('pace', 'range')).toMatchObject({ saved: true })
+    expect(await choose('ticketsRemaining', 'tracker')).toMatchObject({ kind: 'saved' })
+    expect(await choose('pace', 'range')).toMatchObject({ kind: 'saved' })
     expect(await check()).toMatchObject({ ticketsRemaining: { source: 'tracker' }, pace: { source: 'range' } })
     expect(await inputs(current)).toEqual(before.inputs)
     expect(await current.milestoneForecastView()).toEqual(before.forecast)
 
-    expect(await setup(current, { kind: 'useThese' })).toMatchObject({ saved: true })
+    expect(await setup(current, { kind: 'useThese' })).toMatchObject({ kind: 'saved' })
     expect(storage.milestoneInputs(TEAM)).toMatchObject({ ticketsSource: 'tracker', ticketsRemaining: 30, paceMode: 'range', paceRange: { low: 4, high: 8 } })
     expect(storage.milestoneQuery(TEAM)?.query).toBe(BOTH)
     expect((await inputs(current)).milestone.ticketsSource).toMatchObject({ source: 'tracker', reading: { count: 7 } })
@@ -153,8 +153,8 @@ describe('Check', () => {
     await pick(current, READ_AT)
 
     expect(await check()).toMatchObject({ ticketsRemaining: { reading: 0, source: 'typed' }, pace: { source: 'range', choices: ['tracker', 'range'] } })
-    expect(await choose('ticketsRemaining', 'tracker')).toMatchObject({ saved: true })
-    expect(await choose('pace', 'tracker')).toMatchObject({ saved: true })
+    expect(await choose('ticketsRemaining', 'tracker')).toMatchObject({ kind: 'saved' })
+    expect(await choose('pace', 'tracker')).toMatchObject({ kind: 'saved' })
     expect(storage.milestoneInputs(TEAM)).toBeUndefined()
 
     await setup(current, { kind: 'useThese' })

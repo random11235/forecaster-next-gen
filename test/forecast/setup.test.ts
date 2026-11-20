@@ -105,21 +105,21 @@ describe('the setup steps', () => {
       { form: 'connection', edit: { kind: 'connect', tracker: 'github', repo: '', site: '', projectKey: '', email: '', token: '' } },
       { step: 'check' },
     )
-    expect(refused).toMatchObject({ saved: false, view: { setup: { step: 'connect' } } })
+    expect(refused).toMatchObject({ kind: 'refused', view: { setup: { step: 'connect' } } })
   })
 
   test('go on, after a setup edit, to Check for a source, Connect for Change from a refused token, Milestone as the steps open there, else the screen as it opens', async () => {
     const forecasting = await team()
     const submit = (edit: SetupEdit) => setup(forecasting, edit)
-    expect(await submit({ kind: 'change' })).toEqual({ saved: true, next: { screen: 'inputs' } })
+    expect(await submit({ kind: 'change' })).toEqual({ kind: 'saved', next: { screen: 'inputs' } })
     await connect(forecasting)
     await pick(forecasting, READ_AT)
 
-    expect(await submit({ kind: 'chooseSource', value: 'pace', source: 'tracker' })).toEqual({ saved: true, next: { screen: 'inputs', step: 'check' } })
-    expect(await submit({ kind: 'useThese' })).toEqual({ saved: true, next: { screen: 'inputs' } })
-    expect(await submit({ kind: 'change', at: 'connect' })).toEqual({ saved: true, next: { screen: 'inputs', step: 'connect' } })
-    expect(await submit({ kind: 'cancel' })).toEqual({ saved: true, next: { screen: 'inputs' } })
-    expect(await submit({ kind: 'change' })).toEqual({ saved: true, next: { screen: 'inputs', step: 'milestone' } })
+    expect(await submit({ kind: 'chooseSource', value: 'pace', source: 'tracker' })).toEqual({ kind: 'saved', next: { screen: 'inputs', step: 'check' } })
+    expect(await submit({ kind: 'useThese' })).toEqual({ kind: 'saved', next: { screen: 'inputs' } })
+    expect(await submit({ kind: 'change', at: 'connect' })).toEqual({ kind: 'saved', next: { screen: 'inputs', step: 'connect' } })
+    expect(await submit({ kind: 'cancel' })).toEqual({ kind: 'saved', next: { screen: 'inputs' } })
+    expect(await submit({ kind: 'change' })).toEqual({ kind: 'saved', next: { screen: 'inputs', step: 'milestone' } })
   })
 
   test('are not in the browser build, which has nothing to connect with', async () => {
@@ -241,7 +241,7 @@ describe('Change', () => {
     await pick(forecasting, READ_AT, Q3_POLISH, 'comparableWork')
     await setup(forecasting, { kind: 'useThese' })
 
-    expect(await setup(forecasting, { kind: 'change' })).toMatchObject({ saved: true })
+    expect(await setup(forecasting, { kind: 'change' })).toMatchObject({ kind: 'saved' })
     expect(await setupAt(forecasting)).toMatchObject({ kind: 'steps', step: 'milestone', next: { step: 'comparableWork' } })
     expect(await setupAt(forecasting, 'comparableWork')).toMatchObject({ next: { step: 'check', label: 'next' } })
     expect(storage.connection(TEAM)).toMatchObject({ tracker: 'github', repo: 'shop' })
@@ -254,7 +254,7 @@ describe('skipping connecting', () => {
   test('closes setup to the inputs typed, as the MVP has them, until the EM connects a tracker', async () => {
     const forecasting = await team()
 
-    expect(await setup(forecasting, { kind: 'skipConnecting' })).toMatchObject({ saved: true })
+    expect(await setup(forecasting, { kind: 'skipConnecting' })).toMatchObject({ kind: 'saved' })
     expect(await setupAt(forecasting)).toEqual({ kind: 'skipped' })
     expect((await forecasting.browserBuild().inputsScreen()).inputs).toEqual(await inputs(forecasting))
 

@@ -43,12 +43,12 @@ export async function headline(team: ForecastingForTest): Promise<string | null 
 
 /** The screen a refused submit shows again. */
 export function refusedOn(result: Outcome): 'inputs' | 'forecast' | undefined {
-  return !result.saved && 'screen' in result ? result.screen : undefined
+  return result.kind === 'refused' ? 'inputs' : result.kind === 'refusedOnForecast' ? 'forecast' : undefined
 }
 
 /** The forecast a submit refused on the forecast screen shows again. */
 export function shownAgain(result: Outcome): MilestoneForecastView | undefined {
-  return !result.saved && 'screen' in result && result.screen === 'forecast' ? result.view : undefined
+  return result.kind === 'refusedOnForecast' ? result.view : undefined
 }
 
 /** The forecast, less its Capacity section. */

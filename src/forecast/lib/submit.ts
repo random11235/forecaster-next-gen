@@ -30,16 +30,18 @@ export interface Place {
 }
 
 /**
- * What a submit comes to: done, and the place to go next (`saved`), with, for a save in place, the Inputs screen to
- * show (`view`); refused, with the whole screen to show again, saying why (`screen`, `view`); or, going back to finding
- * from a query it clears, the EM asked to confirm that first (`confirmClear`). A query step's change the tracker reads
- * as nothing new, and setup's own forms, which open the step they go to, are done too.
+ * What a submit comes to, told by its `kind`: done, and the place to go next (`saved`); done in place, with the Inputs
+ * screen to show (`savedInPlace`); refused, with the whole screen to show again, saying why: the Inputs screen
+ * (`refused`) or, for a form beside the forecast, the Milestone forecast screen (`refusedOnForecast`); or, going back
+ * to finding from a query it clears, the EM asked to confirm that first (`confirmClear`). A query step's change the
+ * tracker reads as nothing new is done too.
  */
 export type Outcome =
-  | { saved: true; next: Place; view?: InputsScreen }
-  | { saved: false; screen: 'inputs'; view: InputsScreen }
-  | { saved: false; screen: 'forecast'; view: MilestoneForecastView }
-  | { saved: false; confirmClear: true }
+  | { kind: 'saved'; next: Place }
+  | { kind: 'savedInPlace'; view: InputsScreen }
+  | { kind: 'refused'; view: InputsScreen }
+  | { kind: 'refusedOnForecast'; view: MilestoneForecastView }
+  | { kind: 'confirmClear' }
 
 /**
  * How a submit's reply opens: as its URL asks (`InputsOpening`), and, for an Inputs form saved as it changes
@@ -55,30 +57,30 @@ export interface SubmitOpening extends InputsOpening {
  */
 export async function submit(team: TeamCall, edit: Edit, opening: SubmitOpening = {}): Promise<Outcome> {
   const { teamId, at } = team
-  const again = (shown: ShownAgain = {}): Promise<Outcome> => inputsScreen(team, opening, shown).then((view) => ({ saved: false, screen: 'inputs', view }))
+  const again = (shown: ShownAgain): Promise<Outcome> => refused(team, opening, shown)
   switch (edit.form) {
     case 'inputs':
       return inputsFormSubmitted(team, edit.edit, opening)
     case 'skip': {
       const submitted = await submitSkip(connected(team), teamId, edit.edit, team.settings, at)
-      return submitted.saved ? { saved: true, next: { screen: 'inputs' } } : again({ inputs: submitted.view })
+      return submitted.saved ? { kind: 'saved', next: { screen: 'inputs' } } : again({ inputs: submitted.view })
     }
     case 'connection': {
       const submitted = await submitConnection(connected(team), teamId, edit.edit)
-      return submitted.saved ? { saved: true, next: { screen: 'inputs', step: submitted.next } } : again({ connection: submitted.view })
+      return submitted.saved ? { kind: 'saved', next: { screen: 'inputs', step: submitted.next } } : again({ connection: submitted.view })
     }
     case 'setup': {
       const { next } = await submitSetup(connected(team), teamId, edit.edit)
-      return { saved: true, next: { screen: 'inputs', ...(next && { step: next }) } }
+      return { kind: 'saved', next: { screen: 'inputs', ...(next && { step: next }) } }
     }
     case 'readAgain':
       await submitReadAgain(connected(team), teamId, at.readAt)
-      return { saved: true, next: { screen: 'inputs' } }
+      return { kind: 'saved', next: { screen: 'inputs' } }
     case 'stepQuery': {
       const submitted = await submitStepQuery(connected(team), teamId, edit.edit, at.readAt, STEP_QUERIES[edit.step])
       if (submitted.kind === 'refused') return again({ refused: { step: edit.step, query: submitted } })
-      if (submitted.kind === 'confirmClear') return { saved: false, confirmClear: true }
-      return { saved: true, next: { screen: 'inputs', step: edit.step } }
+      if (submitted.kind === 'confirmClear') return { kind: 'confirmClear' }
+      return { kind: 'saved', next: { screen: 'inputs', step: edit.step } }
     }
   }
 }
@@ -94,12 +96,17 @@ async function inputsFormSubmitted(team: TeamCall, edit: InputsEdit, opening: Su
   const named = milestoneName()
   const submitted = submitInputs(storage, teamId, settings, at.today, edit, { capacityOpen, tracker })
   if (!submitted.saved) {
-    if (submitted.screen === 'forecast') return submitted
-    return { saved: false, screen: 'inputs', view: await inputsScreen(team, opening, { inputs: submitted.view, unlisted: inPlace }) }
+    if (submitted.screen === 'forecast') return { kind: 'refusedOnForecast', view: submitted.view }
+    return refused(team, opening, { inputs: submitted.view, unlisted: inPlace })
   }
   // a milestone not yet entered has no name to follow from; nothing connected has no milestone query to follow
   const now = milestoneName()
   if (reading && named !== '' && now !== '' && named !== now) await followRenamedMilestone(reading, teamId, { from: named, to: now }, at.readAt)
-  const next: Place = { screen: submitted.next }
-  return inPlace ? { saved: true, next, view: await inputsScreen(team, opening, { unlisted: true }) } : { saved: true, next }
+  if (inPlace) return { kind: 'savedInPlace', view: await inputsScreen(team, opening, { unlisted: true }) }
+  return { kind: 'saved', next: { screen: submitted.next } }
+}
+
+/** Refused: the Inputs screen, whole, as `opening` asks and the refused form shows it again (`shown`). */
+async function refused(team: TeamCall, opening: SubmitOpening, shown: ShownAgain): Promise<Outcome> {
+  return { kind: 'refused', view: await inputsScreen(team, opening, shown) }
 }

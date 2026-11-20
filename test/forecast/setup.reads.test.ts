@@ -159,7 +159,7 @@ describe('a failed read', () => {
         },
       ],
     })
-    expect(await setup(current, { kind: 'change' })).toMatchObject({ saved: true })
+    expect(await setup(current, { kind: 'change' })).toMatchObject({ kind: 'saved' })
     expect(await setupAt(current, 'connect')).toMatchObject({ kind: 'steps', step: 'connect' })
   })
 

@@ -41,7 +41,7 @@ describe('an applied action', () => {
     const team = await withTypedCounts(STEPPED_UP)
     const offered = (await forecast(team)).pacePattern?.action
 
-    expect(await submit(team, { kind: 'applyPaceAction', action: 'startFrom', date: '2026-10-12' })).toEqual({ saved: true, next: { screen: 'forecast' } })
+    expect(await submit(team, { kind: 'applyPaceAction', action: 'startFrom', date: '2026-10-12' })).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
 
     const view = await forecast(team)
     expect(view.pace).toEqual({ source: 'counts', counts: [8, 9, 7, 8] })
@@ -58,7 +58,7 @@ describe('an applied action', () => {
     const team = await withTypedCounts(STEPPED_UP)
     await submit(team, { kind: 'applyPaceAction', action: 'startFrom', date: '2026-10-12' })
 
-    expect(await submit(team, { kind: 'undoPaceAction' })).toEqual({ saved: true, next: { screen: 'forecast' } })
+    expect(await submit(team, { kind: 'undoPaceAction' })).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
 
     const view = await forecast(team)
     expect(view.pace).toEqual({ source: 'counts', counts: STEPPED_UP })
@@ -95,7 +95,7 @@ describe('an applied action', () => {
 
     const submitted = await submit(team, { kind: 'applyPaceAction', action: 'skipAll', date: '2026-10-12' })
 
-    expect(submitted).toMatchObject({ saved: false, screen: 'forecast', view: { paceActionRefusal: 'That action is no longer offered.' } })
+    expect(submitted).toMatchObject({ kind: 'refusedOnForecast', view: { paceActionRefusal: 'That action is no longer offered.' } })
     expect((await forecast(team)).pace).toEqual({ source: 'counts', counts: STEPPED_UP })
   })
 
@@ -107,8 +107,7 @@ describe('an applied action', () => {
     const submitted = await submit(team, { kind: 'applyPaceAction', action: 'startFrom', date: 'soon' })
 
     expect(submitted).toMatchObject({
-      saved: false,
-      screen: 'forecast',
+      kind: 'refusedOnForecast',
       view: { pacePattern: undefined, paceActionRefusal: 'That action is no longer offered.' },
     })
   })
@@ -128,7 +127,7 @@ describe('an applied action', () => {
   test('applied, leaving fewer counts than the forecast needs, gets the too-few-counts problem, with the action said and undo', async () => {
     const team = await withTypedCounts([4, 3, 4, 5, 4, 9, 8, 9])
 
-    expect(await submit(team, { kind: 'applyPaceAction', action: 'startFrom', date: '2026-10-19' })).toEqual({ saved: true, next: { screen: 'forecast' } })
+    expect(await submit(team, { kind: 'applyPaceAction', action: 'startFrom', date: '2026-10-19' })).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
 
     expect(await team.milestoneForecastView()).toEqual({
       kind: 'problems',
