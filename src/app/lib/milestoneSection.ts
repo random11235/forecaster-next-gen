@@ -1,5 +1,4 @@
-import { MAX_TICKETS_REMAINING, type TicketsSourceView } from '../../forecast/milestoneInputs.js'
-import type { InputsView } from '../../forecast/inputs.js'
+import { MAX_TICKETS_REMAINING, type InputsView, type TicketsSourceView } from '../../forecast/index.js'
 import type { TicketsSource } from '../../model/milestoneInputs.js'
 import { escapeHtml } from '../html.js'
 import {

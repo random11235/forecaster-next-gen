@@ -1,4 +1,4 @@
-import type { HowItWorksView } from '../forecast/howItWorksView.js'
+import type { HowItWorksView } from '../forecast/index.js'
 import { htmlPage } from './html.js'
 
 /**

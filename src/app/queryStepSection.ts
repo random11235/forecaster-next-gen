@@ -1,8 +1,15 @@
-import type { ChoiceList, StepQueryEdit, QueryStep, QueryEditing } from '../forecast/queryStep.js'
-import { COMPARABLE_WORK, MILESTONE_QUERY, type StepQuery } from '../forecast/stepQuery.js'
+import {
+  COMPARABLE_WORK,
+  MILESTONE_QUERY,
+  type ChoiceList,
+  type ComparableWorkPace,
+  type QueryEditing,
+  type QueryStep,
+  type SetupStep,
+  type StepQuery,
+  type StepQueryEdit,
+} from '../forecast/index.js'
 import { choiceKindOf, type Choice } from '../model/choice.js'
-import type { ComparableWorkPace } from '../forecast/comparableWorkPace.js'
-import type { SetupStep } from '../forecast/setupSteps.js'
 import { escapeHtml } from './html.js'
 import { inputsAt, SETUP_STEP_IDS, STEP_FIELD } from './setupSection.js'
 import { paceHtml, pickPaceHtml } from './lib/stepPace.js'

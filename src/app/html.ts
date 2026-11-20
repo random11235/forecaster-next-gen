@@ -3,7 +3,7 @@ import { MILESTONE_FORECAST_STYLE } from './lib/milestoneForecastStyle.js'
 import { INPUTS_STYLE } from './lib/inputsStyle.js'
 import { SETUP_STEPS_STYLE } from './lib/setupStepsStyle.js'
 import { HOW_IT_WORKS_STYLE } from './lib/howItWorksStyle.js'
-import { APP_VERSION } from '../forecast/appVersion.js'
+import { APP_VERSION } from '../forecast/index.js'
 
 /** The screens in the sidebar, by path. */
 const SCREENS = { '/': 'Milestone forecast', '/inputs': 'Inputs', '/how-it-works': 'How it works' } as const

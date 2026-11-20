@@ -1,8 +1,15 @@
-import type { CapacityEdit } from '../forecast/capacity.js'
-import type { PeriodName } from '../forecast/cadence.js'
-import type { InputNote } from '../forecast/milestoneAssessment.js'
-import type { ComparedDate, FinishBar, ForecastDate, MilestoneForecastView } from '../forecast/milestoneForecastView.js'
-import type { PaceActionEdit, PacePatternView, PatternAction } from '../forecast/pacePattern.js'
+import type {
+  CapacityEdit,
+  ComparedDate,
+  FinishBar,
+  ForecastDate,
+  InputNote,
+  MilestoneForecastView,
+  PaceActionEdit,
+  PacePatternView,
+  PatternAction,
+  PeriodName,
+} from '../forecast/index.js'
 import { dayMonth, escapeHtml, formatDate, htmlPage, type PageHeader } from './html.js'
 import { INPUT_LABELS } from './inputsScreen.js'
 import { renderPaceTrend } from './paceTrendGraph.js'

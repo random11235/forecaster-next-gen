@@ -1,5 +1,4 @@
-import type { ConnectionEdit, ConnectStep } from '../forecast/connection.js'
-import type { Tracker } from '../forecast/trackers.js'
+import type { ConnectStep, ConnectionEdit, Tracker } from '../forecast/index.js'
 import { escapeHtml } from './html.js'
 import { SETUP_PATHS } from './setupSection.js'
 

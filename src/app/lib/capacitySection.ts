@@ -1,5 +1,4 @@
-import { MAX_CAPACITY_PERCENT, type CapacityEntryView, type CapacityForm, type CapacityView, type EntryEffect } from '../../forecast/capacity.js'
-import type { PeriodName } from '../../forecast/cadence.js'
+import { MAX_CAPACITY_PERCENT, type CapacityEntryView, type CapacityForm, type CapacityView, type EntryEffect, type PeriodName } from '../../forecast/index.js'
 import type { CapacityEntry } from '../../model/capacity.js'
 import { escapeHtml, formatDate } from '../html.js'
 
