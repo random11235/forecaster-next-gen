@@ -77,8 +77,7 @@ async function startConnected(): Promise<RunningApp> {
     openBrowser: () => {},
     storage,
     connecting,
-    today: () => '2026-11-12',
-    now: () => '2026-11-12T09:00:00Z',
+    clock: { now: () => '2026-11-12T09:00:00Z', timeZone: 'UTC' },
   })
   await post(app, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
   await post(app, '/inputs/milestone', { name: 'Checkout v2', startDate: '2026-10-01', ticketsRemaining: '30' })
