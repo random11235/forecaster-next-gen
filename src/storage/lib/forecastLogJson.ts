@@ -1,11 +1,12 @@
 import type { ForecastResult, NumberRange, ScopeEntry, SimulationCase } from '../../engine/types.js'
-import type { ForecastLog } from '../../ledger/ledger.js'
 import { isListOf, isNumber, isObject, isRecordOf, isString, optional } from './storedJson.js'
 
 /*
  * A logged forecast's case and result, kept as JSON, checked as both storages read them back: the SQLite file keeps
- * each in a column of its own (forecastLogTable.ts), and browser storage within the log (webStorage.ts). A case of a
- * shape this version doesn't know is refused, never re-run as something it isn't.
+ * each in a column of its own (forecastLogTable.ts), and browser storage within the log (webLedger.ts). A case of a
+ * shape this version doesn't know (a later engine's) is refused, never re-run as something it isn't. Each check is
+ * of `SimulationCase` and `ForecastResult` as stored: changing either type changes a stored shape
+ * (docs/design/engine.md#engine-contract).
  */
 
 const isNumberOrNull = (value: unknown): value is number | null => value === null || isNumber(value)
@@ -65,15 +66,3 @@ export const isForecastResult = (value: unknown): value is ForecastResult =>
   isRecordOf(isNumber)(value.percentileCounts) &&
   isListOf(isEpicQuantiles)(value.perEpic) &&
   isDiagnostics(value.diagnostics)
-
-/** A logged forecast, as browser storage keeps it: one value. */
-export const isForecastLog = (value: unknown): value is ForecastLog =>
-  isObject(value) &&
-  isNumber(value.id) &&
-  isString(value.teamId) &&
-  isString(value.createdAt) &&
-  isString(value.milestoneName) &&
-  isString(value.caseHash) &&
-  isString(value.appVersion) &&
-  isSimulationCase(value.simulationCase) &&
-  isForecastResult(value.result)

@@ -1,5 +1,5 @@
-import { ENGINE_VERSION, simulateCase, type ForecastResult, type SimulationCase } from '../engine/index.js'
-import type { ForecastLog, Ledger } from '../ledger/ledger.js'
+import { ENGINE_VERSION, simulateCase, type ForecastResult } from '../engine/index.js'
+import type { ForecastLog, Ledger, LoggedForecast } from '../ledger/ledger.js'
 import { APP_VERSION } from './appVersion.js'
 
 /** A logged forecast re-run from its case alone, or why it isn't: this engine may not give what another gave. */
@@ -16,8 +16,8 @@ export function rerunForecast(log: ForecastLog): Rerun {
  * Logs the forecast the team is shown in its ledger, made by this release, unless it is the one last logged: the same
  * case run by the same release gives the same result, so showing it again adds nothing to explain or check.
  */
-export function logForecast(ledger: Ledger, teamId: string, milestoneName: string, simulationCase: SimulationCase, result: ForecastResult): void {
-  const last = ledger.lastForecastLog(teamId)
-  if (last?.caseHash === result.caseHash && last.appVersion === APP_VERSION && last.milestoneName === milestoneName) return
-  ledger.saveForecastLog({ teamId, milestoneName, caseHash: result.caseHash, simulationCase, result, appVersion: APP_VERSION })
+export function logForecast(ledger: Ledger, forecast: Omit<LoggedForecast, 'appVersion'>): void {
+  const last = ledger.lastForecastLog(forecast.teamId)
+  if (last?.caseHash === forecast.result.caseHash && last.appVersion === APP_VERSION && last.milestoneName === forecast.milestoneName) return
+  ledger.saveForecastLog({ ...forecast, appVersion: APP_VERSION })
 }

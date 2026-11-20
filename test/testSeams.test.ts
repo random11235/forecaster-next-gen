@@ -26,6 +26,7 @@ const SEAM_B = [
   'forecast/trackerReads.js',
   'storage/storage.js',
   'storage/sqliteStorage.js',
+  'storage/webStorage.js',
   'ledger/ledger.js',
   'model/',
   // Read through: the canned connector, its interface's types, and openMemorySecrets.
