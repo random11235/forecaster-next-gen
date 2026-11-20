@@ -1,4 +1,4 @@
-import { dayMonth } from '../../forecast/calendarDate.js'
+import { dayMonth } from '../html.js'
 import type { ComparableWorkPace, PairedPeriod, PickPace } from '../../forecast/comparableWorkPace.js'
 import { escapeHtml } from '../html.js'
 

@@ -26,6 +26,10 @@ describe('growth on the Inputs screen', () => {
     })
   })
 
+  test('names each level as a label', () => {
+    expect(inputsScreenView(newTeam()).growth.names).toEqual({ low: 'Low', medium: 'Medium', high: 'High' })
+  })
+
   test('the EM edits the ranges, and the milestone grows by the medium one: 10 tickets at exactly 5 a week, growing 1×, finish in 2 weeks', () => {
     const storage = newTeam()
     enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '5', high: '5' })

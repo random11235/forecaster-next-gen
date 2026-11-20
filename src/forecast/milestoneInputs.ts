@@ -2,7 +2,7 @@ import type { ThroughputRange } from '../engine/index.js'
 import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
 import { PACE_MODES, type MilestoneInputs, type PaceMode, type TicketsSource } from '../model/milestoneInputs.js'
 import type { Storage } from '../storage/storage.js'
-import { periodName } from './cadence.js'
+import { periodName, type PeriodName } from './cadence.js'
 import { isCalendarDate } from './calendarDate.js'
 import { refuse, type EditResult, type Refusal } from './editResult.js'
 import { sameCounts, type PaceReading, type WasPace } from './lib/pace.js'
@@ -64,6 +64,8 @@ export interface MilestoneInputsView {
   ambiguity: Ambiguity
   /** Days in one of the team's periods, which pace is entered in. */
   cadenceDays: number
+  /** What the screens call one of those periods: a week or a sprint. */
+  period: PeriodName
   paceRange: ThroughputRange | undefined
   /** Tickets done in past periods, oldest first. */
   paceCounts: number[]
@@ -136,6 +138,7 @@ export function milestoneInputsView(storage: Storage, teamId: string, settings: 
     },
     ambiguity: inputs.ambiguity,
     cadenceDays: inputs.cadenceDays,
+    period: periodName(inputs.cadenceDays),
     paceRange: inputs.paceRange,
     paceCounts: inputs.paceCounts,
     paceMode: inputs.paceMode,

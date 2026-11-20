@@ -9,6 +9,7 @@ import {
   capacityView,
   currentEntries,
   entryEffect,
+  shifted,
   type CapacityUse,
   type CapacityView,
   type ComparedDate,
@@ -68,6 +69,8 @@ export type MilestoneForecastView =
       kind: 'forecast'
       name: string
       ticketsRemaining: number
+      /** The tickets remaining in words: "40 tickets". */
+      ticketsRemainingSaid: string
       /** ISO calendar date the forecast starts from. */
       startDate: string
       headlinePercent: number
@@ -76,6 +79,8 @@ export type MilestoneForecastView =
       horizonDate: string
       /** Days in one of the team's periods, which the pace is per. */
       cadenceDays: number
+      /** What the screens call one of those periods: a week or a sprint. */
+      period: PeriodName
       /** The pace the dates come from. */
       pace: ForecastPace
       /** The pace the dates come from, as the forecast says it: "4–8 tickets per week (range)", "typed counts, 6 sprints", or "GitHub’s last 8 weeks, 2 skipped". */
@@ -165,11 +170,13 @@ export function milestoneForecastView(
     kind: 'forecast',
     name: inputs.name,
     ticketsRemaining: inputs.ticketsRemaining,
+    ticketsRemainingSaid: counted(inputs.ticketsRemaining, 'ticket'),
     startDate: inputs.startDate,
     headlinePercent: HEADLINE_PERCENT,
     dates: percentiles.map((percent) => forecastDate(percent, result.percentileDates[percent] ?? null, today)),
     horizonDate: periodEndDate(inputs.startDate, periodDays, maxPeriods),
     cadenceDays: inputs.cadenceDays,
+    period,
     pace,
     paceSaid: paceSaid(pace, period),
     ambiguity: { level: inputs.ambiguity, ...growth },
@@ -194,11 +201,12 @@ export function milestoneForecastView(
   }
 }
 
+/** A date with capacity and at usual capacity, and how far capacity moves it, in periods and in words. */
 function comparedDate(percent: number, withCapacity: ForecastResult, atUsual: ForecastResult, periodDays: number): ComparedDate {
   const dated = withCapacity.percentileDates[percent] ?? null
   const usual = atUsual.percentileDates[percent] ?? null
   const shift = dated === null || usual === null ? null : daysBetween(usual, dated) / periodDays
-  return { percent, withCapacity: dated, atUsual: usual, shift }
+  return { percent, withCapacity: dated, atUsual: usual, shift, ...(shift !== null && { shifted: shifted(shift, periodName(periodDays)) }) }
 }
 
 /** The pace the dates come from, said in the milestone's `period`. */

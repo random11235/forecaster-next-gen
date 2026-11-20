@@ -73,7 +73,7 @@ describe('with typed counts', () => {
     withTypedCounts(storage)
     onward(storage, '80', '2026-10-19')
 
-    expect(capacity(storage).entries[0]?.newUsual).toEqual({ kind: 'counting', after: 3, of: 4 })
+    expect(capacity(storage).entries[0]?.newUsual).toEqual({ kind: 'counting', after: 3, of: 4, ofSaid: '4 weeks' })
   })
 
   test('a change that starts mid-week counts only the weeks that start on or after it', () => {
@@ -81,7 +81,7 @@ describe('with typed counts', () => {
     withTypedCounts(storage)
     onward(storage, '80', '2026-10-20')
 
-    expect(capacity(storage).entries[0]?.newUsual).toEqual({ kind: 'counting', after: 2, of: 4 })
+    expect(capacity(storage).entries[0]?.newUsual).toEqual({ kind: 'counting', after: 2, of: 4, ofSaid: '4 weeks' })
   })
 
   test('once every week the pace comes from is after it, the change is proposed as the new usual', () => {

@@ -38,10 +38,10 @@ describe('the step, for another of the team’s queries (#200)', () => {
     expect(currentStorage().milestoneQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
     expect(view).toMatchObject({ picks: [bug], query: 'label:"bug"' })
     expect(view.kind !== 'noQueryStep' && view.lists).toEqual([
-      { kind: 'milestone', choices: [payments, checkout], searchedInTracker: false, thisMilestone: payments.query },
-      { kind: 'label', choices: [repay], searchedInTracker: false },
+      { kind: 'milestone', kindName: 'milestone', choices: [payments, checkout], searchedInTracker: false, thisMilestone: payments.query },
+      { kind: 'label', kindName: 'label', choices: [repay], searchedInTracker: false },
     ])
-    expect(await searchedChoiceList(using, TEAM, 'label', '', other)).toEqual({ kind: 'label', choices: [repay], searchedInTracker: false })
+    expect(await searchedChoiceList(using, TEAM, 'label', '', other)).toEqual({ kind: 'label', kindName: 'label', choices: [repay], searchedInTracker: false })
   })
 
   test('names what that query picks out when it matches nothing', async () => {

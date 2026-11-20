@@ -226,7 +226,12 @@ describe('reading on demand', () => {
     const candidates = await shownBy('')
 
     expect(reads).toEqual([])
-    expect(candidates?.shown).toEqual({ groups: [], milestoneOwn: 2, period: 'week' })
+    expect(candidates?.shown).toEqual({
+      groups: [],
+      milestoneOwn: 2,
+      period: 'week',
+      kindNames: { milestone: 'milestone', fixVersion: 'fix version', epic: 'epic', label: 'label' },
+    })
   })
 
   test('the step’s view reads the candidates the EM opened, among its lists, and shows them grouped', async () => {

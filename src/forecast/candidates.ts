@@ -1,11 +1,11 @@
-import type { Choice, Failure } from '../connectors/connector.js'
+import type { Choice, ChoiceKind, Failure } from '../connectors/connector.js'
 import type { Connection } from '../model/connection.js'
 import type { MilestoneInputs } from '../model/milestoneInputs.js'
 import type { SavedRead } from '../model/savedRead.js'
 import type { Storage } from '../storage/storage.js'
 import { periodName, type PeriodName } from './cadence.js'
 import { teamConnection, withTeamQueries, type Connecting } from './connection.js'
-import type { ChoiceList } from './lib/choiceLists.js'
+import { KIND_NAMES, type ChoiceList } from './lib/choiceLists.js'
 import { calendarDayIn, paceOf, savedPaceReads, type DatedCounts, type PaceClock } from './lib/pace.js'
 import { completeRead, finishedSinceFor, ticketsRemaining, weeksRead } from './queryRead.js'
 import { medianOf, paceVersusMilestoneOwn, type PaceVersus } from './paceVersusOwn.js'
@@ -65,6 +65,8 @@ export interface Candidates {
   groups: CandidateGroup[]
   /** What each strip counts by: the milestone's cadence, a week before it has one. */
   period: PeriodName
+  /** Each kind of choice as the step names it, beside each candidate. */
+  kindNames: Readonly<Record<ChoiceKind, string>>
 }
 
 /** One opening of the Comparable work step's candidates, which reads each at most once. */
@@ -199,5 +201,5 @@ function grouped(candidates: Candidate[], ownCounts: readonly number[], period: 
       .filter((candidate) => groupOf(candidate) === group)
       .sort((a, b) => median(a) - median(b) || a.choice.name.localeCompare(b.choice.name)),
   })).filter(({ candidates }) => candidates.length > 0)
-  return { ...(comparing && { milestoneOwn: medianOf(ownCounts) }), groups, period }
+  return { ...(comparing && { milestoneOwn: medianOf(ownCounts) }), groups, period, kindNames: KIND_NAMES }
 }

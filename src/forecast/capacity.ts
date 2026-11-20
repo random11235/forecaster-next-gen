@@ -62,9 +62,9 @@ export interface CapacityEntryView extends CapacityEntry {
 
 /**
  * A lasting entry against the pace. With counts, typed or the tracker's: `after` of the `of` periods the pace comes from start on or after
- * it, or, once all of them do, proposed as the new usual (until kept). With a pace range: "End it today".
+ * it (`ofSaid`, the periods counted in words: "6 weeks"), or, once all of them do, proposed as the new usual (until kept). With a pace range: "End it today".
  */
-export type NewUsual = { kind: 'counting'; after: number; of: number } | { kind: 'proposed' } | { kind: 'endToday' }
+export type NewUsual = { kind: 'counting'; after: number; of: number; ofSaid: string } | { kind: 'proposed' } | { kind: 'endToday' }
 
 /** The periods the pace comes from, for the new-usual rule: a range has none; typed counts or the tracker's, each period's first day. */
 export type PacePeriods = { source: 'range' } | { source: 'counts' | 'tracker'; starts: string[] }
@@ -122,7 +122,7 @@ export function capacityView(
   const entries = currentEntries(all, today).map((entry) => {
     const warning = bigTeamWarning(entry.percent)
     const effect = effects?.get(entry.id)
-    const newUsual = newUsualOf(entry, pace, today)
+    const newUsual = newUsualOf(entry, pace, today, period)
     return { ...entry, ...(warning !== undefined && { warning }), ...(effect && { effect }), ...(newUsual && { newUsual }) }
   })
   const past = all.filter((entry) => isPast(entry, today))
@@ -137,6 +137,8 @@ export interface ComparedDate {
   atUsual: string | null
   /** How many periods later (negative: sooner) capacity moves the date; null when either is later than the horizon. */
   shift: number | null
+  /** The shift in words, "same week", "2 sprints later"; none when `shift` is null. */
+  shifted?: string
 }
 
 /**
@@ -151,12 +153,12 @@ export function entryEffect({ withCapacity, atUsual: without, shift }: ComparedD
 }
 
 /** A lasting entry that has started, against the periods the pace comes from; none for any other entry. */
-function newUsualOf(entry: CapacityEntry, pace: PacePeriods, today: string): NewUsual | undefined {
+function newUsualOf(entry: CapacityEntry, pace: PacePeriods, today: string, period: PeriodName): NewUsual | undefined {
   // ISO calendar dates order as strings do
   if (entry.to !== undefined || entry.from > today) return undefined
   if (pace.source === 'range') return entry.from < today ? { kind: 'endToday' } : undefined
   const after = pace.starts.filter((start) => start >= entry.from).length
-  if (after < pace.starts.length) return { kind: 'counting', after, of: pace.starts.length }
+  if (after < pace.starts.length) return { kind: 'counting', after, of: pace.starts.length, ofSaid: counted(pace.starts.length, period) }
   return entry.kept ? undefined : { kind: 'proposed' }
 }
 

@@ -19,6 +19,7 @@ describe('the forecast from what the EM enters', () => {
       kind: 'forecast',
       name: 'Checkout v2',
       ticketsRemaining: 10,
+      ticketsRemainingSaid: '10 tickets',
       startDate: '2026-09-01',
       headlinePercent: 85,
       dates: [
@@ -29,6 +30,7 @@ describe('the forecast from what the EM enters', () => {
       ],
       horizonDate: '2029-08-28',
       cadenceDays: 7,
+      period: 'week',
       pace: { source: 'range', low: 5, high: 5 },
       paceSaid: '5–5 tickets per week (range)',
       ambiguity: { level: 'medium', low: 1, high: 1 },

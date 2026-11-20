@@ -35,6 +35,9 @@ export type ConnectionEdit = ({ kind: 'connect'; token: string } & ConnectionFor
 /** The read-only permission a token needs, by tracker: what the EM is told to create. */
 export const TOKEN_PERMISSIONS: Readonly<Record<Tracker, string>> = { github: TRACKERS.github.permission, jira: TRACKERS.jira.permission }
 
+/** Each tracker's name, as the Connect step offers it. */
+const TRACKER_NAMES: Readonly<Record<Tracker, string>> = { github: TRACKERS.github.name, jira: TRACKERS.jira.name }
+
 /**
  * What the Connect step shows: in the browser build, nothing (`noConnect`); otherwise its form, blank until the team
  * connects (`connect`), then the connection, with its form filled in to change it (`connected`).
@@ -42,11 +45,17 @@ export const TOKEN_PERMISSIONS: Readonly<Record<Tracker, string>> = { github: TR
 export type ConnectionView = { kind: 'noConnect' } | ConnectStep
 
 /** The Connect step, before connecting or once connected. */
-export type ConnectStep = ({ kind: 'connect' } | { kind: 'connected'; connection: Connection }) & {
+export type ConnectStep = (
+  | { kind: 'connect' }
+  /** Connected to `connection`: its tracker's name (`trackerName`), and where it reads, as the step says it (`where`). */
+  | { kind: 'connected'; connection: Connection; trackerName: string; where: string }
+) & {
   /** As saved, or as typed when refused; never with the token. */
   form: ConnectionForm
   /** The read-only permission to create each tracker's token with. */
   permissions: Readonly<Record<Tracker, string>>
+  /** Each tracker's name, as the form offers it. */
+  trackerNames: Readonly<Record<Tracker, string>>
   /** Why the form just submitted was refused; none until one is. */
   refusal?: string
 }
@@ -226,6 +235,8 @@ export function connectionView(connecting: Connecting | undefined, teamId: strin
 
 function connectStep({ connections }: Connecting, teamId: string): ConnectStep {
   const connection = connections.connection(teamId)
-  if (!connection) return { kind: 'connect', form: BLANK_CONNECTION_FORM, permissions: TOKEN_PERMISSIONS }
-  return { kind: 'connected', connection, form: trackerOf(connection).formOf(connection), permissions: TOKEN_PERMISSIONS }
+  const named = { permissions: TOKEN_PERMISSIONS, trackerNames: TRACKER_NAMES }
+  if (!connection) return { kind: 'connect', form: BLANK_CONNECTION_FORM, ...named }
+  const tracker = trackerOf(connection)
+  return { kind: 'connected', connection, trackerName: tracker.name, where: tracker.where(connection), form: tracker.formOf(connection), ...named }
 }
