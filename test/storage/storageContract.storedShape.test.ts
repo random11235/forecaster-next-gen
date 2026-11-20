@@ -5,7 +5,7 @@ import type { SqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
 import { openWebStorage, type KeyValueStore } from '../../src/storage/webStorage.js'
 import { readStraight, writeStraight } from './sqliteStraight.js'
-import { LAUNCH as SAVED, TEAM, temporarySqliteFiles } from './storageContractFixtures.js'
+import { FORECAST, LAUNCH as SAVED, TEAM, temporarySqliteFiles } from './storageContractFixtures.js'
 
 // The Storage contract's cases for stored JSON of a shape this version doesn't read, beside storageContract.test.ts,
 // run against both storages: each refuses it, naming where it is kept, rather than reading it as something it isn't,
@@ -33,6 +33,7 @@ const SAVES: Record<Save, (storage: Storage) => void> = {
     storage.saveAmbiguityRanges({ teamId: 'team', low: { low: 1, high: 1.2 }, medium: { low: 1.1, high: 1.5 }, high: { low: 1.2, high: 2 } }),
   saveCapacityEntries: (storage) => storage.saveCapacityEntries('team', []),
   saveCapacityOn: (storage) => storage.saveCapacityOn('team', false),
+  saveForecastLog: (storage) => storage.saveForecastLog(FORECAST),
 }
 
 /** Storage holding a refused value: opened again on each call, the value read through it, and the value as kept. */

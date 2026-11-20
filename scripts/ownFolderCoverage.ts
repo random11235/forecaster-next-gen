@@ -27,6 +27,7 @@ export const OWN_FOLDER_THRESHOLDS: Record<string, Coverage> = {
  */
 export const NO_OWN_TEST_FOLDER: Record<string, string> = {
   model: 'types and constants (AMBIGUITIES, DAY_MS, …) only: no logic of its own to cover',
+  ledger: 'types only: the Ledger interface, which storage keeps, and its logged forecasts: no logic of its own to cover',
 }
 
 /** A folder's figures: the totals of Vitest's `json-summary` coverage report (`coverage-summary.json`), as read. */

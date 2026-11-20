@@ -11,4 +11,5 @@ Choice.kind (milestone_queries.picks, comparable_work_queries.picks, setup_draft
 SetupClosed (setups.closed): done, skipped
 ConnectionChange (setups.connection): made, changed
 FailedRead.failure (setup_draft_failures.failure, read_failures.failure): invalidQuery, outOfScope, notFound, unauthorised, unavailable, keychainFailed
+SimulationCase.question.kind (forecast_logs.simulation_case): when, howMany
 ReadFailureOf (read_failures.of): whole, query, pick
