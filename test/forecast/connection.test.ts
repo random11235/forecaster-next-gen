@@ -1,19 +1,18 @@
 import { describe, expect, test } from 'vitest'
 import type { Connection } from '../../src/model/connection.js'
 import { connectionView, submitConnection } from '../../src/forecast/connection.js'
-import { TEAM, TOKEN, connecting, github, jira, storage } from './connectionScenario.js'
+import { TEAM, TOKEN, connecting, github, jira, storage, PERMISSIONS, TRACKER_NAMES } from './connectionScenario.js'
 
 // Connecting a tracker (#180): the Connect step's view, and a submit that checks the connection before saving it.
 // Arranged through connectionScenario.ts.
 
 describe('the Connect step', () => {
-  const PERMISSIONS = { github: 'Issues: read', jira: 'read:jira-work' }
-
   test('before connecting, it shows a blank GitHub form and the permissions each tracker’s token needs', () => {
     expect(connectionView(connecting(), TEAM)).toEqual({
       kind: 'connect',
       form: { tracker: 'github', repo: '', site: '', projectKey: '', email: '' },
       permissions: PERMISSIONS,
+      trackerNames: TRACKER_NAMES,
     })
   })
 
@@ -26,8 +25,11 @@ describe('the Connect step', () => {
     expect(view).toEqual({
       kind: 'connected',
       connection: { tracker: 'jira', site: 'shop.atlassian.net', projectKey: 'SHOP', email: 'em@shop.example' },
+      trackerName: 'Jira',
+      where: 'shop.atlassian.net · SHOP',
       form: { tracker: 'jira', repo: '', site: 'shop.atlassian.net', projectKey: 'SHOP', email: 'em@shop.example' },
       permissions: PERMISSIONS,
+      trackerNames: TRACKER_NAMES,
     })
     expect(JSON.stringify(view)).not.toContain(TOKEN)
   })
@@ -124,8 +126,11 @@ describe('changing the connection', () => {
       view: {
         kind: 'connected',
         connection: { tracker: 'github', owner: 'shop-team', repo: 'shop' },
+        trackerName: 'GitHub',
+        where: 'shop-team/shop',
         form: { tracker: 'github', repo: 'shop-team/shopp', site: '', projectKey: '', email: '' },
-        permissions: { github: 'Issues: read', jira: 'read:jira-work' },
+        permissions: PERMISSIONS,
+        trackerNames: TRACKER_NAMES,
         refusal: 'GitHub can’t see shop-team/shopp with this token. Check the repo’s name, and that the token covers it.',
       },
     })

@@ -55,3 +55,8 @@ export function github(repo = 'shop-team/shop', token = TOKEN): ConnectionEdit {
 export function jira(fields: Partial<{ site: string; projectKey: string; email: string; token: string }> = {}): ConnectionEdit {
   return { kind: 'connect', tracker: 'jira', repo: '', site: 'shop.atlassian.net', projectKey: 'SHOP', email: 'em@shop.example', token: TOKEN, ...fields }
 }
+
+/** The permissions each tracker's token needs, as the Connect step names them. */
+export const PERMISSIONS = { github: 'Issues: read', jira: 'read:jira-work' }
+/** Each tracker's name, as the Connect step offers it. */
+export const TRACKER_NAMES = { github: 'GitHub', jira: 'Jira' }

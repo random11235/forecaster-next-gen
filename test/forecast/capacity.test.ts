@@ -151,9 +151,9 @@ describe('the comparison', () => {
 
     const forecast = view(storage)
     expect(forecast.kind === 'forecast' && forecast.comparison).toEqual([
-      { percent: 50, withCapacity: '2026-09-28', atUsual: '2026-09-21', shift: 1 },
-      { percent: 85, withCapacity: '2026-09-28', atUsual: '2026-09-21', shift: 1 },
-      { percent: 95, withCapacity: '2026-09-28', atUsual: '2026-09-21', shift: 1 },
+      { percent: 50, withCapacity: '2026-09-28', atUsual: '2026-09-21', shift: 1, shifted: '1 week later' },
+      { percent: 85, withCapacity: '2026-09-28', atUsual: '2026-09-21', shift: 1, shifted: '1 week later' },
+      { percent: 95, withCapacity: '2026-09-28', atUsual: '2026-09-21', shift: 1, shifted: '1 week later' },
     ])
   })
 
