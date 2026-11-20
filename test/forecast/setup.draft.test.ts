@@ -2,10 +2,10 @@ import { assert, describe, expect, test } from 'vitest'
 import type { Choice } from '../../src/connectors/connector.js'
 import type { QuerySetupStep, StepQueryEdit } from '../../src/forecast/index.js'
 import { finishedOn, open } from '../trackerScenario.js'
-import { CHECKOUT, pick, skip, TEAM, type ForecastingForTest } from './forecastingForTest.js'
-import { READ_AT, Q3_POLISH, connect, enter, inputs, setup, setupAt, stepQuery, team } from './setupScenario.js'
+import { CHECKOUT, pick, skip, TEAM, type ForecastingForTest, submitInputs } from './forecastingForTest.js'
+import { READ_AT, Q3_POLISH, connect, inputs, setup, setupAt, stepQuery, team } from './setupScenario.js'
 
-/** What the step says when Cancel can't put the connection back: setup.ts's NO_CANCEL, which index.ts doesn't export. */
+/** What the step says when Cancel can't put the connection back (lib/setup.ts's NO_CANCEL), written out so the test checks the words, not the constant. */
 const NO_CANCEL =
   'The connection changed in these steps, so they can’t be cancelled: Cancel would keep the new connection with the old picks and reads. Go on to Check and use these.'
 
@@ -28,9 +28,9 @@ describe('the draft', () => {
     current.fixture.reads[BOTH] = { tickets: open(7), incomplete: false }
     current.fixture.reads[Q3_POLISH.query] = { tickets: finishedOn('q', '2026-11-03', 6), incomplete: false }
     await connect(current)
-    await enter(current, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-11-16', ticketsRemaining: '30' })
-    await enter(current, { kind: 'setPaceRange', low: '4', high: '8' })
-    await enter(current, { kind: 'setTicketsSource', ticketsSource: 'tracker' })
+    await submitInputs(current, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-11-16', ticketsRemaining: '30' })
+    await submitInputs(current, { kind: 'setPaceRange', low: '4', high: '8' })
+    await submitInputs(current, { kind: 'setTicketsSource', ticketsSource: 'tracker' })
     await inSetup({ kind: 'addPick', choice: CHECKOUT }, READ_AT)
     await setup(current, { kind: 'useThese' })
     await setup(current, { kind: 'change' })
@@ -83,7 +83,7 @@ describe('the draft', () => {
     await inSetup({ kind: 'editQuery', query: BOTH })
     await inSetup({ kind: 'addPick', choice: Q3_POLISH }, NEXT_READ_AT, 'comparableWork')
 
-    expect(await setup(current, { kind: 'useThese' })).toMatchObject({ saved: true })
+    expect(await setup(current, { kind: 'useThese' })).toMatchObject({ kind: 'saved' })
 
     expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [CHECKOUT, Q3_POLISH], query: BOTH })
     expect(storage.comparableWorkQuery(TEAM)).toEqual({ picks: [Q3_POLISH], query: Q3_POLISH.query })
@@ -100,7 +100,7 @@ describe('the draft', () => {
     await inSetup({ kind: 'editQuery', query: BOTH })
     await inSetup({ kind: 'addPick', choice: Q3_POLISH }, NEXT_READ_AT, 'comparableWork')
 
-    expect(await setup(current, { kind: 'cancel' })).toMatchObject({ saved: true })
+    expect(await setup(current, { kind: 'cancel' })).toMatchObject({ kind: 'saved' })
 
     expect(storage.setupDraft(TEAM)).toBeUndefined()
     expect(await setupAt(current)).toMatchObject({ kind: 'summary', readOn: '12 Nov 09:05' })
@@ -117,7 +117,7 @@ describe('the draft', () => {
     await connect(current)
     await inSetup({ kind: 'addPick', choice: CHECKOUT }, READ_AT)
 
-    expect(await setup(current, { kind: 'cancel' })).toMatchObject({ saved: true })
+    expect(await setup(current, { kind: 'cancel' })).toMatchObject({ kind: 'saved' })
 
     expect(storage.setupDraft(TEAM)).toBeUndefined()
     expect(storage.connection(TEAM)).toBeUndefined()
@@ -131,7 +131,7 @@ describe('the draft', () => {
     await setUpThenChange()
     current.fixture.reads['is:open'] = { tickets: open(2), incomplete: true }
 
-    expect(await inSetup({ kind: 'editQuery', query: BOTH })).toEqual({ saved: true, next: { screen: 'inputs', step: 'milestone' } })
+    expect(await inSetup({ kind: 'editQuery', query: BOTH })).toEqual({ kind: 'saved', next: { kind: 'editing', step: 'milestone' } })
     expect(await stepInSetup()).toMatchObject({ query: BOTH, read: '7 open · 0 finished in the last 9 weeks' })
 
     await inSetup({ kind: 'editQuery', query: 'is:open' })
@@ -144,8 +144,8 @@ describe('the draft', () => {
     await inSetup({ kind: 'editQuery', query: BOTH })
     const draft = storage.setupDraft(TEAM)
 
-    expect(await inSetup({ kind: 'editQuery', query: 'closed:>2026-13-45' })).toMatchObject({ saved: false })
-    expect(await inSetup({ kind: 'editQuery', query: 'label:checkout payments' })).toMatchObject({ saved: false })
+    expect(await inSetup({ kind: 'editQuery', query: 'closed:>2026-13-45' })).toMatchObject({ kind: 'refused' })
+    expect(await inSetup({ kind: 'editQuery', query: 'label:checkout payments' })).toMatchObject({ kind: 'refused' })
 
     expect(storage.setupDraft(TEAM)).toEqual(draft)
     expect(await stepInSetup()).toMatchObject({ query: BOTH })
@@ -154,12 +154,12 @@ describe('the draft', () => {
   /** The milestone renamed on the Inputs screen, from Checkout v2 to `choice`'s name, which the handle follows. */
   async function renameTo(choice: Choice) {
     current.at(NEXT_READ_AT)
-    await enter(current, { kind: 'setMilestone', name: choice.name, startDate: '2026-11-16', ticketsRemaining: '30' })
+    await submitInputs(current, { kind: 'setMilestone', name: choice.name, startDate: '2026-11-16', ticketsRemaining: '30' })
   }
 
   test('a skip in setup reads the draft’s queries back too, into the draft, as well as the saved ones', async () => {
     const { storage } = await setUpThenChange()
-    await enter(current, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-09-07', ticketsRemaining: '30' })
+    await submitInputs(current, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-09-07', ticketsRemaining: '30' })
     await inSetup({ kind: 'editQuery', query: BOTH })
     current.calls.since.length = 0
 
@@ -204,7 +204,7 @@ describe('the draft', () => {
 
   test('a skip in setup leaves a draft read that already reaches back far enough as it was', async () => {
     const { storage } = await setUpThenChange()
-    await enter(current, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-09-07', ticketsRemaining: '30' })
+    await submitInputs(current, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-09-07', ticketsRemaining: '30' })
     const saved = storage.savedRead({ teamId: TEAM, query: CHECKOUT.query })
     assert(saved, 'the draft read is saved')
     const reachingFar = { ...saved, finishedSince: '2026-06-01T00:00:00.000Z' }
@@ -231,7 +231,7 @@ describe('Cancel', () => {
     await setup(current, { kind: 'change' })
     await connect(current)
 
-    expect(await cancel()).toMatchObject({ saved: true })
+    expect(await cancel()).toMatchObject({ kind: 'saved' })
     expect(storage.connection(TEAM)).toBeUndefined()
     expect(await setupAt(current)).toEqual({ kind: 'skipped' })
   })
@@ -244,7 +244,7 @@ describe('Cancel', () => {
     storage.saveSetupState(TEAM, { open: true })
     await pick(current, READ_AT)
 
-    expect(await cancel()).toMatchObject({ saved: true })
+    expect(await cancel()).toMatchObject({ kind: 'saved' })
     expect(storage.connection(TEAM)).toMatchObject({ tracker: 'github', repo: 'shop' })
     expect(storage.setupDraft(TEAM)).toBeUndefined()
     expect(await setupAt(current)).toMatchObject({ kind: 'steps', step: 'milestone' })
@@ -274,7 +274,7 @@ describe('Cancel', () => {
     await connect(current, 'jira')
 
     expect(await setupAt(current)).not.toHaveProperty('noCancel')
-    expect(await cancel()).toMatchObject({ saved: true })
+    expect(await cancel()).toMatchObject({ kind: 'saved' })
     expect(storage.connection(TEAM)).toBeUndefined()
   })
 })

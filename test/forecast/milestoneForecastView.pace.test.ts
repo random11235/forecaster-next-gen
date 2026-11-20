@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'vitest'
 import type { InputsEdit } from '../../src/forecast/index.js'
 import type { ForecastingForTest } from './forecastingForTest.js'
-import { newTeam, mediumGrowth, edit, enter, DATES_FROM_1_SEP, view, inputsScreenView } from './forecastViewScenario.js'
+import { mediumGrowth } from './forecastingForTest.js'
+import { newTeam, edit, enter, DATES_FROM_1_SEP, view, inputsScreenView } from './forecastViewScenario.js'
 
 // Seam B: the forecast's cadence, and its pace as typed counts. Arranged through forecastViewScenario.ts.
 

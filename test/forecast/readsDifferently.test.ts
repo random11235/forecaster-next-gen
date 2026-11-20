@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test } from 'vitest'
 import type { Choice, Ticket } from '../../src/connectors/connector.js'
 import type { InputsEdit } from '../../src/forecast/index.js'
 import { CHECKOUT, finishedInWeeks as finishedInWeeksOf, open } from '../trackerScenario.js'
-import { checkoutFixture, CONNECTIONS, forecastingForTest, NOW, pick, readAgain, type ForecastingForTest } from './forecastingForTest.js'
+import { checkoutFixture, CONNECTIONS, forecastingForTest, NOW, pick, readAgain, type ForecastingForTest, submitInputs } from './forecastingForTest.js'
 
 // A typed value the tracker reads differently (#215): its chip, the dot on it for a read the EM hasn't opened, and
 // Follow, which switches the value back to the tracker. Mirrors the prototype's `handNew` scenario.
@@ -34,7 +34,7 @@ beforeEach(async () => {
 /** Each as the local server build shows it, with the tracker's reads; `OFFLINE` as the browser build does. */
 const build = (shown?: { connected: boolean }) => (shown?.connected === false ? team.browserBuild() : team)
 
-const submit = (edit: InputsEdit, shown?: { connected: boolean }) => build(shown).submit({ form: 'inputs', edit })
+const submit = (edit: InputsEdit, shown?: { connected: boolean }) => submitInputs(build(shown), edit)
 
 const inputs = async (shown?: { connected: boolean }) => (await build(shown).inputsScreen()).inputs
 
@@ -73,7 +73,7 @@ describe('tickets remaining', () => {
   })
 
   test('opening the reading clears the dot, which returns with a new read', async () => {
-    expect(await submit({ kind: 'openReading', reading: 'ticketsRemaining' })).toEqual({ saved: true, next: { screen: 'inputs' } })
+    expect(await submit({ kind: 'openReading', reading: 'ticketsRemaining' })).toEqual({ kind: 'saved', next: { kind: 'screen', screen: 'inputs' } })
     expect((await inputs()).milestone.ticketsSource?.readsDifferently).toEqual({ unseen: false })
 
     team.fixture.reads[CHECKOUT.query] = { tickets: open(38), incomplete: false }
@@ -153,7 +153,7 @@ describe('a reading that can’t be opened', () => {
 
     expect((await inputs(OFFLINE)).milestone).toMatchObject({ ticketsSource: undefined, trackerPace: undefined })
     expect(await submit({ kind: 'openReading', reading: 'ticketsRemaining' }, OFFLINE)).toMatchObject({
-      saved: false,
+      kind: 'refused',
       view: { inputs: { refusal: { form: 'readingOpened', error: 'Connect a tracker to see its reading.' } } },
     })
   })
@@ -164,7 +164,7 @@ describe('a reading that can’t be opened', () => {
 
     expect((await inputs()).milestone.ticketsSource?.readsDifferently).toBeUndefined()
     expect(await submit({ kind: 'openReading', reading: 'ticketsRemaining' })).toMatchObject({
-      saved: false,
+      kind: 'refused',
       view: { inputs: { refusal: { form: 'readingOpened', error: 'GitHub hasn’t read it yet.' } } },
     })
   })

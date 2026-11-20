@@ -1,16 +1,17 @@
-import type {
-  CapacityEdit,
-  ComparedDate,
-  FinishBar,
-  ForecastDate,
-  InputNote,
-  MilestoneForecastView,
-  PaceActionEdit,
-  PacePatternView,
-  PatternAction,
-  PeriodName,
+import {
+  dayMonth,
+  type CapacityEdit,
+  type ComparedDate,
+  type FinishBar,
+  type ForecastDate,
+  type InputNote,
+  type MilestoneForecastView,
+  type PaceActionEdit,
+  type PacePatternView,
+  type PatternAction,
+  type PeriodName,
 } from '../forecast/index.js'
-import { dayMonth, escapeHtml, formatDate, htmlPage, type PageHeader } from './html.js'
+import { escapeHtml, formatDate, htmlPage, type PageHeader } from './html.js'
 import { INPUT_LABELS } from './inputsScreen.js'
 import { renderPaceTrend } from './paceTrendGraph.js'
 import { capacitySentence, renderCapacity } from './lib/capacitySection.js'
@@ -144,8 +145,9 @@ ${dates}
 function renderComparison(view: Forecast, comparison: readonly ComparedDate[]): string {
   const date = (date: string | null): string => (date === null ? `later than ${formatDate(view.horizonDate)}` : formatDate(date))
   const rows = comparison
-    .map(({ percent, withCapacity, atUsual, shift, shifted }) => {
-      const moved = shift === null ? '' : `<span class="${shift > 0 ? 'later' : shift < 0 ? 'sooner' : ''}">${shifted}</span>`
+    .map(({ percent, withCapacity, atUsual, shift }) => {
+      const { periods } = shift
+      const moved = periods === null ? '' : `<span class="${periods > 0 ? 'later' : periods < 0 ? 'sooner' : ''}">${shift.words}</span>`
       return `          <tr><td><span class="percent">${percent}%</span> confident by</td><td class="date">${date(withCapacity)}</td><td>${date(atUsual)}</td><td>${moved}</td></tr>`
     })
     .join('\n')

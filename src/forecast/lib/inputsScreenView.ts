@@ -1,16 +1,17 @@
-import type { ConnectStep } from './connection.js'
-import type { InputsView } from './inputs.js'
-import type { QueryStep, QueryStepOpening, RefusedQuery } from './queryStep.js'
-import type { SetupView } from './setup.js'
+import { connectionView, type ConnectStep } from './connection.js'
+import { inputsView, type InputsView } from './inputs.js'
+import { queryStepView, type QueryStep, type QueryStepOpening, type RefusedQuery } from './queryStep.js'
+import { openSetup, type SetupView } from './setup.js'
 import type { SetupStep } from './setupSteps.js'
 import { COMPARABLE_WORK, MILESTONE_QUERY, type StepQuery } from './stepQuery.js'
-import type { CapacityShown, TeamEntries } from './teamEntries.js'
-
-/** A setup step that picks or writes one of the team's queries: the Milestone step, or the Comparable work step. */
-export type QuerySetupStep = Extract<SetupStep, 'milestone' | 'comparableWork'>
+import type { CapacityShown } from './milestoneForecastView.js'
+import type { TeamCall } from './teamCall.js'
 
 /** The query each query step edits. */
-export const STEP_QUERIES: Readonly<Record<QuerySetupStep, StepQuery>> = { milestone: MILESTONE_QUERY, comparableWork: COMPARABLE_WORK }
+export const STEP_QUERIES = { milestone: MILESTONE_QUERY, comparableWork: COMPARABLE_WORK } as const satisfies Partial<Record<SetupStep, StepQuery>>
+
+/** A setup step that picks or writes one of the team's queries: the Milestone step, or the Comparable work step. */
+export type QuerySetupStep = keyof typeof STEP_QUERIES
 
 /**
  * How the Inputs screen opens, as its URL asks: at the setup step `step` names (as the URL sends it), the query step
@@ -55,17 +56,15 @@ export interface ShownAgain {
  * Seam B: the Inputs screen, whole, as `opening` asks, or as a refused form shows it again (`again`). Only the query
  * step shown is built, so the tracker is asked nothing for one once setup is closed.
  */
-export async function inputsScreen(entries: TeamEntries, opening: InputsOpening, again: ShownAgain = {}): Promise<InputsScreen> {
+export async function inputsScreen(team: TeamCall, opening: InputsOpening, again: ShownAgain = {}): Promise<InputsScreen> {
   const { refused, connection } = again
-  const setup = await entries.openSetup({
-    asked: opening.step ?? null,
-    ...(refused && { refused: refused.step }),
-    ...(connection && { refused: 'connect' as const }),
-  })
+  const { teamId, at, reading } = team
+  const asked = { asked: opening.step ?? null, ...(refused && { refused: refused.step }), ...(connection && { refused: 'connect' as const }) }
+  const setup = await openSetup(reading, teamId, asked, at.readAt)
   const shown = setup.kind === 'steps' && isQueryStep(setup.step) ? setup.step : undefined
-  const step = shown && (await queryStep(entries, shown, opening, again))
-  const inputs = again.inputs ?? (await entries.inputsView())
-  const connect = connection ?? (await entries.connectionView())
+  const step = shown && (await queryStep(team, shown, opening, again))
+  const inputs = again.inputs ?? inputsView(team)
+  const connect = connection ?? connectionView(reading, teamId)
   return {
     inputs,
     ...(connect.kind !== 'noConnect' && { connection: connect }),
@@ -75,13 +74,13 @@ export async function inputsScreen(entries: TeamEntries, opening: InputsOpening,
 }
 
 /** The query step `shown`, opening as `opening` asks, or on its query just refused. */
-async function queryStep(entries: TeamEntries, shown: QuerySetupStep, opening: InputsOpening, { refused, unlisted = false }: ShownAgain) {
+async function queryStep({ reading, teamId, at }: TeamCall, shown: QuerySetupStep, opening: InputsOpening, { refused, unlisted = false }: ShownAgain) {
   const editing = opening.editing === shown
   const stepOpening: QueryStepOpening =
     refused?.step === shown
       ? { refused: refused.query }
       : { editing, confirmingBack: editing && opening.confirmingBack === true, unlisted, opened: opening.opened ?? [] }
-  return entries.queryStepView(opening.find?.[shown] ?? '', stepOpening, STEP_QUERIES[shown])
+  return queryStepView(reading && { ...reading, at }, teamId, opening.find?.[shown] ?? '', stepOpening, STEP_QUERIES[shown])
 }
 
-const isQueryStep = (step: SetupStep): step is QuerySetupStep => step === 'milestone' || step === 'comparableWork'
+const isQueryStep = (step: SetupStep): step is QuerySetupStep => step in STEP_QUERIES
