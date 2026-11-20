@@ -15,12 +15,25 @@ export function newTeam(settings = DEFAULT_SETTINGS, today = TODAY): Promise<For
   return forecastingForTest({ browser: true, clock: { now: `${today}T09:00:00Z` }, settings })
 }
 
-/** Submits a form on the Inputs screen: saved, or why it was refused there. */
+/**
+ * Submits a form on the Inputs screen: saved; or refused, with the Inputs screen's error, on the Milestone forecast
+ * screen, or where it leads (`next`); or held for the EM to confirm clearing.
+ */
 export async function edit(team: Pick<Forecasting, 'submit'>, change: InputsEdit) {
   const submitted = await submitInputs(team, change)
-  if (submitted.kind === 'saved' || submitted.kind === 'savedInPlace') return { ok: true }
-  if (submitted.kind === 'confirmClear') return { ok: false }
-  return submitted.kind === 'refused' ? { ok: false, error: submitted.view.inputs.refusal?.error } : { ok: false, screen: 'forecast' as const }
+  switch (submitted.kind) {
+    case 'saved':
+    case 'savedInPlace':
+      return { ok: true }
+    case 'refused':
+      return { ok: false, error: submitted.view.inputs.refusal?.error }
+    case 'refusedOnForecast':
+      return { ok: false, screen: 'forecast' as const }
+    case 'refusedThere':
+      return { ok: false, next: submitted.next }
+    case 'confirmClear':
+      return { ok: false, confirm: true }
+  }
 }
 
 /** The EM enters the milestone and a pace range, as the Inputs screen does. */
