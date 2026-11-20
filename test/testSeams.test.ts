@@ -17,12 +17,16 @@ const SEAM_B = [
   'forecast/candidates.js',
   'forecast/milestoneRenamed.js',
   'forecast/howItWorksView.js',
-  // What goes in: settings, the query a step edits, the tracker's reads, and the stored facts through storage.
+  'forecast/forecastLedger.js',
+  // What goes in: settings, the query a step edits, the tracker's reads, and the stored facts and the ledger through
+  // storage; and the release a logged forecast names.
+  'forecast/appVersion.js',
   'forecast/settings.js',
   'forecast/stepQuery.js',
   'forecast/trackerReads.js',
   'storage/storage.js',
   'storage/sqliteStorage.js',
+  'ledger/ledger.js',
   'model/',
   // Read through: the canned connector, its interface's types, and openMemorySecrets.
   'connectors/canned.js',
@@ -43,8 +47,8 @@ const TEST_SEAMS: Record<string, readonly string[]> = {
   // Seam C: the interface, each connector's entry point (the canned one, GitHub's, Jira's), connectors/remote.js that the
   // network connectors share, and the connection a connector is built from (model/connection.js).
   connectors: ['connectors/connector.js', 'connectors/canned.js', 'connectors/github.js', 'connectors/jira.js', 'connectors/remote.js', 'model/connection.js'],
-  // The Storage contract and the migration tests, through each storage's opening.
-  storage: ['storage/storage.js', 'storage/sqliteStorage.js', 'storage/webStorage.js', 'model/'],
+  // The Storage contract and the migration tests, through each storage's opening, and the ledger's types it keeps.
+  storage: ['storage/storage.js', 'storage/sqliteStorage.js', 'storage/webStorage.js', 'ledger/ledger.js', 'model/'],
   secrets: ['secrets/secrets.js', 'secrets/memorySecrets.js', 'secrets/keychainSecrets.js'],
   // The app as it launches, local server or web build, with what it is built on, and the version its footer shows.
   app: [
