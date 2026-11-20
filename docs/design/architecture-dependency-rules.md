@@ -8,6 +8,7 @@ Part of the architecture design; the index is [`architecture.md`](architecture.m
 - `samples/` imports only `model/`.
 - `forecast/` is the only module that depends on both stored data and `engine/`.
 - `ledger/` depends only on `engine/types.ts`.
+- `storage/` keeps the ledger, and reaches the engine only through `engine/types.ts`, to check each logged forecast's case and result as it reads them back (`storage/lib/forecastLogJson.ts`); it runs nothing of the engine. `test/dependencyRules.test.ts` checks both rules.
 - `app/` reaches forecasts through `forecast/`, never `engine/` directly.
 - Forecast code reads facts only through team facts (`teamFacts`), never `storage.facts`, so a forecast always sees the EM's status mapping. Storage and storage tests may still read raw facts. (The MVP reads no facts: it has neither, until connectors return.)
 - `connectors/`, `storage/` and `secrets/` sit at the edges behind interfaces, so v1 can run from canned data and the same code can be hosted later.
