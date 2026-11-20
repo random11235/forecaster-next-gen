@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'vitest'
 import { APP_VERSION } from '../../src/forecast/appVersion.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
-import { TEAM, newTeam, mediumGrowth, enter, view } from './forecastViewScenario.js'
+import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
+import { TEAM, TODAY, newTeam, mediumGrowth, enter, submit, view } from './forecastViewScenario.js'
 
 // Seam B: the forecast ledger (#27). Each forecast the Milestone forecast screen shows is logged in the ledger, which
 // goes in through storage, with its case, the case's hash, its result, when it was logged and the release that made it.
@@ -53,5 +54,50 @@ describe('logging each forecast', () => {
     expect(log?.result.caseHash).toBe(log?.caseHash)
     expect(isoInstant(log?.createdAt ?? '')).toBe(true)
     expect(log && log.createdAt >= before && log.createdAt <= after).toBe(true)
+  })
+})
+
+describe('logging each forecast once', () => {
+  test('the same forecast shown again is not logged again, and one from changed inputs is logged after it', () => {
+    const storage = newTeam()
+    mediumGrowth(storage, { low: 1, high: 1 })
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '5', high: '5' })
+
+    view(storage)
+    view(storage)
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '20' }, { low: '5', high: '5' })
+    view(storage)
+    view(storage)
+
+    const logs = storage.forecastLogs(TEAM)
+    expect(logs.map(({ id, simulationCase }) => ({ id, tickets: simulationCase.scope[0]?.currentCount }))).toEqual([
+      { id: 1, tickets: 10 },
+      { id: 2, tickets: 20 },
+    ])
+    expect(logs[1]?.result.percentileDates).toEqual({ 50: '2026-09-29', 70: '2026-09-29', 85: '2026-09-29', 95: '2026-09-29' })
+  })
+})
+
+describe('logging only the forecast shown', () => {
+  test('with the Capacity section open, only the forecast shown is logged, with its capacity, not the runs each entry is compared with', () => {
+    const storage = newTeam()
+    mediumGrowth(storage, { low: 1, high: 1 })
+    enter(storage, { startDate: '2026-09-07', ticketsRemaining: '10' }, { low: '5', high: '5' })
+    submit(storage, { kind: 'addCapacity', percent: '0', from: '2026-09-07', to: '2026-09-11', onward: false, note: 'Offsite' })
+
+    const shown = milestoneForecastView(storage, TEAM, DEFAULT_SETTINGS, TODAY, { capacityOpen: true })
+
+    expect(shown.kind === 'forecast' && shown.capacity.entries.map(({ effect }) => effect.shift)).toEqual([1])
+    const logs = storage.forecastLogs(TEAM)
+    expect(logs).toHaveLength(1)
+    expect(logs[0]?.simulationCase.capacity?.[0]).toBe(0)
+    expect(logs[0]?.result.percentileDates[85]).toBe('2026-09-28')
+  })
+
+  test('a team with no milestone yet is shown no forecast, so nothing is logged', () => {
+    const storage = newTeam()
+
+    expect(view(storage).kind).not.toBe('forecast')
+    expect(storage.forecastLogs(TEAM)).toEqual([])
   })
 })
