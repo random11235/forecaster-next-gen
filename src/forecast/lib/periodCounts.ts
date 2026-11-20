@@ -18,6 +18,11 @@ export interface PaceClock {
   timeZone: string
 }
 
+/** When the tracker is read: the UTC instant (`readAt`), and pace's clock, today in the EM's time zone. */
+export interface ReadClock extends PaceClock {
+  readAt: string
+}
+
 /**
  * The milestone's calendar pace is counted on: its pace window (its skipped periods and the pace action applied), its
  * cadence in days, its start date (a candidate is laid from today without one), and today. Without a time zone: where

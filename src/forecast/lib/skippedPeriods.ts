@@ -3,7 +3,8 @@ import { periodName } from './cadence.js'
 import { isCalendarDate } from './calendarDate.js'
 import { teamConnection, withTeamQueries } from './connection.js'
 import { finishedSinceFor, readQuery } from './queryRead.js'
-import { inputsView, type Submitted } from './inputs.js'
+import { inputsView, type InputsView } from './inputs.js'
+import type { ReadClock } from './pace.js'
 import type { StepReading } from './queryStep.js'
 import type { ForecastSettings } from './settings.js'
 
@@ -18,31 +19,23 @@ export interface Skipping extends StepReading {
 /** Skip tracker periods, or count skipped ones again: each by the date it starts on. */
 export type SkipEdit = { kind: 'skip'; periods: string[] } | { kind: 'countAgain'; periods: string[] }
 
-/**
- * When a skip is submitted: `readAt`, the instant a read it needs is made at; `today`, and the EM's time zone (an IANA
- * name), which a refused skip's Inputs screen is dated in, its notes judged against `settings`.
- */
-export interface SkipAt {
-  settings: ForecastSettings
-  today: string
-  readAt: string
-  timeZone: string
-}
+/** A skip saved; or refused, with the Inputs screen to show again, saying why beside the tracker's pace. */
+export type SkipSubmitted = { saved: true } | { saved: false; view: InputsView }
 
 /**
  * Seam B: skips the milestone's tracker periods, or counts skipped ones again, keeping pace on the tracker; saved, the
  * Inputs screen comes next. Skips belong to the milestone, so they outlast reads. A skip reads the pace's queries
- * again, as at `readAt`, where their saved reads don't reach back past the skipped periods (`finishedSinceFor`), so
+ * again, as at `at.readAt`, where their saved reads don't reach back past the skipped periods (`finishedSinceFor`), so
  * the window can keep up to 8 counted; a read that fails leaves the last one in use. The steps' `current` queries are
  * read back too, so while setup is open its draft's are, into it, and Check counts the same window the forecast will.
  * Refused, with no period, a period that isn't a date, or no milestone, nothing changes, and the Inputs screen is shown
- * again saying why.
+ * again saying why, dated `at.today` in the EM's time zone, its notes judged against `settings`.
  */
-export async function submitSkip(skipping: Skipping, teamId: string, edit: SkipEdit, at: SkipAt): Promise<Submitted> {
+export async function submitSkip(skipping: Skipping, teamId: string, edit: SkipEdit, settings: ForecastSettings, at: ReadClock): Promise<SkipSubmitted> {
   const saved = skipping.milestoneInputs.milestoneInputs(teamId)
-  if (!saved) return refused(skipping, teamId, at, 'Enter the milestone first.')
+  if (!saved) return refused(skipping, teamId, settings, at, 'Enter the milestone first.')
   if (edit.periods.length === 0 || !edit.periods.every(isCalendarDate)) {
-    return refused(skipping, teamId, at, `Choose a ${periodName(saved.cadenceDays)} to ${edit.kind === 'skip' ? 'skip' : 'count again'}.`)
+    return refused(skipping, teamId, settings, at, `Choose a ${periodName(saved.cadenceDays)} to ${edit.kind === 'skip' ? 'skip' : 'count again'}.`)
   }
   const before = saved.paceWindow.skippedPeriods
   const skippedPeriods = edit.kind === 'skip' ? [...new Set([...before, ...edit.periods])].sort() : before.filter((start) => !edit.periods.includes(start))
@@ -52,13 +45,13 @@ export async function submitSkip(skipping: Skipping, teamId: string, edit: SkipE
     const finishedSince = finishedSinceFor(at.readAt, inputs)
     await reachBackPast(skipping, teamId, finishedSince, at.readAt)
   }
-  return { saved: true, next: 'inputs' }
+  return { saved: true }
 }
 
 /** A refused skip: the Inputs screen again, as saved, saying why beside the tracker's pace. */
-function refused(skipping: Skipping, teamId: string, { settings, today, timeZone }: SkipAt, error: string): Submitted {
+function refused(skipping: Skipping, teamId: string, settings: ForecastSettings, { today, timeZone }: ReadClock, error: string): SkipSubmitted {
   const view = inputsView(skipping.milestoneInputs, teamId, settings, today, { tracker: { ...skipping, timeZone } })
-  return { saved: false, screen: 'inputs', view: { ...view, refusal: { form: 'paceSkip', error } } }
+  return { saved: false, view: { ...view, refusal: { form: 'paceSkip', error } } }
 }
 
 /**

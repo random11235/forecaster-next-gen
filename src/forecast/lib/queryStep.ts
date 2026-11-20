@@ -1,10 +1,11 @@
 import type { Choice, ChoiceKind } from '../../connectors/connector.js'
 import type { Storage, TeamQueries } from '../../storage/storage.js'
-import { narrowedToAFew, openCandidates, type CandidateOpening, type Candidates, type CandidatesAt } from './candidates.js'
+import { narrowedToAFew, openCandidates, type CandidateOpening, type Candidates } from './candidates.js'
 import { comparableWorkPace, type ComparableWorkPace } from './comparableWorkPace.js'
 import { teamConnection, withTeamQueries, type Connecting } from './connection.js'
 import { finishedSinceFor, readQuery, type QueryRead } from './queryRead.js'
 import { MILESTONE_QUERY, type StepQuery } from './stepQuery.js'
+import type { ReadClock } from './pace.js'
 import { trackerOf } from './trackers.js'
 import { CHOICES_FAILED, foundInTracker, KEYCHAIN_FAILED, KIND_NAMES, listedHere, markedThisMilestone, notPicked, type ChoiceList } from './choiceLists.js'
 import { readFlag, readLine, rejectionOf } from './readSaid.js'
@@ -136,7 +137,7 @@ export interface StepReading extends Connecting {
  * zone, which each finish is counted on its calendar day in.
  */
 export interface QueryStepping extends StepReading {
-  at: CandidatesAt
+  at: ReadClock
 }
 
 /** What the step says, editing a query the picker can't show, of going back to finding. */

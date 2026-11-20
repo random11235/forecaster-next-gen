@@ -25,7 +25,7 @@ src/
     index.ts              # the one entry point, which app/ and Seam B's tests import alone: the team's handle (`openForecasting`, `Forecasting`), what goes in through it, each view and edit the screens show and post, the limits the screens' fields are given, the app's version, and `rerunForecast`
     lib/                  # the rest, private to forecast/:
       forecasting.ts      # the team's handle, `openForecasting`: opened on storage, a clock (now and the EM's time zone, today worked out from them), the settings and, in the local server build, what it connects with; adds the default team on first launch
-      teamEntries.ts      # the handle's entry points bound to the team, today and what it was opened on, fresh for each handle call, which lists the milestone choices once
+      teamCall.ts         # what one handle call reads and saves with: the team, the clock read once (now, today, the time zone), the settings and, in the local server build, its tracker reads and what setup reads with, listing the milestone choices once
       inputsScreenView.ts # the Inputs screen whole, as its URL asks or a refused form shows it again: only the query step shown is built
       submit.ts           # one submit for every form, owning what follows: a renamed milestone's query followed, a refused form's screen, a save in place's Inputs screen
       inputs.ts           # stored data → the Inputs screen's view; a submitted form saved (and where next) or refused (and the screen to show again)
