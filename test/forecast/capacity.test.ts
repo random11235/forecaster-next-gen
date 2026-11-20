@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest'
+import { DEFAULT_SETTINGS } from '../../src/forecast/index.js'
 import type { ForecastingForTest } from './forecastingForTest.js'
 import { submitInputs } from './forecastingForTest.js'
 import { MONDAY, newTeam, tenTicketsAtFive, add, view, headline, shownAgain, withoutCapacity } from './capacityScenario.js'
@@ -254,6 +255,25 @@ describe('each entry’s effect', () => {
     const forecast = await opened(team)
 
     expect(forecast.kind === 'forecast' && forecast.capacity.entries[0]?.effect).toEqual({ periods: null, words: '85% date later than the horizon' })
+    expect(forecast.kind === 'forecast' && forecast.capacityLine).toBe('Includes capacity.')
+  })
+
+  test('an entry bringing the 85% date in from past the horizon says so, and the line under the headline gives no shift', async () => {
+    // a horizon of one week: 10 tickets at 5 a week take two, and twice the capacity takes one
+    const team = await newTeam({ ...DEFAULT_SETTINGS, maxPeriods: 1 })
+    await tenTicketsAtFive(team)
+    await add(team, '200', MONDAY, '', { onward: true, note: 'Contractors' })
+
+    const forecast = await opened(team)
+
+    expect(forecast.kind === 'forecast' && forecast.capacity.entries[0]?.effect).toEqual({
+      periods: null,
+      words: '85% date within the horizon, not past it',
+    })
+    expect(forecast.kind === 'forecast' && forecast.comparison?.find(({ percent }) => percent === 85)?.shift).toEqual({
+      periods: null,
+      words: 'within the horizon, not past it',
+    })
     expect(forecast.kind === 'forecast' && forecast.capacityLine).toBe('Includes capacity.')
   })
 
