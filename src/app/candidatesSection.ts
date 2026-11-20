@@ -2,6 +2,7 @@ import type { Choice } from '../connectors/connector.js'
 import {
   dayMonth,
   FEW_CANDIDATES,
+  KIND_NAMES,
   type Candidate,
   type CandidateGroupKind,
   type CandidateOpening,
@@ -84,9 +85,9 @@ ${members.map((candidate) => candidateHtml(candidate, candidates, section)).join
           </div>`
 }
 
-function candidateHtml(candidate: Candidate, { period, kindNames }: Candidates, { paths, id }: StepSection): string {
+function candidateHtml(candidate: Candidate, { period }: Candidates, { paths, id }: StepSection): string {
   const { choice } = candidate
-  const add = `<form method="post" action="${paths.add}#${id}"><input type="hidden" name="${CHOICE_FIELDS.kind}" value="${escapeHtml(choice.kind)}"><input type="hidden" name="${CHOICE_FIELDS.name}" value="${escapeHtml(choice.name)}"><input type="hidden" name="${CHOICE_FIELDS.query}" value="${escapeHtml(choice.query)}"><button type="submit">${escapeHtml(choice.name)} <span class="kind">${escapeHtml(kindNames[choice.kind])}</span></button></form>`
+  const add = `<form method="post" action="${paths.add}#${id}"><input type="hidden" name="${CHOICE_FIELDS.kind}" value="${escapeHtml(choice.kind)}"><input type="hidden" name="${CHOICE_FIELDS.name}" value="${escapeHtml(choice.name)}"><input type="hidden" name="${CHOICE_FIELDS.query}" value="${escapeHtml(choice.query)}"><button type="submit">${escapeHtml(choice.name)} <span class="kind">${escapeHtml(KIND_NAMES[choice.kind].name)}</span></button></form>`
   const own = candidate.thisMilestone ? ' <span class="this">this milestone: counts its own too</span>' : ''
   const data = (fields: Record<string, string>): string =>
     Object.entries(fields)

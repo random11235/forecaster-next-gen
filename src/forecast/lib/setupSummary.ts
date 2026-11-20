@@ -3,7 +3,7 @@ import type { MilestoneQuery } from '../../model/milestoneQuery.js'
 import type { FailedRead } from '../../model/readFailures.js'
 import type { SavedRead } from '../../model/savedRead.js'
 import type { SetupStorage, TeamQueries } from '../../storage/storage.js'
-import { kindName } from './choiceLists.js'
+import { KIND_NAMES } from './choiceLists.js'
 import { LEAF_NOTE } from './queryStep.js'
 import { readFlag, rejectionOf } from './readSaid.js'
 import { chipsShow } from './stepQueryEdit.js'
@@ -147,7 +147,7 @@ function rowOf(reading: SummaryReading, teamId: string, tracker: TrackerFacts, s
     const pickRead = reading.reads.savedRead({ teamId, query })
     const count = queryRead && pickCount(pickRead, queryRead)
     return {
-      pick: { name, kind: kindName(kind), ...(count !== undefined && { count }) },
+      pick: { name, kind: KIND_NAMES[kind].name, ...(count !== undefined && { count }) },
       readBefore: queryRead !== undefined && pickRead !== undefined && !readSince(pickRead, queryRead),
     }
   })

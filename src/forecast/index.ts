@@ -52,3 +52,6 @@ export type { Tracker } from './lib/trackers.js'
 
 // A day as the views' lines say it (`12 Oct`), so the screens say the dates they draw the same way.
 export { dayMonth } from './lib/calendarDate.js'
+
+// Each kind of choice as the screens name it: beside a chip, a choice or a candidate, and heading its list.
+export { KIND_NAMES, type KindName } from './lib/choiceLists.js'
