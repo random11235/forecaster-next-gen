@@ -1,4 +1,4 @@
-import { choiceKindOf } from '../connectors/connector.js'
+import { choiceKindOf } from '../model/choice.js'
 import type { ConnectionEdit, ConnectionView } from '../forecast/connection.js'
 import type { Forecasting } from '../forecast/forecasting.js'
 import type { SkipEdit } from '../forecast/skippedPeriods.js'
