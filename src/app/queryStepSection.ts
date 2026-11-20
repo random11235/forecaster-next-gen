@@ -1,14 +1,11 @@
 import {
-  COMPARABLE_WORK,
   KIND_NAMES,
-  MILESTONE_QUERY,
   type ChoiceList,
   type ComparableWorkPace,
   type QueryEditing,
   type QueryStep,
   type QuerySetupStep,
   type SetupStep,
-  type StepQuery,
   type StepQueryEdit,
 } from '../forecast/index.js'
 import { choiceKindOf, type Choice } from '../model/choice.js'
@@ -25,8 +22,6 @@ type StepFormReader = (body: URLSearchParams) => StepQueryEdit | undefined
  * box and URLs; they share the picker and its HTML.
  */
 export interface StepSection {
-  /** The query the step edits. */
-  stepQuery: StepQuery
   /** The setup step it is, which its URLs open at (`STEP_FIELD`): the Milestone step, the default, names none. */
   setupStep: QuerySetupStep
   /** Its section's id on the Inputs screen. */
@@ -105,7 +100,6 @@ function stepSection({ formsAt, editingValue, ...section }: StepSectionMade): St
 
 /** The Milestone step, picking the milestone's tickets: after the Connect step. */
 export const MILESTONE_STEP: StepSection = stepSection({
-  stepQuery: MILESTONE_QUERY,
   setupStep: 'milestone',
   id: SETUP_STEP_IDS.milestone,
   title: 'Milestone’s tickets',
@@ -119,7 +113,6 @@ export const MILESTONE_STEP: StepSection = stepSection({
 
 /** The Comparable work step, picking recent work like the milestone's to measure its pace from: after the Milestone step, and optional. */
 export const COMPARABLE_WORK_STEP: StepSection = stepSection({
-  stepQuery: COMPARABLE_WORK,
   setupStep: 'comparableWork',
   id: SETUP_STEP_IDS.comparableWork,
   title: 'Comparable work',
@@ -187,7 +180,7 @@ function editingSection(view: QueryStep, editing: QueryEditing, section: StepSec
     : '<button type="submit" class="linkish">Back to finding</button>'
   return `        <div class="picker editing">${paceHtml(pace)}
           <form method="post" action="${paths.edit}#${id}" class="query">
-            <label class="label" for="${inputId}">${escapeHtml(section.stepQuery.name)}, within <b>${escapeHtml(editing.readIn)}</b></label>
+            <label class="label" for="${inputId}">${escapeHtml(view.queryName)}, within <b>${escapeHtml(editing.readIn)}</b></label>
             <input type="text" id="${inputId}" name="${CHOICE_FIELDS.query}" value="${escapeHtml(editing.typed)}" autocomplete="off" spellcheck="false">
             <p class="note">Press Enter to read it. ${escapeHtml(view.note)}</p>
           </form>${refusal}${inUse}${readHtml(view, pace)}
@@ -224,7 +217,7 @@ ${lists}
             <p class="note none-found" hidden>Nothing matches.</p>
           </div>
           <div class="query">
-            <span class="label">${escapeHtml(section.stepQuery.name)} <a href="${escapeHtml(urls.editing)}" class="edit">Edit as a query</a></span> ${query}
+            <span class="label">${escapeHtml(view.queryName)} <a href="${escapeHtml(urls.editing)}" class="edit">Edit as a query</a></span> ${query}
             <p class="note">${escapeHtml(view.note)}</p>
           </div>${readHtml(view, pace)}${afreshHtml(view, section)}
         </div>`

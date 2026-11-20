@@ -57,6 +57,8 @@ export interface StepCandidates {
 
 /** What both query steps show of the query they edit. */
 interface PickedQuery {
+  /** The query as the step labels it: "Milestone query", "Comparable-work query". */
+  queryName: string
   /** What the EM typed to find a choice by. */
   find: string
   lists: ChoiceList[]
@@ -209,6 +211,7 @@ async function pickedQuery(
         }
       : undefined
   const step: PickedQuery = {
+    queryName: stepQuery.name,
     find,
     lists: [],
     picks: saved.picks,

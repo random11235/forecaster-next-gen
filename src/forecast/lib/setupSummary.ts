@@ -50,11 +50,11 @@ export interface SummaryPick {
 
 /**
  * What is wrong with a query's saved read, or why its last read or one of its picks' failed, and which query's it is
- * (by its step's `kind`); or, with no query named, why the last read by hand failed as a whole, the saved reads staying
+ * (by its name as its step labels it, "Milestone query"); or, with no query named, why the last read by hand failed as a whole, the saved reads staying
  * in use. `change: 'connect'` offers Change, opening the Connect step, for a token or repo the tracker refused.
  */
 export interface SummaryFlag {
-  of?: StepQuery['kind']
+  of?: string
   flag: string
   change?: 'connect'
 }
@@ -110,10 +110,10 @@ function failedFlags(reading: SummaryReading, teamId: string, connection: Connec
     of(stepQuery: StepQuery, savedQuery: MilestoneQuery | undefined): SummaryFlag[] | undefined {
       if (!hasQuery(savedQuery)) return undefined
       const failed = queries[savedQuery.query]
-      if (since(failed, savedQuery.query)) return [{ ...queryFailedFlag(connection, failed), of: stepQuery.kind }]
+      if (since(failed, savedQuery.query)) return [{ ...queryFailedFlag(connection, failed), of: stepQuery.name }]
       const several = savedQuery.picks.length > 1 && chipsShow(trackerOf(connection), savedQuery)
       const picks = several ? savedQuery.picks.filter(({ query }) => since(pickFailures[query], query)) : []
-      return picks.length === 0 ? undefined : picks.map(({ name }) => ({ of: stepQuery.kind, flag: pickFailed(name) }))
+      return picks.length === 0 ? undefined : picks.map(({ name }) => ({ of: stepQuery.name, flag: pickFailed(name) }))
     },
   }
 }
@@ -133,7 +133,7 @@ const pickFailed = (name: string) => `${name} couldn’t be read on its own, so 
  */
 function flagOf(read: SavedRead | undefined, trackerName: string, stepQuery: StepQuery): SummaryFlag[] {
   const flag = read && readFlag(read, trackerName, stepQuery)?.flag
-  return flag === undefined ? [] : [{ of: stepQuery.kind, flag }]
+  return flag === undefined ? [] : [{ of: stepQuery.name, flag }]
 }
 
 /**

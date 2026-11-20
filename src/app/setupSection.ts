@@ -1,6 +1,4 @@
 import {
-  COMPARABLE_WORK,
-  MILESTONE_QUERY,
   SETUP_STEPS,
   type PaceCheck,
   type SetupCheck,
@@ -8,7 +6,6 @@ import {
   type SetupStep,
   type SetupSteps,
   type SetupSummary,
-  type StepQuery,
   type SummaryFlag,
   type SummaryRow,
   type TicketsCheck,
@@ -262,15 +259,12 @@ function rowHtml(name: string, row: SummaryRow): string {
         <dd>${shown}</dd>`
 }
 
-/** Each query flagged, named as its step names it. */
-const FLAGGED_QUERY: Readonly<Record<StepQuery['kind'], string>> = { milestoneQuery: MILESTONE_QUERY.name, comparableWork: COMPARABLE_WORK.name }
-
 /**
  * A problem flag beneath the summary: "⚠ Milestone query: This query matches nothing…", or, of a read failing as a
  * whole, its reason alone; a refused token's with Change, opening the Connect step.
  */
 function flagHtml({ of, flag, change }: SummaryFlag): string {
-  const text = `⚠ ${of === undefined ? '' : `${FLAGGED_QUERY[of]}: `}${escapeHtml(flag)}`
+  const text = `⚠ ${of === undefined ? '' : `${escapeHtml(of)}: `}${escapeHtml(flag)}`
   if (change === undefined) return `\n      <p class="note warn flag">${text}</p>`
   return `\n      <div class="note warn flag">${text}
         ${changeHtml(SETUP_PATHS.changeConnection, 'Change')}

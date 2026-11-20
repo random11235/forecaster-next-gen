@@ -167,7 +167,7 @@ describe('each pick’s count on the summary', () => {
 
     expect(await summary()).toMatchObject({
       milestone: { picks: [{ name: 'Checkout v2', count: 3 }, { name: '#57 Search revamp' }] },
-      flags: [{ of: 'milestoneQuery', flag: '#57 Search revamp couldn’t be read on its own, so it shows no count. Change, then Check, reads it again.' }],
+      flags: [{ of: 'Milestone query', flag: '#57 Search revamp couldn’t be read on its own, so it shows no count. Change, then Check, reads it again.' }],
     })
 
     scenario().fixture.reads[SEARCH.query] = { tickets: open(1, 's'), incomplete: false }
@@ -205,7 +205,7 @@ describe('each pick’s count on the summary', () => {
     await atCheck()
 
     expect(await summary()).toMatchObject({
-      flags: [{ of: 'milestoneQuery', flag: 'Q3 polish couldn’t be read on its own, so it shows no count. Change, then Check, reads it again.' }],
+      flags: [{ of: 'Milestone query', flag: 'Q3 polish couldn’t be read on its own, so it shows no count. Change, then Check, reads it again.' }],
     })
   })
 
@@ -246,7 +246,7 @@ describe('the summary’s flags', () => {
     expect(await summaryWith({ tickets: [], incomplete: false })).toMatchObject({
       flags: [
         {
-          of: 'milestoneQuery',
+          of: 'Milestone query',
           flag: 'This query matches nothing: no open tickets, and none finished in the last 9 weeks. Check it picks out the milestone’s tickets.',
         },
       ],
@@ -258,8 +258,8 @@ describe('the summary’s flags', () => {
     const flag = 'GitHub gave only part of what this query matches, so its tickets aren’t counted. Narrow the query to read all of it.'
     expect(view).toMatchObject({
       flags: [
-        { of: 'milestoneQuery', flag },
-        { of: 'comparableWork', flag },
+        { of: 'Milestone query', flag },
+        { of: 'Comparable-work query', flag },
       ],
     })
   })

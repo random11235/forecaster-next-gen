@@ -16,6 +16,7 @@ describe('opening the Milestone step', () => {
     expect(team.calls.reads).toEqual([])
     expect(view).toEqual({
       kind: 'milestoneStep',
+      queryName: 'Milestone query',
       find: '',
       lists: [
         { kind: 'milestone', choices: [payments, checkout], searchedInTracker: false },
