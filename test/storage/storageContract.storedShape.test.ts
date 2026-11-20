@@ -5,7 +5,7 @@ import type { SqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
 import { openWebStorage, type KeyValueStore } from '../../src/storage/webStorage.js'
 import { readStraight, writeStraight } from './sqliteStraight.js'
-import { LAUNCH as SAVED, TEAM, temporarySqliteFiles } from './storageContractFixtures.js'
+import { FORECAST, LAUNCH as SAVED, TEAM, temporarySqliteFiles } from './storageContractFixtures.js'
 
 // The Storage contract's cases for stored JSON of a shape this version doesn't read, beside storageContract.test.ts,
 // run against both storages: each refuses it, naming where it is kept, rather than reading it as something it isn't,
@@ -33,6 +33,7 @@ const SAVES: Record<Save, (storage: Storage) => void> = {
     storage.saveAmbiguityRanges({ teamId: 'team', low: { low: 1, high: 1.2 }, medium: { low: 1.1, high: 1.5 }, high: { low: 1.2, high: 2 } }),
   saveCapacityEntries: (storage) => storage.saveCapacityEntries('team', []),
   saveCapacityOn: (storage) => storage.saveCapacityOn('team', false),
+  saveForecastLog: (storage) => storage.saveForecastLog(FORECAST),
 }
 
 /** Storage holding a refused value: opened again on each call, the value read through it, and the value as kept. */
@@ -93,6 +94,33 @@ const milestoneQuery = inSqlite('milestone_queries', (storage) => storage.milest
 const comparableWorkQuery = inSqlite('comparable_work_queries', (storage) => storage.comparableWorkQuery('team'))
 const setupDraft = inSqlite('setup_drafts', (storage) => storage.setupDraft('team'))
 
+/**
+ * A logged forecast whose `column` holds `stored`, the rest as FORECAST logged it: written in as a row of its own, as
+ * the ledger never changes a row once written.
+ */
+const forecastLog = (column: 'simulation_case' | 'result', stored: string): Refused => ({
+  where: `forecast_logs.${column}`,
+  holding: stored,
+  opened() {
+    const { file, reopen } = savedSqlite()
+    const { teamId, milestoneName, caseHash, appVersion, simulationCase, result } = FORECAST
+    const json = { simulation_case: JSON.stringify(simulationCase), result: JSON.stringify(result), [column]: stored }
+    writeStraight(
+      file,
+      `INSERT INTO forecast_logs (team_id, id, created_at, milestone_name, case_hash, app_version, simulation_case, result)
+       VALUES (?, 1, '2026-11-02T09:00:00.000Z', ?, ?, ?, ?, ?)`,
+      teamId,
+      milestoneName,
+      caseHash,
+      appVersion,
+      json.simulation_case,
+      json.result,
+    )
+    const kept = (): unknown => readStraight(file, `SELECT ${column} FROM forecast_logs WHERE id = 1`)?.[column]
+    return { storage: reopen, read: () => reopen().forecastLogs('team'), kept }
+  },
+})
+
 const sqlite: Subject = {
   saved: () => savedSqlite().reopen(),
   refusesSaves: false,
@@ -109,6 +137,11 @@ const sqlite: Subject = {
     comparableWorkQuery('picks', '[null]'),
     setupDraft('milestone_picks', 'not json'),
     setupDraft('comparable_work_picks', '[{"kind":"label","name":7,"query":""}]'),
+    forecastLog('simulation_case', 'not json'),
+    forecastLog('simulation_case', JSON.stringify({ ...FORECAST.simulationCase, question: { kind: 'howMany' } })),
+    forecastLog('simulation_case', JSON.stringify({ ...FORECAST.simulationCase, scope: [{ epicId: 'team', rank: 1 }] })),
+    forecastLog('result', JSON.stringify({ ...FORECAST.result, percentileDates: { 50: 20270222 } })),
+    forecastLog('result', '[]'),
   ],
 }
 
@@ -165,6 +198,15 @@ const browser: Subject = {
       JSON.stringify({ teams: [TEAM], capacityEntries: { team: [{ id: 1, from: '2026-09-14', percent: 0, note: '', kept: false }] } }),
     ),
     inBrowser('capacity off that is not a list', '{"teams":[],"capacityOff":"team"}'),
+    inBrowser("a team's forecast ledger that is not a list", JSON.stringify({ teams: [TEAM], forecastLogs: { team: {} } })),
+    inBrowser('a logged forecast with no stamp', JSON.stringify({ teams: [TEAM], forecastLogs: { team: [{ ...FORECAST, id: 1 }] } })),
+    inBrowser(
+      'a logged forecast whose case has no question',
+      JSON.stringify({
+        teams: [TEAM],
+        forecastLogs: { team: [{ ...FORECAST, id: 1, createdAt: '2026-11-02T09:00:00.000Z', simulationCase: { ...FORECAST.simulationCase, question: {} } }] },
+      }),
+    ),
   ],
 }
 
@@ -213,4 +255,13 @@ test("SQLite storage's save of the record holding a refused value replaces it wh
   SAVES.saveMilestoneInputs(storage())
 
   expect(read()).toEqual({ ...LAUNCH, name: 'Beta' })
+})
+
+test('the SQLite file refuses any change to a logged forecast, even one written straight into it', () => {
+  const { file, reopen } = savedSqlite()
+  reopen().saveForecastLog(FORECAST)
+
+  expect(() => writeStraight(file, "UPDATE forecast_logs SET result = '{}'")).toThrow('A logged forecast is never changed.')
+  expect(() => writeStraight(file, 'DELETE FROM forecast_logs')).toThrow('A logged forecast is never removed.')
+  expect(reopen().forecastLogs('team')).toEqual([{ ...FORECAST, id: 1, createdAt: expect.any(String) }])
 })
