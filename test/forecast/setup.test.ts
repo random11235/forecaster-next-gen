@@ -111,15 +111,15 @@ describe('the setup steps', () => {
   test('go on, after a setup edit, to Check for a source, Connect for Change from a refused token, Milestone as the steps open there, else the screen as it opens', async () => {
     const forecasting = await team()
     const submit = (edit: SetupEdit) => setup(forecasting, edit)
-    expect(await submit({ kind: 'change' })).toEqual({ kind: 'saved', next: { screen: 'inputs' } })
+    expect(await submit({ kind: 'change' })).toEqual({ kind: 'saved', next: { kind: 'screen', screen: 'inputs' } })
     await connect(forecasting)
     await pick(forecasting, READ_AT)
 
-    expect(await submit({ kind: 'chooseSource', value: 'pace', source: 'tracker' })).toEqual({ kind: 'saved', next: { screen: 'inputs', step: 'check' } })
-    expect(await submit({ kind: 'useThese' })).toEqual({ kind: 'saved', next: { screen: 'inputs' } })
-    expect(await submit({ kind: 'change', at: 'connect' })).toEqual({ kind: 'saved', next: { screen: 'inputs', step: 'connect' } })
-    expect(await submit({ kind: 'cancel' })).toEqual({ kind: 'saved', next: { screen: 'inputs' } })
-    expect(await submit({ kind: 'change' })).toEqual({ kind: 'saved', next: { screen: 'inputs', step: 'milestone' } })
+    expect(await submit({ kind: 'chooseSource', value: 'pace', source: 'tracker' })).toEqual({ kind: 'saved', next: { kind: 'step', step: 'check' } })
+    expect(await submit({ kind: 'useThese' })).toEqual({ kind: 'saved', next: { kind: 'screen', screen: 'inputs' } })
+    expect(await submit({ kind: 'change', at: 'connect' })).toEqual({ kind: 'saved', next: { kind: 'step', step: 'connect' } })
+    expect(await submit({ kind: 'cancel' })).toEqual({ kind: 'saved', next: { kind: 'screen', screen: 'inputs' } })
+    expect(await submit({ kind: 'change' })).toEqual({ kind: 'saved', next: { kind: 'step', step: 'milestone' } })
   })
 
   test('are not in the browser build, which has nothing to connect with', async () => {

@@ -57,7 +57,7 @@ describe('step 7: a data file from schema version 6, before milestone inputs', (
       },
     })
 
-    expect(entered).toEqual({ kind: 'saved', next: { screen: 'inputs' } })
+    expect(entered).toEqual({ kind: 'saved', next: { kind: 'screen', screen: 'inputs' } })
     expect(await forecasting(storage, '2026-09-01').milestoneForecastView()).toMatchObject({
       kind: 'forecast',
       name: 'Launch',

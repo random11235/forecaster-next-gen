@@ -66,7 +66,7 @@ describe('connecting', () => {
 
     const submitted = await connect(team, github())
 
-    expect(submitted).toEqual({ kind: 'saved', next: { screen: 'inputs', step: 'milestone' } })
+    expect(submitted).toEqual({ kind: 'saved', next: { kind: 'step', step: 'milestone' } })
     expect(team.calls.built).toEqual([{ connection: { tracker: 'github', owner: 'shop-team', repo: 'shop' }, token: TOKEN }])
     expect(team.storage.connection(TEAM)).toEqual({ tracker: 'github', owner: 'shop-team', repo: 'shop' })
     expect(await team.secrets.token(TEAM)).toBe(TOKEN)
@@ -78,7 +78,7 @@ describe('connecting', () => {
     const submitted = await connect(team, jira({ site: ' https://shop.atlassian.net/ ', projectKey: 'shop ', email: ' em@shop.example' }))
 
     const connection: Connection = { tracker: 'jira', site: 'shop.atlassian.net', projectKey: 'SHOP', email: 'em@shop.example' }
-    expect(submitted).toEqual({ kind: 'saved', next: { screen: 'inputs', step: 'milestone' } })
+    expect(submitted).toEqual({ kind: 'saved', next: { kind: 'step', step: 'milestone' } })
     expect(team.calls.built).toEqual([{ connection, token: TOKEN }])
     expect(team.storage.connection(TEAM)).toEqual(connection)
     expect(await team.secrets.token(TEAM)).toBe(TOKEN)
@@ -94,7 +94,7 @@ describe('changing the connection', () => {
 
     const submitted = await connect(team, github('shop-team/payments', NEW_TOKEN))
 
-    expect(submitted).toEqual({ kind: 'saved', next: { screen: 'inputs', step: 'milestone' } })
+    expect(submitted).toEqual({ kind: 'saved', next: { kind: 'step', step: 'milestone' } })
     expect(team.calls.built.at(-1)).toEqual({ connection: { tracker: 'github', owner: 'shop-team', repo: 'payments' }, token: NEW_TOKEN })
     expect(team.storage.connection(TEAM)).toEqual({ tracker: 'github', owner: 'shop-team', repo: 'payments' })
     expect(await team.secrets.token(TEAM)).toBe(NEW_TOKEN)
@@ -106,7 +106,7 @@ describe('changing the connection', () => {
 
     const submitted = await connect(team, github('shop-team/payments', ' '))
 
-    expect(submitted).toEqual({ kind: 'saved', next: { screen: 'inputs', step: 'milestone' } })
+    expect(submitted).toEqual({ kind: 'saved', next: { kind: 'step', step: 'milestone' } })
     expect(team.calls.built.at(-1)).toEqual({ connection: { tracker: 'github', owner: 'shop-team', repo: 'payments' }, token: TOKEN })
     expect(team.storage.connection(TEAM)).toEqual({ tracker: 'github', owner: 'shop-team', repo: 'payments' })
     expect(await team.secrets.token(TEAM)).toBe(TOKEN)
@@ -155,7 +155,7 @@ describe('disconnecting', () => {
 
     const submitted = await connect(team, { kind: 'disconnect' })
 
-    expect(submitted).toEqual({ kind: 'saved', next: { screen: 'inputs', step: 'connect' } })
+    expect(submitted).toEqual({ kind: 'saved', next: { kind: 'step', step: 'connect' } })
     expect(team.storage.connection(TEAM)).toBeUndefined()
     expect(await team.secrets.token(TEAM)).toBeUndefined()
     expect((await connectStep(team))?.kind).toBe('connect')
@@ -164,7 +164,7 @@ describe('disconnecting', () => {
   test('with no connection, there is nothing to remove', async () => {
     const team = await newTeam()
 
-    expect(await connect(team, { kind: 'disconnect' })).toEqual({ kind: 'saved', next: { screen: 'inputs', step: 'connect' } })
+    expect(await connect(team, { kind: 'disconnect' })).toEqual({ kind: 'saved', next: { kind: 'step', step: 'connect' } })
     expect(team.calls.built).toEqual([])
   })
 })

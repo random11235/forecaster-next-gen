@@ -22,7 +22,7 @@ describe('the switch', () => {
     const before = await view(team)
     await add(team, '0', '2026-09-07', '2026-09-11', { note: 'Offsite' })
 
-    expect(await submitInputs(team, { kind: 'switchCapacity', on: false })).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
+    expect(await submitInputs(team, { kind: 'switchCapacity', on: false })).toEqual({ kind: 'saved', next: { kind: 'screen', screen: 'forecast' } })
 
     const forecast = await view(team)
     expect(await headline(team)).toBe('2026-09-21')
@@ -44,7 +44,7 @@ describe('the switch', () => {
     const before = await view(team)
     await submitInputs(team, { kind: 'switchCapacity', on: false })
 
-    expect(await submitInputs(team, { kind: 'switchCapacity', on: true })).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
+    expect(await submitInputs(team, { kind: 'switchCapacity', on: true })).toEqual({ kind: 'saved', next: { kind: 'screen', screen: 'forecast' } })
 
     expect(await view(team)).toEqual(before)
     expect(await headline(team)).toBe('2026-09-28')
@@ -158,7 +158,10 @@ describe('editing an entry', () => {
     await add(team, '0', '2026-09-07', '2026-09-11', { note: 'Offsite' })
     expect(await headline(team)).toBe('2026-09-28')
 
-    expect(await edit(team, '1', '100', '2026-09-14', '2026-09-18', { note: 'Offsite moved' })).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
+    expect(await edit(team, '1', '100', '2026-09-14', '2026-09-18', { note: 'Offsite moved' })).toEqual({
+      kind: 'saved',
+      next: { kind: 'screen', screen: 'forecast' },
+    })
 
     expect(await headline(team)).toBe('2026-09-21')
     const forecast = await view(team)
@@ -258,7 +261,7 @@ describe('past entries', () => {
       note: 'Team offsite in Lisbon',
     })
 
-    expect(result).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
+    expect(result).toEqual({ kind: 'saved', next: { kind: 'screen', screen: 'forecast' } })
     const forecast = await view(team)
     expect(forecast.kind === 'forecast' && forecast.capacity.past).toEqual([
       { id: 1, from: AUGUST, to: '2026-08-07', percent: 0, note: 'Team offsite in Lisbon' },
@@ -289,8 +292,8 @@ describe('past entries', () => {
     const edited = await submitInputs(team, { kind: 'editCapacity', id: '2', percent: '350', from: TODAY, to: '', onward: true, note: '' })
 
     expect([added, edited]).toEqual([
-      { kind: 'saved', next: { screen: 'forecast' } },
-      { kind: 'saved', next: { screen: 'forecast' } },
+      { kind: 'saved', next: { kind: 'screen', screen: 'forecast' } },
+      { kind: 'saved', next: { kind: 'screen', screen: 'forecast' } },
     ])
   })
 })

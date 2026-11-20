@@ -101,7 +101,7 @@ describe('a submitted form', () => {
     const team = await newTeam()
     await enter(team, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
 
-    expect(await submitInputs(team, change)).toEqual({ kind: 'saved', next: { screen: next } })
+    expect(await submitInputs(team, change)).toEqual({ kind: 'saved', next: { kind: 'screen', screen: next } })
   })
 
   test('before any is submitted, the Inputs screen shows each form as saved, and no refusal', async () => {

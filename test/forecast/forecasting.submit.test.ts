@@ -36,7 +36,7 @@ describe('renaming the milestone', () => {
 
     const submitted = await forecasting.submit(milestoneNamed('Loyalty launch'))
 
-    expect(submitted).toEqual({ kind: 'saved', next: { screen: 'inputs' }, followed: 'followed' })
+    expect(submitted).toEqual({ kind: 'saved', next: { kind: 'screen', screen: 'inputs' }, followed: 'followed' })
     expect(team.storage.milestoneQuery('team')).toEqual({ picks: [LOYALTY], query: LOYALTY.query })
   })
 
@@ -58,7 +58,7 @@ describe('renaming the milestone', () => {
     const { forecasting } = await team({ browser: true })
     await forecasting.submit(milestoneNamed('Checkout v2'))
 
-    expect(await forecasting.submit(milestoneNamed('Loyalty launch'))).toEqual({ kind: 'saved', next: { screen: 'inputs' } })
+    expect(await forecasting.submit(milestoneNamed('Loyalty launch'))).toEqual({ kind: 'saved', next: { kind: 'screen', screen: 'inputs' } })
     expect((await forecasting.inputsScreen()).inputs.milestone.name).toBe('Loyalty launch')
   })
 })
@@ -156,7 +156,10 @@ describe('a save in place', () => {
     const { forecasting } = await connectedTeam()
     await forecasting.submit(milestoneNamed('Checkout v2'))
 
-    expect(await forecasting.submit({ form: 'inputs', edit: { kind: 'setAmbiguity', level: 'high' } })).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
+    expect(await forecasting.submit({ form: 'inputs', edit: { kind: 'setAmbiguity', level: 'high' } })).toEqual({
+      kind: 'saved',
+      next: { kind: 'screen', screen: 'forecast' },
+    })
   })
 })
 
@@ -164,12 +167,12 @@ describe('where a submit goes next', () => {
   test('a connect, to the Milestone step; a pick, back to its step; Read again, to the Inputs screen', async () => {
     const { forecasting } = await team({ firstSetup: true })
 
-    expect(await forecasting.submit({ form: 'connection', edit: GITHUB_REPO })).toEqual({ kind: 'saved', next: { screen: 'inputs', step: 'milestone' } })
+    expect(await forecasting.submit({ form: 'connection', edit: GITHUB_REPO })).toEqual({ kind: 'saved', next: { kind: 'step', step: 'milestone' } })
     expect(await forecasting.submit({ form: 'stepQuery', step: 'comparableWork', edit: { kind: 'addPick', choice: LOYALTY } })).toEqual({
       kind: 'saved',
-      next: { screen: 'inputs', step: 'comparableWork' },
+      next: { kind: 'step', step: 'comparableWork' },
     })
-    expect(await forecasting.submit({ form: 'readAgain' })).toEqual({ kind: 'saved', next: { screen: 'inputs' } })
+    expect(await forecasting.submit({ form: 'readAgain' })).toEqual({ kind: 'saved', next: { kind: 'screen', screen: 'inputs' } })
   })
 
   test('a query edited by hand, back to its step with the query open for editing', async () => {
@@ -178,20 +181,20 @@ describe('where a submit goes next', () => {
 
     expect(await forecasting.submit({ form: 'stepQuery', step: 'milestone', edit: { kind: 'editQuery', query: 'label:checkout' } })).toEqual({
       kind: 'saved',
-      next: { screen: 'inputs', step: 'milestone', editing: true },
+      next: { kind: 'editing', step: 'milestone' },
     })
   })
 
   test('"Use these", refused before the milestone has a query, is not saved, and goes to the step setup goes on to', async () => {
     const { forecasting } = await connectedTeam({ firstSetup: true })
 
-    expect(await forecasting.submit({ form: 'setup', edit: { kind: 'useThese' } })).toEqual({ kind: 'notSaved', next: { screen: 'inputs', step: 'milestone' } })
+    expect(await forecasting.submit({ form: 'setup', edit: { kind: 'useThese' } })).toEqual({ kind: 'refusedThere', next: { kind: 'step', step: 'milestone' } })
   })
 
   test('Cancel, refused with setup closed, is not saved, and goes to the Inputs screen', async () => {
     const { forecasting } = await connectedTeam()
 
-    expect(await forecasting.submit({ form: 'setup', edit: { kind: 'cancel' } })).toEqual({ kind: 'notSaved', next: { screen: 'inputs' } })
+    expect(await forecasting.submit({ form: 'setup', edit: { kind: 'cancel' } })).toEqual({ kind: 'refusedThere', next: { kind: 'screen', screen: 'inputs' } })
   })
 
   test('going back to finding from a query it clears asks the EM to confirm that first, changing nothing', async () => {
@@ -201,6 +204,7 @@ describe('where a submit goes next', () => {
 
     expect(await forecasting.submit({ form: 'stepQuery', step: 'milestone', edit: { kind: 'backToFinding', confirmed: false } })).toEqual({
       kind: 'confirmClear',
+      next: { kind: 'confirmingBack', step: 'milestone' },
     })
     expect(team.storage.milestoneQuery('team')).toEqual({ picks: [], query: 'label:checkout -label:bug' })
   })

@@ -271,7 +271,7 @@ describe('going back to finding', () => {
     const submitted = await change(team, back)
     const view = await stepView(team, '', { editing: true, confirmingBack: true })
 
-    expect(submitted).toEqual({ kind: 'confirmClear' })
+    expect(submitted).toEqual({ kind: 'confirmClear', next: { kind: 'confirmingBack', step: 'milestone' } })
     expect(current(team).milestoneQuery(TEAM)).toEqual({ picks: [], query: 'label:checkout -label:bug' })
     expect(view.editing).toEqual({
       typed: 'label:checkout -label:bug',

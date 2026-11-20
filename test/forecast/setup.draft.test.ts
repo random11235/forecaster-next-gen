@@ -131,7 +131,7 @@ describe('the draft', () => {
     await setUpThenChange()
     current.fixture.reads['is:open'] = { tickets: open(2), incomplete: true }
 
-    expect(await inSetup({ kind: 'editQuery', query: BOTH })).toEqual({ kind: 'saved', next: { screen: 'inputs', step: 'milestone', editing: true } })
+    expect(await inSetup({ kind: 'editQuery', query: BOTH })).toEqual({ kind: 'saved', next: { kind: 'editing', step: 'milestone' } })
     expect(await stepInSetup()).toMatchObject({ query: BOTH, read: '7 open · 0 finished in the last 9 weeks' })
 
     await inSetup({ kind: 'editQuery', query: 'is:open' })
