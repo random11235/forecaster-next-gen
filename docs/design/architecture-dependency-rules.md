@@ -6,7 +6,7 @@ Part of the architecture design; the index is [`architecture.md`](architecture.m
 
 - `engine/` imports nothing from the rest of the app.
 - `samples/` imports only `model/`.
-- `forecast/` is the only module that depends on both stored data and `engine/`.
+- `forecast/` is the only module that depends on both stored data and `engine/`'s code: it runs the engine on stored inputs. `storage/` reaches only `engine/types.ts` (below).
 - `ledger/` depends only on `engine/types.ts`.
 - `storage/` keeps the ledger, and reaches the engine only through `engine/types.ts`, to check each logged forecast's case and result as it reads them back (`storage/lib/forecastLogJson.ts`); it runs nothing of the engine. `test/dependencyRules.test.ts` checks both rules.
 - `app/` reaches forecasts through `forecast/`, never `engine/` directly.
