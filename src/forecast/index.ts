@@ -27,7 +27,6 @@ export { MAX_CAPACITY_PERCENT } from './lib/capacity.js'
 
 // The setup's steps and the two queries they edit, and how few candidates are read without asking.
 export { SETUP_STEPS, type SetupStep } from './lib/setupSteps.js'
-export { COMPARABLE_WORK, MILESTONE_QUERY, type StepQuery } from './lib/stepQuery.js'
 export { FEW_CANDIDATES } from './lib/candidates.js'
 
 // The views and edits the screens show and post.

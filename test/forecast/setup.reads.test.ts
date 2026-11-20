@@ -181,12 +181,12 @@ describe('a failed read', () => {
     await readAgain()
     expect(await summary()).toMatchObject({
       readOn: '12 Nov 14:30',
-      flags: [{ of: 'comparableWork', flag: 'GitHub rejected this query: The milestone Q3 polish doesn’t exist.' }],
+      flags: [{ of: 'Comparable-work query', flag: 'GitHub rejected this query: The milestone Q3 polish doesn’t exist.' }],
     })
     expect(storage.savedRead({ teamId: TEAM, query: Q3_POLISH.query })).toMatchObject({ readAt: READ_AT })
 
     fixture.reads[CHECKOUT.query] = { failure: 'outOfScope' }
     await readAgain()
-    expect(await summary()).toMatchObject({ flags: [{ of: 'milestoneQuery', flag: expect.stringContaining('outside') }, { of: 'comparableWork' }] })
+    expect(await summary()).toMatchObject({ flags: [{ of: 'Milestone query', flag: expect.stringContaining('outside') }, { of: 'Comparable-work query' }] })
   })
 })
