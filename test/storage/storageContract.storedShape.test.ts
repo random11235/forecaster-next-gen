@@ -103,7 +103,7 @@ const forecastLog = (column: 'simulation_case' | 'result', stored: string): Refu
   holding: stored,
   opened() {
     const { file, reopen } = savedSqlite()
-    const { teamId, milestoneName, caseHash, appVersion, simulationCase, result } = FORECAST
+    const { teamId, milestoneName, appVersion, simulationCase, result } = FORECAST
     const json = { simulation_case: JSON.stringify(simulationCase), result: JSON.stringify(result), [column]: stored }
     writeStraight(
       file,
@@ -111,7 +111,7 @@ const forecastLog = (column: 'simulation_case' | 'result', stored: string): Refu
        VALUES (?, 1, '2026-11-02T09:00:00.000Z', ?, ?, ?, ?, ?)`,
       teamId,
       milestoneName,
-      caseHash,
+      result.caseHash,
       appVersion,
       json.simulation_case,
       json.result,

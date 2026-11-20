@@ -93,8 +93,8 @@ _Follows the MVP: the milestone grows by the range of its one ambiguity level, w
 ```ts
 ForecastLog   { id /* from 1, in the order the team's are logged */, createdAt /* UTC instant, stamped by storage */,
                 teamId, milestoneName /* the MVP has one milestone per team, with no ID */,
-                caseHash, simulationCase /* the full SimulationCase, as JSON */,
-                result /* the whole ForecastResult: quantiles, percentileDates and the rest */,
+                simulationCase /* the full SimulationCase, as JSON */,
+                result /* the whole ForecastResult: caseHash, quantiles, percentileDates and the rest */,
                 appVersion /* the release that made it, package.json's version (APP_VERSION);
                               the engine's is the case's engineVersion */ }
                 /* v1 adds createdBy and targetEpicIds, and milestoneId once milestones have one */

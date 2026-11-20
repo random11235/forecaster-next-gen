@@ -9,11 +9,9 @@ export interface LoggedForecast {
   teamId: string
   /** The milestone's name when it was forecast: the MVP has one milestone per team, with no ID of its own. */
   milestoneName: string
-  /** `simulationCase`'s hash, as its result gives it. */
-  caseHash: string
   /** The whole case the engine ran, so re-running it alone reproduces `result`. */
   simulationCase: SimulationCase
-  /** What the engine gave for the case. */
+  /** What the engine gave for the case, its hash (`caseHash`) among it. */
   result: ForecastResult
   /** The release that made it, package.json's version; the engine's is the case's `engineVersion`. */
   appVersion: string

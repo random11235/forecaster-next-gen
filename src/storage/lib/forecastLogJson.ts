@@ -73,7 +73,6 @@ export const isForecastLog = (value: unknown): value is ForecastLog =>
   isString(value.teamId) &&
   isString(value.createdAt) &&
   isString(value.milestoneName) &&
-  isString(value.caseHash) &&
   isString(value.appVersion) &&
   isSimulationCase(value.simulationCase) &&
   isForecastResult(value.result)
