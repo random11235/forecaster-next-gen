@@ -153,7 +153,7 @@ export function milestoneForecastView(
   // at usual capacity from the same seed, so the two differ by capacity alone
   const atUsual = on && factors ? simulateCase(milestoneCase(inputs, pace, growth, settings, undefined)) : undefined
   const comparison = atUsual && COMPARED_PERCENTS.map((percent) => comparedDate(percent, result, atUsual, periodDays))
-  const headlineShift = comparison?.find(({ percent }) => percent === HEADLINE_PERCENT)?.shift ?? null
+  const headlineShift = comparison?.find(({ percent }) => percent === HEADLINE_PERCENT)?.shift?.periods ?? null
   const use: CapacityUse = !factors ? { kind: 'unused' } : on ? { kind: 'inUse', shift: headlineShift } : { kind: 'off' }
   const period = periodName(periodDays)
   // each entry against a run without it, from the same seed, so the two differ by that entry alone
@@ -205,8 +205,8 @@ export function milestoneForecastView(
 function comparedDate(percent: number, withCapacity: ForecastResult, atUsual: ForecastResult, periodDays: number): ComparedDate {
   const dated = withCapacity.percentileDates[percent] ?? null
   const usual = atUsual.percentileDates[percent] ?? null
-  const shift = dated === null || usual === null ? null : daysBetween(usual, dated) / periodDays
-  return { percent, withCapacity: dated, atUsual: usual, shift, ...(shift !== null && { shifted: shifted(shift, periodName(periodDays)) }) }
+  const periods = dated === null || usual === null ? null : daysBetween(usual, dated) / periodDays
+  return { percent, withCapacity: dated, atUsual: usual, shift: periods === null ? null : { periods, words: shifted(periods, periodName(periodDays)) } }
 }
 
 /** The pace the dates come from, said in the milestone's `period`. */
