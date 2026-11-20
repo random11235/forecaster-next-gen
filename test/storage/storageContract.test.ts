@@ -4,7 +4,7 @@ import type { CapacityEntry } from '../../src/model/capacity.js'
 import type { MilestoneInputs } from '../../src/model/milestoneInputs.js'
 import type { Storage } from '../../src/storage/storage.js'
 import { openWebStorage, type KeyValueStore } from '../../src/storage/webStorage.js'
-import { LAUNCH, TEAM, temporarySqliteFiles } from './storageContractFixtures.js'
+import { FORECAST, LAUNCH, TEAM, temporarySqliteFiles } from './storageContractFixtures.js'
 
 // What every Storage keeps, whatever it keeps it in: the local app's SQLite file and the web build's browser storage.
 
@@ -159,6 +159,30 @@ describe.each(kinds)('%s storage', (_, opened) => {
     storage.saveCapacityOn('team', true)
 
     expect(storage.capacityOn('team')).toBe(true)
+  })
+
+  test("logs the team's forecasts in the order logged, numbered for the team and stamped when logged, which survive reopening", () => {
+    const { storage, reopen } = opened()
+    storage.saveTeam(TEAM)
+    storage.saveTeam({ ...TEAM, id: 'another', name: 'Another' })
+    const withoutCapacity = { ...FORECAST, simulationCase: { ...FORECAST.simulationCase, capacity: undefined }, milestoneName: 'Beta' }
+    expect(storage.forecastLogs('team')).toEqual([])
+    expect(storage.lastForecastLog('team')).toBeUndefined()
+    const before = new Date().toISOString()
+
+    storage.saveForecastLog(FORECAST)
+    storage.saveForecastLog({ ...FORECAST, teamId: 'another' })
+    storage.saveForecastLog(withoutCapacity)
+
+    const after = new Date().toISOString()
+    const logs = reopen().forecastLogs('team')
+    expect(logs).toEqual([
+      { ...FORECAST, id: 1, createdAt: expect.any(String) },
+      { ...withoutCapacity, id: 2, createdAt: expect.any(String) },
+    ])
+    expect(logs.every(({ createdAt }) => /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(createdAt) && createdAt >= before && createdAt <= after)).toBe(true)
+    expect(reopen().lastForecastLog('team')).toEqual(logs[1])
+    expect(reopen().forecastLogs('another')).toEqual([{ ...FORECAST, teamId: 'another', id: 1, createdAt: expect.any(String) }])
   })
 
   test('opened again, has everything saved before', () => {
