@@ -1,7 +1,8 @@
 // Module boundaries: dependency-cruiser over src, test and scripts (or the paths passed), with the rules in
-// .dependency-cruiser.cjs: code outside a module imports only its entry points, and no dependency cycles. src/README.md
-// sets out the layout. Run with `npm run lint:boundaries`; exits 1 on a violation, and on a run that cruises no
-// modules, as dependency-cruiser does on a TypeScript it can't parse, rather than passing on nothing.
+// .dependency-cruiser.cjs: code outside a module imports only its entry points, each module imports only the modules
+// docs/design/architecture-dependency-rules.md allows it, and no dependency cycles. src/README.md sets out the layout.
+// Run with `npm run lint:boundaries`; exits 1 on a violation, and on a run that cruises no modules, as dependency-cruiser
+// does on a TypeScript it can't parse, rather than passing on nothing.
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
