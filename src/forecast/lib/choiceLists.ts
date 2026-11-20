@@ -4,7 +4,7 @@ import type { MilestoneQueryStorage } from '../../storage/storage.js'
 // The query steps' choice lists: each kind's choices as the picker lists them, filtered here or searched in the tracker.
 
 /** Each kind of choice as the screens name it, by the kind connectors give it. */
-const KIND_NAMES: Readonly<Record<ChoiceKind, string>> = { milestone: 'milestone', fixVersion: 'fix version', epic: 'epic', label: 'label' }
+export const KIND_NAMES: Readonly<Record<ChoiceKind, string>> = { milestone: 'milestone', fixVersion: 'fix version', epic: 'epic', label: 'label' }
 
 /** A kind of choice as the screens name it: a chip is marked with it, and a list headed by it. */
 export function kindName(kind: ChoiceKind): string {
@@ -18,6 +18,8 @@ export function kindName(kind: ChoiceKind): string {
  */
 export interface ChoiceList {
   kind: ChoiceKind
+  /** The kind's name, such as `fix version`. */
+  kindName: string
   choices: Choice[]
   searchedInTracker: boolean
   /**
@@ -32,7 +34,7 @@ export interface ChoiceList {
 /** One kind's list as the tracker listed it, filtered here by what is `typed` and less the choices not `unpicked`. */
 export function listedHere({ kind, choices, pastLimit }: ChoicesOfKind, typed: string, unpicked: (choice: Choice) => boolean): ChoiceList {
   const matching = choices.filter((choice) => unpicked(choice) && choice.name.toLowerCase().includes(typed.toLowerCase()))
-  return { kind, choices: matching, searchedInTracker: pastLimit }
+  return { kind, kindName: KIND_NAMES[kind], choices: matching, searchedInTracker: pastLimit }
 }
 
 /**
@@ -57,9 +59,15 @@ export function notPicked(picks: Choice[]): (choice: Choice) => boolean {
 export async function foundInTracker(connector: Connector, kind: ChoiceKind, typed: string, unpicked: (choice: Choice) => boolean): Promise<ChoiceList> {
   const found = await connector.searchChoices(kind, typed)
   if (!found.ok) {
-    return { kind, choices: [], searchedInTracker: true, failure: `The tracker couldn’t search its ${kindName(kind)}s just now. Try again in a few minutes.` }
+    return {
+      kind,
+      kindName: KIND_NAMES[kind],
+      choices: [],
+      searchedInTracker: true,
+      failure: `The tracker couldn’t search its ${kindName(kind)}s just now. Try again in a few minutes.`,
+    }
   }
-  return { kind, choices: found.choices.filter(unpicked), searchedInTracker: true }
+  return { kind, kindName: KIND_NAMES[kind], choices: found.choices.filter(unpicked), searchedInTracker: true }
 }
 
 export const KEYCHAIN_FAILED = 'This computer’s keychain couldn’t give the token, so nothing can be listed. Check it’s unlocked, then open the step again.'

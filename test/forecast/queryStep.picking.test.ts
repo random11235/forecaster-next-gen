@@ -21,10 +21,11 @@ describe('opening the Milestone step', () => {
       kind: 'milestoneStep',
       find: '',
       lists: [
-        { kind: 'milestone', choices: [payments, checkout], searchedInTracker: false },
-        { kind: 'label', choices: [repay, bug], searchedInTracker: false },
+        { kind: 'milestone', kindName: 'milestone', choices: [payments, checkout], searchedInTracker: false },
+        { kind: 'label', kindName: 'label', choices: [repay, bug], searchedInTracker: false },
       ],
       picks: [],
+      kindNames: { milestone: 'milestone', fixVersion: 'fix version', epic: 'epic', label: 'label' },
       query: '',
       note: 'Leaf tickets only. Epics include their sub-epics.',
     })
@@ -36,8 +37,8 @@ describe('opening the Milestone step', () => {
     const view = await queryStepView(using, TEAM, 'PAY')
 
     expect(view.kind !== 'noQueryStep' && view.lists).toEqual([
-      { kind: 'milestone', choices: [payments], searchedInTracker: false },
-      { kind: 'label', choices: [repay], searchedInTracker: false },
+      { kind: 'milestone', kindName: 'milestone', choices: [payments], searchedInTracker: false },
+      { kind: 'label', kindName: 'label', choices: [repay], searchedInTracker: false },
     ])
   })
 
@@ -70,9 +71,9 @@ describe('a kind with more than 100 entries', () => {
 
     expect(using.calls.searches).toEqual([['epic', 'Payments']])
     expect(view.kind !== 'noQueryStep' && view.lists).toEqual([
-      { kind: 'epic', choices: [cardPayments], searchedInTracker: true },
-      { kind: 'milestone', choices: [payments], searchedInTracker: false },
-      { kind: 'label', choices: [repay], searchedInTracker: false },
+      { kind: 'epic', kindName: 'epic', choices: [cardPayments], searchedInTracker: true },
+      { kind: 'milestone', kindName: 'milestone', choices: [payments], searchedInTracker: false },
+      { kind: 'label', kindName: 'label', choices: [repay], searchedInTracker: false },
     ])
   })
 
@@ -82,7 +83,7 @@ describe('a kind with more than 100 entries', () => {
     const view = await queryStepView(using, TEAM)
 
     expect(using.calls.searches).toEqual([])
-    expect(view.kind !== 'noQueryStep' && view.lists[0]).toEqual({ kind: 'epic', choices: listed, searchedInTracker: true })
+    expect(view.kind !== 'noQueryStep' && view.lists[0]).toEqual({ kind: 'epic', kindName: 'epic', choices: listed, searchedInTracker: true })
   })
 
   test('leaves out of what the tracker finds the choices already picked', async () => {
@@ -91,7 +92,7 @@ describe('a kind with more than 100 entries', () => {
 
     const view = await queryStepView(using, TEAM, 'payments')
 
-    expect(view.kind !== 'noQueryStep' && view.lists[0]).toEqual({ kind: 'epic', choices: [], searchedInTracker: true })
+    expect(view.kind !== 'noQueryStep' && view.lists[0]).toEqual({ kind: 'epic', kindName: 'epic', choices: [], searchedInTracker: true })
   })
 
   test('says so when the tracker can’t search, still listing the other kinds', async () => {
@@ -102,9 +103,15 @@ describe('a kind with more than 100 entries', () => {
     expect(view.kind !== 'noQueryStep' && view.choicesFailure).toBeUndefined()
     expect(view).toMatchObject({
       lists: [
-        { kind: 'epic', choices: [], searchedInTracker: true, failure: 'The tracker couldn’t search its epics just now. Try again in a few minutes.' },
-        { kind: 'milestone', choices: [payments], searchedInTracker: false },
-        { kind: 'label', choices: [repay], searchedInTracker: false },
+        {
+          kind: 'epic',
+          kindName: 'epic',
+          choices: [],
+          searchedInTracker: true,
+          failure: 'The tracker couldn’t search its epics just now. Try again in a few minutes.',
+        },
+        { kind: 'milestone', kindName: 'milestone', choices: [payments], searchedInTracker: false },
+        { kind: 'label', kindName: 'label', choices: [repay], searchedInTracker: false },
       ],
     })
   })
@@ -112,7 +119,7 @@ describe('a kind with more than 100 entries', () => {
   test('one kind searched on its own, as the picker asks for it while the EM types', async () => {
     const using = await connected(PAST_LIMIT)
 
-    expect(await searchedChoiceList(using, TEAM, 'epic', 'payouts')).toEqual({ kind: 'epic', choices: [payouts], searchedInTracker: true })
+    expect(await searchedChoiceList(using, TEAM, 'epic', 'payouts')).toEqual({ kind: 'epic', kindName: 'epic', choices: [payouts], searchedInTracker: true })
     expect(using.calls.choices).toBe(0)
   })
 
@@ -123,7 +130,7 @@ describe('a kind with more than 100 entries', () => {
     const list = await searchedChoiceList(using, TEAM, 'epic', '  ')
 
     expect(using.calls.searches).toEqual([])
-    expect(list).toEqual({ kind: 'epic', choices: listed.slice(1), searchedInTracker: true })
+    expect(list).toEqual({ kind: 'epic', kindName: 'epic', choices: listed.slice(1), searchedInTracker: true })
   })
 })
 
@@ -151,8 +158,8 @@ describe('picking', () => {
       query: 'milestone:"Payments v2" OR label:"bug"',
       read: '3 open · 2 finished in the last 9 weeks',
       lists: [
-        { kind: 'milestone', choices: [checkout], searchedInTracker: false },
-        { kind: 'label', choices: [repay], searchedInTracker: false },
+        { kind: 'milestone', kindName: 'milestone', choices: [checkout], searchedInTracker: false },
+        { kind: 'label', kindName: 'label', choices: [repay], searchedInTracker: false },
       ],
     })
   })

@@ -20,6 +20,8 @@ export const MAX_GROWTH = 10
 /** What the Inputs screen shows of growth. */
 export interface GrowthView {
   ranges: Record<Ambiguity, GrowthRange>
+  /** Each level as a label: "Medium". */
+  names: Readonly<Record<Ambiguity, string>>
 }
 
 /** The level as a label: "Medium". */
@@ -27,10 +29,16 @@ export function ambiguityName(level: Ambiguity): string {
   return level.charAt(0).toUpperCase() + level.slice(1)
 }
 
+// Object.fromEntries can't know its keys are each level once, so the cast says so
+const AMBIGUITY_NAMES: Readonly<Record<Ambiguity, string>> = Object.fromEntries(AMBIGUITIES.map((level) => [level, ambiguityName(level)])) as Record<
+  Ambiguity,
+  string
+>
+
 /** Seam B, behind `inputsView`: the team's ambiguity ranges as the Inputs screen shows them. */
 export function growthView(storage: Storage, teamId: string): GrowthView {
   const { low, medium, high } = savedRanges(storage, teamId)
-  return { ranges: { low, medium, high } }
+  return { ranges: { low, medium, high }, names: AMBIGUITY_NAMES }
 }
 
 /** The team's ambiguity ranges as the EM saved them, or the defaults until they do. */

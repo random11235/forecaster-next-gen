@@ -1,4 +1,3 @@
-import { dayMonth } from '../forecast/calendarDate.js'
 import { FONT_FACES } from './fonts.js'
 import { MILESTONE_FORECAST_STYLE } from './lib/milestoneForecastStyle.js'
 import { INPUTS_STYLE } from './lib/inputsStyle.js'
@@ -108,6 +107,13 @@ const STYLE = `
     p.warning { margin: 0; font-size: 14px; line-height: 1.5; color: var(--risk); }
 
 ${MILESTONE_FORECAST_STYLE}${INPUTS_STYLE}${SETUP_STEPS_STYLE}${HOW_IT_WORKS_STYLE}  `
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/** `2026-10-12` → `12 Oct`. */
+export function dayMonth(isoDate: string): string {
+  return `${Number(isoDate.slice(8, 10))} ${MONTHS[Number(isoDate.slice(5, 7)) - 1]}`
+}
 
 /** `2026-12-18` → `18 Dec 2026`. */
 export function formatDate(isoDate: string): string {

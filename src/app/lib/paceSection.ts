@@ -1,5 +1,5 @@
 import type { PeriodName } from '../../forecast/cadence.js'
-import { dayMonth } from '../../forecast/calendarDate.js'
+import { dayMonth } from '../html.js'
 import { MAX_TICKETS_PER_PERIOD, type TrackerPaceView } from '../../forecast/milestoneInputs.js'
 import type { InputsView } from '../../forecast/inputs.js'
 import type { PaceMode } from '../../model/milestoneInputs.js'

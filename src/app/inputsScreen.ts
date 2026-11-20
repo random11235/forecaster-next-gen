@@ -1,6 +1,5 @@
-import { periodName } from '../forecast/cadence.js'
-import { MAX_CADENCE_DAYS } from '../forecast/milestoneInputs.js'
-import { ambiguityName, MAX_GROWTH, type GrowthView, type TypedRange } from '../forecast/growth.js'
+import { MAX_CADENCE_DAYS, type MilestoneInputsView } from '../forecast/milestoneInputs.js'
+import { MAX_GROWTH, type GrowthView, type TypedRange } from '../forecast/growth.js'
 import type { InputsScreen } from '../forecast/forecasting.js'
 import type { QueryStep } from '../forecast/queryStep.js'
 import type { SkipEdit } from '../forecast/skippedPeriods.js'
@@ -102,10 +101,10 @@ export function renderInputsScreen(view: InputsScreen, shown?: ShownStep): strin
   const sections = [
     ...setupStepSection(view, pickers),
     milestoneSection(screen, error),
-    cadenceSection(forms.cadence, error('cadence'), milestone.cadenceDays),
-    paceSection(screen, error, periodName(milestone.cadenceDays)),
-    ambiguitySection(milestone.ambiguity, screen.growth.ranges, error('ambiguity')),
-    growthSection(forms.growth, error('growth')),
+    cadenceSection(forms.cadence, error('cadence'), milestone),
+    paceSection(screen, error, milestone.period),
+    ambiguitySection(milestone.ambiguity, screen.growth, error('ambiguity')),
+    growthSection(forms.growth, screen.growth.names, error('growth')),
   ]
   const header = {
     context: milestone.name === '' ? undefined : escapeHtml(milestone.name),
@@ -146,11 +145,11 @@ function setupStepSection(
   }
 }
 
-function cadenceSection(form: TypedForms['cadence'], error: string | undefined, savedDays: number): Section {
+function cadenceSection(form: TypedForms['cadence'], error: string | undefined, saved: Pick<MilestoneInputsView, 'cadenceDays' | 'period'>): Section {
   return inputSection(
     'Cadence',
     'Cadence',
-    cadenceHint(savedDays),
+    cadenceHint(saved),
     `        <form method="post" action="/inputs/cadence#cadence">${errorLine(error)}
           <div class="pace">
             <label>Cadence length <input type="number" name="cadenceDays" min="1" max="${MAX_CADENCE_DAYS}" step="1" value="${escapeHtml(form.cadenceDays)}" required></label>
@@ -162,15 +161,15 @@ function cadenceSection(form: TypedForms['cadence'], error: string | undefined, 
 }
 
 /** What the saved cadence makes a period, which pace is entered per, and what the other lengths make it. */
-function cadenceHint(savedDays: number): string {
+function cadenceHint({ cadenceDays, period }: Pick<MilestoneInputsView, 'cadenceDays' | 'period'>): string {
   const lasts = 'How many days one of the team’s periods lasts.'
-  return periodName(savedDays) === 'week'
+  return period === 'week'
     ? `${lasts} At 7 days a period is a week, so pace is entered per week; any other length makes it a sprint.`
-    : `${lasts} At ${savedDays} days a period is a sprint, so pace is entered per sprint; 7 days makes it a week.`
+    : `${lasts} At ${cadenceDays} days a period is a sprint, so pace is entered per sprint; 7 days makes it a week.`
 }
 
-function ambiguitySection(chosen: Ambiguity, ranges: GrowthView['ranges'], error: string | undefined): Section {
-  const level = (level: Ambiguity): string => `${ambiguityName(level)} <span class="range">${ranges[level].low}–${ranges[level].high}×</span>`
+function ambiguitySection(chosen: Ambiguity, { ranges, names }: GrowthView, error: string | undefined): Section {
+  const level = (level: Ambiguity): string => `${names[level]} <span class="range">${ranges[level].low}–${ranges[level].high}×</span>`
   return inputSection(
     'Ambiguity',
     'Ambiguity',
@@ -182,12 +181,12 @@ ${radios('ambiguity', 'Ambiguity of the milestone', AMBIGUITIES, chosen, level)}
   )
 }
 
-function growthSection(form: TypedForms['growth'], error: string | undefined): Section {
+function growthSection(form: TypedForms['growth'], names: GrowthView['names'], error: string | undefined): Section {
   const rows = AMBIGUITIES.map((level) => {
     const field = (end: 'low' | 'high'): string =>
-      `<input type="number" name="${level}-${end}" min="0" max="${MAX_GROWTH}" step="any" value="${escapeHtml(form[level][end])}" aria-label="${ambiguityName(level)} ambiguity, ${end} end" required>`
+      `<input type="number" name="${level}-${end}" min="0" max="${MAX_GROWTH}" step="any" value="${escapeHtml(form[level][end])}" aria-label="${names[level]} ambiguity, ${end} end" required>`
     return `              <tr>
-                <td>${ambiguityName(level)}</td>
+                <td>${names[level]}</td>
                 <td>${field('low')} <span class="to">to</span> ${field('high')} <span class="unit">× the tickets remaining</span></td>
               </tr>`
   }).join('\n')
