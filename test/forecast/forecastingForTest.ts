@@ -6,9 +6,11 @@ import {
   type Connecting,
   type Forecasting,
   type ForecastSettings,
+  type InputsEdit,
   type Outcome,
   type QuerySetupStep,
 } from '../../src/forecast/index.js'
+import type { GrowthRange } from '../../src/model/ambiguity.js'
 import type { Connection } from '../../src/model/connection.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
@@ -184,4 +186,14 @@ export function skip(team: ForecastingForTest, periods: string[], readAt: string
 export function countAgain(team: ForecastingForTest, periods: string[], readAt: string): Promise<Outcome> {
   team.at(readAt)
   return team.submit({ form: 'skip', edit: { kind: 'countAgain', periods } })
+}
+
+/** An Inputs form, as the Inputs screen posts it: with the capacity form open, if `capacityOpen`. */
+export function submitInputs(team: Pick<Forecasting, 'submit'>, edit: InputsEdit, { capacityOpen = false } = {}): Promise<Outcome> {
+  return team.submit({ form: 'inputs', edit }, { capacityOpen })
+}
+
+/** Sets the team's medium growth range: the growth of a milestone of medium ambiguity, the default. */
+export function mediumGrowth(team: { storage: Storage }, medium: GrowthRange): void {
+  team.storage.saveAmbiguityRanges({ teamId: TEAM, low: { low: 1, high: 1.5 }, medium, high: { low: 1.5, high: 3 } })
 }

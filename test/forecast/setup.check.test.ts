@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest'
 import type { SetupEdit } from '../../src/forecast/index.js'
 import { finishedOn, open } from '../trackerScenario.js'
-import { CHECKOUT, pick, TEAM, type ForecastingForTest } from './forecastingForTest.js'
-import { READ_AT, Q3_POLISH, connect, enter, inputs, setup, setupAt, stepQuery, team } from './setupScenario.js'
+import { CHECKOUT, pick, TEAM, type ForecastingForTest, submitInputs } from './forecastingForTest.js'
+import { READ_AT, Q3_POLISH, connect, inputs, setup, setupAt, stepQuery, team } from './setupScenario.js'
 
 // Check (#220): for each value the tracker can supply, the EM's value now, the tracker's reading from the draft reads,
 // and which to use. "Use these" applies the draft and the sources chosen together.
@@ -25,8 +25,8 @@ describe('Check', () => {
     fixture.reads[BOTH] = { tickets: open(7), incomplete }
     fixture.reads[Q3_POLISH.query] = { tickets: finishedOn('q', '2026-11-03', 6), incomplete }
     await connect(current, to)
-    await enter(current, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-11-16', ticketsRemaining: '30' })
-    await enter(current, { kind: 'setPaceRange', low: '4', high: '8' })
+    await submitInputs(current, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-11-16', ticketsRemaining: '30' })
+    await submitInputs(current, { kind: 'setPaceRange', low: '4', high: '8' })
     await pick(current, READ_AT)
     await setup(current, { kind: 'useThese' })
     await setup(current, { kind: 'change' })
@@ -58,8 +58,8 @@ describe('Check', () => {
 
   test('offers the range beside the typed counts when pace is the EM’s typed counts, Yours showing the one chosen', async () => {
     const { storage } = await changedInSetup()
-    await enter(current, { kind: 'setPaceCounts', counts: '5 6 7' })
-    await enter(current, { kind: 'setPaceMode', paceMode: 'counts' })
+    await submitInputs(current, { kind: 'setPaceCounts', counts: '5 6 7' })
+    await submitInputs(current, { kind: 'setPaceMode', paceMode: 'counts' })
 
     expect(await check()).toMatchObject({ pace: { yours: { source: 'counts', counts: [5, 6, 7] }, source: 'counts', choices: ['tracker', 'range', 'counts'] } })
     expect(await choose('pace', 'range')).toMatchObject({ kind: 'saved' })
@@ -170,7 +170,7 @@ describe('Check', () => {
     expect(await check()).toMatchObject({ pace: { incomplete: false, noStartDate: true } })
     expect(await check()).not.toHaveProperty('pace.reading')
 
-    await enter(current, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-10-05', ticketsRemaining: '30' })
+    await submitInputs(current, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-10-05', ticketsRemaining: '30' })
     expect(await check()).toMatchObject({ pace: { reading: { counts: [6] }, noStartDate: false } })
   })
 

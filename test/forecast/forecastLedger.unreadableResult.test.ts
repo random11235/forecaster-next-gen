@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'vitest'
 import { writeStraight } from '../storage/sqliteStraight.js'
-import { enter, mediumGrowth, onSqliteFile, storageFile, view } from './forecastLedgerScenario.js'
-import { TEAM } from './forecastViewScenario.js'
+import { mediumGrowth } from './forecastingForTest.js'
+import { onSqliteFile, storageFile, view } from './forecastLedgerScenario.js'
+import { TEAM, enter } from './forecastViewScenario.js'
 
 // Seam B: the forecast ledger (#27) in the SQLite file, its last log's result one this version can't read, as a damaged
 // file would leave it, written straight into the file: storage never writes one.

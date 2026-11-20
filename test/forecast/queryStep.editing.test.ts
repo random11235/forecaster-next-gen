@@ -12,7 +12,6 @@ import {
   connectedToJira,
   current,
   change,
-  saved,
   savedEditing,
   stepView,
   refusedStep,

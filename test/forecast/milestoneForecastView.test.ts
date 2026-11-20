@@ -2,7 +2,8 @@ import { describe, expect, test } from 'vitest'
 import { DEFAULT_SETTINGS } from '../../src/forecast/index.js'
 import { ENGINE_VERSION, simulateCase } from '../../src/engine/index.js'
 import type { ForecastingForTest } from './forecastingForTest.js'
-import { TEAM, newTeam, mediumGrowth, edit, enter, DATES_FROM_1_SEP, DATES_FROM_15_SEP, view, inputsScreenView } from './forecastViewScenario.js'
+import { mediumGrowth } from './forecastingForTest.js'
+import { TEAM, newTeam, edit, enter, DATES_FROM_1_SEP, DATES_FROM_15_SEP, view, inputsScreenView } from './forecastViewScenario.js'
 
 // Seam B: the Milestone forecast view from what the EM enters: its dates, finish graph and start date, and the pace
 // trend. Arranged through forecastViewScenario.ts; the pace, the Inputs screen and its forms have files beside this one.

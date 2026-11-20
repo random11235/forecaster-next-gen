@@ -1,5 +1,6 @@
 import { assert, describe, expect, test } from 'vitest'
-import { forecast, submit, withTypedCounts } from './pacePatternScenario.js'
+import { submitInputs } from './forecastingForTest.js'
+import { forecast, withTypedCounts } from './pacePatternScenario.js'
 
 // A pattern's forecast action (#161): the 85% date it offers both ways, and the action applied and undone.
 
@@ -41,7 +42,10 @@ describe('an applied action', () => {
     const team = await withTypedCounts(STEPPED_UP)
     const offered = (await forecast(team)).pacePattern?.action
 
-    expect(await submit(team, { kind: 'applyPaceAction', action: 'startFrom', date: '2026-10-12' })).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
+    expect(await submitInputs(team, { kind: 'applyPaceAction', action: 'startFrom', date: '2026-10-12' })).toEqual({
+      kind: 'saved',
+      next: { screen: 'forecast' },
+    })
 
     const view = await forecast(team)
     expect(view.pace).toEqual({ source: 'counts', counts: [8, 9, 7, 8] })
@@ -56,9 +60,9 @@ describe('an applied action', () => {
 
   test('undo brings every count back, and the pattern and its action with them', async () => {
     const team = await withTypedCounts(STEPPED_UP)
-    await submit(team, { kind: 'applyPaceAction', action: 'startFrom', date: '2026-10-12' })
+    await submitInputs(team, { kind: 'applyPaceAction', action: 'startFrom', date: '2026-10-12' })
 
-    expect(await submit(team, { kind: 'undoPaceAction' })).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
+    expect(await submitInputs(team, { kind: 'undoPaceAction' })).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
 
     const view = await forecast(team)
     expect(view.pace).toEqual({ source: 'counts', counts: STEPPED_UP })
@@ -69,7 +73,7 @@ describe('an applied action', () => {
   test('leaving out the odd week reads the other weeks again, naming the week left out, with no action offered', async () => {
     const team = await withTypedCounts(ODD_WEEK)
 
-    await submit(team, { kind: 'applyPaceAction', action: 'leaveOut', period: '2026-10-12' })
+    await submitInputs(team, { kind: 'applyPaceAction', action: 'leaveOut', period: '2026-10-12' })
 
     const view = await forecast(team)
     expect(view.pace).toEqual({ source: 'counts', counts: [5, 6, 5, 4, 6, 5, 5, 4, 6, 5, 5, 6, 4] })
@@ -83,7 +87,7 @@ describe('an applied action', () => {
 
   test('an applied action belongs to the milestone, so it outlasts a restart', async () => {
     const team = await withTypedCounts(STEPPED_UP)
-    await submit(team, { kind: 'applyPaceAction', action: 'startFrom', date: '2026-10-12' })
+    await submitInputs(team, { kind: 'applyPaceAction', action: 'startFrom', date: '2026-10-12' })
 
     team.restart()
 
@@ -93,7 +97,7 @@ describe('an applied action', () => {
   test('an action that is not one is refused, saying why, and nothing changes', async () => {
     const team = await withTypedCounts(STEPPED_UP)
 
-    const submitted = await submit(team, { kind: 'applyPaceAction', action: 'skipAll', date: '2026-10-12' })
+    const submitted = await submitInputs(team, { kind: 'applyPaceAction', action: 'skipAll', date: '2026-10-12' })
 
     expect(submitted).toMatchObject({ kind: 'refusedOnForecast', view: { paceActionRefusal: 'That action is no longer offered.' } })
     expect((await forecast(team)).pace).toEqual({ source: 'counts', counts: STEPPED_UP })
@@ -101,10 +105,10 @@ describe('an applied action', () => {
 
   test('refused with no pattern to show it on, the forecast still says why', async () => {
     const team = await withTypedCounts(STEPPED_UP)
-    await submit(team, { kind: 'setPaceRange', low: '4', high: '6' })
-    await submit(team, { kind: 'setPaceMode', paceMode: 'range' })
+    await submitInputs(team, { kind: 'setPaceRange', low: '4', high: '6' })
+    await submitInputs(team, { kind: 'setPaceMode', paceMode: 'range' })
 
-    const submitted = await submit(team, { kind: 'applyPaceAction', action: 'startFrom', date: 'soon' })
+    const submitted = await submitInputs(team, { kind: 'applyPaceAction', action: 'startFrom', date: 'soon' })
 
     expect(submitted).toMatchObject({
       kind: 'refusedOnForecast',
@@ -127,7 +131,10 @@ describe('an applied action', () => {
   test('applied, leaving fewer counts than the forecast needs, gets the too-few-counts problem, with the action said and undo', async () => {
     const team = await withTypedCounts([4, 3, 4, 5, 4, 9, 8, 9])
 
-    expect(await submit(team, { kind: 'applyPaceAction', action: 'startFrom', date: '2026-10-19' })).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
+    expect(await submitInputs(team, { kind: 'applyPaceAction', action: 'startFrom', date: '2026-10-19' })).toEqual({
+      kind: 'saved',
+      next: { screen: 'forecast' },
+    })
 
     expect(await team.milestoneForecastView()).toEqual({
       kind: 'problems',
@@ -140,14 +147,14 @@ describe('an applied action', () => {
       ],
       paceApplied: 'Counting pace from 19 Oct, after it stepped up.',
     })
-    await submit(team, { kind: 'undoPaceAction' })
+    await submitInputs(team, { kind: 'undoPaceAction' })
     expect((await forecast(team)).pace).toEqual({ source: 'counts', counts: [4, 3, 4, 5, 4, 9, 8, 9] })
   })
 
   test('leaving fewer counts than are reliable warns of the window, not of the counts typed', async () => {
     const team = await withTypedCounts(STEPPED_UP)
 
-    await submit(team, { kind: 'applyPaceAction', action: 'startFrom', date: '2026-10-12' })
+    await submitInputs(team, { kind: 'applyPaceAction', action: 'startFrom', date: '2026-10-12' })
 
     expect((await forecast(team)).warnings).toContainEqual({
       input: 'typedCounts',

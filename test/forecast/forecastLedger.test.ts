@@ -2,8 +2,9 @@ import { describe, expect, test } from 'vitest'
 import { APP_VERSION, DEFAULT_SETTINGS } from '../../src/forecast/index.js'
 import { ISO_INSTANT } from '../isoInstant.js'
 import { memoryStore } from '../memoryStore.js'
-import { inBrowser, mediumGrowth, enter, onSqliteFile, submit, view, type LedgerTeam } from './forecastLedgerScenario.js'
-import { TEAM, newTeam } from './forecastViewScenario.js'
+import { submitInputs, mediumGrowth } from './forecastingForTest.js'
+import { inBrowser, onSqliteFile, view, type LedgerTeam } from './forecastLedgerScenario.js'
+import { TEAM, newTeam, enter } from './forecastViewScenario.js'
 
 // Seam B: the forecast ledger (#27). Each forecast the Milestone forecast screen shows is logged in the ledger, which
 // goes in through storage, with its case, the case's hash, its result, when it was logged and the release that made it.
@@ -86,7 +87,7 @@ describe('logging only the forecast shown', () => {
     const team = await newTeam()
     mediumGrowth(team, { low: 1, high: 1 })
     await enter(team, { startDate: '2026-09-07', ticketsRemaining: '10' }, { low: '5', high: '5' })
-    await submit(team, { kind: 'addCapacity', percent: '0', from: '2026-09-07', to: '2026-09-11', onward: false, note: 'Offsite' })
+    await submitInputs(team, { kind: 'addCapacity', percent: '0', from: '2026-09-07', to: '2026-09-11', onward: false, note: 'Offsite' })
 
     const shown = await team.milestoneForecastView({ capacityOpen: true })
 

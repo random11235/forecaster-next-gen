@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import type { Choice } from '../../src/connectors/connector.js'
-import { pick, skip, type ForecastingForTest } from './forecastingForTest.js'
-import { NOW, forecast, submit, teamOn } from './pacePatternScenario.js'
+import { pick, skip, type ForecastingForTest, submitInputs } from './forecastingForTest.js'
+import { NOW, forecast, teamOn } from './pacePatternScenario.js'
 
 // The pattern read from the tracker's weeks (#213), not only from typed counts.
 
@@ -31,9 +31,9 @@ describe('from the tracker’s weeks (#213)', () => {
       milestoneChoices: [{ kind: 'milestone', choices: [checkout], pastLimit: false }],
       reads: { [checkout.query]: { tickets: [{ id: 'open' }, ...tickets], incomplete: false } },
     })
-    await submit(team, { kind: 'setMilestone', name: 'Launch', startDate: '2026-08-03', ticketsRemaining: '60' })
+    await submitInputs(team, { kind: 'setMilestone', name: 'Launch', startDate: '2026-08-03', ticketsRemaining: '60' })
     await pick(team, NOW, checkout)
-    await submit(team, { kind: 'setPaceMode', paceMode: 'tracker' })
+    await submitInputs(team, { kind: 'setPaceMode', paceMode: 'tracker' })
     return team
   }
 
