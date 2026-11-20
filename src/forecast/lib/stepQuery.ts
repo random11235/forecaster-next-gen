@@ -1,8 +1,11 @@
 import type { MilestoneQuery } from '../../model/milestoneQuery.js'
 import type { MilestoneQueryStorage } from '../../storage/storage.js'
 
-/** A query's name, as its step labels it and the setup summary names it. */
-export type QueryName = 'Milestone query' | 'Comparable-work query'
+/**
+ * A query's name, as its step labels it and the setup summary names it: "Milestone query", "Comparable-work query".
+ * Shown, so not a union of the two, as union values are camelCase (test/stringValueRules.test.ts).
+ */
+export type QueryName = string
 
 /**
  * Which of the team's queries a query step edits, picked or written by hand the same way: the milestone query
