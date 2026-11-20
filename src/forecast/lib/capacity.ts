@@ -135,19 +135,21 @@ export interface ComparedDate {
   /** ISO calendar dates, or null: later than the horizon date. */
   withCapacity: string | null
   atUsual: string | null
-  /** How many periods later (negative: sooner) capacity moves the date; null when either is later than the horizon. */
-  shift: number | null
-  /** The shift in words, "same week", "2 sprints later"; none when `shift` is null. */
-  shifted?: string
+  /**
+   * How far capacity moves the date: how many periods later (negative: sooner), and that in words, "same week", "2
+   * sprints later"; null when either date is later than the horizon.
+   */
+  shift: { periods: number; words: string } | null
 }
 
 /**
  * An entry's effect, from the 85% date compared with capacity and `atUsual` without the entry: a null date is later
  * than the horizon.
  */
-export function entryEffect({ withCapacity, atUsual: without, shift }: ComparedDate, period: PeriodName): EntryEffect {
+export function entryEffect({ withCapacity, atUsual: without, shift: moved }: ComparedDate, period: PeriodName): EntryEffect {
   if (withCapacity === without) return { shift: 0, words: 'no change to the 85% date' }
-  if (shift === null) return { shift, words: withCapacity === null ? '85% date later than the horizon' : '85% date within the horizon, not past it' }
+  if (moved === null) return { shift: null, words: withCapacity === null ? '85% date later than the horizon' : '85% date within the horizon, not past it' }
+  const shift = moved.periods
   const unit = period === 'week' ? 'wk' : Math.abs(shift) === 1 ? 'sprint' : 'sprints'
   return { shift, words: `85% date ${shift > 0 ? '+' : '−'}${Math.abs(shift)} ${unit}` }
 }

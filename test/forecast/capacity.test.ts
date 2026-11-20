@@ -149,9 +149,9 @@ describe('the comparison', () => {
 
     const forecast = await view(team)
     expect(forecast.kind === 'forecast' && forecast.comparison).toEqual([
-      { percent: 50, withCapacity: '2026-09-28', atUsual: '2026-09-21', shift: 1, shifted: '1 week later' },
-      { percent: 85, withCapacity: '2026-09-28', atUsual: '2026-09-21', shift: 1, shifted: '1 week later' },
-      { percent: 95, withCapacity: '2026-09-28', atUsual: '2026-09-21', shift: 1, shifted: '1 week later' },
+      { percent: 50, withCapacity: '2026-09-28', atUsual: '2026-09-21', shift: { periods: 1, words: '1 week later' } },
+      { percent: 85, withCapacity: '2026-09-28', atUsual: '2026-09-21', shift: { periods: 1, words: '1 week later' } },
+      { percent: 95, withCapacity: '2026-09-28', atUsual: '2026-09-21', shift: { periods: 1, words: '1 week later' } },
     ])
   })
 
@@ -164,7 +164,7 @@ describe('the comparison', () => {
 
     const forecast = await view(team)
     const comparison = forecast.kind === 'forecast' ? forecast.comparison : undefined
-    expect(comparison?.map(({ shift }) => shift)).toEqual([0, 0, 0])
+    expect(comparison?.map(({ shift }) => shift?.periods)).toEqual([0, 0, 0])
     expect(comparison?.map(({ withCapacity }) => withCapacity)).toEqual(comparison?.map(({ atUsual }) => atUsual))
   })
 

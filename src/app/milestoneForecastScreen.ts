@@ -145,8 +145,8 @@ ${dates}
 function renderComparison(view: Forecast, comparison: readonly ComparedDate[]): string {
   const date = (date: string | null): string => (date === null ? `later than ${formatDate(view.horizonDate)}` : formatDate(date))
   const rows = comparison
-    .map(({ percent, withCapacity, atUsual, shift, shifted }) => {
-      const moved = shift === null ? '' : `<span class="${shift > 0 ? 'later' : shift < 0 ? 'sooner' : ''}">${shifted}</span>`
+    .map(({ percent, withCapacity, atUsual, shift }) => {
+      const moved = shift === null ? '' : `<span class="${shift.periods > 0 ? 'later' : shift.periods < 0 ? 'sooner' : ''}">${shift.words}</span>`
       return `          <tr><td><span class="percent">${percent}%</span> confident by</td><td class="date">${date(withCapacity)}</td><td>${date(atUsual)}</td><td>${moved}</td></tr>`
     })
     .join('\n')
