@@ -130,9 +130,9 @@ module.exports = {
     },
     {
       name: 'package-json-only-from-app-version',
-      comment: 'Only forecast/appVersion.ts imports package.json: the web build gives the page it shares a package.json of the version alone.',
+      comment: 'Only forecast/lib/appVersion.ts imports package.json: the web build gives the page it shares a package.json of the version alone.',
       severity: 'error',
-      from: { path: `^${R}/`, pathNot: `^${R}/forecast/appVersion\\.ts$` },
+      from: { path: `^${R}/`, pathNot: `^${R}/forecast/lib/appVersion\\.ts$` },
       to: { path: '^package\\.json$' },
     },
     {

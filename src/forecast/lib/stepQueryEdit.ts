@@ -1,6 +1,6 @@
 import type { Choice, ChoiceKind, Connector } from '../../connectors/connector.js'
 import type { MilestoneQuery } from '../../model/milestoneQuery.js'
-import type { TrackerFacts } from '../trackers.js'
+import type { TrackerFacts } from './trackers.js'
 
 // The query a query step's edit makes: its picks changed, or the query edited by hand and read back into chips.
 

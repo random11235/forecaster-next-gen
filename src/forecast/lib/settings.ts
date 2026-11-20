@@ -1,4 +1,4 @@
-import type { AmbiguityRanges } from '../model/ambiguity.js'
+import type { AmbiguityRanges } from '../../model/ambiguity.js'
 
 /** Forecast settings; the single source of the defaults the design docs name. Not yet editable. */
 export interface ForecastSettings {

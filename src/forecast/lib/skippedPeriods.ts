@@ -1,4 +1,4 @@
-import type { Storage, TeamQueries } from '../storage/storage.js'
+import type { Storage, TeamQueries } from '../../storage/storage.js'
 import { periodName } from './cadence.js'
 import { isCalendarDate } from './calendarDate.js'
 import { teamConnection, withTeamQueries } from './connection.js'

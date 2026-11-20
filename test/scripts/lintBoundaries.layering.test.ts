@@ -177,12 +177,12 @@ test("the browser page script reaching secrets/'s interface as a type passes, an
   expectBreaks('web-page-loads-no-secrets', page("import { memorySecrets } from '../secrets/memorySecrets.ts'\nexport const made = memorySecrets"))
 })
 
-test('forecast/appVersion.ts importing package.json passes, and any other file of src/ fails', () => {
+test('forecast/lib/appVersion.ts importing package.json passes, and any other file of src/ fails', () => {
   const importing = (file: string) => ({
     'package.json': '{ "version": "1.0.0" }\n',
-    [file]: "import pkg from '../../package.json' with { type: 'json' }\nexport const version = pkg.version\n",
+    [file]: `import pkg from '${'../'.repeat(file.split('/').length - 1)}package.json' with { type: 'json' }\nexport const version = pkg.version\n`,
   })
 
-  expectPasses(importing('src/forecast/appVersion.ts'))
+  expectPasses(importing('src/forecast/lib/appVersion.ts'))
   expectBreaks('package-json-only-from-app-version', importing('src/forecast/settings.ts'))
 })

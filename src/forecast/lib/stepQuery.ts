@@ -1,5 +1,5 @@
-import type { MilestoneQuery } from '../model/milestoneQuery.js'
-import type { MilestoneQueryStorage } from '../storage/storage.js'
+import type { MilestoneQuery } from '../../model/milestoneQuery.js'
+import type { MilestoneQueryStorage } from '../../storage/storage.js'
 
 /**
  * Which of the team's queries a query step edits, picked or written by hand the same way: the milestone query

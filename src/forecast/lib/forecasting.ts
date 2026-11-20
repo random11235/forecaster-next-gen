@@ -1,4 +1,4 @@
-import type { ChoiceKind } from '../model/choice.js'
+import type { ChoiceKind } from '../../model/choice.js'
 import type { CandidateOpening } from './candidates.js'
 import type { HowItWorksView } from './howItWorksView.js'
 import { inputsScreen, type InputsOpening, type InputsScreen } from './inputsScreenView.js'

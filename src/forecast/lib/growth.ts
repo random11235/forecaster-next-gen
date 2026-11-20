@@ -1,7 +1,7 @@
-import type { GrowthRange } from '../engine/index.js'
-import { AMBIGUITIES, type Ambiguity, type AmbiguityRanges } from '../model/ambiguity.js'
-import type { MilestoneInputs } from '../model/milestoneInputs.js'
-import type { Storage } from '../storage/storage.js'
+import type { GrowthRange } from '../../engine/index.js'
+import { AMBIGUITIES, type Ambiguity, type AmbiguityRanges } from '../../model/ambiguity.js'
+import type { MilestoneInputs } from '../../model/milestoneInputs.js'
+import type { Storage } from '../../storage/storage.js'
 import { refuse, type EditResult } from './editResult.js'
 import { DEFAULT_AMBIGUITY_RANGES } from './settings.js'
 

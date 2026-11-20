@@ -1,5 +1,5 @@
-import { ENGINE_VERSION, simulateCase, type ForecastResult } from '../engine/index.js'
-import type { ForecastLog, Ledger, LoggedForecast } from '../ledger/ledger.js'
+import { ENGINE_VERSION, simulateCase, type ForecastResult } from '../../engine/index.js'
+import type { ForecastLog, Ledger, LoggedForecast } from '../../ledger/ledger.js'
 import { APP_VERSION } from './appVersion.js'
 
 /** A logged forecast re-run from its case alone, or why it isn't: this engine may not give what another gave. */

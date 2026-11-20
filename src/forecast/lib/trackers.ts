@@ -1,4 +1,4 @@
-import type { Connection } from '../model/connection.js'
+import type { Connection } from '../../model/connection.js'
 import { githubNamed, githubOrParts, githubQueryRefusal, jqlNamed, jqlOrParts, jqlRefusal } from './queryLanguage.js'
 
 /** A tracker a team can connect to. */

@@ -1,6 +1,6 @@
-import type { Choice, ChoiceKind, Connector } from '../connectors/connector.js'
-import type { MilestoneQuery } from '../model/milestoneQuery.js'
-import type { TeamQueries } from '../storage/storage.js'
+import type { Choice, ChoiceKind, Connector } from '../../connectors/connector.js'
+import type { MilestoneQuery } from '../../model/milestoneQuery.js'
+import type { TeamQueries } from '../../storage/storage.js'
 import { teamConnection, withTeamQueries } from './connection.js'
 import { changeStepQuery, type StepQuerySubmitted, type StepReading } from './queryStep.js'
 

@@ -1,9 +1,9 @@
-import type { MilestoneInputs, PaceAction } from '../model/milestoneInputs.js'
-import type { Storage } from '../storage/storage.js'
+import type { MilestoneInputs, PaceAction } from '../../model/milestoneInputs.js'
+import type { Storage } from '../../storage/storage.js'
 import { periodName, type PeriodName } from './cadence.js'
 import { dayMonth, isCalendarDate } from './calendarDate.js'
 import { refuse, type EditResult } from './editResult.js'
-import { actionSaid, withAction, type DatedCounts, type PaceCounts, type PaceInUse } from './lib/pace.js'
+import { actionSaid, withAction, type DatedCounts, type PaceCounts, type PaceInUse } from './pace.js'
 
 // The rule is the research classifier's, trimmed (docs/research/pace-stability/classify.mjs).
 

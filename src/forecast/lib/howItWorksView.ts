@@ -1,4 +1,4 @@
-import { simulateCase, ENGINE_VERSION, type GrowthRange, type SimulationCase, type ThroughputRange } from '../engine/index.js'
+import { simulateCase, ENGINE_VERSION, type GrowthRange, type SimulationCase, type ThroughputRange } from '../../engine/index.js'
 import { finishGraph } from './milestoneForecastView.js'
 import { DEFAULT_AMBIGUITY_RANGES, type ForecastSettings } from './settings.js'
 

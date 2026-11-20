@@ -1,9 +1,9 @@
-import type { ThroughputRange } from '../engine/index.js'
-import type { MilestoneInputs } from '../model/milestoneInputs.js'
+import type { ThroughputRange } from '../../engine/index.js'
+import type { MilestoneInputs } from '../../model/milestoneInputs.js'
 import { periodName } from './cadence.js'
 import { daysBetween } from './calendarDate.js'
 import { counted } from './counted.js'
-import type { Pace, PaceInUse } from './lib/pace.js'
+import type { Pace, PaceInUse } from './pace.js'
 import type { Measured } from './trackerReads.js'
 
 /** An input of the milestone on the Inputs screen. */
