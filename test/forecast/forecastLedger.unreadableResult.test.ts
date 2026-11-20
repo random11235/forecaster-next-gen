@@ -9,12 +9,14 @@ describe('a forecast logged in SQLite storage whose result this version cannot r
   test.each([
     ["text that isn't JSON", 'not json'],
     ['JSON with no case hash', '[]'],
+    ['a case hash that is a list', '{"caseHash":["0123456789abcdef"]}'],
   ])('holding %s, does not stop the forecast being shown, which is logged again after it, once', (_, result) => {
     const storage = newTeam()
     mediumGrowth(storage, { low: 1, high: 1 })
     enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '5', high: '5' })
     view(storage)
     writeStraight(storageFile(), 'UPDATE forecast_logs SET result = ? WHERE team_id = ? AND id = 1', result, TEAM)
+    expect(openStorage().lastForecastLog(TEAM)).toBeUndefined()
 
     expect(view(openStorage())).toMatchObject({ kind: 'forecast' })
     expect(view(openStorage())).toMatchObject({ kind: 'forecast' })
