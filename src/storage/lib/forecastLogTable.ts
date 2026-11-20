@@ -6,7 +6,7 @@ import { parseStored } from './storedJson.js'
 
 /*
  * The forecast ledger in the SQLite file, behind sqliteStorage.ts: each team's logged forecasts, numbered in the order
- * logged, the case and result each as JSON. The schema refuses any change to a row once written.
+ * logged, the case and result each as JSON. A row is only ever added, never changed.
  */
 
 /** The team's forecast ledger, kept in the SQLite file `db`. */
