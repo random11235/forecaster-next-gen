@@ -58,7 +58,7 @@ export interface SetupSteps {
 }
 
 /** Why steps opened again can't be cancelled once the connection they opened on was changed: Cancel would keep the change but not what it read. */
-export const NO_CANCEL =
+const NO_CANCEL =
   'The connection changed in these steps, so they can’t be cancelled: Cancel would keep the new connection with the old picks and reads. Go on to Check and use these.'
 
 /**

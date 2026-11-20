@@ -5,7 +5,7 @@ import { finishedOn, open } from '../trackerScenario.js'
 import { CHECKOUT, pick, skip, TEAM, type ForecastingForTest } from './forecastingForTest.js'
 import { READ_AT, Q3_POLISH, connect, enter, inputs, setup, setupAt, stepQuery, team } from './setupScenario.js'
 
-/** What the step says when Cancel can't put the connection back: setup.ts's NO_CANCEL, which index.ts doesn't export. */
+/** What the step says when Cancel can't put the connection back (lib/setup.ts's NO_CANCEL), written out so the test checks the words, not the constant. */
 const NO_CANCEL =
   'The connection changed in these steps, so they can’t be cancelled: Cancel would keep the new connection with the old picks and reads. Go on to Check and use these.'
 
