@@ -262,6 +262,20 @@ describe('browser storage the browser refuses', () => {
 })
 
 describe("browser storage's forecast ledger", () => {
+  test('with its ledger cleared by another writer, keeps only the logs saved since', () => {
+    const store = memoryStore()
+    const storage = openWebStorage(store)
+    storage.saveForecastLog(FORECAST)
+    storage.saveForecastLog({ ...FORECAST, teamId: 'another' })
+    store.items.delete('forecaster.ledger')
+
+    storage.saveForecastLog({ ...FORECAST, milestoneName: 'Beta' })
+
+    const again = openWebStorage(store)
+    expect(again.forecastLogs('another')).toEqual([])
+    expect(again.forecastLogs('team').map(({ id, milestoneName }) => ({ id, milestoneName }))).toEqual([{ id: 1, milestoneName: 'Beta' }])
+  })
+
   test('opened in two tabs over the same browser storage, keeps the logs each saves, numbered one after another', () => {
     const store = memoryStore()
     const first = openWebStorage(store)

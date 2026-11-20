@@ -25,7 +25,7 @@ const LEDGER_LIMIT = 1_000_000
 type StoredStamp = Omit<ForecastLogStamp, 'teamId'>
 
 /** The check of each of a log's stamp fields, as stored. */
-const STAMP: { [Field in keyof StoredStamp]-?: ShapeCheck<StoredStamp[Field]> } = {
+const STAMP_CHECKS: { [Field in keyof StoredStamp]-?: ShapeCheck<StoredStamp[Field]> } = {
   id: isNumber,
   createdAt: isString,
   milestoneName: isString,
@@ -59,9 +59,9 @@ type StoredLedger = Record<string, StoredTeamLedger>
  * naming the key. Each save drops a field it doesn't know, but those in a log's case and result, kept whole.
  */
 export function webLedger(store: KeyValueStore | undefined): Ledger {
-  /** The ledger as last saved from this page, read when the browser gives no storage or refuses it. */
+  /** The ledger as last saved from this page, read only when the browser gives no storage or refuses it. */
   let inMemory: StoredLedger = {}
-  const read = (): Kept<StoredLedger> => readKey(store, LEDGER_KEY, inMemory, isRecordOf(isStoredTeamLedger))
+  const read = (): Kept<StoredLedger> => readKey(store, LEDGER_KEY, {}, isRecordOf(isStoredTeamLedger), inMemory)
 
   return {
     saveForecastLog({ teamId, milestoneName, appVersion, simulationCase, result }) {
@@ -128,7 +128,7 @@ function logOut(teamId: string, log: StoredLog): ForecastLog {
 /** A logged forecast as the ledger's value keeps it (`StoredLog`): its stamp and its result's case hash checked, its case and result as read. */
 const isStoredLog = (value: unknown): value is StoredLog =>
   isObject(value) &&
-  Object.entries(STAMP).every(([field, check]) => check(value[field])) &&
+  Object.entries(STAMP_CHECKS).every(([field, check]) => check(value[field])) &&
   'simulationCase' in value &&
   isObject(value.result) &&
   isString(value.result.caseHash)
