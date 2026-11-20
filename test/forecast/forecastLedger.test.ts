@@ -5,14 +5,12 @@ import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.
 import { rerunForecast } from '../../src/forecast/forecastLedger.js'
 import type { Storage } from '../../src/storage/storage.js'
 import { openWebStorage } from '../../src/storage/webStorage.js'
+import { ISO_INSTANT } from '../isoInstant.js'
 import { memoryStore } from '../memoryStore.js'
 import { TEAM, TODAY, newTeam, mediumGrowth, enter, openStorage, submit, view } from './forecastViewScenario.js'
 
 // Seam B: the forecast ledger (#27). Each forecast the Milestone forecast screen shows is logged in the ledger, which
 // goes in through storage, with its case, the case's hash, its result, when it was logged and the release that made it.
-
-/** An ISO instant, as the ledger stamps each forecast it logs. */
-const isoInstant = (value: string) => /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$/.test(value)
 
 /** Each storage the ledger goes in through, on a new team: the app's SQLite file and the web build's browser storage. */
 const storages: [string, () => { storage: Storage; reopen: () => Storage }][] = [
@@ -67,7 +65,7 @@ describe('logging each forecast', () => {
       },
     ])
     const [log] = logs
-    expect(isoInstant(log?.createdAt ?? '')).toBe(true)
+    expect(log?.createdAt).toMatch(ISO_INSTANT)
     expect(log && log.createdAt >= before && log.createdAt <= after).toBe(true)
   })
 })
