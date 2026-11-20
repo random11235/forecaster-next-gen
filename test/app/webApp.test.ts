@@ -91,7 +91,7 @@ describe('web app', () => {
       path: '/',
       status: 200,
     })
-    expect((await await app.show({ method: 'GET', path: '/' })).html).toContain('<span class="capacity">0%</span>')
+    expect((await app.show({ method: 'GET', path: '/' })).html).toContain('<span class="capacity">0%</span>')
     const refused = await app.show(post('/capacity/add', { percent: 'half', from: '2026-11-09', to: '' }))
 
     expect(refused).toMatchObject({ path: '/', status: 400 })
@@ -105,7 +105,7 @@ describe('web app', () => {
     await app.show(post('/inputs/pace', { low: '5', high: '10' }))
     await app.show(post('/capacity/add', { percent: '0', from: '2026-11-02', to: '2026-11-06', note: 'Offsite' }))
 
-    expect((await await app.show({ method: 'GET', path: '/' })).html).toContain('<th>With capacity</th><th>At usual capacity</th>')
+    expect((await app.show({ method: 'GET', path: '/' })).html).toContain('<th>With capacity</th><th>At usual capacity</th>')
     const off = await app.show(post('/capacity/switch', { on: 'false' }))
 
     expect(off).toMatchObject({ path: '/', status: 200 })
@@ -118,7 +118,7 @@ describe('web app', () => {
     await app.show(post('/inputs/milestone', { name: 'Launch', startDate: '2026-11-02', ticketsRemaining: '30' }))
     await app.show(post('/inputs/pace', { low: '5', high: '10' }))
     await app.show(post('/capacity/add', { percent: '0', from: '2026-11-02', to: '2026-11-06', note: 'Offsite' }))
-    expect((await await app.show({ method: 'GET', path: '/' })).html).not.toContain('85% date +')
+    expect((await app.show({ method: 'GET', path: '/' })).html).not.toContain('85% date +')
 
     const opened = await app.show({ method: 'GET', path: '/?capacity=open' })
     expect(opened.html).toContain('data-toggle="/#capacity" open>')
@@ -167,7 +167,7 @@ describe('web app', () => {
     const page = await app.show(post('/inputs/pace-mode', { paceMode: 'counts' }))
 
     expect(page.html).toContain('<summary>Stepped up · about 4 a week, then 8 since 28 Sep</summary>')
-    expect((await await app.show(post('/pace-action/apply', { action: 'startFrom', date: '2026-09-28' }))).html).toContain(
+    expect((await app.show(post('/pace-action/apply', { action: 'startFrom', date: '2026-09-28' }))).html).toContain(
       'Counting pace from 28 Sep, after it stepped up.',
     )
     const refused = await app.show(post('/pace-action/apply', { action: 'startFrom', date: 'soon' }))
