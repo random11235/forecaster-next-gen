@@ -1,32 +1,47 @@
 import type { DatabaseSync } from 'node:sqlite'
-import type { ForecastLog, Ledger } from '../../ledger/ledger.js'
+import type { ForecastLog, ForecastLogStamp, Ledger } from '../../ledger/ledger.js'
 import { isForecastResult, isSimulationCase } from './forecastLogJson.js'
 import type { Row } from './sqliteDatabase.js'
-import { checkStored, isString, parseStored } from './storedJson.js'
+import { isString, parseStored } from './storedJson.js'
 
 /*
  * The forecast ledger in the SQLite file, behind sqliteStorage.ts: each team's logged forecasts, numbered in the order
  * logged, the case and result each as JSON. A row is only ever added, never changed.
  */
 
-/** A log's header columns, but its case's hash, which its result keeps: the one list of them, read by `headerIn`. */
-const HEADER_COLUMNS = 'team_id, id, created_at, milestone_name, app_version'
+/** Each of a log's stamp fields and the column it is kept in: the one list of them, read back by `stampIn`. */
+const STAMP_COLUMNS: { [Field in keyof ForecastLogStamp]-?: string } = {
+  teamId: 'team_id',
+  id: 'id',
+  createdAt: 'created_at',
+  milestoneName: 'milestone_name',
+  appVersion: 'app_version',
+}
+
+/** The stamp's columns, each read back under its field's name. */
+const STAMP = Object.entries(STAMP_COLUMNS)
+  .map(([field, column]) => `${column} AS ${field}`)
+  .join(', ')
 
 /** The team's forecast ledger, kept in the SQLite file `db`. */
 export function forecastLogTable(db: DatabaseSync): Ledger {
+  // each stamp field bound by its name; the ID, the team's next
   const insert = db.prepare(`
-    INSERT INTO forecast_logs (${HEADER_COLUMNS}, simulation_case, result)
-    VALUES (?, (SELECT COALESCE(MAX(id), 0) + 1 FROM forecast_logs WHERE team_id = ?), ?, ?, ?, ?, ?)`)
-  const selectAll = db.prepare(`SELECT ${HEADER_COLUMNS}, simulation_case, result FROM forecast_logs WHERE team_id = ? ORDER BY id`)
-  // the case's hash read out of the result's JSON, not parsing the case or result
-  const selectLast = db.prepare(
-    `SELECT ${HEADER_COLUMNS}, json_extract(result, '$.caseHash') AS case_hash FROM forecast_logs WHERE team_id = ? ORDER BY id DESC LIMIT 1`,
-  )
+    INSERT INTO forecast_logs (${Object.values(STAMP_COLUMNS).join(', ')}, simulation_case, result)
+    VALUES (${Object.keys(STAMP_COLUMNS)
+      .map((field) => (field === 'id' ? '(SELECT COALESCE(MAX(id), 0) + 1 FROM forecast_logs WHERE team_id = $teamId)' : `$${field}`))
+      .join(', ')}, $simulationCase, $result)`)
+  const selectAll = db.prepare(`SELECT ${STAMP}, simulation_case, result FROM forecast_logs WHERE team_id = ? ORDER BY id`)
+  // the case's hash read out of the result's JSON, the case and the rest of the result left unparsed; none when the
+  // result isn't JSON
+  const selectLast = db.prepare(`
+    SELECT ${STAMP}, CASE WHEN json_valid(result) THEN json_extract(result, '$.caseHash') END AS caseHash
+    FROM forecast_logs WHERE team_id = ? ORDER BY id DESC LIMIT 1`)
 
   return {
-    saveForecastLog({ teamId, milestoneName, appVersion, simulationCase, result }) {
+    saveForecastLog({ simulationCase, result, ...stamp }) {
       const createdAt = new Date().toISOString()
-      insert.run(teamId, teamId, createdAt, milestoneName, appVersion, JSON.stringify(simulationCase), JSON.stringify(result))
+      insert.run({ ...stamp, createdAt, simulationCase: JSON.stringify(simulationCase), result: JSON.stringify(result) })
     },
 
     forecastLogs(teamId) {
@@ -35,26 +50,27 @@ export function forecastLogTable(db: DatabaseSync): Ledger {
 
     lastForecastLog(teamId) {
       const row = selectLast.get(teamId)
-      return row && { ...headerIn(row), caseHash: checkStored(row.case_hash, 'forecast_logs.result', isString) }
+      // a last log whose result gives no case hash has no header this version can read: the forecast is logged again
+      return row && isString(row.caseHash) ? { ...stampIn(row), caseHash: row.caseHash } : undefined
     },
   }
 }
 
-/** The log's place and what made it, as a row's `HEADER_COLUMNS` keep them. */
-function headerIn(row: Row): Omit<ForecastLog, 'simulationCase' | 'result'> {
+/** The log's stamp, as a row reads back its `STAMP_COLUMNS` by field name. */
+function stampIn(row: Row): ForecastLogStamp {
   return {
+    teamId: String(row.teamId),
     id: Number(row.id),
-    teamId: String(row.team_id),
-    createdAt: String(row.created_at),
-    milestoneName: String(row.milestone_name),
-    appVersion: String(row.app_version),
+    createdAt: String(row.createdAt),
+    milestoneName: String(row.milestoneName),
+    appVersion: String(row.appVersion),
   }
 }
 
 /** The logged forecast a row keeps, its case and result checked as read. */
 function logIn(row: Row): ForecastLog {
   return {
-    ...headerIn(row),
+    ...stampIn(row),
     simulationCase: parseStored(String(row.simulation_case), 'forecast_logs.simulation_case', isSimulationCase),
     result: parseStored(String(row.result), 'forecast_logs.result', isForecastResult),
   }
