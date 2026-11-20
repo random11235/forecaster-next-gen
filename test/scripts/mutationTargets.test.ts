@@ -63,6 +63,13 @@ describe('the files a branch mutates', () => {
     expect(mutationTargets(changed.map((path) => diffOf(path, [[1, 1]])).join('\n'), changed)).toEqual([])
   })
 
+  test('a diff naming files without the a/ and b/ prefixes it is read with is refused, not taken as nothing to mutate', () => {
+    const mnemonic = diffOf('src/engine/pace.ts', [[3, 1]])
+      .replace('--- a/', '--- i/')
+      .replace('+++ b/', '+++ w/')
+    expect(() => mutationTargets(mnemonic, [])).toThrow('the diff names a file without the b/ prefix: +++ w/src/engine/pace.ts')
+  })
+
   test("the web build's page script, which only its demo checks, is not mutated", () => {
     const diff = [diffOf('src/app/webMain.ts', [[1, 1]]), diffOf('src/app/webApp.ts', [[1, 1]])].join('\n')
     expect(mutationTargets(diff, [])).toEqual(['src/app/webApp.ts:1-1'])

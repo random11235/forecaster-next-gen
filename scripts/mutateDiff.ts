@@ -14,7 +14,20 @@ const paths = (output: string): string[] => output.split('\0').filter(Boolean)
 const base = process.argv[2] ?? 'main'
 const baseCommit = mergeBase(root, base, 'pass the branch this one merges into: `npm run test:mutation -- <branch>`')
 // added, copied, modified or renamed: a deleted file has nothing to mutate
-const diff = git('diff', '-U0', '-M', '--no-color', '--no-ext-diff', '--diff-filter=ACMR', baseCommit)
+// with the prefixes and unquoted paths mutationTargets reads, whatever the user's git config says
+const diff = git(
+  '-c',
+  'core.quotePath=false',
+  'diff',
+  '--src-prefix=a/',
+  '--dst-prefix=b/',
+  '-U0',
+  '-M',
+  '--no-color',
+  '--no-ext-diff',
+  '--diff-filter=ACMR',
+  baseCommit,
+)
 const targets = mutationTargets(diff, paths(git('ls-files', '--others', '--exclude-standard', '-z')))
 
 if (targets.length === 0) {
