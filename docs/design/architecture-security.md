@@ -25,4 +25,4 @@ v1 is a local, single-user tool, so items 1 to 3 are what matter. Items 4 and 5 
 6. **Later, for hosted or multi-team use:**
    - Scope every query by team. Aggregators and stakeholders see summaries only, never item-level data.
    - Encrypt tokens at rest server-side, and verify webhook signatures.
-   - The forecast ledger is append-only, with `createdBy` recorded. Calibration numbers mean nothing if old forecasts can be edited.
+   - The forecast ledger is append-only (the SQLite file's triggers refuse an update or delete), with `createdBy` recorded in v1 (the MVP's one local EM has none). Calibration numbers mean nothing if old forecasts can be edited.

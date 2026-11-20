@@ -2,7 +2,7 @@
 
 Part of the architecture design; the index is [`architecture.md`](architecture.md).
 
-The tree is `src/` as it stands in the MVP, with `connectors/` and `secrets/`. v1 adds `samples/` (Layer 2: commits, throughput, growth and epic-size samples derived from `model/`) and the deleted epic-era files (work items, workflow settings, epic commits, team facts, measured pace and growth), which [`forecast-model-facts.md`](forecast-model-facts.md) describes, and `ledger/` (Layer 5), which [`forecast-model.md`](forecast-model.md) describes.
+The tree is `src/` as it stands in the MVP, with `connectors/` and `secrets/`. v1 adds `samples/` (Layer 2: commits, throughput, growth and epic-size samples derived from `model/`) and the deleted epic-era files (work items, workflow settings, epic commits, team facts, measured pace and growth), which [`forecast-model-facts.md`](forecast-model-facts.md) describes, and the rest of `ledger/` (Layer 5: outcomes and scores), which [`forecast-model.md`](forecast-model.md) describes.
 
 ```
 src/
@@ -29,7 +29,8 @@ src/
     growth.ts             # behind inputs.ts: the ambiguity ranges view and edit; the milestone's growth range
     connection.ts         # Seam B: the Connect step's view; a connect checked through a connector from a factory passed in, then saved (with its token, through secrets/) or refused; disconnect; a failing keychain or data file refused, changing nothing
     trackers.ts           # each tracker's facts: its name, its token's permission, where a connection reads, its form and what it lacks, its refusals
-    milestoneForecastView.ts  # Seam B: stored data → the Milestone forecast screen's view, through the engine
+    milestoneForecastView.ts  # Seam B: stored data → the Milestone forecast screen's view, through the engine; the forecast shown logged in the ledger
+    forecastLedger.ts     # Seam B: the forecast shown logged, once for each case and release (`logForecast`); a logged forecast re-run from its case alone (`rerunForecast`)
     settings.ts           # ForecastSettings and AmbiguityRanges defaults
     appVersion.ts         # the app's version, `APP_VERSION`, imported from `package.json` with no file read: the release a merge to main is tagged as, in every screen's footer, and importable where a forecast is made, beside the engine's
     cadence.ts            # what the screens call a period: a week or a sprint
@@ -67,6 +68,9 @@ src/
     keychainSecrets.ts    # the OS keychain, through @napi-rs/keyring; its errors never quote the token
     memorySecrets.ts      # in memory: the fake Seam B tests use
 
+  ledger/                 # Layer 5: the forecast ledger's types (`Ledger`, `ForecastLog`), depending only on the engine's; storage keeps it
+    ledger.ts
+
   storage/                # interface and its v1 SQLite file, with the schema's migrations; the web build's browser storage
     sqliteStorage.ts      # the SQLite file: the schema's steps (MIGRATIONS), opening and migrating it, its parts in lib/ put together
     lib/sqliteDatabase.ts # behind sqliteStorage.ts: the open SQLite file, its rows, and a transaction over it
@@ -78,6 +82,8 @@ src/
     lib/setupDraft.ts     # behind sqliteStorage.ts: the team's queries and reads in each target, the setup draft over what's saved; the draft's fields saved; "Use these" applying it
     lib/storedJson.ts     # the one parser for stored JSON (`parseStored`) and the checks each reader builds its shapes from: a shape it doesn't know refused, naming its column
     lib/milestoneInputsJson.ts # the milestone inputs' JSON parts checked, as the SQLite file and browser storage both read them
+    lib/forecastLogTable.ts # behind sqliteStorage.ts: the forecast ledger, each team's logged forecasts, which the schema refuses to change
+    lib/forecastLogJson.ts # a logged forecast's case and result checked, as the SQLite file and browser storage both read them
   app/                    # local server (localhost only), screens, the routes and the context they run in (`routes.ts`, `appContext.ts`), `npm start` entry point; each screen's HTML, and reading the fields of the forms it posts; the web build's app and page script (`webApp.ts`, `webMain.ts`); the stylesheet every page shares (`html.ts`), each screen's styles in `lib/`, and what is behind the Inputs screen (`inputsScreen.ts`): its Milestone and Pace sections, the parts its sections share (`inputSection.ts`), and the chip on a typed value the tracker reads differently (`readsDifferently.ts`); the Milestone forecast screen's Capacity section (`lib/capacitySection.ts`); the Comparable work step's pace (`lib/stepPace.ts`); the app's version (`forecast/appVersion.ts`'s `APP_VERSION`) in every screen's footer and streamed on the server's `/live`, which each page it serves listens on to reload when the version changes (the web build's pages don't)
 
 test/
