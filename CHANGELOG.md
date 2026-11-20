@@ -2,6 +2,10 @@
 
 What each version of the app shipped, newest first. The version is the one in every screen's footer: a fix is in the app you're running if its version is the footer's or older. Each merge's release ([`docs/design/architecture.md`](docs/design/architecture.md#release)) writes its section here, a line from each change file (`changes/<ticket>.md`) a PR that changes the app adds: a PR doesn't edit the entries below ([`docs/agents/pull-requests.md`](docs/agents/pull-requests.md#version)).
 
+## 1.0.0 (2026-11-20)
+
+- Every forecast shown is logged in the team's forecast ledger, with its case, hash, result, when and the release that made it, and re-runs from its case alone; the web build keeps it in browser storage apart from the EM's other data, its newest million characters or so (#27, PR #304)
+
 ## 0.4.2 (2026-11-20)
 
 - CI fails when a module's coverage by its own test folder drops, with no change to the app (#262, PR #303)
