@@ -19,11 +19,10 @@ describe('opening the Milestone step', () => {
       kind: 'milestoneStep',
       find: '',
       lists: [
-        { kind: 'milestone', kindName: 'milestone', choices: [payments, checkout], searchedInTracker: false },
-        { kind: 'label', kindName: 'label', choices: [repay, bug], searchedInTracker: false },
+        { kind: 'milestone', choices: [payments, checkout], searchedInTracker: false },
+        { kind: 'label', choices: [repay, bug], searchedInTracker: false },
       ],
       picks: [],
-      kindNames: { milestone: 'milestone', fixVersion: 'fix version', epic: 'epic', label: 'label' },
       query: '',
       note: 'Leaf tickets only. Epics include their sub-epics.',
     })
@@ -35,8 +34,8 @@ describe('opening the Milestone step', () => {
     const view = await stepView(team, 'PAY')
 
     expect(view.lists).toEqual([
-      { kind: 'milestone', kindName: 'milestone', choices: [payments], searchedInTracker: false },
-      { kind: 'label', kindName: 'label', choices: [repay], searchedInTracker: false },
+      { kind: 'milestone', choices: [payments], searchedInTracker: false },
+      { kind: 'label', choices: [repay], searchedInTracker: false },
     ])
   })
 
@@ -73,9 +72,9 @@ describe('a kind with more than 100 entries', () => {
 
     expect(team.calls.searches).toEqual([['epic', 'Payments']])
     expect(view.lists).toEqual([
-      { kind: 'epic', kindName: 'epic', choices: [cardPayments], searchedInTracker: true },
-      { kind: 'milestone', kindName: 'milestone', choices: [payments], searchedInTracker: false },
-      { kind: 'label', kindName: 'label', choices: [repay], searchedInTracker: false },
+      { kind: 'epic', choices: [cardPayments], searchedInTracker: true },
+      { kind: 'milestone', choices: [payments], searchedInTracker: false },
+      { kind: 'label', choices: [repay], searchedInTracker: false },
     ])
   })
 
@@ -85,7 +84,7 @@ describe('a kind with more than 100 entries', () => {
     const view = await stepView(team)
 
     expect(team.calls.searches).toEqual([])
-    expect(view.lists[0]).toEqual({ kind: 'epic', kindName: 'epic', choices: listed, searchedInTracker: true })
+    expect(view.lists[0]).toEqual({ kind: 'epic', choices: listed, searchedInTracker: true })
   })
 
   test('leaves out of what the tracker finds the choices already picked', async () => {
@@ -94,7 +93,7 @@ describe('a kind with more than 100 entries', () => {
 
     const view = await stepView(team, 'payments')
 
-    expect(view.lists[0]).toEqual({ kind: 'epic', kindName: 'epic', choices: [], searchedInTracker: true })
+    expect(view.lists[0]).toEqual({ kind: 'epic', choices: [], searchedInTracker: true })
   })
 
   test('says so when the tracker can’t search, still listing the other kinds', async () => {
@@ -107,13 +106,12 @@ describe('a kind with more than 100 entries', () => {
       lists: [
         {
           kind: 'epic',
-          kindName: 'epic',
           choices: [],
           searchedInTracker: true,
           failure: 'The tracker couldn’t search its epics just now. Try again in a few minutes.',
         },
-        { kind: 'milestone', kindName: 'milestone', choices: [payments], searchedInTracker: false },
-        { kind: 'label', kindName: 'label', choices: [repay], searchedInTracker: false },
+        { kind: 'milestone', choices: [payments], searchedInTracker: false },
+        { kind: 'label', choices: [repay], searchedInTracker: false },
       ],
     })
   })
@@ -123,7 +121,6 @@ describe('a kind with more than 100 entries', () => {
 
     expect(await team.searchedChoiceList('epic', 'payouts', MILESTONE_QUERY)).toEqual({
       kind: 'epic',
-      kindName: 'epic',
       choices: [payouts],
       searchedInTracker: true,
     })
@@ -137,7 +134,7 @@ describe('a kind with more than 100 entries', () => {
     const list = await team.searchedChoiceList('epic', '  ', MILESTONE_QUERY)
 
     expect(team.calls.searches).toEqual([])
-    expect(list).toEqual({ kind: 'epic', kindName: 'epic', choices: listed.slice(1), searchedInTracker: true })
+    expect(list).toEqual({ kind: 'epic', choices: listed.slice(1), searchedInTracker: true })
   })
 })
 
@@ -165,8 +162,8 @@ describe('picking', () => {
       query: 'milestone:"Payments v2" OR label:"bug"',
       read: '3 open · 2 finished in the last 9 weeks',
       lists: [
-        { kind: 'milestone', kindName: 'milestone', choices: [checkout], searchedInTracker: false },
-        { kind: 'label', kindName: 'label', choices: [repay], searchedInTracker: false },
+        { kind: 'milestone', choices: [checkout], searchedInTracker: false },
+        { kind: 'label', choices: [repay], searchedInTracker: false },
       ],
     })
   })

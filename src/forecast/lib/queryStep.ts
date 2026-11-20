@@ -7,7 +7,7 @@ import { finishedSinceFor, readQuery, type QueryRead } from './queryRead.js'
 import { MILESTONE_QUERY, type StepQuery } from './stepQuery.js'
 import type { ReadClock } from './pace.js'
 import { trackerOf } from './trackers.js'
-import { CHOICES_FAILED, foundInTracker, KEYCHAIN_FAILED, KIND_NAMES, listedHere, markedThisMilestone, notPicked, type ChoiceList } from './choiceLists.js'
+import { CHOICES_FAILED, foundInTracker, KEYCHAIN_FAILED, listedHere, markedThisMilestone, notPicked, type ChoiceList } from './choiceLists.js'
 import { readFlag, readLine, rejectionOf } from './readSaid.js'
 import { chipsShow, editedQuery, NO_QUERY, picksChanged, type PicksEdit } from './stepQueryEdit.js'
 
@@ -63,8 +63,6 @@ interface PickedQuery {
   /** Why the choices couldn't be listed; none when they were. */
   choicesFailure?: string
   picks: Choice[]
-  /** Each kind of choice as the step names it: a chip is marked with it, and a list headed by it. */
-  kindNames: Readonly<Record<ChoiceKind, string>>
   /** The query: the picks joined with OR, or as edited by hand; empty until something is picked. */
   query: string
   note: string
@@ -214,7 +212,6 @@ async function pickedQuery(
     find,
     lists: [],
     picks: saved.picks,
-    kindNames: KIND_NAMES,
     query: saved.query,
     note: LEAF_NOTE,
     ...(read && !read.incomplete && { read: readLine(read, stepQuery) }),
@@ -253,15 +250,15 @@ export async function searchedChoiceList(
   const { milestoneQueries } = withTeamQueries(connecting, 'current')
   const connected = await teamConnection(connecting, teamId)
   if (!connected) return undefined
-  if (connected.connector === 'keychainFailed') return { kind, kindName: KIND_NAMES[kind], choices: [], searchedInTracker: true, failure: KEYCHAIN_FAILED }
+  if (connected.connector === 'keychainFailed') return { kind, choices: [], searchedInTracker: true, failure: KEYCHAIN_FAILED }
   const unpicked = notPicked(stepQuery.saved(milestoneQueries, teamId)?.picks ?? [])
   const marked = markedThisMilestone(milestoneQueries, teamId)
   const typed = find.trim()
   if (typed !== '') return marked(await foundInTracker(connected.connector, kind, typed, unpicked))
   const choices = await connected.connector.milestoneChoices()
-  if (!choices.ok) return { kind, kindName: KIND_NAMES[kind], choices: [], searchedInTracker: true, failure: CHOICES_FAILED }
+  if (!choices.ok) return { kind, choices: [], searchedInTracker: true, failure: CHOICES_FAILED }
   const listed = choices.kinds.find((each) => each.kind === kind)
-  return listed ? marked(listedHere(listed, '', unpicked)) : { kind, kindName: KIND_NAMES[kind], choices: [], searchedInTracker: true }
+  return listed ? marked(listedHere(listed, '', unpicked)) : { kind, choices: [], searchedInTracker: true }
 }
 
 /**

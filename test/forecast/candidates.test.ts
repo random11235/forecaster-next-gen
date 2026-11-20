@@ -206,7 +206,6 @@ describe('reading on demand', () => {
       groups: [],
       milestoneOwn: 2,
       period: 'week',
-      kindNames: { milestone: 'milestone', fixVersion: 'fix version', epic: 'epic', label: 'label' },
     })
   })
 

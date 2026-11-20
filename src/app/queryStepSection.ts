@@ -1,5 +1,6 @@
 import {
   COMPARABLE_WORK,
+  KIND_NAMES,
   MILESTONE_QUERY,
   type ChoiceList,
   type ComparableWorkPace,
@@ -195,12 +196,12 @@ function editingSection(view: QueryStep, editing: QueryEditing, section: StepSec
 /** The step finding choices to pick: the chips, the find box over the lists, and the query, to edit as a query. */
 function findingSection(view: QueryStep, section: StepSection, pace: ComparableWorkPace | undefined): string {
   const { paths, urls, id, findField } = section
-  const kinds = view.lists.map((list) => list.kindName)
+  const kinds = view.lists.map((list) => KIND_NAMES[list.kind].name)
   const chips = view.picks
     .map(
       (
         pick,
-      ) => `            <li class="chip">${escapeHtml(pick.name)} <span class="kind">${escapeHtml(view.kindNames[pick.kind])}</span>${pickPaceHtml(pace?.picks.find((each) => each.query === pick.query))}
+      ) => `            <li class="chip">${escapeHtml(pick.name)} <span class="kind">${escapeHtml(KIND_NAMES[pick.kind].name)}</span>${pickPaceHtml(pace?.picks.find((each) => each.query === pick.query))}
               <form method="post" action="${paths.remove}#${id}"><input type="hidden" name="${CHOICE_FIELDS.query}" value="${escapeHtml(pick.query)}"><button type="submit" class="x" aria-label="Remove ${escapeHtml(pick.name)}">×</button></form>
             </li>`,
     )
@@ -238,13 +239,13 @@ export function choiceListHtml(list: ChoiceList, { paths, id, stepQuery, setupSt
         choice,
       ) => `              <form method="post" action="${paths.add}#${id}" data-name="${escapeHtml(choice.name.toLowerCase())}"${candidates ? ' class="candidate"' : ''}>
                 <input type="hidden" name="${CHOICE_FIELDS.kind}" value="${escapeHtml(choice.kind)}"><input type="hidden" name="${CHOICE_FIELDS.name}" value="${escapeHtml(choice.name)}"><input type="hidden" name="${CHOICE_FIELDS.query}" value="${escapeHtml(choice.query)}">
-                <button type="submit">${escapeHtml(choice.name)} <span class="kind">${escapeHtml(list.kindName)}</span>${choice.query === list.thisMilestone ? ' <span class="this">this milestone</span>' : ''}</button>${candidates ? openLinkHtml(choice, setupStep, id) : ''}
+                <button type="submit">${escapeHtml(choice.name)} <span class="kind">${escapeHtml(KIND_NAMES[list.kind].name)}</span>${choice.query === list.thisMilestone ? ' <span class="this">this milestone</span>' : ''}</button>${candidates ? openLinkHtml(choice, setupStep, id) : ''}
               </form>`,
     )
     .join('\n')
   const failure = list.failure === undefined ? '' : `\n              <p class="error" role="alert">${escapeHtml(list.failure)}</p>`
   return `            <div class="kind-list" data-kind="${escapeHtml(list.kind)}"${list.searchedInTracker ? ' data-searched' : ''}>
-              <h3>${escapeHtml(capitalised(list.kindName))}s</h3>${failure}
+              <h3>${escapeHtml(KIND_NAMES[list.kind].heading)}</h3>${failure}
 ${choices}
             </div>`
 }
@@ -255,10 +256,6 @@ export const OPEN_FIELD = 'comparableOpen'
 /** The link opening a choice as a candidate, beside it in the step's lists, to read how it runs. */
 function openLinkHtml(choice: Choice, step: SetupStep, id: string): string {
   return `<a class="open" href="${escapeHtml(inputsAt(step, id, `${OPEN_FIELD}=${encodeURIComponent(choice.query)}`))}" aria-label="How ${escapeHtml(choice.name)} runs">pace</a>`
-}
-
-function capitalised(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
 /** "a milestone", "an epic, label or milestone". */

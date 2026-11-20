@@ -40,12 +40,11 @@ describe('the step, for another of the team’s queries (#200)', () => {
     expect(current(team).milestoneQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
     expect(view).toMatchObject({ picks: [bug], query: 'label:"bug"' })
     expect(view.lists).toEqual([
-      { kind: 'milestone', kindName: 'milestone', choices: [payments, checkout], searchedInTracker: false, thisMilestone: payments.query },
-      { kind: 'label', kindName: 'label', choices: [repay], searchedInTracker: false },
+      { kind: 'milestone', choices: [payments, checkout], searchedInTracker: false, thisMilestone: payments.query },
+      { kind: 'label', choices: [repay], searchedInTracker: false },
     ])
     expect(await team.searchedChoiceList('label', '', COMPARABLE_WORK)).toEqual({
       kind: 'label',
-      kindName: 'label',
       choices: [repay],
       searchedInTracker: false,
     })
