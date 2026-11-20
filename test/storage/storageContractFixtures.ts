@@ -36,7 +36,6 @@ export const LAUNCH: MilestoneInputs = {
 export const FORECAST: LoggedForecast = {
   teamId: 'team',
   milestoneName: 'Launch',
-  caseHash: '0123456789abcdef',
   appVersion: '0.4.2',
   simulationCase: {
     engineVersion: '2',

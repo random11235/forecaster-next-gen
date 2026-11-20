@@ -18,9 +18,9 @@ export function forecastLogTable(db: DatabaseSync): Ledger {
   const selectLast = db.prepare('SELECT * FROM forecast_logs WHERE team_id = ? ORDER BY id DESC LIMIT 1')
 
   return {
-    saveForecastLog({ teamId, milestoneName, caseHash, appVersion, simulationCase, result }) {
+    saveForecastLog({ teamId, milestoneName, appVersion, simulationCase, result }) {
       const createdAt = new Date().toISOString()
-      insert.run(teamId, teamId, createdAt, milestoneName, caseHash, appVersion, JSON.stringify(simulationCase), JSON.stringify(result))
+      insert.run(teamId, teamId, createdAt, milestoneName, result.caseHash, appVersion, JSON.stringify(simulationCase), JSON.stringify(result))
     },
 
     forecastLogs(teamId) {
@@ -41,7 +41,6 @@ function logIn(row: Row): ForecastLog {
     teamId: String(row.team_id),
     createdAt: String(row.created_at),
     milestoneName: String(row.milestone_name),
-    caseHash: String(row.case_hash),
     appVersion: String(row.app_version),
     simulationCase: parseStored(String(row.simulation_case), 'forecast_logs.simulation_case', isSimulationCase),
     result: parseStored(String(row.result), 'forecast_logs.result', isForecastResult),

@@ -29,7 +29,6 @@ describe('logging each forecast', () => {
         teamId: TEAM,
         createdAt: expect.any(String),
         milestoneName: 'Checkout v2',
-        caseHash: expect.stringMatching(/^[0-9a-f]{16}$/),
         appVersion: APP_VERSION,
         simulationCase: {
           engineVersion: '2',
@@ -45,6 +44,7 @@ describe('logging each forecast', () => {
           percentiles: [50, 70, 85, 95],
         },
         result: expect.objectContaining({
+          caseHash: expect.stringMatching(/^[0-9a-f]{16}$/),
           percentileDates: { 50: '2026-09-15', 70: '2026-09-15', 85: '2026-09-15', 95: '2026-09-15' },
           finishCounts: [0, 0, DEFAULT_SETTINGS.trials],
           finishedFraction: 1,
@@ -52,7 +52,6 @@ describe('logging each forecast', () => {
       },
     ])
     const [log] = logs
-    expect(log?.result.caseHash).toBe(log?.caseHash)
     expect(isoInstant(log?.createdAt ?? '')).toBe(true)
     expect(log && log.createdAt >= before && log.createdAt <= after).toBe(true)
   })
