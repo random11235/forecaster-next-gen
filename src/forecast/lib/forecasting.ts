@@ -1,5 +1,7 @@
 import type { ChoiceKind } from '../../model/choice.js'
+import type { ForecastLog } from '../../ledger/ledger.js'
 import { openCandidates, type CandidateOpening } from './candidates.js'
+import { rerunForecast, type Rerun } from './forecastLedger.js'
 import { howItWorksView, type HowItWorksView } from './howItWorksView.js'
 import { inputsScreen, type InputsOpening, type InputsScreen } from './inputsScreenView.js'
 import { milestoneForecastView, type MilestoneForecastView } from './milestoneForecastView.js'
@@ -28,6 +30,8 @@ export interface Forecasting {
   submit(edit: Edit, opening?: SubmitOpening): Promise<Outcome>
   searchedChoiceList(kind: ChoiceKind, find: string, stepQuery: StepQuery): Promise<ChoiceList | undefined>
   openCandidates(): Promise<CandidateOpening>
+  /** A logged forecast re-run from its case alone, to check it gives the result the EM was shown; or why it isn't. */
+  rerunForecast(log: ForecastLog): Promise<Rerun>
 }
 
 /**
@@ -53,5 +57,6 @@ export function openForecasting(options: ForecastingOptions): Forecasting {
       const team = call()
       return openCandidates(connected(team), team.storage, team.teamId, team.at)
     },
+    rerunForecast: async (log) => rerunForecast(log),
   }
 }

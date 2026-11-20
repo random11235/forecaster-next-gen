@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { APP_VERSION, DEFAULT_SETTINGS, rerunForecast } from '../../src/forecast/index.js'
+import { APP_VERSION, DEFAULT_SETTINGS } from '../../src/forecast/index.js'
 import { ISO_INSTANT } from '../isoInstant.js'
 import { memoryStore } from '../memoryStore.js'
 import { inBrowser, mediumGrowth, enter, onSqliteFile, submit, view, type LedgerTeam } from './forecastLedgerScenario.js'
@@ -9,7 +9,7 @@ import { TEAM, newTeam } from './forecastViewScenario.js'
 // goes in through storage, with its case, the case's hash, its result, when it was logged and the release that made it.
 
 /** Each storage the ledger goes in through, on a new team: the app's SQLite file and the web build's browser team.storage. */
-const storages: [string, () => LedgerTeam][] = [
+const storages: [string, () => Promise<LedgerTeam>][] = [
   ['SQLite', onSqliteFile],
   ['browser', () => inBrowser(memoryStore())],
 ]
@@ -107,7 +107,7 @@ describe('logging only the forecast shown', () => {
 
 describe.each(storages)('re-running a forecast logged in %s storage', (_, opened) => {
   test('re-running a logged case alone, read back after reopening and with the inputs since changed, gives the result logged', async () => {
-    const team = opened()
+    const team = await opened()
     mediumGrowth(team, { low: 1.1, high: 1.6 })
     await enter(team, { startDate: '2026-09-01', ticketsRemaining: '40' }, { low: '3', high: '8' })
     await view(team)
@@ -117,8 +117,8 @@ describe.each(storages)('re-running a forecast logged in %s storage', (_, opened
     team.restart()
     const [first, second] = team.storage.forecastLogs(TEAM)
 
-    expect(first && rerunForecast(first)).toEqual({ kind: 'rerun', result: first?.result })
-    expect(second && rerunForecast(second)).toEqual({ kind: 'rerun', result: second?.result })
+    expect(first && (await team.rerunForecast(first))).toEqual({ kind: 'rerun', result: first?.result })
+    expect(second && (await team.rerunForecast(second))).toEqual({ kind: 'rerun', result: second?.result })
     expect(first?.result).not.toEqual(second?.result)
   })
 })
@@ -136,13 +136,13 @@ describe('re-running a logged forecast', () => {
 
     const [, older] = team.storage.forecastLogs(TEAM)
 
-    expect(older && rerunForecast(older)).toEqual({ kind: 'otherEngine', loggedWith: '1', running: '2' })
+    expect(older && (await team.rerunForecast(older))).toEqual({ kind: 'otherEngine', loggedWith: '1', running: '2' })
   })
 })
 
 describe.each(storages)('a forecast logged in %s storage that this version cannot read', (_, opened) => {
   test('as a later engine would log one, does not stop the forecast being shown, and the next is logged after it, once', async () => {
-    const team = opened()
+    const team = await opened()
     mediumGrowth(team, { low: 1, high: 1 })
     await enter(team, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '5', high: '5' })
     await view(team)
@@ -181,7 +181,7 @@ describe('a forecast ledger browser storage cannot read', () => {
   ])('holding %s, does not stop the forecast being shown, and keeps the ledger as it was', async (_, stored) => {
     const store = memoryStore()
     store.items.set('forecaster.ledger', stored)
-    const team = inBrowser(store)
+    const team = await inBrowser(store)
     mediumGrowth(team, { low: 1, high: 1 })
     await enter(team, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '5', high: '5' })
 

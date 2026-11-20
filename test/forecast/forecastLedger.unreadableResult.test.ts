@@ -12,7 +12,7 @@ describe('a forecast logged in SQLite storage whose result this version cannot r
     ['JSON with no case hash', '[]'],
     ['a case hash that is a list', '{"caseHash":["0123456789abcdef"]}'],
   ])('holding %s, does not stop the forecast being shown, which is logged again after it, once', async (_, result) => {
-    const team = onSqliteFile()
+    const team = await onSqliteFile()
     mediumGrowth(team, { low: 1, high: 1 })
     await enter(team, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '5', high: '5' })
     await view(team)
