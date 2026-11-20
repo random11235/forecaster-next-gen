@@ -1,5 +1,6 @@
 import type { Choice } from '../connectors/connector.js'
 import {
+  dayMonth,
   FEW_CANDIDATES,
   type Candidate,
   type CandidateGroupKind,
@@ -8,7 +9,6 @@ import {
   type PaceVersus,
   type PeriodName,
 } from '../forecast/index.js'
-import { dayMonth } from './html.js'
 import { escapeHtml } from './html.js'
 import { CHOICE_FIELDS, type StepSection } from './queryStepSection.js'
 

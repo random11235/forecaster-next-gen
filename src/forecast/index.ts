@@ -49,3 +49,6 @@ export type { PaceCheck, SetupCheck, SetupEdit, SetupSteps, TicketsCheck } from 
 export type { SetupSummary, SummaryFlag, SummaryRow } from './lib/setupSummary.js'
 export type { SkipEdit } from './lib/skippedPeriods.js'
 export type { Tracker } from './lib/trackers.js'
+
+// A day as the views' lines say it (`12 Oct`), so the screens say the dates they draw the same way.
+export { dayMonth } from './lib/calendarDate.js'
