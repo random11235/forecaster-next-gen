@@ -145,8 +145,11 @@ export function milestoneForecastView(team: TeamContext, { capacityOpen = false 
   // at usual capacity from the same seed, so the two differ by capacity alone
   const atUsual = on && factors ? simulateCase(milestoneCase(inputs, pace, growth, settings, undefined)) : undefined
   const comparison = atUsual && COMPARED_PERCENTS.map((percent) => comparedDate(percent, result, atUsual, periodDays))
-  const headline = comparison?.find(({ percent }) => percent === HEADLINE_PERCENT)
-  const use: CapacityUse = !factors ? { kind: 'unused' } : headline ? { kind: 'inUse', shift: headline.shift } : { kind: 'off' }
+  const use: CapacityUse = !factors
+    ? { kind: 'unused' }
+    : on && atUsual
+      ? { kind: 'inUse', shift: comparedDate(HEADLINE_PERCENT, result, atUsual, periodDays).shift }
+      : { kind: 'off' }
   const period = periodName(periodDays)
   // each entry against a run without it, from the same seed, so the two differ by that entry alone
   const effects =
