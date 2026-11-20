@@ -10,9 +10,9 @@ export { TEAM }
 /** Today, fixed: before every start date these tests enter, unless a test says the start date is past. */
 export const TODAY = '2026-08-24'
 
-/** The team's handle with nothing entered yet, on `TODAY`, with `settings` unless the defaults. */
-export function newTeam(settings = DEFAULT_SETTINGS): Promise<ForecastingForTest> {
-  return forecastingForTest({ browser: true, clock: { now: `${TODAY}T09:00:00Z` }, settings })
+/** The team's handle with nothing entered yet, on `today` unless `TODAY`, with `settings` unless the defaults. */
+export function newTeam(settings = DEFAULT_SETTINGS, today = TODAY): Promise<ForecastingForTest> {
+  return forecastingForTest({ browser: true, clock: { now: `${today}T09:00:00Z` }, settings })
 }
 
 /** Submits a form on the Inputs screen: saved, or why it was refused there. */

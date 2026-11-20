@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, test } from 'vitest'
 import type { Ticket } from '../../src/connectors/connector.js'
-import type { InputsEdit } from '../../src/forecast/index.js'
 import { finishedInWeeks as finishedInWeeksOf } from '../trackerScenario.js'
 import {
   CHECKOUT,
@@ -12,6 +11,7 @@ import {
   skip as skipOf,
   TEAM,
   type ForecastingForTest,
+  submitInputs,
 } from './forecastingForTest.js'
 
 // Skipping a tracker period (#213): pace stays on the tracker, its window reaching back past the skipped periods to
@@ -38,18 +38,16 @@ let asked: string[]
 
 beforeEach(async () => {
   scenario = await forecastingForTest({ fixture: checkoutFixture([{ id: 'o1' }, ...finishedInWeeks(COUNTS)]), connected: true })
-  await submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '30' })
-  await submit({ kind: 'setPaceRange', low: '4', high: '8' })
+  await submitInputs(scenario, { kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '30' })
+  await submitInputs(scenario, { kind: 'setPaceRange', low: '4', high: '8' })
   await pick(scenario, READ_AT)
-  await submit({ kind: 'setPaceMode', paceMode: 'tracker' })
+  await submitInputs(scenario, { kind: 'setPaceMode', paceMode: 'tracker' })
   asked = scenario.calls.since
   forgetAsked()
 })
 
 /** Forgets the reads asked for so far, to count those after. */
 const forgetAsked = () => void scenario.calls.since.splice(0)
-
-const submit = (edit: InputsEdit) => scenario.submit({ form: 'inputs', edit })
 
 const reading = async () => (await scenario.inputsScreen()).inputs.milestone.trackerPace?.reading
 
@@ -96,7 +94,7 @@ describe('skipping a period', () => {
 
   test('with GitHub holding no earlier weeks, fewer are counted, and the skip line says so', async () => {
     scenario.fixture.reads[CHECKOUT.query] = { tickets: finishedInWeeks([0, 0, ...COUNTS.slice(2)]), incomplete: false }
-    await submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-09-14', ticketsRemaining: '30' })
+    await submitInputs(scenario, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-09-14', ticketsRemaining: '30' })
 
     await skip(HOLIDAYS)
 
@@ -192,7 +190,7 @@ describe('counting skipped periods again', () => {
 describe('every period skipped', () => {
   test('there is no pace, and no forecast: count a week again, or use typed counts or the range', async () => {
     // started on the first week GitHub finished anything in, so its pace counts no earlier weeks
-    await submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: WEEKS[0] ?? START, ticketsRemaining: '30' })
+    await submitInputs(scenario, { kind: 'setMilestone', name: 'Checkout v2', startDate: WEEKS[0] ?? START, ticketsRemaining: '30' })
 
     await skip(WEEKS)
 
