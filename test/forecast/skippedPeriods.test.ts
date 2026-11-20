@@ -125,7 +125,7 @@ describe('skipping a period', () => {
   test('when GitHub can’t be read further back, the skip is kept and the last read stays in use', async () => {
     scenario.fixture.reads[CHECKOUT.query] = { failure: 'unavailable' }
 
-    expect(await skip(HOLIDAYS)).toEqual({ saved: true, next: { screen: 'inputs' } })
+    expect(await skip(HOLIDAYS)).toEqual({ kind: 'saved', next: { screen: 'inputs' } })
 
     expect(asked).toEqual(['2026-08-27T09:00:00.000Z'])
     // the read of 09:00 reaches whole from 14 Sep: 6 weeks counted around the 2 skipped, and the line says where it runs out
@@ -139,14 +139,13 @@ describe('skipping a period', () => {
 
 describe('a skip submitted', () => {
   test('saved, it goes back to the Inputs screen', async () => {
-    expect(await skip(HOLIDAYS)).toEqual({ saved: true, next: { screen: 'inputs' } })
+    expect(await skip(HOLIDAYS)).toEqual({ kind: 'saved', next: { screen: 'inputs' } })
   })
 
   test('with no period, or one that isn’t a date, it is refused, saying why, and nothing is skipped', async () => {
     for (const periods of [[], ['next Tuesday']]) {
       expect(await skip(periods)).toMatchObject({
-        saved: false,
-        screen: 'inputs',
+        kind: 'refused',
         view: { inputs: { milestone: { paceMode: 'tracker' }, refusal: { form: 'paceSkip', error: 'Choose a week to skip.' } } },
       })
     }
@@ -158,7 +157,7 @@ describe('a skip submitted', () => {
     const other = await forecastingForTest({ connected: true })
 
     expect(await skipOf(other, HOLIDAYS, READ_AT)).toMatchObject({
-      saved: false,
+      kind: 'refused',
       view: { inputs: { refusal: { form: 'paceSkip', error: 'Enter the milestone first.' } } },
     })
   })

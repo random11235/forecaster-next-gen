@@ -79,8 +79,8 @@ export const submit = (team: LedgerTeam, edit: InputsEdit) => team.submit({ form
 
 /** The EM enters the milestone and a pace range, as the Inputs screen does. */
 export async function enter(team: LedgerTeam, milestone: { startDate: string; ticketsRemaining: string }, pace: { low: string; high: string }): Promise<void> {
-  expect(await submit(team, { kind: 'setMilestone', name: 'Checkout v2', ...milestone })).toMatchObject({ saved: true })
-  expect(await submit(team, { kind: 'setPaceRange', ...pace })).toMatchObject({ saved: true })
+  expect(await submit(team, { kind: 'setMilestone', name: 'Checkout v2', ...milestone })).toMatchObject({ kind: 'saved' })
+  expect(await submit(team, { kind: 'setPaceRange', ...pace })).toMatchObject({ kind: 'saved' })
 }
 
 export const view = (team: LedgerTeam) => team.milestoneForecastView()

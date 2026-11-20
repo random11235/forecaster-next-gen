@@ -111,7 +111,7 @@ INSERT INTO ambiguity_ranges (team_id, low_low, low_high, medium_low, medium_hig
       },
     })
 
-    expect(entered).toMatchObject({ saved: true })
+    expect(entered).toMatchObject({ kind: 'saved' })
     expect(storage.milestoneInputs(PAY)?.ambiguity).toBe('medium')
   })
 

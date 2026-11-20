@@ -73,7 +73,7 @@ describe('tickets remaining', () => {
   })
 
   test('opening the reading clears the dot, which returns with a new read', async () => {
-    expect(await submit({ kind: 'openReading', reading: 'ticketsRemaining' })).toEqual({ saved: true, next: { screen: 'inputs' } })
+    expect(await submit({ kind: 'openReading', reading: 'ticketsRemaining' })).toEqual({ kind: 'saved', next: { screen: 'inputs' } })
     expect((await inputs()).milestone.ticketsSource?.readsDifferently).toEqual({ unseen: false })
 
     team.fixture.reads[CHECKOUT.query] = { tickets: open(38), incomplete: false }
@@ -153,7 +153,7 @@ describe('a reading that can’t be opened', () => {
 
     expect((await inputs(OFFLINE)).milestone).toMatchObject({ ticketsSource: undefined, trackerPace: undefined })
     expect(await submit({ kind: 'openReading', reading: 'ticketsRemaining' }, OFFLINE)).toMatchObject({
-      saved: false,
+      kind: 'refused',
       view: { inputs: { refusal: { form: 'readingOpened', error: 'Connect a tracker to see its reading.' } } },
     })
   })
@@ -164,7 +164,7 @@ describe('a reading that can’t be opened', () => {
 
     expect((await inputs()).milestone.ticketsSource?.readsDifferently).toBeUndefined()
     expect(await submit({ kind: 'openReading', reading: 'ticketsRemaining' })).toMatchObject({
-      saved: false,
+      kind: 'refused',
       view: { inputs: { refusal: { form: 'readingOpened', error: 'GitHub hasn’t read it yet.' } } },
     })
   })

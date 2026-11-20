@@ -28,9 +28,9 @@ export function submit(team: ForecastingForTest, change: InputsEdit) {
 /** Submits a form on the Inputs screen: saved, or why it was refused there. */
 export async function edit(team: ForecastingForTest, change: InputsEdit) {
   const submitted = await submit(team, change)
-  if (submitted.saved) return { ok: true }
-  if ('confirmClear' in submitted) return { ok: false }
-  return submitted.screen === 'inputs' ? { ok: false, error: submitted.view.inputs.refusal?.error } : { ok: false, screen: submitted.screen }
+  if (submitted.kind === 'saved' || submitted.kind === 'savedInPlace') return { ok: true }
+  if (submitted.kind === 'confirmClear') return { ok: false }
+  return submitted.kind === 'refused' ? { ok: false, error: submitted.view.inputs.refusal?.error } : { ok: false, screen: 'forecast' as const }
 }
 
 /** The EM enters the milestone and a pace range, as the Inputs screen does. */
