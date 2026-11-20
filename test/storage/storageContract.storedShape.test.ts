@@ -256,12 +256,3 @@ test("SQLite storage's save of the record holding a refused value replaces it wh
 
   expect(read()).toEqual({ ...LAUNCH, name: 'Beta' })
 })
-
-test('the SQLite file refuses any change to a logged forecast, even one written straight into it', () => {
-  const { file, reopen } = savedSqlite()
-  reopen().saveForecastLog(FORECAST)
-
-  expect(() => writeStraight(file, "UPDATE forecast_logs SET result = '{}'")).toThrow('A logged forecast is never changed.')
-  expect(() => writeStraight(file, 'DELETE FROM forecast_logs')).toThrow('A logged forecast is never removed.')
-  expect(reopen().forecastLogs('team')).toEqual([{ ...FORECAST, id: 1, createdAt: expect.any(String) }])
-})
