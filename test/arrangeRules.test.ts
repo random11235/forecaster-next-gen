@@ -32,9 +32,10 @@ const EXCEPTIONS: Record<string, string> = {
   'storage/migrationsHarness.ts': 'opens a database at a past schema for the migration tests',
   'storage/pastSchemas.ts': 'the past schemas the migration tests start from',
   // Tests of unreadable stored data write what storage can't, through the one helper that writes the file straight.
-  'storage/sqliteStraight.ts': 'writes and reads the SQLite file past storage, for the two files below',
+  'storage/sqliteStraight.ts': 'writes and reads the SQLite file past storage, for the files below',
   'storage/storageContract.storedShape.test.ts': 'writes stored JSON of a shape this version does not read',
   'storage/storageContract.unknownValues.test.ts': 'writes stored values this version does not know',
+  'forecast/forecastLedger.unreadableResult.test.ts': 'writes a logged result this version does not read',
   // Reads the stored values themselves, which no storage function shows.
   'storage/storageContract.storedValues.test.ts': 'reads which values storage writes',
   // The scan tests, whose SQL is the text they scan, in no database.

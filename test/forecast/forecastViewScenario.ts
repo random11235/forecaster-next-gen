@@ -30,10 +30,13 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true })
 })
 
+/** The SQLite file the app would use, in a fresh directory per test. */
+export const storageFile = (): string => join(dir, 'forecaster.db')
+
 /** Opens the SQLite file the app would use, in a fresh directory per test. */
 export function openStorage(): Storage {
   storage?.close()
-  storage = openSqliteStorage(join(dir, 'forecaster.db'))
+  storage = openSqliteStorage(storageFile())
   return storage
 }
 

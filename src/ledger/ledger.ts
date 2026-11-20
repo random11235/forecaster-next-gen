@@ -25,23 +25,30 @@ export interface ForecastLog extends LoggedForecast {
   createdAt: string
 }
 
-/**
- * A logged forecast but its case and result: where it is in the ledger, and what it was a forecast of, by which
- * release. Its case's hash is its result's. Read without the case or result, it is read even when a later engine logged
- * a case or result of a shape this version can't read.
- */
-export type ForecastLogHeader = Omit<ForecastLog, 'simulationCase' | 'result'> & { caseHash: string }
+/** A logged forecast but its case and result: where it is in the ledger, and what it was a forecast of, by which release. */
+export type ForecastLogStamp = Omit<ForecastLog, 'simulationCase' | 'result'>
 
 /**
- * The team's forecasts, logged one after another and never changed once logged (docs/design/architecture-security.md):
- * calibration means nothing if old forecasts can be edited. Each case and result is a stored shape: a log whose case or
- * result this version can't read refuses `forecastLogs`, never read as something it isn't (docs/design/engine.md).
+ * A logged forecast's stamp and its case's hash, which is its result's, read out of the result alone. Read without the
+ * case or the rest of the result, it is read even when a later engine logged a case or result of a shape this version
+ * can't read.
+ */
+export type ForecastLogHeader = ForecastLogStamp & { caseHash: string }
+
+/**
+ * The team's forecasts, logged one after another (docs/design/architecture-security.md): the app only ever adds one,
+ * never changing one logged, as calibration means nothing if old forecasts can be edited; only the web build's bound
+ * drops the oldest. Each case and result is a stored shape: a log whose case or result this version can't read refuses
+ * `forecastLogs`, never read as something it isn't (docs/design/engine.md).
  */
 export interface Ledger {
   /** Logs the forecast after the team's others, stamped with the instant it is logged at. */
   saveForecastLog(forecast: LoggedForecast): void
   /** The team's logged forecasts, oldest first; throws if one has a case or result this version can't read. */
   forecastLogs(teamId: string): ForecastLog[]
-  /** The team's last logged forecast's header, if it has one, whatever its case and result. */
+  /**
+   * The team's last logged forecast's header, whatever its case: none when the team has logged none, or when its result
+   * this version can't read gives no case hash.
+   */
   lastForecastLog(teamId: string): ForecastLogHeader | undefined
 }
