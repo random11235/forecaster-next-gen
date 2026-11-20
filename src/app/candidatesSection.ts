@@ -32,8 +32,8 @@ export function keepOpening(opening: CandidateOpening): string {
 }
 
 /** The opening kept under `id`; one made afresh, kept under it, when it was dropped or never made. */
-export function openingKept(id: string, open: () => CandidateOpening): CandidateOpening {
-  return openings.get(id) ?? kept(id, open())
+export async function openingKept(id: string, open: () => Promise<CandidateOpening>): Promise<CandidateOpening> {
+  return openings.get(id) ?? kept(id, await open())
 }
 
 /** Keeps `opening` under `id`, dropping the oldest past `OPENINGS_KEPT`. */

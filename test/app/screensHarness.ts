@@ -55,7 +55,7 @@ export async function startOnSavedData({ milestone = true } = {}): Promise<Runni
   const saved = storage.hold(openSqliteStorage(file))
   saved.saveTeam({ id: TEAM, name: 'Payments', source: 'jira', sourceRef: TEAM, installedAt: CREATED })
   if (milestone) saved.saveMilestoneInputs(CHECKOUT)
-  app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage: saved, today: () => '2026-10-24' })
+  app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage: saved, clock: { now: () => '2026-10-24T09:00:00Z', timeZone: 'UTC' } })
   return app
 }
 

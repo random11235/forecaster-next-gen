@@ -23,10 +23,10 @@ export interface AppOnTracker {
 }
 
 /**
- * The app on `today`, reading at `now` until moved, its connector answering from `fixture` as it is when read, so a
- * test can change what the next read finds. Not yet connected, with nothing entered.
+ * The app reading at `now` until moved, today being its date in UTC, its connector answering from `fixture` as it is
+ * when read, so a test can change what the next read finds. Not yet connected, with nothing entered.
  */
-export async function appOnTracker(fixture: CannedFixture, { today = TODAY, now = `${TODAY}T09:00:00Z` } = {}): Promise<AppOnTracker> {
+export async function appOnTracker(fixture: CannedFixture, { now = `${TODAY}T09:00:00Z` } = {}): Promise<AppOnTracker> {
   const storage: TeamStorage = openSqliteStorage(':memory:')
   const secrets = openMemorySecrets()
   const connecting: Connecting = {
@@ -37,7 +37,7 @@ export async function appOnTracker(fixture: CannedFixture, { today = TODAY, now 
     connector: () => cannedConnector(fixture),
   }
   let instant = now
-  const running = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage, connecting, today: () => today, now: () => instant })
+  const running = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage, connecting, clock: { now: () => instant, timeZone: 'UTC' } })
   return {
     running,
     storage,
