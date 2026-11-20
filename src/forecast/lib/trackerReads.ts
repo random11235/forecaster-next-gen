@@ -1,9 +1,19 @@
 import type { MilestoneInputs } from '../../model/milestoneInputs.js'
 import type { SavedRead } from '../../model/savedRead.js'
-import type { TeamQueries } from '../../storage/storage.js'
+import type { Storage, TeamQueries } from '../../storage/storage.js'
 import { readOn } from './calendarDate.js'
 import { withTeamQueries, type Connecting } from './connection.js'
-import { paceCalendar, paceOf, savedPaceReads, type ChosenSourcePace, type DatedCounts, type Pace, type PaceReading, type SavedPaceReads } from './pace.js'
+import {
+  paceCalendar,
+  paceOf,
+  savedPaceReads,
+  type ChosenSourcePace,
+  type DatedCounts,
+  type Pace,
+  type PaceReading,
+  type ReadClock,
+  type SavedPaceReads,
+} from './pace.js'
 import { ticketsRemaining } from './queryRead.js'
 import type { ForecastSettings } from './settings.js'
 import { trackerOf } from './trackers.js'
@@ -18,9 +28,18 @@ export type TrackerReads = Pick<Connecting, 'connections' | 'queries'> & { timeZ
 /** What `measure` reads: the tracker's reads, with the team's queries and their reads in one target. */
 export type Measuring = Pick<Connecting, 'connections'> & TeamQueries & { timeZone: string }
 
-/** How a view is read beyond what `Storage` keeps: with the team's tracker reads, in the local server build. */
-export interface ReadingTracker {
-  tracker?: TrackerReads | undefined
+/**
+ * What the views of the team's inputs and forecast read with, and the forms on them save with, in one call of the
+ * team's handle: the storage, the team, the settings, the clock as the call reads it (`at`: now, today, the clock's
+ * date in the EM's time zone, and the time zone), and, in the local server build, the tracker's reads the views measure
+ * with (`tracker`); the browser build has none.
+ */
+export interface TeamView {
+  storage: Storage
+  teamId: string
+  settings: ForecastSettings
+  at: ReadClock
+  tracker: TrackerReads | undefined
 }
 
 /** What the team's tracker measures, from its saved reads: what each value following it is, and what a typed one is compared with. */

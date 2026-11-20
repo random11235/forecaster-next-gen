@@ -1,7 +1,6 @@
 import { periodEndDate, simulateCase, ENGINE_VERSION, type ForecastResult, type SimulationCase } from '../../engine/index.js'
 import type { Ambiguity, GrowthRange } from '../../model/ambiguity.js'
 import type { CapacityEntry } from '../../model/capacity.js'
-import type { Storage } from '../../storage/storage.js'
 import {
   capacityFactors,
   capacityLine,
@@ -24,7 +23,7 @@ import { paceActionApplied, pacePattern, type PacePatternView } from './pacePatt
 import type { PaceInUse } from './pace.js'
 import { paceTrend, type PaceTrend } from './paceTrend.js'
 import type { ForecastSettings } from './settings.js'
-import { measureSaved, milestonePace, type ReadingTracker } from './trackerReads.js'
+import { measureSaved, milestonePace, type TeamView } from './trackerReads.js'
 
 export type { CapacityView, ComparedDate } from './capacity.js'
 
@@ -106,11 +105,8 @@ interface PaceActionRefused {
   paceActionRefusal?: string
 }
 
-/**
- * How the screen is shown: `capacityOpen` with the Capacity section open, where each entry gives its own effect; and
- * with the team's `tracker` reads (the local server build), which values following the tracker take.
- */
-export interface ForecastViewOptions extends ReadingTracker {
+/** Whether the Milestone forecast screen opens with its Capacity section open, where each entry gives its own effect. */
+export interface CapacityShown {
   capacityOpen?: boolean
 }
 
@@ -119,13 +115,9 @@ export interface ForecastViewOptions extends ReadingTracker {
  * entry's effect takes a run of its own, so it is worked out only with the Capacity section open. The forecast shown is
  * logged in the team's ledger, which storage keeps (#27).
  */
-export function milestoneForecastView(
-  storage: Storage,
-  teamId: string,
-  settings: ForecastSettings,
-  today: string,
-  { capacityOpen = false, tracker }: ForecastViewOptions = {},
-): MilestoneForecastView {
+export function milestoneForecastView(team: TeamView, { capacityOpen = false }: CapacityShown = {}): MilestoneForecastView {
+  const { storage, teamId, settings, tracker } = team
+  const { today } = team.at
   const saved = storage.milestoneInputs(teamId)
   if (!saved) return { kind: 'empty' }
   const measured = measureSaved(tracker, teamId)

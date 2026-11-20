@@ -1,13 +1,11 @@
 import type { Ambiguity } from '../../model/ambiguity.js'
-import type { Storage } from '../../storage/storage.js'
 import { editCapacity, isCapacityEdit, type CapacityEdit, type CapacityForm, type CapacityView } from './capacity.js'
 import type { EditResult } from './editResult.js'
 import { editPaceAction, isPaceActionEdit, type PaceActionEdit } from './pacePattern.js'
-import { milestoneForecastView, type ForecastViewOptions, type MilestoneForecastView } from './milestoneForecastView.js'
+import { milestoneForecastView, type CapacityShown, type MilestoneForecastView } from './milestoneForecastView.js'
 import { editGrowth, growthView, type GrowthEdit, type GrowthView, type TypedRange } from './growth.js'
 import { editMilestoneInputs, milestoneInputsView, type MilestoneInputsEdit, type MilestoneInputsView } from './milestoneInputs.js'
-import type { ForecastSettings } from './settings.js'
-import { measureSaved, type ReadingTracker } from './trackerReads.js'
+import { measureSaved, type TeamView } from './trackerReads.js'
 
 /**
  * A form the EM submits, as typed: on the Inputs screen, to the milestone and its pace, or to the team's ambiguity
@@ -61,8 +59,8 @@ export type Submitted = { saved: true; next: NextScreen } | ({ saved: false } & 
  * Seam B: the Inputs screen for the team, its notes judged against `settings`, on `today`, the start date's default.
  * With the team's `tracker` reads (the local server build), the values it measures can follow it.
  */
-export function inputsView(storage: Storage, teamId: string, settings: ForecastSettings, today: string, { tracker }: ReadingTracker = {}): InputsView {
-  const milestone = milestoneInputsView(storage, teamId, settings, today, measureSaved(tracker, teamId))
+export function inputsView({ storage, teamId, settings, at, tracker }: TeamView): InputsView {
+  const milestone = milestoneInputsView(storage, teamId, settings, at.today, measureSaved(tracker, teamId))
   const growth = growthView(storage, teamId)
   return { milestone, growth, forms: savedForms(milestone, growth) }
 }
@@ -73,23 +71,15 @@ export function inputsView(storage: Storage, teamId: string, settings: ForecastS
  * again as it was (`shown`) with its Capacity section open; every other form is on the Inputs screen. With the team's
  * tracker reads (`shown.tracker`, the local server build), a value can be set to follow the tracker.
  */
-export function submitInputs(
-  storage: Storage,
-  teamId: string,
-  settings: ForecastSettings,
-  today: string,
-  edit: InputsEdit,
-  shown: ForecastViewOptions = {},
-): Submitted {
-  if (isCapacityEdit(edit)) return submitCapacity(storage, teamId, settings, today, edit, shown)
-  if (isPaceActionEdit(edit)) return submitPaceAction(storage, teamId, settings, today, edit, shown)
+export function submitInputs(team: TeamView, edit: InputsEdit, shown: CapacityShown = {}): Submitted {
+  if (isCapacityEdit(edit)) return submitCapacity(team, edit, shown)
+  if (isPaceActionEdit(edit)) return submitPaceAction(team, edit, shown)
+  const { storage, teamId, at, tracker } = team
   const { form, next, typed } = submission(edit)
   const result: EditResult =
-    edit.kind === 'setAmbiguityRanges'
-      ? editGrowth(storage, teamId, edit)
-      : editMilestoneInputs(storage, teamId, edit, today, measureSaved(shown.tracker, teamId))
+    edit.kind === 'setAmbiguityRanges' ? editGrowth(storage, teamId, edit) : editMilestoneInputs(storage, teamId, edit, at.today, measureSaved(tracker, teamId))
   if (result.ok) return { saved: true, next }
-  const screen = inputsView(storage, teamId, settings, today, shown)
+  const screen = inputsView(team)
   const view = { ...screen, forms: { ...screen.forms, ...typed(screen.forms) }, refusal: { form, error: result.error } }
   return { saved: false, screen: 'inputs', view }
 }
@@ -98,34 +88,20 @@ export function submitInputs(
  * A capacity form, saved, goes to the forecast it changes. Refused, the Milestone forecast screen shows it again as
  * typed with why; a screen with no forecast yet has no capacity section to show it on.
  */
-function submitCapacity(
-  storage: Storage,
-  teamId: string,
-  settings: ForecastSettings,
-  today: string,
-  edit: CapacityEdit,
-  shown: ForecastViewOptions,
-): Submitted {
-  const result = editCapacity(storage, teamId, today, edit)
+function submitCapacity(team: TeamView, edit: CapacityEdit, shown: CapacityShown): Submitted {
+  const result = editCapacity(team.storage, team.teamId, team.at.today, edit)
   if (result.ok) return { saved: true, next: 'forecast' }
-  const view = milestoneForecastView(storage, teamId, settings, today, shown)
+  const view = milestoneForecastView(team, shown)
   if (view.kind !== 'forecast') return { saved: false, screen: 'forecast', view }
   // open to say why, whether or not it was open when submitted
   return { saved: false, screen: 'forecast', view: { ...view, capacity: { ...view.capacity, open: true, ...refusedCapacity(edit, result.error) } } }
 }
 
 /** A pace pattern's action, applied or undone, goes to the forecast it changes; refused, the forecast says why. */
-function submitPaceAction(
-  storage: Storage,
-  teamId: string,
-  settings: ForecastSettings,
-  today: string,
-  edit: PaceActionEdit,
-  shown: ForecastViewOptions,
-): Submitted {
-  const result = editPaceAction(storage, teamId, edit)
+function submitPaceAction(team: TeamView, edit: PaceActionEdit, shown: CapacityShown): Submitted {
+  const result = editPaceAction(team.storage, team.teamId, edit)
   if (result.ok) return { saved: true, next: 'forecast' }
-  const view = milestoneForecastView(storage, teamId, settings, today, shown)
+  const view = milestoneForecastView(team, shown)
   // with no milestone, the empty screen says what to do
   return { saved: false, screen: 'forecast', view: view.kind === 'empty' ? view : { ...view, paceActionRefusal: result.error } }
 }

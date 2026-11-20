@@ -49,8 +49,8 @@ export async function submitSkip(skipping: Skipping, teamId: string, edit: SkipE
 }
 
 /** A refused skip: the Inputs screen again, as saved, saying why beside the tracker's pace. */
-function refused(skipping: Skipping, teamId: string, settings: ForecastSettings, { today, timeZone }: ReadClock, error: string): SkipSubmitted {
-  const view = inputsView(skipping.milestoneInputs, teamId, settings, today, { tracker: { ...skipping, timeZone } })
+function refused(skipping: Skipping, teamId: string, settings: ForecastSettings, at: ReadClock, error: string): SkipSubmitted {
+  const view = inputsView({ storage: skipping.milestoneInputs, teamId, settings, at, tracker: { ...skipping, timeZone: at.timeZone } })
   return { saved: false, view: { ...view, refusal: { form: 'paceSkip', error } } }
 }
 

@@ -4,7 +4,8 @@ import { queryStepView, type QueryStep, type QueryStepOpening, type RefusedQuery
 import { openSetup, type SetupView } from './setup.js'
 import type { SetupStep } from './setupSteps.js'
 import { COMPARABLE_WORK, MILESTONE_QUERY, type StepQuery } from './stepQuery.js'
-import type { CapacityShown, TeamCall } from './teamCall.js'
+import type { CapacityShown } from './milestoneForecastView.js'
+import type { TeamCall } from './teamCall.js'
 
 /** The query each query step edits. */
 export const STEP_QUERIES = { milestone: MILESTONE_QUERY, comparableWork: COMPARABLE_WORK } as const satisfies Partial<Record<SetupStep, StepQuery>>
@@ -57,12 +58,12 @@ export interface ShownAgain {
  */
 export async function inputsScreen(team: TeamCall, opening: InputsOpening, again: ShownAgain = {}): Promise<InputsScreen> {
   const { refused, connection } = again
-  const { storage, teamId, settings, at, tracker, reading } = team
+  const { teamId, at, reading } = team
   const asked = { asked: opening.step ?? null, ...(refused && { refused: refused.step }), ...(connection && { refused: 'connect' as const }) }
   const setup = await openSetup(reading, teamId, asked, at.readAt)
   const shown = setup.kind === 'steps' && isQueryStep(setup.step) ? setup.step : undefined
   const step = shown && (await queryStep(team, shown, opening, again))
-  const inputs = again.inputs ?? inputsView(storage, teamId, settings, at.today, { tracker })
+  const inputs = again.inputs ?? inputsView(team)
   const connect = connection ?? connectionView(reading, teamId)
   return {
     inputs,

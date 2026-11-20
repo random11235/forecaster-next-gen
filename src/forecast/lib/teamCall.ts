@@ -6,7 +6,7 @@ import { calendarDayIn, type ReadClock } from './pace.js'
 import { DEFAULT_SETTINGS, type ForecastSettings } from './settings.js'
 import type { SetupContext } from './setup.js'
 import type { Skipping } from './skippedPeriods.js'
-import type { TrackerReads } from './trackerReads.js'
+import type { TeamView, TrackerReads } from './trackerReads.js'
 
 /** The time, as the EM's computer tells it: the UTC instant now, and the EM's time zone (an IANA name). */
 export interface Clock {
@@ -26,23 +26,17 @@ export interface ForecastingOptions {
   settings?: ForecastSettings
 }
 
-/** Whether the Milestone forecast screen opens with its Capacity section open, where each entry gives its own effect. */
-export interface CapacityShown {
-  capacityOpen?: boolean
-}
-
 /**
- * What one call of the team's handle reads and saves with: the storage, the team, the settings, the clock as the call
- * reads it (`at`: now, today, the clock's date in the EM's time zone, and the time zone), and, in the local server
- * build, the tracker's reads the views measure with (`tracker`) and what setup and its steps read and save with
- * (`reading`), whose connectors list the milestone choices once in the call. The browser build has neither.
+ * What one call of the team's handle reads and saves with: what the views read with (`TeamView`), and, in the local
+ * server build, what setup and its steps read and save with (`reading`), whose connectors list the milestone choices
+ * once in the call. The browser build has none.
  */
-export interface TeamCall {
-  storage: Storage
-  teamId: string
-  settings: ForecastSettings
-  at: ReadClock
-  tracker: TrackerReads | undefined
+export interface TeamCall extends TeamView {
+  /**
+   * What both builds reach reads it as it may be, none in the browser build (`reading &&`): the Inputs screen, a
+   * search, a renamed milestone followed. What only the local server build's screens send takes it through
+   * `connected`, which throws without it: setup's forms, a skip, the candidates.
+   */
   reading: (SetupContext & Skipping) | undefined
 }
 
