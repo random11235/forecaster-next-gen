@@ -12,6 +12,8 @@ This covers `engine/` (Seam A): the contract `simulateCase(SimulationCase) → F
 
 This is the v1 target. What is built so far is typed in `src/engine/types.ts`, which is the source of truth for the current contract; change the code first, and this section only when the design changes.
 
+**`SimulationCase` and `ForecastResult` are a stored shape.** The forecast ledger (#27) keeps every logged forecast's whole case and result as JSON, so both outlive the release that wrote them ([CODING_STANDARDS.md](../../CODING_STANDARDS.md), One-way doors). Storage checks each as it reads it back (`src/storage/lib/forecastLogJson.ts`) and refuses a shape it doesn't know, rather than re-run it as something it isn't. A change to either type (a field added, renamed or narrowed, a union widened) needs, in the same change, a SQLite migration step that rewrites the logs already kept, and browser storage's reader of them, or a reader that still takes the older shape beside the new. Reading a ledger holding a later engine's logs, `forecastLogs` throws, but the header `lastForecastLog` gives (the release, the milestone's name, and the case's hash, read out of the result alone) is read without the case or the rest of the result, so the Milestone forecast screen still shows and logs its forecast. A last log whose result gives no case hash (not JSON, or none in it) has no header: the SQLite file logs the forecast again after it; browser storage refuses its whole ledger value, so it logs nothing, and the screen still shows its forecast.
+
 ```ts
 SimulationCase {
   engineVersion, seed, trials, maxPeriods,

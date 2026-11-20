@@ -1,3 +1,4 @@
+import type { Ledger } from '../ledger/ledger.js'
 import type { AmbiguityRanges } from '../model/ambiguity.js'
 import type { CapacityEntry } from '../model/capacity.js'
 import type { Connection } from '../model/connection.js'
@@ -12,9 +13,10 @@ import type { Team } from '../model/team.js'
  * Where the Forecaster keeps its data, organised by team. v1: one local SQLite file (`openSqliteStorage`); the web build
  * keeps it in the EM's browser (`openWebStorage`, #114). The SQLite schema also keeps the tables earlier releases
  * wrote (facts, epic-based milestones, pace and workflow settings, epic commits and levels), which nothing reads since
- * the MVP (#84).
+ * the MVP (#84). Beside them it keeps the team's forecast ledger (#27), every forecast the team is shown, never changed
+ * once logged.
  */
-export interface Storage {
+export interface Storage extends Ledger {
   /** True when nothing has been stored yet: the first launch. */
   isEmpty(): boolean
   /** Adds the team, or updates the one with the same ID; a team's `installedAt` is kept from when it was added. */

@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach } from 'vitest'
+import type { LoggedForecast } from '../../src/ledger/ledger.js'
 import type { MilestoneInputs } from '../../src/model/milestoneInputs.js'
 import type { MilestoneQuery } from '../../src/model/milestoneQuery.js'
 import type { Team } from '../../src/model/team.js'
@@ -26,6 +27,40 @@ export const LAUNCH: MilestoneInputs = {
   paceCadenceDays: 14,
   paceWindow: { action: { kind: 'startFrom', date: '2026-10-12' }, skippedPeriods: [] },
   seenReads: { ticketsRemaining: undefined, pace: undefined },
+}
+
+/**
+ * A forecast to log: 30 tickets at 4, 7 or 6 a fortnight, growing 1.4–2.5×, from 2 Nov 2026, with a half-capacity
+ * first fortnight, and what the engine gave for it (as storage keeps it, any result of this shape will do).
+ */
+export const FORECAST: LoggedForecast = {
+  teamId: 'team',
+  milestoneName: 'Launch',
+  appVersion: '0.4.2',
+  simulationCase: {
+    engineVersion: '2',
+    seed: 1,
+    trials: 4,
+    maxPeriods: 52,
+    question: { kind: 'when' },
+    startDate: '2026-11-02',
+    periodDays: 14,
+    scope: [{ epicId: 'team', rank: 1, baseCount: 30, currentCount: 30, doneCount: 0, growth: { low: 1.4, high: 2.5 } }],
+    throughputSamples: [4, 7, 6],
+    epicSizeSamples: { low: 0, high: 0 },
+    capacity: [0.5],
+    percentiles: [50, 85],
+  },
+  result: {
+    caseHash: '0123456789abcdef',
+    quantiles: [6, 7, 8, null],
+    finishCounts: [0, 0, 0, 0, 0, 0, 1, 1, 1],
+    finishedFraction: 0.75,
+    percentileDates: { 50: '2027-02-22', 85: null },
+    percentileCounts: {},
+    perEpic: [{ epicId: 'team', quantiles: [6, 7, 8, null] }],
+    diagnostics: { paceVariation: 0.15, trialsHittingHorizon: 1, span: { periods: 7, tickets: 54 } },
+  },
 }
 
 /** Picks of two kinds and the query they make, for the milestone or comparable work. */
