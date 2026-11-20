@@ -1,3 +1,4 @@
+import type { LoggedForecast } from '../../src/ledger/ledger.js'
 import type { Ambiguity } from '../../src/model/ambiguity.js'
 import type { Connection } from '../../src/model/connection.js'
 import type { PaceAction, PaceMode, TicketsSource } from '../../src/model/milestoneInputs.js'
@@ -86,6 +87,11 @@ export const STORED_UNIONS = {
       { table: 'read_failures', column: 'failure' },
     ],
     web: false,
+  },
+  'SimulationCase.question.kind': {
+    values: { when: true, howMany: true } satisfies Values<LoggedForecast['simulationCase']['question']['kind']>,
+    columns: [{ table: 'forecast_logs', column: 'simulation_case' }],
+    web: true,
   },
   ReadFailureOf: {
     values: { whole: true, query: true, pick: true } satisfies Values<ReadFailureOf>,

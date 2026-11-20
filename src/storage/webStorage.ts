@@ -1,7 +1,9 @@
 import { AMBIGUITIES, type AmbiguityRanges, type GrowthRange } from '../model/ambiguity.js'
+import type { ForecastLog } from '../ledger/ledger.js'
 import type { CapacityEntry } from '../model/capacity.js'
 import { PACE_MODES, TICKETS_SOURCES, type MilestoneInputs } from '../model/milestoneInputs.js'
 import { TEAM_SOURCES, type Team } from '../model/team.js'
+import { isForecastLog } from './lib/forecastLogJson.js'
 import { isPaceCounts, isStoredPaceWindow, isStoredSeenReads } from './lib/milestoneInputsJson.js'
 import { isListOf, isNumber, isObject, isOneOf, isRecordOf, isString, optional, parseStored } from './lib/storedJson.js'
 import type { Storage } from './storage.js'
@@ -35,6 +37,8 @@ interface Stored {
   capacityEntries: Record<string, CapacityEntry[]>
   /** The teams whose capacity is switched off; a team not here has it on. */
   capacityOff: string[]
+  /** Each team's forecast ledger (#27), oldest first; data from before it has logged none. */
+  forecastLogs: Record<string, ForecastLog[]>
 }
 
 /**
@@ -117,6 +121,22 @@ export function openWebStorage(store: KeyValueStore | undefined): Storage {
       return !stored().capacityOff.includes(teamId)
     },
 
+    saveForecastLog(forecast) {
+      const { forecastLogs } = stored()
+      const logs = (forecastLogs[forecast.teamId] ??= [])
+      logs.push({ ...structuredClone(forecast), id: logs.length + 1, createdAt: new Date().toISOString() })
+      write()
+    },
+
+    forecastLogs(teamId) {
+      return structuredClone(stored().forecastLogs[teamId] ?? [])
+    },
+
+    lastForecastLog(teamId) {
+      const last = stored().forecastLogs[teamId]?.at(-1)
+      return last && structuredClone(last)
+    },
+
     close() {},
   }
 }
@@ -136,7 +156,7 @@ function withDefaults({ paceWindow, ticketsSource, seenReads, ...inputs }: Store
 
 /** What `store` holds: empty when it holds nothing or the browser refuses it, and the refusal when it can't be read. */
 function read(store: KeyValueStore | undefined): { stored: Stored } | { refused: unknown } {
-  const empty: Stored = { teams: [], milestoneInputs: {}, ambiguityRanges: {}, capacityEntries: {}, capacityOff: [] }
+  const empty: Stored = { teams: [], milestoneInputs: {}, ambiguityRanges: {}, capacityEntries: {}, capacityOff: [], forecastLogs: {} }
   let json: string | null | undefined
   try {
     json = store?.getItem(KEY)
@@ -190,16 +210,17 @@ const isCapacityEntry = (value: unknown): value is CapacityEntry =>
 
 /**
  * Everything stored, as reading it needs: an object whose parts, each missing in data from an earlier build, are the
- * teams, each team's records by its ID, and the IDs of the teams with capacity off.
+ * teams, each team's records by its ID (its forecast ledger among them), and the IDs of the teams with capacity off.
  */
 function isStored(value: unknown): value is Partial<Stored> {
   if (!isObject(value)) return false
-  const { teams, milestoneInputs, ambiguityRanges, capacityEntries, capacityOff } = value
+  const { teams, milestoneInputs, ambiguityRanges, capacityEntries, capacityOff, forecastLogs } = value
   return (
     optional(isListOf(isTeam))(teams) &&
     optional(isRecordOf(isStoredMilestoneInputs))(milestoneInputs) &&
     optional(isRecordOf(isAmbiguityRanges))(ambiguityRanges) &&
     optional(isRecordOf(isListOf(isCapacityEntry)))(capacityEntries) &&
-    optional(isListOf(isString))(capacityOff)
+    optional(isListOf(isString))(capacityOff) &&
+    optional(isRecordOf(isListOf(isForecastLog)))(forecastLogs)
   )
 }

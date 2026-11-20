@@ -91,11 +91,13 @@ _Follows the MVP: the milestone grows by the range of its one ambiguity level, w
 (Layer 4 is the engine contract, in [`engine.md`](engine.md#engine-contract).)
 
 ```ts
-ForecastLog   { id, createdAt, createdBy, teamId, milestoneId, targetEpicIds: string[],
-                caseHash, caseSnapshotRef /* full SimulationCase, stored as a blob */,
+ForecastLog   { id /* from 1, in the order the team's are logged */, createdAt /* UTC instant, stamped by storage */,
+                teamId, milestoneName /* the MVP has one milestone per team, with no ID */,
+                caseHash, simulationCase /* the full SimulationCase, as JSON */,
+                result /* the whole ForecastResult: quantiles, percentileDates and the rest */,
                 appVersion /* the release that made it, package.json's version (APP_VERSION);
-                              the engine's is the case's engineVersion */,
-                quantiles: (number | null)[101], percentileDates }
+                              the engine's is the case's engineVersion */ }
+                /* v1 adds createdBy and targetEpicIds, and milestoneId once milestones have one */
 
 Outcome       { id, teamId, milestoneId, forecastLogId, targetEpicIds,
                 actualDoneAt, actualFinalCount, recordedAt }
@@ -108,4 +110,4 @@ ForecastScore { forecastLogId, outcomeId,
 
 Storing 101 quantiles, not just p50/p85/p95, gives every forecast a PIT value: the share of simulated trials that finished before the actual date. A histogram of PIT values across many forecasts is a direct calibration check ("our 85% dates were met 78% of the time"). It also gives the empirical correction factor the [research](../research/forecasting-approaches.md#implications-for-a-new-tool-synthesis) recommends (Jørgensen [27]).
 
-Every forecast is logged from the first run. The track record is shown only once `minResolvedMilestones` milestones have an `Outcome`.
+Every forecast is logged from the first run (#27): the one the Milestone forecast screen shows, in `src/ledger/ledger.ts`'s shape, not the runs it is compared with (capacity's, each entry's effect, a pace action's). Shown again on the same case by the same release, it isn't logged again: the case alone gives the same result. A logged forecast is re-run from its case alone (`rerunForecast`), unless another engine version logged it. Storage refuses any change to one once logged. The track record is shown only once `minResolvedMilestones` milestones have an `Outcome`.

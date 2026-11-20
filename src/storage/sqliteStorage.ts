@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { connectionTable } from './lib/connectionTable.js'
+import { forecastLogTable } from './lib/forecastLogTable.js'
 import { milestoneQueryTables } from './lib/milestoneQueryTables.js'
 import { savedReadTables } from './lib/savedReadTables.js'
 import { setupTables } from './lib/setupTables.js'
@@ -343,6 +344,26 @@ CREATE TABLE read_failures (
   PRIMARY KEY (team_id, of, query)
 );
 `,
+  // 21: the forecast ledger (#27): each forecast the team is shown, numbered in the order logged, with when it was logged,
+  // the milestone's name, its case's hash, the release that made it, and its case and result as JSON. Never changed
+  // once written: the triggers refuse an update or a delete. A file from before has logged none.
+  `
+CREATE TABLE forecast_logs (
+  team_id TEXT NOT NULL REFERENCES teams(id),
+  id INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  milestone_name TEXT NOT NULL,
+  case_hash TEXT NOT NULL,
+  app_version TEXT NOT NULL,
+  simulation_case TEXT NOT NULL,
+  result TEXT NOT NULL,
+  PRIMARY KEY (team_id, id)
+);
+CREATE TRIGGER forecast_logs_no_update BEFORE UPDATE ON forecast_logs
+BEGIN SELECT RAISE(ABORT, 'A logged forecast is never changed.'); END;
+CREATE TRIGGER forecast_logs_no_delete BEFORE DELETE ON forecast_logs
+BEGIN SELECT RAISE(ABORT, 'A logged forecast is never removed.'); END;
+`,
 ]
 
 /** The local server build's storage: everything, and the team's connection, saved reads, milestone query and comparable work's, and how its setup was closed. */
@@ -350,7 +371,8 @@ export type SqliteStorage = Storage & ConnectionStorage & SavedReadStorage & Mil
 
 /**
  * Opens (creating if needed) the SQLite file at `file`. `':memory:'` keeps everything in memory. Each part of it is
- * kept in lib/, a file per part: the team and its inputs, the connection, saved reads, the queries, and setup.
+ * kept in lib/, a file per part: the team and its inputs, the connection, saved reads, the queries, setup, and the
+ * forecast ledger.
  */
 export function openSqliteStorage(file: string): SqliteStorage {
   const { db, transaction } = openDatabase(file)
@@ -363,6 +385,7 @@ export function openSqliteStorage(file: string): SqliteStorage {
     ...savedReadTables(db, transaction),
     ...milestoneQueryTables(db),
     ...setupTables(db, transaction),
+    ...forecastLogTable(db),
     close() {
       db.close()
     },

@@ -46,6 +46,9 @@ _Avoid_: team change (names a cause), pace trend (the bars and their line)
 
 **Trial**: one simulated future of a milestone: its tickets remaining, grown by a drawn growth, worked through at a pace drawn period by period. The screens call trials simulations; the engine says trial, and keeps simulation for the whole run of trials.
 
+**Forecast ledger** (of a team): every forecast the team has been shown, each a forecast log of its case, the case's hash, its result, when it was logged and the release that made it, oldest first and never changed once logged; re-running a log's case alone gives its result again.
+_Avoid_: history, audit log
+
 ## Connecting a tracker
 
 **Connection** (of a team): the one tracker, GitHub or Jira, and the one repo or Jira project in it, that the team's tickets are read from; nothing is written back.
