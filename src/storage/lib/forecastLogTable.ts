@@ -19,7 +19,7 @@ const STAMP_COLUMNS: { [Field in keyof ForecastLogStamp]-?: string } = {
 }
 
 /** The stamp's columns, each read back under its field's name. */
-const STAMP = Object.entries(STAMP_COLUMNS)
+const STAMP_SELECT = Object.entries(STAMP_COLUMNS)
   .map(([field, column]) => `${column} AS ${field}`)
   .join(', ')
 
@@ -31,17 +31,17 @@ export function forecastLogTable(db: DatabaseSync): Ledger {
     VALUES (${Object.keys(STAMP_COLUMNS)
       .map((field) => (field === 'id' ? '(SELECT COALESCE(MAX(id), 0) + 1 FROM forecast_logs WHERE team_id = $teamId)' : `$${field}`))
       .join(', ')}, $simulationCase, $result)`)
-  const selectAll = db.prepare(`SELECT ${STAMP}, simulation_case, result FROM forecast_logs WHERE team_id = ? ORDER BY id`)
+  const selectAll = db.prepare(`SELECT ${STAMP_SELECT}, simulation_case, result FROM forecast_logs WHERE team_id = ? ORDER BY id`)
   // the case's hash read out of the result's JSON, the case and the rest of the result left unparsed; none when the
-  // result isn't JSON
+  // result isn't JSON or its hash isn't text
   const selectLast = db.prepare(`
-    SELECT ${STAMP}, CASE WHEN json_valid(result) THEN json_extract(result, '$.caseHash') END AS caseHash
+    SELECT ${STAMP_SELECT}, CASE WHEN NOT json_valid(result) THEN NULL WHEN json_type(result, '$.caseHash') = 'text' THEN json_extract(result, '$.caseHash') END AS caseHash
     FROM forecast_logs WHERE team_id = ? ORDER BY id DESC LIMIT 1`)
 
   return {
-    saveForecastLog({ simulationCase, result, ...stamp }) {
+    saveForecastLog({ teamId, milestoneName, appVersion, simulationCase, result }) {
       const createdAt = new Date().toISOString()
-      insert.run({ ...stamp, createdAt, simulationCase: JSON.stringify(simulationCase), result: JSON.stringify(result) })
+      insert.run({ teamId, createdAt, milestoneName, appVersion, simulationCase: JSON.stringify(simulationCase), result: JSON.stringify(result) })
     },
 
     forecastLogs(teamId) {
