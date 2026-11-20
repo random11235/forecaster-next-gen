@@ -57,7 +57,7 @@ describe('following the tracker', () => {
   })
 
   test('following GitHub, tickets remaining is its latest read’s, which the forecast uses', async () => {
-    expect(await submit({ kind: 'setTicketsSource', ticketsSource: 'tracker' })).toEqual({ saved: true, next: { screen: 'inputs' } })
+    expect(await submit({ kind: 'setTicketsSource', ticketsSource: 'tracker' })).toEqual({ kind: 'saved', next: { kind: 'screen', screen: 'inputs' } })
 
     expect((await inputs()).milestone.ticketsSource).toEqual({
       source: 'tracker',
@@ -81,8 +81,8 @@ describe('following the tracker', () => {
     await submit({ kind: 'setTicketsSource', ticketsSource: 'tracker' })
 
     expect(await submit({ kind: 'setMilestone', name: 'Checkout v3', startDate: '2026-11-16', ticketsRemaining: undefined })).toEqual({
-      saved: true,
-      next: { screen: 'inputs' },
+      kind: 'saved',
+      next: { kind: 'screen', screen: 'inputs' },
     })
 
     expect((await inputs()).milestone).toMatchObject({ name: 'Checkout v3', ticketsSource: { source: 'tracker' } })
@@ -115,8 +115,7 @@ describe('following the tracker', () => {
     const submitted = await submit({ kind: 'setTicketsSource', ticketsSource: 'guess' })
 
     expect(submitted).toMatchObject({
-      saved: false,
-      screen: 'inputs',
+      kind: 'refused',
       view: { inputs: { refusal: { form: 'ticketsSource', error: 'Choose GitHub or typed.' } } },
     })
   })
@@ -166,7 +165,7 @@ describe('with no connection', () => {
     await submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-11-16', ticketsRemaining: '30' }, OFFLINE)
 
     expect(await submit({ kind: 'setTicketsSource', ticketsSource: 'tracker' }, OFFLINE)).toMatchObject({
-      saved: false,
+      kind: 'refused',
       view: { inputs: { refusal: { form: 'ticketsSource', error: 'Connect a tracker to follow it.' } } },
     })
   })

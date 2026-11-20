@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
-import { forecast, submit, withTypedCounts } from './pacePatternScenario.js'
+import { submitInputs } from './forecastingForTest.js'
+import { forecast, withTypedCounts } from './pacePatternScenario.js'
 
 // The pattern the tool names from typed counts (#161), and when it names none.
 
@@ -152,8 +153,8 @@ describe('when no pattern is named', () => {
 
   test('a pace range has no counts to read', async () => {
     const team = await withTypedCounts([5, 4, 6, 5, 5, 4, 6, 5, 5, 4])
-    await submit(team, { kind: 'setPaceRange', low: '4', high: '6' })
-    await submit(team, { kind: 'setPaceMode', paceMode: 'range' })
+    await submitInputs(team, { kind: 'setPaceRange', low: '4', high: '6' })
+    await submitInputs(team, { kind: 'setPaceMode', paceMode: 'range' })
 
     expect((await forecast(team)).pacePattern).toBeUndefined()
   })

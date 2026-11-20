@@ -1,7 +1,23 @@
 import { describe, expect, test } from 'vitest'
-import { COMPARABLE_WORK, type InputsEdit } from '../../src/forecast/index.js'
+import type { InputsEdit } from '../../src/forecast/index.js'
 import type { ForecastingForTest } from './forecastingForTest.js'
-import { TEAM, payments, checkout, repay, bug, connected, onComparableWork, current, change, saved, stepView, add, remove, edit } from './queryStepScenario.js'
+import {
+  TEAM,
+  payments,
+  checkout,
+  repay,
+  bug,
+  connected,
+  onComparableWork,
+  current,
+  change,
+  saved,
+  savedEditing,
+  stepView,
+  add,
+  remove,
+  edit,
+} from './queryStepScenario.js'
 
 // The step for another of the team’s queries (#200), and the Comparable work step.
 
@@ -24,12 +40,11 @@ describe('the step, for another of the team’s queries (#200)', () => {
     expect(current(team).milestoneQuery(TEAM)).toEqual({ picks: [payments], query: 'milestone:"Payments v2"' })
     expect(view).toMatchObject({ picks: [bug], query: 'label:"bug"' })
     expect(view.lists).toEqual([
-      { kind: 'milestone', kindName: 'milestone', choices: [payments, checkout], searchedInTracker: false, thisMilestone: payments.query },
-      { kind: 'label', kindName: 'label', choices: [repay], searchedInTracker: false },
+      { kind: 'milestone', choices: [payments, checkout], searchedInTracker: false, thisMilestone: payments.query },
+      { kind: 'label', choices: [repay], searchedInTracker: false },
     ])
-    expect(await team.searchedChoiceList('label', '', COMPARABLE_WORK)).toEqual({
+    expect(await team.searchedChoiceList('label', '', 'comparableWork')).toEqual({
       kind: 'label',
-      kindName: 'label',
       choices: [repay],
       searchedInTracker: false,
     })
@@ -97,7 +112,7 @@ describe('the Comparable work step', () => {
 
     const submitted = await change(team, edit('label:checkout -label:bug'), 'comparableWork')
 
-    expect(submitted).toEqual(saved('comparableWork'))
+    expect(submitted).toEqual(savedEditing('comparableWork'))
     expect(team.calls.reads).toEqual(['label:checkout -label:bug'])
     expect(current(team).comparableWorkQuery(TEAM)).toEqual({ picks: [], query: 'label:checkout -label:bug' })
     expect(current(team).milestoneQuery(TEAM)).toEqual({ picks: [checkout], query: 'milestone:"Checkout"' })

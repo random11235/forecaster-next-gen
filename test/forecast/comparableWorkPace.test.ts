@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, test } from 'vitest'
 import type { CannedFixture } from '../../src/connectors/canned.js'
 import type { Choice, Ticket } from '../../src/connectors/connector.js'
-import type { ComparableWorkPace, InputsEdit } from '../../src/forecast/index.js'
-import { forecastingForTest, type ForecastingForTest } from './forecastingForTest.js'
+import type { ComparableWorkPace } from '../../src/forecast/index.js'
+import { forecastingForTest, type ForecastingForTest, submitInputs } from './forecastingForTest.js'
 
 // The Comparable work step's pace (#204): the pace in use, how far it is from the milestone's own, the two paired
 // period by period, and each pick's own counts.
@@ -67,9 +67,7 @@ beforeEach(async () => {
   await pickIn('milestone', checkout)
 })
 
-const submit = (edit: InputsEdit) => team.submit({ form: 'inputs', edit })
-
-const startOn = (startDate: string) => submit({ kind: 'setMilestone', name: 'Checkout v2', startDate, ticketsRemaining: '30' })
+const startOn = (startDate: string) => submitInputs(team, { kind: 'setMilestone', name: 'Checkout v2', startDate, ticketsRemaining: '30' })
 
 const pickIn = (step: 'milestone' | 'comparableWork', choice: Choice) => team.submit({ form: 'stepQuery', step, edit: { kind: 'addPick', choice } })
 
@@ -176,7 +174,7 @@ describe('the pace in use', () => {
   })
 
   test('a sprint’s pace is said a sprint', async () => {
-    await submit({ kind: 'setCadence', cadenceDays: '14' })
+    await submitInputs(team, { kind: 'setCadence', cadenceDays: '14' })
     await addComparable(slow)
 
     expect((await paceOf())?.said.comparison).toMatch(/a sprint slower than the milestone’s own so far \(.* a sprint\)$/)
@@ -216,7 +214,7 @@ describe('the periods paired', () => {
   })
 
   test('the last 8 periods at most', async () => {
-    await submit({ kind: 'setCadence', cadenceDays: '3' })
+    await submitInputs(team, { kind: 'setCadence', cadenceDays: '3' })
 
     expect((await paceOf())?.periods).toHaveLength(8)
   })

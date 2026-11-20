@@ -1,5 +1,4 @@
-import { MAX_TICKETS_PER_PERIOD, type InputsView, type PeriodName, type TrackerPaceView } from '../../forecast/index.js'
-import { dayMonth } from '../html.js'
+import { dayMonth, MAX_TICKETS_PER_PERIOD, type InputsView, type PeriodName, type TrackerPaceView } from '../../forecast/index.js'
 import type { PaceMode } from '../../model/milestoneInputs.js'
 import { escapeHtml } from '../html.js'
 import { renderPaceTrend } from '../paceTrendGraph.js'

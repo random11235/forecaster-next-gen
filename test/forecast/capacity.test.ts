@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'vitest'
+import { DEFAULT_SETTINGS } from '../../src/forecast/index.js'
 import type { ForecastingForTest } from './forecastingForTest.js'
-import { MONDAY, newTeam, tenTicketsAtFive, submit, add, view, headline, shownAgain, withoutCapacity } from './capacityScenario.js'
+import { submitInputs } from './forecastingForTest.js'
+import { MONDAY, newTeam, tenTicketsAtFive, add, view, headline, shownAgain, withoutCapacity } from './capacityScenario.js'
 
 // Capacity (#153, #164): the EM types the team's capacity beside the forecast, and each period's pace is scaled by it.
 // Arranged through capacityScenario.ts.
@@ -11,7 +13,7 @@ describe('typing capacity', () => {
     await tenTicketsAtFive(team)
     expect(await headline(team)).toBe('2026-09-21')
 
-    expect(await add(team, '0', '2026-09-07', '2026-09-11', { note: 'Offsite' })).toEqual({ saved: true, next: { screen: 'forecast' } })
+    expect(await add(team, '0', '2026-09-07', '2026-09-11', { note: 'Offsite' })).toEqual({ kind: 'saved', next: { kind: 'screen', screen: 'forecast' } })
 
     expect(await headline(team)).toBe('2026-09-28')
   })
@@ -70,8 +72,8 @@ describe('typing capacity', () => {
   test('the past counts typed for the pace are not adjusted for capacity', async () => {
     const team = await newTeam()
     await tenTicketsAtFive(team)
-    await submit(team, { kind: 'setPaceCounts', counts: '5 5 5 5 5 5' })
-    await submit(team, { kind: 'setPaceMode', paceMode: 'counts' })
+    await submitInputs(team, { kind: 'setPaceCounts', counts: '5 5 5 5 5 5' })
+    await submitInputs(team, { kind: 'setPaceMode', paceMode: 'counts' })
     expect(await headline(team)).toBe('2026-09-21')
 
     // a week in the past at 0% doesn't make those counts mean a faster team
@@ -116,7 +118,7 @@ describe('typing capacity', () => {
     await tenTicketsAtFive(team)
     await add(team, '0', '2026-09-07', '2026-09-11')
 
-    expect(await submit(team, { kind: 'removeCapacity', id: '1' })).toEqual({ saved: true, next: { screen: 'forecast' } })
+    expect(await submitInputs(team, { kind: 'removeCapacity', id: '1' })).toEqual({ kind: 'saved', next: { kind: 'screen', screen: 'forecast' } })
 
     expect(await headline(team)).toBe('2026-09-21')
     const forecast = await view(team)
@@ -148,22 +150,22 @@ describe('the comparison', () => {
 
     const forecast = await view(team)
     expect(forecast.kind === 'forecast' && forecast.comparison).toEqual([
-      { percent: 50, withCapacity: '2026-09-28', atUsual: '2026-09-21', shift: 1, shifted: '1 week later' },
-      { percent: 85, withCapacity: '2026-09-28', atUsual: '2026-09-21', shift: 1, shifted: '1 week later' },
-      { percent: 95, withCapacity: '2026-09-28', atUsual: '2026-09-21', shift: 1, shifted: '1 week later' },
+      { percent: 50, withCapacity: '2026-09-28', atUsual: '2026-09-21', shift: { periods: 1, words: '1 week later' } },
+      { percent: 85, withCapacity: '2026-09-28', atUsual: '2026-09-21', shift: { periods: 1, words: '1 week later' } },
+      { percent: 95, withCapacity: '2026-09-28', atUsual: '2026-09-21', shift: { periods: 1, words: '1 week later' } },
     ])
   })
 
   test('both forecasts use the same draws, so capacity after every trial has finished leaves each date where it was', async () => {
     const team = await newTeam()
     await tenTicketsAtFive(team)
-    await submit(team, { kind: 'setPaceRange', low: '2', high: '9' })
+    await submitInputs(team, { kind: 'setPaceRange', low: '2', high: '9' })
 
     await add(team, '120', '2027-06-01', '', { onward: true })
 
     const forecast = await view(team)
     const comparison = forecast.kind === 'forecast' ? forecast.comparison : undefined
-    expect(comparison?.map(({ shift }) => shift)).toEqual([0, 0, 0])
+    expect(comparison?.map(({ shift }) => shift.periods)).toEqual([0, 0, 0])
     expect(comparison?.map(({ withCapacity }) => withCapacity)).toEqual(comparison?.map(({ atUsual }) => atUsual))
   })
 
@@ -220,8 +222,8 @@ describe('each entry’s effect', () => {
 
     expect(forecast.kind === 'forecast' && forecast.capacity.open).toBe(true)
     expect(forecast.kind === 'forecast' && forecast.capacity.entries.map(({ note, effect }) => [note, effect])).toEqual([
-      ['Offsite', { shift: 1, words: '85% date +1 wk' }],
-      ['', { shift: 0, words: 'no change to the 85% date' }],
+      ['Offsite', { periods: 1, words: '85% date +1 wk' }],
+      ['', { periods: 0, words: 'no change to the 85% date' }],
     ])
   })
 
@@ -232,7 +234,7 @@ describe('each entry’s effect', () => {
 
     const forecast = await opened(team)
 
-    expect(forecast.kind === 'forecast' && forecast.capacity.entries[0]?.effect).toEqual({ shift: -1, words: '85% date −1 sprint' })
+    expect(forecast.kind === 'forecast' && forecast.capacity.entries[0]?.effect).toEqual({ periods: -1, words: '85% date −1 sprint' })
   })
 
   test('an entry beyond the horizon, the only one, gives no change to the 85% date', async () => {
@@ -242,7 +244,37 @@ describe('each entry’s effect', () => {
 
     const forecast = await opened(team)
 
-    expect(forecast.kind === 'forecast' && forecast.capacity.entries[0]?.effect).toEqual({ shift: 0, words: 'no change to the 85% date' })
+    expect(forecast.kind === 'forecast' && forecast.capacity.entries[0]?.effect).toEqual({ periods: 0, words: 'no change to the 85% date' })
+  })
+
+  test('an entry pushing the 85% date past the horizon says so, and the line under the headline gives no shift', async () => {
+    const team = await newTeam()
+    await tenTicketsAtFive(team)
+    await add(team, '1', MONDAY, '', { onward: true, note: 'Skeleton crew' })
+
+    const forecast = await opened(team)
+
+    expect(forecast.kind === 'forecast' && forecast.capacity.entries[0]?.effect).toEqual({ periods: null, words: '85% date later than the horizon' })
+    expect(forecast.kind === 'forecast' && forecast.capacityLine).toBe('Includes capacity.')
+  })
+
+  test('an entry bringing the 85% date in from past the horizon says so, and the line under the headline gives no shift', async () => {
+    // a horizon of one week: 10 tickets at 5 a week take two, and twice the capacity takes one
+    const team = await newTeam({ ...DEFAULT_SETTINGS, maxPeriods: 1 })
+    await tenTicketsAtFive(team)
+    await add(team, '200', MONDAY, '', { onward: true, note: 'Contractors' })
+
+    const forecast = await opened(team)
+
+    expect(forecast.kind === 'forecast' && forecast.capacity.entries[0]?.effect).toEqual({
+      periods: null,
+      words: '85% date within the horizon, not past it',
+    })
+    expect(forecast.kind === 'forecast' && forecast.comparison?.find(({ percent }) => percent === 85)?.shift).toEqual({
+      periods: null,
+      words: 'within the horizon, not past it',
+    })
+    expect(forecast.kind === 'forecast' && forecast.capacityLine).toBe('Includes capacity.')
   })
 
   test('with the section folded, no entry gives its effect', async () => {
@@ -260,7 +292,7 @@ describe('each entry’s effect', () => {
     const team = await newTeam()
     await tenTicketsAtFive(team)
     await add(team, '0', '2026-09-07', '2026-09-11', { note: 'Offsite' })
-    await submit(team, { kind: 'switchCapacity', on: false })
+    await submitInputs(team, { kind: 'switchCapacity', on: false })
 
     const forecast = await opened(team)
 
@@ -280,11 +312,11 @@ describe('each entry’s effect', () => {
     await tenTicketsAtFive(team)
     await add(team, '0', '2026-09-07', '2026-09-11', { note: 'Offsite' })
 
-    const result = await submit(team, { kind: 'addCapacity', percent: 'half', from: MONDAY, to: '', onward: false, note: '' }, { capacityOpen: true })
+    const result = await submitInputs(team, { kind: 'addCapacity', percent: 'half', from: MONDAY, to: '', onward: false, note: '' }, { capacityOpen: true })
 
     const shown = shownAgain(result)
     expect(shown?.kind === 'forecast' && shown.capacity.open).toBe(true)
-    expect(shown?.kind === 'forecast' && shown.capacity.entries[0]?.effect).toEqual({ shift: 1, words: '85% date +1 wk' })
+    expect(shown?.kind === 'forecast' && shown.capacity.entries[0]?.effect).toEqual({ periods: 1, words: '85% date +1 wk' })
   })
 })
 

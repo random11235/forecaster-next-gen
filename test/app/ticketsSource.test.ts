@@ -85,6 +85,14 @@ describe('tickets remaining’s source', () => {
     expect(section).toContain('GitHub gave only part of the milestone’s tickets')
   })
 
+  test('following GitHub before it has read the milestone’s tickets, it says they’re not read yet', async () => {
+    const running = await start({ fixture: { ...FIXTURE, reads: { [CHECKOUT.query]: { failure: 'unavailable' } } } })
+
+    await post(running, '/inputs/tickets-source', { ticketsSource: 'tracker' })
+
+    expect(await milestoneSection(running)).toContain('tickets remaining · GitHub, not read yet')
+  })
+
   test('with no connection, there is no source to choose: tickets remaining is typed, as in the MVP', async () => {
     const running = await start({ connect: false })
 

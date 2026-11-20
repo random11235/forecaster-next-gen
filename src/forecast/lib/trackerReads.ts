@@ -18,11 +18,6 @@ export type TrackerReads = Pick<Connecting, 'connections' | 'queries'> & { timeZ
 /** What `measure` reads: the tracker's reads, with the team's queries and their reads in one target. */
 export type Measuring = Pick<Connecting, 'connections'> & TeamQueries & { timeZone: string }
 
-/** How a view is read beyond what `Storage` keeps: with the team's tracker reads, in the local server build. */
-export interface ReadingTracker {
-  tracker?: TrackerReads | undefined
-}
-
 /** What the team's tracker measures, from its saved reads: what each value following it is, and what a typed one is compared with. */
 export interface Measured {
   /** The connected tracker, as the screens name it: GitHub or Jira. */

@@ -58,7 +58,10 @@ export const change = (team: ForecastingForTest, edit: StepQueryEdit, step: Quer
   team.submit({ form: 'stepQuery', step, edit })
 
 /** Where a change saved, or read as nothing new, goes: the step it was made in. */
-export const saved = (step: QuerySetupStep = 'milestone'): Outcome => ({ saved: true, next: { screen: 'inputs', step } })
+export const saved = (step: QuerySetupStep = 'milestone'): Outcome => ({ kind: 'saved', next: { kind: 'step', step } })
+
+/** Where a query edited by hand, saved, goes: the step it was made in, its query still open for editing. */
+export const savedEditing = (step: QuerySetupStep = 'milestone'): Outcome => ({ kind: 'saved', next: { kind: 'editing', step } })
 
 /** The query step `step` (the Milestone step unless given), as the Inputs screen opens at it, its find box holding `find`. */
 export async function stepView(
@@ -79,7 +82,7 @@ export async function stepView(
 
 /** The query step a refused change shows again, on its refusal. */
 export function refusedStep(outcome: Outcome): QueryStep {
-  if (outcome.saved || !('screen' in outcome) || outcome.screen !== 'inputs' || !outcome.view.step) {
+  if (outcome.kind !== 'refused' || !outcome.view.step) {
     throw new Error(`not refused at a query step: ${JSON.stringify(outcome)}`)
   }
   return outcome.view.step
