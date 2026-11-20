@@ -1,9 +1,9 @@
 import type { ThroughputRange } from '../../engine/index.js'
 import type { MilestoneInputs, PaceAction } from '../../model/milestoneInputs.js'
-import { periodName, type PeriodName } from '../cadence.js'
-import { addDays, dayMonth, daysBetween } from '../calendarDate.js'
-import { counted } from '../counted.js'
-import type { ForecastSettings } from '../settings.js'
+import { periodName, type PeriodName } from './cadence.js'
+import { addDays, dayMonth, daysBetween } from './calendarDate.js'
+import { counted } from './counted.js'
+import type { ForecastSettings } from './settings.js'
 import type { DatedCounts, PaceCalendar } from './periodCounts.js'
 import type { PaceReading } from './paceReading.js'
 

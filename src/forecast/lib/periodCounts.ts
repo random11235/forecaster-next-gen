@@ -1,8 +1,8 @@
 import type { MilestoneInputs, PaceWindow } from '../../model/milestoneInputs.js'
 import type { SavedRead } from '../../model/savedRead.js'
 import type { TeamQueries } from '../../storage/storage.js'
-import { addDays, daysBetween } from '../calendarDate.js'
-import { completeRead } from '../queryRead.js'
+import { addDays, daysBetween } from './calendarDate.js'
+import { completeRead } from './queryRead.js'
 
 // Pace's saved reads, and their finished tickets counted per period side by side, on the EM's calendar days.
 

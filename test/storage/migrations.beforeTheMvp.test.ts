@@ -1,14 +1,16 @@
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, test } from 'vitest'
-import { inputsView, submitInputs } from '../../src/forecast/inputs.js'
-import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
-import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
+import { openForecasting, type Forecasting } from '../../src/forecast/index.js'
+import type { Storage } from '../../src/storage/storage.js'
 import type { MilestoneInputs } from '../../src/model/milestoneInputs.js'
 import type { Team } from '../../src/model/team.js'
 import { fileIn, closeStorage, open, rowsOf, EDITED_RANGES } from './migrationsHarness.js'
 import { CREATED } from './pastSchemas.js'
 
 // Opening a data file an earlier release left: see migrationsHarness.ts.
+
+/** The team's handle on the migrated file, as the browser build opens it, on `today`: the forecast reads it back. */
+const forecasting = (storage: Storage, today: string): Forecasting => openForecasting({ storage, clock: { now: () => `${today}T09:00:00Z`, timeZone: 'UTC' } })
 
 describe('a data file from before the MVP, at the current version', () => {
   // Beside the MVP's fields, the file holds the rows earlier releases wrote: epics, a milestone with a committed date,
@@ -78,13 +80,13 @@ INSERT INTO ambiguity_ranges (team_id, low_low, low_high, medium_low, medium_hig
     expect(storage.capacityEntries(PAY)).toEqual([])
   })
 
-  test('is forecast from the milestone entered after the upgrade: its name, tickets and pace, not its epics or committed date', () => {
+  test('is forecast from the milestone entered after the upgrade: its name, tickets and pace, not its epics or committed date', async () => {
     const file = preMvpFile()
     open(file).saveMilestoneInputs(CHECKOUT)
 
     const storage = open(file)
     expect(storage.milestoneInputs(PAY)).toEqual(CHECKOUT)
-    const view = milestoneForecastView(storage, PAY, DEFAULT_SETTINGS, '2026-10-24')
+    const view = await forecasting(storage, '2026-10-24').milestoneForecastView()
     expect(view).toMatchObject({
       kind: 'forecast',
       name: 'Checkout v2',
@@ -95,15 +97,18 @@ INSERT INTO ambiguity_ranges (team_id, low_low, low_high, medium_low, medium_hig
     expect(JSON.stringify(view)).not.toMatch(/Card vaulting|Refunds|PAY-\d|2026-12-18|committed/i)
   })
 
-  test('takes medium ambiguity for the milestone entered after the upgrade, not the high an epic had before the MVP', () => {
+  test('takes medium ambiguity for the milestone entered after the upgrade, not the high an epic had before the MVP', async () => {
     const storage = open(preMvpFile())
-    expect(inputsView(storage, PAY, DEFAULT_SETTINGS, '2026-10-24').milestone.ambiguity).toBe('medium')
+    expect((await forecasting(storage, '2026-10-24').inputsScreen()).inputs.milestone.ambiguity).toBe('medium')
 
-    const entered = submitInputs(storage, PAY, DEFAULT_SETTINGS, '2026-10-24', {
-      kind: 'setMilestone',
-      name: 'Checkout v2',
-      startDate: '2026-09-01',
-      ticketsRemaining: '40',
+    const entered = await forecasting(storage, '2026-10-24').submit({
+      form: 'inputs',
+      edit: {
+        kind: 'setMilestone',
+        name: 'Checkout v2',
+        startDate: '2026-09-01',
+        ticketsRemaining: '40',
+      },
     })
 
     expect(entered).toMatchObject({ saved: true })

@@ -1,5 +1,4 @@
-import type { PairedPace, PaceTrend } from '../forecast/paceTrend.js'
-import type { PeriodName } from '../forecast/cadence.js'
+import type { PaceTrend, PairedPace, PeriodName } from '../forecast/index.js'
 
 /** The graph's drawing size in SVG units: it stretches to its box's width and is drawn this many pixels high. */
 const WIDTH = 240

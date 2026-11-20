@@ -1,9 +1,9 @@
 import type { Failure } from '../../connectors/connector.js'
 import type { Connection } from '../../model/connection.js'
 import type { SavedRead } from '../../model/savedRead.js'
-import { ticketsRemaining, weeksRead } from '../queryRead.js'
-import type { StepQuery } from '../stepQuery.js'
-import { trackerOf } from '../trackers.js'
+import { ticketsRemaining, weeksRead } from './queryRead.js'
+import type { StepQuery } from './stepQuery.js'
+import { trackerOf } from './trackers.js'
 
 // What a query step says of its query's read: its line, its flag, and why the tracker rejected the query.
 

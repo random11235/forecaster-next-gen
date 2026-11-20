@@ -13,12 +13,12 @@ const out = new URL('../dist/web/forecaster.html', import.meta.url)
 const { openWebApp }: typeof import('../src/app/webApp.js') = await import(new URL('../dist/app/webApp.js', import.meta.url).href)
 const { openWebStorage }: typeof import('../src/storage/webStorage.js') = await import(new URL('../dist/storage/webStorage.js', import.meta.url).href)
 const { FONT_FACES }: typeof import('../src/app/fonts.js') = await import(new URL('../dist/app/fonts.js', import.meta.url).href)
-const { APP_VERSION }: typeof import('../src/forecast/appVersion.js') = await import(new URL('../dist/forecast/appVersion.js', import.meta.url).href)
+const { APP_VERSION }: typeof import('../src/forecast/index.js') = await import(new URL('../dist/forecast/index.js', import.meta.url).href)
 
 /**
  * What the bundle gets in place of a file, matched by the file an import resolves to: another folder's file of the same
  * name is its own (#280). `src/app/fonts.ts` reads its font files from disk, which a browser can't, so the bundle gets
- * the faces it read. `src/forecast/appVersion.ts` imports `package.json`, which the page is shared without (#57): the
+ * the faces it read. `src/forecast/lib/appVersion.ts` imports `package.json`, which the page is shared without (#57): the
  * bundle gets its version alone, none of its scripts or dependencies.
  */
 const INLINED: Record<string, string> = {

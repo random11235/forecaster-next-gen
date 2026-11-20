@@ -1,6 +1,4 @@
-import type { ConnectionEdit, ConnectStep } from '../forecast/connection.js'
-import { TRACKERS, trackerOf, type Tracker } from '../forecast/trackers.js'
-import type { Connection } from '../model/connection.js'
+import type { ConnectStep, ConnectionEdit, Tracker } from '../forecast/index.js'
 import { escapeHtml } from './html.js'
 import { SETUP_PATHS } from './setupSection.js'
 
@@ -33,18 +31,17 @@ export const CONNECT_FORMS: ReadonlyMap<string, ConnectFormReader> = new Map<str
  * field is always blank: the token is never put back into the page. Once connected, leaving it blank keeps the saved token.
  */
 export function connectSection(view: ConnectStep): string {
-  return view.kind === 'connected' ? connectedBody(view, view.connection) : connectForm(view, 'Connect')
+  return view.kind === 'connected' ? connectedBody(view) : connectForm(view, 'Connect')
 }
 
 /** What the section says in its label column. */
 export const CONNECT_HINT = 'Connect one GitHub repo or Jira project, to read the milestone’s tickets from it. Or skip, and type the inputs below.'
 
-function connectedBody(step: ConnectStep, connection: Connection): string {
+function connectedBody(step: Extract<ConnectStep, { kind: 'connected' }>): string {
   const refused = step.refusal !== undefined
-  const tracker = trackerOf(connection)
   return `        <div class="connection">
           <span class="ok-dot" aria-hidden="true"></span>
-          <span>Connected to ${tracker.name} · <b>${escapeHtml(tracker.where(connection))}</b></span>
+          <span>Connected to ${step.trackerName} · <b>${escapeHtml(step.where)}</b></span>
           <form method="post" action="${CONNECT_PATHS.disconnect}#connect">
             <button type="submit" class="linkish">Disconnect</button>
           </form>
@@ -55,9 +52,9 @@ ${connectForm(step, 'Change connection')}
         </details>`
 }
 
-function connectForm({ form, permissions, refusal, kind }: ConnectStep, button: string): string {
+function connectForm({ form, permissions, trackerNames, refusal, kind }: ConnectStep, button: string): string {
   const tracker = (option: Tracker): string =>
-    `              <label><input type="radio" name="tracker" value="${option}"${option === form.tracker ? ' checked' : ''} required> ${TRACKERS[option].name}</label>`
+    `              <label><input type="radio" name="tracker" value="${option}"${option === form.tracker ? ' checked' : ''} required> ${trackerNames[option]}</label>`
   const field = (label: string, name: string, value: string, placeholder: string, wide = true, type = 'text'): string =>
     `              <label${wide ? ' class="wide"' : ''}>${label} <input type="${type}" name="${name}" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}" autocomplete="off" spellcheck="false"></label>`
   const skip =
