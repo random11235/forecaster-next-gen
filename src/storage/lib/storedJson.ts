@@ -6,7 +6,7 @@
  */
 
 /** Whether a parsed value is the shape storage reads it as. */
-type ShapeCheck<T> = (value: unknown) => value is T
+export type ShapeCheck<T> = (value: unknown) => value is T
 
 /**
  * The JSON `text` stored in `column` (`table.column`, or wherever it is kept), parsed and checked by `check`. Throws,
@@ -19,6 +19,14 @@ export function parseStored<T>(text: string, column: string, check: ShapeCheck<T
   } catch {
     throw new Error(`${column} holds text that isn't JSON, which this version of the Forecaster can't read.`)
   }
+  return checkStored(value, column, check)
+}
+
+/**
+ * A `value` already parsed from `column` (a part of a stored value, read only when needed), checked by `check`.
+ * Throws, naming the column, as `parseStored` does, on a shape `check` doesn't recognise.
+ */
+export function checkStored<T>(value: unknown, column: string, check: ShapeCheck<T>): T {
   if (!check(value)) throw new Error(`${column} holds JSON of a shape this version of the Forecaster can't read.`)
   return value
 }

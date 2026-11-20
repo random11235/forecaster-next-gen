@@ -345,15 +345,14 @@ CREATE TABLE read_failures (
 );
 `,
   // 21: the forecast ledger (#27): each forecast the team is shown, numbered in the order logged, with when it was logged,
-  // the milestone's name, its case's hash, the release that made it, and its case and result as JSON. Storage only ever
-  // adds a row; the schema doesn't refuse a change, so a later step can backfill. A file from before has logged none.
+  // the milestone's name, the release that made it, and its case and result as JSON, the case's hash in the result.
+  // Storage only ever adds a row; the schema doesn't refuse a change, so a later step can backfill. A file from before has logged none.
   `
 CREATE TABLE forecast_logs (
   team_id TEXT NOT NULL REFERENCES teams(id),
   id INTEGER NOT NULL,
   created_at TEXT NOT NULL,
   milestone_name TEXT NOT NULL,
-  case_hash TEXT NOT NULL,
   app_version TEXT NOT NULL,
   simulation_case TEXT NOT NULL,
   result TEXT NOT NULL,
