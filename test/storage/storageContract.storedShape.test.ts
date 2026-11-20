@@ -10,7 +10,8 @@ import { FORECAST, LAUNCH as SAVED, TEAM, temporarySqliteFiles } from './storage
 // The Storage contract's cases for stored JSON of a shape this version doesn't read, beside storageContract.test.ts,
 // run against both storages: each refuses it, naming where it is kept, rather than reading it as something it isn't,
 // and keeps it through the Storage contract's saves. Browser storage keeps two records, the forecast ledger apart from
-// the rest, and refuses every save to the one holding the refused value; the SQLite file takes them, but its save of
+// the rest: it refuses every save to the rest when that holds the refused value, and refuses no save when the ledger
+// does, logging nothing; the SQLite file takes them, but its save of
 // the milestone inputs replaces a refused value in that record whole. The saves of the
 // SQLite-only tables (the queries', the setup draft's) aren't tried. Only the seeding differs: each case writes the
 // value straight into the store, as a later version or a damaged file would leave it.
@@ -209,14 +210,18 @@ const browser: Subject = {
   ],
 }
 
-/** Browser storage's forecast ledger, kept apart: refused, it refuses only the saves of a forecast to log. */
+/** Browser storage's forecast ledger, kept apart: refused, it refuses no save, a forecast saved to it not being logged. */
 const browserLedger: Subject = {
   saved: () => savedBrowser().storage(),
-  refusingSaves: ['saveForecastLog'],
+  refusingSaves: [],
   refused: [
     inLedger("text that isn't JSON", 'not json'),
-    inLedger("a team's forecast ledger that is not a list", JSON.stringify({ team: {} })),
-    inLedger('a logged forecast with no stamp', JSON.stringify({ team: [{ ...FORECAST, id: 1, caseHash: FORECAST.result.caseHash }] })),
+    inLedger("a team's forecast ledger with no logs", JSON.stringify({ team: { lastId: 0 } })),
+    inLedger('a logged forecast with no stamp', JSON.stringify({ team: { lastId: 1, logs: [{ ...FORECAST, id: 1 }] } })),
+    inLedger(
+      'a logged forecast whose result has no case hash',
+      JSON.stringify({ team: { lastId: 1, logs: [{ ...FORECAST, id: 1, createdAt: '2026-11-02T09:00:00.000Z', result: {} }] } }),
+    ),
   ],
 }
 

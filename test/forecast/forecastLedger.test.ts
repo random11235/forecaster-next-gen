@@ -177,3 +177,22 @@ describe.each(storages)('a forecast logged in %s storage that this version canno
     expect(reopen().lastForecastLog(TEAM)?.caseHash).not.toBe(shown.result.caseHash)
   })
 })
+
+describe('a forecast ledger browser storage cannot read', () => {
+  test.each([
+    ["text that isn't JSON", 'not json'],
+    ["logs of a shape this version doesn't know", JSON.stringify({ ACME: [{ id: 1 }] })],
+  ])('holding %s, does not stop the forecast being shown, and keeps the ledger as it was', (_, stored) => {
+    const store = memoryStore()
+    store.items.set('forecaster.ledger', stored)
+    const storage = newTeam(openWebStorage(store))
+    mediumGrowth(storage, { low: 1, high: 1 })
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '5', high: '5' })
+
+    expect(view(storage)).toMatchObject({ kind: 'forecast' })
+    expect(view(openWebStorage(store))).toMatchObject({ kind: 'forecast' })
+
+    expect(store.items.get('forecaster.ledger')).toBe(stored)
+    expect(() => openWebStorage(store).forecastLogs(TEAM)).toThrow('"forecaster.ledger"')
+  })
+})

@@ -234,7 +234,7 @@ describe('browser storage the browser refuses', () => {
     expect(storage.milestoneInputs('team')).toEqual(LAUNCH)
   })
 
-  test("logs past the most it keeps of the forecast ledger only until the page closes, so the EM's other data always has room", () => {
+  test("past the most it keeps of the forecast ledger, keeps the newest logs, so the EM's other data always has room, never numbering a log again", () => {
     // what a browser gives a site, about 5 MB; forecasts of 150,000 characters each, 6 MB in all; and capacity entries
     // of 300,000 in all, more than a log takes
     const store = memoryStore(5_000_000)
@@ -247,7 +247,6 @@ describe('browser storage the browser refuses', () => {
     storage.saveMilestoneInputs(LAUNCH)
     storage.saveCapacityEntries('team', entries)
 
-    expect(storage.lastForecastLog('team')?.id).toBe(40)
     const again = openWebStorage(store)
     expect(again.teams()).toEqual([TEAM])
     expect(again.milestoneInputs('team')).toEqual(LAUNCH)
@@ -255,7 +254,26 @@ describe('browser storage the browser refuses', () => {
     const kept = again.forecastLogs('team').map(({ id }) => id)
     expect(kept.length).toBeGreaterThan(0)
     expect(kept.length).toBeLessThan(40)
-    expect(kept).toEqual(kept.map((_, index) => index + 1))
+    expect(kept).toEqual(kept.map((_, index) => 40 - kept.length + 1 + index))
+    again.saveForecastLog(FORECAST)
+    expect(openWebStorage(store).lastForecastLog('team')?.id).toBe(41)
+  })
+
+  test("drops a field it doesn't know from a logged forecast it keeps, on the next save", () => {
+    const store = memoryStore()
+    const storage = openWebStorage(store)
+    storage.saveForecastLog(FORECAST)
+    const stored = store.items.get('forecaster.ledger') ?? ''
+    store.items.set('forecaster.ledger', stored.replace('"milestoneName"', '"loggedBy":"A later build","milestoneName"'))
+
+    openWebStorage(store).saveForecastLog(FORECAST)
+
+    expect(store.items.get('forecaster.ledger')).not.toContain('loggedBy')
+    expect(
+      openWebStorage(store)
+        .forecastLogs('team')
+        .map(({ id }) => id),
+    ).toEqual([1, 2])
   })
 
   test('with a milestone stored before the pace window, reads it with no action applied', () => {
