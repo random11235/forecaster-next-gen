@@ -143,7 +143,7 @@ export function milestoneForecastView(
   const simulationCase = milestoneCase(inputs, pace, growth, settings, on ? factors : undefined)
   const result = simulateCase(simulationCase)
   // the forecast shown, logged; the runs it is compared with below are not shown, so not logged
-  logForecast(storage, teamId, inputs.name, simulationCase, result)
+  logForecast(storage, { teamId, milestoneName: inputs.name, simulationCase, result })
   const { periodDays, maxPeriods, percentiles } = simulationCase
   // at usual capacity from the same seed, so the two differ by capacity alone
   const atUsual = on && factors ? simulateCase(milestoneCase(inputs, pace, growth, settings, undefined)) : undefined

@@ -1,20 +1,16 @@
 import { AMBIGUITIES, type AmbiguityRanges, type GrowthRange } from '../model/ambiguity.js'
-import type { ForecastLog } from '../ledger/ledger.js'
 import type { CapacityEntry } from '../model/capacity.js'
 import { PACE_MODES, TICKETS_SOURCES, type MilestoneInputs } from '../model/milestoneInputs.js'
 import { TEAM_SOURCES, type Team } from '../model/team.js'
-import { isForecastLog } from './lib/forecastLogJson.js'
 import { isPaceCounts, isStoredPaceWindow, isStoredSeenReads } from './lib/milestoneInputsJson.js'
-import { isListOf, isNumber, isObject, isOneOf, isRecordOf, isString, optional, parseStored } from './lib/storedJson.js'
+import { isListOf, isNumber, isObject, isOneOf, isRecordOf, isString, optional } from './lib/storedJson.js'
+import { webLedger } from './lib/webLedger.js'
+import { held, readKey, writeKey, type KeyValueStore } from './lib/webStore.js'
 import type { Storage } from './storage.js'
 
-/** The part of the browser's `localStorage` this uses: strings by key. */
-export interface KeyValueStore {
-  getItem(key: string): string | null
-  setItem(key: string, value: string): void
-}
+export type { KeyValueStore } from './lib/webStore.js'
 
-/** Where the data is kept in the browser's storage: everything, as one JSON value. */
+/** Where the data is kept in the browser's storage: everything but the forecast ledger, as one JSON value. */
 const KEY = 'forecaster'
 
 /** Everything stored, by team ID. Fields are only ever added, so data from an earlier build still reads. */
@@ -37,8 +33,6 @@ interface Stored {
   capacityEntries: Record<string, CapacityEntry[]>
   /** The teams whose capacity is switched off; a team not here has it on. */
   capacityOff: string[]
-  /** Each team's forecast ledger (#27), oldest first; data from before it has logged none. */
-  forecastLogs: Record<string, ForecastLog[]>
 }
 
 /**
@@ -47,24 +41,18 @@ interface Stored {
  * what is saved only until the page closes. When it holds data this version can't read (text that isn't JSON, or JSON
  * of a shape it doesn't know, left by a later build, say), every read and save throws, naming the key, as the SQLite
  * file refuses a column it can't read, so what is there is kept. Data it can read keeps no field it doesn't know: the
- * next save drops it.
+ * next save drops it. The forecast ledger is kept apart (`webLedger`), so neither refuses or crowds out the other.
  */
 export function openWebStorage(store: KeyValueStore | undefined): Storage {
-  const kept = read(store)
+  const empty: Stored = { teams: [], milestoneInputs: {}, ambiguityRanges: {}, capacityEntries: {}, capacityOff: [] }
+  const kept = readKey(store, KEY, isStored, { empty })
   /** What is stored, or the refusal of data this version can't read. */
-  const stored = (): Stored => {
-    if ('refused' in kept) throw kept.refused
-    return kept.stored
-  }
-  const write = (): void => {
-    try {
-      store?.setItem(KEY, JSON.stringify(stored()))
-    } catch {
-      // kept in memory only, until the page closes
-    }
-  }
+  const stored = (): Stored => held(kept)
+  const write = (): void => writeKey(store, KEY, JSON.stringify(stored()))
 
   return {
+    ...webLedger(store),
+
     isEmpty() {
       return stored().teams.length === 0
     },
@@ -121,22 +109,6 @@ export function openWebStorage(store: KeyValueStore | undefined): Storage {
       return !stored().capacityOff.includes(teamId)
     },
 
-    saveForecastLog(forecast) {
-      const { forecastLogs } = stored()
-      const logs = (forecastLogs[forecast.teamId] ??= [])
-      logs.push({ ...structuredClone(forecast), id: logs.length + 1, createdAt: new Date().toISOString() })
-      write()
-    },
-
-    forecastLogs(teamId) {
-      return structuredClone(stored().forecastLogs[teamId] ?? [])
-    },
-
-    lastForecastLog(teamId) {
-      const last = stored().forecastLogs[teamId]?.at(-1)
-      return last && structuredClone(last)
-    },
-
     close() {},
   }
 }
@@ -151,23 +123,6 @@ function withDefaults({ paceWindow, ticketsSource, seenReads, ...inputs }: Store
     ticketsSource: ticketsSource ?? 'typed',
     paceWindow: { action: paceWindow?.action, skippedPeriods: paceWindow?.skippedPeriods ?? [] },
     seenReads: { ticketsRemaining: seenReads?.ticketsRemaining, pace: seenReads?.pace },
-  }
-}
-
-/** What `store` holds: empty when it holds nothing or the browser refuses it, and the refusal when it can't be read. */
-function read(store: KeyValueStore | undefined): { stored: Stored } | { refused: unknown } {
-  const empty: Stored = { teams: [], milestoneInputs: {}, ambiguityRanges: {}, capacityEntries: {}, capacityOff: [], forecastLogs: {} }
-  let json: string | null | undefined
-  try {
-    json = store?.getItem(KEY)
-  } catch {
-    return { stored: empty }
-  }
-  if (json === null || json === undefined) return { stored: empty }
-  try {
-    return { stored: { ...empty, ...parseStored(json, `browser storage's "${KEY}"`, isStored) } }
-  } catch (refused) {
-    return { refused }
   }
 }
 
@@ -210,17 +165,16 @@ const isCapacityEntry = (value: unknown): value is CapacityEntry =>
 
 /**
  * Everything stored, as reading it needs: an object whose parts, each missing in data from an earlier build, are the
- * teams, each team's records by its ID (its forecast ledger among them), and the IDs of the teams with capacity off.
+ * teams, each team's records by its ID, and the IDs of the teams with capacity off.
  */
 function isStored(value: unknown): value is Partial<Stored> {
   if (!isObject(value)) return false
-  const { teams, milestoneInputs, ambiguityRanges, capacityEntries, capacityOff, forecastLogs } = value
+  const { teams, milestoneInputs, ambiguityRanges, capacityEntries, capacityOff } = value
   return (
     optional(isListOf(isTeam))(teams) &&
     optional(isRecordOf(isStoredMilestoneInputs))(milestoneInputs) &&
     optional(isRecordOf(isAmbiguityRanges))(ambiguityRanges) &&
     optional(isRecordOf(isListOf(isCapacityEntry)))(capacityEntries) &&
-    optional(isListOf(isString))(capacityOff) &&
-    optional(isRecordOf(isListOf(isForecastLog)))(forecastLogs)
+    optional(isListOf(isString))(capacityOff)
   )
 }

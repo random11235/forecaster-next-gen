@@ -82,7 +82,9 @@ src/
     lib/setupDraft.ts     # behind sqliteStorage.ts: the team's queries and reads in each target, the setup draft over what's saved; the draft's fields saved; "Use these" applying it
     lib/storedJson.ts     # the one parser for stored JSON (`parseStored`) and the checks each reader builds its shapes from: a shape it doesn't know refused, naming its column
     lib/milestoneInputsJson.ts # the milestone inputs' JSON parts checked, as the SQLite file and browser storage both read them
-    lib/forecastLogTable.ts # behind sqliteStorage.ts: the forecast ledger, each team's logged forecasts, which the schema refuses to change
+    lib/forecastLogTable.ts # behind sqliteStorage.ts: the forecast ledger, each team's logged forecasts, only ever added to
+    lib/webStore.ts       # behind webStorage.ts and webLedger.ts: browser storage's JSON value by key, read (what it holds, nothing, or refused) and written back whole: the rest once as storage opens, the ledger again at each call
+    lib/webLedger.ts      # behind webStorage.ts: the forecast ledger under a key of its own, the newest logs within its bound
     lib/forecastLogJson.ts # a logged forecast's case and result checked, as the SQLite file and browser storage both read them
   app/                    # local server (localhost only), screens, the routes and the context they run in (`routes.ts`, `appContext.ts`), `npm start` entry point; each screen's HTML, and reading the fields of the forms it posts; the web build's app and page script (`webApp.ts`, `webMain.ts`); the stylesheet every page shares (`html.ts`), each screen's styles in `lib/`, and what is behind the Inputs screen (`inputsScreen.ts`): its Milestone and Pace sections, the parts its sections share (`inputSection.ts`), and the chip on a typed value the tracker reads differently (`readsDifferently.ts`); the Milestone forecast screen's Capacity section (`lib/capacitySection.ts`); the Comparable work step's pace (`lib/stepPace.ts`); the app's version (`forecast/appVersion.ts`'s `APP_VERSION`) in every screen's footer and streamed on the server's `/live`, which each page it serves listens on to reload when the version changes (the web build's pages don't)
 
@@ -93,7 +95,7 @@ test/
   connectors/             # Seam C: the connector contract suite, its replay transport, the backoff tests' stand-in tracker and waits, and the scenarios and queries recorded for it; each tracker's quirks and recordings in its own folder; the canned connector
   secrets/                # the Secrets contract, run against the in-memory fake and the OS keychain (where one answers); no error quotes the token
   storage/                # the schema's migrations; the Storage contract, run against SQLite and browser storage; the stored values' snapshot (`storedValues.snapshot`), the unions it freezes (`storedUnions.ts`) and the check that keeps it (`storedValues.ts`, run by `storedValues.test.ts`)
-  dependencyRules.test.ts # the dependency rules (architecture-dependency-rules.md) that keep connectors/ and secrets/ at the edge
+  dependencyRules.test.ts # the dependency rules (architecture-dependency-rules.md): connectors/ and secrets/ kept at the edge, ledger/ and storage/ reaching the engine only through its types
   testSeams.test.ts       # each test folder imports only its seam's entry points (architecture-test-seams.md): TEST_SEAMS, the one list
   storedJsonRules.test.ts # nothing in src/storage/ uses JSON but to stringify, but lib/storedJson.ts
   stringValueRules.test.ts # stored union values (storage/storedUnions.ts), string-literal union values in src/ and the schema's CHECK values are camelCase
@@ -102,4 +104,6 @@ test/
   importScan.ts           # what src/'s and test/'s files import, as paths under src/, for dependencyRules.test.ts and testSeams.test.ts (the scan tests list files and read imports through scripts/sourceFiles.ts)
   sourceCode.ts           # a file's code apart from its comments, strings and regexes, and its templates' text, for storedJsonRules.test.ts, stringValueRules.test.ts and typeCheckRules.test.ts
   sourceCode.test.ts      # sourceCode.ts: what it keeps as code and blanks out, and the templates' text it reads
+  isoInstant.ts           # ISO_INSTANT, the shape of the instant storage stamps a logged forecast with, for the tests that check it
+  memoryStore.ts          # browser storage in memory (`memoryStore`), with a quota, for the tests run against browser storage
 ```

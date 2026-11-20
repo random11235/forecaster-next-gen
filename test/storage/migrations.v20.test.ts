@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest'
+import { ISO_INSTANT } from '../isoInstant.js'
 import { writeFile, open, versionOf } from './migrationsHarness.js'
 import { TEAM, VERSION_20_SCHEMA } from './pastSchemas.js'
 import { FORECAST } from './storageContractFixtures.js'
@@ -14,7 +15,7 @@ describe('step 21: a data file from schema version 20, before the forecast ledge
 
     open(file).saveForecastLog(logged)
 
-    expect(open(file).forecastLogs(TEAM)).toEqual([{ ...logged, id: 1, createdAt: expect.stringMatching(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/) }])
+    expect(open(file).forecastLogs(TEAM)).toEqual([{ ...logged, id: 1, createdAt: expect.stringMatching(ISO_INSTANT) }])
     expect(versionOf(file)).toBe(21)
   })
 })
