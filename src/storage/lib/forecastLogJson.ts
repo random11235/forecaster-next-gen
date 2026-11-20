@@ -3,7 +3,7 @@ import { isListOf, isNumber, isObject, isRecordOf, isString, optional } from './
 
 /*
  * A logged forecast's case and result, kept as JSON, checked as both storages read them back: the SQLite file keeps
- * each in a column of its own (forecastLogTable.ts), and browser storage within the log (webStorage.ts). A case of a
+ * each in a column of its own (forecastLogTable.ts), and browser storage within the log (webLedger.ts). A case of a
  * shape this version doesn't know (a later engine's) is refused, never re-run as something it isn't. Each check is
  * of `SimulationCase` and `ForecastResult` as stored: changing either type changes a stored shape
  * (docs/design/engine.md#engine-contract).
