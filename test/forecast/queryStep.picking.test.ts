@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import type { CannedFixture } from '../../src/connectors/canned.js'
 import type { Choice, ChoicesOfKind } from '../../src/connectors/connector.js'
-import { MILESTONE_QUERY } from '../../src/forecast/index.js'
 import { forecastingForTest } from './forecastingForTest.js'
 import { TEAM, payments, checkout, repay, bug, FIXTURE, connected, current, change, stepView, add, remove } from './queryStepScenario.js'
 
@@ -119,7 +118,7 @@ describe('a kind with more than 100 entries', () => {
   test('one kind searched on its own, as the picker asks for it while the EM types', async () => {
     const team = await connected(PAST_LIMIT)
 
-    expect(await team.searchedChoiceList('epic', 'payouts', MILESTONE_QUERY)).toEqual({
+    expect(await team.searchedChoiceList('epic', 'payouts', 'milestone')).toEqual({
       kind: 'epic',
       choices: [payouts],
       searchedInTracker: true,
@@ -131,7 +130,7 @@ describe('a kind with more than 100 entries', () => {
     const team = await connected(PAST_LIMIT)
     await change(team, add(epic(1)))
 
-    const list = await team.searchedChoiceList('epic', '  ', MILESTONE_QUERY)
+    const list = await team.searchedChoiceList('epic', '  ', 'milestone')
 
     expect(team.calls.searches).toEqual([])
     expect(list).toEqual({ kind: 'epic', choices: listed.slice(1), searchedInTracker: true })

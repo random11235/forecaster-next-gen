@@ -142,7 +142,7 @@ async function candidatesAsked(forecasting: Forecasting, searchParams: URLSearch
 /** One kind's choices searched in the tracker, as a query step's script asks for them: that kind's list alone. */
 async function searchedChoices(forecasting: Forecasting, searchParams: URLSearchParams, section: StepSection): Promise<Reply> {
   const kind = choiceKindOf(searchParams.get(KIND_FIELD) ?? '')
-  const list = kind && (await forecasting.searchedChoiceList(kind, searchParams.get(section.findField) ?? '', section.stepQuery))
+  const list = kind && (await forecasting.searchedChoiceList(kind, searchParams.get(section.findField) ?? '', section.setupStep))
   return list ? { kind: 'html', status: 200, html: choiceListHtml(list, section) } : { kind: 'notFound' }
 }
 

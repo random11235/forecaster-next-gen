@@ -6,11 +6,11 @@ import type { SetupStep } from './setupSteps.js'
 import { COMPARABLE_WORK, MILESTONE_QUERY, type StepQuery } from './stepQuery.js'
 import type { CapacityShown, TeamCall } from './teamCall.js'
 
-/** A setup step that picks or writes one of the team's queries: the Milestone step, or the Comparable work step. */
-export type QuerySetupStep = Extract<SetupStep, 'milestone' | 'comparableWork'>
-
 /** The query each query step edits. */
-export const STEP_QUERIES: Readonly<Record<QuerySetupStep, StepQuery>> = { milestone: MILESTONE_QUERY, comparableWork: COMPARABLE_WORK }
+export const STEP_QUERIES = { milestone: MILESTONE_QUERY, comparableWork: COMPARABLE_WORK } as const satisfies Partial<Record<SetupStep, StepQuery>>
+
+/** A setup step that picks or writes one of the team's queries: the Milestone step, or the Comparable work step. */
+export type QuerySetupStep = keyof typeof STEP_QUERIES
 
 /**
  * How the Inputs screen opens, as its URL asks: at the setup step `step` names (as the URL sends it), the query step
@@ -82,4 +82,4 @@ async function queryStep({ reading, teamId, at }: TeamCall, shown: QuerySetupSte
   return queryStepView(reading && { ...reading, at }, teamId, opening.find?.[shown] ?? '', stepOpening, STEP_QUERIES[shown])
 }
 
-const isQueryStep = (step: SetupStep): step is QuerySetupStep => step === 'milestone' || step === 'comparableWork'
+const isQueryStep = (step: SetupStep): step is QuerySetupStep => step in STEP_QUERIES

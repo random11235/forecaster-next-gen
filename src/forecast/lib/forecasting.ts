@@ -3,10 +3,9 @@ import type { ForecastLog } from '../../ledger/ledger.js'
 import { openCandidates, type CandidateOpening } from './candidates.js'
 import { rerunForecast, type Rerun } from './forecastLedger.js'
 import { howItWorksView, type HowItWorksView } from './howItWorksView.js'
-import { inputsScreen, type InputsOpening, type InputsScreen } from './inputsScreenView.js'
+import { inputsScreen, STEP_QUERIES, type InputsOpening, type InputsScreen, type QuerySetupStep } from './inputsScreenView.js'
 import { milestoneForecastView, type MilestoneForecastView } from './milestoneForecastView.js'
 import { searchedChoiceList, type ChoiceList } from './queryStep.js'
-import type { StepQuery } from './stepQuery.js'
 import { submit, type Edit, type Outcome, type SubmitOpening } from './submit.js'
 import { connected, openTeamCalls, type CapacityShown, type ForecastingOptions } from './teamCall.js'
 
@@ -28,7 +27,8 @@ export interface Forecasting {
   inputsScreen(opening?: InputsOpening): Promise<InputsScreen>
   /** A form saved, and where next; refused, with the whole screen to show again; or asking to confirm a clear. */
   submit(edit: Edit, opening?: SubmitOpening): Promise<Outcome>
-  searchedChoiceList(kind: ChoiceKind, find: string, stepQuery: StepQuery): Promise<ChoiceList | undefined>
+  /** One kind of the query step `step`'s choices, searched in the tracker for `find`, as the step's script asks. */
+  searchedChoiceList(kind: ChoiceKind, find: string, step: QuerySetupStep): Promise<ChoiceList | undefined>
   openCandidates(): Promise<CandidateOpening>
   /** A logged forecast re-run from its case alone, to check it gives the result the EM was shown; or why it isn't. */
   rerunForecast(log: ForecastLog): Promise<Rerun>
@@ -49,9 +49,9 @@ export function openForecasting(options: ForecastingOptions): Forecasting {
     howItWorksView: async () => howItWorksView(call().settings),
     inputsScreen: (opening = {}) => inputsScreen(call(), opening),
     submit: (edit, opening = {}) => submit(call(), edit, opening),
-    searchedChoiceList: async (kind, find, stepQuery) => {
+    searchedChoiceList: async (kind, find, step) => {
       const { reading, teamId } = call()
-      return reading && searchedChoiceList(reading, teamId, kind, find, stepQuery)
+      return reading && searchedChoiceList(reading, teamId, kind, find, STEP_QUERIES[step])
     },
     openCandidates: async () => {
       const team = call()
