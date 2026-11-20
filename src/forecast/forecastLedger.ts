@@ -18,6 +18,6 @@ export function rerunForecast(log: ForecastLog): Rerun {
  */
 export function logForecast(ledger: Ledger, forecast: Omit<LoggedForecast, 'appVersion'>): void {
   const last = ledger.lastForecastLog(forecast.teamId)
-  if (last?.result.caseHash === forecast.result.caseHash && last.appVersion === APP_VERSION && last.milestoneName === forecast.milestoneName) return
+  if (last?.caseHash === forecast.result.caseHash && last.appVersion === APP_VERSION && last.milestoneName === forecast.milestoneName) return
   ledger.saveForecastLog({ ...forecast, appVersion: APP_VERSION })
 }

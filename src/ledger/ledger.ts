@@ -26,14 +26,22 @@ export interface ForecastLog extends LoggedForecast {
 }
 
 /**
+ * A logged forecast but its case and result: where it is in the ledger, and what it was a forecast of, by which
+ * release. Its case's hash is its result's. Read without the case or result, it is read even when a later engine logged
+ * a case or result of a shape this version can't read.
+ */
+export type ForecastLogHeader = Omit<ForecastLog, 'simulationCase' | 'result'> & { caseHash: string }
+
+/**
  * The team's forecasts, logged one after another and never changed once logged (docs/design/architecture-security.md):
- * calibration means nothing if old forecasts can be edited.
+ * calibration means nothing if old forecasts can be edited. Each case and result is a stored shape: a log whose case or
+ * result this version can't read refuses `forecastLogs`, never read as something it isn't (docs/design/engine.md).
  */
 export interface Ledger {
   /** Logs the forecast after the team's others, stamped with the instant it is logged at. */
   saveForecastLog(forecast: LoggedForecast): void
-  /** The team's logged forecasts, oldest first. */
+  /** The team's logged forecasts, oldest first; throws if one has a case or result this version can't read. */
   forecastLogs(teamId: string): ForecastLog[]
-  /** The team's last logged forecast, if it has one. */
-  lastForecastLog(teamId: string): ForecastLog | undefined
+  /** The team's last logged forecast's header, if it has one, whatever its case and result. */
+  lastForecastLog(teamId: string): ForecastLogHeader | undefined
 }
