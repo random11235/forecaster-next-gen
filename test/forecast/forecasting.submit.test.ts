@@ -36,7 +36,7 @@ describe('renaming the milestone', () => {
 
     const submitted = await forecasting.submit(milestoneNamed('Loyalty launch'))
 
-    expect(submitted).toEqual({ kind: 'saved', next: { screen: 'inputs' } })
+    expect(submitted).toEqual({ kind: 'saved', next: { screen: 'inputs' }, followed: 'followed' })
     expect(team.storage.milestoneQuery('team')).toEqual({ picks: [LOYALTY], query: LOYALTY.query })
   })
 
@@ -172,10 +172,26 @@ describe('where a submit goes next', () => {
     expect(await forecasting.submit({ form: 'readAgain' })).toEqual({ kind: 'saved', next: { screen: 'inputs' } })
   })
 
-  test('"Use these", refused before the milestone has a query, to the step setup goes on to', async () => {
+  test('a query edited by hand, back to its step with the query open for editing', async () => {
+    const { forecasting, team } = await connectedTeam({ firstSetup: true })
+    team.fixture.reads['label:checkout'] = { tickets: [], incomplete: false }
+
+    expect(await forecasting.submit({ form: 'stepQuery', step: 'milestone', edit: { kind: 'editQuery', query: 'label:checkout' } })).toEqual({
+      kind: 'saved',
+      next: { screen: 'inputs', step: 'milestone', editing: true },
+    })
+  })
+
+  test('"Use these", refused before the milestone has a query, is not saved, and goes to the step setup goes on to', async () => {
     const { forecasting } = await connectedTeam({ firstSetup: true })
 
-    expect(await forecasting.submit({ form: 'setup', edit: { kind: 'useThese' } })).toMatchObject({ kind: 'saved', next: { screen: 'inputs' } })
+    expect(await forecasting.submit({ form: 'setup', edit: { kind: 'useThese' } })).toEqual({ kind: 'notSaved', next: { screen: 'inputs', step: 'milestone' } })
+  })
+
+  test('Cancel, refused with setup closed, is not saved, and goes to the Inputs screen', async () => {
+    const { forecasting } = await connectedTeam()
+
+    expect(await forecasting.submit({ form: 'setup', edit: { kind: 'cancel' } })).toEqual({ kind: 'notSaved', next: { screen: 'inputs' } })
   })
 
   test('going back to finding from a query it clears asks the EM to confirm that first, changing nothing', async () => {

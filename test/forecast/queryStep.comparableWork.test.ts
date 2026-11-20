@@ -1,7 +1,23 @@
 import { describe, expect, test } from 'vitest'
 import { COMPARABLE_WORK, type InputsEdit } from '../../src/forecast/index.js'
 import type { ForecastingForTest } from './forecastingForTest.js'
-import { TEAM, payments, checkout, repay, bug, connected, onComparableWork, current, change, saved, stepView, add, remove, edit } from './queryStepScenario.js'
+import {
+  TEAM,
+  payments,
+  checkout,
+  repay,
+  bug,
+  connected,
+  onComparableWork,
+  current,
+  change,
+  saved,
+  savedEditing,
+  stepView,
+  add,
+  remove,
+  edit,
+} from './queryStepScenario.js'
 
 // The step for another of the team’s queries (#200), and the Comparable work step.
 
@@ -97,7 +113,7 @@ describe('the Comparable work step', () => {
 
     const submitted = await change(team, edit('label:checkout -label:bug'), 'comparableWork')
 
-    expect(submitted).toEqual(saved('comparableWork'))
+    expect(submitted).toEqual(savedEditing('comparableWork'))
     expect(team.calls.reads).toEqual(['label:checkout -label:bug'])
     expect(current(team).comparableWorkQuery(TEAM)).toEqual({ picks: [], query: 'label:checkout -label:bug' })
     expect(current(team).milestoneQuery(TEAM)).toEqual({ picks: [checkout], query: 'milestone:"Checkout"' })

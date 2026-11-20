@@ -60,6 +60,9 @@ export const change = (team: ForecastingForTest, edit: StepQueryEdit, step: Quer
 /** Where a change saved, or read as nothing new, goes: the step it was made in. */
 export const saved = (step: QuerySetupStep = 'milestone'): Outcome => ({ kind: 'saved', next: { screen: 'inputs', step } })
 
+/** Where a query edited by hand, saved, goes: the step it was made in, its query still open for editing. */
+export const savedEditing = (step: QuerySetupStep = 'milestone'): Outcome => ({ kind: 'saved', next: { screen: 'inputs', step, editing: true } })
+
 /** The query step `step` (the Milestone step unless given), as the Inputs screen opens at it, its find box holding `find`. */
 export async function stepView(
   team: ForecastingForTest,
