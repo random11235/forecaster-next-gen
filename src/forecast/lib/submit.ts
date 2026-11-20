@@ -109,11 +109,11 @@ export async function submit(team: TeamCall, edit: Edit, opening: SubmitOpening 
  * screen to show; refused on the Inputs screen, that screen whole, the form as typed.
  */
 async function inputsFormSubmitted(team: TeamCall, edit: InputsEdit, opening: SubmitOpening): Promise<Outcome> {
-  const { storage, teamId, settings, at, tracker } = team
+  const { storage, teamId } = team
   const { capacityOpen = false, inPlace = false } = opening
   const milestoneName = (): string => storage.milestoneInputs(teamId)?.name ?? ''
   const named = milestoneName()
-  const submitted = submitInputs(storage, teamId, settings, at.today, edit, { capacityOpen, tracker })
+  const submitted = submitInputs(team, edit, { capacityOpen })
   if (!submitted.saved) {
     if (submitted.screen === 'forecast') return { kind: 'refusedOnForecast', view: submitted.view }
     return refused(team, opening, { inputs: submitted.view, unlisted: inPlace })

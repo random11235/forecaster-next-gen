@@ -4,12 +4,13 @@ import { openCandidates, type CandidateOpening } from './candidates.js'
 import { rerunForecast, type Rerun } from './forecastLedger.js'
 import { howItWorksView, type HowItWorksView } from './howItWorksView.js'
 import { inputsScreen, STEP_QUERIES, type InputsOpening, type InputsScreen, type QuerySetupStep } from './inputsScreenView.js'
-import { milestoneForecastView, type MilestoneForecastView } from './milestoneForecastView.js'
+import { milestoneForecastView, type CapacityShown, type MilestoneForecastView } from './milestoneForecastView.js'
 import { searchedChoiceList, type ChoiceList } from './queryStep.js'
 import { submit, type Edit, type Outcome, type SubmitOpening } from './submit.js'
-import { connected, openTeamCalls, type CapacityShown, type ForecastingOptions } from './teamCall.js'
+import { connected, openTeamCalls, type ForecastingOptions } from './teamCall.js'
 
-export type { Clock, CapacityShown, ForecastingOptions } from './teamCall.js'
+export type { Clock, ForecastingOptions } from './teamCall.js'
+export type { CapacityShown } from './milestoneForecastView.js'
 export type { InputsOpening, InputsScreen, QuerySetupStep } from './inputsScreenView.js'
 export type { Edit, Outcome, Place, SubmitOpening } from './submit.js'
 
@@ -44,8 +45,7 @@ export function openForecasting(options: ForecastingOptions): Forecasting {
   return {
     connects: options.connecting !== undefined,
     milestoneForecastView: async ({ capacityOpen = false } = {}) => {
-      const { storage, teamId, settings, at, tracker } = call()
-      return milestoneForecastView(storage, teamId, settings, at.today, { capacityOpen, tracker })
+      return milestoneForecastView(call(), { capacityOpen })
     },
     howItWorksView: async () => howItWorksView(call().settings),
     inputsScreen: (opening = {}) => inputsScreen(call(), opening),
