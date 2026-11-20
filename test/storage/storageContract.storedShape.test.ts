@@ -110,11 +110,10 @@ const forecastLog = (column: 'simulation_case' | 'result', stored: string): Refu
     const json = { simulation_case: JSON.stringify(simulationCase), result: JSON.stringify(result), [column]: stored }
     writeStraight(
       file,
-      `INSERT INTO forecast_logs (team_id, id, created_at, milestone_name, case_hash, app_version, simulation_case, result)
-       VALUES (?, 1, '2026-11-02T09:00:00.000Z', ?, ?, ?, ?, ?)`,
+      `INSERT INTO forecast_logs (team_id, id, created_at, milestone_name, app_version, simulation_case, result)
+       VALUES (?, 1, '2026-11-02T09:00:00.000Z', ?, ?, ?, ?)`,
       teamId,
       milestoneName,
-      result.caseHash,
       appVersion,
       json.simulation_case,
       json.result,
