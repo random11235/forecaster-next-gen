@@ -22,7 +22,7 @@ src/
     lib/                  # the rest, private to engine/: the trial loop (simulate.ts), the case's checks (validate.ts), dates, the case's hash, the types, ENGINE_VERSION
 
   forecast/               # the only module that knows both stored data and the engine
-    index.ts              # the one entry point, which app/ and Seam B's tests import alone: the team's handle (`openForecasting`, `Forecasting`), what goes in through it, each view and edit the screens show and post, the limits the screens' fields are given, and the app's version
+    index.ts              # the one entry point, which app/ and Seam B's tests import alone: the team's handle (`openForecasting`, `Forecasting`), what goes in through it, each view and edit the screens show and post, the limits the screens' fields are given, the words the screens share (each kind of choice's name, `KIND_NAMES`, and a date as day and month, `dayMonth`), and the app's version
     lib/                  # the rest, private to forecast/:
       forecasting.ts      # the team's handle, `openForecasting`: opened on storage, a clock (now and the EM's time zone, today worked out from them), the settings and, in the local server build, what it connects with; adds the default team on first launch
       teamCall.ts         # what one handle call reads and saves with: the team, the clock read once (now, today, the time zone), the settings and, in the local server build, its tracker reads and what setup reads with, listing the milestone choices once

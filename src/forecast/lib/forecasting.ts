@@ -35,8 +35,9 @@ export interface Forecasting {
 }
 
 /**
- * Seam B: the team's handle, adding the default team on first launch, when nothing is stored yet. Each call reads the
- * clock once, and asks the tracker for the milestone choices once (`openTeamCalls`).
+ * Seam B: the team's handle, adding the default team on first launch, when nothing is stored yet. Each call on the
+ * team reads the clock once, and asks the tracker for the milestone choices once (`openTeamCalls`); `rerunForecast`,
+ * which re-runs a logged case alone, reads neither the clock nor the team.
  */
 export function openForecasting(options: ForecastingOptions): Forecasting {
   const call = openTeamCalls(options)
