@@ -1,12 +1,15 @@
-import { describe, expect, test } from 'vitest'
-import { howItWorksView } from '../../src/forecast/howItWorksView.js'
-import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
+import { beforeAll, describe, expect, test } from 'vitest'
+import type { HowItWorksView } from '../../src/forecast/index.js'
+import { forecastingForTest } from './forecastingForTest.js'
 
 // The How it works screen's example: 30 tickets remaining, medium ambiguity (1–2×), 4–8 a week. Grown, the work is 30
 // to 60 tickets, so a simulation finishes no sooner than week 4 (30 at 8 a week) and no later than week 15 (60 at 4).
 
 describe('How it works: the example forecast', () => {
-  const view = howItWorksView(DEFAULT_SETTINGS)
+  let view: HowItWorksView
+  beforeAll(async () => {
+    view = await (await forecastingForTest()).howItWorksView()
+  })
 
   test('is the example the screen describes', () => {
     expect(view.example).toEqual({ ticketsRemaining: 30, growth: { low: 1, high: 2 }, pace: { low: 4, high: 8 }, cadenceDays: 7 })

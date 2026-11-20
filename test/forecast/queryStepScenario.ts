@@ -1,18 +1,13 @@
-import { beforeEach } from 'vitest'
-import { cannedConnector, type CannedFixture } from '../../src/connectors/canned.js'
-import type { Choice, Connector } from '../../src/connectors/connector.js'
-import { submitConnection, type ConnectionEdit } from '../../src/forecast/connection.js'
-import type { QueryStepping } from '../../src/forecast/queryStep.js'
-import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
-import { currentStorage, openStorage, useTempDatabase } from '../tempDatabase.js'
+import type { CannedFixture } from '../../src/connectors/canned.js'
+import type { Choice } from '../../src/connectors/connector.js'
+import type { Outcome, QuerySetupStep, QueryStep, StepQueryEdit } from '../../src/forecast/index.js'
+import { forecastingForTest, TEAM, type ForecastingForTest } from './forecastingForTest.js'
 
-// The arrangement shared by the Milestone step's tests (#191): a team in a fresh database for each test, the canned
-// connector's choices and reads, and the means to connect and to change the step. Each test file calls
-// `useTeamDatabase()`, and reaches its storage through test/tempDatabase.ts.
+// The arrangement shared by the query steps' tests (#191): the team's handle, connected, with setup open on its steps,
+// as the EM picks the queries in them; the canned connector's choices and reads, and the means to change and open a
+// step. What the steps pick is held in the setup draft, read here as `current(team)`.
 
-export const TEAM = 'team'
-export const READ_AT = '2026-11-12T09:00:00Z'
-const AT = { readAt: READ_AT, today: '2026-11-12', timeZone: 'UTC' }
+export { TEAM }
 
 export const payments: Choice = { kind: 'milestone', name: 'Payments v2', query: 'milestone:"Payments v2"' }
 export const checkout: Choice = { kind: 'milestone', name: 'Checkout', query: 'milestone:"Checkout"' }
@@ -37,49 +32,63 @@ export const FIXTURE: CannedFixture = {
   },
 }
 
-/** Gives each test of the calling file the team, set up, in a fresh database file, closed and removed after. */
-export function useTeamDatabase(): void {
-  useTempDatabase('forecaster-milestone-step-')
-  beforeEach(() => {
-    const storage = openStorage()
-    storage.saveTeam({ id: TEAM, name: 'My team', source: 'manual', sourceRef: '', installedAt: '2026-01-01T00:00:00Z' })
-    storage.saveSetupState(TEAM, { open: false, closed: 'done' })
+/** Connected to the GitHub repo shop-team/shop, setup open on its steps, with no calls counted yet. */
+export function connected(fixture: CannedFixture = FIXTURE): Promise<ForecastingForTest> {
+  return forecastingForTest({ fixture, connected: 'github', setupOpen: true })
+}
+
+/** Connected to the Jira project SHOP, setup open on its steps, with no calls counted yet. */
+export function connectedToJira(fixture: CannedFixture): Promise<ForecastingForTest> {
+  return forecastingForTest({ fixture, connected: 'jira', setupOpen: true })
+}
+
+/** The team's queries as the steps have them: the setup draft's over what's saved. */
+export const current = (team: ForecastingForTest) => team.storage.teamQueries('current').milestoneQueries
+
+/**
+ * The milestone given a query in the steps, Checkout's, as the Milestone step leaves it, asking the tracker nothing: the
+ * Comparable work step opens once the milestone has one.
+ */
+export function onComparableWork(team: ForecastingForTest): void {
+  current(team).saveMilestoneQuery(TEAM, { picks: [checkout], query: checkout.query })
+}
+
+/** Submits `edit` in the query step `step`, the Milestone step unless given. */
+export const change = (team: ForecastingForTest, edit: StepQueryEdit, step: QuerySetupStep = 'milestone'): Promise<Outcome> =>
+  team.submit({ form: 'stepQuery', step, edit })
+
+/** Where a change saved, or read as nothing new, goes: the step it was made in. */
+export const saved = (step: QuerySetupStep = 'milestone'): Outcome => ({ saved: true, next: { screen: 'inputs', step } })
+
+/** The query step `step` (the Milestone step unless given), as the Inputs screen opens at it, its find box holding `find`. */
+export async function stepView(
+  team: ForecastingForTest,
+  find = '',
+  { editing = false, confirmingBack = false } = {},
+  step: QuerySetupStep = 'milestone',
+): Promise<QueryStep> {
+  const screen = await team.inputsScreen({
+    step,
+    find: step === 'milestone' ? { milestone: find } : { comparableWork: find },
+    ...(editing && { editing: step }),
+    ...(confirmingBack && { confirmingBack: true }),
   })
+  if (!screen.step) throw new Error(`no query step shown: setup is ${JSON.stringify(screen.setup)}`)
+  return screen.step
 }
 
-/** The local build's means to connect, on the canned connector answering from `fixture`, counting its calls. */
-export function connecting(fixture: CannedFixture = FIXTURE): QueryStepping & { calls: { choices: number; reads: string[]; searches: [string, string][] } } {
-  const calls = { choices: 0, reads: [] as string[], searches: [] as [string, string][] }
-  const canned = cannedConnector(fixture)
-  const connector = (): Connector => ({
-    milestoneChoices: () => {
-      calls.choices += 1
-      return canned.milestoneChoices()
-    },
-    searchChoices: (kind, text) => {
-      calls.searches.push([kind, text])
-      return canned.searchChoices(kind, text)
-    },
-    read: (query, since) => {
-      calls.reads.push(query)
-      return canned.read(query, since)
-    },
-  })
-  const storage = currentStorage()
-  return { connections: storage, queries: storage, setup: storage, secrets: openMemorySecrets(), connector, milestoneInputs: storage, at: AT, calls }
+/** The query step a refused change shows again, on its refusal. */
+export function refusedStep(outcome: Outcome): QueryStep {
+  if (outcome.saved || !('screen' in outcome) || outcome.screen !== 'inputs' || !outcome.view.step) {
+    throw new Error(`not refused at a query step: ${JSON.stringify(outcome)}`)
+  }
+  return outcome.view.step
 }
 
-/** The means to connect on `fixture`, connected as `edit` says, with no calls counted yet. */
-async function connectedAs(fixture: CannedFixture, edit: Extract<ConnectionEdit, { kind: 'connect' }>): Promise<ReturnType<typeof connecting>> {
-  const using = connecting(fixture)
-  await submitConnection(using, TEAM, edit)
-  using.calls.choices = 0
-  return using
-}
-
-/** Connected to a GitHub repo, with no calls counted yet. */
-export function connected(fixture: CannedFixture = FIXTURE): Promise<ReturnType<typeof connecting>> {
-  return connectedAs(fixture, { kind: 'connect', tracker: 'github', repo: 'shop-team/shop', site: '', projectKey: '', email: '', token: 'token' })
+/** A refused query, as its step shows it again: as typed, if edited by hand, and why. */
+export function refusalOf(outcome: Outcome): { query?: string; refusal: string | undefined } {
+  const { editing, refusal } = refusedStep(outcome)
+  return editing ? { query: editing.typed, refusal: editing.refusal } : { refusal }
 }
 
 export const add = (choice: Choice) => ({ kind: 'addPick', choice }) as const
@@ -91,17 +100,4 @@ export const backConfirmed = { kind: 'backToFinding', confirmed: true } as const
 /** `FIXTURE`, its read of `query` answering `read`. */
 export function reading(query: string, read: CannedFixture['reads'][string]): CannedFixture {
   return { ...FIXTURE, reads: { ...FIXTURE.reads, [query]: read } }
-}
-
-/** Connected to the Jira project SHOP, with no calls counted yet. */
-export function connectedToJira(fixture: CannedFixture): Promise<ReturnType<typeof connecting>> {
-  return connectedAs(fixture, {
-    kind: 'connect',
-    tracker: 'jira',
-    repo: '',
-    site: 'shop.atlassian.net',
-    projectKey: 'SHOP',
-    email: 'em@shop.test',
-    token: 'token',
-  })
 }

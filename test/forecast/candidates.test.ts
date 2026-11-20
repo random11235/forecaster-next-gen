@@ -1,28 +1,14 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { assert, afterEach, beforeEach, describe, expect, test } from 'vitest'
-import { cannedConnector, type CannedFixture } from '../../src/connectors/canned.js'
-import type { Choice, Connector, Ticket } from '../../src/connectors/connector.js'
-import { openCandidates, type Candidates } from '../../src/forecast/candidates.js'
-import { submitConnection } from '../../src/forecast/connection.js'
-import { submitInputs } from '../../src/forecast/inputs.js'
-import { queryStepView, searchedChoiceList, submitStepQuery, type QueryStepping, type StepCandidates } from '../../src/forecast/queryStep.js'
-import { COMPARABLE_WORK } from '../../src/forecast/stepQuery.js'
-import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
-import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
-import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
-import type { TeamStorage } from '../trackerScenario.js'
+import { assert, beforeEach, describe, expect, test } from 'vitest'
+import type { CannedFixture } from '../../src/connectors/canned.js'
+import type { Choice, Ticket } from '../../src/connectors/connector.js'
+import { COMPARABLE_WORK, type Candidates, type InputsOpening, type QueryStep } from '../../src/forecast/index.js'
+import { forecastingForTest, type ForecastingForTest } from './forecastingForTest.js'
 
 // Candidates for comparable work (#205): read on demand, each grouped slower, about the same or faster than the
 // milestone's own, or nothing finished.
 
-const TEAM = 'team'
-const TODAY = '2026-11-12'
-// Thursday; each read reaches back 9 weeks (8 whole weeks and the current one), to 09:00 on Thursday 10 Sep, so the
-// weeks it reaches whole start on 17 Sep. The tickets here finish from the week of 24 Sep.
-const READ_AT = '2026-11-12T09:00:00Z'
-const AT = { readAt: READ_AT, today: TODAY, timeZone: 'UTC' }
+// Today, Thursday 12 Nov, 09:00, when each read is made: it reaches back 9 weeks (8 whole weeks and the current one), to
+// 09:00 on Thursday 10 Sep, so the weeks it reaches whole start on 17 Sep. The tickets here finish from the week of 24 Sep.
 const WEEKS = ['2026-09-24', '2026-10-01', '2026-10-08', '2026-10-15', '2026-10-22', '2026-10-29', '2026-11-05']
 
 const checkout: Choice = { kind: 'milestone', name: 'Checkout v2', query: 'milestone:"Checkout v2"' }
@@ -39,7 +25,9 @@ const refunds: Choice = { kind: 'label', name: 'refunds', query: 'label:"refunds
 /** Tickets `prefix`1… finished at 10:00 on the Friday of each week in `WEEKS`, `counts[week]` of them. */
 function finishedIn(prefix: string, counts: number[]): Ticket[] {
   let n = 0
-  return counts.flatMap((count, week) => Array.from({ length: count }, () => ({ id: `${prefix}${++n}`, finishedAt: `${addDays(WEEKS[week]!, 1)}T10:00:00Z` })))
+  return counts.flatMap((count, week) =>
+    Array.from({ length: count }, () => ({ id: `${prefix}${++n}`, finishedAt: `${addDays(WEEKS[week] ?? '', 1)}T10:00:00Z` })),
+  )
 }
 
 function addDays(date: string, days: number): string {
@@ -71,49 +59,38 @@ const FIXTURE: CannedFixture = {
   },
 }
 
-let dir: string
-let storage: TeamStorage
-let using: QueryStepping
+let team: ForecastingForTest
+/** Each query the tracker was asked to read, since the milestone query was picked. */
 let reads: string[]
 
+/**
+ * Connected to GitHub, in the team's first setup, so what the steps pick is held in its draft, as the Comparable work
+ * step shows it; the milestone starting on 1 Oct, its query Checkout v2's milestone.
+ */
 beforeEach(async () => {
-  dir = mkdtempSync(join(tmpdir(), 'forecaster-candidates-'))
-  storage = openSqliteStorage(join(dir, 'forecaster.db'))
-  storage.saveTeam({ id: TEAM, name: 'My team', source: 'manual', sourceRef: '', installedAt: '2026-01-01T00:00:00Z' })
-  reads = []
-  using = {
-    connections: storage,
-    queries: storage,
-    setup: storage,
-    secrets: openMemorySecrets(),
-    connector: () => counted(cannedConnector(FIXTURE)),
-    milestoneInputs: storage,
-    at: AT,
-  }
-  await submitConnection(using, TEAM, { kind: 'connect', tracker: 'github', repo: 'shop-team/shop', site: '', projectKey: '', email: '', token: 'token' })
-  submitInputs(storage, TEAM, DEFAULT_SETTINGS, TODAY, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-10-01', ticketsRemaining: '30' })
-  await submitStepQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
-  reads = []
+  team = await forecastingForTest({ fixture: FIXTURE, connected: true, setupOpen: true })
+  await startOn('2026-10-01')
+  await pickIn('milestone', checkout)
+  reads = team.calls.reads
+  reads.splice(0)
 })
 
-afterEach(() => {
-  storage.close()
-  rmSync(dir, { recursive: true, force: true })
-})
+const startOn = (startDate: string) => team.submit({ form: 'inputs', edit: { kind: 'setMilestone', name: 'Checkout v2', startDate, ticketsRemaining: '30' } })
 
-/** The connector, noting each query it reads in `reads`. */
-function counted(connector: Connector): Connector {
-  return { ...connector, read: (query, finishedSince) => (reads.push(query), connector.read(query, finishedSince)) }
-}
+const pickIn = (step: 'milestone' | 'comparableWork', choice: Choice) => team.submit({ form: 'stepQuery', step, edit: { kind: 'addPick', choice } })
 
-const open = () => openCandidates(using, storage, TEAM, AT)
+const open = () => team.openCandidates()
+
+/** The Comparable work step, opened as `opening` asks. */
+const comparableWorkStep = async (opening: InputsOpening = {}): Promise<QueryStep | undefined> =>
+  (await team.inputsScreen({ step: 'comparableWork', ...opening })).step
 
 /** Each group's candidates, by name. */
 const named = (candidates: Candidates) => candidates.groups.map(({ group, candidates }) => ({ group, names: candidates.map((each) => each.choice.name) }))
 
 describe('a candidate’s read', () => {
   test('its last periods as a strip, its median and how it compares with the milestone’s own, finished, open and last finished', async () => {
-    const candidates = await open().read([payments])
+    const candidates = await (await open()).read([payments])
 
     expect(candidates.groups).toEqual([
       {
@@ -139,7 +116,7 @@ describe('a candidate’s read', () => {
   })
 
   test('grouped slower, about the same, faster and nothing finished, each by median; the milestone itself marked', async () => {
-    const candidates = await open().read([bug, docs, checkout, payments, rewards])
+    const candidates = await (await open()).read([bug, docs, checkout, payments, rewards])
 
     expect(named(candidates)).toEqual([
       { group: 'slower', names: ['payments'] },
@@ -147,42 +124,41 @@ describe('a candidate’s read', () => {
       { group: 'faster', names: ['bug'] },
       { group: 'nothingFinished', names: ['docs'] },
     ])
-    const milestone = candidates.groups[1]!.candidates[0]!
-    expect(milestone.thisMilestone).toBe(true)
-    expect(candidates.groups[2]!.candidates[0]).toMatchObject({ read: { median: 4, versus: { kind: 'faster', by: 2 }, open: 3 } })
-    expect(candidates.groups[3]!.candidates[0]).toMatchObject({ read: { finished: 0, open: 2 } })
-    expect(candidates.groups[3]!.candidates[0]).not.toHaveProperty(['read', 'lastFinished'])
+    expect(candidates.groups[1]?.candidates[0]?.thisMilestone).toBe(true)
+    expect(candidates.groups[2]?.candidates[0]).toMatchObject({ read: { median: 4, versus: { kind: 'faster', by: 2 }, open: 3 } })
+    expect(candidates.groups[3]?.candidates[0]).toMatchObject({ read: { finished: 0, open: 2 } })
+    expect(candidates.groups[3]?.candidates[0]).not.toHaveProperty(['read', 'lastFinished'])
   })
 
   test('how many it adds that the picks don’t already count', async () => {
-    await submitStepQuery(using, TEAM, { kind: 'addPick', choice: rewards }, READ_AT, COMPARABLE_WORK)
+    await pickIn('comparableWork', rewards)
 
-    const candidates = await open().read([loyalty])
+    const candidates = await (await open()).read([loyalty])
 
-    expect(candidates.groups[0]!.candidates[0]).toMatchObject({ read: { finished: 5, adds: 2 } })
+    expect(candidates.groups[0]?.candidates[0]).toMatchObject({ read: { finished: 5, adds: 2 } })
   })
 
   test('with no comparable work picked, adds is left out', async () => {
-    const candidates = await open().read([bug])
+    const candidates = await (await open()).read([bug])
 
-    expect(candidates.groups[0]!.candidates[0]).not.toHaveProperty(['read', 'adds'])
+    expect(candidates.groups[0]?.candidates[0]).not.toHaveProperty(['read', 'adds'])
   })
 
   test('with too few periods of the milestone’s own to compare, listed by median, slowest first', async () => {
-    submitInputs(storage, TEAM, DEFAULT_SETTINGS, TODAY, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-10-29', ticketsRemaining: '30' })
+    await startOn('2026-10-29')
 
-    const candidates = await open().read([bug, docs, payments, rewards])
+    const candidates = await (await open()).read([bug, docs, payments, rewards])
 
     expect(candidates.milestoneOwn).toBeUndefined()
     expect(named(candidates)).toEqual([
       { group: 'byMedian', names: ['payments', 'rewards', 'bug'] },
       { group: 'nothingFinished', names: ['docs'] },
     ])
-    expect(candidates.groups[0]!.candidates[0]).toMatchObject({ read: { versus: { kind: 'tooFewToCompare' } } })
+    expect(candidates.groups[0]?.candidates[0]).toMatchObject({ read: { versus: { kind: 'tooFewToCompare' } } })
   })
 
   test('a read that fails shows why, and the candidate is still there to pick', async () => {
-    const candidates = await open().read([broken, partial])
+    const candidates = await (await open()).read([broken, partial])
 
     expect(candidates.groups).toEqual([
       {
@@ -198,27 +174,27 @@ describe('a candidate’s read', () => {
 
 describe('this milestone, in the step’s lists', () => {
   test('the choice that is the milestone query is marked, without reading it', async () => {
-    const step = await queryStepView(using, TEAM, '', {}, COMPARABLE_WORK)
-    const searched = await searchedChoiceList(using, TEAM, 'milestone', '', COMPARABLE_WORK)
+    const step = await comparableWorkStep()
+    const searched = await team.searchedChoiceList('milestone', '', COMPARABLE_WORK)
 
-    expect(step.kind !== 'noQueryStep' && step.lists.map((list) => list.thisMilestone)).toEqual([checkout.query, undefined])
+    expect(step?.lists.map((list) => list.thisMilestone)).toEqual([checkout.query, undefined])
     expect(searched).toMatchObject({ thisMilestone: checkout.query })
     expect(reads).toEqual([])
   })
 
   test('none is marked when the milestone query is more than one choice', async () => {
-    await submitStepQuery(using, TEAM, { kind: 'addPick', choice: release }, READ_AT)
+    await pickIn('milestone', release)
 
-    const step = await queryStepView(using, TEAM, '', {}, COMPARABLE_WORK)
+    const step = await comparableWorkStep()
 
-    expect(step.kind !== 'noQueryStep' && step.lists.map((list) => list.thisMilestone)).toEqual([undefined, undefined])
+    expect(step?.lists.map((list) => list.thisMilestone)).toEqual([undefined, undefined])
   })
 })
 
 /** The candidates the Comparable work step's view shows, opened with `find` typed and `opened`. */
-async function shownBy(find: string, opened: string[] = []): Promise<StepCandidates | undefined> {
-  const step = await queryStepView(using, TEAM, find, { opened }, COMPARABLE_WORK)
-  return step.kind === 'comparableWorkStep' ? step.candidates : undefined
+async function shownBy(find: string, opened: string[] = []) {
+  const step = await comparableWorkStep({ find: { comparableWork: find }, opened })
+  return step?.kind === 'comparableWorkStep' ? step.candidates : undefined
 }
 
 describe('reading on demand', () => {
@@ -262,20 +238,21 @@ describe('reading on demand', () => {
   })
 
   test('with its query open for editing, the step shows no candidates and reads none', async () => {
-    const step = await queryStepView(using, TEAM, 'r', { editing: true }, COMPARABLE_WORK)
+    const step = await comparableWorkStep({ find: { comparableWork: 'r' }, editing: 'comparableWork' })
 
     expect(reads).toEqual([])
+    expect(step).toMatchObject({ kind: 'comparableWorkStep' })
     expect(step).not.toHaveProperty('candidates')
   })
 
   test('opening one candidate reads only it', async () => {
-    await open().read([payments])
+    await (await open()).read([payments])
 
     expect(reads).toEqual([payments.query])
   })
 
   test('each is read at most once per opening, and kept for the opening', async () => {
-    const opening = open()
+    const opening = await open()
     await opening.read([payments])
     const candidates = await opening.read([payments, rewards])
 
@@ -287,8 +264,8 @@ describe('reading on demand', () => {
   })
 
   test('a new opening reads afresh', async () => {
-    await open().read([payments])
-    await open().read([payments])
+    await (await open()).read([payments])
+    await (await open()).read([payments])
 
     expect(reads).toEqual([payments.query, payments.query])
   })

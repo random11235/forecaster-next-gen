@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'vitest'
-import { APP_VERSION } from '../../src/forecast/appVersion.js'
+import { APP_VERSION } from '../../src/forecast/index.js'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { once } from 'node:events'
 import { mkdtempSync, rmSync } from 'node:fs'
