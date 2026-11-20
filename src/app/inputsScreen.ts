@@ -1,9 +1,15 @@
-import { MAX_CADENCE_DAYS, type MilestoneInputsView } from '../forecast/milestoneInputs.js'
-import { MAX_GROWTH, type GrowthView, type TypedRange } from '../forecast/growth.js'
-import type { InputsScreen } from '../forecast/forecasting.js'
-import type { QueryStep } from '../forecast/queryStep.js'
-import type { SkipEdit } from '../forecast/skippedPeriods.js'
-import type { InputsEdit, TypedForms } from '../forecast/inputs.js'
+import {
+  MAX_CADENCE_DAYS,
+  MAX_GROWTH,
+  type GrowthView,
+  type InputsEdit,
+  type InputsScreen,
+  type MilestoneInputsView,
+  type QueryStep,
+  type SkipEdit,
+  type TypedForms,
+  type TypedRange,
+} from '../forecast/index.js'
 import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
 import { CONNECT_HINT, connectSection } from './connectSection.js'
 import { CHECK_SCRIPT, CHECK_STEP, checkStepHtml, setupSkippedHtml, setupStepHtml, setupSummaryHtml } from './setupSection.js'

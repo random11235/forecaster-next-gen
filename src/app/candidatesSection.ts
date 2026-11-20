@@ -1,8 +1,14 @@
 import type { Choice } from '../connectors/connector.js'
-import type { PeriodName } from '../forecast/cadence.js'
+import {
+  FEW_CANDIDATES,
+  type Candidate,
+  type CandidateGroupKind,
+  type CandidateOpening,
+  type Candidates,
+  type PaceVersus,
+  type PeriodName,
+} from '../forecast/index.js'
 import { dayMonth } from './html.js'
-import { FEW_CANDIDATES, type Candidate, type CandidateGroupKind, type CandidateOpening, type Candidates } from '../forecast/candidates.js'
-import type { PaceVersus } from '../forecast/paceVersusOwn.js'
 import { escapeHtml } from './html.js'
 import { CHOICE_FIELDS, type StepSection } from './queryStepSection.js'
 

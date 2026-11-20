@@ -1,4 +1,4 @@
-import type { ReadsDifferently } from '../../forecast/milestoneInputs.js'
+import type { ReadsDifferently } from '../../forecast/index.js'
 import { escapeHtml } from '../html.js'
 import { formAction, type FormTarget } from './inputSection.js'
 
