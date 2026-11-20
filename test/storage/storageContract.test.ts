@@ -4,6 +4,7 @@ import type { CapacityEntry } from '../../src/model/capacity.js'
 import type { MilestoneInputs } from '../../src/model/milestoneInputs.js'
 import type { Storage } from '../../src/storage/storage.js'
 import { openWebStorage, type KeyValueStore } from '../../src/storage/webStorage.js'
+import { ISO_INSTANT } from '../isoInstant.js'
 import { memoryStore } from '../memoryStore.js'
 import { FORECAST, LAUNCH, TEAM, temporarySqliteFiles } from './storageContractFixtures.js'
 
@@ -176,7 +177,7 @@ describe.each(kinds)('%s storage', (_, opened) => {
       { ...FORECAST, id: 1, createdAt: expect.any(String) },
       { ...withoutCapacity, id: 2, createdAt: expect.any(String) },
     ])
-    expect(logs.every(({ createdAt }) => /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(createdAt) && createdAt >= before && createdAt <= after)).toBe(true)
+    expect(logs.every(({ createdAt }) => ISO_INSTANT.test(createdAt) && createdAt >= before && createdAt <= after)).toBe(true)
     expect(reopen().lastForecastLog('team')).toEqual({
       id: 2,
       teamId: 'team',
