@@ -1,6 +1,9 @@
 import type { MilestoneQuery } from '../../model/milestoneQuery.js'
 import type { MilestoneQueryStorage } from '../../storage/storage.js'
 
+/** A query's name, as its step labels it and the setup summary names it. */
+export type QueryName = 'Milestone query' | 'Comparable-work query'
+
 /**
  * Which of the team's queries a query step edits, picked or written by hand the same way: the milestone query
  * (`MILESTONE_QUERY`), or comparable work's (`COMPARABLE_WORK`, #158). It says how the step names the query and where
@@ -10,7 +13,7 @@ import type { MilestoneQueryStorage } from '../../storage/storage.js'
 export interface StepQuery {
   kind: 'milestoneQuery' | 'comparableWork'
   /** The query as the step labels it: "Milestone query". */
-  name: string
+  name: QueryName
   /** What the query is to pick out, as the step says when it matches nothing: "the milestone’s tickets". */
   picksOut: string
   /** The team's picks and query, if the EM has picked or written one. */
