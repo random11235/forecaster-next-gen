@@ -6,6 +6,7 @@ import {
   type ComparableWorkPace,
   type QueryEditing,
   type QueryStep,
+  type QuerySetupStep,
   type SetupStep,
   type StepQuery,
   type StepQueryEdit,
@@ -27,7 +28,7 @@ export interface StepSection {
   /** The query the step edits. */
   stepQuery: StepQuery
   /** The setup step it is, which its URLs open at (`STEP_FIELD`): the Milestone step, the default, names none. */
-  setupStep: Extract<SetupStep, 'milestone' | 'comparableWork'>
+  setupStep: QuerySetupStep
   /** Its section's id on the Inputs screen. */
   id: string
   /** Its name and hint, in the section's label column. */
@@ -88,7 +89,7 @@ function stepSection({ formsAt, editingValue, ...section }: StepSectionMade): St
     [paths.edit, (body) => ({ kind: 'editQuery', query: body.get(CHOICE_FIELDS.query) ?? '' })],
     [paths.back, (body) => ({ kind: 'backToFinding', confirmed: body.get(CONFIRMED.name) === CONFIRMED.value })],
   ])
-  if (section.stepQuery.kind === 'comparableWork') forms.set(paths.afresh, () => ({ kind: 'startAfresh' }))
+  if (section.setupStep === 'comparableWork') forms.set(paths.afresh, () => ({ kind: 'startAfresh' }))
   return {
     ...section,
     paths,
@@ -231,8 +232,8 @@ ${lists}
  * marked "this milestone"; a kind searched in the tracker is marked for the script (`data-searched`), which asks for it
  * again as the EM types rather than filtering it.
  */
-export function choiceListHtml(list: ChoiceList, { paths, id, stepQuery, setupStep }: StepSection): string {
-  const candidates = stepQuery.kind === 'comparableWork'
+export function choiceListHtml(list: ChoiceList, { paths, id, setupStep }: StepSection): string {
+  const candidates = setupStep === 'comparableWork'
   const choices = list.choices
     .map(
       (

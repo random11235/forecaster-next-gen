@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { COMPARABLE_WORK, type InputsEdit } from '../../src/forecast/index.js'
+import type { InputsEdit } from '../../src/forecast/index.js'
 import type { ForecastingForTest } from './forecastingForTest.js'
 import {
   TEAM,
@@ -43,7 +43,7 @@ describe('the step, for another of the team’s queries (#200)', () => {
       { kind: 'milestone', choices: [payments, checkout], searchedInTracker: false, thisMilestone: payments.query },
       { kind: 'label', choices: [repay], searchedInTracker: false },
     ])
-    expect(await team.searchedChoiceList('label', '', COMPARABLE_WORK)).toEqual({
+    expect(await team.searchedChoiceList('label', '', 'comparableWork')).toEqual({
       kind: 'label',
       choices: [repay],
       searchedInTracker: false,

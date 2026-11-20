@@ -1,7 +1,7 @@
 import { assert, beforeEach, describe, expect, test } from 'vitest'
 import type { CannedFixture } from '../../src/connectors/canned.js'
 import type { Choice, Ticket } from '../../src/connectors/connector.js'
-import { COMPARABLE_WORK, type Candidates, type InputsOpening, type QueryStep } from '../../src/forecast/index.js'
+import type { Candidates, InputsOpening, QueryStep } from '../../src/forecast/index.js'
 import { forecastingForTest, type ForecastingForTest } from './forecastingForTest.js'
 
 // Candidates for comparable work (#205): read on demand, each grouped slower, about the same or faster than the
@@ -175,7 +175,7 @@ describe('a candidate’s read', () => {
 describe('this milestone, in the step’s lists', () => {
   test('the choice that is the milestone query is marked, without reading it', async () => {
     const step = await comparableWorkStep()
-    const searched = await team.searchedChoiceList('milestone', '', COMPARABLE_WORK)
+    const searched = await team.searchedChoiceList('milestone', '', 'comparableWork')
 
     expect(step?.lists.map((list) => list.thisMilestone)).toEqual([checkout.query, undefined])
     expect(searched).toMatchObject({ thisMilestone: checkout.query })
