@@ -4,6 +4,7 @@ Part of the architecture design; the index is [`architecture.md`](architecture.m
 
 **Dependency rules:**
 
+- Each folder of `src/` is a module whose entry points are the files at its root; its subfolders (`lib/`, a connector's own folder) are private to it. Code outside a module (`test/`, `scripts/`, another module) imports only its entry points, a module's own files import each other freely, and there are no dependency cycles. `npm run lint:boundaries` (dependency-cruiser, [`.dependency-cruiser.cjs`](../../.dependency-cruiser.cjs)) checks this over `src`, `test` and `scripts`, in `check:static` beside the typecheck, and fails on a run that cruises no modules. [`src/README.md`](../../src/README.md) sets out the layout.
 - `engine/` imports nothing from the rest of the app.
 - `model/` depends only on `engine/`'s types (`import type`), never on `connectors/`: the record types a connector answers in (`Ticket`, `Choice`, `Failure`) live in `model/`, and `connectors/connector.ts` re-exports them. `test/dependencyRules.test.ts` checks this rule.
 - `samples/` imports only `model/`.
