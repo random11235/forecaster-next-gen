@@ -1,20 +1,20 @@
 import { assert, describe, expect, test } from 'vitest'
-import type { InputsEdit } from '../../src/forecast/inputs.js'
-import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
-import type { Storage } from '../../src/storage/storage.js'
-import { TEAM, TODAY, openStorage, newTeam, edit, enter, DATES_FROM_1_SEP, view, inputsScreenView } from './forecastViewScenario.js'
+import type { InputsEdit } from '../../src/forecast/index.js'
+import { DEFAULT_SETTINGS } from '../../src/forecast/index.js'
+import type { ForecastingForTest } from './forecastingForTest.js'
+import { TEAM, TODAY, newTeam, edit, enter, DATES_FROM_1_SEP, view, inputsScreenView } from './forecastViewScenario.js'
 
 // Seam B: the Inputs screen before a forecast, its refusals, and the milestone and its ambiguity there. Arranged
 // through forecastViewScenario.ts.
 
 describe('before there is a forecast', () => {
-  test('with nothing entered, the screen is empty', () => {
-    expect(view(newTeam())).toEqual({ kind: 'empty' })
+  test('with nothing entered, the screen is empty', async () => {
+    expect(await view(await newTeam())).toEqual({ kind: 'empty' })
   })
 
-  test('a milestone kept from before the MVP lists what to enter, each naming its input', () => {
-    const storage = newTeam()
-    storage.saveMilestoneInputs({
+  test('a milestone kept from before the MVP lists what to enter, each naming its input', async () => {
+    const team = await newTeam()
+    team.storage.saveMilestoneInputs({
       teamId: TEAM,
       name: 'Checkout v2',
       startDate: undefined,
@@ -30,7 +30,7 @@ describe('before there is a forecast', () => {
       seenReads: { ticketsRemaining: undefined, pace: undefined },
     })
 
-    expect(view(storage)).toEqual({
+    expect(await view(team)).toEqual({
       kind: 'problems',
       name: 'Checkout v2',
       problems: [
@@ -41,9 +41,9 @@ describe('before there is a forecast', () => {
     })
   })
 
-  test('a milestone kept from before the MVP, on too few typed counts, lists them with what else to enter', () => {
-    const storage = newTeam()
-    storage.saveMilestoneInputs({
+  test('a milestone kept from before the MVP, on too few typed counts, lists them with what else to enter', async () => {
+    const team = await newTeam()
+    team.storage.saveMilestoneInputs({
       teamId: TEAM,
       name: 'Checkout v2',
       startDate: undefined,
@@ -59,7 +59,7 @@ describe('before there is a forecast', () => {
       seenReads: { ticketsRemaining: undefined, pace: undefined },
     })
 
-    expect(view(storage)).toEqual({
+    expect(await view(team)).toEqual({
       kind: 'problems',
       name: 'Checkout v2',
       problems: [
@@ -72,12 +72,12 @@ describe('before there is a forecast', () => {
     })
   })
 
-  test('a milestone without a pace yet asks for one', () => {
-    const storage = newTeam()
+  test('a milestone without a pace yet asks for one', async () => {
+    const team = await newTeam()
 
-    expect(edit(storage, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-09-01', ticketsRemaining: '10' })).toEqual({ ok: true })
+    expect(await edit(team, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-09-01', ticketsRemaining: '10' })).toEqual({ ok: true })
 
-    expect(view(storage)).toMatchObject({ kind: 'problems', problems: [{ input: 'pace', message: 'Enter a pace range.' }] })
+    expect(await view(team)).toMatchObject({ kind: 'problems', problems: [{ input: 'pace', message: 'Enter a pace range.' }] })
   })
 })
 
@@ -86,44 +86,44 @@ describe('the typed counts the settings ask for', () => {
   const settings = { ...DEFAULT_SETTINGS, typedCounts: { forForecast: 3, reliable: 5 } }
 
   /** The milestone forecast from `counts`, typed counts in use. */
-  function onCounts(counts: string): Storage {
-    const storage = newTeam()
-    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
-    expect(edit(storage, { kind: 'setPaceCounts', counts })).toEqual({ ok: true })
-    expect(edit(storage, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
-    return storage
+  async function onCounts(counts: string): Promise<ForecastingForTest> {
+    const team = await newTeam(settings)
+    await enter(team, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
+    expect(await edit(team, { kind: 'setPaceCounts', counts })).toEqual({ ok: true })
+    expect(await edit(team, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
+    return team
   }
 
-  test('with 2 typed counts, too few for the settings, there is no forecast, and the Inputs screen says so beside the pace', () => {
-    const storage = onCounts('6, 4')
+  test('with 2 typed counts, too few for the settings, there is no forecast, and the Inputs screen says so beside the pace', async () => {
+    const team = await onCounts('6, 4')
 
     const note = {
       input: 'typedCounts',
       message: 'Typed counts: 2 weeks entered. The forecast needs at least 3. Add another count, or switch pace to the range.',
     }
-    expect(view(storage, settings)).toEqual({ kind: 'problems', name: 'Checkout v2', problems: [note] })
-    expect(inputsScreenView(storage, settings).milestone.notes).toEqual([note])
+    expect(await view(team)).toEqual({ kind: 'problems', name: 'Checkout v2', problems: [note] })
+    expect((await inputsScreenView(team)).milestone.notes).toEqual([note])
   })
 
-  test('with 4 typed counts, the forecast warns it needs 5 to be reliable, and the Inputs screen says so beside the pace', () => {
-    const storage = onCounts('6, 4, 9, 7')
+  test('with 4 typed counts, the forecast warns it needs 5 to be reliable, and the Inputs screen says so beside the pace', async () => {
+    const team = await onCounts('6, 4, 9, 7')
 
-    expect(view(storage, settings)).toMatchObject({
+    expect(await view(team)).toMatchObject({
       kind: 'forecast',
       warnings: [{ input: 'typedCounts', message: 'Typed counts: 4 weeks entered. The forecast needs 5 to be reliable.' }],
     })
-    expect(inputsScreenView(storage, settings).milestone.notes).toEqual([{ input: 'typedCounts', message: '4 of 5 needed for reliable results' }])
+    expect((await inputsScreenView(team)).milestone.notes).toEqual([{ input: 'typedCounts', message: '4 of 5 needed for reliable results' }])
   })
 
-  test('with 5 typed counts, nothing warns about the typed counts', () => {
-    const storage = onCounts('6, 4, 9, 7, 5')
+  test('with 5 typed counts, nothing warns about the typed counts', async () => {
+    const team = await onCounts('6, 4, 9, 7, 5')
 
-    expect(view(storage, settings)).toMatchObject({ kind: 'forecast', warnings: [] })
-    expect(inputsScreenView(storage, settings).milestone.notes).toEqual([])
+    expect(await view(team)).toMatchObject({ kind: 'forecast', warnings: [] })
+    expect((await inputsScreenView(team)).milestone.notes).toEqual([])
   })
 
-  test('the Inputs screen gives the numbers the settings ask for, before anything is entered', () => {
-    expect(inputsScreenView(newTeam(), settings).milestone.typedCountsNeeded).toEqual({ forForecast: 3, reliable: 5 })
+  test('the Inputs screen gives the numbers the settings ask for, before anything is entered', async () => {
+    expect((await inputsScreenView(await newTeam(settings))).milestone.typedCountsNeeded).toEqual({ forForecast: 3, reliable: 5 })
   })
 })
 
@@ -148,40 +148,40 @@ describe('refused edits change nothing and say why', () => {
     [{ kind: 'setCadence', cadenceDays: '' }, 'Enter the cadence as a whole number of days, 1 or more.'],
     [{ kind: 'setCadence', cadenceDays: 'two weeks' }, 'Enter the cadence as a whole number of days, 1 or more.'],
     [{ kind: 'setCadence', cadenceDays: '366' }, 'Enter a cadence of at most 365 days.'],
-  ] satisfies [InputsEdit, string][])('%j: %s', (change, error) => {
-    const storage = newTeam()
-    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
-    const before = view(storage)
+  ] satisfies [InputsEdit, string][])('%j: %s', async (change, error) => {
+    const team = await newTeam()
+    await enter(team, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
+    const before = await view(team)
 
-    expect(edit(storage, change)).toEqual({ ok: false, error })
+    expect(await edit(team, change)).toEqual({ ok: false, error })
 
-    expect(view(storage)).toEqual(before)
+    expect(await view(team)).toEqual(before)
   })
 
-  test('a cadence needs the milestone first', () => {
-    const storage = newTeam()
+  test('a cadence needs the milestone first', async () => {
+    const team = await newTeam()
 
-    expect(edit(storage, { kind: 'setCadence', cadenceDays: '14' })).toEqual({ ok: false, error: 'Enter the milestone first.' })
+    expect(await edit(team, { kind: 'setCadence', cadenceDays: '14' })).toEqual({ ok: false, error: 'Enter the milestone first.' })
 
-    expect(view(storage)).toEqual({ kind: 'empty' })
+    expect(await view(team)).toEqual({ kind: 'empty' })
   })
 
-  test('a pace range needs the milestone first', () => {
-    const storage = newTeam()
+  test('a pace range needs the milestone first', async () => {
+    const team = await newTeam()
 
-    expect(edit(storage, { kind: 'setPaceRange', low: '4', high: '8' })).toEqual({ ok: false, error: 'Enter the milestone first.' })
+    expect(await edit(team, { kind: 'setPaceRange', low: '4', high: '8' })).toEqual({ ok: false, error: 'Enter the milestone first.' })
 
-    expect(view(storage)).toEqual({ kind: 'empty' })
+    expect(await view(team)).toEqual({ kind: 'empty' })
   })
 })
 
 describe('the milestone on the Inputs screen', () => {
-  function inputs(storage: Storage) {
-    return inputsScreenView(storage).milestone
+  async function inputs(team: ForecastingForTest) {
+    return (await inputsScreenView(team)).milestone
   }
 
-  test('before anything is entered, the start date is pre-filled with today', () => {
-    expect(inputs(newTeam())).toEqual({
+  test('before anything is entered, the start date is pre-filled with today', async () => {
+    expect(await inputs(await newTeam())).toEqual({
       name: '',
       startDate: TODAY,
       ticketsRemaining: undefined,
@@ -197,9 +197,9 @@ describe('the milestone on the Inputs screen', () => {
     })
   })
 
-  test('a milestone kept from before the MVP shows today pre-filled, noting that no start date is saved yet', () => {
-    const storage = newTeam()
-    storage.saveMilestoneInputs({
+  test('a milestone kept from before the MVP shows today pre-filled, noting that no start date is saved yet', async () => {
+    const team = await newTeam()
+    team.storage.saveMilestoneInputs({
       teamId: TEAM,
       name: 'Checkout v2',
       startDate: undefined,
@@ -215,18 +215,18 @@ describe('the milestone on the Inputs screen', () => {
       seenReads: { ticketsRemaining: undefined, pace: undefined },
     })
 
-    expect(inputs(storage)).toMatchObject({
+    expect(await inputs(team)).toMatchObject({
       startDate: TODAY,
       notes: [{ input: 'startDate', message: 'No start date is saved yet.' }],
     })
   })
 
-  test('shows what was entered, with each warning beside its input', () => {
-    const storage = newTeam()
+  test('shows what was entered, with each warning beside its input', async () => {
+    const team = await newTeam()
 
-    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '0', high: '0' })
+    await enter(team, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '0', high: '0' })
 
-    expect(inputs(storage)).toEqual({
+    expect(await inputs(team)).toEqual({
       name: 'Checkout v2',
       startDate: '2026-09-01',
       ticketsRemaining: 10,
@@ -242,60 +242,60 @@ describe('the milestone on the Inputs screen', () => {
     })
   })
 
-  test('typed counts in use with none entered yet do not say the work never finishes', () => {
-    const storage = newTeam()
-    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
+  test('typed counts in use with none entered yet do not say the work never finishes', async () => {
+    const team = await newTeam()
+    await enter(team, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
 
-    expect(edit(storage, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
+    expect(await edit(team, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
 
-    expect(inputs(storage).notes).not.toContainEqual({ input: 'pace', message: 'At 0 tickets a week, the work never finishes.' })
+    expect((await inputs(team)).notes).not.toContainEqual({ input: 'pace', message: 'At 0 tickets a week, the work never finishes.' })
   })
 })
 
 describe("the milestone's ambiguity", () => {
-  function ambiguity(storage: Storage) {
-    return inputsScreenView(storage).milestone.ambiguity
+  async function ambiguity(team: ForecastingForTest) {
+    return (await inputsScreenView(team)).milestone.ambiguity
   }
 
-  test('an untouched milestone is of medium ambiguity, and its forecast says it grew by the medium range', () => {
-    const storage = newTeam()
-    expect(ambiguity(storage)).toBe('medium')
+  test('an untouched milestone is of medium ambiguity, and its forecast says it grew by the medium range', async () => {
+    const team = await newTeam()
+    expect(await ambiguity(team)).toBe('medium')
 
-    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
+    await enter(team, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
 
-    expect(ambiguity(storage)).toBe('medium')
-    expect(view(storage)).toMatchObject({ dates: DATES_FROM_1_SEP, ambiguity: { level: 'medium', low: 1, high: 2 } })
+    expect(await ambiguity(team)).toBe('medium')
+    expect(await view(team)).toMatchObject({ dates: DATES_FROM_1_SEP, ambiguity: { level: 'medium', low: 1, high: 2 } })
   })
 
-  test('the EM chooses high, and it is kept across a restart: the forecast grows by the high range', () => {
-    const storage = newTeam()
-    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
+  test('the EM chooses high, and it is kept across a restart: the forecast grows by the high range', async () => {
+    const team = await newTeam()
+    await enter(team, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
 
-    expect(edit(storage, { kind: 'setAmbiguity', level: 'high' })).toEqual({ ok: true })
+    expect(await edit(team, { kind: 'setAmbiguity', level: 'high' })).toEqual({ ok: true })
 
-    const reopened = openStorage()
-    expect(ambiguity(reopened)).toBe('high')
-    expect(view(reopened)).toMatchObject({ ambiguity: { level: 'high', low: 1.5, high: 3 } })
+    team.restart()
+    expect(await ambiguity(team)).toBe('high')
+    expect(await view(team)).toMatchObject({ ambiguity: { level: 'high', low: 1.5, high: 3 } })
   })
 
-  test.each(['', 'extreme', 'Medium'])('refuses the level %j, saying why and changing nothing', (level) => {
-    const storage = newTeam()
-    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
-    expect(edit(storage, { kind: 'setAmbiguity', level: 'low' })).toEqual({ ok: true })
-    const before = view(storage)
+  test.each(['', 'extreme', 'Medium'])('refuses the level %j, saying why and changing nothing', async (level) => {
+    const team = await newTeam()
+    await enter(team, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
+    expect(await edit(team, { kind: 'setAmbiguity', level: 'low' })).toEqual({ ok: true })
+    const before = await view(team)
 
-    expect(edit(storage, { kind: 'setAmbiguity', level })).toEqual({ ok: false, error: 'Choose low, medium or high ambiguity.' })
+    expect(await edit(team, { kind: 'setAmbiguity', level })).toEqual({ ok: false, error: 'Choose low, medium or high ambiguity.' })
 
-    expect(ambiguity(storage)).toBe('low')
-    expect(view(storage)).toEqual(before)
+    expect(await ambiguity(team)).toBe('low')
+    expect(await view(team)).toEqual(before)
   })
 
-  test('high ambiguity finishes no earlier than medium, and medium no earlier than low, at every confidence level', () => {
-    const storage = newTeam()
-    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
-    const datesAt = (level: string) => {
-      expect(edit(storage, { kind: 'setAmbiguity', level })).toEqual({ ok: true })
-      const forecast = view(storage)
+  test('high ambiguity finishes no earlier than medium, and medium no earlier than low, at every confidence level', async () => {
+    const team = await newTeam()
+    await enter(team, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
+    const datesAt = async (level: string) => {
+      expect(await edit(team, { kind: 'setAmbiguity', level })).toEqual({ ok: true })
+      const forecast = await view(team)
       if (forecast.kind !== 'forecast') throw new Error(`no forecast at ${level} ambiguity`)
       return forecast.dates.map(({ percent, date }) => {
         assert(date !== null, `a ${percent}% date at ${level} ambiguity`)
@@ -303,33 +303,33 @@ describe("the milestone's ambiguity", () => {
       })
     }
 
-    const [low, medium, high] = [datesAt('low'), datesAt('medium'), datesAt('high')]
+    const [low, medium, high] = [await datesAt('low'), await datesAt('medium'), await datesAt('high')]
 
-    for (let i = 0; i < 4; i++) {
-      expect(medium[i]! >= low[i]!).toBe(true)
-      expect(high[i]! >= medium[i]!).toBe(true)
-    }
-    expect(high[3]! > low[3]!).toBe(true)
+    low.forEach((date, i) => {
+      expect((medium[i] ?? '') >= date).toBe(true)
+      expect((high[i] ?? '') >= (medium[i] ?? '')).toBe(true)
+    })
+    expect((high[3] ?? '') > (low[3] ?? '')).toBe(true)
   })
 
-  test('a low range that would shrink the work never drops the ticket total below the tickets remaining: 10 tickets at exactly 5 a week still take 2 weeks', () => {
-    const storage = newTeam()
-    storage.saveAmbiguityRanges({ teamId: TEAM, low: { low: 0.5, high: 0.5 }, medium: { low: 1, high: 2 }, high: { low: 1.5, high: 3 } })
-    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '5', high: '5' })
+  test('a low range that would shrink the work never drops the ticket total below the tickets remaining: 10 tickets at exactly 5 a week still take 2 weeks', async () => {
+    const team = await newTeam()
+    team.storage.saveAmbiguityRanges({ teamId: TEAM, low: { low: 0.5, high: 0.5 }, medium: { low: 1, high: 2 }, high: { low: 1.5, high: 3 } })
+    await enter(team, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '5', high: '5' })
 
-    expect(edit(storage, { kind: 'setAmbiguity', level: 'low' })).toEqual({ ok: true })
+    expect(await edit(team, { kind: 'setAmbiguity', level: 'low' })).toEqual({ ok: true })
 
-    expect(view(storage)).toMatchObject({
+    expect(await view(team)).toMatchObject({
       ambiguity: { level: 'low', low: 0.5, high: 0.5 },
       dates: [50, 70, 85, 95].map((percent) => ({ percent, date: '2026-09-15' })),
     })
   })
 
-  test('an ambiguity level needs the milestone first', () => {
-    const storage = newTeam()
+  test('an ambiguity level needs the milestone first', async () => {
+    const team = await newTeam()
 
-    expect(edit(storage, { kind: 'setAmbiguity', level: 'high' })).toEqual({ ok: false, error: 'Enter the milestone first.' })
+    expect(await edit(team, { kind: 'setAmbiguity', level: 'high' })).toEqual({ ok: false, error: 'Enter the milestone first.' })
 
-    expect(view(storage)).toEqual({ kind: 'empty' })
+    expect(await view(team)).toEqual({ kind: 'empty' })
   })
 })

@@ -1,7 +1,8 @@
-import { afterEach, beforeEach, describe, expect, test } from 'vitest'
+import { beforeEach, describe, expect, test } from 'vitest'
 import type { Choice, Ticket } from '../../src/connectors/connector.js'
-import type { InputsEdit } from '../../src/forecast/inputs.js'
-import { CHECKOUT, finishedInWeeks as finishedInWeeksOf, open, trackerScenario, type Shown, type TrackerScenario } from '../trackerScenario.js'
+import type { InputsEdit } from '../../src/forecast/index.js'
+import { CHECKOUT, finishedInWeeks as finishedInWeeksOf, open } from '../trackerScenario.js'
+import { checkoutFixture, CONNECTIONS, forecastingForTest, NOW, pick, readAgain, type ForecastingForTest } from './forecastingForTest.js'
 
 // A typed value the tracker reads differently (#215): its chip, the dot on it for a read the EM hasn't opened, and
 // Follow, which switches the value back to the tracker. Mirrors the prototype's `handNew` scenario.
@@ -22,29 +23,31 @@ const GITHUB_COUNTS = [5, 6, 4, 7, 5, 6, 8]
 
 const OFFLINE = { connected: false }
 
-let scenario: TrackerScenario
+const TICKETS = [...open(34), ...finishedInWeeks(GITHUB_COUNTS)]
 
-beforeEach(() => {
-  scenario = trackerScenario({ tickets: [...open(34), ...finishedInWeeks(GITHUB_COUNTS)] })
+let team: ForecastingForTest
+
+beforeEach(async () => {
+  team = await forecastingForTest({ fixture: checkoutFixture(TICKETS) })
 })
 
-afterEach(() => scenario.close())
+/** Each as the local server build shows it, with the tracker's reads; `OFFLINE` as the browser build does. */
+const build = (shown?: { connected: boolean }) => (shown?.connected === false ? team.browserBuild() : team)
 
-// each as the local server build shows it, with the tracker's reads; `OFFLINE` as the browser build does
-const submit = (edit: InputsEdit, shown?: Shown) => scenario.submit(edit, shown)
+const submit = (edit: InputsEdit, shown?: { connected: boolean }) => build(shown).submit({ form: 'inputs', edit })
 
-const inputs = (shown?: Shown) => scenario.inputs(shown)
+const inputs = async (shown?: { connected: boolean }) => (await build(shown).inputsScreen()).inputs
 
-const forecast = () => scenario.forecast()
+const forecast = (shown?: { connected: boolean }) => build(shown).milestoneForecastView()
 
-const connect = (to: 'github' | 'jira' = 'github') => scenario.connect(to)
+const connect = (to: 'github' | 'jira' = 'github') => team.submit({ form: 'connection', edit: CONNECTIONS[to] })
 
 /** The milestone, `ticketsRemaining` typed, with typed counts and a range kept, its tickets picked and read. */
 async function enterAndPick(ticketsRemaining = '40'): Promise<void> {
-  submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining })
-  submit({ kind: 'setPaceRange', low: '4', high: '8' })
-  submit({ kind: 'setPaceCounts', counts: '5, 6, 4, 7, 5, 6' })
-  await scenario.pick(READ_AT)
+  await submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining })
+  await submit({ kind: 'setPaceRange', low: '4', high: '8' })
+  await submit({ kind: 'setPaceCounts', counts: '5, 6, 4, 7, 5, 6' })
+  await pick(team, READ_AT)
 }
 
 describe('tickets remaining', () => {
@@ -53,38 +56,38 @@ describe('tickets remaining', () => {
     await enterAndPick()
   })
 
-  test('typed and different from GitHub’s reading, it carries the chip, with the dot for a read not yet opened', () => {
-    expect(inputs().milestone.ticketsSource).toMatchObject({ source: 'typed', reading: { count: 34 }, readsDifferently: { unseen: true } })
+  test('typed and different from GitHub’s reading, it carries the chip, with the dot for a read not yet opened', async () => {
+    expect((await inputs()).milestone.ticketsSource).toMatchObject({ source: 'typed', reading: { count: 34 }, readsDifferently: { unseen: true } })
   })
 
-  test('typed the same as GitHub’s reading, it carries no chip', () => {
-    submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '34' })
+  test('typed the same as GitHub’s reading, it carries no chip', async () => {
+    await submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '34' })
 
-    expect(inputs().milestone.ticketsSource?.readsDifferently).toBeUndefined()
+    expect((await inputs()).milestone.ticketsSource?.readsDifferently).toBeUndefined()
   })
 
-  test('following GitHub, it carries no chip', () => {
-    submit({ kind: 'setTicketsSource', ticketsSource: 'tracker' })
+  test('following GitHub, it carries no chip', async () => {
+    await submit({ kind: 'setTicketsSource', ticketsSource: 'tracker' })
 
-    expect(inputs().milestone.ticketsSource?.readsDifferently).toBeUndefined()
+    expect((await inputs()).milestone.ticketsSource?.readsDifferently).toBeUndefined()
   })
 
   test('opening the reading clears the dot, which returns with a new read', async () => {
-    expect(submit({ kind: 'openReading', reading: 'ticketsRemaining' })).toEqual({ saved: true, next: 'inputs' })
-    expect(inputs().milestone.ticketsSource?.readsDifferently).toEqual({ unseen: false })
+    expect(await submit({ kind: 'openReading', reading: 'ticketsRemaining' })).toEqual({ saved: true, next: { screen: 'inputs' } })
+    expect((await inputs()).milestone.ticketsSource?.readsDifferently).toEqual({ unseen: false })
 
-    scenario.fixture.reads[CHECKOUT.query] = { tickets: open(38), incomplete: false }
-    await scenario.readAgain(NEXT_READ_AT)
+    team.fixture.reads[CHECKOUT.query] = { tickets: open(38), incomplete: false }
+    await readAgain(team, NEXT_READ_AT)
 
-    expect(inputs().milestone.ticketsSource).toMatchObject({ reading: { count: 38 }, readsDifferently: { unseen: true } })
+    expect((await inputs()).milestone.ticketsSource).toMatchObject({ reading: { count: 38 }, readsDifferently: { unseen: true } })
   })
 
-  test('Follow switches it back to GitHub, keeping the typed value', () => {
-    submit({ kind: 'setTicketsSource', ticketsSource: 'tracker' })
+  test('Follow switches it back to GitHub, keeping the typed value', async () => {
+    await submit({ kind: 'setTicketsSource', ticketsSource: 'tracker' })
 
-    expect(forecast()).toMatchObject({ kind: 'forecast', ticketsRemaining: 34 })
-    submit({ kind: 'setTicketsSource', ticketsSource: 'typed' })
-    expect(inputs().milestone).toMatchObject({ ticketsRemaining: 40, ticketsSource: { readsDifferently: { unseen: true } } })
+    expect(await forecast()).toMatchObject({ kind: 'forecast', ticketsRemaining: 34 })
+    await submit({ kind: 'setTicketsSource', ticketsSource: 'typed' })
+    expect((await inputs()).milestone).toMatchObject({ ticketsRemaining: 40, ticketsSource: { readsDifferently: { unseen: true } } })
   })
 })
 
@@ -94,75 +97,75 @@ describe('pace', () => {
     await enterAndPick()
   })
 
-  test('typed counts different from GitHub’s carry the chip, with its dot', () => {
-    submit({ kind: 'setPaceMode', paceMode: 'counts' })
+  test('typed counts different from GitHub’s carry the chip, with its dot', async () => {
+    await submit({ kind: 'setPaceMode', paceMode: 'counts' })
 
-    expect(inputs().milestone.trackerPace).toMatchObject({ reading: { counts: GITHUB_COUNTS }, readsDifferently: { unseen: true } })
+    expect((await inputs()).milestone.trackerPace).toMatchObject({ reading: { counts: GITHUB_COUNTS }, readsDifferently: { unseen: true } })
   })
 
-  test('typed counts the same as GitHub’s carry no chip', () => {
-    submit({ kind: 'setPaceMode', paceMode: 'counts' })
-    submit({ kind: 'setPaceCounts', counts: GITHUB_COUNTS.join(', ') })
+  test('typed counts the same as GitHub’s carry no chip', async () => {
+    await submit({ kind: 'setPaceMode', paceMode: 'counts' })
+    await submit({ kind: 'setPaceCounts', counts: GITHUB_COUNTS.join(', ') })
 
-    expect(inputs().milestone.trackerPace?.readsDifferently).toBeUndefined()
+    expect((await inputs()).milestone.trackerPace?.readsDifferently).toBeUndefined()
   })
 
-  test('a range other than the span of GitHub’s counts carries the chip; one spanning them, 4 to 8, carries none', () => {
-    expect(inputs().milestone).toMatchObject({ paceMode: 'range', paceRange: { low: 4, high: 8 } })
-    expect(inputs().milestone.trackerPace?.readsDifferently).toBeUndefined()
+  test('a range other than the span of GitHub’s counts carries the chip; one spanning them, 4 to 8, carries none', async () => {
+    expect((await inputs()).milestone).toMatchObject({ paceMode: 'range', paceRange: { low: 4, high: 8 } })
+    expect((await inputs()).milestone.trackerPace?.readsDifferently).toBeUndefined()
 
-    submit({ kind: 'setPaceRange', low: '4', high: '9' })
+    await submit({ kind: 'setPaceRange', low: '4', high: '9' })
 
-    expect(inputs().milestone.trackerPace?.readsDifferently).toEqual({ unseen: true })
+    expect((await inputs()).milestone.trackerPace?.readsDifferently).toEqual({ unseen: true })
   })
 
-  test('following GitHub, pace carries no chip', () => {
-    submit({ kind: 'setPaceMode', paceMode: 'tracker' })
+  test('following GitHub, pace carries no chip', async () => {
+    await submit({ kind: 'setPaceMode', paceMode: 'tracker' })
 
-    expect(inputs().milestone.trackerPace?.readsDifferently).toBeUndefined()
+    expect((await inputs()).milestone.trackerPace?.readsDifferently).toBeUndefined()
   })
 
   test('opening the reading clears the dot, which returns with a new read', async () => {
-    submit({ kind: 'setPaceMode', paceMode: 'counts' })
+    await submit({ kind: 'setPaceMode', paceMode: 'counts' })
 
-    submit({ kind: 'openReading', reading: 'pace' })
-    expect(inputs().milestone.trackerPace?.readsDifferently).toEqual({ unseen: false })
+    await submit({ kind: 'openReading', reading: 'pace' })
+    expect((await inputs()).milestone.trackerPace?.readsDifferently).toEqual({ unseen: false })
     // opening pace’s reading leaves tickets remaining’s dot
-    expect(inputs().milestone.ticketsSource?.readsDifferently).toEqual({ unseen: true })
+    expect((await inputs()).milestone.ticketsSource?.readsDifferently).toEqual({ unseen: true })
 
-    await scenario.readAgain(NEXT_READ_AT)
-    expect(inputs().milestone.trackerPace?.readsDifferently).toEqual({ unseen: true })
+    await readAgain(team, NEXT_READ_AT)
+    expect((await inputs()).milestone.trackerPace?.readsDifferently).toEqual({ unseen: true })
   })
 
-  test('Follow switches pace back to GitHub, keeping the typed counts and the range', () => {
-    submit({ kind: 'setPaceMode', paceMode: 'counts' })
+  test('Follow switches pace back to GitHub, keeping the typed counts and the range', async () => {
+    await submit({ kind: 'setPaceMode', paceMode: 'counts' })
 
-    submit({ kind: 'setPaceMode', paceMode: 'tracker' })
+    await submit({ kind: 'setPaceMode', paceMode: 'tracker' })
 
-    expect(forecast()).toMatchObject({ kind: 'forecast', pace: { source: 'tracker', counts: GITHUB_COUNTS } })
-    expect(inputs().milestone).toMatchObject({ paceCounts: [5, 6, 4, 7, 5, 6], paceRange: { low: 4, high: 8 } })
+    expect(await forecast()).toMatchObject({ kind: 'forecast', pace: { source: 'tracker', counts: GITHUB_COUNTS } })
+    expect((await inputs()).milestone).toMatchObject({ paceCounts: [5, 6, 4, 7, 5, 6], paceRange: { low: 4, high: 8 } })
   })
 })
 
 describe('a reading that can’t be opened', () => {
   test('with no connection, there is no chip, and opening a reading is refused', async () => {
-    submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '40' }, OFFLINE)
+    await submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '40' }, OFFLINE)
 
-    expect(inputs(OFFLINE).milestone).toMatchObject({ ticketsSource: undefined, trackerPace: undefined })
-    expect(submit({ kind: 'openReading', reading: 'ticketsRemaining' }, OFFLINE)).toMatchObject({
+    expect((await inputs(OFFLINE)).milestone).toMatchObject({ ticketsSource: undefined, trackerPace: undefined })
+    expect(await submit({ kind: 'openReading', reading: 'ticketsRemaining' }, OFFLINE)).toMatchObject({
       saved: false,
-      view: { refusal: { form: 'readingOpened', error: 'Connect a tracker to see its reading.' } },
+      view: { inputs: { refusal: { form: 'readingOpened', error: 'Connect a tracker to see its reading.' } } },
     })
   })
 
   test('before the milestone’s tickets are read, there is no chip', async () => {
     await connect()
-    submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '40' })
+    await submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '40' })
 
-    expect(inputs().milestone.ticketsSource?.readsDifferently).toBeUndefined()
-    expect(submit({ kind: 'openReading', reading: 'ticketsRemaining' })).toMatchObject({
+    expect((await inputs()).milestone.ticketsSource?.readsDifferently).toBeUndefined()
+    expect(await submit({ kind: 'openReading', reading: 'ticketsRemaining' })).toMatchObject({
       saved: false,
-      view: { refusal: { form: 'readingOpened', error: 'GitHub hasn’t read it yet.' } },
+      view: { inputs: { refusal: { form: 'readingOpened', error: 'GitHub hasn’t read it yet.' } } },
     })
   })
 })
@@ -171,10 +174,10 @@ describe('on Jira', () => {
   test('the chip’s reading and Follow name Jira', async () => {
     await connect('jira')
     const release: Choice = { kind: 'milestone', name: 'Checkout v2', query: 'fixVersion = "Checkout v2"' }
-    scenario.fixture.reads[release.query] = { tickets: open(12), incomplete: false }
-    submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '40' })
-    await scenario.pick(READ_AT, release)
+    team.fixture.reads[release.query] = { tickets: open(12), incomplete: false }
+    await submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '40' })
+    await pick(team, READ_AT, release)
 
-    expect(inputs().milestone.ticketsSource).toMatchObject({ tracker: 'Jira', readsDifferently: { unseen: true } })
+    expect((await inputs()).milestone.ticketsSource).toMatchObject({ tracker: 'Jira', readsDifferently: { unseen: true } })
   })
 })

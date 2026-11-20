@@ -1,10 +1,26 @@
 import { describe, expect, test } from 'vitest'
 import type { Choice, Ticket } from '../../src/connectors/connector.js'
-import { setupView, submitSetup } from '../../src/forecast/setup.js'
-import { submitStepQuery } from '../../src/forecast/queryStep.js'
-import { COMPARABLE_WORK } from '../../src/forecast/stepQuery.js'
-import { CHECKOUT, finishedOn, open, TEAM, type TrackerScenario } from '../trackerScenario.js'
-import { READ_AT, Q3_POLISH, scenario, team, settingUp, atCheck } from './setupScenario.js'
+import { finishedOn, open } from '../trackerScenario.js'
+import { CHECKOUT, pick, TEAM, type ForecastingForTest } from './forecastingForTest.js'
+import {
+  READ_AT,
+  Q3_POLISH,
+  anyCounted,
+  atCheck as atCheckOf,
+  connect,
+  inputs,
+  setup,
+  setupAt,
+  stepQuery,
+  summary as summaryOf,
+  team,
+} from './setupScenario.js'
+
+let current: ForecastingForTest
+const scenario = () => current
+const atCheck = (readAt?: string) => atCheckOf(current, readAt)
+const summary = () => summaryOf(current)
+const change = () => setup(current, { kind: 'change' })
 
 // Seam B: the setup summary's count for each pick, and its flags (#217). Arranged through setupScenario.ts.
 
@@ -17,25 +33,25 @@ describe('each pick’s count on the summary', () => {
    * Connected, each of `choices` picked a minute after the one before, from 08:00, with its own `tickets`: so the
    * milestone query, their OR, is read with all of theirs, and a pick read on its own as the query once was is older.
    */
-  async function picked(choices: [Choice, Ticket[]][], to: 'github' | 'jira' = 'github'): Promise<TrackerScenario> {
-    const { connect, pick, fixture } = team()
+  async function picked(choices: [Choice, Ticket[]][], to: 'github' | 'jira' = 'github'): Promise<ForecastingForTest> {
+    current = await team()
+    const { fixture } = current
     for (const [choice, tickets] of choices) fixture.reads[choice.query] = { tickets, incomplete: false }
-    await connect(to)
+    await connect(current, to)
     for (let at = 0; at < choices.length; at++) {
       const sofar = choices.slice(0, at + 1)
       fixture.reads[sofar.map(([choice]) => choice.query).join(' OR ')] = { tickets: sofar.flatMap(([, tickets]) => tickets), incomplete: false }
-      await pick(`2026-11-12T08:0${at}:00Z`, choices[at]![0])
+      const [choice] = sofar[at] ?? []
+      if (choice) await pick(current, `2026-11-12T08:0${at}:00Z`, choice)
     }
     return scenario()
   }
-  const summary = async () => (await submitSetup(settingUp(scenario()), TEAM, { kind: 'useThese' }), setupView(settingUp(scenario()), TEAM))
-
   test('come from the milestone query’s own read for a single pick, open and finished alike, with no extra read', async () => {
     await picked([[CHECKOUT, [...open(3), ...FINISHED]]])
-    scenario().asked.length = 0
+    scenario().calls.since.length = 0
     await atCheck()
 
-    expect(scenario().asked).toEqual([])
+    expect(scenario().calls.since).toEqual([])
     expect(await summary()).toMatchObject({ milestone: { picks: [{ name: 'Checkout v2', kind: 'milestone', count: 5 }] } })
   })
 
@@ -46,11 +62,11 @@ describe('each pick’s count on the summary', () => {
       [BUG, open(4, 'b')],
     ])
     const before = await summary()
-    await submitSetup(settingUp(scenario()), TEAM, { kind: 'change' })
+    await change()
     await atCheck()
 
     expect(before).toMatchObject({ milestone: { picks: [{ name: 'Checkout v2' }, { name: '#57 Search revamp' }, { name: 'bug' }] } })
-    expect(before.kind === 'summary' && 'picks' in before.milestone && before.milestone.picks.some((pick) => 'count' in pick)).toBe(false)
+    expect(anyCounted(before)).toBe(false)
     expect(await summary()).toMatchObject({
       milestone: {
         picks: [
@@ -68,12 +84,11 @@ describe('each pick’s count on the summary', () => {
       [SEARCH, open(1, 's')],
     ])
     await summary()
-    await submitSetup(settingUp(scenario()), TEAM, { kind: 'change' })
+    await change()
     await atCheck()
-    await submitSetup(settingUp(scenario()), TEAM, { kind: 'cancel' })
+    await setup(current, { kind: 'cancel' })
 
-    const view = setupView(settingUp(scenario()), TEAM)
-    expect(view.kind === 'summary' && 'picks' in view.milestone && view.milestone.picks.some((pick) => 'count' in pick)).toBe(false)
+    expect(anyCounted(await setupAt(current))).toBe(false)
   })
 
   test('come for Jira’s fix versions too', async () => {
@@ -105,15 +120,15 @@ describe('each pick’s count on the summary', () => {
     ])
     scenario().fixture.reads[BUG.query] = { tickets: FINISHED, incomplete: false }
     scenario().fixture.reads[Q3_POLISH.query] = { tickets: finishedOn('q', '2026-11-09', 1), incomplete: false }
-    await scenario().pick(READ_AT, BUG, COMPARABLE_WORK)
-    await scenario().pick(READ_AT, Q3_POLISH, COMPARABLE_WORK)
-    scenario().asked.length = 0
+    await pick(current, READ_AT, BUG, 'comparableWork')
+    await pick(current, READ_AT, Q3_POLISH, 'comparableWork')
+    scenario().calls.since.length = 0
     await atCheck()
-    const reads = scenario().asked.length
+    const reads = scenario().calls.since.length
     await atCheck()
 
     expect(reads).toBe(2)
-    expect(scenario().asked.length).toBe(reads)
+    expect(scenario().calls.since.length).toBe(reads)
     expect(await summary()).toMatchObject({
       comparable: {
         picks: [
@@ -131,15 +146,15 @@ describe('each pick’s count on the summary', () => {
     ])
     scenario().fixture.reads[CHECKOUT.query] = { tickets: open(9, 'c'), incomplete: true }
     scenario().fixture.reads[SEARCH.query] = { failure: 'unavailable' }
-    scenario().asked.length = 0
+    scenario().calls.since.length = 0
     await summary()
-    scenario().inputs()
+    await inputs(current)
 
-    expect(scenario().asked).toEqual([])
+    expect(scenario().calls.since).toEqual([])
     await atCheck()
     const view = await summary()
     expect(view).toMatchObject({ milestone: { picks: [{ name: 'Checkout v2' }, { name: '#57 Search revamp' }] } })
-    expect(view.kind === 'summary' && 'picks' in view.milestone && view.milestone.picks.some((pick) => 'count' in pick)).toBe(false)
+    expect(anyCounted(view)).toBe(false)
   })
 
   test('flag a pick whose own read failed at Check, until a later Check reads it', async () => {
@@ -156,7 +171,7 @@ describe('each pick’s count on the summary', () => {
     })
 
     scenario().fixture.reads[SEARCH.query] = { tickets: open(1, 's'), incomplete: false }
-    await submitSetup(settingUp(scenario()), TEAM, { kind: 'change' })
+    await change()
     await atCheck()
     expect(await summary()).toMatchObject({ milestone: { picks: [{ count: 3 }, { count: 1 }] }, flags: [] })
   })
@@ -167,24 +182,25 @@ describe('each pick’s count on the summary', () => {
       [SEARCH, open(1, 's')],
     ])
     await summary()
-    await submitSetup(settingUp(scenario()), TEAM, { kind: 'change' })
+    await change()
     scenario().fixture.reads[SEARCH.query] = { failure: 'unavailable' }
     await atCheck()
 
     expect(scenario().storage.readFailures(TEAM)).toBeUndefined()
-    await submitSetup(settingUp(scenario()), TEAM, { kind: 'cancel' })
-    expect(setupView(settingUp(scenario()), TEAM)).toMatchObject({ flags: [] })
+    await setup(current, { kind: 'cancel' })
+    expect(await setupAt(current)).toMatchObject({ flags: [] })
   })
 
   test('flag a pick whose read failed on its own row only, though its query is comparable work’s too', async () => {
-    const { connect, pick, fixture } = team()
+    current = await team()
+    const { fixture } = current
     fixture.reads[Q3_POLISH.query] = { tickets: finishedOn('q', '2026-11-09', 1), incomplete: false }
     fixture.reads[CHECKOUT.query] = { tickets: open(3, 'c'), incomplete: false }
     fixture.reads[`${CHECKOUT.query} OR ${Q3_POLISH.query}`] = { tickets: open(3, 'c'), incomplete: false }
-    await connect()
-    await pick('2026-11-12T07:00:00Z', Q3_POLISH, COMPARABLE_WORK)
-    await pick('2026-11-12T08:00:00Z', CHECKOUT)
-    await pick('2026-11-12T08:01:00Z', Q3_POLISH)
+    await connect(current)
+    await pick(current, '2026-11-12T07:00:00Z', Q3_POLISH, 'comparableWork')
+    await pick(current, '2026-11-12T08:00:00Z', CHECKOUT)
+    await pick(current, '2026-11-12T08:01:00Z', Q3_POLISH)
     fixture.reads[Q3_POLISH.query] = { failure: 'unavailable' }
     await atCheck()
 
@@ -197,11 +213,11 @@ describe('each pick’s count on the summary', () => {
     await picked([[CHECKOUT, open(3, 'c')]])
     const written = 'milestone:"Checkout v2" -label:wontfix'
     scenario().fixture.reads[written] = { tickets: open(3), incomplete: false }
-    await submitStepQuery(scenario().using, TEAM, { kind: 'editQuery', query: written }, READ_AT)
-    scenario().asked.length = 0
+    await stepQuery(current, { kind: 'editQuery', query: written }, 'milestone', READ_AT)
+    scenario().calls.since.length = 0
     await atCheck()
 
-    expect(scenario().asked).toEqual([])
+    expect(scenario().calls.since).toEqual([])
     expect(await summary()).toMatchObject({ milestone: { query: written } })
   })
 })
@@ -209,16 +225,16 @@ describe('each pick’s count on the summary', () => {
 describe('the summary’s flags', () => {
   /** Connected, the milestone picked and read as `milestone`, comparable work picked as Q3 polish when read as `comparable`, and "Use these". */
   async function summaryWith(milestone: { tickets: Ticket[]; incomplete: boolean }, comparable?: { tickets: Ticket[]; incomplete: boolean }) {
-    const { connect, pick, fixture } = team()
+    current = await team()
+    const { fixture } = current
     fixture.reads[CHECKOUT.query] = milestone
-    await connect()
-    await pick(READ_AT)
+    await connect(current)
+    await pick(current, READ_AT)
     if (comparable) {
       fixture.reads[Q3_POLISH.query] = comparable
-      await pick(READ_AT, Q3_POLISH, COMPARABLE_WORK)
+      await pick(current, READ_AT, Q3_POLISH, 'comparableWork')
     }
-    await submitSetup(settingUp(scenario()), TEAM, { kind: 'useThese' })
-    return setupView(settingUp(scenario()), TEAM)
+    return summary()
   }
   const FINISHED = finishedOn('f', '2026-11-10', 2)
 

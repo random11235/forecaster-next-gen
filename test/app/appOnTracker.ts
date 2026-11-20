@@ -1,6 +1,6 @@
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned.js'
-import type { Connecting } from '../../src/forecast/connection.js'
+import type { Connecting } from '../../src/forecast/index.js'
 import type { Team } from '../../src/model/team.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import type { Secrets } from '../../src/secrets/secrets.js'

@@ -3,7 +3,7 @@ import { cannedConnector, type CannedFixture } from '../../src/connectors/canned
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
 import { post } from './forms.js'
 import { openWebApp } from '../../src/app/webApp.js'
-import type { Connecting } from '../../src/forecast/connection.js'
+import type { Connecting } from '../../src/forecast/index.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { TeamStorage } from '../trackerScenario.js'
