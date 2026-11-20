@@ -41,7 +41,7 @@ async function start(): Promise<RunningApp> {
     }
   }
   const connecting: Connecting = { connections: storage, queries: storage, setup: storage, secrets: openMemorySecrets(), connector: counted }
-  app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage, connecting, today: () => TODAY, now: () => `${TODAY}T09:00:00Z` })
+  app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage, connecting, clock: { now: () => `${TODAY}T09:00:00Z`, timeZone: 'UTC' } })
   return app
 }
 

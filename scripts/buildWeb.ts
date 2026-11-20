@@ -54,7 +54,7 @@ const bundled = await build({
 const script = bundled.outputFiles[0]!.text
 if (script.includes('</script')) throw new Error('The bundled script would close its <script> tag early.')
 
-const firstOpen = openWebApp({ storage: openWebStorage(undefined) }).show({ method: 'GET', path: '/' })
+const firstOpen = await openWebApp({ storage: openWebStorage(undefined) }).show({ method: 'GET', path: '/' })
 const page = firstOpen.html.replace('</body>', () => `<script>${script}</script>\n</body>`)
 
 mkdirSync(new URL('.', out), { recursive: true })

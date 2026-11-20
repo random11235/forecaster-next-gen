@@ -1,8 +1,6 @@
-import type { Connecting } from '../forecast/connection.js'
-import type { Team } from '../model/team.js'
-import type { Storage } from '../storage/storage.js'
+import type { Clock } from '../forecast/forecasting.js'
 
-// The context the routes (routes.ts) run in, and the request and reply they see.
+// The request and reply the routes (routes.ts) see, and the clock both builds open the team's handle on.
 
 /** A request as the routes see it: the server has already read the form body. */
 export interface Request {
@@ -20,46 +18,7 @@ export type Reply =
   /** A screen; for a post, `path` is where the screen it answers with is served. */
   { kind: 'html'; status: number; html: string; path?: string } | { kind: 'redirect'; location: string } | { kind: 'notFound' }
 
-export interface AppContext {
-  storage: Storage
-  /** Today's ISO calendar date: the start date's default, and what marks dates as past. */
-  today: () => string
-  /** What the local server build connects a tracker with; the browser build has none, so no Connect or Milestone step. */
-  connecting?: Connecting
-  /** The UTC instant now, which a read is made at. */
-  now: () => string
-}
-
-/**
- * The context the routes run in, on `storage`; today is the system clock's local date unless given. Given
- * `connecting`, the Inputs screen has its Connect step.
- */
-export function appContext(storage: Storage, today?: () => string, connecting?: Connecting, now?: () => string): AppContext {
-  addDefaultTeamIfEmpty(storage)
-  return {
-    storage,
-    today: today ?? (() => localCalendarDate(new Date())),
-    now: now ?? (() => new Date().toISOString()),
-    ...(connecting && { connecting }),
-  }
-}
-
-/**
- * The one team everything is stored under, added on first launch and installed at `installedAt`. The MVP has no team
- * screen, so the EM never sees it: its facts are the ones the EM types in, read from no board or repository.
- */
-function defaultTeam(installedAt: string): Team {
-  return { id: 'team', name: 'My team', source: 'manual', sourceRef: '', installedAt }
-}
-
-/** On first launch (nothing stored yet), adds the default team, installed now. Otherwise does nothing. */
-function addDefaultTeamIfEmpty(storage: Storage): void {
-  if (!storage.isEmpty()) return
-  storage.saveTeam(defaultTeam(new Date().toISOString()))
-}
-
-/** `at` as the EM's calendar date, `YYYY-MM-DD`, in the machine's time zone: not UTC's, which can be a day off. */
-function localCalendarDate(at: Date): string {
-  const two = (value: number): string => String(value).padStart(2, '0')
-  return `${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())}`
+/** The system clock, in this computer's time zone: the EM's, which today is the date in, and each finish is counted on its calendar day in. */
+export function systemClock(): Clock {
+  return { now: () => new Date().toISOString(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }
 }

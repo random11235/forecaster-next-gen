@@ -53,8 +53,7 @@ async function startConnected(fixture: CannedFixture = FIXTURE): Promise<Running
     openBrowser: () => {},
     storage,
     connecting,
-    today: () => '2026-11-12',
-    now: () => '2026-11-12T09:00:00Z',
+    clock: { now: () => '2026-11-12T09:00:00Z', timeZone: 'UTC' },
   })
   const connected = await post(app, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
   expect(connected.headers.get('location')).toBe('/inputs#milestone-tickets')
@@ -342,9 +341,9 @@ describe('the Milestone step', () => {
     expect(await page(app)).not.toContain('id="milestone-tickets"')
   })
 
-  test('the browser build has none', () => {
-    const web = openWebApp({ storage: openWebStorage(undefined), today: () => '2026-11-12' })
+  test('the browser build has none', async () => {
+    const web = openWebApp({ storage: openWebStorage(undefined), clock: { now: () => '2026-11-12T09:00:00Z', timeZone: 'UTC' } })
 
-    expect(web.show({ method: 'GET', path: '/inputs' }).html).not.toContain('id="milestone-tickets"')
+    expect((await web.show({ method: 'GET', path: '/inputs' })).html).not.toContain('id="milestone-tickets"')
   })
 })

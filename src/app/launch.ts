@@ -1,11 +1,11 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import type { Connecting } from '../forecast/connection.js'
+import { openForecasting, type Clock, type Forecasting, type ForecastingOptions } from '../forecast/forecasting.js'
 import type { Storage } from '../storage/storage.js'
 import { SAVE_IN_PLACE } from './inputsScript.js'
 import { APP_VERSION } from '../forecast/appVersion.js'
-import { appContext, type AppContext, type Reply, type Request } from './appContext.js'
-import { route, routeSetup } from './routes.js'
+import { systemClock, type Reply, type Request } from './appContext.js'
+import { route } from './routes.js'
 
 /** Localhost only: the Forecaster is a local, single-user tool and is never reachable from the network. */
 const HOST = '127.0.0.1'
@@ -17,11 +17,9 @@ export interface LaunchOptions {
   /** Where the app keeps its data. On first launch, when it is empty, the default team is added to it. */
   storage: Storage
   /** What the Inputs screen's Connect step connects a tracker with: the keychain and the real connectors, or demo mode's. */
-  connecting?: Connecting
-  /** Today's ISO calendar date, the start date's default; the system clock's local date unless given. */
-  today?: () => string
-  /** The UTC instant now, which reads are made at; the system clock unless given. */
-  now?: () => string
+  connecting?: ForecastingOptions['connecting']
+  /** The UTC instant now, which reads are made at, and the EM's time zone, which today is the date in; the system clock unless given. */
+  clock?: Clock
 }
 
 export interface RunningApp {
@@ -31,9 +29,10 @@ export interface RunningApp {
 
 /** Starts the local server and opens the browser on the Milestone forecast screen. */
 export async function startAppAndOpenBrowser(options: LaunchOptions): Promise<RunningApp> {
-  const context = appContext(options.storage, options.today, options.connecting, options.now)
+  const { storage, connecting, clock = systemClock() } = options
+  const forecasting = openForecasting({ storage, clock, ...(connecting && { connecting }) })
   const server = createServer((request, response) => {
-    serve(request, response, context).catch((error: unknown) => {
+    serve(request, response, forecasting).catch((error: unknown) => {
       response.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' })
       response.end(`Forecaster error: ${String(error)}`)
     })
@@ -62,7 +61,7 @@ export async function startAppAndOpenBrowser(options: LaunchOptions): Promise<Ru
 }
 
 /** Hands the request to the routes and writes their reply. */
-async function serve(request: IncomingMessage, response: ServerResponse, context: AppContext): Promise<void> {
+async function serve(request: IncomingMessage, response: ServerResponse, forecasting: Forecasting): Promise<void> {
   const method = request.method ?? 'GET'
   const refusal = refuseOtherSites(request, method)
   if (refusal) return refuse(response, refusal)
@@ -72,7 +71,7 @@ async function serve(request: IncomingMessage, response: ServerResponse, context
   const form = method === 'POST' ? new URLSearchParams(await readBody(request)) : undefined
   const saveInPlace = request.headers[SAVE_IN_PLACE.header] === SAVE_IN_PLACE.value
   const routed: Request = { method, path, ...(form && { form }), ...(saveInPlace && { saveInPlace }) }
-  send(response, await (routeSetup(routed, context) ?? route(routed, context)))
+  send(response, await route(routed, forecasting))
 }
 
 /**
