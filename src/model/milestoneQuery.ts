@@ -1,4 +1,4 @@
-import type { Choice } from '../connectors/connector.js'
+import type { Choice } from './choice.js'
 
 /**
  * What picks out the milestone's tickets in its tracker (#157): the EM's picks, in the order picked, and the milestone
