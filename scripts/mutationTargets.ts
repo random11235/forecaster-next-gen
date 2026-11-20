@@ -18,13 +18,18 @@ const mutated = (path: string): boolean => SOURCE.test(path) && !UNTESTED.includ
 export function mutationTargets(diff: string, untracked: string[]): string[] {
   const targets: string[] = []
   let path: string | undefined
+  // a file's header runs from its `diff --git` to its first hunk; after that, a line starting `+++ ` is one it adds
+  let inHeader = false
   for (const line of diff.split('\n')) {
-    if (line.startsWith('diff --git ')) path = undefined
-    const file = FILE.exec(line)
-    if (file) path = file[1]
-    // read wrongly, every file would be skipped and the run would say there is nothing to mutate
-    else if (line.startsWith('+++ ')) throw new Error(`the diff names a file without the b/ prefix: ${line}`)
+    if (line.startsWith('diff --git ')) [path, inHeader] = [undefined, true]
+    if (inHeader && line.startsWith('+++ ')) {
+      const file = FILE.exec(line)
+      // read wrongly, every file would be skipped and the run would say there is nothing to mutate
+      if (!file) throw new Error(`the diff names a file without the b/ prefix: ${line}`)
+      path = file[1]
+    }
     const hunk = HUNK.exec(line)
+    if (hunk) inHeader = false
     if (!hunk || path === undefined || !mutated(path)) continue
     const first = Number(hunk[1])
     const count = hunk[2] === undefined ? 1 : Number(hunk[2])
