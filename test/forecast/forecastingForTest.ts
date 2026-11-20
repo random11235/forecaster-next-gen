@@ -12,11 +12,13 @@ import {
 import type { Connection } from '../../src/model/connection.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
+import type { Storage } from '../../src/storage/storage.js'
 import { CHECKOUT, TEAM, type TeamStorage } from '../trackerScenario.js'
 
-// Seam B's one arrangement (#233): the team's handle, opened as either build opens it, on an in-memory SQLite storage,
-// the canned connector answering from a fixture the test can change between reads, `openMemorySecrets` in place of
-// the keychain, and a fixed clock the test can move. Every Seam B test builds its handle here.
+// Seam B's one arrangement (#233): the team's handle itself, opened as either build opens it, on an in-memory SQLite
+// storage, the canned connector answering from a fixture the test can change between reads, `openMemorySecrets` in
+// place of the keychain, and a fixed clock the test can move; or, for the forecast ledger's tests, the browser build's
+// handle on a storage of the test's own, opened again on each restart. Seam B's tests build their handle here.
 
 export { CHECKOUT, TEAM, type TeamStorage }
 /** The instant the clock reads unless given: a Thursday, 09:00 UTC, on trackerScenario.ts's `TODAY`. */
@@ -51,9 +53,19 @@ export interface ForecastingForTestOptions {
   browser?: boolean
 }
 
-/** The team's handle, and what the test arranges, reads and moves it with. */
-export interface ForecastingForTest extends Forecasting {
-  storage: TeamStorage
+/**
+ * The browser build's handle on a storage of the test's own that stays when the handle is opened again (a SQLite file,
+ * or the web build's browser storage), which `storedIn` opens, and opens again on each restart, so a restart reads
+ * back what was written.
+ */
+export interface StoredInOptions extends Omit<ForecastingForTestOptions, 'browser' | 'connected' | 'setupOpen' | 'fixture'> {
+  storedIn: () => Storage
+}
+
+/** The team's handle itself, and what the test arranges, reads and moves it with. */
+export interface ForecastingForTest<S extends Storage = TeamStorage> extends Forecasting {
+  /** The storage the handle was opened on last. */
+  readonly storage: S
   fixture: CannedFixture
   /** What the canned connector was asked: the choices listed, each query read and how far back, each search. */
   calls: { choices: number; reads: string[]; since: string[]; searches: [ChoiceKind, string][]; built: { connection: Connection; token: string }[] }
@@ -63,55 +75,47 @@ export interface ForecastingForTest extends Forecasting {
   fails: Fails
   /** Moves the clock to `now`. */
   at(now: string): void
-  /** Opens the handle again on the same storage, as a restart does, with `settings` if given. */
+  /** Opens the handle again, as a restart does, with `settings` if given: on the same storage, or on `storedIn` opened again. */
   restart(settings?: ForecastSettings): void
   /** A handle on the same storage and clock as the browser build opens it, connecting nothing. */
   browserBuild(): Forecasting
 }
 
-/** The team's handle on the canned connector, as the local server build opens it unless `browser`. */
-export async function forecastingForTest({
-  fixture = checkoutFixture(),
-  clock = {},
-  connected = false,
-  setupOpen = false,
-  settings = DEFAULT_SETTINGS,
-  browser = false,
-}: ForecastingForTestOptions = {}): Promise<ForecastingForTest> {
-  const storage: TeamStorage = openSqliteStorage(':memory:')
+/** The team's handle on the canned connector, as the local server build opens it unless `browser`; or on a storage of the test's own. */
+export async function forecastingForTest(options: StoredInOptions): Promise<ForecastingForTest<Storage>>
+export async function forecastingForTest(options?: ForecastingForTestOptions): Promise<ForecastingForTest>
+export async function forecastingForTest(options: ForecastingForTestOptions & Partial<StoredInOptions> = {}): Promise<ForecastingForTest<Storage>> {
+  const { fixture = checkoutFixture(), clock = {}, connected = false, setupOpen = false, settings = DEFAULT_SETTINGS, storedIn } = options
+  const memory: TeamStorage = openSqliteStorage(':memory:')
+  let storage: Storage = storedIn ? storedIn() : memory
   let now = clock.now ?? NOW
   const calls: ForecastingForTest['calls'] = { choices: 0, reads: [], since: [], searches: [], built: [] }
   const secrets = openMemorySecrets()
   const fails: Fails = {}
-  const connecting = browser ? undefined : failing(cannedConnecting(storage, secrets, fixture, calls), fails)
+  const browser = options.browser === true || storedIn !== undefined
+  const connecting = browser ? undefined : failing(cannedConnecting(memory, secrets, fixture, calls), fails)
   const clockNow = { now: () => now, timeZone: clock.timeZone ?? 'UTC' }
   const open = (with_: ForecastSettings, using: Connecting | undefined) =>
     openForecasting({ storage, ...(using && { connecting: using }), clock: clockNow, settings: with_ })
-  let handle = open(settings, connecting)
-  if (!setupOpen) storage.saveSetupState(TEAM, { open: false, closed: 'done' })
-  if (connected) {
-    await handle.submit({ form: 'connection', edit: CONNECTIONS[connected === true ? 'github' : connected] })
-    Object.assign(calls, { choices: 0, reads: [], since: [], searches: [], built: [] })
-  }
-  return {
-    get connects() {
-      return handle.connects
-    },
-    milestoneForecastView: (shown) => handle.milestoneForecastView(shown),
-    howItWorksView: () => handle.howItWorksView(),
-    inputsScreen: (opening) => handle.inputsScreen(opening),
-    submit: (edit, opening) => handle.submit(edit, opening),
-    searchedChoiceList: (kind, find, stepQuery) => handle.searchedChoiceList(kind, find, stepQuery),
-    openCandidates: () => handle.openCandidates(),
+  const team: ForecastingForTest<Storage> = Object.assign(open(settings, connecting), {
     storage,
     fixture,
     calls,
     fails,
     secrets,
-    at: (later) => void (now = later),
-    restart: (with_ = settings) => void (handle = open(with_, connecting)),
+    at: (later: string) => void (now = later),
+    restart: (with_ = settings) => {
+      if (storedIn) storage = storedIn()
+      Object.assign(team, open(with_, connecting), { storage })
+    },
     browserBuild: () => open(settings, undefined),
+  })
+  if (!setupOpen && !storedIn) memory.saveSetupState(TEAM, { open: false, closed: 'done' })
+  if (connected) {
+    await team.submit({ form: 'connection', edit: CONNECTIONS[connected === true ? 'github' : connected] })
+    Object.assign(calls, { choices: 0, reads: [], since: [], searches: [], built: [] })
   }
+  return team
 }
 
 /** The local server build's means to connect, on the canned connector answering from `fixture` as it is when read. */

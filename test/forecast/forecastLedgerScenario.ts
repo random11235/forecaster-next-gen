@@ -2,45 +2,25 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect } from 'vitest'
-import { openForecasting, type Forecasting, type InputsEdit } from '../../src/forecast/index.js'
+import type { InputsEdit } from '../../src/forecast/index.js'
 import type { GrowthRange } from '../../src/model/ambiguity.js'
 import { openSqliteStorage, type SqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
 import { openWebStorage } from '../../src/storage/webStorage.js'
 import type { memoryStore } from '../memoryStore.js'
+import { forecastingForTest, type ForecastingForTest } from './forecastingForTest.js'
 import { TEAM, TODAY } from './forecastViewScenario.js'
 
 // The arrangement the forecast ledger's tests share (forecastLedger.test.ts and forecastLedger.*.test.ts): the team's
-// handle, as the browser build opens it on TODAY, on a storage the ledger goes in through that stays when the handle is
-// opened again (a SQLite file, or the web build's browser storage), so a restart reads the ledger back from it.
-// forecastingForTest keeps its storage in memory, which a restart doesn't reopen, and offers no storage of the test's own.
+// handle, as the browser build opens it on TODAY, through forecastingForTest on a storage the ledger goes in through
+// that stays when the handle is opened again (a SQLite file, or the web build's browser storage), so a restart reads
+// the ledger back from it.
 
 /** The team's handle on a storage of its own, reopened with the handle on `restart`. */
-export interface LedgerTeam extends Pick<Forecasting, 'submit' | 'milestoneForecastView'> {
-  /** The storage the handle was opened on last. */
-  readonly storage: Storage
-  /** Opens the storage again, and the handle on it, as a restart does. */
-  restart(): void
-}
+export type LedgerTeam = Pick<ForecastingForTest<Storage>, 'storage' | 'restart' | 'submit' | 'milestoneForecastView' | 'rerunForecast'>
 
-const CLOCK = { now: () => `${TODAY}T09:00:00Z`, timeZone: 'UTC' }
-
-/** The team's handle on what `open` opens, opened again on each restart. */
-function openedOn(open: () => Storage): LedgerTeam {
-  let storage = open()
-  let handle = openForecasting({ storage, clock: CLOCK })
-  return {
-    get storage() {
-      return storage
-    },
-    submit: (edit, opening) => handle.submit(edit, opening),
-    milestoneForecastView: (shown) => handle.milestoneForecastView(shown),
-    restart() {
-      storage = open()
-      handle = openForecasting({ storage, clock: CLOCK })
-    },
-  }
-}
+/** The team's handle on what `storedIn` opens, opened again on each restart. */
+const openedOn = (storedIn: () => Storage): Promise<LedgerTeam> => forecastingForTest({ storedIn, clock: { now: `${TODAY}T09:00:00Z` } })
 
 let dir: string | undefined
 let opened: SqliteStorage | undefined
@@ -59,7 +39,7 @@ export function storageFile(): string {
 }
 
 /** The team's handle on the app's SQLite file, which a restart opens again. */
-export function onSqliteFile(): LedgerTeam {
+export function onSqliteFile(): Promise<LedgerTeam> {
   return openedOn(() => {
     opened?.close()
     opened = openSqliteStorage(storageFile())
@@ -68,7 +48,7 @@ export function onSqliteFile(): LedgerTeam {
 }
 
 /** The team's handle on the web build's browser storage, kept in `store`. */
-export const inBrowser = (store: ReturnType<typeof memoryStore>): LedgerTeam => openedOn(() => openWebStorage(store))
+export const inBrowser = (store: ReturnType<typeof memoryStore>): Promise<LedgerTeam> => openedOn(() => openWebStorage(store))
 
 /** Sets the team's medium growth range: the growth of a milestone of medium ambiguity, the default. */
 export function mediumGrowth(team: LedgerTeam, medium: GrowthRange): void {

@@ -17,8 +17,8 @@ export type {
 export type { Connecting, ConnectionEdit, ConnectStep } from './lib/connection.js'
 export { DEFAULT_SETTINGS, type ForecastSettings } from './lib/settings.js'
 export { APP_VERSION } from './lib/appVersion.js'
-// A logged forecast re-run, to check it gives the result the EM was shown.
-export { rerunForecast, type Rerun } from './lib/forecastLedger.js'
+// What a logged forecast re-run comes to (the handle's `rerunForecast`).
+export type { Rerun } from './lib/forecastLedger.js'
 
 // The limits each field is given: the screens' inputs say them, and the forms are refused past them.
 export { MAX_CADENCE_DAYS, MAX_TICKETS_PER_PERIOD, MAX_TICKETS_REMAINING } from './lib/milestoneInputs.js'
