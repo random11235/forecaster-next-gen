@@ -1,4 +1,5 @@
 import {
+  KIND_NAMES,
   SETUP_STEPS,
   type PaceCheck,
   type SetupCheck,
@@ -253,7 +254,10 @@ function rowHtml(name: string, row: SummaryRow): string {
     'query' in row
       ? `<code>${escapeHtml(row.query)}</code>`
       : row.picks
-          .map((pick) => `${escapeHtml(pick.name)} <span class="kind">(${escapeHtml(pick.kind)})</span>${pick.count === undefined ? '' : ` · ${pick.count}`}`)
+          .map(
+            (pick) =>
+              `${escapeHtml(pick.name)} <span class="kind">(${escapeHtml(KIND_NAMES[pick.kind].name)})</span>${pick.count === undefined ? '' : ` · ${pick.count}`}`,
+          )
           .join(', ')
   return `        <dt>${name}</dt>
         <dd>${shown}</dd>`
