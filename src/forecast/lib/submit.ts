@@ -80,7 +80,7 @@ export async function submit(team: TeamCall, edit: Edit, opening: SubmitOpening 
     case 'inputs':
       return inputsFormSubmitted(team, edit.edit, opening)
     case 'skip': {
-      const submitted = await submitSkip(connected(team), teamId, edit.edit, team.settings, at)
+      const submitted = await submitSkip(connected(team), team, edit.edit)
       return submitted.saved ? { kind: 'saved', next: { kind: 'paceTracker' } } : again({ inputs: submitted.view })
     }
     case 'connection': {

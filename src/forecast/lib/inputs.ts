@@ -5,7 +5,8 @@ import { editPaceAction, isPaceActionEdit, type PaceActionEdit } from './pacePat
 import { milestoneForecastView, type CapacityShown, type MilestoneForecastView } from './milestoneForecastView.js'
 import { editGrowth, growthView, type GrowthEdit, type GrowthView, type TypedRange } from './growth.js'
 import { editMilestoneInputs, milestoneInputsView, type MilestoneInputsEdit, type MilestoneInputsView } from './milestoneInputs.js'
-import { measureSaved, type TeamView } from './trackerReads.js'
+import type { TeamContext } from './teamContext.js'
+import { measureSaved } from './trackerReads.js'
 
 /**
  * A form the EM submits, as typed: on the Inputs screen, to the milestone and its pace, or to the team's ambiguity
@@ -59,7 +60,7 @@ export type Submitted = { saved: true; next: NextScreen } | ({ saved: false } & 
  * Seam B: the Inputs screen for the team, its notes judged against `settings`, on `today`, the start date's default.
  * With the team's `tracker` reads (the local server build), the values it measures can follow it.
  */
-export function inputsView({ storage, teamId, settings, at, tracker }: TeamView): InputsView {
+export function inputsView({ storage, teamId, settings, at, tracker }: TeamContext): InputsView {
   const milestone = milestoneInputsView(storage, teamId, settings, at.today, measureSaved(tracker, teamId))
   const growth = growthView(storage, teamId)
   return { milestone, growth, forms: savedForms(milestone, growth) }
@@ -71,7 +72,7 @@ export function inputsView({ storage, teamId, settings, at, tracker }: TeamView)
  * again as it was (`shown`) with its Capacity section open; every other form is on the Inputs screen. With the team's
  * tracker reads (`shown.tracker`, the local server build), a value can be set to follow the tracker.
  */
-export function submitInputs(team: TeamView, edit: InputsEdit, shown: CapacityShown = {}): Submitted {
+export function submitInputs(team: TeamContext, edit: InputsEdit, shown: CapacityShown = {}): Submitted {
   if (isCapacityEdit(edit)) return submitCapacity(team, edit, shown)
   if (isPaceActionEdit(edit)) return submitPaceAction(team, edit, shown)
   const { storage, teamId, at, tracker } = team
@@ -88,7 +89,7 @@ export function submitInputs(team: TeamView, edit: InputsEdit, shown: CapacitySh
  * A capacity form, saved, goes to the forecast it changes. Refused, the Milestone forecast screen shows it again as
  * typed with why; a screen with no forecast yet has no capacity section to show it on.
  */
-function submitCapacity(team: TeamView, edit: CapacityEdit, shown: CapacityShown): Submitted {
+function submitCapacity(team: TeamContext, edit: CapacityEdit, shown: CapacityShown): Submitted {
   const result = editCapacity(team.storage, team.teamId, team.at.today, edit)
   if (result.ok) return { saved: true, next: 'forecast' }
   const view = milestoneForecastView(team, shown)
@@ -98,7 +99,7 @@ function submitCapacity(team: TeamView, edit: CapacityEdit, shown: CapacityShown
 }
 
 /** A pace pattern's action, applied or undone, goes to the forecast it changes; refused, the forecast says why. */
-function submitPaceAction(team: TeamView, edit: PaceActionEdit, shown: CapacityShown): Submitted {
+function submitPaceAction(team: TeamContext, edit: PaceActionEdit, shown: CapacityShown): Submitted {
   const result = editPaceAction(team.storage, team.teamId, edit)
   if (result.ok) return { saved: true, next: 'forecast' }
   const view = milestoneForecastView(team, shown)

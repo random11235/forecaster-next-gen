@@ -6,7 +6,8 @@ import { calendarDayIn, type ReadClock } from './pace.js'
 import { DEFAULT_SETTINGS, type ForecastSettings } from './settings.js'
 import type { SetupContext } from './setup.js'
 import type { Skipping } from './skippedPeriods.js'
-import type { TeamView, TrackerReads } from './trackerReads.js'
+import type { TeamContext } from './teamContext.js'
+import type { TrackerReads } from './trackerReads.js'
 
 /** The time, as the EM's computer tells it: the UTC instant now, and the EM's time zone (an IANA name). */
 export interface Clock {
@@ -27,11 +28,11 @@ export interface ForecastingOptions {
 }
 
 /**
- * What one call of the team's handle reads and saves with: what the views read with (`TeamView`), and, in the local
+ * What one call of the team's handle reads and saves with: what the views read with (`TeamContext`), and, in the local
  * server build, what setup and its steps read and save with (`reading`), whose connectors list the milestone choices
  * once in the call. The browser build has none.
  */
-export interface TeamCall extends TeamView {
+export interface TeamCall extends TeamContext {
   /**
    * What both builds reach reads it as it may be, none in the browser build (`reading &&`): the Inputs screen, a
    * search, a renamed milestone followed. What only the local server build's screens send takes it through

@@ -23,7 +23,8 @@ import { paceActionApplied, pacePattern, type PacePatternView } from './pacePatt
 import type { PaceInUse } from './pace.js'
 import { paceTrend, type PaceTrend } from './paceTrend.js'
 import type { ForecastSettings } from './settings.js'
-import { measureSaved, milestonePace, type TeamView } from './trackerReads.js'
+import type { TeamContext } from './teamContext.js'
+import { measureSaved, milestonePace } from './trackerReads.js'
 
 export type { CapacityView, ComparedDate } from './capacity.js'
 
@@ -115,7 +116,7 @@ export interface CapacityShown {
  * entry's effect takes a run of its own, so it is worked out only with the Capacity section open. The forecast shown is
  * logged in the team's ledger, which storage keeps (#27).
  */
-export function milestoneForecastView(team: TeamView, { capacityOpen = false }: CapacityShown = {}): MilestoneForecastView {
+export function milestoneForecastView(team: TeamContext, { capacityOpen = false }: CapacityShown = {}): MilestoneForecastView {
   const { storage, teamId, settings, tracker } = team
   const { today } = team.at
   const saved = storage.milestoneInputs(teamId)
