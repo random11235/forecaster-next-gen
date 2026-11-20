@@ -9,5 +9,6 @@ dist/
 data/
 coverage/
 coverage-usage/
+coverage-folders/
 reports/
 .stryker-tmp/
