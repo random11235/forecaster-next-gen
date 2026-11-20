@@ -1,5 +1,5 @@
-// Mutation testing: `npm run test:mutation` mutates the source a branch changes (scripts/mutateDiff.ts);
-// `npx stryker run` mutates all of it. The report is in reports/mutation/.
+// Mutation testing: `npm run test:mutation` mutates only the lines of source a branch adds or changes, and files
+// not yet committed whole (scripts/mutateDiff.ts); `npx stryker run` mutates all of it. The report is in reports/mutation/.
 /** @type {import('@stryker-mutator/api/core').PartialStrykerOptions} */
 export default {
   testRunner: 'vitest',
