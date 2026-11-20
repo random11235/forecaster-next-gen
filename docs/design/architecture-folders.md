@@ -16,8 +16,10 @@ src/
     choice.ts             # Choice and ChoiceKind: what the EM picks a milestone's tickets by; choiceKindOf reads a kind sent as text
     failure.ts            # Failure: why a connector couldn't answer
 
-  engine/                 # pure: no I/O, no DB, no clock; see src/engine/ for its files
-    index.ts              # exports simulateCase, periodEndDate and the types only
+  engine/                 # pure: no I/O, no DB, no clock
+    index.ts              # the interface: simulateCase, periodEndDate, ENGINE_VERSION and the types only
+    random.ts             # the PRNG (xoshiro128**) and the samplers drawn with it: a second, small entry point, kept at the root so test/engine/ checks it against the reference C code's vectors, which Seam A can't show; nothing in src/ outside engine/ imports it
+    lib/                  # the rest, private to engine/: the trial loop (simulate.ts), the case's checks (validate.ts), dates, the case's hash, the types, ENGINE_VERSION
 
   forecast/               # the only module that knows both stored data and the engine
     forecasting.ts        # Seam B's handle for the team, `openForecasting`: the one way app/ reaches forecast/, opened on storage, a clock (now and the EM's time zone, today worked out from them), the settings and, in the local server build, what it connects with; adds the default team on first launch

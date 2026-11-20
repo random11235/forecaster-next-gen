@@ -1,6 +1,6 @@
 import { periodEndDate, wholePeriodsUntil } from './dates.js'
 import { hashJson } from './hash.js'
-import { bayesianBootstrap, createRandom, drawFrom, drawWholeNumberIn, type PaceSampler, type Random, uniformWholeNumbers } from './random.js'
+import { bayesianBootstrap, createRandom, drawFrom, drawWholeNumberIn, type PaceSampler, type Random, uniformWholeNumbers } from '../random.js'
 import type { ForecastResult, ForecastSpan, GrowthRange, NumberRange, ScopeEntry, SimulationCase } from './types.js'
 import { assertValidCase } from './validate.js'
 
