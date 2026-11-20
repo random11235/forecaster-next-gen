@@ -1,6 +1,16 @@
-import type { ForecastResult, SimulationCase } from '../engine/index.js'
-import type { Ledger } from '../ledger/ledger.js'
+import { ENGINE_VERSION, simulateCase, type ForecastResult, type SimulationCase } from '../engine/index.js'
+import type { ForecastLog, Ledger } from '../ledger/ledger.js'
 import { APP_VERSION } from './appVersion.js'
+
+/** A logged forecast re-run from its case alone, or why it isn't: this engine may not give what another gave. */
+export type Rerun = { kind: 'rerun'; result: ForecastResult } | { kind: 'otherEngine'; loggedWith: string; running: string }
+
+/** Seam B: re-runs the logged forecast's case, as this engine runs it, if this engine's version logged it. */
+export function rerunForecast(log: ForecastLog): Rerun {
+  const loggedWith = log.simulationCase.engineVersion
+  if (loggedWith !== ENGINE_VERSION) return { kind: 'otherEngine', loggedWith, running: ENGINE_VERSION }
+  return { kind: 'rerun', result: simulateCase(log.simulationCase) }
+}
 
 /**
  * Logs the forecast the team is shown in its ledger, made by this release, unless it is the one last logged: the same

@@ -2,7 +2,8 @@ import { describe, expect, test } from 'vitest'
 import { APP_VERSION } from '../../src/forecast/appVersion.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
-import { TEAM, TODAY, newTeam, mediumGrowth, enter, submit, view } from './forecastViewScenario.js'
+import { rerunForecast } from '../../src/forecast/forecastLedger.js'
+import { TEAM, TODAY, newTeam, mediumGrowth, enter, openStorage, submit, view } from './forecastViewScenario.js'
 
 // Seam B: the forecast ledger (#27). Each forecast the Milestone forecast screen shows is logged in the ledger, which
 // goes in through storage, with its case, the case's hash, its result, when it was logged and the release that made it.
@@ -99,5 +100,37 @@ describe('logging only the forecast shown', () => {
 
     expect(view(storage).kind).not.toBe('forecast')
     expect(storage.forecastLogs(TEAM)).toEqual([])
+  })
+})
+
+describe('re-running a logged forecast', () => {
+  test('re-running a logged case alone, read back after reopening and with the inputs since changed, gives the result logged', () => {
+    const storage = newTeam()
+    mediumGrowth(storage, { low: 1.1, high: 1.6 })
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '40' }, { low: '3', high: '8' })
+    view(storage)
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '25' }, { low: '2', high: '9' })
+    view(storage)
+
+    const [first, second] = openStorage().forecastLogs(TEAM)
+
+    expect(first && rerunForecast(first)).toEqual({ kind: 'rerun', result: first?.result })
+    expect(second && rerunForecast(second)).toEqual({ kind: 'rerun', result: second?.result })
+    expect(first?.result).not.toEqual(second?.result)
+  })
+
+  test('a case logged by another engine version is not re-run, as this engine may not give its result', () => {
+    const storage = newTeam()
+    mediumGrowth(storage, { low: 1, high: 1 })
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '5', high: '5' })
+    view(storage)
+    const [shown] = storage.forecastLogs(TEAM)
+    if (!shown) throw new Error('no forecast logged')
+    const { id: _id, createdAt: _createdAt, ...logged } = shown
+    storage.saveForecastLog({ ...logged, simulationCase: { ...logged.simulationCase, engineVersion: '1' } })
+
+    const [, older] = storage.forecastLogs(TEAM)
+
+    expect(older && rerunForecast(older)).toEqual({ kind: 'otherEngine', loggedWith: '1', running: '2' })
   })
 })
