@@ -124,11 +124,11 @@ export const COMPARABLE_WORK_STEP: StepSection = stepSection({
   editingValue: 'comparable',
 })
 
-/** Each setup step that picks or writes a query, by the step it is. */
+/** Each setup step that picks or writes a query, by the step it is, in the order the Inputs screen shows them. */
 export const STEP_SECTION: Readonly<Record<QuerySetupStep, StepSection>> = { milestone: MILESTONE_STEP, comparableWork: COMPARABLE_WORK_STEP }
 
 /** The setup steps that pick or write a query, in the order the Inputs screen shows them. */
-export const STEP_SECTIONS: readonly StepSection[] = [MILESTONE_STEP, COMPARABLE_WORK_STEP]
+export const STEP_SECTIONS: readonly StepSection[] = Object.values(STEP_SECTION)
 
 /** Each step's form, by its action's path: the step it edits, and how its fields are read. */
 export const STEP_FORMS: ReadonlyMap<string, { section: StepSection; read: StepFormReader }> = new Map(
