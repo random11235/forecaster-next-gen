@@ -61,7 +61,7 @@ type StoredLedger = Record<string, StoredTeamLedger>
 export function webLedger(store: KeyValueStore | undefined): Ledger {
   /** The ledger as last saved from this page, read only when the browser gives no storage or refuses it. */
   let inMemory: StoredLedger = {}
-  const read = (): Kept<StoredLedger> => readKey(store, LEDGER_KEY, {}, isRecordOf(isStoredTeamLedger), inMemory)
+  const read = (): Kept<StoredLedger> => readKey(store, LEDGER_KEY, isRecordOf(isStoredTeamLedger), { empty: {}, unreadable: inMemory })
 
   return {
     saveForecastLog({ teamId, milestoneName, appVersion, simulationCase, result }) {

@@ -25,9 +25,8 @@ export type Kept<T> = { value: T } | { refused: unknown }
 export function readKey<T extends object>(
   store: KeyValueStore | undefined,
   key: string,
-  empty: T,
   check: ShapeCheck<Partial<T>>,
-  unreadable: T = empty,
+  { empty, unreadable = empty }: { empty: T; unreadable?: T },
 ): Kept<T> {
   let json: string | null
   try {
