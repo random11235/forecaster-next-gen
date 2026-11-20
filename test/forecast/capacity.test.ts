@@ -246,6 +246,17 @@ describe('each entry’s effect', () => {
     expect(forecast.kind === 'forecast' && forecast.capacity.entries[0]?.effect).toEqual({ shift: 0, words: 'no change to the 85% date' })
   })
 
+  test('an entry pushing the 85% date past the horizon says so, and the line under the headline gives no shift', async () => {
+    const team = await newTeam()
+    await tenTicketsAtFive(team)
+    await add(team, '1', MONDAY, '', { onward: true, note: 'Skeleton crew' })
+
+    const forecast = await opened(team)
+
+    expect(forecast.kind === 'forecast' && forecast.capacity.entries[0]?.effect).toEqual({ shift: null, words: '85% date later than the horizon' })
+    expect(forecast.kind === 'forecast' && forecast.capacityLine).toBe('Includes capacity.')
+  })
+
   test('with the section folded, no entry gives its effect', async () => {
     const team = await newTeam()
     await tenTicketsAtFive(team)
