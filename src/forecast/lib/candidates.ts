@@ -6,7 +6,7 @@ import type { Storage } from '../../storage/storage.js'
 import { periodName, type PeriodName } from './cadence.js'
 import { teamConnection, withTeamQueries, type Connecting } from './connection.js'
 import { KIND_NAMES, type ChoiceList } from './choiceLists.js'
-import { calendarDayIn, paceOf, savedPaceReads, type DatedCounts, type PaceClock } from './pace.js'
+import { calendarDayIn, paceOf, savedPaceReads, type DatedCounts, type PaceClock, type ReadClock } from './pace.js'
 import { completeRead, finishedSinceFor, ticketsRemaining, weeksRead } from './queryRead.js'
 import { medianOf, paceVersusMilestoneOwn, type PaceVersus } from './paceVersusOwn.js'
 import { trackerOf } from './trackers.js'
@@ -75,17 +75,12 @@ export interface CandidateOpening {
   read(choices: readonly Choice[]): Promise<Candidates>
 }
 
-/** When the candidates are read: the UTC instant, and pace's clock, today in the EM's time zone. */
-export interface CandidatesAt extends PaceClock {
-  readAt: string
-}
-
 /**
  * Seam B: opens the team's candidates for comparable work, reading none yet. Each is read through the connector once,
  * as the comparable-work query is, as far back (`finishedSinceFor`), and kept only by this opening, never saved. Its
  * periods are laid on the milestone's cadence from its start date (from today before it has one).
  */
-export function openCandidates(connecting: Connecting, storage: Pick<Storage, 'milestoneInputs'>, teamId: string, at: CandidatesAt): CandidateOpening {
+export function openCandidates(connecting: Connecting, storage: Pick<Storage, 'milestoneInputs'>, teamId: string, at: ReadClock): CandidateOpening {
   // the milestone's and comparable work's queries as setup's steps hold them
   const saved = savedPaceReads(withTeamQueries(connecting, 'current'), teamId)
   const read = new Map<string, Promise<Candidate>>()

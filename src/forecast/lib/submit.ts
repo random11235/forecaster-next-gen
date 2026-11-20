@@ -1,12 +1,14 @@
-import type { ConnectionEdit } from './connection.js'
-import type { InputsEdit, NextScreen } from './inputs.js'
+import { submitConnection, type ConnectionEdit } from './connection.js'
+import { submitInputs, type InputsEdit, type NextScreen } from './inputs.js'
 import { inputsScreen, STEP_QUERIES, type InputsOpening, type InputsScreen, type QuerySetupStep, type ShownAgain } from './inputsScreenView.js'
 import type { MilestoneForecastView } from './milestoneForecastView.js'
-import type { StepQueryEdit } from './queryStep.js'
-import type { SetupEdit } from './setup.js'
+import { followRenamedMilestone } from './milestoneRenamed.js'
+import { submitStepQuery, type StepQueryEdit } from './queryStep.js'
+import { submitSetup, type SetupEdit } from './setup.js'
+import { submitReadAgain } from './setupReads.js'
 import type { SetupStep } from './setupSteps.js'
-import type { SkipEdit } from './skippedPeriods.js'
-import type { TeamEntries } from './teamEntries.js'
+import { submitSkip, type SkipEdit } from './skippedPeriods.js'
+import { connected, type TeamCall } from './teamCall.js'
 
 /**
  * Every form the EM submits, each as typed: an Inputs form, or a Capacity or pace pattern form beside the forecast
@@ -51,29 +53,29 @@ export interface SubmitOpening extends InputsOpening {
  * Seam B: one submit, which owns what follows from it. A save that renames the milestone moves the milestone query to
  * the new name, where it is just the tracker's milestone of the old one (`followRenamedMilestone`).
  */
-export async function submit(entries: TeamEntries, edit: Edit, opening: SubmitOpening = {}): Promise<Outcome> {
-  const again = (shown: ShownAgain = {}): Promise<Outcome> => inputsScreen(entries, opening, shown).then((view) => ({ saved: false, screen: 'inputs', view }))
+export async function submit(team: TeamCall, edit: Edit, opening: SubmitOpening = {}): Promise<Outcome> {
+  const { teamId, at } = team
+  const again = (shown: ShownAgain = {}): Promise<Outcome> => inputsScreen(team, opening, shown).then((view) => ({ saved: false, screen: 'inputs', view }))
   switch (edit.form) {
     case 'inputs':
-      return submitInputs(entries, edit.edit, opening)
+      return inputsFormSubmitted(team, edit.edit, opening)
     case 'skip': {
-      const submitted = await entries.submitSkip(edit.edit)
-      if (submitted.saved) return { saved: true, next: { screen: 'inputs' } }
-      return again(submitted.screen === 'inputs' ? { inputs: submitted.view } : {})
+      const submitted = await submitSkip(connected(team), teamId, edit.edit, team.settings, at)
+      return submitted.saved ? { saved: true, next: { screen: 'inputs' } } : again({ inputs: submitted.view })
     }
     case 'connection': {
-      const submitted = await entries.submitConnection(edit.edit)
+      const submitted = await submitConnection(connected(team), teamId, edit.edit)
       return submitted.saved ? { saved: true, next: { screen: 'inputs', step: submitted.next } } : again({ connection: submitted.view })
     }
     case 'setup': {
-      const { next } = await entries.submitSetup(edit.edit)
+      const { next } = await submitSetup(connected(team), teamId, edit.edit)
       return { saved: true, next: { screen: 'inputs', ...(next && { step: next }) } }
     }
     case 'readAgain':
-      await entries.submitReadAgain()
+      await submitReadAgain(connected(team), teamId, at.readAt)
       return { saved: true, next: { screen: 'inputs' } }
     case 'stepQuery': {
-      const submitted = await entries.submitStepQuery(edit.edit, STEP_QUERIES[edit.step])
+      const submitted = await submitStepQuery(connected(team), teamId, edit.edit, at.readAt, STEP_QUERIES[edit.step])
       if (submitted.kind === 'refused') return again({ refused: { step: edit.step, query: submitted } })
       if (submitted.kind === 'confirmClear') return { saved: false, confirmClear: true }
       return { saved: true, next: { screen: 'inputs', step: edit.step } }
@@ -81,18 +83,23 @@ export async function submit(entries: TeamEntries, edit: Edit, opening: SubmitOp
   }
 }
 
-/** An Inputs, Capacity or pace pattern form: its milestone renamed followed once saved; saved in place, the Inputs screen to show. */
-async function submitInputs(entries: TeamEntries, edit: InputsEdit, opening: SubmitOpening): Promise<Outcome> {
+/**
+ * An Inputs, Capacity or pace pattern form: its milestone renamed followed once saved; saved in place, the Inputs
+ * screen to show; refused on the Inputs screen, that screen whole, the form as typed.
+ */
+async function inputsFormSubmitted(team: TeamCall, edit: InputsEdit, opening: SubmitOpening): Promise<Outcome> {
+  const { storage, teamId, settings, at, tracker, reading } = team
   const { capacityOpen = false, inPlace = false } = opening
-  const named = entries.milestoneName()
-  const submitted = await entries.submitInputs(edit, { capacityOpen })
+  const milestoneName = (): string => storage.milestoneInputs(teamId)?.name ?? ''
+  const named = milestoneName()
+  const submitted = submitInputs(storage, teamId, settings, at.today, edit, { capacityOpen, tracker })
   if (!submitted.saved) {
     if (submitted.screen === 'forecast') return submitted
-    return { saved: false, screen: 'inputs', view: await inputsScreen(entries, opening, { inputs: submitted.view, unlisted: inPlace }) }
+    return { saved: false, screen: 'inputs', view: await inputsScreen(team, opening, { inputs: submitted.view, unlisted: inPlace }) }
   }
-  // a milestone not yet entered has no name to follow from
-  const now = entries.milestoneName()
-  if (named !== '' && now !== '' && named !== now) await entries.followRenamedMilestone({ from: named, to: now })
+  // a milestone not yet entered has no name to follow from; nothing connected has no milestone query to follow
+  const now = milestoneName()
+  if (reading && named !== '' && now !== '' && named !== now) await followRenamedMilestone(reading, teamId, { from: named, to: now }, at.readAt)
   const next: Place = { screen: submitted.next }
-  return inPlace ? { saved: true, next, view: await inputsScreen(entries, opening, { unlisted: true }) } : { saved: true, next }
+  return inPlace ? { saved: true, next, view: await inputsScreen(team, opening, { unlisted: true }) } : { saved: true, next }
 }

@@ -17,7 +17,16 @@ import {
 
 export { actionSaid, withAction, type PaceCounts, type PaceInUse } from './paceInUse.js'
 export { sameCounts, type PaceReading, type WasPace } from './paceReading.js'
-export { calendarDayIn, paceCalendar, savedPaceReads, type DatedCounts, type PaceClock, type PaceFrom, type SavedPaceReads } from './periodCounts.js'
+export {
+  calendarDayIn,
+  paceCalendar,
+  savedPaceReads,
+  type DatedCounts,
+  type PaceClock,
+  type PaceFrom,
+  type ReadClock,
+  type SavedPaceReads,
+} from './periodCounts.js'
 
 // Pace, worked out in one place (#243): `paceOf` is the way in, and this file the only import pace's callers use.
 // Behind it, its sibling files: the reads counted per period side by side (periodCounts.ts), the tracker's window

@@ -1,14 +1,14 @@
 import type { ChoiceKind } from '../../model/choice.js'
-import type { CandidateOpening } from './candidates.js'
-import type { HowItWorksView } from './howItWorksView.js'
+import { openCandidates, type CandidateOpening } from './candidates.js'
+import { howItWorksView, type HowItWorksView } from './howItWorksView.js'
 import { inputsScreen, type InputsOpening, type InputsScreen } from './inputsScreenView.js'
-import type { MilestoneForecastView } from './milestoneForecastView.js'
-import type { ChoiceList } from './queryStep.js'
+import { milestoneForecastView, type MilestoneForecastView } from './milestoneForecastView.js'
+import { searchedChoiceList, type ChoiceList } from './queryStep.js'
 import type { StepQuery } from './stepQuery.js'
 import { submit, type Edit, type Outcome, type SubmitOpening } from './submit.js'
-import { openTeamEntries, type CapacityShown, type ForecastingOptions } from './teamEntries.js'
+import { connected, openTeamCalls, type CapacityShown, type ForecastingOptions } from './teamCall.js'
 
-export type { Clock, CapacityShown, ForecastingOptions } from './teamEntries.js'
+export type { Clock, CapacityShown, ForecastingOptions } from './teamCall.js'
 export type { InputsOpening, InputsScreen, QuerySetupStep } from './inputsScreenView.js'
 export type { Edit, Outcome, Place, SubmitOpening } from './submit.js'
 
@@ -30,16 +30,28 @@ export interface Forecasting {
   openCandidates(): Promise<CandidateOpening>
 }
 
-/** Seam B: the team's handle, adding the default team on first launch, when nothing is stored yet. */
+/**
+ * Seam B: the team's handle, adding the default team on first launch, when nothing is stored yet. Each call reads the
+ * clock once, and asks the tracker for the milestone choices once (`openTeamCalls`).
+ */
 export function openForecasting(options: ForecastingOptions): Forecasting {
-  const entries = openTeamEntries(options)
+  const call = openTeamCalls(options)
   return {
     connects: options.connecting !== undefined,
-    milestoneForecastView: (shown) => entries().milestoneForecastView(shown),
-    howItWorksView: () => entries().howItWorksView(),
-    inputsScreen: (opening = {}) => inputsScreen(entries(), opening),
-    submit: (edit, opening = {}) => submit(entries(), edit, opening),
-    searchedChoiceList: (kind, find, stepQuery) => entries().searchedChoiceList(kind, find, stepQuery),
-    openCandidates: () => entries().openCandidates(),
+    milestoneForecastView: async ({ capacityOpen = false } = {}) => {
+      const { storage, teamId, settings, at, tracker } = call()
+      return milestoneForecastView(storage, teamId, settings, at.today, { capacityOpen, tracker })
+    },
+    howItWorksView: async () => howItWorksView(call().settings),
+    inputsScreen: (opening = {}) => inputsScreen(call(), opening),
+    submit: (edit, opening = {}) => submit(call(), edit, opening),
+    searchedChoiceList: async (kind, find, stepQuery) => {
+      const { reading, teamId } = call()
+      return reading && searchedChoiceList(reading, teamId, kind, find, stepQuery)
+    },
+    openCandidates: async () => {
+      const team = call()
+      return openCandidates(connected(team), team.storage, team.teamId, team.at)
+    },
   }
 }
