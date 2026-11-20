@@ -165,7 +165,8 @@ describe.each(kinds)('%s storage', (_, opened) => {
     const { storage, reopen } = opened()
     storage.saveTeam(TEAM)
     storage.saveTeam({ ...TEAM, id: 'another', name: 'Another' })
-    const withoutCapacity = { ...FORECAST, simulationCase: { ...FORECAST.simulationCase, capacity: undefined }, milestoneName: 'Beta' }
+    const { capacity: _capacity, ...withoutItsCapacity } = FORECAST.simulationCase
+    const withoutCapacity = { ...FORECAST, simulationCase: withoutItsCapacity, milestoneName: 'Beta' }
     expect(storage.forecastLogs('team')).toEqual([])
     expect(storage.lastForecastLog('team')).toBeUndefined()
     const before = new Date().toISOString()
