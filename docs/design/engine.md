@@ -2,7 +2,7 @@
 
 Design date: 2026-10-14. Updated 2026-10-18 with the design grill decisions (Q1–Q31). Status: draft for v1.
 
-The MVP changes one thing in the engine: typed counts are drawn by the Bayesian bootstrap ([ADR-0001](../adr/0001-bayesian-bootstrap-pace-sampler.md)), which bumped `ENGINE_VERSION` to `'2'`. It builds the case in `forecast/milestoneForecastView.ts` as one scope entry, the milestone's tickets remaining with none done, grown by the range of its ambiguity, with the EM's pace as throughput: typed counts go through the Bayesian bootstrap ([ADR-0001](../adr/0001-bayesian-bootstrap-pace-sampler.md)), a pace range is drawn uniformly.
+The MVP changes one thing in the engine: typed counts are drawn by the Bayesian bootstrap ([ADR-0001](../adr/0001-bayesian-bootstrap-pace-sampler.md)), which bumped `ENGINE_VERSION` to `'2'`. It builds the case in `forecast/lib/milestoneForecastView.ts` as one scope entry, the milestone's tickets remaining with none done, grown by the range of its ambiguity, with the EM's pace as throughput: typed counts go through the Bayesian bootstrap ([ADR-0001](../adr/0001-bayesian-bootstrap-pace-sampler.md)), a pace range is drawn uniformly.
 
 This covers `engine/` (Seam A): the contract `simulateCase(SimulationCase) → ForecastResult`, how one trial runs, the swappable samplers, and the facts it reports when data is thin. The engine's place in the system and its dependency rules are in [`architecture.md`](architecture.md); the data and settings `forecast/` builds the case from are in [`forecast-model.md`](forecast-model.md).
 
