@@ -1,4 +1,4 @@
-export { periodEndDate } from './dates.js'
-export { simulateCase } from './simulate.js'
-export { ENGINE_VERSION } from './version.js'
-export type { EpicSizeRange, ForecastResult, ForecastSpan, GrowthRange, ScopeEntry, SimulationCase, ThroughputRange } from './types.js'
+export { periodEndDate } from './lib/dates.js'
+export { simulateCase } from './lib/simulate.js'
+export { ENGINE_VERSION } from './lib/version.js'
+export type { EpicSizeRange, ForecastResult, ForecastSpan, GrowthRange, NumberRange, ScopeEntry, SimulationCase, ThroughputRange } from './lib/types.js'
