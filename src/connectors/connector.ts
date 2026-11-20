@@ -5,51 +5,18 @@
  * a transport (an injected `fetch`); `app/` builds it and passes it in.
  */
 
-/** All the tool holds of a ticket. */
-export interface Ticket {
-  /** Opaque and stable: the GitHub node id, or the Jira numeric id (not the key, which changes on a move). */
-  id: string
-  /** The UTC instant of the ticket's last finish; absent while it is open. */
-  finishedAt?: string
-}
+import type { Choice, ChoiceKind } from '../model/choice.js'
+import type { Failure } from '../model/failure.js'
+import type { Ticket } from '../model/ticket.js'
 
-/**
- * Why a connector couldn't answer. Connectors don't word failures; the screens do.
- * - `invalidQuery`: the tracker refused the query, with its own message.
- * - `outOfScope`: the query reaches outside the connection's repo or project.
- * - `notFound`: the repo or project doesn't exist, or the token can't see it.
- * - `unauthorised`: the token was refused.
- * - `unavailable`: the network, or rate limiting after backoff.
- */
-export type Failure = { failure: 'invalidQuery'; message: string } | { failure: 'outOfScope' | 'notFound' | 'unauthorised' | 'unavailable' }
+// The record types a connector answers in live in model/, which saves them; its callers in forecast/ take them from here.
+export type { Choice, ChoiceKind, Failure, Ticket }
 
 /** A failed call: one failure, and nothing else. */
 export type FailedCall = { ok: false } & Failure
 
 /** A read's tickets, flagged incomplete when the tracker didn't return them all; or one failure. Matching nothing is an empty list. */
 export type ReadResult = { ok: true; tickets: Ticket[]; incomplete: boolean } | FailedCall
-
-/** Every kind of choice, in no order: GitHub has epics, labels and milestones; Jira fix versions, epics and labels. */
-export const CHOICE_KINDS = ['epic', 'label', 'milestone', 'fixVersion'] as const
-
-/** What a choice picks a milestone's tickets by. */
-export type ChoiceKind = (typeof CHOICE_KINDS)[number]
-
-/** The kind of choice `text` names, as a form or URL sends it; none when it names no kind. */
-export function choiceKindOf(text: string): ChoiceKind | undefined {
-  return CHOICE_KINDS.find((kind) => kind === text)
-}
-
-/**
- * Something the EM can pick a milestone's tickets by, with the query that reads them, in the tracker's syntax, built
- * only inside the connector. `forecast/` reads a query back, in that syntax, only to split a hand-edited one at its ORs
- * and find what each part names (`forecast/queryLanguage.ts`), so it can show it as the picks' chips.
- */
-export interface Choice {
-  kind: ChoiceKind
-  name: string
-  query: string
-}
 
 /** The most choices of one kind a connector lists; past it, the picker searches that kind in the tracker instead. */
 export const CHOICES_LIMIT = 100

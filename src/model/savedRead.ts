@@ -1,4 +1,4 @@
-import type { Ticket } from '../connectors/connector.js'
+import type { Ticket } from './ticket.js'
 
 /** One of a team's queries, which a saved read belongs to. */
 export interface TeamQuery {
