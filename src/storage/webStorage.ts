@@ -45,7 +45,7 @@ interface Stored {
  */
 export function openWebStorage(store: KeyValueStore | undefined): Storage {
   const empty: Stored = { teams: [], milestoneInputs: {}, ambiguityRanges: {}, capacityEntries: {}, capacityOff: [] }
-  const kept = readKey(store, KEY, empty, isStored)
+  const kept = readKey(store, KEY, isStored, { empty })
   /** What is stored, or the refusal of data this version can't read. */
   const stored = (): Stored => held(kept)
   const write = (): void => writeKey(store, KEY, JSON.stringify(stored()))

@@ -35,7 +35,11 @@ export function forecastLogTable(db: DatabaseSync): Ledger {
   // the case's hash read out of the result's JSON, the case and the rest of the result left unparsed; none when the
   // result isn't JSON or its hash isn't text
   const selectLast = db.prepare(`
-    SELECT ${STAMP_SELECT}, CASE WHEN NOT json_valid(result) THEN NULL WHEN json_type(result, '$.caseHash') = 'text' THEN json_extract(result, '$.caseHash') END AS caseHash
+    SELECT ${STAMP_SELECT},
+      CASE
+        WHEN NOT json_valid(result) THEN NULL
+        WHEN json_type(result, '$.caseHash') = 'text' THEN json_extract(result, '$.caseHash')
+      END AS caseHash
     FROM forecast_logs WHERE team_id = ? ORDER BY id DESC LIMIT 1`)
 
   return {

@@ -33,7 +33,7 @@ afterEach(() => {
 /** The SQLite file the app would use, in a fresh directory per test. */
 export const storageFile = (): string => join(dir, 'forecaster.db')
 
-/** Opens it, closing the one opened before. */
+/** Opens the SQLite file (`storageFile()`), closing the one opened before. */
 export function openStorage(): Storage {
   storage?.close()
   storage = openSqliteStorage(storageFile())
