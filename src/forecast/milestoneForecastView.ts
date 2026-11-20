@@ -17,6 +17,7 @@ import {
 } from './capacity.js'
 import { periodName, type PeriodName } from './cadence.js'
 import { counted } from './counted.js'
+import { logForecast } from './forecastLedger.js'
 import { milestoneGrowth } from './growth.js'
 import { assessMilestone, type ForecastableInputs, type ForecastPace, type InputNote } from './milestoneAssessment.js'
 import { paceActionApplied, pacePattern, type PacePatternView } from './pacePattern.js'
@@ -111,7 +112,8 @@ export interface ForecastViewOptions extends ReadingTracker {
 
 /**
  * Seam B: the Milestone forecast screen for the team's milestone, forecast from its start date, on `today`. Each
- * entry's effect takes a run of its own, so it is worked out only with the Capacity section open.
+ * entry's effect takes a run of its own, so it is worked out only with the Capacity section open. The forecast shown is
+ * logged in the team's ledger, which storage keeps (#27).
  */
 export function milestoneForecastView(
   storage: Storage,
@@ -140,6 +142,8 @@ export function milestoneForecastView(
   const on = storage.capacityOn(teamId)
   const simulationCase = milestoneCase(inputs, pace, growth, settings, on ? factors : undefined)
   const result = simulateCase(simulationCase)
+  // the forecast shown, logged; the runs it is compared with below are not shown, so not logged
+  logForecast(storage, { teamId, milestoneName: inputs.name, simulationCase, result })
   const { periodDays, maxPeriods, percentiles } = simulationCase
   // at usual capacity from the same seed, so the two differ by capacity alone
   const atUsual = on && factors ? simulateCase(milestoneCase(inputs, pace, growth, settings, undefined)) : undefined

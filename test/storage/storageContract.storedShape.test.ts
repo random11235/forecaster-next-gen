@@ -5,12 +5,14 @@ import type { SqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
 import { openWebStorage, type KeyValueStore } from '../../src/storage/webStorage.js'
 import { readStraight, writeStraight } from './sqliteStraight.js'
-import { LAUNCH as SAVED, TEAM, temporarySqliteFiles } from './storageContractFixtures.js'
+import { FORECAST, LAUNCH as SAVED, TEAM, temporarySqliteFiles } from './storageContractFixtures.js'
 
 // The Storage contract's cases for stored JSON of a shape this version doesn't read, beside storageContract.test.ts,
 // run against both storages: each refuses it, naming where it is kept, rather than reading it as something it isn't,
-// and keeps it through the Storage contract's saves. Browser storage, one record, refuses every save; the SQLite file
-// takes them, but its save of the milestone inputs replaces a refused value in that record whole. The saves of the
+// and keeps it through the Storage contract's saves. Browser storage keeps two records, the forecast ledger apart from
+// the rest: it refuses every save to the rest when that holds the refused value, and refuses no save when the ledger
+// does, logging nothing; the SQLite file takes them, but its save of
+// the milestone inputs replaces a refused value in that record whole. The saves of the
 // SQLite-only tables (the queries', the setup draft's) aren't tried. Only the seeding differs: each case writes the
 // value straight into the store, as a later version or a damaged file would leave it.
 
@@ -33,6 +35,7 @@ const SAVES: Record<Save, (storage: Storage) => void> = {
     storage.saveAmbiguityRanges({ teamId: 'team', low: { low: 1, high: 1.2 }, medium: { low: 1.1, high: 1.5 }, high: { low: 1.2, high: 2 } }),
   saveCapacityEntries: (storage) => storage.saveCapacityEntries('team', []),
   saveCapacityOn: (storage) => storage.saveCapacityOn('team', false),
+  saveForecastLog: (storage) => storage.saveForecastLog(FORECAST),
 }
 
 /** Storage holding a refused value: opened again on each call, the value read through it, and the value as kept. */
@@ -56,9 +59,11 @@ interface Refused {
 interface Subject {
   saved(): Storage
   refused: Refused[]
-  /** Whether every save throws over a refused value, the storage being one record. */
-  refusesSaves: boolean
+  /** The saves that throw over a refused value: those to the record holding it, where the storage keeps few. */
+  refusingSaves: Save[]
 }
+
+const ALL_SAVES = Object.keys(SAVES).filter((name): name is Save => name in SAVES)
 
 const sqliteFile = temporarySqliteFiles()
 
@@ -93,9 +98,35 @@ const milestoneQuery = inSqlite('milestone_queries', (storage) => storage.milest
 const comparableWorkQuery = inSqlite('comparable_work_queries', (storage) => storage.comparableWorkQuery('team'))
 const setupDraft = inSqlite('setup_drafts', (storage) => storage.setupDraft('team'))
 
+/**
+ * A logged forecast whose `column` holds `stored`, the rest as FORECAST logged it: written in as a row of its own, as
+ * the ledger never changes a row once written.
+ */
+const forecastLog = (column: 'simulation_case' | 'result', stored: string): Refused => ({
+  where: `forecast_logs.${column}`,
+  holding: stored,
+  opened() {
+    const { file, reopen } = savedSqlite()
+    const { teamId, milestoneName, appVersion, simulationCase, result } = FORECAST
+    const json = { simulation_case: JSON.stringify(simulationCase), result: JSON.stringify(result), [column]: stored }
+    writeStraight(
+      file,
+      `INSERT INTO forecast_logs (team_id, id, created_at, milestone_name, app_version, simulation_case, result)
+       VALUES (?, 1, '2026-11-02T09:00:00.000Z', ?, ?, ?, ?)`,
+      teamId,
+      milestoneName,
+      appVersion,
+      json.simulation_case,
+      json.result,
+    )
+    const kept = (): unknown => readStraight(file, `SELECT ${column} FROM forecast_logs WHERE id = 1`)?.[column]
+    return { storage: reopen, read: () => reopen().forecastLogs('team'), kept }
+  },
+})
+
 const sqlite: Subject = {
   saved: () => savedSqlite().reopen(),
-  refusesSaves: false,
+  refusingSaves: [],
   refused: [
     inputs('pace_counts', '{"low":4}'),
     inputs('pace_counts', '[4,"seven"]'),
@@ -109,11 +140,17 @@ const sqlite: Subject = {
     comparableWorkQuery('picks', '[null]'),
     setupDraft('milestone_picks', 'not json'),
     setupDraft('comparable_work_picks', '[{"kind":"label","name":7,"query":""}]'),
+    forecastLog('simulation_case', 'not json'),
+    forecastLog('simulation_case', JSON.stringify({ ...FORECAST.simulationCase, question: { kind: 'howMany' } })),
+    forecastLog('simulation_case', JSON.stringify({ ...FORECAST.simulationCase, scope: [{ epicId: 'team', rank: 1 }] })),
+    forecastLog('result', JSON.stringify({ ...FORECAST.result, percentileDates: { 50: 20270222 } })),
+    forecastLog('result', '[]'),
   ],
 }
 
-/** Browser storage holding everything under one key, as `localStorage` keeps it. */
-const KEY = '"forecaster"'
+/** Browser storage's keys, as `localStorage` keeps them: the forecast ledger under one, everything else under the other. */
+const KEY = 'forecaster'
+const LEDGER_KEY = 'forecaster.ledger'
 
 /** Browser storage on the team and its milestone's inputs as saved through it, and the items it keeps them in. */
 function savedBrowser() {
@@ -125,23 +162,28 @@ function savedBrowser() {
   return { items, storage: () => openWebStorage(store) }
 }
 
-/** The browser's stored value holding `holding`, and its inputs read back through the storage. */
-const inBrowser = (holding: string, stored: string): Refused => ({
-  where: KEY,
-  holding,
-  opened() {
-    const { items, storage } = savedBrowser()
-    items.set('forecaster', stored)
-    return { storage, read: () => storage().milestoneInputs('team'), kept: () => items.get('forecaster') }
-  },
-})
+/** The browser's value under `key` holding `holding`, read back through the storage by `read`. */
+const underKey =
+  (key: string, read: (storage: Storage) => unknown) =>
+  (holding: string, stored: string): Refused => ({
+    where: `"${key}"`,
+    holding,
+    opened() {
+      const { items, storage } = savedBrowser()
+      items.set(key, stored)
+      return { storage, read: () => read(storage()), kept: () => items.get(key) }
+    },
+  })
+
+const inBrowser = underKey(KEY, (storage) => storage.milestoneInputs('team'))
+const inLedger = underKey(LEDGER_KEY, (storage) => storage.forecastLogs('team'))
 
 /** The browser's stored value with the team's milestone inputs replaced by `inputs` (`LAUNCH`'s fields, changed). */
 const withInputs = (inputs: Record<string, unknown>): string => JSON.stringify({ teams: [TEAM], milestoneInputs: { team: { ...LAUNCH, ...inputs } } })
 
 const browser: Subject = {
   saved: () => savedBrowser().storage(),
-  refusesSaves: true,
+  refusingSaves: ALL_SAVES.filter((name) => name !== 'saveForecastLog'),
   refused: [
     inBrowser("text that isn't JSON", 'not json'),
     inBrowser('a list, not an object', '[]'),
@@ -168,9 +210,25 @@ const browser: Subject = {
   ],
 }
 
+/** Browser storage's forecast ledger, kept apart: refused, it refuses no save, a forecast saved to it not being logged. */
+const browserLedger: Subject = {
+  saved: () => savedBrowser().storage(),
+  refusingSaves: [],
+  refused: [
+    inLedger("text that isn't JSON", 'not json'),
+    inLedger("a team's forecast ledger with no logs", JSON.stringify({ team: { lastId: 0 } })),
+    inLedger('a logged forecast with no stamp', JSON.stringify({ team: { lastId: 1, logs: [{ ...FORECAST, id: 1 }] } })),
+    inLedger(
+      'a logged forecast whose result has no case hash',
+      JSON.stringify({ team: { lastId: 1, logs: [{ ...FORECAST, id: 1, createdAt: '2026-11-02T09:00:00.000Z', result: {} }] } }),
+    ),
+  ],
+}
+
 describe.each([
   ['SQLite', sqlite],
   ['browser', browser],
+  ["browser storage's forecast ledger in", browserLedger],
 ])('%s storage holding stored JSON of a shape it does not read', (_, subject) => {
   test('reads back the milestone inputs as saved', () => {
     expect(subject.saved().milestoneInputs('team')).toEqual(LAUNCH)
@@ -186,10 +244,10 @@ describe.each([
       const { storage, read, kept } = opened()
       const before = kept()
 
-      for (const [name, save] of Object.entries(SAVES)) {
+      for (const name of ALL_SAVES) {
         if (name === ownSave) continue
-        const saving = () => save(storage())
-        if (subject.refusesSaves) expect(saving, name).toThrow(where)
+        const saving = () => SAVES[name](storage())
+        if (subject.refusingSaves.includes(name)) expect(saving, name).toThrow(where)
         else saving()
         expect(kept(), name).toBe(before)
       }

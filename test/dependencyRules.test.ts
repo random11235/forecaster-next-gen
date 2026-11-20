@@ -4,7 +4,8 @@ import { describe, expect, test } from 'vitest'
 import { importsBeside, importsFrom, importsOf, src } from './importScan.js'
 
 // The dependency rules in docs/design/architecture-dependency-rules.md that keep connectors/ and secrets/ at the edge,
-// and that keep package.json's one importer the module the web build gives its version alone.
+// the ledger on the engine's types alone, and package.json's one importer the module the web build gives its version
+// alone.
 
 /** Every file under `src/` that `entry` loads when it runs, itself included; `import type` loads nothing. */
 function loadedBy(entry: string): Set<string> {
@@ -26,6 +27,18 @@ describe('dependency rules', () => {
     const importers = importsFrom('').filter(({ imported }) => imported === '../package.json')
 
     expect(importers.map(({ file }) => file)).toEqual(['forecast/appVersion.ts'])
+  })
+
+  test("ledger/ imports only the engine's types", () => {
+    const outside = importsFrom('ledger').filter(({ imported }) => !imported.startsWith('ledger/') && imported !== 'engine/types.js')
+
+    expect(outside).toEqual([])
+  })
+
+  test("storage/ reaches the engine only through its types, to check a logged forecast's case and result", () => {
+    const engine = importsFrom('storage').filter(({ imported }) => imported.startsWith('engine/') && imported !== 'engine/types.js')
+
+    expect(engine).toEqual([])
   })
 
   test('forecast/ reaches connectors only through the interface, never a concrete connector or its entry point', () => {

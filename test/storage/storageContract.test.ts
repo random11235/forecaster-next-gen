@@ -4,7 +4,9 @@ import type { CapacityEntry } from '../../src/model/capacity.js'
 import type { MilestoneInputs } from '../../src/model/milestoneInputs.js'
 import type { Storage } from '../../src/storage/storage.js'
 import { openWebStorage, type KeyValueStore } from '../../src/storage/webStorage.js'
-import { LAUNCH, TEAM, temporarySqliteFiles } from './storageContractFixtures.js'
+import { ISO_INSTANT } from '../isoInstant.js'
+import { memoryStore } from '../memoryStore.js'
+import { FORECAST, LAUNCH, TEAM, temporarySqliteFiles } from './storageContractFixtures.js'
 
 // What every Storage keeps, whatever it keeps it in: the local app's SQLite file and the web build's browser storage.
 
@@ -21,7 +23,6 @@ interface Opened {
   reopen: () => Storage
 }
 
-/** Browser storage as `localStorage` keeps it: strings by key. */
 const HOLIDAY: CapacityEntry = { id: 1, from: '2026-09-14', to: '2026-09-14', percent: 0, note: 'Holiday' }
 /**
  * One entry running onward, saved before an earlier one: kept in the order saved. With one accepted as the new usual,
@@ -33,11 +34,6 @@ const ENTRIES: CapacityEntry[] = [
   { id: 3, from: '2026-06-01', to: '2026-11-11', percent: 80, note: 'Two left', newUsualOn: '2026-11-11' },
   { id: 4, from: '2026-07-06', to: undefined, percent: 120, note: '', kept: true },
 ]
-
-function memoryStore(): KeyValueStore {
-  const items = new Map<string, string>()
-  return { getItem: (key) => items.get(key) ?? null, setItem: (key, value) => void items.set(key, value) }
-}
 
 const sqliteFile = temporarySqliteFiles()
 
@@ -161,6 +157,38 @@ describe.each(kinds)('%s storage', (_, opened) => {
     expect(storage.capacityOn('team')).toBe(true)
   })
 
+  test("logs the team's forecasts in the order logged, numbered for the team and stamped when logged, which survive reopening", () => {
+    const { storage, reopen } = opened()
+    storage.saveTeam(TEAM)
+    storage.saveTeam({ ...TEAM, id: 'another', name: 'Another' })
+    const { capacity: _capacity, ...withoutItsCapacity } = FORECAST.simulationCase
+    const withoutCapacity = { ...FORECAST, simulationCase: withoutItsCapacity, milestoneName: 'Beta' }
+    expect(storage.forecastLogs('team')).toEqual([])
+    expect(storage.lastForecastLog('team')).toBeUndefined()
+    const before = new Date().toISOString()
+
+    storage.saveForecastLog(FORECAST)
+    storage.saveForecastLog({ ...FORECAST, teamId: 'another' })
+    storage.saveForecastLog(withoutCapacity)
+
+    const after = new Date().toISOString()
+    const logs = reopen().forecastLogs('team')
+    expect(logs).toEqual([
+      { ...FORECAST, id: 1, createdAt: expect.any(String) },
+      { ...withoutCapacity, id: 2, createdAt: expect.any(String) },
+    ])
+    expect(logs.every(({ createdAt }) => ISO_INSTANT.test(createdAt) && createdAt >= before && createdAt <= after)).toBe(true)
+    expect(reopen().lastForecastLog('team')).toEqual({
+      id: 2,
+      teamId: 'team',
+      createdAt: logs[1]?.createdAt,
+      milestoneName: 'Beta',
+      caseHash: FORECAST.result.caseHash,
+      appVersion: FORECAST.appVersion,
+    })
+    expect(reopen().forecastLogs('another')).toEqual([{ ...FORECAST, teamId: 'another', id: 1, createdAt: expect.any(String) }])
+  })
+
   test('opened again, has everything saved before', () => {
     const { storage, reopen } = opened()
     storage.saveTeam(TEAM)
@@ -230,5 +258,84 @@ describe('browser storage the browser refuses', () => {
     const read = openWebStorage(store).milestoneInputs('team')
     expect(read).toEqual(LAUNCH)
     expect(read).toHaveProperty('seenReads', { ticketsRemaining: undefined, pace: undefined })
+  })
+})
+
+describe("browser storage's forecast ledger", () => {
+  test('with its ledger cleared by another writer, keeps only the logs saved since', () => {
+    const store = memoryStore()
+    const storage = openWebStorage(store)
+    storage.saveForecastLog(FORECAST)
+    storage.saveForecastLog({ ...FORECAST, teamId: 'another' })
+    store.items.delete('forecaster.ledger')
+
+    storage.saveForecastLog({ ...FORECAST, milestoneName: 'Beta' })
+
+    const again = openWebStorage(store)
+    expect(again.forecastLogs('another')).toEqual([])
+    expect(again.forecastLogs('team').map(({ id, milestoneName }) => ({ id, milestoneName }))).toEqual([{ id: 1, milestoneName: 'Beta' }])
+  })
+
+  test('opened in two tabs over the same browser storage, keeps the logs each saves, numbered one after another', () => {
+    const store = memoryStore()
+    const first = openWebStorage(store)
+    const second = openWebStorage(store)
+
+    first.saveForecastLog(FORECAST)
+    second.saveForecastLog({ ...FORECAST, milestoneName: 'Beta' })
+    first.saveForecastLog(FORECAST)
+
+    expect(second.lastForecastLog('team')?.id).toBe(3)
+    expect(
+      openWebStorage(store)
+        .forecastLogs('team')
+        .map(({ id, milestoneName }) => ({ id, milestoneName })),
+    ).toEqual([
+      { id: 1, milestoneName: FORECAST.milestoneName },
+      { id: 2, milestoneName: 'Beta' },
+      { id: 3, milestoneName: FORECAST.milestoneName },
+    ])
+  })
+
+  test("past the most it keeps of the forecast ledger, keeps the newest logs, so the EM's other data always has room, never numbering a log again", () => {
+    // what a browser gives a site, about 5 MB; forecasts of 150,000 characters each, 6 MB in all; and capacity entries
+    // of 300,000 in all, more than a log takes
+    const store = memoryStore(5_000_000)
+    const storage = openWebStorage(store)
+    storage.saveTeam(TEAM)
+    const large = { ...FORECAST, result: { ...FORECAST.result, finishCounts: Array.from({ length: 30_000 }, (_, i) => 10_000 + i) } }
+    const entries = Array.from({ length: 2_000 }, (_, index) => ({ ...HOLIDAY, id: index + 1, note: 'Away '.repeat(25) }))
+
+    for (let logged = 0; logged < 40; logged++) storage.saveForecastLog(large)
+    storage.saveMilestoneInputs(LAUNCH)
+    storage.saveCapacityEntries('team', entries)
+
+    const again = openWebStorage(store)
+    expect(again.teams()).toEqual([TEAM])
+    expect(again.milestoneInputs('team')).toEqual(LAUNCH)
+    expect(again.capacityEntries('team')).toEqual(entries)
+    const kept = again.forecastLogs('team').map(({ id }) => id)
+    expect(kept.length).toBeGreaterThan(0)
+    expect(kept.length).toBeLessThan(40)
+    expect(kept).toEqual(kept.map((_, index) => 40 - kept.length + 1 + index))
+    again.saveForecastLog(FORECAST)
+    expect(openWebStorage(store).lastForecastLog('team')?.id).toBe(41)
+  })
+
+  test("drops a field it doesn't know from a logged forecast it keeps, on the next save", () => {
+    const store = memoryStore()
+    const storage = openWebStorage(store)
+    storage.saveForecastLog(FORECAST)
+    const stored = store.items.get('forecaster.ledger') ?? ''
+    store.items.set('forecaster.ledger', stored.replace('"milestoneName"', '"loggedBy":"A later build","milestoneName"'))
+
+    openWebStorage(store).saveForecastLog(FORECAST)
+
+    expect(store.items.get('forecaster.ledger')).not.toContain('loggedBy')
+    expect(
+      openWebStorage(store)
+        .forecastLogs('team')
+        .map(({ id }) => id),
+    ).toEqual([1, 2])
   })
 })

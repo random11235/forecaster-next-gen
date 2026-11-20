@@ -3,6 +3,7 @@ import type { Ambiguity, AmbiguityRanges } from '../../model/ambiguity.js'
 import type { CapacityEntry } from '../../model/capacity.js'
 import type { MilestoneInputs, PaceMode, PaceWindow, SeenReads, TicketsSource } from '../../model/milestoneInputs.js'
 import type { Team } from '../../model/team.js'
+import type { Ledger } from '../../ledger/ledger.js'
 import type { Storage } from '../storage.js'
 import type { Row, Transaction } from './sqliteDatabase.js'
 import { isPaceCounts, isStoredPaceWindow, isStoredSeenReads } from './milestoneInputsJson.js'
@@ -14,7 +15,7 @@ import { parseStored } from './storedJson.js'
  */
 
 /** What every Storage keeps, in the SQLite file `db`, but closing it. */
-export function teamTables(db: DatabaseSync, transaction: Transaction): Omit<Storage, 'close'> {
+export function teamTables(db: DatabaseSync, transaction: Transaction): Omit<Storage, 'close' | keyof Ledger> {
   const upsertTeam = db.prepare(`
     INSERT INTO teams (id, name, source, source_ref, installed_at) VALUES (?, ?, ?, ?, ?)
     ON CONFLICT (id) DO UPDATE SET name = excluded.name, source = excluded.source, source_ref = excluded.source_ref`)

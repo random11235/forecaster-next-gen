@@ -232,3 +232,59 @@ UPDATE saved_reads SET finished_since = strftime('%Y-%m-%dT%H:%M:%fZ', read_at, 
 ALTER TABLE previous_reads ADD COLUMN finished_since TEXT;
 UPDATE previous_reads SET finished_since = strftime('%Y-%m-%dT%H:%M:%fZ', read_at, '-56 days');
 `
+
+/** Version 20's tables: version 19's, plus setup as #217–#222 shipped it. Kept verbatim: it is a past release. */
+export const VERSION_20_SCHEMA = `${VERSION_19_SCHEMA}
+CREATE TABLE setups (
+  team_id TEXT PRIMARY KEY REFERENCES teams(id),
+  open INTEGER NOT NULL,
+  closed TEXT,
+  connection TEXT
+);
+INSERT INTO setups (team_id, open, closed)
+  SELECT connections.team_id, 0, 'done' FROM connections JOIN milestone_queries ON milestone_queries.team_id = connections.team_id
+  WHERE milestone_queries.query <> '';
+CREATE TABLE setup_drafts (
+  team_id TEXT PRIMARY KEY REFERENCES teams(id),
+  milestone_query TEXT,
+  milestone_picks TEXT,
+  comparable_work_query TEXT,
+  comparable_work_picks TEXT,
+  tickets_source TEXT,
+  pace_mode TEXT
+);
+CREATE TABLE setup_draft_reads (
+  team_id TEXT NOT NULL REFERENCES setup_drafts(team_id) ON DELETE CASCADE,
+  query TEXT NOT NULL,
+  incomplete INTEGER NOT NULL,
+  read_at TEXT NOT NULL,
+  finished_since TEXT NOT NULL,
+  PRIMARY KEY (team_id, query)
+);
+CREATE TABLE setup_draft_read_tickets (
+  team_id TEXT NOT NULL,
+  query TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  id TEXT NOT NULL,
+  finished_at TEXT,
+  PRIMARY KEY (team_id, query, position),
+  FOREIGN KEY (team_id, query) REFERENCES setup_draft_reads(team_id, query) ON DELETE CASCADE
+);
+CREATE TABLE setup_draft_failures (
+  team_id TEXT NOT NULL REFERENCES setup_drafts(team_id) ON DELETE CASCADE,
+  query TEXT NOT NULL,
+  failure TEXT NOT NULL,
+  message TEXT,
+  at TEXT NOT NULL,
+  PRIMARY KEY (team_id, query)
+);
+CREATE TABLE read_failures (
+  team_id TEXT NOT NULL REFERENCES teams(id),
+  of TEXT NOT NULL,
+  query TEXT NOT NULL,
+  failure TEXT NOT NULL,
+  message TEXT,
+  at TEXT NOT NULL,
+  PRIMARY KEY (team_id, of, query)
+);
+`

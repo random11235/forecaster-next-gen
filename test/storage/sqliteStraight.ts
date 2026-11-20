@@ -1,7 +1,8 @@
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 
 // Writing to and reading from a SQLite file straight, past storage, for the Storage contract's cases on stored data
-// storage can't write (storageContract.storedShape.test.ts, storageContract.unknownValues.test.ts), so the direct
+// storage can't write (storageContract.storedShape.test.ts, storageContract.unknownValues.test.ts), and Seam B's on a
+// logged result it can't read (forecast/forecastLedger.unreadableResult.test.ts), so the direct
 // writes stay in one place. Every other test arranges through storage's own functions (arrangeRules.test.ts).
 
 /** Runs `sql` with `values` on the SQLite file at `file`, as a later version or a damaged file would leave it. */

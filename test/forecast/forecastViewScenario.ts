@@ -30,16 +30,18 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true })
 })
 
-/** Opens the SQLite file the app would use, in a fresh directory per test. */
+/** The SQLite file the app would use, in a fresh directory per test. */
+export const storageFile = (): string => join(dir, 'forecaster.db')
+
+/** Opens the SQLite file (`storageFile()`), closing the one opened before. */
 export function openStorage(): Storage {
   storage?.close()
-  storage = openSqliteStorage(join(dir, 'forecaster.db'))
+  storage = openSqliteStorage(storageFile())
   return storage
 }
 
-/** A team with nothing entered yet. */
-export function newTeam(): Storage {
-  const storage = openStorage()
+/** A team with nothing entered yet, in `storage`: the SQLite file the app would use, unless another is given. */
+export function newTeam(storage: Storage = openStorage()): Storage {
   storage.saveTeam({ id: TEAM, name: 'Acme', source: 'jira', sourceRef: TEAM, installedAt: '2026-01-01T00:00:00Z' })
   return storage
 }
