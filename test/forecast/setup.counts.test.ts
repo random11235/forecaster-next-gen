@@ -106,7 +106,7 @@ describe('each pick’s count on the summary', () => {
     expect(await summary()).toMatchObject({
       milestone: {
         picks: [
-          { name: '2.4', kind: 'fix version', count: 2 },
+          { name: '2.4', kind: 'fixVersion', count: 2 },
           { name: 'SHOP-41 Checkout v2', kind: 'epic', count: 6 },
         ],
       },

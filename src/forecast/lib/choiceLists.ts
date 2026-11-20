@@ -67,7 +67,7 @@ export async function foundInTracker(connector: Connector, kind: ChoiceKind, typ
       kind,
       choices: [],
       searchedInTracker: true,
-      failure: `The tracker couldn’t search its ${KIND_NAMES[kind].name}s just now. Try again in a few minutes.`,
+      failure: `The tracker couldn’t search its ${KIND_NAMES[kind].heading.toLowerCase()} just now. Try again in a few minutes.`,
     }
   }
   return { kind, choices: found.choices.filter(unpicked), searchedInTracker: true }

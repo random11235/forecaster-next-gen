@@ -223,7 +223,7 @@ describe('the summary’s rows', () => {
     expect(await summary(forecasting)).toMatchObject({
       milestone: {
         picks: [
-          { name: '2.4', kind: 'fix version' },
+          { name: '2.4', kind: 'fixVersion' },
           { name: 'SHOP-41 Checkout v2', kind: 'epic' },
           { name: 'checkout', kind: 'label' },
         ],
