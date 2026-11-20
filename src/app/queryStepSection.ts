@@ -1,4 +1,4 @@
-import type { ChoiceList, StepQueryEdit, QueryStep, QueryStepView, QueryEditing } from '../forecast/queryStep.js'
+import type { ChoiceList, StepQueryEdit, QueryStep, QueryEditing } from '../forecast/queryStep.js'
 import { kindName } from '../forecast/queryStep.js'
 import { COMPARABLE_WORK, MILESTONE_QUERY, type StepQuery } from '../forecast/stepQuery.js'
 import { choiceKindOf, type Choice } from '../model/choice.js'
@@ -132,14 +132,13 @@ export const STEP_FORMS: ReadonlyMap<string, { section: StepSection; read: StepF
 )
 
 /**
- * A step picking or writing one of the team's queries (`section`), in the local server build once connected; none
- * otherwise. Each pick and each removal posts at once; the find box filters the lists as the EM types (see
+ * A step picking or writing one of the team's queries (`section`), shown while setup is on it in the local server
+ * build. Each pick and each removal posts at once; the find box filters the lists as the EM types (see
  * `queryStepScript`), and without the script it submits to `/inputs` with what was typed. The Comparable work step
  * leads with its pace, and ends with Start afresh once it has a query. Back and Next between the steps are the setup
  * steps' own (`setupStepsHtml`).
  */
-export function queryStepSection(view: QueryStepView, section: StepSection): string | undefined {
-  if (view.kind === 'noQueryStep') return undefined
+export function queryStepSection(view: QueryStep, section: StepSection): string {
   const pace = view.kind === 'comparableWorkStep' ? view.pace : undefined
   return view.editing ? editingSection(view, view.editing, section, pace) : findingSection(view, section, pace)
 }
