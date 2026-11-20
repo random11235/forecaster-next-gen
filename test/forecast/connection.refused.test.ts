@@ -3,7 +3,7 @@ import type { CannedFixture } from '../../src/connectors/canned.js'
 import type { Failure } from '../../src/connectors/connector.js'
 import type { Connection } from '../../src/model/connection.js'
 import { submitConnection, type Connecting } from '../../src/forecast/connection.js'
-import { TEAM, TOKEN, connecting, github, jira, storage } from './connectionScenario.js'
+import { TEAM, TOKEN, connecting, github, jira, storage, PERMISSIONS, TRACKER_NAMES } from './connectionScenario.js'
 
 // Connecting a tracker (#180): a connect or disconnect refused, by the form, the tracker, the keychain or the data file.
 // Arranged through connectionScenario.ts.
@@ -42,7 +42,8 @@ describe('a connect the tracker refuses', () => {
       view: {
         kind: 'connect',
         form: { tracker: 'github', repo: 'shop-team/shop', site: '', projectKey: '', email: '' },
-        permissions: { github: 'Issues: read', jira: 'read:jira-work' },
+        permissions: PERMISSIONS,
+        trackerNames: TRACKER_NAMES,
         refusal: 'GitHub refused the token. Check it hasn’t expired, and that it has Issues: read on this repo.',
       },
     })
@@ -170,8 +171,11 @@ describe('a connect or disconnect the keychain or the data file fails', () => {
       view: {
         kind: 'connected',
         connection: { tracker: 'github', owner: 'shop-team', repo: 'shop' },
+        trackerName: 'GitHub',
+        where: 'shop-team/shop',
         form: { tracker: 'github', repo: 'shop-team/shop', site: '', projectKey: '', email: '' },
-        permissions: { github: 'Issues: read', jira: 'read:jira-work' },
+        permissions: PERMISSIONS,
+        trackerNames: TRACKER_NAMES,
         refusal,
       },
     })
