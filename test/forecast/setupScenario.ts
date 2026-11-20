@@ -1,5 +1,5 @@
 import type { Choice } from '../../src/connectors/connector.js'
-import type { InputsEdit, InputsScreen, Outcome, QuerySetupStep, SetupEdit, StepQueryEdit } from '../../src/forecast/index.js'
+import type { InputsScreen, Outcome, QuerySetupStep, SetupEdit, StepQueryEdit } from '../../src/forecast/index.js'
 import { CHECKOUT, CONNECTIONS, forecastingForTest, type ForecastingForTest } from './forecastingForTest.js'
 
 // The arrangement the setup tests (setup.test.ts and the setup.*.test.ts beside it) share: the team's handle on a
@@ -48,9 +48,6 @@ export function stepQuery(team: ForecastingForTest, edit: StepQueryEdit, step: Q
   if (readAt !== undefined) team.at(readAt)
   return team.submit({ form: 'stepQuery', step, edit })
 }
-
-/** An Inputs form. */
-export const enter = (team: ForecastingForTest, edit: InputsEdit): Promise<Outcome> => team.submit({ form: 'inputs', edit })
 
 /** The Inputs screen's inputs. */
 export const inputs = async (team: ForecastingForTest) => (await team.inputsScreen()).inputs

@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import type { ForecastingForTest } from './forecastingForTest.js'
-import { TODAY, MONDAY, newTeam, tenTicketsAtFive, submit, add, view, headline, refusedOn, shownAgain } from './capacityScenario.js'
+import { submitInputs } from './forecastingForTest.js'
+import { TODAY, MONDAY, newTeam, tenTicketsAtFive, add, view, headline, refusedOn, shownAgain } from './capacityScenario.js'
 
 // Capacity (#153, #164, #168): its switch, the week-by-week chart, refused entries, editing an entry, and past entries.
 // Arranged through capacityScenario.ts.
@@ -21,7 +22,7 @@ describe('the switch', () => {
     const before = await view(team)
     await add(team, '0', '2026-09-07', '2026-09-11', { note: 'Offsite' })
 
-    expect(await submit(team, { kind: 'switchCapacity', on: false })).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
+    expect(await submitInputs(team, { kind: 'switchCapacity', on: false })).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
 
     const forecast = await view(team)
     expect(await headline(team)).toBe('2026-09-21')
@@ -41,9 +42,9 @@ describe('the switch', () => {
     await tenTicketsAtFive(team)
     await add(team, '0', '2026-09-07', '2026-09-11')
     const before = await view(team)
-    await submit(team, { kind: 'switchCapacity', on: false })
+    await submitInputs(team, { kind: 'switchCapacity', on: false })
 
-    expect(await submit(team, { kind: 'switchCapacity', on: true })).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
+    expect(await submitInputs(team, { kind: 'switchCapacity', on: true })).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
 
     expect(await view(team)).toEqual(before)
     expect(await headline(team)).toBe('2026-09-28')
@@ -53,7 +54,7 @@ describe('the switch', () => {
     const team = await newTeam()
     await tenTicketsAtFive(team)
 
-    await submit(team, { kind: 'switchCapacity', on: false })
+    await submitInputs(team, { kind: 'switchCapacity', on: false })
 
     const forecast = await view(team)
     expect(forecast.kind === 'forecast' && forecast.capacityLine).toBeUndefined()
@@ -138,7 +139,7 @@ describe('a refused capacity entry', () => {
     const team = await newTeam()
     await tenTicketsAtFive(team)
 
-    const result = await submit(team, { kind: 'setCadence', cadenceDays: 'weekly' })
+    const result = await submitInputs(team, { kind: 'setCadence', cadenceDays: 'weekly' })
 
     expect(refusedOn(result)).toBe('inputs')
   })
@@ -148,7 +149,7 @@ describe('a refused capacity entry', () => {
 describe('editing an entry', () => {
   /** The EM edits entry `id` and saves it: its dates, percentage and note as typed. */
   function edit(team: ForecastingForTest, id: string, percent: string, from: string, to: string, { onward = false, note = '' } = {}) {
-    return submit(team, { kind: 'editCapacity', id, percent, from, to, onward, note })
+    return submitInputs(team, { kind: 'editCapacity', id, percent, from, to, onward, note })
   }
 
   test('saving new dates, percentage and note changes the forecast, and the forecast screen comes next', async () => {
@@ -207,7 +208,7 @@ describe('past entries', () => {
   test('an entry that ended before today is listed under Past and does not slow the forecast', async () => {
     const team = await newTeam()
     await tenTicketsAtFive(team)
-    await submit(team, { kind: 'setMilestone', name: 'Launch', startDate: AUGUST, ticketsRemaining: '10' })
+    await submitInputs(team, { kind: 'setMilestone', name: 'Launch', startDate: AUGUST, ticketsRemaining: '10' })
     const before = await headline(team)
 
     await add(team, '0', AUGUST, '2026-08-07', { note: 'Offsite' })
@@ -222,7 +223,7 @@ describe('past entries', () => {
   test('with only past entries, capacity is not in use: no comparison, no line under the headline', async () => {
     const team = await newTeam()
     await tenTicketsAtFive(team)
-    await submit(team, { kind: 'setMilestone', name: 'Launch', startDate: AUGUST, ticketsRemaining: '10' })
+    await submitInputs(team, { kind: 'setMilestone', name: 'Launch', startDate: AUGUST, ticketsRemaining: '10' })
 
     await add(team, '0', AUGUST, '2026-08-07', { note: 'Offsite' })
 
@@ -247,7 +248,15 @@ describe('past entries', () => {
     await tenTicketsAtFive(team)
     await add(team, '0', AUGUST, '2026-08-07', { note: 'Offsite' })
 
-    const result = await submit(team, { kind: 'editCapacity', id: '1', percent: '50', from: MONDAY, to: '', onward: true, note: 'Team offsite in Lisbon' })
+    const result = await submitInputs(team, {
+      kind: 'editCapacity',
+      id: '1',
+      percent: '50',
+      from: MONDAY,
+      to: '',
+      onward: true,
+      note: 'Team offsite in Lisbon',
+    })
 
     expect(result).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
     const forecast = await view(team)
@@ -261,7 +270,7 @@ describe('past entries', () => {
     await tenTicketsAtFive(team)
     await add(team, '0', AUGUST, '2026-08-07', { note: 'Offsite' })
 
-    const result = await submit(team, { kind: 'removeCapacity', id: '1' })
+    const result = await submitInputs(team, { kind: 'removeCapacity', id: '1' })
 
     const shown = shownAgain(result)
     expect(shown?.kind === 'forecast' && shown.capacity.refusal).toBe('Past entries are kept, so it can’t be removed.')
@@ -273,11 +282,11 @@ describe('past entries', () => {
     const team = await newTeam()
     await tenTicketsAtFive(team)
     await add(team, '400', AUGUST, '', { onward: true })
-    await submit(team, { kind: 'acceptNewUsual', id: '1' })
+    await submitInputs(team, { kind: 'acceptNewUsual', id: '1' })
 
     // 300% from today would multiply with the 400% to 1200%, but that entry is now past: it ends today as the new usual
     const added = await add(team, '300', TODAY, '', { onward: true })
-    const edited = await submit(team, { kind: 'editCapacity', id: '2', percent: '350', from: TODAY, to: '', onward: true, note: '' })
+    const edited = await submitInputs(team, { kind: 'editCapacity', id: '2', percent: '350', from: TODAY, to: '', onward: true, note: '' })
 
     expect([added, edited]).toEqual([
       { kind: 'saved', next: { screen: 'forecast' } },

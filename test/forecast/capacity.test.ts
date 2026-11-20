@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import type { ForecastingForTest } from './forecastingForTest.js'
-import { MONDAY, newTeam, tenTicketsAtFive, submit, add, view, headline, shownAgain, withoutCapacity } from './capacityScenario.js'
+import { submitInputs } from './forecastingForTest.js'
+import { MONDAY, newTeam, tenTicketsAtFive, add, view, headline, shownAgain, withoutCapacity } from './capacityScenario.js'
 
 // Capacity (#153, #164): the EM types the team's capacity beside the forecast, and each period's pace is scaled by it.
 // Arranged through capacityScenario.ts.
@@ -70,8 +71,8 @@ describe('typing capacity', () => {
   test('the past counts typed for the pace are not adjusted for capacity', async () => {
     const team = await newTeam()
     await tenTicketsAtFive(team)
-    await submit(team, { kind: 'setPaceCounts', counts: '5 5 5 5 5 5' })
-    await submit(team, { kind: 'setPaceMode', paceMode: 'counts' })
+    await submitInputs(team, { kind: 'setPaceCounts', counts: '5 5 5 5 5 5' })
+    await submitInputs(team, { kind: 'setPaceMode', paceMode: 'counts' })
     expect(await headline(team)).toBe('2026-09-21')
 
     // a week in the past at 0% doesn't make those counts mean a faster team
@@ -116,7 +117,7 @@ describe('typing capacity', () => {
     await tenTicketsAtFive(team)
     await add(team, '0', '2026-09-07', '2026-09-11')
 
-    expect(await submit(team, { kind: 'removeCapacity', id: '1' })).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
+    expect(await submitInputs(team, { kind: 'removeCapacity', id: '1' })).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
 
     expect(await headline(team)).toBe('2026-09-21')
     const forecast = await view(team)
@@ -157,7 +158,7 @@ describe('the comparison', () => {
   test('both forecasts use the same draws, so capacity after every trial has finished leaves each date where it was', async () => {
     const team = await newTeam()
     await tenTicketsAtFive(team)
-    await submit(team, { kind: 'setPaceRange', low: '2', high: '9' })
+    await submitInputs(team, { kind: 'setPaceRange', low: '2', high: '9' })
 
     await add(team, '120', '2027-06-01', '', { onward: true })
 
@@ -260,7 +261,7 @@ describe('each entry’s effect', () => {
     const team = await newTeam()
     await tenTicketsAtFive(team)
     await add(team, '0', '2026-09-07', '2026-09-11', { note: 'Offsite' })
-    await submit(team, { kind: 'switchCapacity', on: false })
+    await submitInputs(team, { kind: 'switchCapacity', on: false })
 
     const forecast = await opened(team)
 
@@ -280,7 +281,7 @@ describe('each entry’s effect', () => {
     await tenTicketsAtFive(team)
     await add(team, '0', '2026-09-07', '2026-09-11', { note: 'Offsite' })
 
-    const result = await submit(team, { kind: 'addCapacity', percent: 'half', from: MONDAY, to: '', onward: false, note: '' }, { capacityOpen: true })
+    const result = await submitInputs(team, { kind: 'addCapacity', percent: 'half', from: MONDAY, to: '', onward: false, note: '' }, { capacityOpen: true })
 
     const shown = shownAgain(result)
     expect(shown?.kind === 'forecast' && shown.capacity.open).toBe(true)

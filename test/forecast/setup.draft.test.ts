@@ -2,8 +2,8 @@ import { assert, describe, expect, test } from 'vitest'
 import type { Choice } from '../../src/connectors/connector.js'
 import type { QuerySetupStep, StepQueryEdit } from '../../src/forecast/index.js'
 import { finishedOn, open } from '../trackerScenario.js'
-import { CHECKOUT, pick, skip, TEAM, type ForecastingForTest } from './forecastingForTest.js'
-import { READ_AT, Q3_POLISH, connect, enter, inputs, setup, setupAt, stepQuery, team } from './setupScenario.js'
+import { CHECKOUT, pick, skip, TEAM, type ForecastingForTest, submitInputs } from './forecastingForTest.js'
+import { READ_AT, Q3_POLISH, connect, inputs, setup, setupAt, stepQuery, team } from './setupScenario.js'
 
 /** What the step says when Cancel can't put the connection back (lib/setup.ts's NO_CANCEL), written out so the test checks the words, not the constant. */
 const NO_CANCEL =
@@ -28,9 +28,9 @@ describe('the draft', () => {
     current.fixture.reads[BOTH] = { tickets: open(7), incomplete: false }
     current.fixture.reads[Q3_POLISH.query] = { tickets: finishedOn('q', '2026-11-03', 6), incomplete: false }
     await connect(current)
-    await enter(current, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-11-16', ticketsRemaining: '30' })
-    await enter(current, { kind: 'setPaceRange', low: '4', high: '8' })
-    await enter(current, { kind: 'setTicketsSource', ticketsSource: 'tracker' })
+    await submitInputs(current, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-11-16', ticketsRemaining: '30' })
+    await submitInputs(current, { kind: 'setPaceRange', low: '4', high: '8' })
+    await submitInputs(current, { kind: 'setTicketsSource', ticketsSource: 'tracker' })
     await inSetup({ kind: 'addPick', choice: CHECKOUT }, READ_AT)
     await setup(current, { kind: 'useThese' })
     await setup(current, { kind: 'change' })
@@ -154,12 +154,12 @@ describe('the draft', () => {
   /** The milestone renamed on the Inputs screen, from Checkout v2 to `choice`'s name, which the handle follows. */
   async function renameTo(choice: Choice) {
     current.at(NEXT_READ_AT)
-    await enter(current, { kind: 'setMilestone', name: choice.name, startDate: '2026-11-16', ticketsRemaining: '30' })
+    await submitInputs(current, { kind: 'setMilestone', name: choice.name, startDate: '2026-11-16', ticketsRemaining: '30' })
   }
 
   test('a skip in setup reads the draft’s queries back too, into the draft, as well as the saved ones', async () => {
     const { storage } = await setUpThenChange()
-    await enter(current, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-09-07', ticketsRemaining: '30' })
+    await submitInputs(current, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-09-07', ticketsRemaining: '30' })
     await inSetup({ kind: 'editQuery', query: BOTH })
     current.calls.since.length = 0
 
@@ -204,7 +204,7 @@ describe('the draft', () => {
 
   test('a skip in setup leaves a draft read that already reaches back far enough as it was', async () => {
     const { storage } = await setUpThenChange()
-    await enter(current, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-09-07', ticketsRemaining: '30' })
+    await submitInputs(current, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-09-07', ticketsRemaining: '30' })
     const saved = storage.savedRead({ teamId: TEAM, query: CHECKOUT.query })
     assert(saved, 'the draft read is saved')
     const reachingFar = { ...saved, finishedSince: '2026-06-01T00:00:00.000Z' }

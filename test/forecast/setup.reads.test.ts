@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest'
 import type { Choice } from '../../src/connectors/connector.js'
 import { finishedOn, open } from '../trackerScenario.js'
-import { CHECKOUT, pick, TEAM, type ForecastingForTest } from './forecastingForTest.js'
-import { READ_AT, Q3_POLISH, anyCounted, atCheck, connect, enter, inputs, setup, setupAt, team } from './setupScenario.js'
+import { CHECKOUT, pick, TEAM, type ForecastingForTest, submitInputs } from './forecastingForTest.js'
+import { READ_AT, Q3_POLISH, anyCounted, atCheck, connect, inputs, setup, setupAt, team } from './setupScenario.js'
 
 // Seam B: the setup summary's Read again, and a read that fails (#217). Arranged through setupScenario.ts. Read
 // again's outcome is the Inputs screen whatever it read, so each test asserts what it read through the summary.
@@ -28,8 +28,8 @@ describe('Read again', () => {
     fixture.reads[CHECKOUT.query] = { tickets: open(3), incomplete: false }
     fixture.reads[Q3_POLISH.query] = { tickets: finishedOn('q', '2026-11-10', 2), incomplete: false }
     await connect(current)
-    await enter(current, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-11-02', ticketsRemaining: '30' })
-    await enter(current, { kind: 'setPaceRange', low: '4', high: '8' })
+    await submitInputs(current, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-11-02', ticketsRemaining: '30' })
+    await submitInputs(current, { kind: 'setPaceRange', low: '4', high: '8' })
     await pick(current, READ_AT)
     await pick(current, READ_AT, Q3_POLISH, 'comparableWork')
     await setup(current, { kind: 'useThese' })
@@ -54,7 +54,7 @@ describe('Read again', () => {
     expect((await inputs(current)).milestone.ticketsSource).toMatchObject({ source: 'typed', reading: { count: 5, readOn: '12 Nov 14:30' } })
     expect(await forecast()).toMatchObject({ kind: 'forecast', ticketsRemaining: 30 })
 
-    await enter(current, { kind: 'setTicketsSource', ticketsSource: 'tracker' })
+    await submitInputs(current, { kind: 'setTicketsSource', ticketsSource: 'tracker' })
     fixture.reads[CHECKOUT.query] = { tickets: open(7), incomplete: false }
     await readAgain()
     expect(await forecast()).toMatchObject({ kind: 'forecast', ticketsRemaining: 7 })

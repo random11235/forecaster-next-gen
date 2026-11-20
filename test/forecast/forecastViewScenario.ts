@@ -1,7 +1,6 @@
 import { expect } from 'vitest'
-import { DEFAULT_SETTINGS, type InputsEdit } from '../../src/forecast/index.js'
-import type { GrowthRange } from '../../src/model/ambiguity.js'
-import { forecastingForTest, TEAM, type ForecastingForTest } from './forecastingForTest.js'
+import { DEFAULT_SETTINGS, type Forecasting, type InputsEdit } from '../../src/forecast/index.js'
+import { forecastingForTest, submitInputs, TEAM, type ForecastingForTest } from './forecastingForTest.js'
 
 // The arrangement the Milestone forecast view's tests (milestoneForecastView.test.ts and the
 // milestoneForecastView.*.test.ts beside it) share: the team's handle, as the browser build opens it, on today, and the
@@ -16,18 +15,9 @@ export function newTeam(settings = DEFAULT_SETTINGS): Promise<ForecastingForTest
   return forecastingForTest({ browser: true, clock: { now: `${TODAY}T09:00:00Z` }, settings })
 }
 
-/** Sets the team's medium growth range: the growth of a milestone of medium ambiguity, the default. */
-export function mediumGrowth(team: ForecastingForTest, medium: GrowthRange): void {
-  team.storage.saveAmbiguityRanges({ teamId: TEAM, low: { low: 1, high: 1.5 }, medium, high: { low: 1.5, high: 3 } })
-}
-
-export function submit(team: ForecastingForTest, change: InputsEdit) {
-  return team.submit({ form: 'inputs', edit: change })
-}
-
 /** Submits a form on the Inputs screen: saved, or why it was refused there. */
-export async function edit(team: ForecastingForTest, change: InputsEdit) {
-  const submitted = await submit(team, change)
+export async function edit(team: Pick<Forecasting, 'submit'>, change: InputsEdit) {
+  const submitted = await submitInputs(team, change)
   if (submitted.kind === 'saved' || submitted.kind === 'savedInPlace') return { ok: true }
   if (submitted.kind === 'confirmClear') return { ok: false }
   return submitted.kind === 'refused' ? { ok: false, error: submitted.view.inputs.refusal?.error } : { ok: false, screen: 'forecast' as const }
@@ -35,7 +25,7 @@ export async function edit(team: ForecastingForTest, change: InputsEdit) {
 
 /** The EM enters the milestone and a pace range, as the Inputs screen does. */
 export async function enter(
-  team: ForecastingForTest,
+  team: Pick<Forecasting, 'submit'>,
   milestone: { startDate: string; ticketsRemaining: string },
   pace: { low: string; high: string },
 ): Promise<void> {
