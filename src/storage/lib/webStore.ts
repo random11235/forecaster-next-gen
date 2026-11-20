@@ -11,6 +11,9 @@ export interface KeyValueStore {
   setItem(key: string, value: string): void
 }
 
+/** Where browser storage keeps the value under `key`, as a refusal of it names it. */
+export const storedAt = (key: string): string => `browser storage's "${key}"`
+
 /** A key's value as read: what it holds, or the refusal of a value this version can't read. */
 export type Kept<T> = { value: T } | { refused: unknown }
 
@@ -28,7 +31,7 @@ export function readKey<T extends object>(store: KeyValueStore | undefined, key:
   }
   if (json === null || json === undefined) return { value: empty }
   try {
-    return { value: { ...empty, ...parseStored(json, `browser storage's "${key}"`, check) } }
+    return { value: { ...empty, ...parseStored(json, storedAt(key), check) } }
   } catch (refused) {
     return { refused }
   }

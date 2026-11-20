@@ -234,6 +234,55 @@ describe('browser storage the browser refuses', () => {
     expect(storage.milestoneInputs('team')).toEqual(LAUNCH)
   })
 
+  test('with a milestone stored before the pace window, reads it with no action applied', () => {
+    const store = memoryStore()
+    const { paceWindow: _, ...before } = LAUNCH
+    const stored = { teams: [TEAM], milestoneInputs: { team: before }, ambiguityRanges: {}, capacityEntries: {}, capacityOff: [] }
+    store.setItem('forecaster', JSON.stringify(stored))
+
+    expect(openWebStorage(store).milestoneInputs('team')).toEqual({ ...LAUNCH, paceWindow: { action: undefined, skippedPeriods: [] } })
+  })
+
+  test('with a milestone stored before sources, reads it with tickets typed, its pace mode, no skips and nothing seen', () => {
+    const store = memoryStore()
+    const { ticketsSource: _, seenReads: __, ...before } = LAUNCH
+    const stored = {
+      teams: [TEAM],
+      milestoneInputs: { team: { ...before, paceWindow: { action: LAUNCH.paceWindow.action } } },
+      ambiguityRanges: {},
+      capacityEntries: {},
+      capacityOff: [],
+    }
+    store.setItem('forecaster', JSON.stringify(stored))
+
+    const read = openWebStorage(store).milestoneInputs('team')
+    expect(read).toEqual(LAUNCH)
+    expect(read).toHaveProperty('seenReads', { ticketsRemaining: undefined, pace: undefined })
+  })
+})
+
+describe("browser storage's forecast ledger", () => {
+  test('opened in two tabs over the same browser storage, keeps the logs each saves, numbered one after another', () => {
+    const store = memoryStore()
+    const first = openWebStorage(store)
+    const second = openWebStorage(store)
+
+    first.saveForecastLog(FORECAST)
+    second.saveForecastLog({ ...FORECAST, milestoneName: 'Beta' })
+    first.saveForecastLog(FORECAST)
+
+    expect(second.lastForecastLog('team')?.id).toBe(3)
+    expect(
+      openWebStorage(store)
+        .forecastLogs('team')
+        .map(({ id, milestoneName }) => ({ id, milestoneName })),
+    ).toEqual([
+      { id: 1, milestoneName: FORECAST.milestoneName },
+      { id: 2, milestoneName: 'Beta' },
+      { id: 3, milestoneName: FORECAST.milestoneName },
+    ])
+  })
+
   test("past the most it keeps of the forecast ledger, keeps the newest logs, so the EM's other data always has room, never numbering a log again", () => {
     // what a browser gives a site, about 5 MB; forecasts of 150,000 characters each, 6 MB in all; and capacity entries
     // of 300,000 in all, more than a log takes
@@ -274,31 +323,5 @@ describe('browser storage the browser refuses', () => {
         .forecastLogs('team')
         .map(({ id }) => id),
     ).toEqual([1, 2])
-  })
-
-  test('with a milestone stored before the pace window, reads it with no action applied', () => {
-    const store = memoryStore()
-    const { paceWindow: _, ...before } = LAUNCH
-    const stored = { teams: [TEAM], milestoneInputs: { team: before }, ambiguityRanges: {}, capacityEntries: {}, capacityOff: [] }
-    store.setItem('forecaster', JSON.stringify(stored))
-
-    expect(openWebStorage(store).milestoneInputs('team')).toEqual({ ...LAUNCH, paceWindow: { action: undefined, skippedPeriods: [] } })
-  })
-
-  test('with a milestone stored before sources, reads it with tickets typed, its pace mode, no skips and nothing seen', () => {
-    const store = memoryStore()
-    const { ticketsSource: _, seenReads: __, ...before } = LAUNCH
-    const stored = {
-      teams: [TEAM],
-      milestoneInputs: { team: { ...before, paceWindow: { action: LAUNCH.paceWindow.action } } },
-      ambiguityRanges: {},
-      capacityEntries: {},
-      capacityOff: [],
-    }
-    store.setItem('forecaster', JSON.stringify(stored))
-
-    const read = openWebStorage(store).milestoneInputs('team')
-    expect(read).toEqual(LAUNCH)
-    expect(read).toHaveProperty('seenReads', { ticketsRemaining: undefined, pace: undefined })
   })
 })
