@@ -44,7 +44,7 @@ describe('an applied action', () => {
 
     expect(await submitInputs(team, { kind: 'applyPaceAction', action: 'startFrom', date: '2026-10-12' })).toEqual({
       kind: 'saved',
-      next: { screen: 'forecast' },
+      next: { kind: 'screen', screen: 'forecast' },
     })
 
     const view = await forecast(team)
@@ -62,7 +62,7 @@ describe('an applied action', () => {
     const team = await withTypedCounts(STEPPED_UP)
     await submitInputs(team, { kind: 'applyPaceAction', action: 'startFrom', date: '2026-10-12' })
 
-    expect(await submitInputs(team, { kind: 'undoPaceAction' })).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
+    expect(await submitInputs(team, { kind: 'undoPaceAction' })).toEqual({ kind: 'saved', next: { kind: 'screen', screen: 'forecast' } })
 
     const view = await forecast(team)
     expect(view.pace).toEqual({ source: 'counts', counts: STEPPED_UP })
@@ -133,7 +133,7 @@ describe('an applied action', () => {
 
     expect(await submitInputs(team, { kind: 'applyPaceAction', action: 'startFrom', date: '2026-10-19' })).toEqual({
       kind: 'saved',
-      next: { screen: 'forecast' },
+      next: { kind: 'screen', screen: 'forecast' },
     })
 
     expect(await team.milestoneForecastView()).toEqual({

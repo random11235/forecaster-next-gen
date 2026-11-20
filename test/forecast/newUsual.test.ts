@@ -84,7 +84,7 @@ describe('with typed counts', () => {
 
     const accepted = await submit(team, { kind: 'acceptNewUsual', id: '1' })
 
-    expect(accepted).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
+    expect(accepted).toEqual({ kind: 'saved', next: { kind: 'screen', screen: 'forecast' } })
     const { entries, past } = await capacity(team)
     expect(entries).toEqual([])
     expect(past).toEqual([{ id: 1, from: '2026-10-12', to: TODAY, percent: 80, note: 'Two left', newUsualOn: TODAY }])
@@ -97,7 +97,7 @@ describe('with typed counts', () => {
 
     const kept = await submit(team, { kind: 'keepCapacity', id: '1' })
 
-    expect(kept).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
+    expect(kept).toEqual({ kind: 'saved', next: { kind: 'screen', screen: 'forecast' } })
     const [entry] = (await capacity(team)).entries
     expect(entry?.newUsual).toBeUndefined()
     expect(entry?.kept).toBe(true)
@@ -121,7 +121,7 @@ describe('with a pace range', () => {
 
     const ended = await submit(team, { kind: 'endCapacityToday', id: '1' })
 
-    expect(ended).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
+    expect(ended).toEqual({ kind: 'saved', next: { kind: 'screen', screen: 'forecast' } })
     expect((await capacity(team)).past).toEqual([{ id: 1, from: '2026-10-12', to: '2026-11-10', percent: 80, note: 'Two left' }])
   })
 })

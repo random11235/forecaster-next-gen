@@ -12,7 +12,7 @@ describe('typing capacity', () => {
     await tenTicketsAtFive(team)
     expect(await headline(team)).toBe('2026-09-21')
 
-    expect(await add(team, '0', '2026-09-07', '2026-09-11', { note: 'Offsite' })).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
+    expect(await add(team, '0', '2026-09-07', '2026-09-11', { note: 'Offsite' })).toEqual({ kind: 'saved', next: { kind: 'screen', screen: 'forecast' } })
 
     expect(await headline(team)).toBe('2026-09-28')
   })
@@ -117,7 +117,7 @@ describe('typing capacity', () => {
     await tenTicketsAtFive(team)
     await add(team, '0', '2026-09-07', '2026-09-11')
 
-    expect(await submitInputs(team, { kind: 'removeCapacity', id: '1' })).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
+    expect(await submitInputs(team, { kind: 'removeCapacity', id: '1' })).toEqual({ kind: 'saved', next: { kind: 'screen', screen: 'forecast' } })
 
     expect(await headline(team)).toBe('2026-09-21')
     const forecast = await view(team)

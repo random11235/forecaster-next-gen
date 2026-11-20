@@ -24,15 +24,19 @@ export type Edit =
   | { form: 'readAgain' }
 
 /**
- * Where the EM goes next: a screen, and on the Inputs screen, the setup step it opens at, with its query open for
- * editing (`editing`), or the tracker's pace (`paceTracker`).
+ * Where the EM goes next, told by its `kind`: a screen (`screen`); or on the Inputs screen, the setup step it opens at
+ * (`step`), a query step with its query open for editing (`editing`) or asking the EM to confirm going back to finding
+ * clears it (`confirmingBack`), or the tracker's pace (`paceTracker`).
  */
-export interface Place {
-  screen: NextScreen
-  step?: SetupStep
-  editing?: true
-  paceTracker?: true
-}
+export type Place =
+  | { kind: 'screen'; screen: NextScreen }
+  | { kind: 'step'; step: SetupStep }
+  | { kind: 'editing'; step: QuerySetupStep }
+  | { kind: 'confirmingBack'; step: QuerySetupStep }
+  | { kind: 'paceTracker' }
+
+/** The Inputs screen, at the setup step it opens at, if any. */
+const inputsAt = (step: SetupStep | undefined): Place => (step ? { kind: 'step', step } : { kind: 'screen', screen: 'inputs' })
 
 /**
  * What a renamed milestone's query came to, once the save that renamed it was done: it followed the new name and was
@@ -46,16 +50,16 @@ export type Followed = 'followed' | 'followedUnread' | 'refused'
  * screen to show (`savedInPlace`); either, for a save that renamed the milestone, with what its query came to
  * (`followed`); refused, with the whole screen to show again, saying why: the Inputs screen (`refused`) or, for a form
  * beside the forecast, the Milestone forecast screen (`refusedOnForecast`); refused, changing nothing, and the place to
- * go to, for setup's own forms, whose steps say why (`notSaved`); or, going back to finding from a query it clears, the
- * EM asked to confirm that first (`confirmClear`). A query step's change the tracker reads as nothing new is done too.
+ * go to, for setup's own forms, whose steps say why there (`refusedThere`); or, going back to finding from a query it
+ * clears, the EM asked to confirm that first, at the place that asks it (`confirmClear`). A query step's change the tracker reads as nothing new is done too.
  */
 export type Outcome =
   | { kind: 'saved'; next: Place; followed?: Followed }
   | { kind: 'savedInPlace'; view: InputsScreen; followed?: Followed }
   | { kind: 'refused'; view: InputsScreen }
   | { kind: 'refusedOnForecast'; view: MilestoneForecastView }
-  | { kind: 'notSaved'; next: Place }
-  | { kind: 'confirmClear' }
+  | { kind: 'refusedThere'; next: Place }
+  | { kind: 'confirmClear'; next: Place }
 
 /**
  * How a submit's reply opens: as its URL asks (`InputsOpening`), and, for an Inputs form saved as it changes
@@ -77,25 +81,25 @@ export async function submit(team: TeamCall, edit: Edit, opening: SubmitOpening 
       return inputsFormSubmitted(team, edit.edit, opening)
     case 'skip': {
       const submitted = await submitSkip(connected(team), teamId, edit.edit, team.settings, at)
-      return submitted.saved ? { kind: 'saved', next: { screen: 'inputs', paceTracker: true } } : again({ inputs: submitted.view })
+      return submitted.saved ? { kind: 'saved', next: { kind: 'paceTracker' } } : again({ inputs: submitted.view })
     }
     case 'connection': {
       const submitted = await submitConnection(connected(team), teamId, edit.edit)
-      return submitted.saved ? { kind: 'saved', next: { screen: 'inputs', step: submitted.next } } : again({ connection: submitted.view })
+      return submitted.saved ? { kind: 'saved', next: { kind: 'step', step: submitted.next } } : again({ connection: submitted.view })
     }
     case 'setup': {
       const { saved, next } = await submitSetup(connected(team), teamId, edit.edit)
-      return { kind: saved ? 'saved' : 'notSaved', next: { screen: 'inputs', ...(next && { step: next }) } }
+      return { kind: saved ? 'saved' : 'refusedThere', next: inputsAt(next) }
     }
     case 'readAgain':
       await submitReadAgain(connected(team), teamId, at.readAt)
-      return { kind: 'saved', next: { screen: 'inputs' } }
+      return { kind: 'saved', next: { kind: 'screen', screen: 'inputs' } }
     case 'stepQuery': {
       const submitted = await submitStepQuery(connected(team), teamId, edit.edit, at.readAt, STEP_QUERIES[edit.step])
       if (submitted.kind === 'refused') return again({ refused: { step: edit.step, query: submitted } })
-      if (submitted.kind === 'confirmClear') return { kind: 'confirmClear' }
+      if (submitted.kind === 'confirmClear') return { kind: 'confirmClear', next: { kind: 'confirmingBack', step: edit.step } }
       // a query edited by hand stays open for editing; every other change goes back to finding
-      return { kind: 'saved', next: { screen: 'inputs', step: edit.step, ...(edit.edit.kind === 'editQuery' && { editing: true }) } }
+      return { kind: 'saved', next: { kind: edit.edit.kind === 'editQuery' ? 'editing' : 'step', step: edit.step } }
     }
   }
 }
@@ -117,7 +121,7 @@ async function inputsFormSubmitted(team: TeamCall, edit: InputsEdit, opening: Su
   const followed = await renameFollowed(team, { from: named, to: milestoneName() })
   const said = followed && { followed }
   if (inPlace) return { kind: 'savedInPlace', view: await inputsScreen(team, opening, { unlisted: true }), ...said }
-  return { kind: 'saved', next: { screen: submitted.next }, ...said }
+  return { kind: 'saved', next: { kind: 'screen', screen: submitted.next }, ...said }
 }
 
 /**

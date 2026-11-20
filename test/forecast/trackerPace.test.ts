@@ -57,7 +57,7 @@ describe('following GitHub', () => {
   test('pace can follow GitHub: its counts of the last 8 weeks, the current one left out, which the forecast uses', async () => {
     await enterAndPick()
 
-    expect(await submit({ kind: 'setPaceMode', paceMode: 'tracker' })).toEqual({ kind: 'saved', next: { screen: 'forecast' } })
+    expect(await submit({ kind: 'setPaceMode', paceMode: 'tracker' })).toEqual({ kind: 'saved', next: { kind: 'screen', screen: 'forecast' } })
 
     expect((await inputs()).milestone).toMatchObject({
       paceMode: 'tracker',
@@ -273,7 +273,7 @@ describe('switching pace', () => {
     // the opened weeks start from GitHub’s counts
     expect((await inputs()).milestone.trackerPace?.reading?.counts).toEqual([3, 5, 6, 4, 7, 5, 6, 8])
 
-    expect(await submit({ kind: 'setPaceCounts', counts: '3, 5, 6, 4, 7, 5, 6, 9' })).toEqual({ kind: 'saved', next: { screen: 'inputs' } })
+    expect(await submit({ kind: 'setPaceCounts', counts: '3, 5, 6, 4, 7, 5, 6, 9' })).toEqual({ kind: 'saved', next: { kind: 'screen', screen: 'inputs' } })
 
     expect((await inputs()).milestone).toMatchObject({ paceMode: 'counts', paceCounts: [3, 5, 6, 4, 7, 5, 6, 9] })
     expect(await forecast()).toMatchObject({ kind: 'forecast', pace: { source: 'counts', counts: [3, 5, 6, 4, 7, 5, 6, 9] } })

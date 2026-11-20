@@ -125,7 +125,7 @@ describe('skipping a period', () => {
   test('when GitHub can’t be read further back, the skip is kept and the last read stays in use', async () => {
     scenario.fixture.reads[CHECKOUT.query] = { failure: 'unavailable' }
 
-    expect(await skip(HOLIDAYS)).toEqual({ kind: 'saved', next: { screen: 'inputs', paceTracker: true } })
+    expect(await skip(HOLIDAYS)).toEqual({ kind: 'saved', next: { kind: 'paceTracker' } })
 
     expect(asked).toEqual(['2026-08-27T09:00:00.000Z'])
     // the read of 09:00 reaches whole from 14 Sep: 6 weeks counted around the 2 skipped, and the line says where it runs out
@@ -139,7 +139,7 @@ describe('skipping a period', () => {
 
 describe('a skip submitted', () => {
   test('saved, it goes back to the tracker’s pace on the Inputs screen', async () => {
-    expect(await skip(HOLIDAYS)).toEqual({ kind: 'saved', next: { screen: 'inputs', paceTracker: true } })
+    expect(await skip(HOLIDAYS)).toEqual({ kind: 'saved', next: { kind: 'paceTracker' } })
   })
 
   test('with no period, or one that isn’t a date, it is refused, saying why, and nothing is skipped', async () => {

@@ -73,7 +73,7 @@ describe('tickets remaining', () => {
   })
 
   test('opening the reading clears the dot, which returns with a new read', async () => {
-    expect(await submit({ kind: 'openReading', reading: 'ticketsRemaining' })).toEqual({ kind: 'saved', next: { screen: 'inputs' } })
+    expect(await submit({ kind: 'openReading', reading: 'ticketsRemaining' })).toEqual({ kind: 'saved', next: { kind: 'screen', screen: 'inputs' } })
     expect((await inputs()).milestone.ticketsSource?.readsDifferently).toEqual({ unseen: false })
 
     team.fixture.reads[CHECKOUT.query] = { tickets: open(38), incomplete: false }
