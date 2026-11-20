@@ -8,7 +8,7 @@ import { LEAF_NOTE } from './queryStep.js'
 import { readFlag, rejectionOf } from './readSaid.js'
 import { chipsShow } from './stepQueryEdit.js'
 import { readSince } from './setupReads.js'
-import { COMPARABLE_WORK, hasQuery, MILESTONE_QUERY, type StepQuery } from './stepQuery.js'
+import { COMPARABLE_WORK, hasQuery, MILESTONE_QUERY, type QueryName, type StepQuery } from './stepQuery.js'
 import { readOn } from './calendarDate.js'
 import { trackerOf, type TrackerFacts } from './trackers.js'
 
@@ -50,11 +50,12 @@ export interface SummaryPick {
 
 /**
  * What is wrong with a query's saved read, or why its last read or one of its picks' failed, and which query's it is
- * (by its name as its step labels it, "Milestone query"); or, with no query named, why the last read by hand failed as a whole, the saved reads staying
- * in use. `change: 'connect'` offers Change, opening the Connect step, for a token or repo the tracker refused.
+ * (`of`, by its name as its step labels it); or, with no query named, why the last read by hand failed as a whole, the
+ * saved reads staying in use. `change: 'connect'` offers Change, opening the Connect step, for a token or repo the
+ * tracker refused.
  */
 export interface SummaryFlag {
-  of?: string
+  of?: QueryName
   flag: string
   change?: 'connect'
 }

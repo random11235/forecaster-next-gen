@@ -4,7 +4,7 @@ import { narrowedToAFew, openCandidates, type CandidateOpening, type Candidates 
 import { comparableWorkPace, type ComparableWorkPace } from './comparableWorkPace.js'
 import { teamConnection, withTeamQueries, type Connecting } from './connection.js'
 import { finishedSinceFor, readQuery, type QueryRead } from './queryRead.js'
-import { MILESTONE_QUERY, type StepQuery } from './stepQuery.js'
+import { MILESTONE_QUERY, type QueryName, type StepQuery } from './stepQuery.js'
 import type { ReadClock } from './pace.js'
 import { trackerOf } from './trackers.js'
 import { CHOICES_FAILED, foundInTracker, KEYCHAIN_FAILED, listedHere, markedThisMilestone, notPicked, type ChoiceList } from './choiceLists.js'
@@ -58,7 +58,7 @@ export interface StepCandidates {
 /** What both query steps show of the query they edit. */
 interface PickedQuery {
   /** The query as the step labels it: "Milestone query", "Comparable-work query". */
-  queryName: string
+  queryName: QueryName
   /** What the EM typed to find a choice by. */
   find: string
   lists: ChoiceList[]

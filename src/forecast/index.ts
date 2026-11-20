@@ -47,6 +47,7 @@ export type { PaceVersus } from './lib/paceVersusOwn.js'
 export type { ChoiceList, QueryEditing, QueryStep, StepQueryEdit } from './lib/queryStep.js'
 export type { PaceCheck, SetupCheck, SetupEdit, SetupSteps, TicketsCheck } from './lib/setup.js'
 export type { SetupSummary, SummaryFlag, SummaryRow } from './lib/setupSummary.js'
+export type { QueryName } from './lib/stepQuery.js'
 export type { SkipEdit } from './lib/skippedPeriods.js'
 export type { Tracker } from './lib/trackers.js'
 
