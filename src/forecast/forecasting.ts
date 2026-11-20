@@ -1,4 +1,5 @@
-import type { ChoiceKind, Connector } from '../connectors/connector.js'
+import type { Connector } from '../connectors/connector.js'
+import type { ChoiceKind } from '../model/choice.js'
 import type { Team } from '../model/team.js'
 import type { Storage } from '../storage/storage.js'
 import { openCandidates, type CandidateOpening } from './candidates.js'

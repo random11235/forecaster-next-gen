@@ -12,6 +12,9 @@ src/
     ambiguity.ts          # Ambiguity and AmbiguityRanges: set by the EM
     connection.ts         # Connection: the team's one tracker and repo or Jira project (with Jira's account email); never a token
     noneMissing.ts        # NoneMissing: a compile-time check that a list of a union's values, such as TEAM_SOURCES, leaves none out
+    ticket.ts             # Ticket: all the tool holds of a ticket, as a connector reads it and a saved read keeps it
+    choice.ts             # Choice and ChoiceKind: what the EM picks a milestone's tickets by; choiceKindOf reads a kind sent as text
+    failure.ts            # Failure: why a connector couldn't answer
 
   engine/                 # pure: no I/O, no DB, no clock; see src/engine/ for its files
     index.ts              # exports simulateCase, periodEndDate and the types only
@@ -53,7 +56,7 @@ src/
     milestoneRenamed.ts   # Seam B: the milestone query following the milestone to its new name
 
   connectors/             # what reads the team's tickets from its tracker; everything tracker-specific stays inside one
-    connector.ts          # the interface and its shared types: Ticket, Failure, ReadResult, Choice, ChoicesOfKind; a connector takes its Connection from `model/`
+    connector.ts          # the interface and its shared types: ReadResult, ChoicesOfKind, and Ticket, Failure and Choice re-exported from `model/`; a connector takes its Connection from `model/`
     remote.ts             # what the network connectors share: sending a request (only a network failure is unavailable), status to failure, the scope check, the finishedSince filter
     canned.ts             # the canned connector's entry point: its factory, its fixture's type and demo mode's connector; outside code imports this, never canned/
     github.ts             # the GitHub connector's entry point: its factory; outside code imports this, never github/
