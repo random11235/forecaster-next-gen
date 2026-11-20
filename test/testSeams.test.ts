@@ -2,8 +2,8 @@ import { dirname } from 'node:path'
 import { describe, expect, test } from 'vitest'
 import { importsBeside } from './importScan.js'
 
-// The Test layers rule in CODING_STANDARDS.md: each test folder imports from src/ only the entry points of the seam
-// docs/design/architecture-test-seams.md assigns it, and what that seam's tests read through. TEST_SEAMS is the one list.
+// Each test folder imports from src/ only the entry points of the seam docs/design/architecture-test-seams.md assigns it,
+// and what that seam's tests read through. TEST_SEAMS is the one list.
 
 /** Seam B's entry points (`forecast/`), what goes in through them, and the helpers its tests read through. */
 const SEAM_B = [
