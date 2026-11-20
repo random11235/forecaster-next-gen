@@ -70,6 +70,20 @@ describe('the files a branch mutates', () => {
     expect(() => mutationTargets(mnemonic, [])).toThrow('the diff names a file without the b/ prefix: +++ w/src/engine/pace.ts')
   })
 
+  test('an added line that itself starts with ++ is a change in the file, not a file the diff names', () => {
+    const diff = [
+      'diff --git a/src/engine/pace.ts b/src/engine/pace.ts',
+      '--- a/src/engine/pace.ts',
+      '+++ b/src/engine/pace.ts',
+      '@@ -1,0 +2,2 @@',
+      '+++ b/src/engine/other.ts',
+      '+++ count',
+      '@@ -9 +11 @@',
+      '+changed',
+    ].join('\n')
+    expect(mutationTargets(diff, [])).toEqual(['src/engine/pace.ts:2-3', 'src/engine/pace.ts:11-11'])
+  })
+
   test("the web build's page script, which only its demo checks, is not mutated", () => {
     const diff = [diffOf('src/app/webMain.ts', [[1, 1]]), diffOf('src/app/webApp.ts', [[1, 1]])].join('\n')
     expect(mutationTargets(diff, [])).toEqual(['src/app/webApp.ts:1-1'])
