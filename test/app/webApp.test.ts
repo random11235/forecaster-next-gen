@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { APP_VERSION } from '../../src/forecast/appVersion.js'
+import { APP_VERSION } from '../../src/forecast/index.js'
 import { openWebApp } from '../../src/app/webApp.js'
 import { openWebStorage } from '../../src/storage/webStorage.js'
 import { defaultTeam } from './appOnTracker.js'

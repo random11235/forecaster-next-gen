@@ -69,25 +69,18 @@ module.exports = {
       to: { path: `^${R}/`, pathNot: `^${R}/(model|engine)/` },
     },
     {
-      name: 'model-engine-types-only',
-      comment: 'model/ reaches engine/ only for its types, with `import type`.',
+      name: 'engine-types-only',
+      comment: "model/, ledger/ and storage/ reach engine/ only for its types, with `import type`: storage/ to check a logged forecast's case and result.",
       severity: 'error',
-      from: { path: `^${R}/model/` },
+      from: { path: `^${R}/(model|ledger|storage)/` },
       to: { path: `^${R}/engine/`, dependencyTypesNot: ['type-only'] },
     },
     {
       name: 'ledger-only-engine-types',
-      comment: 'ledger/ imports nothing from the rest of src/ but engine/types.ts.',
+      comment: "ledger/ imports nothing from the rest of src/ but the engine's types.",
       severity: 'error',
       from: { path: `^${R}/ledger/` },
-      to: { path: `^${R}/`, pathNot: [`^${R}/ledger/`, `^${R}/engine/types\\.ts$`] },
-    },
-    {
-      name: 'storage-engine-only-types',
-      comment: "storage/ reaches the engine only through engine/types.ts, to check a logged forecast's case and result.",
-      severity: 'error',
-      from: { path: `^${R}/storage/` },
-      to: { path: `^${R}/engine/`, pathNot: `^${R}/engine/types\\.ts$` },
+      to: { path: `^${R}/`, pathNot: [`^${R}/ledger/`, `^${R}/engine/`] },
     },
     {
       name: 'connectors-only-interface-own-folder-and-model',
@@ -137,9 +130,9 @@ module.exports = {
     },
     {
       name: 'package-json-only-from-app-version',
-      comment: 'Only forecast/appVersion.ts imports package.json: the web build gives the page it shares a package.json of the version alone.',
+      comment: 'Only forecast/lib/appVersion.ts imports package.json: the web build gives the page it shares a package.json of the version alone.',
       severity: 'error',
-      from: { path: `^${R}/`, pathNot: `^${R}/forecast/appVersion\\.ts$` },
+      from: { path: `^${R}/`, pathNot: `^${R}/forecast/lib/appVersion\\.ts$` },
       to: { path: '^package\\.json$' },
     },
     {

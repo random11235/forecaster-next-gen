@@ -1,8 +1,19 @@
-import type { PaceCheck, SetupCheck, SetupEdit, SetupSteps, TicketsCheck } from '../forecast/setup.js'
-import { SETUP_STEPS, type SetupStep } from '../forecast/setupSteps.js'
-import type { SetupSummary, SummaryFlag, SummaryRow } from '../forecast/setupSummary.js'
+import {
+  COMPARABLE_WORK,
+  MILESTONE_QUERY,
+  SETUP_STEPS,
+  type PaceCheck,
+  type SetupCheck,
+  type SetupEdit,
+  type SetupStep,
+  type SetupSteps,
+  type SetupSummary,
+  type StepQuery,
+  type SummaryFlag,
+  type SummaryRow,
+  type TicketsCheck,
+} from '../forecast/index.js'
 import { PACE_MODES, TICKETS_SOURCES, type PaceMode } from '../model/milestoneInputs.js'
-import { COMPARABLE_WORK, MILESTONE_QUERY, type StepQuery } from '../forecast/stepQuery.js'
 import { escapeHtml } from './html.js'
 
 /**

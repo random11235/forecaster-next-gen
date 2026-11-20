@@ -1,9 +1,14 @@
 import type { Choice } from '../connectors/connector.js'
-import type { PeriodName } from '../forecast/cadence.js'
-import { dayMonth } from '../forecast/calendarDate.js'
-import { FEW_CANDIDATES, type Candidate, type CandidateGroupKind, type CandidateOpening, type Candidates } from '../forecast/candidates.js'
-import { kindName } from '../forecast/queryStep.js'
-import type { PaceVersus } from '../forecast/paceVersusOwn.js'
+import {
+  FEW_CANDIDATES,
+  type Candidate,
+  type CandidateGroupKind,
+  type CandidateOpening,
+  type Candidates,
+  type PaceVersus,
+  type PeriodName,
+} from '../forecast/index.js'
+import { dayMonth } from './html.js'
 import { escapeHtml } from './html.js'
 import { CHOICE_FIELDS, type StepSection } from './queryStepSection.js'
 
@@ -64,10 +69,10 @@ export function candidatesHtml(candidates: Candidates, opening: string, section:
         : `Against the milestone’s own so far: ${number(candidates.milestoneOwn)} a ${period}.`
   const groups = candidates.groups
     .map(
-      ({ group, candidates }) => `              <div class="group ${group}">
+      ({ group, candidates: members }) => `              <div class="group ${group}">
                 <h4>${GROUP_TITLES[group]}${group === 'byMedian' ? ` a ${period}` : ''}</h4>
                 <ul>
-${candidates.map((candidate) => candidateHtml(candidate, period, section)).join('\n')}
+${members.map((candidate) => candidateHtml(candidate, candidates, section)).join('\n')}
                 </ul>
               </div>`,
     )
@@ -79,9 +84,9 @@ ${candidates.map((candidate) => candidateHtml(candidate, period, section)).join(
           </div>`
 }
 
-function candidateHtml(candidate: Candidate, period: PeriodName, { paths, id }: StepSection): string {
+function candidateHtml(candidate: Candidate, { period, kindNames }: Candidates, { paths, id }: StepSection): string {
   const { choice } = candidate
-  const add = `<form method="post" action="${paths.add}#${id}"><input type="hidden" name="${CHOICE_FIELDS.kind}" value="${escapeHtml(choice.kind)}"><input type="hidden" name="${CHOICE_FIELDS.name}" value="${escapeHtml(choice.name)}"><input type="hidden" name="${CHOICE_FIELDS.query}" value="${escapeHtml(choice.query)}"><button type="submit">${escapeHtml(choice.name)} <span class="kind">${escapeHtml(kindName(choice.kind))}</span></button></form>`
+  const add = `<form method="post" action="${paths.add}#${id}"><input type="hidden" name="${CHOICE_FIELDS.kind}" value="${escapeHtml(choice.kind)}"><input type="hidden" name="${CHOICE_FIELDS.name}" value="${escapeHtml(choice.name)}"><input type="hidden" name="${CHOICE_FIELDS.query}" value="${escapeHtml(choice.query)}"><button type="submit">${escapeHtml(choice.name)} <span class="kind">${escapeHtml(kindNames[choice.kind])}</span></button></form>`
   const own = candidate.thisMilestone ? ' <span class="this">this milestone: counts its own too</span>' : ''
   const data = (fields: Record<string, string>): string =>
     Object.entries(fields)

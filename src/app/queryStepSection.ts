@@ -1,9 +1,15 @@
-import type { ChoiceList, StepQueryEdit, QueryStep, QueryEditing } from '../forecast/queryStep.js'
-import { kindName } from '../forecast/queryStep.js'
-import { COMPARABLE_WORK, MILESTONE_QUERY, type StepQuery } from '../forecast/stepQuery.js'
+import {
+  COMPARABLE_WORK,
+  MILESTONE_QUERY,
+  type ChoiceList,
+  type ComparableWorkPace,
+  type QueryEditing,
+  type QueryStep,
+  type SetupStep,
+  type StepQuery,
+  type StepQueryEdit,
+} from '../forecast/index.js'
 import { choiceKindOf, type Choice } from '../model/choice.js'
-import type { ComparableWorkPace } from '../forecast/comparableWorkPace.js'
-import type { SetupStep } from '../forecast/setupSteps.js'
 import { escapeHtml } from './html.js'
 import { inputsAt, SETUP_STEP_IDS, STEP_FIELD } from './setupSection.js'
 import { paceHtml, pickPaceHtml } from './lib/stepPace.js'
@@ -189,12 +195,12 @@ function editingSection(view: QueryStep, editing: QueryEditing, section: StepSec
 /** The step finding choices to pick: the chips, the find box over the lists, and the query, to edit as a query. */
 function findingSection(view: QueryStep, section: StepSection, pace: ComparableWorkPace | undefined): string {
   const { paths, urls, id, findField } = section
-  const kinds = view.lists.map((list) => kindName(list.kind))
+  const kinds = view.lists.map((list) => list.kindName)
   const chips = view.picks
     .map(
       (
         pick,
-      ) => `            <li class="chip">${escapeHtml(pick.name)} <span class="kind">${escapeHtml(kindName(pick.kind))}</span>${pickPaceHtml(pace?.picks.find((each) => each.query === pick.query))}
+      ) => `            <li class="chip">${escapeHtml(pick.name)} <span class="kind">${escapeHtml(view.kindNames[pick.kind])}</span>${pickPaceHtml(pace?.picks.find((each) => each.query === pick.query))}
               <form method="post" action="${paths.remove}#${id}"><input type="hidden" name="${CHOICE_FIELDS.query}" value="${escapeHtml(pick.query)}"><button type="submit" class="x" aria-label="Remove ${escapeHtml(pick.name)}">×</button></form>
             </li>`,
     )
@@ -232,13 +238,13 @@ export function choiceListHtml(list: ChoiceList, { paths, id, stepQuery, setupSt
         choice,
       ) => `              <form method="post" action="${paths.add}#${id}" data-name="${escapeHtml(choice.name.toLowerCase())}"${candidates ? ' class="candidate"' : ''}>
                 <input type="hidden" name="${CHOICE_FIELDS.kind}" value="${escapeHtml(choice.kind)}"><input type="hidden" name="${CHOICE_FIELDS.name}" value="${escapeHtml(choice.name)}"><input type="hidden" name="${CHOICE_FIELDS.query}" value="${escapeHtml(choice.query)}">
-                <button type="submit">${escapeHtml(choice.name)} <span class="kind">${escapeHtml(kindName(choice.kind))}</span>${choice.query === list.thisMilestone ? ' <span class="this">this milestone</span>' : ''}</button>${candidates ? openLinkHtml(choice, setupStep, id) : ''}
+                <button type="submit">${escapeHtml(choice.name)} <span class="kind">${escapeHtml(list.kindName)}</span>${choice.query === list.thisMilestone ? ' <span class="this">this milestone</span>' : ''}</button>${candidates ? openLinkHtml(choice, setupStep, id) : ''}
               </form>`,
     )
     .join('\n')
   const failure = list.failure === undefined ? '' : `\n              <p class="error" role="alert">${escapeHtml(list.failure)}</p>`
   return `            <div class="kind-list" data-kind="${escapeHtml(list.kind)}"${list.searchedInTracker ? ' data-searched' : ''}>
-              <h3>${escapeHtml(capitalised(kindName(list.kind)))}s</h3>${failure}
+              <h3>${escapeHtml(capitalised(list.kindName))}s</h3>${failure}
 ${choices}
             </div>`
 }

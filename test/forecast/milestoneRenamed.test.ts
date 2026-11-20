@@ -1,22 +1,11 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, test } from 'vitest'
-import { cannedConnector, type CannedFixture } from '../../src/connectors/canned.js'
-import type { Choice, Connector } from '../../src/connectors/connector.js'
-import { submitConnection, type ConnectionEdit } from '../../src/forecast/connection.js'
-import { followRenamedMilestone } from '../../src/forecast/milestoneRenamed.js'
-import { queryStepView, submitStepQuery, type QueryStepping } from '../../src/forecast/queryStep.js'
-import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
-import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
-import type { TeamStorage } from '../trackerScenario.js'
+import { describe, expect, test } from 'vitest'
+import type { CannedFixture } from '../../src/connectors/canned.js'
+import type { Choice } from '../../src/connectors/connector.js'
+import { forecastingForTest, TEAM, type ForecastingForTest } from './forecastingForTest.js'
 
 // Moving on to the next milestone by renaming it (#207): a milestone query that is just the tracker's milestone of the
 // old name follows the new name, and is read again.
 
-const TEAM = 'team'
-const READ_AT = '2026-11-12T09:00:00Z'
-const AT = { readAt: READ_AT, today: '2026-11-12', timeZone: 'UTC' }
 const RENAMED = { from: 'Checkout v2', to: 'Loyalty launch' }
 
 const checkout: Choice = { kind: 'milestone', name: 'Checkout v2', query: 'milestone:"Checkout v2"' }
@@ -42,82 +31,44 @@ const GITHUB: CannedFixture = {
   reads: READS,
 }
 
-const GITHUB_REPO: ConnectionEdit = { kind: 'connect', tracker: 'github', repo: 'shop-team/shop', site: '', projectKey: '', email: '', token: 'token' }
-const JIRA_PROJECT: ConnectionEdit = {
-  kind: 'connect',
-  tracker: 'jira',
-  repo: '',
-  site: 'shop.atlassian.net',
-  projectKey: 'SHOP',
-  email: 'em@shop.test',
-  token: 'token',
+/** The milestone, named `name`, as the Inputs screen's Milestone form submits it. */
+const named = (team: ForecastingForTest, name: string) =>
+  team.submit({ form: 'inputs', edit: { kind: 'setMilestone', name, startDate: '2026-11-02', ticketsRemaining: '40' } })
+
+/**
+ * Connected on the canned connector answering from `fixture`, to GitHub or Jira, with the milestone query made of
+ * `picks`, and the milestone entered as `RENAMED.from`; then the reads counted.
+ */
+async function pickedFrom(fixture: CannedFixture, connected: 'github' | 'jira', picks: Choice[]): Promise<ForecastingForTest> {
+  const team = await forecastingForTest({ fixture, connected })
+  for (const choice of picks) await team.submit({ form: 'stepQuery', step: 'milestone', edit: { kind: 'addPick', choice } })
+  await named(team, RENAMED.from)
+  team.calls.reads.length = 0
+  return team
 }
 
-let dir: string
-let storage: TeamStorage
-
-beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), 'forecaster-milestone-renamed-'))
-  storage = openSqliteStorage(join(dir, 'forecaster.db'))
-  storage.saveTeam({ id: TEAM, name: 'My team', source: 'manual', sourceRef: '', installedAt: '2026-01-01T00:00:00Z' })
-  storage.saveSetupState(TEAM, { open: false, closed: 'done' })
-})
-
-afterEach(() => {
-  storage.close()
-  rmSync(dir, { recursive: true, force: true })
-})
-
-/** Connected on the canned connector answering from `fixture`, with the milestone query made of `picks`; then the reads counted. */
-async function pickedFrom(fixture: CannedFixture, connect: ConnectionEdit, picks: Choice[]): Promise<QueryStepping & { queriesRead: string[] }> {
-  const queriesRead: string[] = []
-  const canned = cannedConnector(fixture)
-  const connector = (): Connector => ({
-    milestoneChoices: () => canned.milestoneChoices(),
-    searchChoices: (kind, text) => canned.searchChoices(kind, text),
-    read: (query, since) => {
-      queriesRead.push(query)
-      return canned.read(query, since)
-    },
-  })
-  const using: QueryStepping = {
-    connections: storage,
-    queries: storage,
-    setup: storage,
-    secrets: openMemorySecrets(),
-    connector,
-    milestoneInputs: storage,
-    at: AT,
-  }
-  await submitConnection(using, TEAM, connect)
-  for (const choice of picks) await submitStepQuery(using, TEAM, { kind: 'addPick', choice }, READ_AT)
-  queriesRead.length = 0
-  return Object.assign(using, { queriesRead })
-}
+/** The milestone renamed `to`, which the query follows when it is just the tracker's milestone of the old name. */
+const rename = (team: ForecastingForTest, to = RENAMED.to) => named(team, to)
 
 describe('renaming the milestone', () => {
   test('a milestone query of the tracker milestone of the old name follows the new name, and is read again', async () => {
-    const using = await pickedFrom(GITHUB, GITHUB_REPO, [checkout])
+    const team = await pickedFrom(GITHUB, 'github', [checkout])
 
-    await followRenamedMilestone(using, TEAM, RENAMED, READ_AT)
+    await rename(team)
 
-    expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [loyalty], query: 'milestone:"Loyalty launch"' })
-    expect(using.queriesRead).toEqual(['milestone:"Loyalty launch"'])
-    expect(await queryStepView(using, TEAM, '', { unlisted: true })).toMatchObject({
-      picks: [loyalty],
-      query: 'milestone:"Loyalty launch"',
-      read: '3 open · 0 finished in the last 9 weeks',
-    })
+    expect(team.storage.milestoneQuery(TEAM)).toEqual({ picks: [loyalty], query: 'milestone:"Loyalty launch"' })
+    expect(team.calls.reads).toEqual(['milestone:"Loyalty launch"'])
+    expect((await team.inputsScreen()).inputs.milestone.ticketsSource).toMatchObject({ reading: { count: 3 } })
   })
 
   test('on Jira, a query of the fix version of the old name follows the new name', async () => {
     const jira: CannedFixture = { milestoneChoices: [{ kind: 'fixVersion', choices: [checkoutVersion, loyaltyVersion], pastLimit: false }], reads: READS }
-    const using = await pickedFrom(jira, JIRA_PROJECT, [checkoutVersion])
+    const team = await pickedFrom(jira, 'jira', [checkoutVersion])
 
-    await followRenamedMilestone(using, TEAM, RENAMED, READ_AT)
+    await rename(team)
 
-    expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [loyaltyVersion], query: 'fixVersion = "Loyalty launch"' })
-    expect(using.queriesRead).toEqual(['fixVersion = "Loyalty launch"'])
+    expect(team.storage.milestoneQuery(TEAM)).toEqual({ picks: [loyaltyVersion], query: 'fixVersion = "Loyalty launch"' })
+    expect(team.calls.reads).toEqual(['fixVersion = "Loyalty launch"'])
   })
 
   test('a milestone past those the tracker lists is searched for by the new name', async () => {
@@ -126,20 +77,20 @@ describe('renaming the milestone', () => {
       reads: READS,
       searchable: { milestone: [checkout, loyalty] },
     }
-    const using = await pickedFrom(pastLimit, GITHUB_REPO, [checkout])
+    const team = await pickedFrom(pastLimit, 'github', [checkout])
 
-    await followRenamedMilestone(using, TEAM, RENAMED, READ_AT)
+    await rename(team)
 
-    expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [loyalty], query: 'milestone:"Loyalty launch"' })
+    expect(team.storage.milestoneQuery(TEAM)).toEqual({ picks: [loyalty], query: 'milestone:"Loyalty launch"' })
   })
 
   test('with no tracker milestone of the new name, the query is left as it was, and not read', async () => {
-    const using = await pickedFrom(GITHUB, GITHUB_REPO, [checkout])
+    const team = await pickedFrom(GITHUB, 'github', [checkout])
 
-    await followRenamedMilestone(using, TEAM, { from: 'Checkout v2', to: 'Checkout v3' }, READ_AT)
+    await rename(team, 'Checkout v3')
 
-    expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [checkout], query: 'milestone:"Checkout v2"' })
-    expect(using.queriesRead).toEqual([])
+    expect(team.storage.milestoneQuery(TEAM)).toEqual({ picks: [checkout], query: 'milestone:"Checkout v2"' })
+    expect(team.calls.reads).toEqual([])
   })
 
   test('when the tracker rejects the new name’s query, the query is left as it was, and the tracker asked once', async () => {
@@ -147,42 +98,42 @@ describe('renaming the milestone', () => {
       ...GITHUB,
       reads: { ...READS, 'milestone:"Loyalty launch"': { failure: 'invalidQuery', message: 'No such milestone.' } },
     }
-    const using = await pickedFrom(rejecting, GITHUB_REPO, [checkout])
+    const team = await pickedFrom(rejecting, 'github', [checkout])
 
-    expect(await followRenamedMilestone(using, TEAM, RENAMED, READ_AT)).toMatchObject({ kind: 'refused' })
+    expect(await rename(team)).toEqual({ saved: true, next: { screen: 'inputs' } })
 
-    expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [checkout], query: 'milestone:"Checkout v2"' })
-    expect(using.queriesRead).toEqual(['milestone:"Loyalty launch"'])
+    expect(team.storage.milestoneQuery(TEAM)).toEqual({ picks: [checkout], query: 'milestone:"Checkout v2"' })
+    expect(team.calls.reads).toEqual(['milestone:"Loyalty launch"'])
   })
 
   test.each([
     ['a label', [payments]],
     ['several picks', [checkout, payments]],
   ])('a query of %s is left as it was', async (_, picks) => {
-    const using = await pickedFrom(GITHUB, GITHUB_REPO, picks)
-    const before = storage.milestoneQuery(TEAM)
+    const team = await pickedFrom(GITHUB, 'github', picks)
+    const before = team.storage.milestoneQuery(TEAM)
 
-    await followRenamedMilestone(using, TEAM, RENAMED, READ_AT)
+    await rename(team)
 
-    expect(storage.milestoneQuery(TEAM)).toEqual(before)
-    expect(using.queriesRead).toEqual([])
+    expect(team.storage.milestoneQuery(TEAM)).toEqual(before)
+    expect(team.calls.reads).toEqual([])
   })
 
   test('a query written by hand is left as it was, even when it names only the old milestone', async () => {
-    const using = await pickedFrom(GITHUB, GITHUB_REPO, [])
-    await submitStepQuery(using, TEAM, { kind: 'editQuery', query: 'milestone:"Checkout v2" -label:"bug"' }, READ_AT)
-    const before = storage.milestoneQuery(TEAM)
+    const team = await pickedFrom(GITHUB, 'github', [])
+    await team.submit({ form: 'stepQuery', step: 'milestone', edit: { kind: 'editQuery', query: 'milestone:"Checkout v2" -label:"bug"' } })
+    const before = team.storage.milestoneQuery(TEAM)
 
-    await followRenamedMilestone(using, TEAM, RENAMED, READ_AT)
+    await rename(team)
 
-    expect(storage.milestoneQuery(TEAM)).toEqual(before)
+    expect(team.storage.milestoneQuery(TEAM)).toEqual(before)
   })
 
   test('a milestone of another name than the old one is left as it was', async () => {
-    const using = await pickedFrom(GITHUB, GITHUB_REPO, [loyalty])
+    const team = await pickedFrom(GITHUB, 'github', [loyalty])
 
-    await followRenamedMilestone(using, TEAM, { from: 'Checkout v2', to: 'Checkout v3' }, READ_AT)
+    await rename(team, 'Checkout v3')
 
-    expect(storage.milestoneQuery(TEAM)).toEqual({ picks: [loyalty], query: 'milestone:"Loyalty launch"' })
+    expect(team.storage.milestoneQuery(TEAM)).toEqual({ picks: [loyalty], query: 'milestone:"Loyalty launch"' })
   })
 })

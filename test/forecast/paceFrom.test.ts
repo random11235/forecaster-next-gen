@@ -1,26 +1,14 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, test } from 'vitest'
-import { cannedConnector, type CannedFixture } from '../../src/connectors/canned.js'
+import { beforeEach, describe, expect, test } from 'vitest'
+import type { CannedFixture } from '../../src/connectors/canned.js'
 import type { Choice } from '../../src/connectors/connector.js'
-import { submitConnection } from '../../src/forecast/connection.js'
-import { inputsView, submitInputs } from '../../src/forecast/inputs.js'
-import { queryStepView, submitStepQuery, type ComparableWorkPace, type StepReading } from '../../src/forecast/queryStep.js'
-import { COMPARABLE_WORK } from '../../src/forecast/stepQuery.js'
-import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
-import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
-import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
-import type { TeamStorage } from '../trackerScenario.js'
+import type { ComparableWorkPace, InputsEdit } from '../../src/forecast/index.js'
+import { forecastingForTest, pick, TEAM, type ForecastingForTest } from './forecastingForTest.js'
 
 // Where pace's finished tickets come from (#203): comparable work alone once it is added, else the milestone's own,
 // as the Comparable work step pairs the two reads period by period and leads with the pace in use.
 
-const TEAM = 'team'
-const TODAY = '2026-11-12'
 // Thursday; each read reaches back 9 weeks (8 whole weeks and the current one), to 09:00 on Thursday 10 Sep.
 const READ_AT = '2026-11-12T09:00:00Z'
-const AT = { readAt: READ_AT, today: TODAY, timeZone: 'UTC' }
 
 const checkout: Choice = { kind: 'milestone', name: 'Checkout v2', query: 'milestone:"Checkout v2"' }
 const payments: Choice = { kind: 'label', name: 'payments', query: 'label:"payments"' }
@@ -60,7 +48,7 @@ const FIXTURE: CannedFixture = {
     },
     [rewards.query]: { tickets: [{ id: 'r1' }], incomplete: false },
     // finished only in the week the read reaches part of, and in the current week: none in a whole week pace counts
-    [edges.query]: { tickets: [PAYMENTS_TICKETS[3]!, PAYMENTS_TICKETS[4]!], incomplete: false },
+    [edges.query]: { tickets: PAYMENTS_TICKETS.slice(3, 5), incomplete: false },
   },
 }
 
@@ -70,59 +58,41 @@ const WEEKS = ['2026-09-17', '2026-09-24', '2026-10-01', '2026-10-08', '2026-10-
 const MILESTONE_COUNTS = [0, 0, 2, 1, 0, 0, 0, 1]
 const PAYMENTS_COUNTS = [0, 1, 1, 0, 1, 0, 0, 0]
 
-let dir: string
-let storage: TeamStorage
-let using: StepReading
+let team: ForecastingForTest
+
+const submit = (edit: InputsEdit) => team.submit({ form: 'inputs', edit })
 
 beforeEach(async () => {
-  dir = mkdtempSync(join(tmpdir(), 'forecaster-pace-reads-'))
-  storage = openSqliteStorage(join(dir, 'forecaster.db'))
-  storage.saveTeam({
-    id: TEAM,
-    name: 'My team',
-    source: 'manual',
-    sourceRef: '',
-    installedAt: '2026-01-01T00:00:00Z',
-  })
-  storage.saveSetupState(TEAM, { open: false, closed: 'done' })
-  using = {
-    connections: storage,
-    milestoneInputs: storage,
-    queries: storage,
-    setup: storage,
-    secrets: openMemorySecrets(),
-    connector: () => cannedConnector(FIXTURE),
-  }
-  await submitConnection(using, TEAM, {
-    kind: 'connect',
-    tracker: 'github',
-    repo: 'shop-team/shop',
-    site: '',
-    projectKey: '',
-    email: '',
-    token: 'token',
-  })
-  submitInputs(storage, TEAM, DEFAULT_SETTINGS, TODAY, {
-    kind: 'setMilestone',
-    name: 'Checkout v2',
-    startDate: '2026-10-01',
-    ticketsRemaining: '30',
-  })
-  await submitStepQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
+  team = await forecastingForTest({ fixture: structuredClone(FIXTURE), connected: true, clock: { now: READ_AT } })
+  await submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-10-01', ticketsRemaining: '30' })
+  await pick(team, READ_AT, checkout)
 })
 
-afterEach(() => {
-  storage.close()
-  rmSync(dir, { recursive: true, force: true })
-})
+const addComparable = (choice: Choice) => pick(team, READ_AT, choice, 'comparableWork')
 
-const addComparable = (choice: Choice) => submitStepQuery(using, TEAM, { kind: 'addPick', choice }, READ_AT, COMPARABLE_WORK)
-
-/** The pace the Comparable work step leads with, from the team's saved reads. */
-async function stepPace(): Promise<ComparableWorkPace | undefined> {
-  const step = await queryStepView({ ...using, at: AT }, TEAM, '', {}, COMPARABLE_WORK)
-  return step.kind === 'comparableWorkStep' ? step.pace : undefined
+/** The tracker reading the milestone query as incomplete from now on, and `fixture`'s other reads as given. */
+function milestoneReadIncomplete(reads: CannedFixture['reads'] = FIXTURE.reads): void {
+  team.fixture.reads = { ...reads, [checkout.query]: { tickets: MILESTONE_TICKETS, incomplete: true } }
 }
+
+/** The milestone query cleared, then picked again, read as the tracker now answers. */
+async function milestoneReadAgain(): Promise<void> {
+  team.storage.saveMilestoneQuery(TEAM, { picks: [], query: '' })
+  await pick(team, READ_AT, checkout)
+}
+
+/**
+ * The pace the Comparable work step leads with, from the team's saved reads: setup changed to show the step, then
+ * cancelled, as it was.
+ */
+async function stepPace(): Promise<ComparableWorkPace | undefined> {
+  await team.submit({ form: 'setup', edit: { kind: 'change' } })
+  const { step } = await team.inputsScreen({ step: 'comparableWork' })
+  await team.submit({ form: 'setup', edit: { kind: 'cancel' } })
+  return step?.kind === 'comparableWorkStep' ? step.pace : undefined
+}
+
+const ticketsSource = async () => (await team.inputsScreen()).inputs.milestone
 
 /** The weeks paired, each with the two reads' counts, as the step pairs them: none for a read it has no counts of. */
 function paired({ milestone, comparableWork }: { milestone?: number[]; comparableWork?: number[] }, beforeStart = 2) {
@@ -158,27 +128,17 @@ describe('with a comparable-work query', () => {
     await addComparable(payments)
     await addComparable(checkout)
 
-    const tracker = { ...using, timeZone: 'UTC' }
-    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS, TODAY, { tracker }).milestone.ticketsSource).toMatchObject({ reading: { count: 3 } })
+    expect((await ticketsSource()).ticketsSource).toMatchObject({ reading: { count: 3 } })
   })
 
   test('with the milestone query’s read incomplete, tickets remaining aren’t known, though comparable work’s read is complete', async () => {
-    const partial: CannedFixture = {
-      ...FIXTURE,
-      reads: {
-        ...FIXTURE.reads,
-        [checkout.query]: { tickets: MILESTONE_TICKETS, incomplete: true },
-      },
-    }
-    using = { ...using, connector: () => cannedConnector(partial) }
-    storage.saveMilestoneQuery(TEAM, { picks: [], query: '' })
-    await submitStepQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
+    milestoneReadIncomplete()
+    await milestoneReadAgain()
     await addComparable(payments)
 
-    const tracker = { ...using, timeZone: 'UTC' }
-    submitInputs(storage, TEAM, DEFAULT_SETTINGS, TODAY, { kind: 'setTicketsSource', ticketsSource: 'tracker' }, { tracker })
+    await submit({ kind: 'setTicketsSource', ticketsSource: 'tracker' })
     const why = 'GitHub gave only part of the milestone’s tickets, so tickets remaining isn’t known. Narrow the milestone query, or type tickets remaining.'
-    expect(inputsView(storage, TEAM, DEFAULT_SETTINGS, TODAY, { tracker }).milestone.notes).toContainEqual({ input: 'ticketsRemaining', message: why })
+    expect((await ticketsSource()).notes).toContainEqual({ input: 'ticketsRemaining', message: why })
   })
 })
 
@@ -215,7 +175,7 @@ describe('the milestone’s own pace', () => {
   })
 
   test('a milestone started before the reads reach counts every period they reach whole', async () => {
-    submitInputs(storage, TEAM, DEFAULT_SETTINGS, TODAY, {
+    await submit({
       kind: 'setMilestone',
       name: 'Checkout v2',
       startDate: '2026-08-06',
@@ -229,7 +189,7 @@ describe('the milestone’s own pace', () => {
   })
 
   test('a milestone that starts in the current period has no periods of its own yet', async () => {
-    submitInputs(storage, TEAM, DEFAULT_SETTINGS, TODAY, {
+    await submit({
       kind: 'setMilestone',
       name: 'Checkout v2',
       startDate: '2026-11-10',
@@ -245,36 +205,21 @@ describe('the milestone’s own pace', () => {
 
 describe('no reads to count', () => {
   test('none before the milestone query is read', async () => {
-    storage.saveMilestoneQuery(TEAM, { picks: [], query: '' })
+    team.storage.saveMilestoneQuery(TEAM, { picks: [], query: '' })
 
     expect(await stepPace()).toBeUndefined()
   })
 
   test('none while the milestone query’s read is incomplete', async () => {
-    const partial: CannedFixture = {
-      ...FIXTURE,
-      reads: {
-        [checkout.query]: { tickets: MILESTONE_TICKETS, incomplete: true },
-      },
-    }
-    using = { ...using, connector: () => cannedConnector(partial) }
-    storage.saveMilestoneQuery(TEAM, { picks: [], query: '' })
-    await submitStepQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
+    milestoneReadIncomplete({})
+    await milestoneReadAgain()
 
     expect(await stepPace()).toBeUndefined()
   })
 
   test('the milestone query’s read incomplete, pace still comes from comparable work’s; the milestone’s own is unknown', async () => {
-    const partial: CannedFixture = {
-      ...FIXTURE,
-      reads: {
-        ...FIXTURE.reads,
-        [checkout.query]: { tickets: MILESTONE_TICKETS, incomplete: true },
-      },
-    }
-    using = { ...using, connector: () => cannedConnector(partial) }
-    storage.saveMilestoneQuery(TEAM, { picks: [], query: '' })
-    await submitStepQuery(using, TEAM, { kind: 'addPick', choice: checkout }, READ_AT)
+    milestoneReadIncomplete()
+    await milestoneReadAgain()
     await addComparable(payments)
 
     const pace = await stepPace()
@@ -285,14 +230,7 @@ describe('no reads to count', () => {
   })
 
   test('an incomplete comparable-work read isn’t counted: pace is the milestone’s own', async () => {
-    const partial: CannedFixture = {
-      ...FIXTURE,
-      reads: {
-        ...FIXTURE.reads,
-        [payments.query]: { tickets: PAYMENTS_TICKETS, incomplete: true },
-      },
-    }
-    using = { ...using, connector: () => cannedConnector(partial) }
+    team.fixture.reads = { ...FIXTURE.reads, [payments.query]: { tickets: PAYMENTS_TICKETS, incomplete: true } }
     await addComparable(payments)
 
     const pace = await stepPace()
