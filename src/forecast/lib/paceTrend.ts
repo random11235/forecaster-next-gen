@@ -1,4 +1,4 @@
-import type { DatedCounts, PaceFrom, PaceInUse, PaceReading } from './lib/pace.js'
+import type { DatedCounts, PaceFrom, PaceInUse, PaceReading } from './pace.js'
 import type { ForecastSettings } from './settings.js'
 
 /**

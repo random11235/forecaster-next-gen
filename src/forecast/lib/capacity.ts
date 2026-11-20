@@ -1,5 +1,5 @@
-import type { CapacityEntry } from '../model/capacity.js'
-import type { Storage } from '../storage/storage.js'
+import type { CapacityEntry } from '../../model/capacity.js'
+import type { Storage } from '../../storage/storage.js'
 import type { PeriodName } from './cadence.js'
 import { addDays, daysBetween, isCalendarDate } from './calendarDate.js'
 import { counted } from './counted.js'

@@ -1,7 +1,7 @@
-import type { Connector, Failure } from '../connectors/connector.js'
-import type { Connection } from '../model/connection.js'
-import type { Secrets } from '../secrets/secrets.js'
-import type { ConnectionStorage, QueryTarget, SetupStorage, TeamQueries, TeamQueryStorage } from '../storage/storage.js'
+import type { Connector, Failure } from '../../connectors/connector.js'
+import type { Connection } from '../../model/connection.js'
+import type { Secrets } from '../../secrets/secrets.js'
+import type { ConnectionStorage, QueryTarget, SetupStorage, TeamQueries, TeamQueryStorage } from '../../storage/storage.js'
 import type { SetupStep } from './setupSteps.js'
 import { BLANK_CONNECTION_FORM, connectionOf, TRACKERS, trackerOf, type ConnectionForm, type Tracker } from './trackers.js'
 

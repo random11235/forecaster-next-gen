@@ -1,5 +1,5 @@
-import type { Ambiguity } from '../model/ambiguity.js'
-import type { Storage } from '../storage/storage.js'
+import type { Ambiguity } from '../../model/ambiguity.js'
+import type { Storage } from '../../storage/storage.js'
 import { editCapacity, isCapacityEdit, type CapacityEdit, type CapacityForm, type CapacityView } from './capacity.js'
 import type { EditResult } from './editResult.js'
 import { editPaceAction, isPaceActionEdit, type PaceActionEdit } from './pacePattern.js'

@@ -1,6 +1,6 @@
 import type { SavedRead } from '../../model/savedRead.js'
-import { periodName } from '../cadence.js'
-import { readOn } from '../calendarDate.js'
+import { periodName } from './cadence.js'
+import { readOn } from './calendarDate.js'
 import {
   calendarDayIn,
   sideBySide,

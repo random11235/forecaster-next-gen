@@ -4,6 +4,6 @@
  * where a forecast is made, beside the engine's `ENGINE_VERSION`, for the forecast ledger (#27) to store with each
  * forecast. A JSON import, with no file read: Node, the tests and the web build's bundle all load it as it is.
  */
-import pkg from '../../package.json' with { type: 'json' }
+import pkg from '../../../package.json' with { type: 'json' }
 
 export const APP_VERSION: string = pkg.version
