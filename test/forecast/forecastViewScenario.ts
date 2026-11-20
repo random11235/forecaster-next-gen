@@ -37,9 +37,8 @@ export function openStorage(): Storage {
   return storage
 }
 
-/** A team with nothing entered yet. */
-export function newTeam(): Storage {
-  const storage = openStorage()
+/** A team with nothing entered yet, in `storage`: the SQLite file the app would use, unless another is given. */
+export function newTeam(storage: Storage = openStorage()): Storage {
   storage.saveTeam({ id: TEAM, name: 'Acme', source: 'jira', sourceRef: TEAM, installedAt: '2026-01-01T00:00:00Z' })
   return storage
 }

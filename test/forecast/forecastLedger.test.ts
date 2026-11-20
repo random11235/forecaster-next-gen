@@ -3,6 +3,9 @@ import { APP_VERSION } from '../../src/forecast/appVersion.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
 import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
 import { rerunForecast } from '../../src/forecast/forecastLedger.js'
+import type { Storage } from '../../src/storage/storage.js'
+import { openWebStorage } from '../../src/storage/webStorage.js'
+import { memoryStore } from '../memoryStore.js'
 import { TEAM, TODAY, newTeam, mediumGrowth, enter, openStorage, submit, view } from './forecastViewScenario.js'
 
 // Seam B: the forecast ledger (#27). Each forecast the Milestone forecast screen shows is logged in the ledger, which
@@ -10,6 +13,18 @@ import { TEAM, TODAY, newTeam, mediumGrowth, enter, openStorage, submit, view } 
 
 /** An ISO instant, as the ledger stamps each forecast it logs. */
 const isoInstant = (value: string) => /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$/.test(value)
+
+/** Each storage the ledger goes in through, on a new team: the app's SQLite file and the web build's browser storage. */
+const storages: [string, () => { storage: Storage; reopen: () => Storage }][] = [
+  ['SQLite', () => ({ storage: newTeam(), reopen: openStorage })],
+  [
+    'browser',
+    () => {
+      const store = memoryStore()
+      return { storage: newTeam(openWebStorage(store)), reopen: () => openWebStorage(store) }
+    },
+  ],
+]
 
 describe('logging each forecast', () => {
   test('a forecast shown is logged with its case, the case hash, its result, when it was logged and the release that made it', () => {
@@ -102,22 +117,24 @@ describe('logging only the forecast shown', () => {
   })
 })
 
-describe('re-running a logged forecast', () => {
+describe.each(storages)('re-running a forecast logged in %s storage', (_, opened) => {
   test('re-running a logged case alone, read back after reopening and with the inputs since changed, gives the result logged', () => {
-    const storage = newTeam()
+    const { storage, reopen } = opened()
     mediumGrowth(storage, { low: 1.1, high: 1.6 })
     enter(storage, { startDate: '2026-09-01', ticketsRemaining: '40' }, { low: '3', high: '8' })
     view(storage)
     enter(storage, { startDate: '2026-09-01', ticketsRemaining: '25' }, { low: '2', high: '9' })
     view(storage)
 
-    const [first, second] = openStorage().forecastLogs(TEAM)
+    const [first, second] = reopen().forecastLogs(TEAM)
 
     expect(first && rerunForecast(first)).toEqual({ kind: 'rerun', result: first?.result })
     expect(second && rerunForecast(second)).toEqual({ kind: 'rerun', result: second?.result })
     expect(first?.result).not.toEqual(second?.result)
   })
+})
 
+describe('re-running a logged forecast', () => {
   test('a case logged by another engine version is not re-run, as this engine may not give its result', () => {
     const storage = newTeam()
     mediumGrowth(storage, { low: 1, high: 1 })
@@ -131,5 +148,34 @@ describe('re-running a logged forecast', () => {
     const [, older] = storage.forecastLogs(TEAM)
 
     expect(older && rerunForecast(older)).toEqual({ kind: 'otherEngine', loggedWith: '1', running: '2' })
+  })
+})
+
+describe.each(storages)('a forecast logged in %s storage that this version cannot read', (_, opened) => {
+  test('as a later engine would log one, does not stop the forecast being shown, and the next is logged after it, once', () => {
+    const { storage, reopen } = opened()
+    mediumGrowth(storage, { low: 1, high: 1 })
+    enter(storage, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '5', high: '5' })
+    view(storage)
+    const [shown] = storage.forecastLogs(TEAM)
+    if (!shown) throw new Error('no forecast logged')
+    const { id: _id, createdAt: _createdAt, ...logged } = shown
+    // a case of a shape this version doesn't know, as a later engine's SimulationCase would be
+    storage.saveForecastLog({ ...logged, simulationCase: Object.assign({}, logged.simulationCase, { question: { kind: 'whenBy' } }) })
+    expect(() => reopen().forecastLogs(TEAM)).toThrow("can't read")
+    enter(reopen(), { startDate: '2026-09-01', ticketsRemaining: '20' }, { low: '5', high: '5' })
+
+    expect(view(reopen())).toMatchObject({ kind: 'forecast' })
+    expect(view(reopen())).toMatchObject({ kind: 'forecast' })
+
+    expect(reopen().lastForecastLog(TEAM)).toEqual({
+      id: 3,
+      teamId: TEAM,
+      createdAt: expect.any(String),
+      milestoneName: 'Checkout v2',
+      caseHash: expect.stringMatching(/^[0-9a-f]{16}$/),
+      appVersion: APP_VERSION,
+    })
+    expect(reopen().lastForecastLog(TEAM)?.caseHash).not.toBe(shown.result.caseHash)
   })
 })
