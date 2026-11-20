@@ -54,7 +54,7 @@ describe('renaming the milestone', () => {
   test('a milestone query of the tracker milestone of the old name follows the new name, and is read again', async () => {
     const team = await pickedFrom(GITHUB, 'github', [checkout])
 
-    await rename(team)
+    expect(await rename(team)).toEqual({ kind: 'saved', next: { screen: 'inputs' }, followed: 'followed' })
 
     expect(team.storage.milestoneQuery(TEAM)).toEqual({ picks: [loyalty], query: 'milestone:"Loyalty launch"' })
     expect(team.calls.reads).toEqual(['milestone:"Loyalty launch"'])
@@ -87,20 +87,29 @@ describe('renaming the milestone', () => {
   test('with no tracker milestone of the new name, the query is left as it was, and not read', async () => {
     const team = await pickedFrom(GITHUB, 'github', [checkout])
 
-    await rename(team, 'Checkout v3')
+    expect(await rename(team, 'Checkout v3')).toEqual({ kind: 'saved', next: { screen: 'inputs' } })
 
     expect(team.storage.milestoneQuery(TEAM)).toEqual({ picks: [checkout], query: 'milestone:"Checkout v2"' })
     expect(team.calls.reads).toEqual([])
   })
 
-  test('when the tracker rejects the new name’s query, the query is left as it was, and the tracker asked once', async () => {
+  test('when the tracker can’t be read, the query follows the new name, and the save says it is not yet read', async () => {
+    const unavailable: CannedFixture = { ...GITHUB, reads: { ...READS, 'milestone:"Loyalty launch"': { failure: 'unavailable' } } }
+    const team = await pickedFrom(unavailable, 'github', [checkout])
+
+    expect(await rename(team)).toEqual({ kind: 'saved', next: { screen: 'inputs' }, followed: 'followedUnread' })
+
+    expect(team.storage.milestoneQuery(TEAM)).toEqual({ picks: [loyalty], query: 'milestone:"Loyalty launch"' })
+  })
+
+  test('when the tracker rejects the new name’s query, the query is left as it was, the save says so, and the tracker asked once', async () => {
     const rejecting: CannedFixture = {
       ...GITHUB,
       reads: { ...READS, 'milestone:"Loyalty launch"': { failure: 'invalidQuery', message: 'No such milestone.' } },
     }
     const team = await pickedFrom(rejecting, 'github', [checkout])
 
-    expect(await rename(team)).toEqual({ kind: 'saved', next: { screen: 'inputs' } })
+    expect(await rename(team)).toEqual({ kind: 'saved', next: { screen: 'inputs' }, followed: 'refused' })
 
     expect(team.storage.milestoneQuery(TEAM)).toEqual({ picks: [checkout], query: 'milestone:"Checkout v2"' })
     expect(team.calls.reads).toEqual(['milestone:"Loyalty launch"'])

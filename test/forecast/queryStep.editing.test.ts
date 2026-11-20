@@ -13,6 +13,7 @@ import {
   current,
   change,
   saved,
+  savedEditing,
   stepView,
   refusedStep,
   refusalOf,
@@ -228,7 +229,7 @@ describe('a hand-edited query refused before reading', () => {
 
     const submitted = await change(team, edit('lable:checkout'))
 
-    expect(submitted).toEqual(saved())
+    expect(submitted).toEqual(savedEditing())
     expect(team.calls.reads).toEqual(['lable:checkout'])
   })
 
@@ -246,7 +247,7 @@ describe('a hand-edited query refused before reading', () => {
     })
     expect(refusalOf(empty).refusal).toBe('labels = names nothing. Give it one, such as labels = "checkout".')
     expect(refusalOf(emptyQuoted).refusal).toBe('fixVersion = names nothing. Give it one, such as labels = "checkout".')
-    expect(fine).toEqual(saved())
+    expect(fine).toEqual(savedEditing())
     expect(team.calls.reads).toEqual(['labels = "checkout" AND status != Done'])
   })
 })

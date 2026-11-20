@@ -9,6 +9,7 @@ import {
   current,
   change,
   saved,
+  savedEditing,
   stepView,
   refusedStep,
   refusalOf,
@@ -98,7 +99,7 @@ describe('a read flagged', () => {
     const submitted = await change(team, edit('label:"no such label"'))
     const view = await stepView(team)
 
-    expect(submitted).toEqual(saved())
+    expect(submitted).toEqual(savedEditing())
     expect(current(team).milestoneQuery(TEAM)?.query).toBe('label:"no such label"')
     expect(view).toMatchObject({
       read: '0 open · 0 finished in the last 9 weeks',
@@ -136,7 +137,7 @@ describe('the Comparable work step, flagged', () => {
     const submitted = await change(team, edit('label:"wip"'), 'comparableWork')
     const view = await stepView(team, '', {}, 'comparableWork')
 
-    expect(submitted).toEqual(saved('comparableWork'))
+    expect(submitted).toEqual(savedEditing('comparableWork'))
     expect(current(team).comparableWorkQuery(TEAM)?.query).toBe('label:"wip"')
     expect(view).toMatchObject({
       read: '0 finished in the last 9 weeks',

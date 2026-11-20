@@ -23,24 +23,38 @@ export type Edit =
   | { form: 'stepQuery'; step: QuerySetupStep; edit: StepQueryEdit }
   | { form: 'readAgain' }
 
-/** Where the EM goes next: a screen, and on the Inputs screen, the setup step it opens at. */
+/**
+ * Where the EM goes next: a screen, and on the Inputs screen, the setup step it opens at, with its query open for
+ * editing (`editing`), or the tracker's pace (`paceTracker`).
+ */
 export interface Place {
   screen: NextScreen
   step?: SetupStep
+  editing?: true
+  paceTracker?: true
 }
 
 /**
+ * What a renamed milestone's query came to, once the save that renamed it was done: it followed the new name and was
+ * read (`followed`); it followed, but the tracker couldn't be read (`followedUnread`); or the tracker refused the new
+ * name's query, which is left as it was (`refused`). A save with no query to follow says nothing of it.
+ */
+export type Followed = 'followed' | 'followedUnread' | 'refused'
+
+/**
  * What a submit comes to, told by its `kind`: done, and the place to go next (`saved`); done in place, with the Inputs
- * screen to show (`savedInPlace`); refused, with the whole screen to show again, saying why: the Inputs screen
- * (`refused`) or, for a form beside the forecast, the Milestone forecast screen (`refusedOnForecast`); or, going back
- * to finding from a query it clears, the EM asked to confirm that first (`confirmClear`). A query step's change the
- * tracker reads as nothing new is done too.
+ * screen to show (`savedInPlace`); either, for a save that renamed the milestone, with what its query came to
+ * (`followed`); refused, with the whole screen to show again, saying why: the Inputs screen (`refused`) or, for a form
+ * beside the forecast, the Milestone forecast screen (`refusedOnForecast`); refused, changing nothing, and the place to
+ * go to, for setup's own forms, whose steps say why (`notSaved`); or, going back to finding from a query it clears, the
+ * EM asked to confirm that first (`confirmClear`). A query step's change the tracker reads as nothing new is done too.
  */
 export type Outcome =
-  | { kind: 'saved'; next: Place }
-  | { kind: 'savedInPlace'; view: InputsScreen }
+  | { kind: 'saved'; next: Place; followed?: Followed }
+  | { kind: 'savedInPlace'; view: InputsScreen; followed?: Followed }
   | { kind: 'refused'; view: InputsScreen }
   | { kind: 'refusedOnForecast'; view: MilestoneForecastView }
+  | { kind: 'notSaved'; next: Place }
   | { kind: 'confirmClear' }
 
 /**
@@ -63,15 +77,15 @@ export async function submit(team: TeamCall, edit: Edit, opening: SubmitOpening 
       return inputsFormSubmitted(team, edit.edit, opening)
     case 'skip': {
       const submitted = await submitSkip(connected(team), teamId, edit.edit, team.settings, at)
-      return submitted.saved ? { kind: 'saved', next: { screen: 'inputs' } } : again({ inputs: submitted.view })
+      return submitted.saved ? { kind: 'saved', next: { screen: 'inputs', paceTracker: true } } : again({ inputs: submitted.view })
     }
     case 'connection': {
       const submitted = await submitConnection(connected(team), teamId, edit.edit)
       return submitted.saved ? { kind: 'saved', next: { screen: 'inputs', step: submitted.next } } : again({ connection: submitted.view })
     }
     case 'setup': {
-      const { next } = await submitSetup(connected(team), teamId, edit.edit)
-      return { kind: 'saved', next: { screen: 'inputs', ...(next && { step: next }) } }
+      const { saved, next } = await submitSetup(connected(team), teamId, edit.edit)
+      return { kind: saved ? 'saved' : 'notSaved', next: { screen: 'inputs', ...(next && { step: next }) } }
     }
     case 'readAgain':
       await submitReadAgain(connected(team), teamId, at.readAt)
@@ -80,7 +94,8 @@ export async function submit(team: TeamCall, edit: Edit, opening: SubmitOpening 
       const submitted = await submitStepQuery(connected(team), teamId, edit.edit, at.readAt, STEP_QUERIES[edit.step])
       if (submitted.kind === 'refused') return again({ refused: { step: edit.step, query: submitted } })
       if (submitted.kind === 'confirmClear') return { kind: 'confirmClear' }
-      return { kind: 'saved', next: { screen: 'inputs', step: edit.step } }
+      // a query edited by hand stays open for editing; every other change goes back to finding
+      return { kind: 'saved', next: { screen: 'inputs', step: edit.step, ...(edit.edit.kind === 'editQuery' && { editing: true }) } }
     }
   }
 }
@@ -90,7 +105,7 @@ export async function submit(team: TeamCall, edit: Edit, opening: SubmitOpening 
  * screen to show; refused on the Inputs screen, that screen whole, the form as typed.
  */
 async function inputsFormSubmitted(team: TeamCall, edit: InputsEdit, opening: SubmitOpening): Promise<Outcome> {
-  const { storage, teamId, settings, at, tracker, reading } = team
+  const { storage, teamId, settings, at, tracker } = team
   const { capacityOpen = false, inPlace = false } = opening
   const milestoneName = (): string => storage.milestoneInputs(teamId)?.name ?? ''
   const named = milestoneName()
@@ -99,11 +114,22 @@ async function inputsFormSubmitted(team: TeamCall, edit: InputsEdit, opening: Su
     if (submitted.screen === 'forecast') return { kind: 'refusedOnForecast', view: submitted.view }
     return refused(team, opening, { inputs: submitted.view, unlisted: inPlace })
   }
-  // a milestone not yet entered has no name to follow from; nothing connected has no milestone query to follow
-  const now = milestoneName()
-  if (reading && named !== '' && now !== '' && named !== now) await followRenamedMilestone(reading, teamId, { from: named, to: now }, at.readAt)
-  if (inPlace) return { kind: 'savedInPlace', view: await inputsScreen(team, opening, { unlisted: true }) }
-  return { kind: 'saved', next: { screen: submitted.next } }
+  const followed = await renameFollowed(team, { from: named, to: milestoneName() })
+  const said = followed && { followed }
+  if (inPlace) return { kind: 'savedInPlace', view: await inputsScreen(team, opening, { unlisted: true }), ...said }
+  return { kind: 'saved', next: { screen: submitted.next }, ...said }
+}
+
+/**
+ * The milestone query followed from the milestone renamed, and what it came to; none where there was nothing to
+ * follow: a milestone not yet entered has no name to follow from, and nothing connected no milestone query.
+ */
+async function renameFollowed({ reading, teamId, at }: TeamCall, renamed: { from: string; to: string }): Promise<Followed | undefined> {
+  if (!reading || renamed.from === '' || renamed.to === '' || renamed.from === renamed.to) return undefined
+  const followed = await followRenamedMilestone(reading, teamId, renamed, at.readAt)
+  if (followed.kind === 'refused') return 'refused'
+  if (followed.kind !== 'saved') return undefined
+  return followed.read?.ok === false ? 'followedUnread' : 'followed'
 }
 
 /** Refused: the Inputs screen, whole, as `opening` asks and the refused form shows it again (`shown`). */
