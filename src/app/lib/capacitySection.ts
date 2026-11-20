@@ -1,4 +1,4 @@
-import { MAX_CAPACITY_PERCENT, type CapacityEntryView, type CapacityForm, type CapacityView, type EntryEffect, type PeriodName } from '../../forecast/index.js'
+import { MAX_CAPACITY_PERCENT, type CapacityEntryView, type CapacityForm, type CapacityView, type PeriodName, type Shift } from '../../forecast/index.js'
 import type { CapacityEntry } from '../../model/capacity.js'
 import { escapeHtml, formatDate } from '../html.js'
 
@@ -66,17 +66,17 @@ function renderSwitch(on: boolean): string {
  * An entry as one line: "0% 7 Sep 2026 to 11 Sep 2026 Offsite", "0% on 14 Sep 2026", "60% from 5 Oct 2026 onward", or
  * "80% 22 Sep 2026 to 24 Oct 2026 · new usual from 24 Oct 2026".
  */
-function entryLine({ from, to, percent, note, newUsualOn }: CapacityEntry, effect?: EntryEffect): string {
+function entryLine({ from, to, percent, note, newUsualOn }: CapacityEntry, effect?: Shift): string {
   const dates = to === undefined ? `from ${formatDate(from)} onward` : to === from ? `on ${formatDate(from)}` : `${formatDate(from)} to ${formatDate(to)}`
   const span = newUsualOn === undefined ? dates : `${dates} · new usual from ${formatDate(newUsualOn)}`
   const why = note === '' ? '' : ` <span class="why">${escapeHtml(note)}</span>`
-  const moved = effect === undefined ? '' : ` <span class="effect${effectClass(effect.shift)}">${effect.words}</span>`
+  const moved = effect === undefined ? '' : ` <span class="effect${effectClass(effect.periods)}">${effect.words}</span>`
   return `<span><strong>${percent}%</strong> ${span}${why}${moved}</span>`
 }
 
 /** An effect coloured by which way it moves the 85% date: later is a risk; no change, or past the horizon, is plain. */
-function effectClass(shift: number | null): string {
-  return shift === null || shift === 0 ? '' : shift > 0 ? ' later' : ' sooner'
+function effectClass(periods: number | null): string {
+  return periods === null || periods === 0 ? '' : periods > 0 ? ' later' : ' sooner'
 }
 
 /**

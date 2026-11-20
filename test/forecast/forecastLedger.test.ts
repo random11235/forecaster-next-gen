@@ -91,7 +91,7 @@ describe('logging only the forecast shown', () => {
 
     const shown = await team.milestoneForecastView({ capacityOpen: true })
 
-    expect(shown.kind === 'forecast' && shown.capacity.entries.map(({ effect }) => effect?.shift)).toEqual([1])
+    expect(shown.kind === 'forecast' && shown.capacity.entries.map(({ effect }) => effect?.periods)).toEqual([1])
     const logs = team.storage.forecastLogs(TEAM)
     expect(logs).toHaveLength(1)
     expect(logs[0]?.simulationCase.capacity?.[0]).toBe(0)

@@ -32,7 +32,7 @@ export { FEW_CANDIDATES } from './lib/candidates.js'
 // The views and edits the screens show and post.
 export type { PeriodName } from './lib/cadence.js'
 export type { Candidate, CandidateGroupKind, CandidateOpening, Candidates } from './lib/candidates.js'
-export type { CapacityEdit, CapacityEntryView, CapacityForm, CapacityView, EntryEffect } from './lib/capacity.js'
+export type { CapacityEdit, CapacityEntryView, CapacityForm, CapacityView, Shift } from './lib/capacity.js'
 export type { ComparableWorkPace, PairedPeriod, PickPace } from './lib/comparableWorkPace.js'
 export type { GrowthView, TypedRange } from './lib/growth.js'
 export type { HowItWorksView } from './lib/howItWorksView.js'

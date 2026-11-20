@@ -164,7 +164,7 @@ describe('the comparison', () => {
 
     const forecast = await view(team)
     const comparison = forecast.kind === 'forecast' ? forecast.comparison : undefined
-    expect(comparison?.map(({ shift }) => shift?.periods)).toEqual([0, 0, 0])
+    expect(comparison?.map(({ shift }) => shift.periods)).toEqual([0, 0, 0])
     expect(comparison?.map(({ withCapacity }) => withCapacity)).toEqual(comparison?.map(({ atUsual }) => atUsual))
   })
 
@@ -221,8 +221,8 @@ describe('each entry’s effect', () => {
 
     expect(forecast.kind === 'forecast' && forecast.capacity.open).toBe(true)
     expect(forecast.kind === 'forecast' && forecast.capacity.entries.map(({ note, effect }) => [note, effect])).toEqual([
-      ['Offsite', { shift: 1, words: '85% date +1 wk' }],
-      ['', { shift: 0, words: 'no change to the 85% date' }],
+      ['Offsite', { periods: 1, words: '85% date +1 wk' }],
+      ['', { periods: 0, words: 'no change to the 85% date' }],
     ])
   })
 
@@ -233,7 +233,7 @@ describe('each entry’s effect', () => {
 
     const forecast = await opened(team)
 
-    expect(forecast.kind === 'forecast' && forecast.capacity.entries[0]?.effect).toEqual({ shift: -1, words: '85% date −1 sprint' })
+    expect(forecast.kind === 'forecast' && forecast.capacity.entries[0]?.effect).toEqual({ periods: -1, words: '85% date −1 sprint' })
   })
 
   test('an entry beyond the horizon, the only one, gives no change to the 85% date', async () => {
@@ -243,7 +243,7 @@ describe('each entry’s effect', () => {
 
     const forecast = await opened(team)
 
-    expect(forecast.kind === 'forecast' && forecast.capacity.entries[0]?.effect).toEqual({ shift: 0, words: 'no change to the 85% date' })
+    expect(forecast.kind === 'forecast' && forecast.capacity.entries[0]?.effect).toEqual({ periods: 0, words: 'no change to the 85% date' })
   })
 
   test('an entry pushing the 85% date past the horizon says so, and the line under the headline gives no shift', async () => {
@@ -253,7 +253,7 @@ describe('each entry’s effect', () => {
 
     const forecast = await opened(team)
 
-    expect(forecast.kind === 'forecast' && forecast.capacity.entries[0]?.effect).toEqual({ shift: null, words: '85% date later than the horizon' })
+    expect(forecast.kind === 'forecast' && forecast.capacity.entries[0]?.effect).toEqual({ periods: null, words: '85% date later than the horizon' })
     expect(forecast.kind === 'forecast' && forecast.capacityLine).toBe('Includes capacity.')
   })
 
@@ -296,7 +296,7 @@ describe('each entry’s effect', () => {
 
     const shown = shownAgain(result)
     expect(shown?.kind === 'forecast' && shown.capacity.open).toBe(true)
-    expect(shown?.kind === 'forecast' && shown.capacity.entries[0]?.effect).toEqual({ shift: 1, words: '85% date +1 wk' })
+    expect(shown?.kind === 'forecast' && shown.capacity.entries[0]?.effect).toEqual({ periods: 1, words: '85% date +1 wk' })
   })
 })
 

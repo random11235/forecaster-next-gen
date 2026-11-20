@@ -1,6 +1,6 @@
 import type { CapacityEntry } from '../../model/capacity.js'
 import type { Storage } from '../../storage/storage.js'
-import type { PeriodName } from './cadence.js'
+import { periodName, type PeriodName } from './cadence.js'
 import { addDays, daysBetween, isCalendarDate } from './calendarDate.js'
 import { counted } from './counted.js'
 import { refuse, type EditResult, type Refusal } from './editResult.js'
@@ -54,8 +54,11 @@ export interface CapacityForm {
 /** An entry as the capacity section lists it, with the warning beside it, if any. */
 export interface CapacityEntryView extends CapacityEntry {
   warning?: string
-  /** What this entry alone does to the 85% date; given only with the section open and capacity in use. */
-  effect?: EntryEffect
+  /**
+   * What this entry alone does to the 85% date, against a run without it from the same draws: "85% date +1 wk", "85%
+   * date −2 sprints", "no change to the 85% date". Given only with the section open and capacity in use.
+   */
+  effect?: Shift
   /** For a lasting entry that has started: how far the pace has caught up with it; none when it has an end. */
   newUsual?: NewUsual
 }
@@ -70,20 +73,19 @@ export type NewUsual = { kind: 'counting'; after: number; of: number; ofSaid: st
 export type PacePeriods = { source: 'range' } | { source: 'counts' | 'tracker'; starts: string[] }
 
 /**
- * An entry's own effect on the 85% date: the shift, in periods (later when positive), between the forecast with
- * capacity and a run without that entry, from the same draws; null when only one of the two dates is within the horizon.
+ * How far capacity moves a date, against a run without it (or without one entry) from the same draws: how many periods
+ * later (negative: sooner), null when either date is later than the horizon; and that in words.
  */
-export interface EntryEffect {
-  shift: number | null
-  /** "85% date +1 wk", "85% date −2 sprints", "no change to the 85% date". */
+export interface Shift {
+  periods: number | null
   words: string
 }
 
 /**
  * What capacity does to this forecast: nothing, as no entry touches its periods; switched off, its entries kept; or in
- * use, moving the 85% date by `shift` periods (later when positive), null when either date is later than the horizon.
+ * use, moving the 85% date by `shift`.
  */
-export type CapacityUse = { kind: 'unused' } | { kind: 'off' } | { kind: 'inUse'; shift: number | null }
+export type CapacityUse = { kind: 'unused' } | { kind: 'off' } | { kind: 'inUse'; shift: Shift }
 
 /** What the Milestone forecast screen's Capacity section shows. */
 export interface CapacityView {
@@ -116,7 +118,7 @@ export function capacityView(
   today: string,
   use: CapacityUse,
   period: PeriodName,
-  { open, effects, pace }: { open: boolean; effects?: ReadonlyMap<number, EntryEffect>; pace: PacePeriods },
+  { open, effects, pace }: { open: boolean; effects?: ReadonlyMap<number, Shift>; pace: PacePeriods },
 ): CapacityView {
   const all = sorted(storage.capacityEntries(teamId))
   const entries = currentEntries(all, today).map((entry) => {
@@ -135,23 +137,28 @@ export interface ComparedDate {
   /** ISO calendar dates, or null: later than the horizon date. */
   withCapacity: string | null
   atUsual: string | null
-  /**
-   * How far capacity moves the date: how many periods later (negative: sooner), and that in words, "same week", "2
-   * sprints later"; null when either date is later than the horizon.
-   */
-  shift: { periods: number; words: string } | null
+  /** How far capacity moves the date: "same week", "2 sprints later", "later than the horizon". */
+  shift: Shift
 }
 
 /**
  * An entry's effect, from the 85% date compared with capacity and `atUsual` without the entry: a null date is later
  * than the horizon.
  */
-export function entryEffect({ withCapacity, atUsual: without, shift: moved }: ComparedDate, period: PeriodName): EntryEffect {
-  if (withCapacity === without) return { shift: 0, words: 'no change to the 85% date' }
-  if (moved === null) return { shift: null, words: withCapacity === null ? '85% date later than the horizon' : '85% date within the horizon, not past it' }
-  const shift = moved.periods
-  const unit = period === 'week' ? 'wk' : Math.abs(shift) === 1 ? 'sprint' : 'sprints'
-  return { shift, words: `85% date ${shift > 0 ? '+' : '−'}${Math.abs(shift)} ${unit}` }
+export function entryEffect({ withCapacity, atUsual: without, shift }: ComparedDate, period: PeriodName): Shift {
+  if (withCapacity === without) return { periods: 0, words: 'no change to the 85% date' }
+  const { periods } = shift
+  if (periods === null) return { periods, words: `85% date ${shift.words}` }
+  const unit = period === 'week' ? 'wk' : Math.abs(periods) === 1 ? 'sprint' : 'sprints'
+  return { periods, words: `85% date ${periods > 0 ? '+' : '−'}${Math.abs(periods)} ${unit}` }
+}
+
+/** How far capacity moves a date from `atUsual`, in the milestone's `period`: null for a date later than the horizon. */
+export function shiftOf(dated: string | null, atUsual: string | null, periodDays: number): Shift {
+  if (dated === null) return { periods: null, words: 'later than the horizon' }
+  if (atUsual === null) return { periods: null, words: 'within the horizon, not past it' }
+  const periods = daysBetween(atUsual, dated) / periodDays
+  return { periods, words: shifted(periods, periodName(periodDays)) }
 }
 
 /** A lasting entry that has started, against the periods the pace comes from; none for any other entry. */
@@ -182,29 +189,27 @@ function capacitySummary(entries: number, use: CapacityUse, period: PeriodName):
   if (entries === 0) return `none, every ${period} usual`
   const listed = counted(entries, 'entry', 'entries')
   if (use.kind === 'off') return `off · ${listed}`
-  return use.kind === 'inUse' && use.shift ? `${listed} · 85% date ${shifted(use.shift, period)}` : listed
+  return use.kind === 'inUse' && use.shift.periods ? `${listed} · 85% date ${use.shift.words}` : listed
 }
 
 /**
  * The quiet line under the headline, saying the headline date includes capacity and what that does to it; none when
  * no capacity touches the forecast.
  */
-export function capacityLine(use: CapacityUse, period: PeriodName): string | undefined {
+export function capacityLine(use: CapacityUse): string | undefined {
   switch (use.kind) {
     case 'unused':
       return undefined
     case 'off':
       return 'Capacity is switched off for this forecast; its entries are kept.'
     case 'inUse':
-      if (use.shift === null) return 'Includes capacity.'
-      return use.shift === 0
-        ? 'Includes capacity, which doesn’t move the 85% date.'
-        : `Includes capacity, which moves the 85% date ${shifted(use.shift, period)}.`
+      if (use.shift.periods === null) return 'Includes capacity.'
+      return use.shift.periods === 0 ? 'Includes capacity, which doesn’t move the 85% date.' : `Includes capacity, which moves the 85% date ${use.shift.words}.`
   }
 }
 
 /** A shift in periods as words: "2 weeks later", "1 sprint sooner", "same week". */
-export function shifted(shift: number, period: PeriodName): string {
+function shifted(shift: number, period: PeriodName): string {
   return shift === 0 ? `same ${period}` : `${counted(Math.abs(shift), period)} ${shift > 0 ? 'later' : 'sooner'}`
 }
 
