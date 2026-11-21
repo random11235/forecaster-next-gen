@@ -7,6 +7,7 @@ import { importsBeside } from './importScan.js'
 
 /** Seam B's entry points (`forecast/`), what goes in through them, and the helpers its tests read through. */
 const SEAM_B = [
+  'forecast/forecasting.js',
   'forecast/milestoneForecastView.js',
   'forecast/inputs.js',
   'forecast/skippedPeriods.js',

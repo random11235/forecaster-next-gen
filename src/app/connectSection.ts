@@ -1,4 +1,4 @@
-import type { ConnectionEdit, ConnectionView, ConnectStep } from '../forecast/connection.js'
+import type { ConnectionEdit, ConnectStep } from '../forecast/connection.js'
 import { TRACKERS, trackerOf, type Tracker } from '../forecast/trackers.js'
 import type { Connection } from '../model/connection.js'
 import { escapeHtml } from './html.js'
@@ -28,12 +28,11 @@ export const CONNECT_FORMS: ReadonlyMap<string, ConnectFormReader> = new Map<str
 ])
 
 /**
- * The Connect step, the first of the setup steps in the local server build; none in the browser build. It
+ * The Connect step, the first of the setup steps, in the local server build alone. It
  * posts as a whole when Connect is pressed, never as each field changes, as its check asks the tracker. The token
  * field is always blank: the token is never put back into the page. Once connected, leaving it blank keeps the saved token.
  */
-export function connectSection(view: ConnectionView): string | undefined {
-  if (view.kind === 'noConnect') return undefined
+export function connectSection(view: ConnectStep): string {
   return view.kind === 'connected' ? connectedBody(view, view.connection) : connectForm(view, 'Connect')
 }
 
