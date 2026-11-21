@@ -12,6 +12,7 @@ import {
   MILESTONE_STEP,
   OPEN_FIELD,
   STEP_FORMS,
+  STEP_SECTION,
   STEP_SECTIONS,
   type StepSection,
 } from './queryStepSection.js'
@@ -41,8 +42,8 @@ export async function route(request: Request, forecasting: Forecasting): Promise
   }
   const posted = request.method === 'POST' ? postedForm(pathname, request.form ?? new URLSearchParams(), forecasting.connects) : undefined
   if (!posted) return { kind: 'notFound' }
-  const outcome = await forecasting.submit(posted.edit, { ...opening, inPlace: request.saveInPlace === true })
-  return outcomeReply(request, outcome, posted, opening.capacityOpen === true)
+  const outcome = await forecasting.submit(posted, { ...opening, inPlace: request.saveInPlace === true })
+  return outcomeReply(request, outcome, opening.capacityOpen === true)
 }
 
 /** How the Inputs screen, or the Milestone forecast screen, opens, as its URL asks. */
@@ -64,66 +65,52 @@ function openingOf(searchParams: URLSearchParams): InputsOpening {
 }
 
 /**
- * A form posted: the edit it is, read from its fields, where the EM goes once it is done (`next`, from the place the
- * submit names), and, for a query step's, where it asks to confirm going back to finding clears its query.
- */
-interface Posted {
-  edit: Edit
-  next: (place: Place, capacityOpen: boolean) => string
-  confirmingBack?: string
-}
-
-/**
  * The form posted at `pathname`, read from `form`: the Inputs screen's and the Milestone forecast screen's, and, where
  * the handle `connects`, the setup steps' (the query steps', the Connect step's, skipping periods, setup's own and
  * Read again). None for any other request, or a form as no page of the app sends it.
  */
-function postedForm(pathname: string, form: URLSearchParams, connects: boolean): Posted | undefined {
+function postedForm(pathname: string, form: URLSearchParams, connects: boolean): Edit | undefined {
   const readInputs = INPUTS_FORMS.get(pathname) ?? FORECAST_FORMS.get(pathname)
-  // a form from the open Capacity section goes back to the screen with it open
-  if (readInputs)
-    return {
-      edit: { form: 'inputs', edit: readInputs(form) },
-      next: ({ screen }, open) => (screen === 'forecast' && open ? CAPACITY_OPEN_PATH : SCREEN_PATHS[screen]),
-    }
+  if (readInputs) return { form: 'inputs', edit: readInputs(form) }
   if (!connects) return undefined
   const stepForm = STEP_FORMS.get(pathname)
   if (stepForm) {
     const edit = stepForm.read(form)
-    const { setupStep, urls } = stepForm.section
-    // a query edited by hand stays open for editing; every other change goes back to finding
-    return (
-      edit && {
-        edit: { form: 'stepQuery', step: setupStep, edit },
-        next: () => (edit.kind === 'editQuery' ? urls.editing : urls.finding),
-        confirmingBack: urls.confirmingBack,
-      }
-    )
+    return edit && { form: 'stepQuery', step: stepForm.section.setupStep, edit }
   }
   const readConnect = CONNECT_FORMS.get(pathname)
-  if (readConnect) return { edit: { form: 'connection', edit: readConnect(form) }, next: placePath }
+  if (readConnect) return { form: 'connection', edit: readConnect(form) }
   const readSkip = SKIP_FORMS.get(pathname)
-  // skipped or counted again, back to the tracker's pace
-  if (readSkip) return { edit: { form: 'skip', edit: readSkip(form) }, next: () => PACE_TRACKER_PATH }
+  if (readSkip) return { form: 'skip', edit: readSkip(form) }
   const readSetupEdit = SETUP_FORMS.get(pathname)
   if (readSetupEdit) {
     const edit = readSetupEdit(form)
-    return edit && { edit: { form: 'setup', edit }, next: placePath }
+    return edit && { form: 'setup', edit }
   }
-  if (pathname === SETUP_PATHS.readAgain) return { edit: { form: 'readAgain' }, next: placePath }
+  if (pathname === SETUP_PATHS.readAgain) return { form: 'readAgain' }
   return undefined
 }
 
 /**
- * What a submit comes to, answered: a redirect to the place it goes next, or, saved in place, the Inputs screen; the
- * screen to show again, refused; or the step asking to confirm going back to finding clears its query.
+ * What a submit comes to, answered: a redirect to the place it goes next, saved or, for setup's own forms, refused
+ * there; or to the step asking to confirm going back to finding clears its query; saved in place, the Inputs screen;
+ * or the screen to show again, refused.
  */
-function outcomeReply(request: Request, outcome: Outcome, { next, confirmingBack }: Posted, capacityOpen: boolean): Reply {
-  if (outcome.saved) return outcome.view ? inputsReply(request, 200, outcome.view) : { kind: 'redirect', location: next(outcome.next, capacityOpen) }
-  if ('confirmClear' in outcome) return { kind: 'redirect', location: confirmingBack ?? SCREEN_PATHS.inputs }
-  if (outcome.screen === 'inputs') return inputsReply(request, 400, outcome.view)
-  const path = capacityOpen ? CAPACITY_OPEN_PATH : SCREEN_PATHS.forecast
-  return { kind: 'html', status: 400, html: renderMilestoneForecastScreen(outcome.view), path }
+function outcomeReply(request: Request, outcome: Outcome, capacityOpen: boolean): Reply {
+  switch (outcome.kind) {
+    case 'saved':
+    case 'refusedThere':
+    case 'confirmClear':
+      return { kind: 'redirect', location: placePath(outcome.next, capacityOpen) }
+    case 'savedInPlace':
+      return inputsReply(request, 200, outcome.view)
+    case 'refused':
+      return inputsReply(request, 400, outcome.view)
+    case 'refusedOnForecast': {
+      const path = capacityOpen ? CAPACITY_OPEN_PATH : SCREEN_PATHS.forecast
+      return { kind: 'html', status: 400, html: renderMilestoneForecastScreen(outcome.view), path }
+    }
+  }
 }
 
 /** The Inputs screen, served at `/inputs` with `status`; its candidates' opening kept for the page's script to read more in. */
@@ -148,12 +135,29 @@ async function candidatesAsked(forecasting: Forecasting, searchParams: URLSearch
 /** One kind's choices searched in the tracker, as a query step's script asks for them: that kind's list alone. */
 async function searchedChoices(forecasting: Forecasting, searchParams: URLSearchParams, section: StepSection): Promise<Reply> {
   const kind = choiceKindOf(searchParams.get(KIND_FIELD) ?? '')
-  const list = kind && (await forecasting.searchedChoiceList(kind, searchParams.get(section.findField) ?? '', section.stepQuery))
+  const list = kind && (await forecasting.searchedChoiceList(kind, searchParams.get(section.findField) ?? '', section.setupStep))
   return list ? { kind: 'html', status: 200, html: choiceListHtml(list, section) } : { kind: 'notFound' }
 }
 
-/** Where a place is served: the setup step it names, at its section, or the screen. */
-const placePath = ({ screen, step }: Place): string => (step ? SETUP_STEP_PATHS[step] : SCREEN_PATHS[screen])
+/**
+ * Where a place is served: the screen, the Milestone forecast screen with its Capacity section open when the form
+ * posted came from there; the setup step it names, at its section; a query step's, with its query open for editing,
+ * or asking to confirm going back to finding clears it; or the tracker's pace.
+ */
+function placePath(place: Place, capacityOpen: boolean): string {
+  switch (place.kind) {
+    case 'screen':
+      return place.screen === 'forecast' && capacityOpen ? CAPACITY_OPEN_PATH : SCREEN_PATHS[place.screen]
+    case 'step':
+      return SETUP_STEP_PATHS[place.step]
+    case 'editing':
+      return STEP_SECTION[place.step].urls.editing
+    case 'confirmingBack':
+      return STEP_SECTION[place.step].urls.confirmingBack
+    case 'paceTracker':
+      return PACE_TRACKER_PATH
+  }
+}
 
 /** Where each screen is served. */
 const SCREEN_PATHS: Record<NextScreen, string> = { forecast: '/', inputs: '/inputs' }

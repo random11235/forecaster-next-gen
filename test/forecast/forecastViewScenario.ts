@@ -1,7 +1,6 @@
 import { expect } from 'vitest'
-import { DEFAULT_SETTINGS, type InputsEdit } from '../../src/forecast/index.js'
-import type { GrowthRange } from '../../src/model/ambiguity.js'
-import { forecastingForTest, TEAM, type ForecastingForTest } from './forecastingForTest.js'
+import { DEFAULT_SETTINGS, type Forecasting, type InputsEdit } from '../../src/forecast/index.js'
+import { forecastingForTest, submitInputs, TEAM, type ForecastingForTest } from './forecastingForTest.js'
 
 // The arrangement the Milestone forecast view's tests (milestoneForecastView.test.ts and the
 // milestoneForecastView.*.test.ts beside it) share: the team's handle, as the browser build opens it, on today, and the
@@ -11,31 +10,35 @@ export { TEAM }
 /** Today, fixed: before every start date these tests enter, unless a test says the start date is past. */
 export const TODAY = '2026-08-24'
 
-/** The team's handle with nothing entered yet, on `TODAY`, with `settings` unless the defaults. */
-export function newTeam(settings = DEFAULT_SETTINGS): Promise<ForecastingForTest> {
-  return forecastingForTest({ browser: true, clock: { now: `${TODAY}T09:00:00Z` }, settings })
+/** The team's handle with nothing entered yet, on `today` unless `TODAY`, with `settings` unless the defaults. */
+export function newTeam(settings = DEFAULT_SETTINGS, today = TODAY): Promise<ForecastingForTest> {
+  return forecastingForTest({ browser: true, clock: { now: `${today}T09:00:00Z` }, settings })
 }
 
-/** Sets the team's medium growth range: the growth of a milestone of medium ambiguity, the default. */
-export function mediumGrowth(team: ForecastingForTest, medium: GrowthRange): void {
-  team.storage.saveAmbiguityRanges({ teamId: TEAM, low: { low: 1, high: 1.5 }, medium, high: { low: 1.5, high: 3 } })
-}
-
-export function submit(team: ForecastingForTest, change: InputsEdit) {
-  return team.submit({ form: 'inputs', edit: change })
-}
-
-/** Submits a form on the Inputs screen: saved, or why it was refused there. */
-export async function edit(team: ForecastingForTest, change: InputsEdit) {
-  const submitted = await submit(team, change)
-  if (submitted.saved) return { ok: true }
-  if ('confirmClear' in submitted) return { ok: false }
-  return submitted.screen === 'inputs' ? { ok: false, error: submitted.view.inputs.refusal?.error } : { ok: false, screen: submitted.screen }
+/**
+ * Submits a form on the Inputs screen: saved; or refused, with the Inputs screen's error, on the Milestone forecast
+ * screen, or where it leads (`next`); or held for the EM to confirm clearing.
+ */
+export async function edit(team: Pick<Forecasting, 'submit'>, change: InputsEdit) {
+  const submitted = await submitInputs(team, change)
+  switch (submitted.kind) {
+    case 'saved':
+    case 'savedInPlace':
+      return { ok: true }
+    case 'refused':
+      return { ok: false, error: submitted.view.inputs.refusal?.error }
+    case 'refusedOnForecast':
+      return { ok: false, screen: 'forecast' as const }
+    case 'refusedThere':
+      return { ok: false, next: submitted.next }
+    case 'confirmClear':
+      return { ok: false, confirm: true }
+  }
 }
 
 /** The EM enters the milestone and a pace range, as the Inputs screen does. */
 export async function enter(
-  team: ForecastingForTest,
+  team: Pick<Forecasting, 'submit'>,
   milestone: { startDate: string; ticketsRemaining: string },
   pace: { low: string; high: string },
 ): Promise<void> {

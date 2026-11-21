@@ -1,19 +1,17 @@
 import { periodEndDate, simulateCase, ENGINE_VERSION, type ForecastResult, type SimulationCase } from '../../engine/index.js'
 import type { Ambiguity, GrowthRange } from '../../model/ambiguity.js'
 import type { CapacityEntry } from '../../model/capacity.js'
-import type { Storage } from '../../storage/storage.js'
-import { daysBetween } from './calendarDate.js'
 import {
   capacityFactors,
   capacityLine,
   capacityView,
   currentEntries,
   entryEffect,
-  shifted,
+  shiftOf,
   type CapacityUse,
   type CapacityView,
   type ComparedDate,
-  type EntryEffect,
+  type Shift,
   type PacePeriods,
 } from './capacity.js'
 import { periodName, type PeriodName } from './cadence.js'
@@ -25,7 +23,8 @@ import { paceActionApplied, pacePattern, type PacePatternView } from './pacePatt
 import type { PaceInUse } from './pace.js'
 import { paceTrend, type PaceTrend } from './paceTrend.js'
 import type { ForecastSettings } from './settings.js'
-import { measureSaved, milestonePace, type ReadingTracker } from './trackerReads.js'
+import type { TeamContext } from './teamContext.js'
+import { measureSaved, milestonePace } from './trackerReads.js'
 
 export type { CapacityView, ComparedDate } from './capacity.js'
 
@@ -107,11 +106,8 @@ interface PaceActionRefused {
   paceActionRefusal?: string
 }
 
-/**
- * How the screen is shown: `capacityOpen` with the Capacity section open, where each entry gives its own effect; and
- * with the team's `tracker` reads (the local server build), which values following the tracker take.
- */
-export interface ForecastViewOptions extends ReadingTracker {
+/** Whether the Milestone forecast screen opens with its Capacity section open, where each entry gives its own effect. */
+export interface CapacityShown {
   capacityOpen?: boolean
 }
 
@@ -120,13 +116,9 @@ export interface ForecastViewOptions extends ReadingTracker {
  * entry's effect takes a run of its own, so it is worked out only with the Capacity section open. The forecast shown is
  * logged in the team's ledger, which storage keeps (#27).
  */
-export function milestoneForecastView(
-  storage: Storage,
-  teamId: string,
-  settings: ForecastSettings,
-  today: string,
-  { capacityOpen = false, tracker }: ForecastViewOptions = {},
-): MilestoneForecastView {
+export function milestoneForecastView(team: TeamContext, { capacityOpen = false }: CapacityShown = {}): MilestoneForecastView {
+  const { storage, teamId, settings, tracker } = team
+  const { today } = team.at
   const saved = storage.milestoneInputs(teamId)
   if (!saved) return { kind: 'empty' }
   const measured = measureSaved(tracker, teamId)
@@ -153,13 +145,14 @@ export function milestoneForecastView(
   // at usual capacity from the same seed, so the two differ by capacity alone
   const atUsual = on && factors ? simulateCase(milestoneCase(inputs, pace, growth, settings, undefined)) : undefined
   const comparison = atUsual && COMPARED_PERCENTS.map((percent) => comparedDate(percent, result, atUsual, periodDays))
-  const headlineShift = comparison?.find(({ percent }) => percent === HEADLINE_PERCENT)?.shift ?? null
-  const use: CapacityUse = !factors ? { kind: 'unused' } : on ? { kind: 'inUse', shift: headlineShift } : { kind: 'off' }
+  // the headline is one of the compared levels, so its shift is the comparison's
+  const headline = comparison?.find(({ percent }) => percent === HEADLINE_PERCENT)
+  const use: CapacityUse = !factors ? { kind: 'unused' } : on && headline ? { kind: 'inUse', shift: headline.shift } : { kind: 'off' }
   const period = periodName(periodDays)
   // each entry against a run without it, from the same seed, so the two differ by that entry alone
   const effects =
     capacityOpen && on && entries.length > 0
-      ? new Map<number, EntryEffect>(
+      ? new Map<number, Shift>(
           entries.map((entry) => {
             const without = simulateCase(milestoneCase(inputs, pace, growth, settings, factorsOf(entries.filter((other) => other !== entry))))
             return [entry.id, entryEffect(comparedDate(HEADLINE_PERCENT, result, without, periodDays), period)]
@@ -197,7 +190,7 @@ export function milestoneForecastView(
         : undefined,
     capacity: capacityView(storage, teamId, today, use, period, { open: capacityOpen, ...(effects && { effects }), pace: pacePeriods(inUse) }),
     comparison,
-    capacityLine: capacityLine(use, period),
+    capacityLine: capacityLine(use),
   }
 }
 
@@ -205,8 +198,7 @@ export function milestoneForecastView(
 function comparedDate(percent: number, withCapacity: ForecastResult, atUsual: ForecastResult, periodDays: number): ComparedDate {
   const dated = withCapacity.percentileDates[percent] ?? null
   const usual = atUsual.percentileDates[percent] ?? null
-  const shift = dated === null || usual === null ? null : daysBetween(usual, dated) / periodDays
-  return { percent, withCapacity: dated, atUsual: usual, shift, ...(shift !== null && { shifted: shifted(shift, periodName(periodDays)) }) }
+  return { percent, withCapacity: dated, atUsual: usual, shift: shiftOf(dated, usual, periodDays) }
 }
 
 /** The pace the dates come from, said in the milestone's `period`. */

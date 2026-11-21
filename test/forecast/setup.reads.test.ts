@@ -1,13 +1,13 @@
 import { describe, expect, test } from 'vitest'
 import type { Choice } from '../../src/connectors/connector.js'
 import { finishedOn, open } from '../trackerScenario.js'
-import { CHECKOUT, pick, TEAM, type ForecastingForTest } from './forecastingForTest.js'
-import { READ_AT, Q3_POLISH, anyCounted, atCheck, connect, enter, inputs, setup, setupAt, team } from './setupScenario.js'
+import { CHECKOUT, pick, TEAM, type ForecastingForTest, submitInputs } from './forecastingForTest.js'
+import { READ_AT, Q3_POLISH, anyCounted, atCheck, connect, inputs, setup, setupAt, team } from './setupScenario.js'
 
 // Seam B: the setup summary's Read again, and a read that fails (#217). Arranged through setupScenario.ts. Read
 // again's outcome is the Inputs screen whatever it read, so each test asserts what it read through the summary.
 
-/** The note beneath a row whose picks' counts wait for Check: setup.ts's COUNTS_WAIT, which index.ts doesn't export. */
+/** The note beneath a row whose picks' counts wait for Check (lib/setupSummary.ts's COUNTS_WAIT), written out so the test checks the words, not the constant. */
 const COUNTS_WAIT = 'Read again reads each query whole, so the picks show no counts. Change, then Check, counts each pick again.'
 const LATER = '2026-11-12T14:30:00Z'
 
@@ -28,8 +28,8 @@ describe('Read again', () => {
     fixture.reads[CHECKOUT.query] = { tickets: open(3), incomplete: false }
     fixture.reads[Q3_POLISH.query] = { tickets: finishedOn('q', '2026-11-10', 2), incomplete: false }
     await connect(current)
-    await enter(current, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-11-02', ticketsRemaining: '30' })
-    await enter(current, { kind: 'setPaceRange', low: '4', high: '8' })
+    await submitInputs(current, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-11-02', ticketsRemaining: '30' })
+    await submitInputs(current, { kind: 'setPaceRange', low: '4', high: '8' })
     await pick(current, READ_AT)
     await pick(current, READ_AT, Q3_POLISH, 'comparableWork')
     await setup(current, { kind: 'useThese' })
@@ -54,7 +54,7 @@ describe('Read again', () => {
     expect((await inputs(current)).milestone.ticketsSource).toMatchObject({ source: 'typed', reading: { count: 5, readOn: '12 Nov 14:30' } })
     expect(await forecast()).toMatchObject({ kind: 'forecast', ticketsRemaining: 30 })
 
-    await enter(current, { kind: 'setTicketsSource', ticketsSource: 'tracker' })
+    await submitInputs(current, { kind: 'setTicketsSource', ticketsSource: 'tracker' })
     fixture.reads[CHECKOUT.query] = { tickets: open(7), incomplete: false }
     await readAgain()
     expect(await forecast()).toMatchObject({ kind: 'forecast', ticketsRemaining: 7 })
@@ -159,7 +159,7 @@ describe('a failed read', () => {
         },
       ],
     })
-    expect(await setup(current, { kind: 'change' })).toMatchObject({ saved: true })
+    expect(await setup(current, { kind: 'change' })).toMatchObject({ kind: 'saved' })
     expect(await setupAt(current, 'connect')).toMatchObject({ kind: 'steps', step: 'connect' })
   })
 
@@ -181,12 +181,12 @@ describe('a failed read', () => {
     await readAgain()
     expect(await summary()).toMatchObject({
       readOn: '12 Nov 14:30',
-      flags: [{ of: 'comparableWork', flag: 'GitHub rejected this query: The milestone Q3 polish doesn’t exist.' }],
+      flags: [{ of: 'Comparable-work query', flag: 'GitHub rejected this query: The milestone Q3 polish doesn’t exist.' }],
     })
     expect(storage.savedRead({ teamId: TEAM, query: Q3_POLISH.query })).toMatchObject({ readAt: READ_AT })
 
     fixture.reads[CHECKOUT.query] = { failure: 'outOfScope' }
     await readAgain()
-    expect(await summary()).toMatchObject({ flags: [{ of: 'milestoneQuery', flag: expect.stringContaining('outside') }, { of: 'comparableWork' }] })
+    expect(await summary()).toMatchObject({ flags: [{ of: 'Milestone query', flag: expect.stringContaining('outside') }, { of: 'Comparable-work query' }] })
   })
 })

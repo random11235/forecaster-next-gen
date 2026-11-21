@@ -12,7 +12,7 @@ import {
   connectedToJira,
   current,
   change,
-  saved,
+  savedEditing,
   stepView,
   refusedStep,
   refusalOf,
@@ -228,7 +228,7 @@ describe('a hand-edited query refused before reading', () => {
 
     const submitted = await change(team, edit('lable:checkout'))
 
-    expect(submitted).toEqual(saved())
+    expect(submitted).toEqual(savedEditing())
     expect(team.calls.reads).toEqual(['lable:checkout'])
   })
 
@@ -246,7 +246,7 @@ describe('a hand-edited query refused before reading', () => {
     })
     expect(refusalOf(empty).refusal).toBe('labels = names nothing. Give it one, such as labels = "checkout".')
     expect(refusalOf(emptyQuoted).refusal).toBe('fixVersion = names nothing. Give it one, such as labels = "checkout".')
-    expect(fine).toEqual(saved())
+    expect(fine).toEqual(savedEditing())
     expect(team.calls.reads).toEqual(['labels = "checkout" AND status != Done'])
   })
 })
@@ -271,7 +271,7 @@ describe('going back to finding', () => {
     const submitted = await change(team, back)
     const view = await stepView(team, '', { editing: true, confirmingBack: true })
 
-    expect(submitted).toEqual({ saved: false, confirmClear: true })
+    expect(submitted).toEqual({ kind: 'confirmClear', next: { kind: 'confirmingBack', step: 'milestone' } })
     expect(current(team).milestoneQuery(TEAM)).toEqual({ picks: [], query: 'label:checkout -label:bug' })
     expect(view.editing).toEqual({
       typed: 'label:checkout -label:bug',

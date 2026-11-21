@@ -36,7 +36,7 @@ describe('a connect the tracker refuses', () => {
 
     const submitted = await connect(team, github('shop-team/shop'))
 
-    expect(submitted.saved).toBe(false)
+    expect(submitted.kind).toBe('refused')
     expect(refusedStep(submitted)).toEqual({
       kind: 'connect',
       form: { tracker: 'github', repo: 'shop-team/shop', site: '', projectKey: '', email: '' },
@@ -79,7 +79,7 @@ describe('a connect the tracker refuses', () => {
       failures.flatMap((failure) => [github(), jira(), github('shop')].map(async (edit) => connect(await newTeam(refusedBy(failure)), edit))),
     )
 
-    expect(refused.every((submitted) => !submitted.saved)).toBe(true)
+    expect(refused.every((submitted) => submitted.kind === 'refused')).toBe(true)
     expect(JSON.stringify(refused)).not.toContain(TOKEN)
   })
 })
@@ -146,7 +146,7 @@ describe('a connect or disconnect the keychain or the data file fails', () => {
 
     const submitted = await connect(team, { kind: 'disconnect' })
 
-    expect(submitted.saved).toBe(false)
+    expect(submitted.kind).toBe('refused')
     expect(refusedStep(submitted)).toEqual({
       kind: 'connected',
       connection: { tracker: 'github', owner: 'shop-team', repo: 'shop' },
@@ -181,7 +181,7 @@ describe('a connect or disconnect the keychain or the data file fails', () => {
 
     const refused = [await connect(team, github()), await connect(team, github('shop-team/shop', '')), await connect(team, { kind: 'disconnect' })]
 
-    expect(refused.every((submitted) => !submitted.saved)).toBe(true)
+    expect(refused.every((submitted) => submitted.kind === 'refused')).toBe(true)
     expect(JSON.stringify(refused)).not.toContain(TOKEN)
     expect(JSON.stringify(refused)).not.toContain('failed')
   })

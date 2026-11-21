@@ -1,11 +1,14 @@
+import type { ChoiceKind } from '../../model/choice.js'
 import type { Connection } from '../../model/connection.js'
 import type { MilestoneQuery } from '../../model/milestoneQuery.js'
 import type { FailedRead } from '../../model/readFailures.js'
 import type { SavedRead } from '../../model/savedRead.js'
 import type { SetupStorage, TeamQueries } from '../../storage/storage.js'
-import { chipsShow, kindName, LEAF_NOTE, readFlag, rejectionOf } from './queryStep.js'
+import { LEAF_NOTE } from './queryStep.js'
+import { readFlag, rejectionOf } from './readSaid.js'
+import { chipsShow } from './stepQueryEdit.js'
 import { readSince } from './setupReads.js'
-import { COMPARABLE_WORK, hasQuery, MILESTONE_QUERY, type StepQuery } from './stepQuery.js'
+import { COMPARABLE_WORK, hasQuery, MILESTONE_QUERY, type QueryName, type StepQuery } from './stepQuery.js'
 import { readOn } from './calendarDate.js'
 import { trackerOf, type TrackerFacts } from './trackers.js'
 
@@ -32,7 +35,7 @@ export interface SetupSummary {
 }
 
 /**
- * A summary row: the picks, each named with its kind as the screens name it ("epic", "fix version") and with its count
+ * A summary row: the picks, each with its kind, which the screens name (`KIND_NAMES`), and with its count
  * of matches, open and finished, where it has one (`pickCount`); or the query as written by hand, with no counts.
  */
 export type SummaryRow = { picks: SummaryPick[] } | { query: string }
@@ -40,18 +43,19 @@ export type SummaryRow = { picks: SummaryPick[] } | { query: string }
 /** A pick on a summary row: "#41 Checkout v2 (epic) · 32". */
 export interface SummaryPick {
   name: string
-  kind: string
+  kind: ChoiceKind
   /** The tickets the pick's own query matches; none until it is read whole since its query was. */
   count?: number
 }
 
 /**
  * What is wrong with a query's saved read, or why its last read or one of its picks' failed, and which query's it is
- * (by its step's `kind`); or, with no query named, why the last read by hand failed as a whole, the saved reads staying
- * in use. `change: 'connect'` offers Change, opening the Connect step, for a token or repo the tracker refused.
+ * (`of`, by its name as its step labels it); or, with no query named, why the last read by hand failed as a whole, the
+ * saved reads staying in use. `change: 'connect'` offers Change, opening the Connect step, for a token or repo the
+ * tracker refused.
  */
 export interface SummaryFlag {
-  of?: StepQuery['kind']
+  of?: QueryName
   flag: string
   change?: 'connect'
 }
@@ -107,10 +111,10 @@ function failedFlags(reading: SummaryReading, teamId: string, connection: Connec
     of(stepQuery: StepQuery, savedQuery: MilestoneQuery | undefined): SummaryFlag[] | undefined {
       if (!hasQuery(savedQuery)) return undefined
       const failed = queries[savedQuery.query]
-      if (since(failed, savedQuery.query)) return [{ ...queryFailedFlag(connection, failed), of: stepQuery.kind }]
+      if (since(failed, savedQuery.query)) return [{ ...queryFailedFlag(connection, failed), of: stepQuery.name }]
       const several = savedQuery.picks.length > 1 && chipsShow(trackerOf(connection), savedQuery)
       const picks = several ? savedQuery.picks.filter(({ query }) => since(pickFailures[query], query)) : []
-      return picks.length === 0 ? undefined : picks.map(({ name }) => ({ of: stepQuery.kind, flag: pickFailed(name) }))
+      return picks.length === 0 ? undefined : picks.map(({ name }) => ({ of: stepQuery.name, flag: pickFailed(name) }))
     },
   }
 }
@@ -130,7 +134,7 @@ const pickFailed = (name: string) => `${name} couldn’t be read on its own, so 
  */
 function flagOf(read: SavedRead | undefined, trackerName: string, stepQuery: StepQuery): SummaryFlag[] {
   const flag = read && readFlag(read, trackerName, stepQuery)?.flag
-  return flag === undefined ? [] : [{ of: stepQuery.kind, flag }]
+  return flag === undefined ? [] : [{ of: stepQuery.name, flag }]
 }
 
 /**
@@ -144,7 +148,7 @@ function rowOf(reading: SummaryReading, teamId: string, tracker: TrackerFacts, s
     const pickRead = reading.reads.savedRead({ teamId, query })
     const count = queryRead && pickCount(pickRead, queryRead)
     return {
-      pick: { name, kind: kindName(kind), ...(count !== undefined && { count }) },
+      pick: { name, kind, ...(count !== undefined && { count }) },
       readBefore: queryRead !== undefined && pickRead !== undefined && !readSince(pickRead, queryRead),
     }
   })
@@ -153,7 +157,7 @@ function rowOf(reading: SummaryReading, teamId: string, tracker: TrackerFacts, s
 }
 
 /** Why a row of several picks shows them without their counts: a read by hand reads each query whole; Check reads each pick. */
-export const COUNTS_WAIT = 'Read again reads each query whole, so the picks show no counts. Change, then Check, counts each pick again.'
+const COUNTS_WAIT = 'Read again reads each query whole, so the picks show no counts. Change, then Check, counts each pick again.'
 
 /**
  * A pick's count: the tickets its own read matched, open and finished. A lone pick's read is its query's. None for a

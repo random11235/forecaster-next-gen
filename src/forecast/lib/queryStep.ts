@@ -1,18 +1,17 @@
 import type { Choice, ChoiceKind } from '../../connectors/connector.js'
 import type { Storage, TeamQueries } from '../../storage/storage.js'
-import { narrowedToAFew, openCandidates, type CandidateOpening, type Candidates, type CandidatesAt } from './candidates.js'
+import { narrowedToAFew, openCandidates, type CandidateOpening, type Candidates } from './candidates.js'
 import { comparableWorkPace, type ComparableWorkPace } from './comparableWorkPace.js'
 import { teamConnection, withTeamQueries, type Connecting } from './connection.js'
 import { finishedSinceFor, readQuery, type QueryRead } from './queryRead.js'
-import { MILESTONE_QUERY, type StepQuery } from './stepQuery.js'
+import { MILESTONE_QUERY, type QueryName, type StepQuery } from './stepQuery.js'
+import type { ReadClock } from './pace.js'
 import { trackerOf } from './trackers.js'
-import { CHOICES_FAILED, foundInTracker, KEYCHAIN_FAILED, KIND_NAMES, listedHere, markedThisMilestone, notPicked, type ChoiceList } from './choiceLists.js'
+import { CHOICES_FAILED, foundInTracker, KEYCHAIN_FAILED, listedHere, markedThisMilestone, notPicked, type ChoiceList } from './choiceLists.js'
 import { readFlag, readLine, rejectionOf } from './readSaid.js'
 import { chipsShow, editedQuery, NO_QUERY, picksChanged, type PicksEdit } from './stepQueryEdit.js'
 
-export { kindName, type ChoiceList } from './choiceLists.js'
-export { readFlag, rejectionOf } from './readSaid.js'
-export { chipsShow } from './stepQueryEdit.js'
+export type { ChoiceList } from './choiceLists.js'
 export type { ComparableWorkPace } from './comparableWorkPace.js'
 
 /** What the Milestone step says once, beside the milestone query: the only two things a read adds to it. */
@@ -58,14 +57,14 @@ export interface StepCandidates {
 
 /** What both query steps show of the query they edit. */
 interface PickedQuery {
+  /** The query as the step labels it: "Milestone query", "Comparable-work query". */
+  queryName: QueryName
   /** What the EM typed to find a choice by. */
   find: string
   lists: ChoiceList[]
   /** Why the choices couldn't be listed; none when they were. */
   choicesFailure?: string
   picks: Choice[]
-  /** Each kind of choice as the step names it: a chip is marked with it, and a list headed by it. */
-  kindNames: Readonly<Record<ChoiceKind, string>>
   /** The query: the picks joined with OR, or as edited by hand; empty until something is picked. */
   query: string
   note: string
@@ -136,7 +135,7 @@ export interface StepReading extends Connecting {
  * zone, which each finish is counted on its calendar day in.
  */
 export interface QueryStepping extends StepReading {
-  at: CandidatesAt
+  at: ReadClock
 }
 
 /** What the step says, editing a query the picker can't show, of going back to finding. */
@@ -212,10 +211,10 @@ async function pickedQuery(
         }
       : undefined
   const step: PickedQuery = {
+    queryName: stepQuery.name,
     find,
     lists: [],
     picks: saved.picks,
-    kindNames: KIND_NAMES,
     query: saved.query,
     note: LEAF_NOTE,
     ...(read && !read.incomplete && { read: readLine(read, stepQuery) }),
@@ -254,15 +253,15 @@ export async function searchedChoiceList(
   const { milestoneQueries } = withTeamQueries(connecting, 'current')
   const connected = await teamConnection(connecting, teamId)
   if (!connected) return undefined
-  if (connected.connector === 'keychainFailed') return { kind, kindName: KIND_NAMES[kind], choices: [], searchedInTracker: true, failure: KEYCHAIN_FAILED }
+  if (connected.connector === 'keychainFailed') return { kind, choices: [], searchedInTracker: true, failure: KEYCHAIN_FAILED }
   const unpicked = notPicked(stepQuery.saved(milestoneQueries, teamId)?.picks ?? [])
   const marked = markedThisMilestone(milestoneQueries, teamId)
   const typed = find.trim()
   if (typed !== '') return marked(await foundInTracker(connected.connector, kind, typed, unpicked))
   const choices = await connected.connector.milestoneChoices()
-  if (!choices.ok) return { kind, kindName: KIND_NAMES[kind], choices: [], searchedInTracker: true, failure: CHOICES_FAILED }
+  if (!choices.ok) return { kind, choices: [], searchedInTracker: true, failure: CHOICES_FAILED }
   const listed = choices.kinds.find((each) => each.kind === kind)
-  return listed ? marked(listedHere(listed, '', unpicked)) : { kind, kindName: KIND_NAMES[kind], choices: [], searchedInTracker: true }
+  return listed ? marked(listedHere(listed, '', unpicked)) : { kind, choices: [], searchedInTracker: true }
 }
 
 /**

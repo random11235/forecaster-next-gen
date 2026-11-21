@@ -1,8 +1,16 @@
 import { beforeEach, describe, expect, test } from 'vitest'
 import type { Ticket } from '../../src/connectors/connector.js'
-import type { InputsEdit } from '../../src/forecast/index.js'
 import { finishedInWeeks, open } from '../trackerScenario.js'
-import { CHECKOUT, checkoutFixture, forecastingForTest, NOW, pick, readAgain as readAgainAt, type ForecastingForTest } from './forecastingForTest.js'
+import {
+  CHECKOUT,
+  checkoutFixture,
+  forecastingForTest,
+  NOW,
+  pick,
+  readAgain as readAgainAt,
+  type ForecastingForTest,
+  submitInputs,
+} from './forecastingForTest.js'
 
 // The faint previous value (#214): a value following the tracker shows, faintly, the value the latest read replaced.
 
@@ -22,17 +30,15 @@ let scenario: ForecastingForTest
 
 beforeEach(async () => {
   scenario = await forecastingForTest({ fixture: checkoutFixture(tickets(34, [5, 6, 8, 5, 7, 6, 4, 0])), connected: true })
-  await submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '30' })
-  await submit({ kind: 'setPaceRange', low: '4', high: '8' })
+  await submitInputs(scenario, { kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '30' })
+  await submitInputs(scenario, { kind: 'setPaceRange', low: '4', high: '8' })
   // the first read, a week ago
   await pick(scenario, FIRST_READ_AT)
   // seen today, Thursday 12 Nov
   scenario.at(NOW)
-  await submit({ kind: 'setTicketsSource', ticketsSource: 'tracker' })
-  await submit({ kind: 'setPaceMode', paceMode: 'tracker' })
+  await submitInputs(scenario, { kind: 'setTicketsSource', ticketsSource: 'tracker' })
+  await submitInputs(scenario, { kind: 'setPaceMode', paceMode: 'tracker' })
 })
-
-const submit = (edit: InputsEdit) => scenario.submit({ form: 'inputs', edit })
 
 const inputs = async () => (await scenario.inputsScreen()).inputs.milestone
 
@@ -76,8 +82,8 @@ describe('a value following the tracker', () => {
   test('a typed value shows none: only a value following the tracker does', async () => {
     await readAgain(READ_AT, tickets(31, [5, 6, 8, 5, 7, 6, 4, 3]))
 
-    await submit({ kind: 'setTicketsSource', ticketsSource: 'typed' })
-    await submit({ kind: 'setPaceMode', paceMode: 'range' })
+    await submitInputs(scenario, { kind: 'setTicketsSource', ticketsSource: 'typed' })
+    await submitInputs(scenario, { kind: 'setPaceMode', paceMode: 'range' })
 
     expect((await inputs()).ticketsSource).toMatchObject({ source: 'typed', was: undefined })
     expect((await inputs()).trackerPace).toMatchObject({ was: undefined })

@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'vitest'
 import type { InputsEdit } from '../../src/forecast/index.js'
 import type { ForecastingForTest } from './forecastingForTest.js'
-import { TODAY, newTeam, submit, edit, enter, view, inputsScreenView } from './forecastViewScenario.js'
+import { submitInputs } from './forecastingForTest.js'
+import { TODAY, newTeam, edit, enter, view, inputsScreenView } from './forecastViewScenario.js'
 
 // Seam B: growth on the Inputs screen, and where each submitted form leads. Arranged through forecastViewScenario.ts.
 
@@ -100,7 +101,7 @@ describe('a submitted form', () => {
     const team = await newTeam()
     await enter(team, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
 
-    expect(await submit(team, change)).toEqual({ saved: true, next: { screen: next } })
+    expect(await submitInputs(team, change)).toEqual({ kind: 'saved', next: { kind: 'screen', screen: next } })
   })
 
   test('before any is submitted, the Inputs screen shows each form as saved, and no refusal', async () => {
@@ -132,11 +133,10 @@ describe('a submitted form', () => {
     const team = await newTeam()
     await enter(team, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
 
-    const submitted = await submit(team, { kind: 'setMilestone', name: 'Checkout v3', startDate: '2026-09-08', ticketsRemaining: '2.5' })
+    const submitted = await submitInputs(team, { kind: 'setMilestone', name: 'Checkout v3', startDate: '2026-09-08', ticketsRemaining: '2.5' })
 
     expect(submitted).toMatchObject({
-      saved: false,
-      screen: 'inputs',
+      kind: 'refused',
       view: {
         inputs: {
           milestone: { name: 'Checkout v2', ticketsRemaining: 10 },
@@ -155,9 +155,8 @@ describe('a submitted form', () => {
     await enter(team, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
     expect(await edit(team, { kind: 'setPaceCounts', counts: '6, 4, 9' })).toEqual({ ok: true })
 
-    expect(await submit(team, { kind: 'setPaceCounts', counts: '6, x' })).toMatchObject({
-      saved: false,
-      screen: 'inputs',
+    expect(await submitInputs(team, { kind: 'setPaceCounts', counts: '6, x' })).toMatchObject({
+      kind: 'refused',
       view: {
         inputs: {
           forms: { paceCounts: { counts: '6, x', count: '' } },
@@ -172,9 +171,8 @@ describe('a submitted form', () => {
     await enter(team, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
     expect(await edit(team, { kind: 'setPaceCounts', counts: '6, 4, 9' })).toEqual({ ok: true })
 
-    expect(await submit(team, { kind: 'addPaceCount', count: '1001' })).toMatchObject({
-      saved: false,
-      screen: 'inputs',
+    expect(await submitInputs(team, { kind: 'addPaceCount', count: '1001' })).toMatchObject({
+      kind: 'refused',
       view: {
         inputs: {
           forms: { paceCounts: { counts: '6, 4, 9', count: '1001' } },
@@ -185,9 +183,8 @@ describe('a submitted form', () => {
   })
 
   test('refused, removing the last count before the milestone is entered says why on the typed counts', async () => {
-    expect(await submit(await newTeam(), { kind: 'removeLastPaceCount' })).toMatchObject({
-      saved: false,
-      screen: 'inputs',
+    expect(await submitInputs(await newTeam(), { kind: 'removeLastPaceCount' })).toMatchObject({
+      kind: 'refused',
       view: { inputs: { forms: { paceCounts: { counts: '', count: '' } }, refusal: { form: 'paceCounts', error: 'Enter the milestone first.' } } },
     })
   })
@@ -199,9 +196,8 @@ describe('a submitted form', () => {
     const team = await newTeam()
     await enter(team, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
 
-    expect(await submit(team, change)).toMatchObject({
-      saved: false,
-      screen: 'inputs',
+    expect(await submitInputs(team, change)).toMatchObject({
+      kind: 'refused',
       view: { inputs: { milestone: { paceMode: 'range', ambiguity: 'medium' }, refusal: { form, error } } },
     })
   })
@@ -210,12 +206,12 @@ describe('a submitted form', () => {
     const team = await newTeam()
     await enter(team, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '4', high: '8' })
 
-    expect(await submit(team, { kind: 'setCadence', cadenceDays: '0' })).toMatchObject({
-      screen: 'inputs',
+    expect(await submitInputs(team, { kind: 'setCadence', cadenceDays: '0' })).toMatchObject({
+      kind: 'refused',
       view: { inputs: { forms: { cadence: { cadenceDays: '0' }, paceRange: { low: '4', high: '8' } }, refusal: { form: 'cadence' } } },
     })
-    expect(await submit(team, { kind: 'setPaceRange', low: '8', high: '4' })).toMatchObject({
-      screen: 'inputs',
+    expect(await submitInputs(team, { kind: 'setPaceRange', low: '8', high: '4' })).toMatchObject({
+      kind: 'refused',
       view: { inputs: { forms: { cadence: { cadenceDays: '7' }, paceRange: { low: '8', high: '4' } }, refusal: { form: 'paceRange' } } },
     })
   })
@@ -223,9 +219,8 @@ describe('a submitted form', () => {
   test('refused, the ambiguity ranges are shown again as typed', async () => {
     const team = await newTeam()
 
-    expect(await submit(team, { ...growth, medium: typed('2', '1.5') })).toMatchObject({
-      saved: false,
-      screen: 'inputs',
+    expect(await submitInputs(team, { ...growth, medium: typed('2', '1.5') })).toMatchObject({
+      kind: 'refused',
       view: {
         inputs: {
           growth: { ranges: { medium: { low: 1, high: 2 } } },

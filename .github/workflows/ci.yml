@@ -80,10 +80,10 @@ jobs:
           path: reports/browser/
           if-no-files-found: ignore
 
-  # Mutation tests the source a pull request changes (scripts/mutateDiff.ts). It reports the score and the survivors
-  # (scripts/mutationSummary.ts), and fails only if Stryker can't run; the uploaded report keeps mutation.json and
-  # targets.json for counting survivors across pull requests. A push to main has no branch to diff, so it runs on pull
-  # requests alone.
+  # Mutation tests only the lines of source a pull request adds or changes (scripts/mutateDiff.ts). It reports the
+  # score and the survivors (scripts/mutationSummary.ts), and fails only if Stryker can't run; the uploaded report
+  # keeps mutation.json and targets.json for counting survivors across pull requests. A push to main has no branch to
+  # diff, so it runs on pull requests alone.
   mutation:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest

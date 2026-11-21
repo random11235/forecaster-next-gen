@@ -5,8 +5,8 @@ import type { SavedRead } from '../../model/savedRead.js'
 import type { Storage } from '../../storage/storage.js'
 import { periodName, type PeriodName } from './cadence.js'
 import { teamConnection, withTeamQueries, type Connecting } from './connection.js'
-import { KIND_NAMES, type ChoiceList } from './choiceLists.js'
-import { calendarDayIn, paceOf, savedPaceReads, type DatedCounts, type PaceClock } from './pace.js'
+import type { ChoiceList } from './choiceLists.js'
+import { calendarDayIn, paceOf, savedPaceReads, type DatedCounts, type PaceClock, type ReadClock } from './pace.js'
 import { completeRead, finishedSinceFor, ticketsRemaining, weeksRead } from './queryRead.js'
 import { medianOf, paceVersusMilestoneOwn, type PaceVersus } from './paceVersusOwn.js'
 import { trackerOf } from './trackers.js'
@@ -65,8 +65,6 @@ export interface Candidates {
   groups: CandidateGroup[]
   /** What each strip counts by: the milestone's cadence, a week before it has one. */
   period: PeriodName
-  /** Each kind of choice as the step names it, beside each candidate. */
-  kindNames: Readonly<Record<ChoiceKind, string>>
 }
 
 /** One opening of the Comparable work step's candidates, which reads each at most once. */
@@ -75,17 +73,12 @@ export interface CandidateOpening {
   read(choices: readonly Choice[]): Promise<Candidates>
 }
 
-/** When the candidates are read: the UTC instant, and pace's clock, today in the EM's time zone. */
-export interface CandidatesAt extends PaceClock {
-  readAt: string
-}
-
 /**
  * Seam B: opens the team's candidates for comparable work, reading none yet. Each is read through the connector once,
  * as the comparable-work query is, as far back (`finishedSinceFor`), and kept only by this opening, never saved. Its
  * periods are laid on the milestone's cadence from its start date (from today before it has one).
  */
-export function openCandidates(connecting: Connecting, storage: Pick<Storage, 'milestoneInputs'>, teamId: string, at: CandidatesAt): CandidateOpening {
+export function openCandidates(connecting: Connecting, storage: Pick<Storage, 'milestoneInputs'>, teamId: string, at: ReadClock): CandidateOpening {
   // the milestone's and comparable work's queries as setup's steps hold them
   const saved = savedPaceReads(withTeamQueries(connecting, 'current'), teamId)
   const read = new Map<string, Promise<Candidate>>()
@@ -201,5 +194,5 @@ function grouped(candidates: Candidate[], ownCounts: readonly number[], period: 
       .filter((candidate) => groupOf(candidate) === group)
       .sort((a, b) => median(a) - median(b) || a.choice.name.localeCompare(b.choice.name)),
   })).filter(({ candidates }) => candidates.length > 0)
-  return { ...(comparing && { milestoneOwn: medianOf(ownCounts) }), groups, period, kindNames: KIND_NAMES }
+  return { ...(comparing && { milestoneOwn: medianOf(ownCounts) }), groups, period }
 }

@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'vitest'
-import { APP_VERSION, DEFAULT_SETTINGS, rerunForecast } from '../../src/forecast/index.js'
+import { APP_VERSION, DEFAULT_SETTINGS } from '../../src/forecast/index.js'
 import { ISO_INSTANT } from '../isoInstant.js'
 import { memoryStore } from '../memoryStore.js'
-import { inBrowser, mediumGrowth, enter, onSqliteFile, submit, view, type LedgerTeam } from './forecastLedgerScenario.js'
-import { TEAM, newTeam } from './forecastViewScenario.js'
+import { submitInputs, mediumGrowth } from './forecastingForTest.js'
+import { inBrowser, onSqliteFile, view, type LedgerTeam } from './forecastLedgerScenario.js'
+import { TEAM, newTeam, enter } from './forecastViewScenario.js'
 
 // Seam B: the forecast ledger (#27). Each forecast the Milestone forecast screen shows is logged in the ledger, which
 // goes in through storage, with its case, the case's hash, its result, when it was logged and the release that made it.
@@ -86,11 +87,11 @@ describe('logging only the forecast shown', () => {
     const team = await newTeam()
     mediumGrowth(team, { low: 1, high: 1 })
     await enter(team, { startDate: '2026-09-07', ticketsRemaining: '10' }, { low: '5', high: '5' })
-    await submit(team, { kind: 'addCapacity', percent: '0', from: '2026-09-07', to: '2026-09-11', onward: false, note: 'Offsite' })
+    await submitInputs(team, { kind: 'addCapacity', percent: '0', from: '2026-09-07', to: '2026-09-11', onward: false, note: 'Offsite' })
 
     const shown = await team.milestoneForecastView({ capacityOpen: true })
 
-    expect(shown.kind === 'forecast' && shown.capacity.entries.map(({ effect }) => effect?.shift)).toEqual([1])
+    expect(shown.kind === 'forecast' && shown.capacity.entries.map(({ effect }) => effect?.periods)).toEqual([1])
     const logs = team.storage.forecastLogs(TEAM)
     expect(logs).toHaveLength(1)
     expect(logs[0]?.simulationCase.capacity?.[0]).toBe(0)
@@ -117,8 +118,8 @@ describe.each(storages)('re-running a forecast logged in %s storage', (_, opened
     team.restart()
     const [first, second] = team.storage.forecastLogs(TEAM)
 
-    expect(first && rerunForecast(first)).toEqual({ kind: 'rerun', result: first?.result })
-    expect(second && rerunForecast(second)).toEqual({ kind: 'rerun', result: second?.result })
+    expect(first && (await team.rerunForecast(first))).toEqual({ kind: 'rerun', result: first?.result })
+    expect(second && (await team.rerunForecast(second))).toEqual({ kind: 'rerun', result: second?.result })
     expect(first?.result).not.toEqual(second?.result)
   })
 })
@@ -136,7 +137,7 @@ describe('re-running a logged forecast', () => {
 
     const [, older] = team.storage.forecastLogs(TEAM)
 
-    expect(older && rerunForecast(older)).toEqual({ kind: 'otherEngine', loggedWith: '1', running: '2' })
+    expect(older && (await team.rerunForecast(older))).toEqual({ kind: 'otherEngine', loggedWith: '1', running: '2' })
   })
 })
 
