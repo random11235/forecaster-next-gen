@@ -1,14 +1,11 @@
 import { describe, expect, test } from 'vitest'
-import { useTempDatabase } from '../tempDatabase.js'
 import { forecast, submit, withTypedCounts } from './pacePatternScenario.js'
 
 // The pattern the tool names from typed counts (#161), and when it names none.
 
-useTempDatabase('forecaster-pace-pattern-')
-
 describe('the pattern named from typed counts', () => {
-  test('counts that vary a little and keep level are Steady, with their spread', () => {
-    const pattern = forecast(withTypedCounts([5, 4, 6, 5, 5, 4, 6, 5, 5, 4])).pacePattern
+  test('counts that vary a little and keep level are Steady, with their spread', async () => {
+    const pattern = (await forecast(await withTypedCounts([5, 4, 6, 5, 5, 4, 6, 5, 5, 4]))).pacePattern
 
     expect(pattern).toMatchObject({
       pattern: 'steady',
@@ -18,9 +15,9 @@ describe('the pattern named from typed counts', () => {
     expect(pattern?.action).toBeUndefined()
   })
 
-  test('a lasting rise is Stepped up, from the week it stepped, offering to count pace from there', () => {
+  test('a lasting rise is Stepped up, from the week it stepped, offering to count pace from there', async () => {
     // 14 weeks from 3 Aug: about 4 a week, then 8 from the week of 12 Oct.
-    const pattern = forecast(withTypedCounts([4, 3, 5, 4, 4, 3, 4, 5, 3, 4, 8, 9, 7, 8])).pacePattern
+    const pattern = (await forecast(await withTypedCounts([4, 3, 5, 4, 4, 3, 4, 5, 3, 4, 8, 9, 7, 8]))).pacePattern
 
     expect(pattern).toMatchObject({
       pattern: 'steppedUp',
@@ -31,9 +28,9 @@ describe('the pattern named from typed counts', () => {
     })
   })
 
-  test('a lasting fall is Stepped down, from the week it stepped', () => {
+  test('a lasting fall is Stepped down, from the week it stepped', async () => {
     // 14 weeks from 3 Aug: about 8 a week, then 4 from the week of 21 Sep.
-    const pattern = forecast(withTypedCounts([8, 9, 7, 8, 9, 8, 9, 4, 3, 4, 4, 3, 5, 4])).pacePattern
+    const pattern = (await forecast(await withTypedCounts([8, 9, 7, 8, 9, 8, 9, 4, 3, 4, 4, 3, 5, 4]))).pacePattern
 
     expect(pattern).toMatchObject({
       pattern: 'steppedDown',
@@ -42,8 +39,8 @@ describe('the pattern named from typed counts', () => {
     })
   })
 
-  test('a steady climb is Speeding up, with advice not to extend it and no action', () => {
-    const pattern = forecast(withTypedCounts([2, 2, 1, 3, 2, 2, 2, 3, 3, 4, 5, 5, 6, 7])).pacePattern
+  test('a steady climb is Speeding up, with advice not to extend it and no action', async () => {
+    const pattern = (await forecast(await withTypedCounts([2, 2, 1, 3, 2, 2, 2, 3, 3, 4, 5, 5, 6, 7]))).pacePattern
 
     expect(pattern).toEqual({
       pattern: 'speedingUp',
@@ -53,8 +50,8 @@ describe('the pattern named from typed counts', () => {
     })
   })
 
-  test('a steady decline is Slowing down', () => {
-    const pattern = forecast(withTypedCounts([8, 9, 8, 7, 8, 8, 8, 7, 7, 6, 5, 5, 4, 3])).pacePattern
+  test('a steady decline is Slowing down', async () => {
+    const pattern = (await forecast(await withTypedCounts([8, 9, 8, 7, 8, 8, 8, 7, 7, 6, 5, 5, 4, 3]))).pacePattern
 
     expect(pattern).toMatchObject({
       pattern: 'slowingDown',
@@ -63,8 +60,8 @@ describe('the pattern named from typed counts', () => {
     })
   })
 
-  test('busy weeks and quiet weeks in runs are Good and bad spells, warning the range may be too narrow', () => {
-    const pattern = forecast(withTypedCounts([5, 5, 4, 5, 6, 5, 3, 2, 3, 8, 9, 8, 2, 3])).pacePattern
+  test('busy weeks and quiet weeks in runs are Good and bad spells, warning the range may be too narrow', async () => {
+    const pattern = (await forecast(await withTypedCounts([5, 5, 4, 5, 6, 5, 3, 2, 3, 8, 9, 8, 2, 3]))).pacePattern
 
     expect(pattern).toEqual({
       pattern: 'goodAndBadSpells',
@@ -74,8 +71,8 @@ describe('the pattern named from typed counts', () => {
     })
   })
 
-  test('counts that vary far more than their level are Lumpy, advising to keep every week', () => {
-    const pattern = forecast(withTypedCounts([3, 0, 8, 1, 0, 9, 0, 9, 1, 0, 8, 2, 0, 10])).pacePattern
+  test('counts that vary far more than their level are Lumpy, advising to keep every week', async () => {
+    const pattern = (await forecast(await withTypedCounts([3, 0, 8, 1, 0, 9, 0, 9, 1, 0, 8, 2, 0, 10]))).pacePattern
 
     expect(pattern).toEqual({
       pattern: 'lumpy',
@@ -86,9 +83,9 @@ describe('the pattern named from typed counts', () => {
     })
   })
 
-  test('one week far above the rest is One odd week, named, offering to leave it out', () => {
+  test('one week far above the rest is One odd week, named, offering to leave it out', async () => {
     // 14 weeks from 3 Aug: the week of 12 Oct finished 23.
-    const pattern = forecast(withTypedCounts([5, 6, 5, 4, 6, 5, 5, 4, 6, 5, 23, 5, 6, 4])).pacePattern
+    const pattern = (await forecast(await withTypedCounts([5, 6, 5, 4, 6, 5, 5, 4, 6, 5, 23, 5, 6, 4]))).pacePattern
 
     expect(pattern).toMatchObject({
       pattern: 'oneOddPeriod',
@@ -102,15 +99,15 @@ describe('the pattern named from typed counts', () => {
 
 describe('from 6 to 9 periods', () => {
   // Eight weeks from 14 Sep.
-  test('a changing pattern is worded as early', () => {
-    expect(forecast(withTypedCounts([2, 2, 3, 3, 4, 5, 6, 7])).pacePattern).toMatchObject({
+  test('a changing pattern is worded as early', async () => {
+    expect((await forecast(await withTypedCounts([2, 2, 3, 3, 4, 5, 6, 7]))).pacePattern).toMatchObject({
       pattern: 'speedingUp',
       line: 'May be speeding up: too early to be sure.',
     })
   })
 
-  test('an early step still offers its action', () => {
-    expect(forecast(withTypedCounts([4, 3, 4, 5, 8, 9, 7, 8])).pacePattern).toMatchObject({
+  test('an early step still offers its action', async () => {
+    expect((await forecast(await withTypedCounts([4, 3, 4, 5, 8, 9, 7, 8]))).pacePattern).toMatchObject({
       pattern: 'steppedUp',
       line: 'May have stepped up: too early to be sure.',
       meaning: 'About 4 a week, then 8 since 12 Oct.',
@@ -118,46 +115,46 @@ describe('from 6 to 9 periods', () => {
     })
   })
 
-  test('Steady and One odd week are not worded as early', () => {
-    expect(forecast(withTypedCounts([5, 4, 6, 5, 5, 4, 6, 5])).pacePattern?.line).toBe('Steady · 4 to 6 a week')
-    expect(forecast(withTypedCounts([5, 6, 5, 4, 23, 5, 6, 4])).pacePattern?.line).toBe('One odd week · 12 Oct finished 23')
+  test('Steady and One odd week are not worded as early', async () => {
+    expect((await forecast(await withTypedCounts([5, 4, 6, 5, 5, 4, 6, 5]))).pacePattern?.line).toBe('Steady · 4 to 6 a week')
+    expect((await forecast(await withTypedCounts([5, 6, 5, 4, 23, 5, 6, 4]))).pacePattern?.line).toBe('One odd week · 12 Oct finished 23')
   })
 })
 
 describe('when no pattern is named', () => {
-  test('fewer than 6 periods say only that it is too early', () => {
-    expect(forecast(withTypedCounts([5, 4, 6, 5, 5])).pacePattern).toEqual({
+  test('fewer than 6 periods say only that it is too early', async () => {
+    expect((await forecast(await withTypedCounts([5, 4, 6, 5, 5]))).pacePattern).toEqual({
       pattern: undefined,
       line: 'No pattern yet · 5 weeks is too few to tell',
     })
   })
 
-  test('a window with nothing finished is never Steady', () => {
-    expect(forecast(withTypedCounts([0, 0, 0, 0, 0, 0, 0, 0])).pacePattern).toEqual({
+  test('a window with nothing finished is never Steady', async () => {
+    expect((await forecast(await withTypedCounts([0, 0, 0, 0, 0, 0, 0, 0]))).pacePattern).toEqual({
       pattern: undefined,
       line: 'Nothing finished in these 8 weeks: no pattern to read.',
     })
   })
 
-  test('quiet periods before the first finished ticket are not read', () => {
-    expect(forecast(withTypedCounts([0, 0, 0, 5, 4, 6, 5, 5])).pacePattern).toEqual({
+  test('quiet periods before the first finished ticket are not read', async () => {
+    expect((await forecast(await withTypedCounts([0, 0, 0, 5, 4, 6, 5, 5]))).pacePattern).toEqual({
       pattern: undefined,
       line: 'No pattern yet · 5 weeks is too few to tell',
     })
   })
 
-  test('a cadence under 7 days is too short to read', () => {
-    expect(forecast(withTypedCounts([1, 0, 1, 1, 0, 1, 1, 0, 1, 1], 1)).pacePattern).toEqual({
+  test('a cadence under 7 days is too short to read', async () => {
+    expect((await forecast(await withTypedCounts([1, 0, 1, 1, 0, 1, 1, 0, 1, 1], 1))).pacePattern).toEqual({
       pattern: undefined,
       line: 'Patterns are read from weeks or sprints.',
     })
   })
 
-  test('a pace range has no counts to read', () => {
-    const storage = withTypedCounts([5, 4, 6, 5, 5, 4, 6, 5, 5, 4])
-    submit(storage, { kind: 'setPaceRange', low: '4', high: '6' })
-    submit(storage, { kind: 'setPaceMode', paceMode: 'range' })
+  test('a pace range has no counts to read', async () => {
+    const team = await withTypedCounts([5, 4, 6, 5, 5, 4, 6, 5, 5, 4])
+    await submit(team, { kind: 'setPaceRange', low: '4', high: '6' })
+    await submit(team, { kind: 'setPaceMode', paceMode: 'range' })
 
-    expect(forecast(storage).pacePattern).toBeUndefined()
+    expect((await forecast(team)).pacePattern).toBeUndefined()
   })
 })

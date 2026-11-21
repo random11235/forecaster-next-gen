@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'vitest'
-import { APP_VERSION } from '../../src/forecast/appVersion.js'
+import { APP_VERSION } from '../../src/forecast/index.js'
 import { request as httpRequest } from 'node:http'
 import { networkInterfaces } from 'node:os'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'

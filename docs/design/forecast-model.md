@@ -63,7 +63,7 @@ Both screens' views take the same `ForecastSettings` and judge the milestone by 
 
 #### Capacity
 
-The EM types the team's capacity beside the forecast, as entries: a whole percentage of the team's usual from one date, to another or onward, with a note (see **Capacity** in the [glossary](../../GLOSSARY.md)). Entries belong to the team (`CapacityEntry` in `model/capacity.ts`, stored per team), so they carry over to the next milestone. `forecast/capacity.ts` turns them into the engine's per-period factors (`SimulationCase.capacity`, [`engine.md`](engine.md)), counting periods from the milestone's start date in its cadence:
+The EM types the team's capacity beside the forecast, as entries: a whole percentage of the team's usual from one date, to another or onward, with a note (see **Capacity** in the [glossary](../../GLOSSARY.md)). Entries belong to the team (`CapacityEntry` in `model/capacity.ts`, stored per team), so they carry over to the next milestone. `forecast/lib/capacity.ts` turns them into the engine's per-period factors (`SimulationCase.capacity`, [`engine.md`](engine.md)), counting periods from the milestone's start date in its cadence:
 
 - A day's capacity is the product of every entry covering it, or 100% when none does: overlapping entries multiply.
 - A period's factor is the average of its working days' capacity, Monday to Friday, so weekends don't count: a holiday Monday leaves a week at 80%, and a week off in a 14-day sprint leaves it at 50%. A period with no working day is at 100%.

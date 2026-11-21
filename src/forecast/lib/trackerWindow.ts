@@ -1,7 +1,7 @@
-import type { PeriodName } from '../cadence.js'
-import { dayMonth } from '../calendarDate.js'
-import { counted } from '../counted.js'
-import { TRACKER_PERIODS } from '../queryRead.js'
+import type { PeriodName } from './cadence.js'
+import { dayMonth } from './calendarDate.js'
+import { counted } from './counted.js'
+import { TRACKER_PERIODS } from './queryRead.js'
 import type { DatedCounts, SideBySide } from './periodCounts.js'
 
 // The tracker's pace window: the periods it counts, the skipped ones it reaches back past, and what its bound says.

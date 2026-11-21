@@ -2,8 +2,8 @@
 // a check, so nothing here fails the build.
 //
 // An entry point is what the rest of the app imports of one of src/'s modules. A module with an `index.ts`
-// (src/engine/index.ts) has that one; any other has each file at its root (src/forecast/inputs.ts,
-// src/connectors/github.ts). What an entry point hides is its own lines of code (not blank, not only comment) and those of each file it reaches through its
+// (src/engine/index.ts, src/forecast/index.ts) has that one; any other has each file at its root (src/connectors/github.ts,
+// src/storage/sqliteStorage.ts). What an entry point hides is its own lines of code (not blank, not only comment) and those of each file it reaches through its
 // imports into its private folders, at any depth there: for an `index.ts`, the whole module; for any other, the
 // module's lib/ and the folder of its own name (a connector's, src/connectors/github/).
 import { importedPaths, resolveImport } from './sourceFiles.ts'

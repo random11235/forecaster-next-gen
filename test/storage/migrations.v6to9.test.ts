@@ -1,11 +1,13 @@
 import { describe, expect, test } from 'vitest'
-import { submitInputs } from '../../src/forecast/inputs.js'
-import { milestoneForecastView } from '../../src/forecast/milestoneForecastView.js'
-import { DEFAULT_SETTINGS } from '../../src/forecast/settings.js'
+import { openForecasting, type Forecasting } from '../../src/forecast/index.js'
+import type { Storage } from '../../src/storage/storage.js'
 import { writeFile, open } from './migrationsHarness.js'
 import { TEAM, VERSION_6_SCHEMA, VERSION_7_SCHEMA, VERSION_8_SCHEMA, VERSION_9_SCHEMA } from './pastSchemas.js'
 
 // Opening a data file an earlier release left: see migrationsHarness.ts.
+
+/** The team's handle on the migrated file, as the browser build opens it, on `today`: the forecast reads it back. */
+const forecasting = (storage: Storage, today: string): Forecasting => openForecasting({ storage, clock: { now: () => `${today}T09:00:00Z`, timeZone: 'UTC' } })
 
 describe('step 7: a data file from schema version 6, before milestone inputs', () => {
   test("keeps each team's first milestone by name and manual pace, and leaves its start date and tickets to enter", () => {
@@ -42,18 +44,21 @@ describe('step 7: a data file from schema version 6, before milestone inputs', (
     })
   })
 
-  test('is forecast from its MVP fields once its start date and tickets are entered: its name and pace, not its epics', () => {
+  test('is forecast from its MVP fields once its start date and tickets are entered: its name and pace, not its epics', async () => {
     const storage = open(writeFile('v6.db', VERSION_6_SCHEMA, 6))
 
-    const entered = submitInputs(storage, TEAM, DEFAULT_SETTINGS, '2026-09-01', {
-      kind: 'setMilestone',
-      name: 'Launch',
-      startDate: '2026-09-01',
-      ticketsRemaining: '20',
+    const entered = await forecasting(storage, '2026-09-01').submit({
+      form: 'inputs',
+      edit: {
+        kind: 'setMilestone',
+        name: 'Launch',
+        startDate: '2026-09-01',
+        ticketsRemaining: '20',
+      },
     })
 
-    expect(entered).toEqual({ saved: true, next: 'inputs' })
-    expect(milestoneForecastView(storage, TEAM, DEFAULT_SETTINGS, '2026-09-01')).toMatchObject({
+    expect(entered).toEqual({ saved: true, next: { screen: 'inputs' } })
+    expect(await forecasting(storage, '2026-09-01').milestoneForecastView()).toMatchObject({
       kind: 'forecast',
       name: 'Launch',
       ticketsRemaining: 20,
@@ -87,11 +92,11 @@ describe('step 7: a data file from schema version 6, before milestone inputs', (
 })
 
 describe('step 8: a data file from schema version 7, before the cadence the pace was entered in', () => {
-  test('counts a pace already saved as entered in its cadence, so it forecasts with no warning', () => {
+  test('counts a pace already saved as entered in its cadence, so it forecasts with no warning', async () => {
     const storage = open(writeFile('v7.db', VERSION_7_SCHEMA, 7))
 
     expect(storage.milestoneInputs(TEAM)).toMatchObject({ cadenceDays: 14, paceCadenceDays: 14 })
-    expect(milestoneForecastView(storage, TEAM, DEFAULT_SETTINGS, '2026-09-01')).toMatchObject({ kind: 'forecast', warnings: [] })
+    expect(await forecasting(storage, '2026-09-01').milestoneForecastView()).toMatchObject({ kind: 'forecast', warnings: [] })
   })
 
   test('leaves a milestone with no pace yet without one', () => {
@@ -100,23 +105,23 @@ describe('step 8: a data file from schema version 7, before the cadence the pace
     expect(storage.milestoneInputs('sample-team')).toMatchObject({ paceRange: undefined, paceCounts: [], paceCadenceDays: undefined })
   })
 
-  test('warns once the cadence changes after the upgrade', () => {
+  test('warns once the cadence changes after the upgrade', async () => {
     const storage = open(writeFile('v7.db', VERSION_7_SCHEMA, 7))
 
-    submitInputs(storage, TEAM, DEFAULT_SETTINGS, '2026-09-01', { kind: 'setCadence', cadenceDays: '7' })
+    await forecasting(storage, '2026-09-01').submit({ form: 'inputs', edit: { kind: 'setCadence', cadenceDays: '7' } })
 
-    expect(milestoneForecastView(storage, TEAM, DEFAULT_SETTINGS, '2026-09-01')).toMatchObject({
+    expect(await forecasting(storage, '2026-09-01').milestoneForecastView()).toMatchObject({
       warnings: [{ input: 'pace', message: 'Pace: cadence length has changed. Please verify that the per period numbers are aligned.' }],
     })
   })
 })
 
 describe('step 9: a data file from schema version 8, before capacity', () => {
-  test('has no capacity entries, forecasts as before, and takes entries that survive reopening', () => {
+  test('has no capacity entries, forecasts as before, and takes entries that survive reopening', async () => {
     const file = writeFile('v8.db', VERSION_8_SCHEMA, 8)
     const storage = open(file)
     expect(storage.capacityEntries(TEAM)).toEqual([])
-    expect(milestoneForecastView(storage, TEAM, DEFAULT_SETTINGS, '2026-09-01')).toMatchObject({ kind: 'forecast', warnings: [] })
+    expect(await forecasting(storage, '2026-09-01').milestoneForecastView()).toMatchObject({ kind: 'forecast', warnings: [] })
 
     const holiday = { id: 1, from: '2026-09-07', to: '2026-09-07', percent: 0, note: 'Holiday' }
     storage.saveCapacityEntries(TEAM, [holiday])

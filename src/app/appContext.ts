@@ -1,4 +1,4 @@
-import type { Clock } from '../forecast/forecasting.js'
+import type { Clock } from '../forecast/index.js'
 
 // The request and reply the routes (routes.ts) see, and the clock both builds open the team's handle on.
 
