@@ -7,7 +7,7 @@ export default {
   vitest: { pool: 'forks' },
   // the web build's page script runs only in a browser: its demo checks it, as #114 agreed
   mutate: ['src/**/*.ts', '!src/app/webMain.ts'],
-  reporters: ['html', 'clear-text', 'progress'],
+  reporters: ['html', 'clear-text', 'progress', 'json'], // json: reports/mutation/mutation.json, for scripts/mutationSummary.ts
   // Stryker rewrites tsconfig.json's `extends` and `references` paths through TypeScript's JS API, which
   // TypeScript 7 no longer has. Ours has neither, so it names no file here and Stryker skips the rewrite.
   tsconfigFile: 'no-tsconfig-to-rewrite.json',
