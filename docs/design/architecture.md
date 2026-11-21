@@ -30,7 +30,7 @@ In [`architecture-dependency-rules.md`](architecture-dependency-rules.md): what 
 
 ## Test seams
 
-In [`architecture-test-seams.md`](architecture-test-seams.md): Seams A, B and C, and the tests beside them. In [`architecture-test-seams-storage.md`](architecture-test-seams-storage.md): the Storage contract and the migration tests. In [`architecture-test-seams-scripts.md`](architecture-test-seams-scripts.md): the tests of `scripts/`.
+In [`architecture-test-seams.md`](architecture-test-seams.md): Seams A, B and C, and the tests beside them. In [`architecture-test-seams-connectors.md`](architecture-test-seams-connectors.md): how each connector is tested at Seam C. In [`architecture-test-seams-storage.md`](architecture-test-seams-storage.md): the Storage contract and the migration tests. In [`architecture-test-seams-scripts.md`](architecture-test-seams-scripts.md): the tests of `scripts/`.
 
 ## Release
 
