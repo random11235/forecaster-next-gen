@@ -12,11 +12,15 @@ src/
     ambiguity.ts          # Ambiguity and AmbiguityRanges: set by the EM
     connection.ts         # Connection: the team's one tracker and repo or Jira project (with Jira's account email); never a token
     noneMissing.ts        # NoneMissing: a compile-time check that a list of a union's values, such as TEAM_SOURCES, leaves none out
+    ticket.ts             # Ticket: all the tool holds of a ticket, as a connector reads it and a saved read keeps it
+    choice.ts             # Choice and ChoiceKind: what the EM picks a milestone's tickets by; choiceKindOf reads a kind sent as text
+    failure.ts            # Failure: why a connector couldn't answer
 
   engine/                 # pure: no I/O, no DB, no clock; see src/engine/ for its files
     index.ts              # exports simulateCase, periodEndDate and the types only
 
   forecast/               # the only module that knows both stored data and the engine
+    forecasting.ts        # Seam B's handle for the team, `openForecasting`: the one way app/ reaches forecast/, opened on storage, a clock (now and the EM's time zone, today worked out from them), the settings and, in the local server build, what it connects with; adds the default team on first launch
     inputs.ts             # Seam B: stored data → the Inputs screen's view; a submitted form saved (and where next) or refused (and the screen to show again)
     milestoneInputs.ts    # behind inputs.ts: the milestone's view and edits
     milestoneAssessment.ts  # behind both views: the milestone's inputs against the settings and today, with the pace in use: what stops a forecast, the warnings, the pace the forecast runs on
@@ -52,7 +56,7 @@ src/
     milestoneRenamed.ts   # Seam B: the milestone query following the milestone to its new name
 
   connectors/             # what reads the team's tickets from its tracker; everything tracker-specific stays inside one
-    connector.ts          # the interface and its shared types: Ticket, Failure, ReadResult, Choice, ChoicesOfKind; a connector takes its Connection from `model/`
+    connector.ts          # the interface and its shared types: ReadResult, ChoicesOfKind, and Ticket, Failure and Choice re-exported from `model/`; a connector takes its Connection from `model/`
     remote.ts             # what the network connectors share: sending a request (only a network failure is unavailable), status to failure, the scope check, the finishedSince filter
     canned.ts             # the canned connector's entry point: its factory, its fixture's type and demo mode's connector; outside code imports this, never canned/
     github.ts             # the GitHub connector's entry point: its factory; outside code imports this, never github/
@@ -86,7 +90,7 @@ src/
     lib/webStore.ts       # behind webStorage.ts and webLedger.ts: browser storage's JSON value by key, read (what it holds, nothing, or refused) and written back whole: the rest once as storage opens, the ledger again at each call
     lib/webLedger.ts      # behind webStorage.ts: the forecast ledger under a key of its own, the newest logs within its bound
     lib/forecastLogJson.ts # a logged forecast's case and result checked, as the SQLite file and browser storage both read them
-  app/                    # local server (localhost only), screens, the routes and the context they run in (`routes.ts`, `appContext.ts`), `npm start` entry point; each screen's HTML, and reading the fields of the forms it posts; the web build's app and page script (`webApp.ts`, `webMain.ts`); the stylesheet every page shares (`html.ts`), each screen's styles in `lib/`, and what is behind the Inputs screen (`inputsScreen.ts`): its Milestone and Pace sections, the parts its sections share (`inputSection.ts`), and the chip on a typed value the tracker reads differently (`readsDifferently.ts`); the Milestone forecast screen's Capacity section (`lib/capacitySection.ts`); the Comparable work step's pace (`lib/stepPace.ts`); the app's version (`forecast/appVersion.ts`'s `APP_VERSION`) in every screen's footer and streamed on the server's `/live`, which each page it serves listens on to reload when the version changes (the web build's pages don't)
+  app/                    # local server (localhost only), screens, the routes, on the team's `Forecasting` handle, and the request, reply and system clock they run on (`routes.ts`, `appContext.ts`), `npm start` entry point; each screen's HTML, and reading the fields of the forms it posts; the web build's app and page script (`webApp.ts`, `webMain.ts`); the stylesheet every page shares (`html.ts`), each screen's styles in `lib/`, and what is behind the Inputs screen (`inputsScreen.ts`): its Milestone and Pace sections, the parts its sections share (`inputSection.ts`), and the chip on a typed value the tracker reads differently (`readsDifferently.ts`); the Milestone forecast screen's Capacity section (`lib/capacitySection.ts`); the Comparable work step's pace (`lib/stepPace.ts`); the app's version (`forecast/appVersion.ts`'s `APP_VERSION`) in every screen's footer and streamed on the server's `/live`, which each page it serves listens on to reload when the version changes (the web build's pages don't)
 
 test/
   app/                    # the screens, launch, and the launch smoke test: start the app, check the screen is served; the web build's app and its smoke test; the Inputs screen's scripts run in happy-dom (`browserPage.ts` opens a page of the running app, `pagesOnTracker.ts` one for each test)
@@ -95,13 +99,12 @@ test/
   connectors/             # Seam C: the connector contract suite, its replay transport, the backoff tests' stand-in tracker and waits, and the scenarios and queries recorded for it; each tracker's quirks and recordings in its own folder; the canned connector
   secrets/                # the Secrets contract, run against the in-memory fake and the OS keychain (where one answers); no error quotes the token
   storage/                # the schema's migrations; the Storage contract, run against SQLite and browser storage; the stored values' snapshot (`storedValues.snapshot`), the unions it freezes (`storedUnions.ts`) and the check that keeps it (`storedValues.ts`, run by `storedValues.test.ts`)
-  dependencyRules.test.ts # the dependency rules (architecture-dependency-rules.md): connectors/ and secrets/ kept at the edge, ledger/ and storage/ reaching the engine only through its types
   testSeams.test.ts       # each test folder imports only its seam's entry points (architecture-test-seams.md): TEST_SEAMS, the one list
   storedJsonRules.test.ts # nothing in src/storage/ uses JSON but to stringify, but lib/storedJson.ts
   stringValueRules.test.ts # stored union values (storage/storedUnions.ts), string-literal union values in src/ and the schema's CHECK values are camelCase
   typeCheckRules.test.ts  # no `any` in a type position and no `!` but on an index, in src/, test/ or scripts/
   arrangeRules.test.ts    # no test file but the listed exceptions (migration tests, unreadable stored data) writes SQL or opens the database directly
-  importScan.ts           # what src/'s and test/'s files import, as paths under src/, for dependencyRules.test.ts and testSeams.test.ts (the scan tests list files and read imports through scripts/sourceFiles.ts)
+  importScan.ts           # what src/'s and test/'s files import, as paths under src/, for testSeams.test.ts (the scan tests list files and read imports through scripts/sourceFiles.ts)
   sourceCode.ts           # a file's code apart from its comments, strings and regexes, and its templates' text, for storedJsonRules.test.ts, stringValueRules.test.ts and typeCheckRules.test.ts
   sourceCode.test.ts      # sourceCode.ts: what it keeps as code and blanks out, and the templates' text it reads
   isoInstant.ts           # ISO_INSTANT, the shape of the instant storage stamps a logged forecast with, for the tests that check it

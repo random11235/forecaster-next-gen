@@ -44,7 +44,7 @@ async function startConnecting(answer: Answer = CHOICES): Promise<{ app: Running
     secrets: openMemorySecrets(),
     connector: () => cannedConnector({ milestoneChoices: canned.answer, reads: {} }),
   }
-  app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage, connecting, today: () => '2026-11-11' })
+  app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage, connecting, clock: { now: () => '2026-11-11T09:00:00Z', timeZone: 'UTC' } })
   return { app, connecting, answerWith: (next) => void (canned.answer = next) }
 }
 
@@ -186,13 +186,15 @@ describe('the Connect step', () => {
     }
   })
 
-  test('the browser build has no Connect step', () => {
-    const web = openWebApp({ storage: openWebStorage(undefined), today: () => '2026-11-11' })
+  test('the browser build has no Connect step', async () => {
+    const web = openWebApp({ storage: openWebStorage(undefined), clock: { now: () => '2026-11-11T09:00:00Z', timeZone: 'UTC' } })
 
-    const page = web.show({ method: 'GET', path: '/inputs' })
+    const page = await web.show({ method: 'GET', path: '/inputs' })
 
     expect(page.html).not.toContain('id="connect"')
     expect(page.html).not.toContain('Skip: type the inputs instead')
-    expect(web.show({ method: 'POST', path: '/inputs/connect', form: new URLSearchParams({ tracker: 'github', repo: 'a/b', token: TOKEN }) }).status).toBe(404)
+    expect(
+      (await web.show({ method: 'POST', path: '/inputs/connect', form: new URLSearchParams({ tracker: 'github', repo: 'a/b', token: TOKEN }) })).status,
+    ).toBe(404)
   })
 })

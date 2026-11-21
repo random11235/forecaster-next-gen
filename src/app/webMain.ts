@@ -55,14 +55,14 @@ function render(page: Page, fragment: string | undefined): void {
   else window.scrollTo(0, 0)
 }
 
-const show = (request: Request, fragment?: string): void => render(app.show(request), fragment)
+const show = async (request: Request, fragment?: string): Promise<void> => render(await app.show(request), fragment)
 
 document.addEventListener('click', (event) => {
   if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
   const href = (event.target as Element).closest('a[href]')?.getAttribute('href')
   if (!href?.startsWith('/')) return
   event.preventDefault()
-  show({ method: 'GET', path: pathOf(href) }, fragmentOf(href))
+  void show({ method: 'GET', path: pathOf(href) }, fragmentOf(href))
 })
 
 // the Inputs screen's script saves its own forms, and has already taken their submits
@@ -72,18 +72,18 @@ document.addEventListener('submit', (event) => {
   if (event.defaultPrevented || !action?.startsWith('/')) return
   event.preventDefault()
   const fields = [...new FormData(form, event.submitter)].map(([name, value]): [string, string] => [name, String(value)])
-  show({ method: 'POST', path: pathOf(action), form: new URLSearchParams(fields) }, fragmentOf(action))
+  void show({ method: 'POST', path: pathOf(action), form: new URLSearchParams(fields) }, fragmentOf(action))
 })
 
 window.addEventListener('popstate', () => {
-  if (pathInUrl() !== shownPath) show({ method: 'GET', path: pathInUrl() })
+  if (pathInUrl() !== shownPath) void show({ method: 'GET', path: pathInUrl() })
 })
 
 const browserFetch = window.fetch.bind(window)
 window.fetch = async (input, init) => {
   if (typeof input !== 'string' || !input.startsWith('/')) return browserFetch(input, init)
   const headers = new Headers(init?.headers)
-  const page = app.show({
+  const page = await app.show({
     method: init?.method ?? 'GET',
     path: pathOf(input),
     form: new URLSearchParams(typeof init?.body === 'string' ? init.body : ''),
@@ -92,4 +92,4 @@ window.fetch = async (input, init) => {
   return new Response(page.html, { status: page.status, headers: { 'content-type': 'text/html; charset=utf-8' } })
 }
 
-show({ method: 'GET', path: pathInUrl() })
+void show({ method: 'GET', path: pathInUrl() })

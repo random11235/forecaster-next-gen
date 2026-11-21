@@ -53,8 +53,7 @@ async function startConnected(): Promise<RunningApp> {
     openBrowser: () => {},
     storage,
     connecting,
-    today: () => '2026-11-12',
-    now: () => '2026-11-12T09:00:00Z',
+    clock: { now: () => '2026-11-12T09:00:00Z', timeZone: 'UTC' },
   })
   await post(app, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
   // the Comparable work step follows the milestone's: its query, read of nothing here
