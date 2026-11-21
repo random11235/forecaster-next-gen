@@ -1,19 +1,16 @@
 import { choiceKindOf } from '../model/choice.js'
-import type { ConnectionEdit, ConnectionView } from '../forecast/connection.js'
-import type { Forecasting } from '../forecast/forecasting.js'
-import type { SkipEdit } from '../forecast/skippedPeriods.js'
-import type { StepQueryEdit, QueryStepOpening, RefusedQuery } from '../forecast/queryStep.js'
-import type { InputsView, NextScreen } from '../forecast/inputs.js'
-import type { SetupEdit } from '../forecast/setup.js'
+import type { Edit, Forecasting, InputsOpening, InputsScreen, Outcome, Place } from '../forecast/forecasting.js'
+import type { NextScreen } from '../forecast/inputs.js'
 import { CONNECT_FORMS } from './connectSection.js'
 import { renderHowItWorksScreen } from './howItWorksScreen.js'
-import { INPUTS_FORMS, PACE_TRACKER_PATH, renderInputsScreen, SKIP_FORMS, type ShownStep } from './inputsScreen.js'
+import { INPUTS_FORMS, PACE_TRACKER_PATH, renderInputsScreen, SKIP_FORMS } from './inputsScreen.js'
 import { CAPACITY_OPEN, CAPACITY_OPEN_PATH, FORECAST_FORMS, renderMilestoneForecastScreen } from './milestoneForecastScreen.js'
 import {
   choiceListHtml,
   COMPARABLE_WORK_STEP,
   CONFIRMING_BACK,
   KIND_FIELD,
+  MILESTONE_STEP,
   OPEN_FIELD,
   STEP_FORMS,
   STEP_SECTIONS,
@@ -23,164 +20,125 @@ import { SETUP_FORMS, SETUP_PATHS, SETUP_STEP_PATHS, STEP_FIELD } from './setupS
 import { CANDIDATES_PATH, candidatesHtml, choicesAsked, keepOpening, OPENING_FIELD, openingKept } from './candidatesSection.js'
 import type { Reply, Request } from './appContext.js'
 
-/** A request, routed: the team's handle, and the path asked for. */
-interface Routing {
-  forecasting: Forecasting
-  request: Request
-  pathname: string
-  searchParams: URLSearchParams
-}
-
 /**
  * The Milestone forecast screen at `/`, the Inputs screen at `/inputs` and How it works at `/how-it-works`, and the
  * forms they post; not found for everything else. The setup steps' requests are answered only where the handle
- * connects a tracker (the local server build): the Inputs screen's Connect, Milestone and Comparable work steps, each
- * answered once the tracker has been asked.
+ * connects a tracker (the local server build). Each request makes one call of the handle.
  */
 export async function route(request: Request, forecasting: Forecasting): Promise<Reply> {
   const { pathname, searchParams } = new URL(request.path, 'http://app')
-  const routing: Routing = { forecasting, request, pathname, searchParams }
+  const opening = openingOf(searchParams)
   if (request.method === 'GET' && pathname === '/') {
-    const capacityOpen = searchParams.get(CAPACITY_OPEN.name) === CAPACITY_OPEN.value
-    return { kind: 'html', status: 200, html: renderMilestoneForecastScreen(await forecasting.milestoneForecastView({ capacityOpen })) }
+    return { kind: 'html', status: 200, html: renderMilestoneForecastScreen(await forecasting.milestoneForecastView(opening)) }
   }
   if (request.method === 'GET' && pathname === '/how-it-works') {
     return { kind: 'html', status: 200, html: renderHowItWorksScreen(await forecasting.howItWorksView()) }
   }
-  if (request.method === 'GET' && pathname === SCREEN_PATHS.inputs) return inputsWithStep(routing)
-  const setup = (await forecasting.connectionView()).kind === 'noConnect' ? undefined : await routeSetup(routing)
-  if (setup) return setup
-  const named = (await forecasting.inputsView()).milestone.name
-  const submitted = await submitForm(routing)
-  if (!submitted) return { kind: 'notFound' }
-  return renamed(routing, named, submitted)
+  if (request.method === 'GET' && pathname === SCREEN_PATHS.inputs) return inputsReply(request, 200, await forecasting.inputsScreen(opening))
+  if (request.method === 'GET' && forecasting.connects) {
+    const searchedFor = STEP_SECTIONS.find((section) => section.searchedChoicesPath === pathname)
+    if (searchedFor) return searchedChoices(forecasting, searchParams, searchedFor)
+    if (pathname === CANDIDATES_PATH) return candidatesAsked(forecasting, searchParams)
+  }
+  const posted = request.method === 'POST' ? postedForm(pathname, request.form ?? new URLSearchParams(), forecasting.connects) : undefined
+  if (!posted) return { kind: 'notFound' }
+  const outcome = await forecasting.submit(posted.edit, { ...opening, inPlace: request.saveInPlace === true })
+  return outcomeReply(request, outcome, posted, opening.capacityOpen === true)
+}
+
+/** How the Inputs screen, or the Milestone forecast screen, opens, as its URL asks. */
+function openingOf(searchParams: URLSearchParams): InputsOpening {
+  const editing = STEP_SECTIONS.find(({ editing }) => searchParams.get(editing.name) === editing.value)
+  const find = STEP_SECTIONS.flatMap(({ setupStep, findField }) => {
+    const typed = searchParams.get(findField)
+    return typed === null ? [] : [[setupStep, typed] as const]
+  })
+  return {
+    step: searchParams.get(STEP_FIELD),
+    ...(editing && { editing: editing.setupStep }),
+    confirmingBack: searchParams.get(CONFIRMING_BACK.name) === CONFIRMING_BACK.value,
+    opened: searchParams.getAll(OPEN_FIELD),
+    find: Object.fromEntries(find),
+    // the Capacity section's open state travels in the URL, and its forms carry it
+    capacityOpen: searchParams.get(CAPACITY_OPEN.name) === CAPACITY_OPEN.value,
+  }
 }
 
 /**
- * The setup steps' requests: one kind's choices searched, the candidates asked for, and the posts of the query steps,
- * the Connect step, skipping periods, setup's own forms and Read again. None for any other request.
+ * A form posted: the edit it is, read from its fields, where the EM goes once it is done (`next`, from the place the
+ * submit names), and, for a query step's, where it asks to confirm going back to finding clears its query.
  */
-function routeSetup(routing: Routing): Promise<Reply> | undefined {
-  const { request, pathname } = routing
-  const searchedFor = request.method === 'GET' ? STEP_SECTIONS.find((section) => section.searchedChoicesPath === pathname) : undefined
-  if (searchedFor) return searchedChoices(routing, searchedFor)
-  if (request.method === 'GET' && pathname === CANDIDATES_PATH) return candidatesAsked(routing)
-  if (request.method !== 'POST') return undefined
-  const form = request.form ?? new URLSearchParams()
-  const edited = STEP_FORMS.get(pathname)
-  if (edited) return queryEdited(routing, edited.section, edited.read)
+interface Posted {
+  edit: Edit
+  next: (place: Place, capacityOpen: boolean) => string
+  confirmingBack?: string
+}
+
+/**
+ * The form posted at `pathname`, read from `form`: the Inputs screen's and the Milestone forecast screen's, and, where
+ * the handle `connects`, the setup steps' (the query steps', the Connect step's, skipping periods, setup's own and
+ * Read again). None for any other request, or a form as no page of the app sends it.
+ */
+function postedForm(pathname: string, form: URLSearchParams, connects: boolean): Posted | undefined {
+  const readInputs = INPUTS_FORMS.get(pathname) ?? FORECAST_FORMS.get(pathname)
+  // a form from the open Capacity section goes back to the screen with it open
+  if (readInputs)
+    return {
+      edit: { form: 'inputs', edit: readInputs(form) },
+      next: ({ screen }, open) => (screen === 'forecast' && open ? CAPACITY_OPEN_PATH : SCREEN_PATHS[screen]),
+    }
+  if (!connects) return undefined
+  const stepForm = STEP_FORMS.get(pathname)
+  if (stepForm) {
+    const edit = stepForm.read(form)
+    const { setupStep, urls } = stepForm.section
+    // a query edited by hand stays open for editing; every other change goes back to finding
+    return (
+      edit && {
+        edit: { form: 'stepQuery', step: setupStep, edit },
+        next: () => (edit.kind === 'editQuery' ? urls.editing : urls.finding),
+        confirmingBack: urls.confirmingBack,
+      }
+    )
+  }
   const readConnect = CONNECT_FORMS.get(pathname)
-  if (readConnect) return connected(routing, readConnect(form))
+  if (readConnect) return { edit: { form: 'connection', edit: readConnect(form) }, next: placePath }
   const readSkip = SKIP_FORMS.get(pathname)
-  if (readSkip) return skipped(routing, readSkip(form))
+  // skipped or counted again, back to the tracker's pace
+  if (readSkip) return { edit: { form: 'skip', edit: readSkip(form) }, next: () => PACE_TRACKER_PATH }
   const readSetupEdit = SETUP_FORMS.get(pathname)
-  if (readSetupEdit) return setupSubmitted(routing, readSetupEdit(form))
-  if (pathname === SETUP_PATHS.readAgain) return readAgain(routing)
+  if (readSetupEdit) {
+    const edit = readSetupEdit(form)
+    return edit && { edit: { form: 'setup', edit }, next: placePath }
+  }
+  if (pathname === SETUP_PATHS.readAgain) return { edit: { form: 'readAgain' }, next: placePath }
   return undefined
 }
 
 /**
- * What a post of an Inputs or Milestone forecast form is answered with: a redirect to the next screen, the Milestone
- * forecast screen refused, or the Inputs screen's view to show (`inputs`), refused or saved in place, which the caller
- * shows beside the setup steps. None for any other request.
+ * What a submit comes to, answered: a redirect to the place it goes next, or, saved in place, the Inputs screen; the
+ * screen to show again, refused; or the step asking to confirm going back to finding clears its query.
  */
-type FormReply = Reply | { kind: 'inputs'; status: number; view: InputsView }
-
-async function submitForm({ forecasting, request, pathname, searchParams }: Routing): Promise<FormReply | undefined> {
-  const readForm = request.method === 'POST' ? (INPUTS_FORMS.get(pathname) ?? FORECAST_FORMS.get(pathname)) : undefined
-  if (!readForm) return undefined
-  // the Capacity section's open state travels in the URL, and its forms carry it
-  const capacityOpen = searchParams.get(CAPACITY_OPEN.name) === CAPACITY_OPEN.value
-  const submitted = await forecasting.submitInputs(readForm(request.form ?? new URLSearchParams()), { capacityOpen })
-  // a form from the open Capacity section goes back to the screen with it open
-  const pathOf = (screen: NextScreen): string => (screen === 'forecast' && capacityOpen ? CAPACITY_OPEN_PATH : SCREEN_PATHS[screen])
-  if (!submitted.saved) {
-    if (submitted.screen === 'inputs') return { kind: 'inputs', status: 400, view: submitted.view }
-    return { kind: 'html', status: 400, html: renderMilestoneForecastScreen(submitted.view), path: pathOf(submitted.screen) }
-  }
-  if (request.saveInPlace) return { kind: 'inputs', status: 200, view: await forecasting.inputsView() }
-  return { kind: 'redirect', location: pathOf(submitted.next) }
+function outcomeReply(request: Request, outcome: Outcome, { next, confirmingBack }: Posted, capacityOpen: boolean): Reply {
+  if (outcome.saved) return outcome.view ? inputsReply(request, 200, outcome.view) : { kind: 'redirect', location: next(outcome.next, capacityOpen) }
+  if ('confirmClear' in outcome) return { kind: 'redirect', location: confirmingBack ?? SCREEN_PATHS.inputs }
+  if (outcome.screen === 'inputs') return inputsReply(request, 400, outcome.view)
+  const path = capacityOpen ? CAPACITY_OPEN_PATH : SCREEN_PATHS.forecast
+  return { kind: 'html', status: 400, html: renderMilestoneForecastScreen(outcome.view), path }
 }
 
-/**
- * An Inputs or Milestone forecast form's reply, once a milestone renamed from `named` has moved the milestone query
- * to the new name where it follows it (`followRenamedMilestone`). A milestone not yet entered has no name.
- */
-async function renamed(routing: Routing, named: string, submitted: FormReply): Promise<Reply> {
-  const { forecasting, request } = routing
-  const now = (await forecasting.inputsView()).milestone.name
-  if (named !== '' && now !== '' && named !== now) await forecasting.followRenamedMilestone({ from: named, to: now })
-  if (submitted.kind !== 'inputs') return submitted
-  // a save in place replaces only the sections saved, not the Milestone step, so its choices aren't asked for
-  return inputsWithStep(routing, { status: submitted.status, view: submitted.view, unlisted: request.saveInPlace === true })
-}
-
-/**
- * How the Inputs screen opens its query steps, beyond what the request asks: `unlisted`, every step asks the tracker
- * nothing (a save in place, which doesn't replace them); `refused`, the step whose query was just refused opens on
- * that refusal.
- */
-interface StepsOpening {
-  unlisted?: boolean
-  refused?: { section: StepSection; query: RefusedQuery }
-}
-
-/**
- * The Inputs screen, with the Connect step (`connection`: as connected unless given) and the query steps (the
- * Milestone step and the Comparable work step), each opening as the request asks, or as `unlisted` or `refused` say;
- * served at `/inputs`, with `status` (200 unless given). `view` is the Inputs view to show, as saved unless given. The
- * browser build has no steps.
- */
-async function inputsWithStep(
-  { forecasting, request, searchParams }: Routing,
-  { status = 200, view, connection, unlisted = false, refused }: { status?: number; view?: InputsView; connection?: ConnectionView } & StepsOpening = {},
-): Promise<Reply> {
-  // the Connect step's view is given only as a connect was refused
-  const opening = {
-    asked: searchParams.get(STEP_FIELD),
-    ...(refused && { refused: refused.section.setupStep }),
-    ...(connection && { refused: 'connect' as const }),
-  }
-  const setup = await forecasting.openSetup(opening)
-  const steps: ShownStep[] = []
-  // only the step shown is built, so the tracker is asked nothing once setup is closed
-  for (const section of STEP_SECTIONS.filter(({ setupStep }) => setup.kind === 'steps' && setup.step === setupStep)) {
-    const editing = searchParams.get(section.editing.name) === section.editing.value
-    const opening: QueryStepOpening =
-      refused?.section === section
-        ? { refused: refused.query }
-        : {
-            editing,
-            confirmingBack: editing && searchParams.get(CONFIRMING_BACK.name) === CONFIRMING_BACK.value,
-            unlisted,
-            opened: searchParams.getAll(OPEN_FIELD),
-          }
-    const view = await forecasting.queryStepView(searchParams.get(section.findField) ?? '', opening, section.stepQuery)
-    const candidates = view.kind === 'comparableWorkStep' && view.candidates
-    steps.push({ section, view, ...(candidates && { openingId: keepOpening(candidates.opening) }) })
-  }
-  const html = renderInputsScreen(view ?? (await forecasting.inputsView()), connection ?? (await forecasting.connectionView()), steps, setup)
+/** The Inputs screen, served at `/inputs` with `status`; its candidates' opening kept for the page's script to read more in. */
+function inputsReply(request: Request, status: number, screen: InputsScreen): Reply {
+  const { step } = screen
+  const section = step && (step.kind === 'milestoneStep' ? MILESTONE_STEP : COMPARABLE_WORK_STEP)
+  const candidates = step?.kind === 'comparableWorkStep' && step.candidates
+  const shown = section && step && { section, view: step, ...(candidates && { openingId: keepOpening(candidates.opening) }) }
+  const html = renderInputsScreen(screen, shown)
   return { kind: 'html', status, html, ...(request.method === 'POST' && { path: SCREEN_PATHS.inputs }) }
 }
 
-/**
- * "Use these", Change, Cancel, skipping connecting or a source chosen at Check: back to the Inputs screen, at the step
- * setup goes on to (`submitSetup`), made or refused. Not found for a form Check never sends.
- */
-async function setupSubmitted({ forecasting }: Routing, edit: SetupEdit | undefined): Promise<Reply> {
-  if (!edit) return { kind: 'notFound' }
-  const { next } = await forecasting.submitSetup(edit)
-  return { kind: 'redirect', location: next ? SETUP_STEP_PATHS[next] : SCREEN_PATHS.inputs }
-}
-
-/** Read again: back to the Inputs screen, read or failed, its summary saying why a read failed, the saved read in use. */
-async function readAgain({ forecasting }: Routing): Promise<Reply> {
-  await forecasting.submitReadAgain()
-  return { kind: 'redirect', location: SCREEN_PATHS.inputs }
-}
-
 /** The candidates the Comparable work step's script asks for, in the opening it names: the candidates block alone. */
-async function candidatesAsked({ forecasting, searchParams }: Routing): Promise<Reply> {
+async function candidatesAsked(forecasting: Forecasting, searchParams: URLSearchParams): Promise<Reply> {
   const choices = choicesAsked(searchParams, choiceKindOf)
   if (!choices) return { kind: 'notFound' }
   const opening = await openingKept(searchParams.get(OPENING_FIELD) ?? '', () => forecasting.openCandidates())
@@ -189,45 +147,14 @@ async function candidatesAsked({ forecasting, searchParams }: Routing): Promise<
 }
 
 /** One kind's choices searched in the tracker, as a query step's script asks for them: that kind's list alone. */
-async function searchedChoices({ forecasting, searchParams }: Routing, section: StepSection): Promise<Reply> {
+async function searchedChoices(forecasting: Forecasting, searchParams: URLSearchParams, section: StepSection): Promise<Reply> {
   const kind = choiceKindOf(searchParams.get(KIND_FIELD) ?? '')
   const list = kind && (await forecasting.searchedChoiceList(kind, searchParams.get(section.findField) ?? '', section.stepQuery))
   return list ? { kind: 'html', status: 200, html: choiceListHtml(list, section) } : { kind: 'notFound' }
 }
 
-/**
- * A change of a step's query (`section`'s): read again, then back to the step, still open for editing after a hand
- * edit, finding otherwise. A refused hand edit shows the Inputs screen again with why and the query as typed; a
- * change of the picks the tracker rejects, the step still finding, with why beside the chips that worked; going back
- * to finding from a query it would clear asks the EM to confirm that first.
- */
-async function queryEdited(routing: Routing, section: StepSection, readQueryEdit: (body: URLSearchParams) => StepQueryEdit | undefined): Promise<Reply> {
-  const edit = readQueryEdit(routing.request.form ?? new URLSearchParams())
-  if (!edit) return { kind: 'notFound' }
-  // read at once, into setup's draft while setup is open
-  const submitted = await routing.forecasting.submitStepQuery(edit, section.stepQuery)
-  if (submitted.kind === 'refused') return inputsWithStep(routing, { status: 400, refused: { section, query: submitted } })
-  if (submitted.kind === 'confirmClear') return { kind: 'redirect', location: section.urls.confirmingBack }
-  // a query edited by hand stays open for editing; every other change goes back to finding
-  return { kind: 'redirect', location: edit.kind === 'editQuery' ? section.urls.editing : section.urls.finding }
-}
-
-/**
- * The tracker's periods skipped, or counted again, which may read the tracker further back; then back to its pace.
- * Refused, the Inputs screen again, saying why.
- */
-async function skipped(routing: Routing, edit: SkipEdit): Promise<Reply> {
-  const submitted = await routing.forecasting.submitSkip(edit)
-  if (!submitted.saved) return inputsWithStep(routing, { status: 400, ...(submitted.screen === 'inputs' && { view: submitted.view }) })
-  return { kind: 'redirect', location: PACE_TRACKER_PATH }
-}
-
-/** A connect: on to the next setup step once saved; refused, the Inputs screen again with why, and the form as typed but for the token. */
-async function connected(routing: Routing, edit: ConnectionEdit): Promise<Reply> {
-  const submitted = await routing.forecasting.submitConnection(edit)
-  if (submitted.saved) return { kind: 'redirect', location: SETUP_STEP_PATHS[submitted.next] }
-  return inputsWithStep(routing, { status: 400, connection: submitted.view })
-}
+/** Where a place is served: the setup step it names, at its section, or the screen. */
+const placePath = ({ screen, step }: Place): string => (step ? SETUP_STEP_PATHS[step] : SCREEN_PATHS[screen])
 
 /** Where each screen is served. */
 const SCREEN_PATHS: Record<NextScreen, string> = { forecast: '/', inputs: '/inputs' }
