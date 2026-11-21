@@ -3,7 +3,7 @@ import type { ConnectionStorage, MilestoneQueryStorage, SavedReadStorage, SetupS
 
 // A team on a tracker, as the tests of what the tracker reads (#211–#215) arrange it: the team, today, the milestone
 // the tracker lists, and the tickets it answers with. forecast/'s tests open the team's handle on them through
-// forecast/forecastingForTest.ts; app/'s through test/app/appOnTracker.ts.
+// test/forecast/forecastingForTest.ts; app/'s through test/app/appOnTracker.ts.
 
 /** What the local server build stores, by the interfaces its tests use. */
 export type TeamStorage = Storage & ConnectionStorage & SavedReadStorage & MilestoneQueryStorage & SetupStorage & TeamQueryStorage

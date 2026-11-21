@@ -1,14 +1,16 @@
 import type { ChoiceKind } from '../../model/choice.js'
-import type { CandidateOpening } from './candidates.js'
-import type { HowItWorksView } from './howItWorksView.js'
-import { inputsScreen, type InputsOpening, type InputsScreen } from './inputsScreenView.js'
-import type { MilestoneForecastView } from './milestoneForecastView.js'
-import type { ChoiceList } from './queryStep.js'
-import type { StepQuery } from './stepQuery.js'
+import type { ForecastLog } from '../../ledger/ledger.js'
+import { openCandidates, type CandidateOpening } from './candidates.js'
+import { rerunForecast, type Rerun } from './forecastLedger.js'
+import { howItWorksView, type HowItWorksView } from './howItWorksView.js'
+import { inputsScreen, STEP_QUERIES, type InputsOpening, type InputsScreen, type QuerySetupStep } from './inputsScreenView.js'
+import { milestoneForecastView, type CapacityShown, type MilestoneForecastView } from './milestoneForecastView.js'
+import { searchedChoiceList, type ChoiceList } from './queryStep.js'
 import { submit, type Edit, type Outcome, type SubmitOpening } from './submit.js'
-import { openTeamEntries, type CapacityShown, type ForecastingOptions } from './teamEntries.js'
+import { connected, openTeamCalls, type ForecastingOptions } from './teamCall.js'
 
-export type { Clock, CapacityShown, ForecastingOptions } from './teamEntries.js'
+export type { Clock, ForecastingOptions } from './teamCall.js'
+export type { CapacityShown } from './milestoneForecastView.js'
 export type { InputsOpening, InputsScreen, QuerySetupStep } from './inputsScreenView.js'
 export type { Edit, Outcome, Place, SubmitOpening } from './submit.js'
 
@@ -26,20 +28,36 @@ export interface Forecasting {
   inputsScreen(opening?: InputsOpening): Promise<InputsScreen>
   /** A form saved, and where next; refused, with the whole screen to show again; or asking to confirm a clear. */
   submit(edit: Edit, opening?: SubmitOpening): Promise<Outcome>
-  searchedChoiceList(kind: ChoiceKind, find: string, stepQuery: StepQuery): Promise<ChoiceList | undefined>
+  /** One kind of the query step `step`'s choices, searched in the tracker for `find`, as the step's script asks. */
+  searchedChoiceList(kind: ChoiceKind, find: string, step: QuerySetupStep): Promise<ChoiceList | undefined>
   openCandidates(): Promise<CandidateOpening>
+  /** A logged forecast re-run from its case alone, to check it gives the result the EM was shown; or why it isn't. */
+  rerunForecast(log: ForecastLog): Promise<Rerun>
 }
 
-/** Seam B: the team's handle, adding the default team on first launch, when nothing is stored yet. */
+/**
+ * Seam B: the team's handle, adding the default team on first launch, when nothing is stored yet. Each call on the
+ * team reads the clock once, and asks the tracker for the milestone choices once (`openTeamCalls`); `rerunForecast`,
+ * which re-runs a logged case alone, reads neither the clock nor the team.
+ */
 export function openForecasting(options: ForecastingOptions): Forecasting {
-  const entries = openTeamEntries(options)
+  const call = openTeamCalls(options)
   return {
     connects: options.connecting !== undefined,
-    milestoneForecastView: (shown) => entries().milestoneForecastView(shown),
-    howItWorksView: () => entries().howItWorksView(),
-    inputsScreen: (opening = {}) => inputsScreen(entries(), opening),
-    submit: (edit, opening = {}) => submit(entries(), edit, opening),
-    searchedChoiceList: (kind, find, stepQuery) => entries().searchedChoiceList(kind, find, stepQuery),
-    openCandidates: () => entries().openCandidates(),
+    milestoneForecastView: async ({ capacityOpen = false } = {}) => {
+      return milestoneForecastView(call(), { capacityOpen })
+    },
+    howItWorksView: async () => howItWorksView(call().settings),
+    inputsScreen: (opening = {}) => inputsScreen(call(), opening),
+    submit: (edit, opening = {}) => submit(call(), edit, opening),
+    searchedChoiceList: async (kind, find, step) => {
+      const { reading, teamId } = call()
+      return reading && searchedChoiceList(reading, teamId, kind, find, STEP_QUERIES[step])
+    },
+    openCandidates: async () => {
+      const team = call()
+      return openCandidates(connected(team), team.storage, team.teamId, team.at)
+    },
+    rerunForecast: async (log) => rerunForecast(log),
   }
 }

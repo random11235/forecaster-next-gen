@@ -30,7 +30,7 @@ export function connect(team: ForecastingForTest, edit: ConnectionEdit): Promise
 
 /** The Connect step a refused submit shows again. */
 export function refusedStep(outcome: Outcome): ConnectStep | undefined {
-  return !outcome.saved && 'screen' in outcome && outcome.screen === 'inputs' ? outcome.view.connection : undefined
+  return outcome.kind === 'refused' ? outcome.view.connection : undefined
 }
 
 /** Why the Connect step's submit was refused. */

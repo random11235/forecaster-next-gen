@@ -1,5 +1,4 @@
-import { dayMonth } from '../html.js'
-import type { ComparableWorkPace, PairedPeriod, PickPace } from '../../forecast/index.js'
+import { dayMonth, type ComparableWorkPace, type PairedPeriod, type PickPace } from '../../forecast/index.js'
 import { escapeHtml } from '../html.js'
 
 // The Comparable work step's pace (queryStepSection.ts): the pace it leads with, its periods paired as bars, and each

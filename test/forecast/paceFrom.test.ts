@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, test } from 'vitest'
 import type { CannedFixture } from '../../src/connectors/canned.js'
 import type { Choice } from '../../src/connectors/connector.js'
-import type { ComparableWorkPace, InputsEdit } from '../../src/forecast/index.js'
-import { forecastingForTest, pick, TEAM, type ForecastingForTest } from './forecastingForTest.js'
+import type { ComparableWorkPace } from '../../src/forecast/index.js'
+import { forecastingForTest, pick, TEAM, type ForecastingForTest, submitInputs } from './forecastingForTest.js'
 
 // Where pace's finished tickets come from (#203): comparable work alone once it is added, else the milestone's own,
 // as the Comparable work step pairs the two reads period by period and leads with the pace in use.
@@ -60,11 +60,9 @@ const PAYMENTS_COUNTS = [0, 1, 1, 0, 1, 0, 0, 0]
 
 let team: ForecastingForTest
 
-const submit = (edit: InputsEdit) => team.submit({ form: 'inputs', edit })
-
 beforeEach(async () => {
   team = await forecastingForTest({ fixture: structuredClone(FIXTURE), connected: true, clock: { now: READ_AT } })
-  await submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-10-01', ticketsRemaining: '30' })
+  await submitInputs(team, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-10-01', ticketsRemaining: '30' })
   await pick(team, READ_AT, checkout)
 })
 
@@ -136,7 +134,7 @@ describe('with a comparable-work query', () => {
     await milestoneReadAgain()
     await addComparable(payments)
 
-    await submit({ kind: 'setTicketsSource', ticketsSource: 'tracker' })
+    await submitInputs(team, { kind: 'setTicketsSource', ticketsSource: 'tracker' })
     const why = 'GitHub gave only part of the milestone’s tickets, so tickets remaining isn’t known. Narrow the milestone query, or type tickets remaining.'
     expect((await ticketsSource()).notes).toContainEqual({ input: 'ticketsRemaining', message: why })
   })
@@ -175,7 +173,7 @@ describe('the milestone’s own pace', () => {
   })
 
   test('a milestone started before the reads reach counts every period they reach whole', async () => {
-    await submit({
+    await submitInputs(team, {
       kind: 'setMilestone',
       name: 'Checkout v2',
       startDate: '2026-08-06',
@@ -189,7 +187,7 @@ describe('the milestone’s own pace', () => {
   })
 
   test('a milestone that starts in the current period has no periods of its own yet', async () => {
-    await submit({
+    await submitInputs(team, {
       kind: 'setMilestone',
       name: 'Checkout v2',
       startDate: '2026-11-10',

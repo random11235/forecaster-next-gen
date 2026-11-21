@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { APP_VERSION, openForecasting, type Clock, type Forecasting, type ForecastingOptions } from '../forecast/index.js'
+import { APP_VERSION, openForecasting, type Clock, type Connecting, type Forecasting } from '../forecast/index.js'
 import type { Storage } from '../storage/storage.js'
 import { SAVE_IN_PLACE } from './inputsScript.js'
 import { systemClock, type Reply, type Request } from './appContext.js'
@@ -16,7 +16,7 @@ export interface LaunchOptions {
   /** Where the app keeps its data. On first launch, when it is empty, the default team is added to it. */
   storage: Storage
   /** What the Inputs screen's Connect step connects a tracker with: the keychain and the real connectors, or demo mode's. */
-  connecting?: ForecastingOptions['connecting']
+  connecting?: Connecting
   /** The UTC instant now, which reads are made at, and the EM's time zone, which today is the date in; the system clock unless given. */
   clock?: Clock
 }

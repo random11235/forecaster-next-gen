@@ -1,6 +1,5 @@
 import type { CannedFixture } from '../../src/connectors/canned.js'
-import type { InputsEdit } from '../../src/forecast/index.js'
-import { forecastingForTest, type ForecastingForTest } from './forecastingForTest.js'
+import { forecastingForTest, submitInputs, type ForecastingForTest } from './forecastingForTest.js'
 
 // Pace patterns (#161): the tool reads the shape of the counts the Pace bars show and names it, with the team's
 // numbers and never a cause, and where there's a forecast action it offers it with the 85% date both ways.
@@ -20,17 +19,13 @@ export const START = '2026-11-02'
 export const teamOn = (fixture?: CannedFixture): Promise<ForecastingForTest> =>
   forecastingForTest({ clock: { now: NOW }, ...(fixture ? { fixture, connected: true } : { browser: true }) })
 
-export function submit(team: ForecastingForTest, edit: InputsEdit) {
-  return team.submit({ form: 'inputs', edit })
-}
-
 /** 60 tickets from 2 Nov, its pace the typed counts, oldest first. */
 export async function withTypedCounts(counts: readonly number[], cadenceDays = 7): Promise<ForecastingForTest> {
   const team = await teamOn()
-  await submit(team, { kind: 'setMilestone', name: 'Launch', startDate: START, ticketsRemaining: '60' })
-  if (cadenceDays !== 7) await submit(team, { kind: 'setCadence', cadenceDays: String(cadenceDays) })
-  await submit(team, { kind: 'setPaceCounts', counts: counts.join(', ') })
-  await submit(team, { kind: 'setPaceMode', paceMode: 'counts' })
+  await submitInputs(team, { kind: 'setMilestone', name: 'Launch', startDate: START, ticketsRemaining: '60' })
+  if (cadenceDays !== 7) await submitInputs(team, { kind: 'setCadence', cadenceDays: String(cadenceDays) })
+  await submitInputs(team, { kind: 'setPaceCounts', counts: counts.join(', ') })
+  await submitInputs(team, { kind: 'setPaceMode', paceMode: 'counts' })
   return team
 }
 
