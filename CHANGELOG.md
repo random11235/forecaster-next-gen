@@ -2,6 +2,13 @@
 
 What each version of the app shipped, newest first. The version is the one in every screen's footer: a fix is in the app you're running if its version is the footer's or older. Each merge's release ([`docs/design/architecture.md`](docs/design/architecture.md#release)) writes its section here, a line from each change file (`changes/<ticket>.md`) a PR that changes the app adds: a PR doesn't edit the entries below ([`docs/agents/pull-requests.md`](docs/agents/pull-requests.md#version)).
 
+## 1.0.1 (2026-11-21)
+
+- Code outside a module imports only its entry points, which `npm run lint:boundaries` checks in CI, with no change to the app (#231, PR #309)
+- `npm run lint:boundaries` checks the layering between modules in place of the regex test, side-effect and dynamic imports among them, with no change to the app (#232, PR #309)
+- `model/` depends only on the engine's types, holding the ticket, choice and failure types connectors answer in, with no change to the app (#234, PR #309)
+- The app reaches the forecast through one handle for the team, opened once on a clock, with no change to the app (#245, PR #309)
+
 ## 1.0.0 (2026-11-20)
 
 - Every forecast shown is logged in the team's forecast ledger, with its case, hash, result, when and the release that made it, and re-runs from its case alone; the web build keeps it in browser storage apart from the EM's other data, its newest million characters or so (#27, PR #304)
