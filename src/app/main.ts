@@ -3,11 +3,13 @@ import { fileURLToPath } from 'node:url'
 import { demoConnector } from '../connectors/canned.js'
 import { githubConnector } from '../connectors/github.js'
 import { jiraConnector } from '../connectors/jira.js'
-import type { Connecting, ConnectorFactory } from '../forecast/connection.js'
 import { openKeychainSecrets } from '../secrets/keychainSecrets.js'
 import { openMemorySecrets } from '../secrets/memorySecrets.js'
 import { openSqliteStorage, type SqliteStorage } from '../storage/sqliteStorage.js'
-import { startAppAndOpenBrowser } from './launch.js'
+import { startAppAndOpenBrowser, type LaunchOptions } from './launch.js'
+
+/** What the app connects a tracker with: where the connection and setup are kept, the token's keychain, and the connector. */
+type TrackerParts = NonNullable<LaunchOptions['connecting']>
 
 const DEFAULT_PORT = 5180
 
@@ -55,7 +57,7 @@ try {
 }
 
 /** The real connectors, reaching their trackers with `fetch`. */
-const trackerConnector: ConnectorFactory = (connection, token) =>
+const trackerConnector: TrackerParts['connector'] = (connection, token) =>
   connection.tracker === 'github' ? githubConnector(connection, token, fetch) : jiraConnector(connection, token, fetch)
 
 /**
@@ -65,7 +67,7 @@ const trackerConnector: ConnectorFactory = (connection, token) =>
  * Otherwise a connection is checked with its tracker and its token kept in the OS keychain.
  */
 const demo = Boolean(process.env.FORECASTER_DEMO)
-const connecting: Connecting = demo
+const connecting: TrackerParts = demo
   ? { connections: storage, queries: storage, setup: storage, secrets: openMemorySecrets(), connector: demoConnector }
   : { connections: storage, queries: storage, setup: storage, secrets: openKeychainSecrets(), connector: trackerConnector }
 if (demo) console.log('Demo mode: tickets come from the canned connector and its synthetic fixture.')

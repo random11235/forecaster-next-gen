@@ -1,6 +1,7 @@
 import type { Storage } from '../storage/storage.js'
 import { escapeHtml } from './html.js'
-import { appContext, type AppContext, type Request } from './appContext.js'
+import { openForecasting, type Clock, type Forecasting } from '../forecast/forecasting.js'
+import { systemClock, type Request } from './appContext.js'
 import { route } from './routes.js'
 
 /**
@@ -15,14 +16,14 @@ export interface Page {
 
 export interface WebApp {
   /** Answers `request` as the server would, following a redirect to the screen it names. */
-  show(request: Request): Page
+  show(request: Request): Promise<Page>
 }
 
 export interface WebAppOptions {
   /** On first open, when it is empty, the default team is added to it. */
   storage: Storage
-  /** Today's ISO calendar date; the browser's local date unless given. */
-  today?: () => string
+  /** The UTC instant now, and the EM's time zone, which today is the date in; the browser's clock unless given. */
+  clock?: Clock
 }
 
 /** A page with no screen of the app's: `title` and the paragraph `body`, already escaped. */
@@ -47,17 +48,17 @@ function failed(request: Request, error: unknown): Page {
  * from the first open on.
  */
 export function openWebApp(options: WebAppOptions): WebApp {
-  let opened: { context: AppContext } | { error: unknown }
+  let opened: { forecasting: Forecasting } | { error: unknown }
   try {
-    opened = { context: appContext(options.storage, options.today) }
+    opened = { forecasting: openForecasting({ storage: options.storage, clock: options.clock ?? systemClock() }) }
   } catch (error) {
     opened = { error }
   }
   return {
-    show(request) {
+    async show(request) {
       if ('error' in opened) return failed(request, opened.error)
       try {
-        const reply = route(request, opened.context)
+        const reply = await route(request, opened.forecasting)
         switch (reply.kind) {
           case 'html':
             // a post answered with a page names the screen it shows
