@@ -1,39 +1,29 @@
-import { afterEach, describe, expect, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import type { Choice } from '../../src/connectors/connector.js'
-import { openForecasting, type Forecasting } from '../../src/forecast/forecasting.js'
-import { CHECKOUT, trackerScenario, type TrackerScenario } from '../trackerScenario.js'
+import { CHECKOUT, checkoutFixture, CONNECTIONS, forecastingForTest, type ForecastingForTest } from './forecastingForTest.js'
 
 // The team's handle (#246): one submit for every form of the Inputs screen and the Milestone forecast screen, which owns
 // what follows from it: a renamed milestone's query following it, a refused form's whole screen to show again, and a
 // save in place answered with the Inputs screen.
 
-const NOW = '2026-11-12T09:00:00Z'
-const CLOCK = { now: () => NOW, timeZone: 'UTC' }
 const LOYALTY: Choice = { kind: 'milestone', name: 'Loyalty launch', query: 'milestone:"Loyalty launch"' }
-const GITHUB_REPO = { kind: 'connect', tracker: 'github', repo: 'shop-team/shop', site: '', projectKey: '', email: '', token: 'token' } as const
+const GITHUB_REPO = CONNECTIONS.github
 
-let scenario: TrackerScenario | undefined
-
-afterEach(() => {
-  scenario?.close()
-  scenario = undefined
-})
-
-/** The team's handle on the canned connector, which lists Checkout v2 and Loyalty launch; setup closed, or open (`firstSetup`). */
-function team({ firstSetup = false } = {}): { forecasting: Forecasting; team: TrackerScenario } {
-  const team = trackerScenario({ tickets: [{ id: 'c1' }, { id: 'c2' }], firstSetup })
-  scenario = team
-  team.fixture.milestoneChoices = [{ kind: 'milestone', choices: [CHECKOUT, LOYALTY], pastLimit: false }]
-  team.fixture.reads[LOYALTY.query] = { tickets: [{ id: 'l1' }, { id: 'l2' }, { id: 'l3' }], incomplete: false }
-  return { forecasting: openForecasting({ storage: team.storage, connecting: team.using, clock: CLOCK }), team }
+/**
+ * The team's handle on the canned connector, which lists Checkout v2 and Loyalty launch; setup closed, or open
+ * (`firstSetup`); connected to GitHub when `connected`; the browser build, connecting nothing, when `browser`. The
+ * handle is the team: `forecasting` and `team` are one.
+ */
+async function team({ firstSetup = false, connected = false, browser = false } = {}): Promise<{ forecasting: ForecastingForTest; team: ForecastingForTest }> {
+  const fixture = checkoutFixture([{ id: 'c1' }, { id: 'c2' }])
+  fixture.milestoneChoices = [{ kind: 'milestone', choices: [CHECKOUT, LOYALTY], pastLimit: false }]
+  fixture.reads[LOYALTY.query] = { tickets: [{ id: 'l1' }, { id: 'l2' }, { id: 'l3' }], incomplete: false }
+  const opened = await forecastingForTest({ fixture, setupOpen: firstSetup, connected, browser })
+  return { forecasting: opened, team: opened }
 }
 
 /** The team's handle, connected to GitHub; setup closed, or open (`firstSetup`). */
-async function connectedTeam({ firstSetup = false } = {}): Promise<{ forecasting: Forecasting; team: TrackerScenario }> {
-  const opened = team({ firstSetup })
-  await opened.forecasting.submit({ form: 'connection', edit: GITHUB_REPO })
-  return opened
-}
+const connectedTeam = ({ firstSetup = false } = {}) => team({ firstSetup, connected: true })
 
 /** The milestone, as the Inputs screen's Milestone form submits it. */
 const milestoneNamed = (name: string) => ({ form: 'inputs', edit: { kind: 'setMilestone', name, startDate: '2026-11-02', ticketsRemaining: '40' } }) as const
@@ -65,8 +55,7 @@ describe('renaming the milestone', () => {
   })
 
   test('with nothing connected (the browser build), a rename is saved, with no query to follow', async () => {
-    const { team: browser } = team()
-    const forecasting = openForecasting({ storage: browser.storage, clock: CLOCK })
+    const { forecasting } = await team({ browser: true })
     await forecasting.submit(milestoneNamed('Checkout v2'))
 
     expect(await forecasting.submit(milestoneNamed('Loyalty launch'))).toEqual({ saved: true, next: { screen: 'inputs' } })
@@ -103,7 +92,7 @@ describe('a refused form shows its whole screen again', () => {
   })
 
   test('a refused connect: the Inputs screen at the Connect step, as typed but for the token, saying why', async () => {
-    const { forecasting } = team({ firstSetup: true })
+    const { forecasting } = await team({ firstSetup: true })
 
     const submitted = await forecasting.submit({ form: 'connection', edit: { ...GITHUB_REPO, repo: 'shop' } })
 
@@ -147,7 +136,7 @@ describe('a save in place', () => {
   test('is answered with the Inputs screen as saved, its query step asking the tracker nothing', async () => {
     const { forecasting, team } = await connectedTeam({ firstSetup: true })
     await forecasting.submit(milestoneNamed('Checkout v2'))
-    team.asked.length = 0
+    team.calls.since.length = 0
 
     const submitted = await forecasting.submit({ form: 'inputs', edit: { kind: 'setAmbiguity', level: 'high' } }, { inPlace: true })
 
@@ -156,7 +145,7 @@ describe('a save in place', () => {
       next: { screen: 'forecast' },
       view: { inputs: { milestone: { ambiguity: 'high' } }, setup: { kind: 'steps', step: 'milestone' }, step: { kind: 'milestoneStep', lists: [] } },
     })
-    expect(team.asked).toEqual([])
+    expect(team.calls.since).toEqual([])
   })
 
   test('refused, the Inputs screen again, as typed with why, its query step still asking nothing', async () => {
@@ -177,7 +166,7 @@ describe('a save in place', () => {
 
 describe('where a submit goes next', () => {
   test('a connect, to the Milestone step; a pick, back to its step; Read again, to the Inputs screen', async () => {
-    const { forecasting } = team({ firstSetup: true })
+    const { forecasting } = await team({ firstSetup: true })
 
     expect(await forecasting.submit({ form: 'connection', edit: GITHUB_REPO })).toEqual({ saved: true, next: { screen: 'inputs', step: 'milestone' } })
     expect(await forecasting.submit({ form: 'stepQuery', step: 'comparableWork', edit: { kind: 'addPick', choice: LOYALTY } })).toEqual({
@@ -237,9 +226,9 @@ describe('the Inputs screen, whole', () => {
   })
 
   test('the browser build’s has the inputs alone: no Connect step, setup or query step', async () => {
-    const { team: browser } = team()
+    const { forecasting: browser } = await team({ browser: true })
 
-    const screen = await openForecasting({ storage: browser.storage, clock: CLOCK }).inputsScreen({ step: 'milestone' })
+    const screen = await browser.inputsScreen({ step: 'milestone' })
 
     expect(Object.keys(screen)).toEqual(['inputs'])
   })

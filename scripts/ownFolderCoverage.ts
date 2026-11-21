@@ -10,17 +10,16 @@ export type Coverage = Record<Measure, number>
 
 /**
  * Each folder of `src/` that `test/` has a folder for, and the coverage its own tests may not drop below: the figures
- * as #262 measured them, so any drop fails. Raise one when its tests cover more. `forecast` and `app` are as #245 left
- * them: `forecast/forecasting.ts`, the team's handle, is tested through `test/app/` until #233 ports `test/forecast/`
- * to it, and `app/` has less code of its own around the handle.
+ * as #262 measured them, so any drop fails. Raise one when its tests cover more. `forecast` and `app` are as #233
+ * measured them, with `test/forecast/` testing forecast/ through its handle alone.
  */
 export const OWN_FOLDER_THRESHOLDS: Record<string, Coverage> = {
   engine: { statements: 99.63, branches: 97.45, functions: 100, lines: 100 },
-  forecast: { statements: 95.56, branches: 92.75, functions: 94.45, lines: 96.89 },
+  forecast: { statements: 97.88, branches: 94.41, functions: 100, lines: 99.7 },
   connectors: { statements: 94.88, branches: 87.54, functions: 96.26, lines: 99.42 },
   storage: { statements: 99.16, branches: 96.53, functions: 99.3, lines: 99.32 },
   secrets: { statements: 100, branches: 100, functions: 100, lines: 100 },
-  app: { statements: 92.51, branches: 83.77, functions: 94.4, lines: 93.2 },
+  app: { statements: 93.34, branches: 84.63, functions: 95.03, lines: 93.26 },
 }
 
 /**

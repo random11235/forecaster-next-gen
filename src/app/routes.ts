@@ -1,6 +1,5 @@
 import { choiceKindOf } from '../model/choice.js'
-import type { Edit, Forecasting, InputsOpening, InputsScreen, Outcome, Place } from '../forecast/forecasting.js'
-import type { NextScreen } from '../forecast/inputs.js'
+import type { Edit, Forecasting, InputsOpening, InputsScreen, NextScreen, Outcome, Place } from '../forecast/index.js'
 import { CONNECT_FORMS } from './connectSection.js'
 import { renderHowItWorksScreen } from './howItWorksScreen.js'
 import { INPUTS_FORMS, PACE_TRACKER_PATH, renderInputsScreen, SKIP_FORMS } from './inputsScreen.js'

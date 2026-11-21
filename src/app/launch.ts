@@ -1,9 +1,8 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { openForecasting, type Clock, type Forecasting, type ForecastingOptions } from '../forecast/forecasting.js'
+import { APP_VERSION, openForecasting, type Clock, type Forecasting, type ForecastingOptions } from '../forecast/index.js'
 import type { Storage } from '../storage/storage.js'
 import { SAVE_IN_PLACE } from './inputsScript.js'
-import { APP_VERSION } from '../forecast/appVersion.js'
 import { systemClock, type Reply, type Request } from './appContext.js'
 import { route } from './routes.js'
 
