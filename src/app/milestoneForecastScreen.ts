@@ -1,11 +1,16 @@
-import { shifted, type CapacityEdit } from '../forecast/capacity.js'
-import { periodName } from '../forecast/cadence.js'
-import { counted } from '../forecast/counted.js'
-import type { InputNote } from '../forecast/milestoneAssessment.js'
-import type { ComparedDate, FinishBar, ForecastDate, MilestoneForecastView } from '../forecast/milestoneForecastView.js'
-import { dayMonth } from '../forecast/calendarDate.js'
-import type { PaceActionEdit, PacePatternView, PatternAction } from '../forecast/pacePattern.js'
-import { escapeHtml, formatDate, htmlPage, type PageHeader } from './html.js'
+import type {
+  CapacityEdit,
+  ComparedDate,
+  FinishBar,
+  ForecastDate,
+  InputNote,
+  MilestoneForecastView,
+  PaceActionEdit,
+  PacePatternView,
+  PatternAction,
+  PeriodName,
+} from '../forecast/index.js'
+import { dayMonth, escapeHtml, formatDate, htmlPage, type PageHeader } from './html.js'
 import { INPUT_LABELS } from './inputsScreen.js'
 import { renderPaceTrend } from './paceTrendGraph.js'
 import { capacitySentence, renderCapacity } from './lib/capacitySection.js'
@@ -101,7 +106,7 @@ function forecastHeader(view: Forecast): PageHeader {
 }
 
 function headline(view: Forecast): PageHeader {
-  const context = `${escapeHtml(view.name)} · ${counted(view.ticketsRemaining, 'ticket')} remaining`
+  const context = `${escapeHtml(view.name)} · ${view.ticketsRemainingSaid} remaining`
   const starting = `Starting ${formatDate(view.startDate)}`
   const headline = view.dates.find(({ percent }) => percent === view.headlinePercent)
   if (!headline || headline.date === null) {
@@ -137,11 +142,10 @@ ${dates}
 
 /** With capacity in use: each date with capacity, at usual capacity, and how far capacity moves it. */
 function renderComparison(view: Forecast, comparison: readonly ComparedDate[]): string {
-  const period = periodName(view.cadenceDays)
   const date = (date: string | null): string => (date === null ? `later than ${formatDate(view.horizonDate)}` : formatDate(date))
   const rows = comparison
-    .map(({ percent, withCapacity, atUsual, shift }) => {
-      const moved = shift === null ? '' : `<span class="${shift > 0 ? 'later' : shift < 0 ? 'sooner' : ''}">${shifted(shift, period)}</span>`
+    .map(({ percent, withCapacity, atUsual, shift, shifted }) => {
+      const moved = shift === null ? '' : `<span class="${shift > 0 ? 'later' : shift < 0 ? 'sooner' : ''}">${shifted}</span>`
       return `          <tr><td><span class="percent">${percent}%</span> confident by</td><td class="date">${date(withCapacity)}</td><td>${date(atUsual)}</td><td>${moved}</td></tr>`
     })
     .join('\n')
@@ -167,10 +171,10 @@ function renderFinishGraph(view: Forecast): string {
   const columns = bars
     .map(
       (bar, at) =>
-        `          <div class="bar${edge(percentOf(at + 0.5, bars.length))}${changed(bar) ? ' changed' : ''}" tabindex="0" data-date="${bar.date}" data-share="${bar.share}" data-finished-by="${bar.finishedBy}">${capacityLabel(bar)}<span class="fill" style="height: ${percentOf(bar.share, tallest)}%"></span><span class="tip">${barText(bar, view.cadenceDays)}</span></div>`,
+        `          <div class="bar${edge(percentOf(at + 0.5, bars.length))}${changed(bar) ? ' changed' : ''}" tabindex="0" data-date="${bar.date}" data-share="${bar.share}" data-finished-by="${bar.finishedBy}">${capacityLabel(bar)}<span class="fill" style="height: ${percentOf(bar.share, tallest)}%"></span><span class="tip">${barText(bar, view.period)}</span></div>`,
     )
     .join('\n')
-  const shaded = bars.some(changed) ? ` Shaded ${periodName(view.cadenceDays)}s: capacity changes, at the % shown.` : ''
+  const shaded = bars.some(changed) ? ` Shaded ${view.period}s: capacity changes, at the % shown.` : ''
   const markers = finishMarkers(view)
     .map(({ percents, date, left, row, runsLeft }) => {
       const stressed = percents.includes(view.headlinePercent) ? ' headline' : ''
@@ -180,8 +184,8 @@ function renderFinishGraph(view: Forecast): string {
     .join('\n')
   return `
     <section class="brief" aria-label="Finish graph">
-      <div class="heading"><h2>${byPeriod(view.cadenceDays)}</h2></div>
-      <figure class="finish-graph" aria-label="When the simulations finish, by ${periodName(view.cadenceDays)}">
+      <div class="heading"><h2>${byPeriod(view.period)}</h2></div>
+      <figure class="finish-graph" aria-label="When the simulations finish, by ${view.period}">
         <div class="plot">
 ${markers}
           <div class="bars">
@@ -189,7 +193,7 @@ ${columns}
           </div>
         </div>
         <div class="axis"><span>${formatDate(bars[0]!.date)}</span><span>${formatDate(bars[bars.length - 1]!.date)}</span></div>
-        <figcaption class="note">Share of simulations finishing each ${periodName(view.cadenceDays)}, from the start date. The ${view.headlinePercent}% date is the headline.${shaded}</figcaption>
+        <figcaption class="note">Share of simulations finishing each ${view.period}, from the start date. The ${view.headlinePercent}% date is the headline.${shaded}</figcaption>
       </figure>
     </section>`
 }
@@ -237,7 +241,7 @@ function finishMarkers(view: Forecast): FinishMarker[] {
 
 /** Beside the forecast: the pace it comes from, and the team's capacity, which scales that pace each period. */
 function renderPaceSide(view: Forecast): string {
-  const period = periodName(view.cadenceDays)
+  const { period } = view
   return `
       <aside class="side" aria-label="Pace">
         <div class="heading"><h2>Pace</h2><a href="/inputs#pace">Change</a></div>
@@ -288,16 +292,14 @@ function renderPatternAction(action: PatternAction, horizonDate: string): string
  * A bar's hover text, such as "1 Dec 2026: 92% chance of completing by the end of this week, 13% of simulations are
  * completed within.", followed by " At 80% capacity." when its capacity isn't usual.
  */
-function barText(bar: FinishBar, cadenceDays: number): string {
+function barText(bar: FinishBar, period: PeriodName): string {
   const { date, share, finishedBy } = bar
-  const period = periodName(cadenceDays)
   const capacity = changed(bar) ? ` At ${Math.round(bar.capacity)}% capacity.` : ''
   return `${formatDate(date)}: ${Math.round(finishedBy * 100)}% chance of completing by the end of this ${period}, ${percentText(share)} of simulations are completed within.${capacity}`
 }
 
 /** The finish graph's heading: "Week by week", or "Sprint by sprint". */
-function byPeriod(cadenceDays: number): string {
-  const period = periodName(cadenceDays)
+function byPeriod(period: PeriodName): string {
   return `${period[0]!.toUpperCase()}${period.slice(1)} by ${period}`
 }
 

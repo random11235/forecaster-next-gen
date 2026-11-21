@@ -16,47 +16,58 @@ src/
     choice.ts             # Choice and ChoiceKind: what the EM picks a milestone's tickets by; choiceKindOf reads a kind sent as text
     failure.ts            # Failure: why a connector couldn't answer
 
-  engine/                 # pure: no I/O, no DB, no clock; see src/engine/ for its files
-    index.ts              # exports simulateCase, periodEndDate and the types only
+  engine/                 # pure: no I/O, no DB, no clock
+    index.ts              # the interface: simulateCase, periodEndDate, ENGINE_VERSION and the types only
+    random.ts             # the PRNG (xoshiro128**) and the samplers drawn with it: a second, small entry point, kept at the root so test/engine/ checks it against the reference C code's vectors, which Seam A can't show; nothing in src/ outside engine/ imports it
+    lib/                  # the rest, private to engine/: the trial loop (simulate.ts), the case's checks (validate.ts), dates, the case's hash, the types, ENGINE_VERSION
 
   forecast/               # the only module that knows both stored data and the engine
-    forecasting.ts        # Seam B's handle for the team, `openForecasting`: the one way app/ reaches forecast/, opened on storage, a clock (now and the EM's time zone, today worked out from them), the settings and, in the local server build, what it connects with; adds the default team on first launch
-    teamEntries.ts        # the handle's entry points bound to the team, today and what it was opened on, fresh for each handle call, which lists the milestone choices once
-    inputsScreenView.ts   # the Inputs screen whole, as its URL asks or a refused form shows it again: only the query step shown is built
-    submit.ts             # one submit for every form, owning what follows: a renamed milestone's query followed, a refused form's screen, a save in place's Inputs screen
-    inputs.ts             # Seam B: stored data → the Inputs screen's view; a submitted form saved (and where next) or refused (and the screen to show again)
-    milestoneInputs.ts    # behind inputs.ts: the milestone's view and edits
-    milestoneAssessment.ts  # behind both views: the milestone's inputs against the settings and today, with the pace in use: what stops a forecast, the warnings, the pace the forecast runs on
-    trackerReads.ts       # behind both views: what the tracker measures from its saved reads: tickets remaining (through queryRead.ts), and the milestone's pace through lib/pace.ts
-    lib/pace.ts           # the pace module, `paceOf`: the only place pace is worked out, and the only import pace's callers use; tested only through Seam B
-    lib/periodCounts.ts   # behind lib/pace.ts: the saved reads pace is measured from, their finished tickets counted per period side by side in the EM's time zone
-    lib/trackerWindow.ts  # behind lib/pace.ts: the tracker's pace window, the skipped periods it reaches back past, and what its bound says
-    lib/paceReading.ts    # behind lib/pace.ts: the tracker's reading of pace, and the pace the latest read replaced
-    lib/paceInUse.ts      # behind lib/pace.ts: the pace in use, from the source the EM chose, and its notes
-    growth.ts             # behind inputs.ts: the ambiguity ranges view and edit; the milestone's growth range
-    connection.ts         # Seam B: the Connect step's view; a connect checked through a connector from a factory passed in, then saved (with its token, through secrets/) or refused; disconnect; a failing keychain or data file refused, changing nothing
-    trackers.ts           # each tracker's facts: its name, its token's permission, where a connection reads, its form and what it lacks, its refusals
-    milestoneForecastView.ts  # Seam B: stored data → the Milestone forecast screen's view, through the engine; the forecast shown logged in the ledger
-    forecastLedger.ts     # Seam B: the forecast shown logged, once for each case and release (`logForecast`); a logged forecast re-run from its case alone (`rerunForecast`)
-    settings.ts           # ForecastSettings and AmbiguityRanges defaults
-    appVersion.ts         # the app's version, `APP_VERSION`, imported from `package.json` with no file read: the release a merge to main is tagged as, in every screen's footer, and importable where a forecast is made, beside the engine's
-    cadence.ts            # what the screens call a period: a week or a sprint
-    calendarDate.ts       # ISO calendar dates: checking and counting days between
-    counted.ts            # a count with its words: "1 ticket", "40 tickets"
-    editResult.ts         # an edit saved, or refused saying why
-    skippedPeriods.ts     # Seam B: the tracker's periods skipped or counted again, read further back where a skip needs it
-    setup.ts              # Seam B: the setup steps, Connect → Milestone → Comparable work → Check, one at a time; closed with "Use these" to a summary, or skipped to the inputs typed; Change opens them again; Cancel, refused once the steps changed the connection; one SetupContext
-    setupSteps.ts         # the four setup steps in order, and the step a URL asks for
-    setupSummary.ts       # setup's summary view: its rows, their picks' counts and note, and problem flags
-    setupReads.ts         # Seam B: setup's reads: each pick read at Check for its count (`readPicks`, from `openSetup`), Read again, why a read failed
-    queryRead.ts          # reading a query and saving the read, how far back a read reaches (finishedSince, the tracker's periods), whether it is complete, its tickets remaining and weeks read; tested through Seam B
-    queryStep.ts          # Seam B: a query step's view, whole (the Milestone step, or the Comparable work step with its pace and candidates); its searched choices; its submits
-    lib/choiceLists.ts    # behind queryStep.ts: each kind's choices as the picker lists them, filtered here or searched in the tracker
-    lib/stepQueryEdit.ts  # behind queryStep.ts: the query an edit makes, its picks changed or typed by hand and read back into chips
-    lib/readSaid.ts       # behind queryStep.ts: what a step says of its query's read (its line and flag), and why the tracker rejected the query
-    stepQuery.ts          # which of the team's queries a query step edits: the milestone query, or comparable work's
-    candidates.ts         # Seam B: comparable work's candidates, read on demand in an opening
-    milestoneRenamed.ts   # Seam B: the milestone query following the milestone to its new name
+    index.ts              # the one entry point, which app/ and Seam B's tests import alone: the team's handle (`openForecasting`, `Forecasting`), what goes in through it, each view and edit the screens show and post, the limits the screens' fields are given, the app's version, and `rerunForecast`
+    lib/                  # the rest, private to forecast/:
+      forecasting.ts      # the team's handle, `openForecasting`: opened on storage, a clock (now and the EM's time zone, today worked out from them), the settings and, in the local server build, what it connects with; adds the default team on first launch
+      teamEntries.ts      # the handle's entry points bound to the team, today and what it was opened on, fresh for each handle call, which lists the milestone choices once
+      inputsScreenView.ts # the Inputs screen whole, as its URL asks or a refused form shows it again: only the query step shown is built
+      submit.ts           # one submit for every form, owning what follows: a renamed milestone's query followed, a refused form's screen, a save in place's Inputs screen
+      inputs.ts           # stored data → the Inputs screen's view; a submitted form saved (and where next) or refused (and the screen to show again)
+      milestoneInputs.ts  # behind inputs.ts: the milestone's view and edits
+      milestoneAssessment.ts # behind both views: the milestone's inputs against the settings and today, with the pace in use: what stops a forecast, the warnings, the pace the forecast runs on
+      trackerReads.ts     # behind both views: what the tracker measures from its saved reads: tickets remaining (through queryRead.ts), and the milestone's pace through pace.ts
+      pace.ts             # the pace module, `paceOf`: the only place pace is worked out, and the only import pace's callers use; tested only through Seam B
+      periodCounts.ts     # behind pace.ts: the saved reads pace is measured from, their finished tickets counted per period side by side in the EM's time zone
+      trackerWindow.ts    # behind pace.ts: the tracker's pace window, the skipped periods it reaches back past, and what its bound says
+      paceReading.ts      # behind pace.ts: the tracker's reading of pace, and the pace the latest read replaced
+      paceInUse.ts        # behind pace.ts: the pace in use, from the source the EM chose, and its notes
+      growth.ts           # behind inputs.ts: the ambiguity ranges view and edit; the milestone's growth range
+      connection.ts       # the Connect step's view; a connect checked through a connector from a factory passed in, then saved (with its token, through secrets/) or refused; disconnect; a failing keychain or data file refused, changing nothing
+      trackers.ts         # each tracker's facts: its name, its token's permission, where a connection reads, its form and what it lacks, its refusals
+      milestoneForecastView.ts # stored data → the Milestone forecast screen's view, through the engine; the forecast shown logged in the ledger
+      forecastLedger.ts   # the forecast shown logged, once for each case and release (`logForecast`); a logged forecast re-run from its case alone (`rerunForecast`)
+      settings.ts         # ForecastSettings and AmbiguityRanges defaults
+      appVersion.ts       # the app's version, `APP_VERSION`, imported from `package.json` with no file read: the release a merge to main is tagged as, in every screen's footer, and importable where a forecast is made, beside the engine's
+      cadence.ts          # what the screens call a period: a week or a sprint
+      calendarDate.ts     # ISO calendar dates: checking and counting days between
+      counted.ts          # a count with its words: "1 ticket", "40 tickets"
+      editResult.ts       # an edit saved, or refused saying why
+      skippedPeriods.ts   # the tracker's periods skipped or counted again, read further back where a skip needs it
+      setup.ts            # the setup steps, Connect → Milestone → Comparable work → Check, one at a time; closed with "Use these" to a summary, or skipped to the inputs typed; Change opens them again; Cancel, refused once the steps changed the connection; one SetupContext
+      setupSteps.ts       # the four setup steps in order, and the step a URL asks for
+      setupSummary.ts     # setup's summary view: its rows, their picks' counts and note, and problem flags
+      setupReads.ts       # setup's reads: each pick read at Check for its count (`readPicks`, from `openSetup`), Read again, why a read failed
+      queryRead.ts        # reading a query and saving the read, how far back a read reaches (finishedSince, the tracker's periods), whether it is complete, its tickets remaining and weeks read; tested through Seam B
+      queryStep.ts        # a query step's view, whole (the Milestone step, or the Comparable work step with its pace and candidates); its searched choices; its submits
+      choiceLists.ts      # behind queryStep.ts: each kind's choices as the picker lists them, filtered here or searched in the tracker
+      stepQueryEdit.ts    # behind queryStep.ts: the query an edit makes, its picks changed or typed by hand and read back into chips
+      readSaid.ts         # behind queryStep.ts: what a step says of its query's read (its line and flag), and why the tracker rejected the query
+      stepQuery.ts        # which of the team's queries a query step edits: the milestone query, or comparable work's
+      candidates.ts       # comparable work's candidates, read on demand in an opening
+      milestoneRenamed.ts # the milestone query following the milestone to its new name
+      capacity.ts         # the Capacity section: the team's capacity entries by period, checked, and the warning on a team much smaller than the one forecast; MAX_CAPACITY_PERCENT
+      comparableWorkPace.ts # the Comparable work step's pace: the pace in use, each period paired with the milestone's own, each pick's chip, and how the pace compares with the milestone's own so far
+      howItWorksView.ts   # the How it works screen's view, from the settings, through the engine
+      pacePattern.ts      # the shape the tool names in the counts the pace comes from (steady, lumpy, stepped up...), and the EM's answer to it
+      paceTrend.ts        # the counts in use drawn as bars with a least-squares line through them, beside comparable work's and the milestone's own
+      paceVersusOwn.ts    # how a pace compares with the milestone's own so far: faster or slower by how much a period, about the same, or too few to compare
+      queryLanguage.ts    # each tracker's query language, as the Milestone step reads a milestone query edited by hand, through its one scanner
 
   connectors/             # what reads the team's tickets from its tracker; everything tracker-specific stays inside one
     connector.ts          # the interface and its shared types: ReadResult, ChoicesOfKind, and Ticket, Failure and Choice re-exported from `model/`; a connector takes its Connection from `model/`
@@ -93,7 +104,7 @@ src/
     lib/webStore.ts       # behind webStorage.ts and webLedger.ts: browser storage's JSON value by key, read (what it holds, nothing, or refused) and written back whole: the rest once as storage opens, the ledger again at each call
     lib/webLedger.ts      # behind webStorage.ts: the forecast ledger under a key of its own, the newest logs within its bound
     lib/forecastLogJson.ts # a logged forecast's case and result checked, as the SQLite file and browser storage both read them
-  app/                    # local server (localhost only), screens, the routes, on the team's `Forecasting` handle, and the request, reply and system clock they run on (`routes.ts`, `appContext.ts`), `npm start` entry point; each screen's HTML, and reading the fields of the forms it posts; the web build's app and page script (`webApp.ts`, `webMain.ts`); the stylesheet every page shares (`html.ts`), each screen's styles in `lib/`, and what is behind the Inputs screen (`inputsScreen.ts`): its Milestone and Pace sections, the parts its sections share (`inputSection.ts`), and the chip on a typed value the tracker reads differently (`readsDifferently.ts`); the Milestone forecast screen's Capacity section (`lib/capacitySection.ts`); the Comparable work step's pace (`lib/stepPace.ts`); the app's version (`forecast/appVersion.ts`'s `APP_VERSION`) in every screen's footer and streamed on the server's `/live`, which each page it serves listens on to reload when the version changes (the web build's pages don't)
+  app/                    # local server (localhost only), screens, the routes, on the team's `Forecasting` handle, and the request, reply and system clock they run on (`routes.ts`, `appContext.ts`), `npm start` entry point; each screen's HTML, and reading the fields of the forms it posts; the web build's app and page script (`webApp.ts`, `webMain.ts`); the stylesheet every page shares (`html.ts`), each screen's styles in `lib/`, and what is behind the Inputs screen (`inputsScreen.ts`): its Milestone and Pace sections, the parts its sections share (`inputSection.ts`), and the chip on a typed value the tracker reads differently (`readsDifferently.ts`); the Milestone forecast screen's Capacity section (`lib/capacitySection.ts`); the Comparable work step's pace (`lib/stepPace.ts`); the app's version (`APP_VERSION`, from `forecast/index.ts`) in every screen's footer and streamed on the server's `/live`, which each page it serves listens on to reload when the version changes (the web build's pages don't)
 
 test/
   app/                    # the screens, launch, and the launch smoke test: start the app, check the screen is served; the web build's app and its smoke test; the Inputs screen's scripts run in happy-dom (`browserPage.ts` opens a page of the running app, `pagesOnTracker.ts` one for each test)

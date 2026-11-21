@@ -1,4 +1,4 @@
-import type { ForecastResult, NumberRange, ScopeEntry, SimulationCase } from '../../engine/types.js'
+import type { ForecastResult, NumberRange, ScopeEntry, SimulationCase } from '../../engine/index.js'
 import { isListOf, isNumber, isObject, isRecordOf, isString, optional } from './storedJson.js'
 
 /*

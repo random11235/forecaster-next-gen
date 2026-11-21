@@ -1,5 +1,5 @@
 import type { SavedRead } from '../../model/savedRead.js'
-import type { ForecastSettings } from '../settings.js'
+import type { ForecastSettings } from './settings.js'
 import { inUseOf, notesOf, type ChosenPace, type PaceInUse, type PaceNote, type PaceWarning } from './paceInUse.js'
 import { readingOf, type PaceReading } from './paceReading.js'
 import {
