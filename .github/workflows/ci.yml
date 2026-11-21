@@ -92,18 +92,31 @@ jobs:
           fetch-depth: 0 # the diff starts at the merge-base with the base branch
       - uses: ./.github/actions/setup
       - name: Mutation tests
+        # Stops itself inside the job's 30 minutes, so the summary below still runs and can say it ran out of time:
+        # GitHub reports a job its timeout kills only as cancelled. timeout signals Stryker's workers too, as its group.
         run: |
           set -o pipefail
-          npm run test:mutation -- origin/${{ github.base_ref }} | tee mutation.txt
+          status=0
+          timeout --kill-after=1m 25m npm run test:mutation -- origin/${{ github.base_ref }} | tee mutation.txt || status=$?
+          if [ "$status" -eq 124 ]; then touch mutation-timed-out; fi
+          exit "$status"
       - name: Mutation summary
         if: always()
         run: |
           [ -f mutation.txt ] || exit 0
-          echo '### Mutation testing (the source this pull request changes)' >> "$GITHUB_STEP_SUMMARY"
+          echo '### Mutation testing (the source lines this pull request changes)' >> "$GITHUB_STEP_SUMMARY"
           if grep -q 'nothing to mutate' mutation.txt; then
             grep 'nothing to mutate' mutation.txt >> "$GITHUB_STEP_SUMMARY"
-          else
+          elif grep -qE '^All files +\|' mutation.txt; then
             { echo '```'; grep -E '\|$' mutation.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          else
+            # no report from Stryker: say why, rather than fail here too
+            if [ -f mutation-timed-out ]; then
+              echo "The mutation tests ran out of time (25 minutes) before their report. Their last progress:" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "The mutation tests stopped before their report. Their last progress:" >> "$GITHUB_STEP_SUMMARY"
+            fi
+            { echo '```'; grep 'Mutation testing' mutation.txt | tail -1 || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           fi
       - uses: actions/upload-artifact@v4
         if: always()
