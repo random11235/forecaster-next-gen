@@ -179,4 +179,33 @@ describe('candidates for comparable work', () => {
     expect(html).toContain('Slower than the milestone')
     expect(html).toContain('Nothing finished')
   })
+
+  test('in an opening the server no longer keeps, the candidates are read in a fresh one', async () => {
+    const running = await startConnected()
+
+    const html = await page(running, candidatesPath('gone', [payments]))
+
+    expect(reads).toEqual([payments.query])
+    expect(html).toContain('Slower than the milestone')
+  })
+
+  test('the server keeps the latest 32 openings: in one older, a candidate already read is read afresh', async () => {
+    const running = await startConnected()
+    const opening = openingOf(await page(running))
+    await page(running, candidatesPath(opening, [payments]))
+
+    for (let later = 0; later < 32; later += 1) await page(running, candidatesPath(`later-${later}`, []))
+    await page(running, candidatesPath(opening, [payments]))
+
+    expect(reads).toEqual([payments.query, payments.query])
+  })
+
+  test('asked for a candidate it can’t read, or for a page or form the server doesn’t serve, it answers not found', async () => {
+    const running = await startConnected()
+
+    expect((await fetch(new URL('/inputs/comparable-work-candidates?opening=x&kind=nope&name=n&query=q', running.url))).status).toBe(404)
+    expect((await fetch(new URL('/inputs/comparable-work-candidates?opening=x&kind=label&name=n', running.url))).status).toBe(404)
+    expect((await fetch(new URL('/inputs/nope', running.url))).status).toBe(404)
+    expect((await post(running, '/inputs/nope', {})).status).toBe(404)
+  })
 })

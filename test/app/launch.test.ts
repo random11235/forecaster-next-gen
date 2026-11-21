@@ -125,6 +125,17 @@ describe('one-command launch', () => {
     await expect(fetch(`http://${networkAddress?.address}:${port}/`)).rejects.toThrow()
   })
 
+  test('a request it fails on is answered 500, saying why', async () => {
+    const storage = openSqliteStorage(':memory:')
+    app = await startOnFreePort(storage)
+    storage.close()
+
+    const response = await fetch(app.url)
+
+    expect(response.status).toBe(500)
+    expect(await response.text()).toMatch(/^Forecaster error: /)
+  })
+
   test('answers 404 for anything but the screen', async () => {
     app = await startOnFreePort()
 
