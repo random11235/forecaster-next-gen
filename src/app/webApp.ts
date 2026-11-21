@@ -1,6 +1,6 @@
 import type { Storage } from '../storage/storage.js'
 import { escapeHtml } from './html.js'
-import { openForecasting, type Clock, type Forecasting } from '../forecast/forecasting.js'
+import { openForecasting, type Clock, type Forecasting } from '../forecast/index.js'
 import { systemClock, type Request } from './appContext.js'
 import { route } from './routes.js'
 

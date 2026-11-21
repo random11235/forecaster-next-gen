@@ -1,5 +1,4 @@
-import type { InputsForm } from '../../forecast/inputs.js'
-import type { InputNote, MilestoneInput } from '../../forecast/milestoneAssessment.js'
+import type { InputNote, InputsForm, MilestoneInput } from '../../forecast/index.js'
 import { escapeHtml } from '../html.js'
 
 // Behind inputsScreen.ts: a section of the Inputs screen, and the parts its sections share: the label each input goes

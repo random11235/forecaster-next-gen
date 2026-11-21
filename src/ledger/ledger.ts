@@ -1,4 +1,4 @@
-import type { ForecastResult, SimulationCase } from '../engine/types.js'
+import type { ForecastResult, SimulationCase } from '../engine/index.js'
 
 // Layer 5: the forecast ledger (#27). Every forecast the team is shown is logged, so any number the EM has shared can be
 // explained and reproduced from its case alone, and checked against what happened once the milestone finishes (#28).

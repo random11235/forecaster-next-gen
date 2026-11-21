@@ -5,26 +5,10 @@ import { importsBeside } from './importScan.js'
 // Each test folder imports from src/ only the entry points of the seam docs/design/architecture-test-seams.md assigns it,
 // and what that seam's tests read through. TEST_SEAMS is the one list.
 
-/** Seam B's entry points (`forecast/`), what goes in through them, and the helpers its tests read through. */
+/** Seam B's one entry point (`forecast/index.ts`), what goes in through it, and the helpers its tests read through. */
 const SEAM_B = [
-  'forecast/forecasting.js',
-  'forecast/milestoneForecastView.js',
-  'forecast/inputs.js',
-  'forecast/skippedPeriods.js',
-  'forecast/connection.js',
-  'forecast/setup.js',
-  'forecast/setupReads.js',
-  'forecast/queryStep.js',
-  'forecast/candidates.js',
-  'forecast/milestoneRenamed.js',
-  'forecast/howItWorksView.js',
-  'forecast/forecastLedger.js',
-  // What goes in: settings, the query a step edits, the tracker's reads, and the stored facts and the ledger through
-  // storage; and the release a logged forecast names.
-  'forecast/appVersion.js',
-  'forecast/settings.js',
-  'forecast/stepQuery.js',
-  'forecast/trackerReads.js',
+  'forecast/index.js',
+  // What goes in: the stored facts and the ledger, through storage.
   'storage/storage.js',
   'storage/sqliteStorage.js',
   'storage/webStorage.js',
@@ -44,7 +28,7 @@ const TEST_SEAMS: Record<string, readonly string[]> = {
   // Seam A, and the PRNG checked against its reference vectors, which Seam A can't show.
   engine: ['engine/index.js', 'engine/random.js'],
   forecast: SEAM_B,
-  // trackerScenario.ts and tempDatabase.ts, which forecast/ and app/ tests share, arrange through Seam B.
+  // trackerScenario.ts and tempDatabase.ts, which forecast/ and app/ tests share, reach only what Seam B reaches.
   '': SEAM_B,
   // Seam C: the interface, each connector's entry point (the canned one, GitHub's, Jira's), connectors/remote.js that the
   // network connectors share, and the connection a connector is built from (model/connection.js).
@@ -56,8 +40,7 @@ const TEST_SEAMS: Record<string, readonly string[]> = {
   app: [
     'app/launch.js',
     'app/webApp.js',
-    'forecast/appVersion.js',
-    'forecast/connection.js',
+    'forecast/index.js',
     'storage/storage.js',
     'storage/sqliteStorage.js',
     'storage/webStorage.js',
@@ -78,23 +61,15 @@ const ALLOWED_BEYOND_SEAM: Exception[] = [
     imported: 'engine/index.js',
     why: 'the pace trend case expects the dates Seam A gives for the typed counts, an independent check of what Seam B shows',
   },
-  ...['forecast/inputs.js', 'forecast/milestoneForecastView.js', 'forecast/settings.js'].flatMap((imported) =>
-    ['test/storage/migrations.beforeTheMvp.test.ts', 'test/storage/migrations.v6to9.test.ts'].map((file) => ({
-      file,
-      imported,
-      why: "a migrated file is checked by what the forecast reads back from it, through Seam B's views",
-    })),
-  ),
+  ...['test/storage/migrations.beforeTheMvp.test.ts', 'test/storage/migrations.v6to9.test.ts'].map((file) => ({
+    file,
+    imported: 'forecast/index.js',
+    why: "a migrated file is checked by what the forecast reads back from it, through Seam B's views",
+  })),
 ]
 
 /** Imports outside their folder's seam, kept until each is fixed; each says why it is still here. */
-const TEMPORARY_EXCEPTIONS: Exception[] = [
-  {
-    file: 'test/forecast/paceVersusOwn.test.ts',
-    imported: 'forecast/paceVersusOwn.js',
-    why: "tests the comparison with the milestone's own pace below Seam B, rather than through the candidates and Comparable work views that show it",
-  },
-]
+const TEMPORARY_EXCEPTIONS: Exception[] = []
 
 describe('test seams', () => {
   test("each test folder imports from src/ only its seam's entry points and the helpers that seam reads through", () => {

@@ -52,16 +52,21 @@ test('app/ importing engine/ fails', () => {
   })
 })
 
-const engineTypes = { 'src/engine/types.ts': 'export type Range = number\n', 'src/engine/simulate.ts': exporting('run') }
+/** The engine as it stands: its interface at its root, its code and types behind it in lib/. */
+const engineTypes = {
+  'src/engine/lib/types.ts': 'export type Range = number\n',
+  'src/engine/lib/simulate.ts': exporting('run'),
+  'src/engine/index.ts': "export { run } from './lib/simulate.ts'\nexport type { Range } from './lib/types.ts'\n",
+}
 
 test("model/ importing the engine's types passes", () => {
-  expectPasses({ ...engineTypes, 'src/model/team.ts': "import type { Range } from '../engine/types.ts'\nexport type Team = Range\n" })
+  expectPasses({ ...engineTypes, 'src/model/team.ts': "import type { Range } from '../engine/index.ts'\nexport type Team = Range\n" })
 })
 
 test("model/ importing the engine's code fails", () => {
-  expectBreaks('model-engine-types-only', {
+  expectBreaks('engine-types-only', {
     ...engineTypes,
-    'src/model/team.ts': "import { run } from '../engine/simulate.ts'\nexport const team = run\n",
+    'src/model/team.ts': "import { run } from '../engine/index.ts'\nexport const team = run\n",
   })
 })
 
@@ -72,18 +77,23 @@ test('model/ importing a module but engine/ fails, even as types', () => {
   })
 })
 
-test("ledger/ importing the engine's types passes, and anything else fails", () => {
-  const ledger = (imports: string) => ({ ...engineTypes, 'src/ledger/ledger.ts': `${imports}\nexport const ledger = 1\n` })
+test("ledger/ importing the engine's types passes, and its code or anything else fails", () => {
+  const ledger = (imports: string) => ({
+    ...engineTypes,
+    'src/model/team.ts': exporting('team'),
+    'src/ledger/ledger.ts': `${imports}\nexport const ledger = 1\n`,
+  })
 
-  expectPasses(ledger("import type { Range } from '../engine/types.ts'"))
-  expectBreaks('ledger-only-engine-types', ledger("import { run } from '../engine/simulate.ts'"))
+  expectPasses(ledger("import type { Range } from '../engine/index.ts'"))
+  expectBreaks('engine-types-only', ledger("import { run } from '../engine/index.ts'"))
+  expectBreaks('ledger-only-engine-types', ledger("import { team } from '../model/team.ts'"))
 })
 
 test('storage/ reaching the engine through its types passes, and through its code fails', () => {
   const storage = (imports: string) => ({ ...engineTypes, 'src/storage/storage.ts': `${imports}\nexport const store = 1\n` })
 
-  expectPasses(storage("import type { Range } from '../engine/types.ts'"))
-  expectBreaks('storage-engine-only-types', storage("import { run } from '../engine/simulate.ts'"))
+  expectPasses(storage("import type { Range } from '../engine/index.ts'"))
+  expectBreaks('engine-types-only', storage("import { run } from '../engine/index.ts'"))
 })
 
 /** A connector's file importing what connectors/ may import: the interface, what the network ones share, and model/. */
@@ -167,12 +177,12 @@ test("the browser page script reaching secrets/'s interface as a type passes, an
   expectBreaks('web-page-loads-no-secrets', page("import { memorySecrets } from '../secrets/memorySecrets.ts'\nexport const made = memorySecrets"))
 })
 
-test('forecast/appVersion.ts importing package.json passes, and any other file of src/ fails', () => {
+test('forecast/lib/appVersion.ts importing package.json passes, and any other file of src/ fails', () => {
   const importing = (file: string) => ({
     'package.json': '{ "version": "1.0.0" }\n',
-    [file]: "import pkg from '../../package.json' with { type: 'json' }\nexport const version = pkg.version\n",
+    [file]: `import pkg from '${'../'.repeat(file.split('/').length - 1)}package.json' with { type: 'json' }\nexport const version = pkg.version\n`,
   })
 
-  expectPasses(importing('src/forecast/appVersion.ts'))
+  expectPasses(importing('src/forecast/lib/appVersion.ts'))
   expectBreaks('package-json-only-from-app-version', importing('src/forecast/settings.ts'))
 })

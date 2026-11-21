@@ -1,6 +1,4 @@
-import { MAX_CAPACITY_PERCENT, type CapacityEntryView, type CapacityForm, type CapacityView, type EntryEffect } from '../../forecast/capacity.js'
-import type { PeriodName } from '../../forecast/cadence.js'
-import { counted } from '../../forecast/counted.js'
+import { MAX_CAPACITY_PERCENT, type CapacityEntryView, type CapacityForm, type CapacityView, type EntryEffect, type PeriodName } from '../../forecast/index.js'
 import type { CapacityEntry } from '../../model/capacity.js'
 import { escapeHtml, formatDate } from '../html.js'
 
@@ -108,7 +106,7 @@ function renderNewUsual({ id, from, percent, newUsual }: CapacityEntryView, peri
   switch (newUsual.kind) {
     case 'counting':
       return `
-              <p class="note">${newUsual.after} of the ${counted(newUsual.of, period)} the pace comes from are after the change. Past counts aren’t adjusted. When all of them are, you’ll be asked whether it’s the new usual.</p>`
+              <p class="note">${newUsual.after} of the ${newUsual.ofSaid} the pace comes from are after the change. Past counts aren’t adjusted. When all of them are, you’ll be asked whether it’s the new usual.</p>`
     case 'proposed':
       return `
               <div class="proposal">
