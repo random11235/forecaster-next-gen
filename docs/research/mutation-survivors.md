@@ -4,6 +4,8 @@ Research date: 2026-11-21. Scope: how to triage a mutant that survives on a sour
 
 Citation convention: bracketed numbers such as [4] refer to the **Sources** list at the end. Every source was read on 2026-11-21. Where a claim could not be checked against a primary source, the text says "**Unverified**". Sections marked **Synthesis** are my own reasoning from the evidence, not claims made by any source. Figures carry the year of the study they come from.
 
+**Decision so far (2026-11-21): measure first.** We don't act on survivors yet, and no threshold fails a run. CI records each run's survivors, per PR and per line mutated (section 4, measure 1), and lists them one by one. Once about ten PRs have run, those numbers decide which of the outcomes in section 3 we adopt and whether to gate; that decision will be an ADR in [`docs/adr/`](../adr/). Sections 3–5 are the options it chooses from, not current practice.
+
 ---
 
 ## 1. What the sources say
