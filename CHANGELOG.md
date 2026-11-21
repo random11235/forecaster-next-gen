@@ -2,6 +2,10 @@
 
 What each version of the app shipped, newest first. The version is the one in every screen's footer: a fix is in the app you're running if its version is the footer's or older. Each merge's release ([`docs/design/architecture.md`](docs/design/architecture.md#release)) writes its section here, a line from each change file (`changes/<ticket>.md`) a PR that changes the app adds: a PR doesn't edit the entries below ([`docs/agents/pull-requests.md`](docs/agents/pull-requests.md#version)).
 
+## 1.0.3 (2026-11-21)
+
+- `engine/` and `forecast/` keep their internals in `lib/`, each reached through its `index.ts`, and Seam B is tested through the team's handle, with no change to the app (#233, PR #314)
+
 ## 1.0.2 (2026-11-21)
 
 - The Inputs screen is built whole, and one submit owns what follows from it, with no change to the app (#246, PR #315)
