@@ -1,4 +1,4 @@
-// Mutation testing: `npm run test:mutation` mutates the source a branch changes (scripts/mutateDiff.ts);
+// Mutation testing: `npm run test:mutation` mutates the source lines a branch changes (scripts/mutateDiff.ts);
 // `npx stryker run` mutates all of it. The report is in reports/mutation/.
 /** @type {import('@stryker-mutator/api/core').PartialStrykerOptions} */
 export default {
