@@ -2,8 +2,10 @@
 // The changes are everything since the merge-base with <base> (main by default), committed or not,
 // new files included; scripts/mutationTargets.ts picks the lines to mutate. A file moved without `git mv` is untracked
 // until it's added, so it's mutated throughout until then.
-// `npm run test:mutation` or `node scripts/mutateDiff.ts [base]`; the report is in reports/mutation/.
+// `npm run test:mutation` or `node scripts/mutateDiff.ts [base]`; the report is in reports/mutation/, with the targets
+// in targets.json beside it for scripts/mutationSummary.ts.
 import { execFileSync } from 'node:child_process'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { mergeBase } from './mergeBase.ts'
 import { mutationTargets } from './mutationTargets.ts'
@@ -28,6 +30,9 @@ if (targets.length === 0) {
   process.exit(0)
 }
 
+// written before Stryker runs, so a run that stops early still says what it set out to mutate
+mkdirSync(`${root}reports/mutation`, { recursive: true })
+writeFileSync(`${root}reports/mutation/targets.json`, `${JSON.stringify(targets)}\n`)
 console.log(`Mutating the source changed since ${base}, as lines (path:start-end) or whole new files:\n${targets.map((t) => `  ${t}`).join('\n')}\n`)
 try {
   execFileSync('npx', ['stryker', 'run', '--mutate', targets.join(',')], { cwd: root, stdio: 'inherit' })
