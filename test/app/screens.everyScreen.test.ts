@@ -30,6 +30,16 @@ describe('How it works screen', () => {
     expect(screen).toMatch(/85% wk \d+/)
     expect(screen).toMatch(/met in \d+% of simulations/)
   })
+
+  test('graphs the finishes to the 99% week, saying under the burndown that the few left finish later, and in which week the last does', async () => {
+    await startWithNoMilestone()
+
+    const burndown = found(await page('/how-it-works'), /<figure>\s*<svg[^>]*aria-label="A straight burndown[\s\S]*?<\/figure>/)
+
+    expect(burndown).toContain('most simulated finishes: weeks 4–11')
+    expect(burndown).toContain('aria-label="A straight burndown at the average pace reaches 0 in week 5; most simulated finishes fall between weeks 4 and 11."')
+    expect(text(burndown)).toContain('1% of simulations finish later, the last in week 13.')
+  })
 })
 
 describe('Every screen', () => {

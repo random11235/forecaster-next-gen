@@ -1,5 +1,5 @@
 import { simulateCase, ENGINE_VERSION, type GrowthRange, type SimulationCase, type ThroughputRange } from '../../engine/index.js'
-import { finishGraph } from './milestoneForecastView.js'
+import { finishGraph, type FinishGraph } from './milestoneForecastView.js'
 import { DEFAULT_AMBIGUITY_RANGES, type ForecastSettings } from './settings.js'
 
 /** The example the How it works screen explains with: a milestone of medium ambiguity at a manual pace range. */
@@ -25,8 +25,8 @@ interface FinishWeek {
 /** What the How it works screen shows: the example, forecast by the engine as a milestone would be. */
 export interface HowItWorksView {
   example: { ticketsRemaining: number; growth: GrowthRange; pace: ThroughputRange; cadenceDays: number }
-  /** The share of simulations finishing in each week, from week 0 (the start) to the 99% week. */
-  finishes: { period: number; share: number }[]
+  /** When the simulations finish, as the Milestone forecast graphs them: a bar per week from week 0 (the start). */
+  finishGraph: FinishGraph
   /** The burndown's answer: the tickets remaining at the middle of the pace range, and the share of simulations done by then. */
   averagePace: { perPeriod: number; period: number; met: number }
   /** The 50% and 85% weeks. */
@@ -39,15 +39,15 @@ export interface HowItWorksView {
 export function howItWorksView(settings: ForecastSettings): HowItWorksView {
   const simulationCase = exampleCase(settings)
   const result = simulateCase(simulationCase)
-  const { bars } = finishGraph(result, simulationCase)
+  const finishes = finishGraph(result, simulationCase)
   const perPeriod = (EXAMPLE.pace.low + EXAMPLE.pace.high) / 2
   const period = Math.ceil(EXAMPLE.ticketsRemaining / perPeriod)
   const finishPeriod = (percent: number): number => result.quantiles[percent]!
   const finishWeek = (percent: number): FinishWeek => ({ percent, period: finishPeriod(percent) })
   return {
     example: EXAMPLE,
-    finishes: bars.map(({ share }, at) => ({ period: at, share })),
-    averagePace: { perPeriod, period, met: bars[period]?.finishedBy ?? 0 },
+    finishGraph: finishes,
+    averagePace: { perPeriod, period, met: finishes.bars[period]?.finishedBy ?? 0 },
     weeks: [finishWeek(50), finishWeek(85)],
     someFinishes: SOME_FINISHES.map(finishPeriod),
   }

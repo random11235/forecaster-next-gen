@@ -103,6 +103,8 @@ const STYLE = `
     .past { color: var(--risk); }
     .lede { font-size: 16px; line-height: 1.5; color: var(--text-2); max-width: 680px; }
     p.note { margin: 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
+    /* A note in passing, such as the finishes a graph leaves off: quieter than the caption above it. */
+    p.note.quiet { font-size: 12px; color: var(--faint); }
     p.error { margin: 0; color: var(--risk); font-weight: 600; }
     p.warning { margin: 0; font-size: 14px; line-height: 1.5; color: var(--risk); }
 
