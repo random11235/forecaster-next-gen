@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, test } from 'vitest'
-import { renderInputsScreen, type ShownStep } from '../../../src/app/inputsScreen.js'
-import { COMPARABLE_WORK_STEP, MILESTONE_STEP } from '../../../src/app/queryStepSection.js'
+import { renderInputsScreen } from '../../../src/app/inputsScreen.js'
 import type { Forecasting, InputsEdit, InputsOpening, InputsScreen } from '../../../src/forecast/index.js'
 import { checkoutFixture, CONNECTIONS, forecastingForTest, pick, submitInputs, type ForecastingForTest } from '../../forecast/forecastingForTest.js'
 import { finishedInWeeks, label, open } from '../../trackerScenario.js'
@@ -16,16 +15,8 @@ const WEEKS = ['2026-09-21', '2026-09-28', '2026-10-05', '2026-10-12', '2026-10-
 // GitHub reads 34 tickets remaining, and 5, 6, 4, 7, 5, 6, 8 finished in the weeks it reads whole
 const TICKETS = [...open(34), ...finishedInWeeks(WEEKS, [5, 6, 4, 7, 5, 6, 8])]
 
-/** The screen as `renderInputsScreen` draws `view`, its query step shown, as the server shows it. */
-function drawn(view: InputsScreen) {
-  const { step } = view
-  const shown: ShownStep | undefined = step && {
-    section: step.kind === 'milestoneStep' ? MILESTONE_STEP : COMPARABLE_WORK_STEP,
-    view: step,
-    ...(step.kind === 'comparableWorkStep' && step.candidates && { openingId: 'opening-1' }),
-  }
-  return render(renderInputsScreen(view, shown))
-}
+/** The screen as `renderInputsScreen` draws `view`, its candidates' opening kept as `opening-1`. */
+const drawn = (view: InputsScreen) => render(renderInputsScreen(view, 'opening-1'))
 const screen = async (team: Forecasting, opening?: InputsOpening) => drawn(await team.inputsScreen(opening))
 const section = (page: ReturnType<typeof render>, name: string) => byRole(page, 'region', { name })
 const refused = async (team: Forecasting, edit: InputsEdit) => {

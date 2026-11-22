@@ -16,7 +16,7 @@ import { CHECK_SCRIPT, CHECK_STEP, checkStepHtml, setupSkippedHtml, setupStepHtm
 import { escapeHtml, htmlPage } from './html.js'
 import { INPUTS_SCRIPT } from './inputsScript.js'
 import { candidatesHtml, candidatesScript } from './candidatesSection.js'
-import { queryStepScript, queryStepSection, type StepSection } from './queryStepSection.js'
+import { COMPARABLE_WORK_STEP, MILESTONE_STEP, queryStepScript, queryStepSection, type StepSection } from './queryStepSection.js'
 import { errorLine, inputSection, radios, type FormError, type Section } from './lib/inputSection.js'
 import { milestoneSection } from './lib/milestoneSection.js'
 import { paceSection } from './lib/paceSection.js'
@@ -77,26 +77,17 @@ export const SKIP_FORMS: ReadonlyMap<string, (body: URLSearchParams) => SkipEdit
   ['/inputs/pace-count-again', (body) => ({ kind: 'countAgain', periods: body.getAll('period') })],
 ])
 
-/** A step picking or writing one of the team's queries, as the Inputs screen shows it: its section, and its view. */
-export interface ShownStep {
-  section: StepSection
-  view: QueryStep
-  /**
-   * The id its candidates' opening is kept by, for the page's script to read more in (`keepOpening`): the Comparable work
-   * step's, while it shows candidates (`ComparableWorkStep.candidates`, #205).
-   */
-  openingId?: string
-}
-
 /**
  * The Inputs screen: in the local server build, first its setup: the setup step the EM is on, the Connect step, the
- * query step `shown` (the Milestone step or the Comparable work step), or Check; or, once setup is closed, its
- * summary. Then the milestone, its pace and the team's growth.
+ * query step the view shows (the Milestone step or the Comparable work step), or Check; or, once setup is closed, its
+ * summary. Then the milestone, its pace and the team's growth. `openingId` is the id the Comparable work step's
+ * candidates' opening is kept by (`keepOpening`), for the page's script to read more in, while it shows candidates
+ * (`ComparableWorkStep.candidates`, #205).
  */
-export function renderInputsScreen(view: InputsScreen, shown?: ShownStep): string {
-  const { inputs: screen, setup } = view
+export function renderInputsScreen(view: InputsScreen, openingId?: string): string {
+  const { inputs: screen, setup, step: shown } = view
   const { milestone, forms } = screen
-  const steps = shown ? [shown] : []
+  const steps = shown ? [shownStep(shown, openingId)] : []
   const error: FormError = (form) => (screen.refusal?.form === form ? screen.refusal.error : undefined)
   const pickers = steps.map(({ section, view, openingId }) => {
     const picker = queryStepSection(view, section)
@@ -126,6 +117,12 @@ export function renderInputsScreen(view: InputsScreen, shown?: ShownStep): strin
   ].join(';')
   const closed = setup?.kind === 'summary' ? setupSummaryHtml(setup) : setup?.kind === 'skipped' ? setupSkippedHtml() : ''
   return htmlPage('/inputs', header, closed + sections.map((section, index) => section(index + 1)).join('\n'), script)
+}
+
+/** A step picking or writing one of the team's queries, as the screen shows it: its section, its view, and its candidates' opening while it has candidates. */
+function shownStep(view: QueryStep, openingId: string | undefined): { section: StepSection; view: QueryStep; openingId?: string } {
+  if (view.kind === 'milestoneStep') return { section: MILESTONE_STEP, view }
+  return { section: COMPARABLE_WORK_STEP, view, ...(view.candidates && openingId !== undefined && { openingId }) }
 }
 
 /** The setup step the EM is on, as its section, with the steps' list and Back and Next; none once setup is closed, or in the browser build. */
