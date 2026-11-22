@@ -119,6 +119,25 @@ describe('Milestone forecast screen: capacity', () => {
     expect(stored().capacityEntries(TEAM)[1]).toMatchObject({ id: 2, to: '2026-10-23' })
   })
 
+  test.each([
+    ['/capacity/edit', 400],
+    ['/capacity/new-usual', 400],
+    ['/capacity/keep', 400],
+    ['/capacity/end-today', 400],
+    // removing no entry leaves every one, as removing one already gone does
+    ['/capacity/remove', 303],
+  ])('%s posted with no id reads it as empty: answered %s, every entry kept', async (path, status) => {
+    await startOnSavedData()
+    await submitPace('4', '8')
+    // lasting, so each action would take it, given its id
+    await addCapacity('80', '2026-09-28', '', 'Two left', true)
+
+    const answered = await post(path, [])
+
+    expect(answered.status).toBe(status)
+    expect(stored().capacityEntries(TEAM)).toEqual([{ id: 1, percent: 80, from: '2026-09-28', to: undefined, note: 'Two left' }])
+  })
+
   test("the Inputs screen's pace says where capacity is set", async () => {
     await startOnSavedData()
 

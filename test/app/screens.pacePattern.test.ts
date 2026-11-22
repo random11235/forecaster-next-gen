@@ -56,4 +56,16 @@ describe('Milestone forecast screen: pace pattern', () => {
     expect(await refused.text()).toContain('That action is no longer offered.')
     expect(action()).toBeUndefined()
   })
+
+  test('an action posted with no fields reads them as empty, and is refused with a 400', async () => {
+    await startOnSavedData()
+    await submitCounts('4, 3, 5, 4, 4, 3, 4, 5, 3, 4, 8, 9, 7, 8')
+    await choosePace('counts')
+
+    const refused = await post('/pace-action/apply', [])
+
+    expect(refused.status).toBe(400)
+    expect(await refused.text()).toContain('That action is no longer offered.')
+    expect(action()).toBeUndefined()
+  })
 })
