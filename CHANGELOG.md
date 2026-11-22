@@ -2,6 +2,10 @@
 
 What each version of the app shipped, newest first. The version is the one in every screen's footer: a fix is in the app you're running if its version is the footer's or older. Each merge's release ([`docs/design/architecture.md`](docs/design/architecture.md#release)) writes its section here, a line from each change file (`changes/<ticket>.md`) a PR that changes the app adds: a PR doesn't edit the entries below ([`docs/agents/pull-requests.md`](docs/agents/pull-requests.md#version)).
 
+## 1.0.5 (2026-11-22)
+
+- The coding standards no check can enforce are kept as rules of thumb, pointing at the checks that cover part of them, with no change to the app (#264, PR #316)
+
 ## 1.0.4 (2026-11-21)
 
 - The forecast's handle reads the clock once per call, its submit outcomes and places are told apart by kind, and a refused setup form isn't saved, with no change to the app (#228, PR #307)
