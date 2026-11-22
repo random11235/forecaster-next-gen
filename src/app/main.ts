@@ -7,22 +7,10 @@ import { openKeychainSecrets } from '../secrets/keychainSecrets.js'
 import { openMemorySecrets } from '../secrets/memorySecrets.js'
 import type { Connecting } from '../forecast/index.js'
 import { openSqliteStorage, type SqliteStorage } from '../storage/sqliteStorage.js'
-import { startAppAndOpenBrowser } from './launch.js'
-
-const DEFAULT_PORT = 5180
+import { portFromEnv, startAppAndOpenBrowser } from './launch.js'
 
 /** The one local SQLite file, in `data/` at the repo root (beside `dist/`). */
 const DEFAULT_DATA_FILE = fileURLToPath(new URL('../../data/forecaster.db', import.meta.url))
-
-/** Reads PORT from the environment. Unset or empty gives the default; 0 picks a free port. */
-function portFromEnv(value: string | undefined): number {
-  if (value === undefined || value === '') return DEFAULT_PORT
-  const port = Number(value)
-  if (!/^\d+$/.test(value) || port > 65535) {
-    throw new Error(`PORT must be a whole number from 0 to 65535, not "${value}".`)
-  }
-  return port
-}
 
 /** Opens the URL in the default browser. If that fails the URL is still printed, so the EM can open it by hand. */
 function openBrowser(url: string): void {
