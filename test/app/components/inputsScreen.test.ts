@@ -3,11 +3,15 @@ import { beforeEach, describe, expect, test } from 'vitest'
 import { checkoutFixture, forecastingForTest, pick, submitInputs } from '../../forecast/forecastingForTest.js'
 import { label } from '../../trackerScenario.js'
 import { accessibleName, all, allByRole, around, byRole, hasRole, one, postsTo, radios, render, text } from '../dom.js'
-import { READ_AT, refused, screen, section, START, TICKETS } from './inputsScreenHarness.js'
+import { renderInputsScreen } from '../../../src/app/inputsScreen.js'
+import { drawn, READ_AT, refused, screen, section, START, TICKETS } from './inputsScreenHarness.js'
 
 // The Inputs screen (#236), rendered from the views Seam B gives (see inputsScreenHarness.ts): empty, refused, warned,
 // and each setup step and its summary; inputsScreen.sources.test.ts has each source of tickets remaining and pace. What
 // each view holds is Seam B's.
+
+/** Each section's name and the number it is given on the screen, in order. */
+const numbered = (page: ReturnType<typeof render>) => allByRole(page, 'region').map((region) => [accessibleName(region), text(one(region, '.number'))])
 
 describe('the Inputs screen in the browser build', () => {
   let team: Forecasting
@@ -20,14 +24,22 @@ describe('the Inputs screen in the browser build', () => {
     const page = await screen(team)
 
     expect(text(one(page, 'h1'))).toBe('Inputs')
-    expect(allByRole(page, 'region').map((region) => accessibleName(region))).toEqual(['Milestone', 'Cadence', 'Pace', 'Ambiguity', 'Growth'])
+    expect(numbered(page)).toEqual([
+      ['Milestone', '01'],
+      ['Cadence', '02'],
+      ['Pace', '03'],
+      ['Ambiguity', '04'],
+      ['Growth', '05'],
+    ])
     const milestone = section(page, 'Milestone')
     expect(allByRole(milestone, 'textbox').map((field) => [accessibleName(field), field.getAttribute('value')])).toEqual([['Name', '']])
     // a date field has no role
     expect(one(milestone, 'input[name="startDate"]').getAttribute('value')).toBe('2026-11-12')
     expect(byRole(milestone, 'spinbutton', { name: 'Tickets remaining' }).getAttribute('value')).toBe('')
     expect(hasRole(milestone, 'group', { name: 'Where tickets remaining comes from' })).toBe(false)
-    expect(text(section(page, 'Pace'))).toContain('Typed counts need at least 4 for a forecast, and 8 to be reliable.')
+    expect(text(section(page, 'Pace'))).toContain(
+      'Typed counts need at least 4 for a forecast, and 8 to be reliable. Capacity is set beside the forecast, under Pace.',
+    )
     expect(allByRole(byRole(page, 'group', { name: 'Pace the forecast uses' }), 'radio').map((radio) => accessibleName(radio))).toEqual([
       'Range',
       'Typed counts',
@@ -35,6 +47,24 @@ describe('the Inputs screen in the browser build', () => {
     expect(all(page, '.setup-summary')).toEqual([])
     expect(hasRole(page, 'alert')).toBe(false)
     expect(text(page)).not.toContain('⚠')
+  })
+
+  test('the sidebar links each screen, the Inputs screen’s marked current; the head carries the icon and fonts inline, loading nothing', async () => {
+    const html = renderInputsScreen(await team.inputsScreen(), () => 'opening-1')
+    const page = render(html)
+
+    expect(allByRole(byRole(page, 'navigation'), 'link').map((link) => [text(link), link.getAttribute('href'), link.getAttribute('aria-current')])).toEqual([
+      ['Milestone forecast', '/', null],
+      ['Inputs', '/inputs', 'page'],
+      ['How it works', '/how-it-works', null],
+    ])
+    expect(one(page, 'head link[rel="icon"]').getAttribute('href')).toMatch(/^data:image\/svg\+xml,%3Csvg/)
+    for (const family of ['Geist', 'Geist Mono']) {
+      expect(one(page, 'head style#fonts').textContent).toContain(`font-family: '${family}'`)
+    }
+    expect(one(page, 'head style#fonts').textContent).toMatch(/url\(data:font\/woff2;base64,/)
+    expect(html).not.toMatch(/(?:href=|src=|url\()["']?(?:https?:)?\/\//)
+    expect(html).not.toContain('@import')
   })
 
   test('every form posts to a fragment naming where it sits, so the browser lands on why, should it be refused; and the fields they carry', async () => {
@@ -205,6 +235,24 @@ describe('the Inputs screen with setup', () => {
     const step = section(page, 'Milestone’s tickets')
     byRole(step, 'button', { name: 'Checkout v2 milestone' })
     expect(byRole(byRole(step, 'list', { name: 'Setup steps' }), 'listitem', { name: 'Milestone' }).getAttribute('aria-current')).toBe('step')
+    expect(numbered(page).slice(0, 2)).toEqual([
+      ['Milestone’s tickets', '01'],
+      ['Milestone', '02'],
+    ])
+  })
+
+  test('an Inputs form refused, or saved in place, at the Milestone step: the step first, the inputs numbered after it', async () => {
+    const team = await forecastingForTest({ setupOpen: true, connected: true })
+    await submitInputs(team, { kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '40' })
+    const inPlace = await team.submit({ form: 'inputs', edit: { kind: 'setCadence', cadenceDays: '14' } }, { inPlace: true })
+    if (inPlace.kind !== 'savedInPlace') throw new Error(`Expected the form saved in place, but it was ${inPlace.kind}`)
+
+    for (const page of [await refused(team, { kind: 'setCadence', cadenceDays: '0' }), drawn(inPlace.view)])
+      expect(numbered(page).slice(0, 3)).toEqual([
+        ['Milestone’s tickets', '01'],
+        ['Milestone', '02'],
+        ['Cadence', '03'],
+      ])
   })
 
   test('the Comparable work step, with the candidates opened', async () => {
@@ -221,6 +269,10 @@ describe('the Inputs screen with setup', () => {
     byRole(step, 'link', { name: 'How payments runs' })
     byRole(step, 'heading', { name: 'Candidates' })
     expect(one(step, '.candidates').getAttribute('data-opening')).toBe('opening-1')
+    expect(numbered(page).slice(0, 2)).toEqual([
+      ['Comparable work', '01'],
+      ['Milestone', '02'],
+    ])
   })
 
   test('the Check step, its rows read from the steps’ picks', async () => {
@@ -239,7 +291,15 @@ describe('the Inputs screen with setup', () => {
     const page = await screen(team)
 
     expect(text(one(page, '.setup-summary'))).toMatch(/^GitHub · shop-team\/shop read 12 Nov 09:00 Read again Change Milestone Checkout v2 \(milestone\)/)
-    expect(allByRole(page, 'region').map((region) => accessibleName(region))).toEqual(['Milestone', 'Cadence', 'Pace', 'Ambiguity', 'Growth'])
+    // the summary first, then each input in turn
+    expect(all(page, '.setup-summary, section').map((part) => (part.classList.contains('setup-summary') ? 'summary' : accessibleName(part)))).toEqual([
+      'summary',
+      'Milestone',
+      'Cadence',
+      'Pace',
+      'Ambiguity',
+      'Growth',
+    ])
   })
 
   test('connecting skipped: says no tracker is connected', async () => {

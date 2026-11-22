@@ -137,10 +137,4 @@ describe('Milestone forecast screen: capacity', () => {
     expect(answered.status).toBe(status)
     expect(stored().capacityEntries(TEAM)).toEqual([{ id: 1, percent: 80, from: '2026-09-28', to: undefined, note: 'Two left' }])
   })
-
-  test("the Inputs screen's pace says where capacity is set", async () => {
-    await startOnSavedData()
-
-    expect(text(await page('/inputs'))).toContain('Capacity is set beside the forecast, under Pace.')
-  })
 })

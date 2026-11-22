@@ -78,16 +78,6 @@ function sectionOf(html: string, id: string): string {
 const stepOf = (html: string): string => sectionOf(html, 'comparable-work')
 
 describe('the Comparable work step', () => {
-  // deferred: needs test/app/components/inputsScreen.test.ts to number the sections after the Comparable work step
-  test('shown, its section is numbered before the milestone’s', async () => {
-    const running = await startConnected()
-
-    const html = await page(running)
-
-    const numbers = [...html.matchAll(/<section[^>]* id="([^"]+)"[^]*?class="number">(\d+)</g)].map(([, id, n]) => `${id} ${n}`)
-    expect(numbers.slice(0, 2)).toEqual(['comparable-work 01', 'milestone 02'])
-  })
-
   test('a pick is read from its form, back to the step, the milestone’s query left as it was; Start afresh clears them', async () => {
     const running = await startConnected()
 
@@ -135,37 +125,5 @@ describe('the Comparable work step', () => {
 
     expect(list).not.toContain('value="label:&#34;checkout&#34;"')
     expect(milestones).toContain('value="label:&#34;checkout&#34;"')
-  })
-
-  // deferred: needs test/app/components/paceTrendGraph.test.ts
-  test('with pace following the tracker, the pace trend pairs comparable work’s bars with the milestone’s own, hatched before it started', async () => {
-    // comparable work finished one a week from 21 Sep; the milestone, started on 12 Oct, one on 20 Oct
-    const weekly = ['2026-09-22', '2026-09-29', '2026-10-06', '2026-10-13', '2026-10-20', '2026-10-27', '2026-11-03']
-    const running = await startConnected({
-      ...FIXTURE,
-      reads: {
-        ...FIXTURE.reads,
-        [checkout.query]: { tickets: weekly.map((day, at) => ({ id: `c${at}`, finishedAt: `${day}T10:00:00Z` })), incomplete: false },
-      },
-    })
-    await post(running, '/inputs/milestone', { name: 'Payments v2', startDate: '2026-10-12', ticketsRemaining: '1' })
-    await post(running, '/inputs/milestone-query/add', payments)
-    await post(running, '/inputs/comparable-work/add', checkout)
-    await post(running, '/inputs/setup/use-these', {})
-    await post(running, '/inputs/pace-mode', { paceMode: 'tracker' })
-
-    const trend = sectionOf(await page(running, '/inputs'), 'pace')
-    expect(trend).toContain(
-      `aria-label="Pace trend, oldest first: comparable work's finished tickets each week, the pace, 1, 1, 1, 1, 1, 1, 1; the milestone's own, not started, not started, not started, 0, 1, 0, 0, with a straight line fitted through comparable work’s from 1 to 1 tickets a week."`,
-    )
-    // each week comparable work's bar, the pace's, then the milestone's own, a hatched stub before it started
-    expect(trend.match(/<rect class="comparable in-use"/g)).toHaveLength(7)
-    expect(trend.match(/<rect class="before"/g)).toHaveLength(3)
-    expect(trend.match(/<rect class="own"/g)).toHaveLength(4)
-    expect(trend).toContain('<pattern id="pace-trend-before"')
-    expect(trend).toContain('<figcaption>Trend: 1 → 1 tickets a week, a straight line through comparable work’s 7 weeks, oldest first.</figcaption>')
-    expect(trend).toContain(
-      '<p class="legend"><i class="comparable"></i> comparable work, the pace <i class="own"></i> the milestone’s own <i class="before"></i> before it started</p>',
-    )
   })
 })

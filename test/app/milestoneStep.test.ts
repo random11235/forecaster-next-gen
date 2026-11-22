@@ -147,32 +147,26 @@ describe('the Milestone step', () => {
     expect(storage?.setupDraft('team')?.milestoneQuery).toEqual({ picks: [], query: '' })
   })
 
-  // deferred: needs test/app/components/inputsScreen.test.ts to number the sections after the Milestone step
+  // how the screen numbers its sections after the step: components/inputsScreen.test.ts
   describe('an Inputs form posted while connected', () => {
-    const sectionNumbers = (html: string): string[] =>
-      [...html.matchAll(/<section[^>]* id="([^"]+)"[^]*?class="number">(\d+)</g)].map(([, id, n]) => `${id} ${n}`)
-
-    test('refused, shows the screen again with the Milestone step, its sections numbered after it', async () => {
+    test('refused, a 400 showing the screen again with the Milestone step', async () => {
       const running = await startConnected()
-      await post(running, '/inputs/milestone-query/add', { kind: 'milestone', name: 'Payments v2', query: 'milestone:"Payments v2"' })
 
       const refused = await post(running, '/inputs/cadence', { cadenceDays: '0' })
 
       expect(refused.status).toBe(400)
-      const html = await refused.text()
-      expect(stepOf(html)).toContain('class="chip"')
-      expect(stepOf(html)).toContain('Checkout')
-      expect(sectionNumbers(html).slice(0, 2)).toEqual(['milestone-tickets 01', 'milestone 02'])
+      expect(await refused.text()).toContain('id="milestone-tickets"')
     })
 
-    test('saved in place, answers with its sections numbered after the Milestone step', async () => {
+    test('saved in place, a 200 with the screen as saved, the Milestone step still on it', async () => {
       const running = await startConnected()
       await post(running, '/inputs/milestone', { name: 'Payments v2', startDate: '2026-10-01', ticketsRemaining: '20' })
 
       const saved = await saveInPlace(running, '/inputs/cadence', { cadenceDays: '14' })
 
       expect(saved.status).toBe(200)
-      expect(sectionNumbers(await saved.text()).slice(0, 2)).toEqual(['milestone-tickets 01', 'milestone 02'])
+      expect(storage?.milestoneInputs('team')?.cadenceDays).toBe(14)
+      expect(await saved.text()).toContain('id="milestone-tickets"')
     })
   })
 })

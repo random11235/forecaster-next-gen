@@ -38,18 +38,6 @@ describe('setup’s own forms', () => {
     expect(onTracker.storage.milestoneQuery('team')?.query).toBe(CHECKOUT.query)
   })
 
-  // deferred: needs test/app/components/inputsScreen.test.ts ("done: the summary above the inputs") to assert the order
-  test('once used, the summary sits above the Milestone and Pace sections', async () => {
-    const { onTracker } = await picked()
-    await post(onTracker.running, '/inputs/setup/use-these', {})
-
-    const html = await page(onTracker.running, '/inputs')
-    const summary = html.indexOf('id="setup-summary"')
-    expect(summary).toBeGreaterThan(-1)
-    expect(summary).toBeLessThan(html.indexOf('id="milestone"'))
-    expect(html.indexOf('id="milestone"')).toBeLessThan(html.indexOf('id="pace"'))
-  })
-
   test('Change reopens the steps, going to the Milestone step’s section; Change from a refused token’s flag, to the Connect step’s', async () => {
     const { onTracker } = await picked()
     await post(onTracker.running, '/inputs/setup/use-these', {})

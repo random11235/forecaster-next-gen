@@ -101,6 +101,8 @@ describe('each source of tickets remaining and pace', () => {
     const following = one(pace, '#pace-tracker')
     expect(text(byRole(following, 'heading'))).toBe('GitHub')
     expect(accessibleName(byRole(following, 'img', { name: /^Finished tickets/ }))).toMatch(/oldest first: (\d+, )+\d+$/)
+    // the trend of the pace in use, beside the tracker's weeks
+    byRole(following, 'img', { name: /^Pace trend/ })
     expect(hasRole(pace, 'button', { name: 'GitHub reads differently' })).toBe(false)
     expect(all(following, '.was')).toEqual([])
     const weeks = one(following, 'details')
