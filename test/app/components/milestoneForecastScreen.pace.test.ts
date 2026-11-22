@@ -1,13 +1,13 @@
 import { describe, expect, test } from 'vitest'
-import { INPUT_LABELS } from '../../../src/app/inputsScreen.js'
 import { submitInputs } from '../../forecast/forecastingForTest.js'
-import { withTypedCounts } from '../../forecast/pacePatternScenario.js'
-import { accessibleName, all, around, byRole, one, postsTo, text } from '../dom.js'
-import { drawn, forecast, dateSaid, STEPPED_UP, ODD_WEEK, hiddenFields } from './milestoneForecastScreenScenario.js'
+import { outcomeOf } from '../../forecast/forecastViewScenario.js'
+import { ODD_WEEK, STEPPED_UP, withTypedCounts } from '../../forecast/pacePatternScenario.js'
+import { accessibleName, all, around, byRole, hiddenFields, one, postsTo, text } from '../dom.js'
+import { drawn, forecast, dateSaid, problems, whatToFix } from './milestoneForecastScreenHarness.js'
 
 // The Milestone forecast screen (#236), rendered from the views Seam B gives (test/forecast/forecastingForTest.ts),
 // started no server: the pace trend and pattern, with its action, a refusal and Undo. Shared arrangement is
-// milestoneForecastScreenScenario.ts's. What each view holds is Seam B's (test/forecast/milestoneForecastView*.test.ts,
+// milestoneForecastScreenHarness.ts's. What each view holds is Seam B's (test/forecast/milestoneForecastView*.test.ts,
 // capacity*.test.ts, newUsual.test.ts, pacePattern.*.test.ts).
 
 describe('the Milestone forecast screen: the pace pattern', () => {
@@ -25,7 +25,7 @@ describe('the Milestone forecast screen: the pace pattern', () => {
     expect(text(pattern)).toContain(`${action.dates.percent}% confident by ${dateSaid(action.dates.now)} now, ${dateSaid(action.dates.applied)} from `)
     const apply = around(byRole(pattern, 'button', { name: action.button }), 'form')
     expect(apply.getAttribute('action')).toBe('/pace-action/apply')
-    expect(all(apply, 'input[type="hidden"]').map((field) => [field.getAttribute('name'), field.getAttribute('value')])).toEqual([
+    expect(hiddenFields(apply)).toEqual([
       ['action', action.kind],
       ['date', action.date],
     ])
@@ -48,9 +48,8 @@ describe('the Milestone forecast screen: the pace pattern', () => {
 
   test('an action refused: the pattern open, why beside it', async () => {
     const team = await withTypedCounts(STEPPED_UP)
-    const outcome = await submitInputs(team, { kind: 'applyPaceAction', action: 'skipAll', date: '2026-10-12' })
-    if (outcome.kind !== 'refusedOnForecast') throw new Error(`Expected refused on the forecast, but it was ${outcome.kind}`)
-    const pattern = one(drawn(outcome.view), 'details.pace-pattern')
+    const { view } = outcomeOf(await submitInputs(team, { kind: 'applyPaceAction', action: 'skipAll', date: '2026-10-12' }), 'refusedOnForecast')
+    const pattern = one(drawn(view), 'details.pace-pattern')
 
     expect(pattern.hasAttribute('open')).toBe(true)
     expect(text(byRole(pattern, 'alert'))).toBe('That action is no longer offered.')
@@ -60,22 +59,19 @@ describe('the Milestone forecast screen: the pace pattern', () => {
     const team = await withTypedCounts(STEPPED_UP)
     await submitInputs(team, { kind: 'setPaceRange', low: '4', high: '6' })
     await submitInputs(team, { kind: 'setPaceMode', paceMode: 'range' })
-    const outcome = await submitInputs(team, { kind: 'applyPaceAction', action: 'startFrom', date: 'soon' })
-    if (outcome.kind !== 'refusedOnForecast') throw new Error(`Expected refused on the forecast, but it was ${outcome.kind}`)
+    const { view } = outcomeOf(await submitInputs(team, { kind: 'applyPaceAction', action: 'startFrom', date: 'soon' }), 'refusedOnForecast')
 
-    expect(text(byRole(drawn(outcome.view), 'alert'))).toBe('That action is no longer offered.')
+    expect(text(byRole(drawn(view), 'alert'))).toBe('That action is no longer offered.')
   })
 
   test('applied, leaving too few counts: the problem, the action said, and Undo', async () => {
     const team = await withTypedCounts([4, 3, 4, 5, 4, 9, 8, 9])
     await submitInputs(team, { kind: 'applyPaceAction', action: 'startFrom', date: '2026-10-19' })
-    const view = await team.milestoneForecastView()
-    if (view.kind !== 'problems' || view.paceApplied === undefined) throw new Error('Expected problems with the action applied')
+    const view = problems(await team.milestoneForecastView())
+    if (view.paceApplied === undefined) throw new Error('Expected problems with the action applied')
     const page = drawn(view)
 
-    expect(text(byRole(page, 'region', { name: 'What to fix' }))).toBe(
-      view.problems.map(({ input, message }) => `⚠ ${INPUT_LABELS[input]}: ${message}`).join(' '),
-    )
+    expect(text(byRole(page, 'region', { name: 'What to fix' }))).toBe(whatToFix(view))
     expect(text(around(byRole(page, 'button', { name: 'Undo' }), 'form'))).toBe(`${view.paceApplied} Undo`)
     expect(postsTo(byRole(page, 'button', { name: 'Undo' }))).toBe('/pace-action/undo')
   })

@@ -1,12 +1,13 @@
 import { describe, expect, test } from 'vitest'
 import { mediumGrowth, submitInputs } from '../../forecast/forecastingForTest.js'
 import { newTeam } from '../../forecast/forecastViewScenario.js'
+import { withTypedCounts } from '../../forecast/pacePatternScenario.js'
 import { all, byRole, one, text } from '../dom.js'
-import { drawn, forecast, dateSaid, headline, entered, onTypedCounts, finishGraph } from './milestoneForecastScreenScenario.js'
+import { drawn, forecast, dateSaid, entered, finishGraph, shareSaid } from './milestoneForecastScreenHarness.js'
 
 // The Milestone forecast screen (#236), rendered from the views Seam B gives (test/forecast/forecastingForTest.ts),
 // started no server: its finish graph: markers, bars and the note on later finishes. Shared arrangement is
-// milestoneForecastScreenScenario.ts's. What each view holds is Seam B's (test/forecast/milestoneForecastView*.test.ts,
+// milestoneForecastScreenHarness.ts's. What each view holds is Seam B's (test/forecast/milestoneForecastView*.test.ts,
 // capacity*.test.ts, newUsual.test.ts, pacePattern.*.test.ts).
 
 describe('the Milestone forecast screen: the finish graph', () => {
@@ -41,17 +42,25 @@ describe('the Milestone forecast screen: the finish graph', () => {
     }
   })
 
-  test('a bar’s hover text: its date, the chance of completing by the end of its week, and the share completed within it', async () => {
+  test('a bar’s hover text: its date, the chance of finishing by the end of its week, and the share finishing in it', async () => {
+    const view = forecast(await (await entered('40', ['4', '8'])).milestoneForecastView())
+    // a week some simulations finish before, so the chance by its end and its own share differ
+    const bar = view.finishGraph.bars.find(({ share, finishedBy }) => share >= 0.005 && shareSaid(finishedBy) !== shareSaid(share))
+    if (!bar) throw new Error('Expected a week whose chance by its end differs from its own share')
+
+    expect(text(one(finishGraph(view), `.bar[data-date="${bar.date}"] .tip`))).toBe(
+      `${dateSaid(bar.date)}: ${shareSaid(bar.finishedBy)} chance of completing by the end of this week, ${shareSaid(bar.share)} of simulations are completed within.`,
+    )
+  })
+
+  test('every simulation finishing within the graph: no note of any finishing later', async () => {
     const team = await newTeam()
     mediumGrowth(team, { low: 1, high: 1 })
     // 10 tickets at exactly 5 a week: every simulation finishes in the second week
-    const view = forecast(await (await entered('10', ['5', '5'], { team: Promise.resolve(team) })).milestoneForecastView())
-    const graph = finishGraph(view)
+    const view = forecast(await (await entered('10', ['5', '5'], { team })).milestoneForecastView())
+    if (view.finishGraph.later) throw new Error('Expected every simulation to finish within the graph')
 
-    expect(text(one(graph, '.bar[data-date="2026-09-15"] .tip'))).toBe(
-      '15 Sep 2026: 100% chance of completing by the end of this week, 100% of simulations are completed within.',
-    )
-    expect(text(graph)).not.toContain('finish later')
+    expect(text(finishGraph(view))).not.toContain('finish later')
   })
 
   test('a bar holding fewer than 1 in 200 simulations says under 1%, not 0%', async () => {
@@ -63,12 +72,15 @@ describe('the Milestone forecast screen: the finish graph', () => {
   })
 
   test.each([
-    ['the last by its date', '0 1 1 2 8 12', '1% of simulations finish later, the last by 8 Aug 2028.'],
-    ['some beyond the horizon', '0 0 0 1 1 2 8 12', '1% of simulations finish later, some later than the horizon.'],
-  ])('ending at the 99%% date, it says under the graph what share finish later: %s', async (_, counts, later) => {
-    const graph = finishGraph(forecast(await (await onTypedCounts('30', counts)).milestoneForecastView()))
+    ['the last by its date', [6, 4, 9, 7], 'by'],
+    ['some beyond the horizon', [0, 1, 1, 2, 8, 12], 'beyondHorizon'],
+  ] as const)('ending at the 99%% date, it says under the graph what share finish later: %s', async (_, counts, kind) => {
+    const view = forecast(await (await withTypedCounts(counts)).milestoneForecastView())
+    const later = view.finishGraph.later
+    if (later?.last.kind !== kind || later.share < 0.005) throw new Error(`Expected 1 in 200 simulations or more to finish later, the last ${kind}`)
+    const last = later.last.kind === 'by' ? `the last by ${dateSaid(later.last.date)}` : 'some later than the horizon'
 
-    expect(text(one(graph, '.note.quiet'))).toBe(later)
+    expect(text(one(finishGraph(view), '.note.quiet'))).toBe(`${shareSaid(later.share)} of simulations finish later, ${last}.`)
   })
 
   test('under 1 in 200 simulations finishing later: says under 1%, starting the sentence', async () => {

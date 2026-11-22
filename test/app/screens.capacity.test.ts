@@ -1,10 +1,18 @@
 import { describe, expect, test } from 'vitest'
-import { startOnSavedData, page, text, post, stored, submitPace, submitCounts, choosePace, addCapacity, editCapacity, TEAM } from './screensHarness.js'
+import { one, render } from './dom.js'
+import { redirectedTo } from './forms.js'
+import { startOnSavedData, page, post, stored, submitPace, submitCounts, choosePace, addCapacity, editCapacity, TEAM } from './screensHarness.js'
 
 // The screens through the local server: see screensHarness.ts. What app/ owns of capacity: the forms' fields read as
 // posted, where each goes back to, the section opened at its own URL, and the status of a refusal. How the section
 // reads is the Milestone forecast screen's component test's (components/milestoneForecastScreen.test.ts), and what each
 // entry does to the forecast Seam B's (test/forecast/capacity*.test.ts, newUsual.test.ts).
+
+/** The Capacity section of the screen `html` draws: whether it is open, and the URL its toggle goes to. */
+function capacity(html: string) {
+  const section = one(render(html), '#capacity')
+  return { open: section.hasAttribute('open'), toggle: section.getAttribute('data-toggle') }
+}
 
 describe('Milestone forecast screen: capacity', () => {
   test('the sentence’s fields are read as typed, its percent, dates, onward and note, and it goes back to the forecast', async () => {
@@ -14,8 +22,7 @@ describe('Milestone forecast screen: capacity', () => {
     const added = await addCapacity('0', '2026-11-02', '2026-11-06', 'Offsite')
     await addCapacity('60', '2026-11-23', '', 'Holiday', true)
 
-    expect(added.status).toBe(303)
-    expect(added.headers.get('location')).toBe('/')
+    expect(redirectedTo(added)).toBe('/')
     expect(stored().capacityEntries(TEAM)).toEqual([
       { id: 1, percent: 0, from: '2026-11-02', to: '2026-11-06', note: 'Offsite' },
       { id: 2, percent: 60, from: '2026-11-23', to: undefined, note: 'Holiday' },
@@ -29,9 +36,7 @@ describe('Milestone forecast screen: capacity', () => {
     const refused = await addCapacity('50', '2026-09-14', '2026-09-07', 'Half on <leave>')
 
     expect(refused.status).toBe(400)
-    const html = await refused.text()
-    expect(html).toContain('<details class="capacity" id="capacity" data-toggle="/#capacity" open>')
-    expect(text(html)).toContain('The end date is before the start.')
+    expect(capacity(await refused.text()).open).toBe(true)
     expect(stored().capacityEntries(TEAM)).toEqual([])
   })
 
@@ -51,14 +56,11 @@ describe('Milestone forecast screen: capacity', () => {
       ['to', ''],
     ])
 
-    expect(saved.headers.get('location')).toBe('/?capacity=open')
+    expect(redirectedTo(saved)).toBe('/?capacity=open')
     expect(refused.status).toBe(400)
-    expect(await refused.text()).toContain('<details class="capacity" id="capacity" data-toggle="/#capacity" open>')
-    expect(await page('/')).toContain('<details class="capacity" id="capacity" data-toggle="/?capacity=open#capacity">')
-    const open = await page('/?capacity=open')
-    expect(open).toContain('<details class="capacity" id="capacity" data-toggle="/#capacity" open>')
-    // open, each entry's effect is worked out
-    expect(text(open)).toContain('Offsite 85% date +1 wk')
+    expect(capacity(await refused.text())).toEqual({ open: true, toggle: '/#capacity' })
+    expect(capacity(await page('/'))).toEqual({ open: false, toggle: '/?capacity=open#capacity' })
+    expect(capacity(await page('/?capacity=open'))).toEqual({ open: true, toggle: '/#capacity' })
   })
 
   test('an entry’s Edit, a past one’s note alone, Remove and the switch post the id or on they carry', async () => {
@@ -73,20 +75,20 @@ describe('Milestone forecast screen: capacity', () => {
       ['note', 'Offsite in Lisbon'],
     ])
 
-    expect(edited.headers.get('location')).toBe('/')
+    expect(redirectedTo(edited)).toBe('/')
     expect(stored().capacityEntries(TEAM)).toEqual([
       { id: 1, percent: 50, from: '2026-11-09', to: '2026-11-13', note: 'Offsite, half the team' },
       { id: 2, percent: 0, from: '2026-09-07', to: '2026-09-11', note: 'Offsite in Lisbon' },
     ])
 
     const switched = await post('/capacity/switch', [['on', 'false']])
-    expect(switched.headers.get('location')).toBe('/')
+    expect(redirectedTo(switched)).toBe('/')
     expect(stored().capacityOn(TEAM)).toBe(false)
     await post('/capacity/switch', [['on', 'true']])
     expect(stored().capacityOn(TEAM)).toBe(true)
 
     const removed = await post('/capacity/remove', [['id', '1']])
-    expect(removed.headers.get('location')).toBe('/')
+    expect(redirectedTo(removed)).toBe('/')
     expect(
       stored()
         .capacityEntries(TEAM)
@@ -104,7 +106,7 @@ describe('Milestone forecast screen: capacity', () => {
     const accepted = await post('/capacity/new-usual?capacity=open', [['id', '1']])
     await post('/capacity/keep?capacity=open', [['id', '2']])
 
-    expect(accepted.headers.get('location')).toBe('/?capacity=open')
+    expect(redirectedTo(accepted)).toBe('/?capacity=open')
     expect(stored().capacityEntries(TEAM)).toEqual([
       { id: 1, percent: 80, from: '2026-09-22', to: '2026-10-24', note: 'Two left', newUsualOn: '2026-10-24' },
       { id: 2, percent: 90, from: '2026-09-22', to: undefined, note: 'One left', kept: true },
@@ -115,7 +117,7 @@ describe('Milestone forecast screen: capacity', () => {
     await choosePace('range')
     const ended = await post('/capacity/end-today?capacity=open', [['id', '2']])
 
-    expect(ended.headers.get('location')).toBe('/?capacity=open')
+    expect(redirectedTo(ended)).toBe('/?capacity=open')
     expect(stored().capacityEntries(TEAM)[1]).toMatchObject({ id: 2, to: '2026-10-23' })
   })
 

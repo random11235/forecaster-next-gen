@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
-import { post, saveInPlace } from './forms.js'
+import { one, render } from './dom.js'
+import { post, redirectedTo, saveInPlace } from './forms.js'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned.js'
 import type { Choice, ChoicesOfKind } from '../../src/connectors/connector.js'
 import type { Connecting } from '../../src/forecast/index.js'
@@ -56,7 +57,7 @@ async function startConnected(fixture: CannedFixture = FIXTURE): Promise<Running
     clock: { now: () => '2026-11-12T09:00:00Z', timeZone: 'UTC' },
   })
   const connected = await post(app, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
-  expect(connected.headers.get('location')).toBe('/inputs#milestone-tickets')
+  expect(redirectedTo(connected)).toBe('/inputs#milestone-tickets')
   return app
 }
 
@@ -72,24 +73,23 @@ function stepOf(html: string): string {
 const PAYMENTS = { kind: 'milestone', name: 'Payments v2', query: 'milestone:"Payments v2"' }
 
 describe('the Milestone step', () => {
-  test('what is typed to find, in its query parameter, filters the lists', async () => {
+  test('what is typed to find is read from its query parameter, back into the find box', async () => {
     const running = await startConnected()
 
-    const step = stepOf(await page(running, '/inputs?find=pay'))
+    const step = one(render(await page(running, '/inputs?find=pay')), '#milestone-tickets')
 
-    expect(step).toContain('Payments v2')
-    expect(step).not.toContain('Checkout')
+    expect(one(step, 'input[type="search"][name="find"]').getAttribute('value')).toBe('pay')
   })
 
   test('a pick is read from its form, and a chip removed from its own, each back to the step', async () => {
     const running = await startConnected()
 
     const picked = await post(running, '/inputs/milestone-query/add', PAYMENTS)
-    expect([picked.status, picked.headers.get('location')]).toEqual([303, '/inputs#milestone-tickets'])
+    expect(redirectedTo(picked)).toBe('/inputs#milestone-tickets')
     expect(storage?.setupDraft('team')?.milestoneQuery?.query).toBe(PAYMENTS.query)
 
     const removed = await post(running, '/inputs/milestone-query/remove', { query: PAYMENTS.query })
-    expect([removed.status, removed.headers.get('location')]).toEqual([303, '/inputs#milestone-tickets'])
+    expect(redirectedTo(removed)).toBe('/inputs#milestone-tickets')
     expect(storage?.setupDraft('team')?.milestoneQuery).toEqual({ picks: [], query: '' })
   })
 
@@ -127,7 +127,7 @@ describe('the Milestone step', () => {
     expect(stepOf(await page(running, '/inputs?edit=query'))).toContain('id="milestone-query"')
 
     const edited = await post(running, '/inputs/milestone-query/edit', { query: 'milestone:"Checkout"' })
-    expect([edited.status, edited.headers.get('location')]).toEqual([303, '/inputs?edit=query#milestone-tickets'])
+    expect(redirectedTo(edited)).toBe('/inputs?edit=query#milestone-tickets')
     expect(storage?.setupDraft('team')?.milestoneQuery?.query).toBe('milestone:"Checkout"')
   })
 
@@ -136,14 +136,14 @@ describe('the Milestone step', () => {
     await post(running, '/inputs/milestone-query/edit', { query: 'label:checkout -label:bug' })
 
     const back = await post(running, '/inputs/milestone-query/back', {})
-    expect(back.headers.get('location')).toBe('/inputs?edit=query&confirm=back#milestone-tickets')
+    expect(redirectedTo(back)).toBe('/inputs?edit=query&confirm=back#milestone-tickets')
     expect(stepOf(await page(running, '/inputs?edit=query'))).not.toContain('name="confirmed"')
     expect(stepOf(await page(running, '/inputs?edit=query&confirm=back'))).toContain('name="confirmed" value="yes"')
     expect(storage?.setupDraft('team')?.milestoneQuery?.query).toBe('label:checkout -label:bug')
 
     const confirmed = await post(running, '/inputs/milestone-query/back', { confirmed: 'yes' })
 
-    expect(confirmed.headers.get('location')).toBe('/inputs#milestone-tickets')
+    expect(redirectedTo(confirmed)).toBe('/inputs#milestone-tickets')
     expect(storage?.setupDraft('team')?.milestoneQuery).toEqual({ picks: [], query: '' })
   })
 

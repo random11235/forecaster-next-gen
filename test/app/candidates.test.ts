@@ -7,6 +7,7 @@ import type { Connecting } from '../../src/forecast/index.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { TeamStorage } from '../trackerScenario.js'
+import { all, render } from './dom.js'
 import { found } from './found.js'
 
 // Candidates for comparable work on the Inputs screen (#205), through the local server, on the canned connector: the
@@ -101,6 +102,12 @@ function stepOf(html: string): string {
 /** The candidates block's opening, as the page names it. */
 const openingOf = (html: string): string => found(stepOf(html), /data-opening="([^"]+)"/, 1)
 
+/** The candidates `html` shows, each by its query, sorted. */
+const shown = (html: string): (string | null)[] =>
+  all(render(html), 'li[data-query]')
+    .map((candidate) => candidate.getAttribute('data-query'))
+    .sort()
+
 /** What the step's script asks for once `choices` are opened, in `opening`. */
 function candidatesPath(opening: string, choices: Choice[]): string {
   const params = new URLSearchParams({ opening })
@@ -115,7 +122,7 @@ describe('candidates for comparable work', () => {
     const step = stepOf(await page(running, `/inputs?step=comparableWork&comparableOpen=${encodeURIComponent(payments.query)}`))
 
     expect(reads).toEqual([payments.query])
-    expect(step).toContain('Slower than the milestone')
+    expect(shown(step)).toEqual([payments.query])
   })
 
   test('the step’s script asks for the candidates opened, each read once in the opening', async () => {
@@ -126,8 +133,7 @@ describe('candidates for comparable work', () => {
     const html = await page(running, candidatesPath(opening, [payments, bug]))
 
     expect(reads).toEqual([payments.query, bug.query])
-    expect(html).toContain('Slower than the milestone')
-    expect(html).toContain('Nothing finished')
+    expect(shown(html)).toEqual([bug.query, payments.query].sort())
   })
 
   test('in an opening the server no longer keeps, the candidates are read in a fresh one', async () => {
@@ -136,7 +142,7 @@ describe('candidates for comparable work', () => {
     const html = await page(running, candidatesPath('gone', [payments]))
 
     expect(reads).toEqual([payments.query])
-    expect(html).toContain('Slower than the milestone')
+    expect(shown(html)).toEqual([payments.query])
   })
 
   test('the server keeps the latest 32 openings: in one older, a candidate already read is read afresh', async () => {

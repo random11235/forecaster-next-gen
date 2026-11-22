@@ -1,5 +1,6 @@
 import { expect } from 'vitest'
-import { DEFAULT_SETTINGS, type Forecasting, type InputsEdit } from '../../src/forecast/index.js'
+import { DEFAULT_SETTINGS, type Forecasting, type InputsEdit, type Outcome } from '../../src/forecast/index.js'
+import type { MilestoneInputs } from '../../src/model/milestoneInputs.js'
 import { forecastingForTest, submitInputs, TEAM, type ForecastingForTest } from './forecastingForTest.js'
 
 // The arrangement the Milestone forecast view's tests (milestoneForecastView.test.ts and the
@@ -34,6 +35,35 @@ export async function edit(team: Pick<Forecasting, 'submit'>, change: InputsEdit
     case 'confirmClear':
       return { ok: false, confirm: true }
   }
+}
+
+/** `outcome`, of `kind`, failing with the kind it was if not: what a test reads next, such as the view it shows. */
+export function outcomeOf<K extends Outcome['kind']>(outcome: Outcome, kind: K): Extract<Outcome, { kind: K }> {
+  if (outcome.kind !== kind) throw new Error(`Expected the submit ${kind}, but it was ${outcome.kind}`)
+  return outcome as Extract<Outcome, { kind: K }>
+}
+
+/**
+ * Checkout v2 as a release before the MVP kept it, saved straight into storage: no start date, tickets remaining or
+ * pace, unless `kept` gives them, for what no Inputs form can leave unentered.
+ */
+export function keptFromBeforeTheMvp(team: ForecastingForTest, kept: Partial<MilestoneInputs> = {}): void {
+  team.storage.saveMilestoneInputs({
+    teamId: TEAM,
+    name: 'Checkout v2',
+    startDate: undefined,
+    ticketsRemaining: undefined,
+    ambiguity: 'medium',
+    cadenceDays: 7,
+    paceMode: 'range',
+    paceRange: undefined,
+    paceCounts: [],
+    paceCadenceDays: undefined,
+    paceWindow: { action: undefined, skippedPeriods: [] },
+    ticketsSource: 'typed',
+    seenReads: { ticketsRemaining: undefined, pace: undefined },
+    ...kept,
+  })
 }
 
 /** The EM enters the milestone and a pace range, as the Inputs screen does. */

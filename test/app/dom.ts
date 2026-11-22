@@ -210,3 +210,8 @@ export function around(element: Element, selector: string): Element {
   if (!found) throw new Error(`Expected an element matching ${selector} around ${element.localName}, found none`)
   return found
 }
+
+/** The fields `form` carries hidden, each as its name and value, in order: what it posts that the EM doesn't type. */
+export function hiddenFields(form: Element): [string | null, string | null][] {
+  return all(form, 'input[type="hidden"]').map((field) => [field.getAttribute('name'), field.getAttribute('value')])
+}

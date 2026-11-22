@@ -3,6 +3,7 @@ import { renderHowItWorksScreen } from '../../../src/app/howItWorksScreen.js'
 import type { HowItWorksView } from '../../../src/forecast/index.js'
 import { forecastingForTest } from '../../forecast/forecastingForTest.js'
 import { accessibleName, allByRole, byRole, one, render, text } from '../dom.js'
+import { shareSaid } from './milestoneForecastScreenHarness.js'
 
 // The How it works screen (#236), rendered from the example's view Seam B gives, started no server: its three parts,
 // each picture named for a screen reader, and the example's simulations as they finish. What the example forecasts is
@@ -53,12 +54,15 @@ describe('the How it works screen', () => {
 
   test('the burndown labels the share of simulations its pace meets, and the weeks most finish in', () => {
     const problem = byRole(page, 'region', { name: 'The problem' })
-
-    expect(text(problem)).toMatch(/met in \d+% of simulations/)
+    const finishing = view.finishGraph.bars.filter(({ share }) => share > 0).map(({ period }) => period)
+    const [first, last] = [Math.min(...finishing), Math.max(...finishing)]
     // some finish after the graph's last week, so the spread is of most
-    expect(text(problem)).toContain('most simulated finishes: weeks 4–11')
+    if (!view.finishGraph.later) throw new Error('Expected some simulations to finish after the graph’s last week')
+
+    expect(text(problem)).toContain(`met in ${shareSaid(view.averagePace.met)} of simulations`)
+    expect(text(problem)).toContain(`most simulated finishes: weeks ${first}–${last}`)
     expect(accessibleName(byRole(problem, 'img'))).toBe(
-      'A straight burndown at the average pace reaches 0 in week 5; most simulated finishes fall between weeks 4 and 11.',
+      `A straight burndown at the average pace reaches 0 in week ${view.averagePace.period}; most simulated finishes fall between weeks ${first} and ${last}.`,
     )
   })
 
@@ -71,20 +75,11 @@ describe('the How it works screen', () => {
   })
 
   test('the few simulations after the graph’s last week, in one line under the burndown', () => {
-    expect(text(byRole(page, 'region', { name: 'The problem' }))).toContain('1% of simulations finish later, the last in week 13.')
-  })
+    const later = view.finishGraph.later
+    if (later?.last.kind !== 'by' || later.share < 0.005) throw new Error('Expected 1 in 200 simulations or more to finish later, the last in a week')
 
-  test('the sidebar marks How it works current; the head carries the icon and fonts inline, loading nothing', () => {
-    const html = renderHowItWorksScreen(view)
-
-    expect(allByRole(byRole(page, 'navigation'), 'link').map((link) => [link.getAttribute('href'), link.getAttribute('aria-current')])).toEqual([
-      ['/', null],
-      ['/inputs', null],
-      ['/how-it-works', 'page'],
-    ])
-    expect(one(page, 'head link[rel="icon"]').getAttribute('href')).toMatch(/^data:image\/svg\+xml,%3Csvg/)
-    for (const family of ['Geist', 'Geist Mono']) expect(one(page, 'head style#fonts').textContent).toContain(`font-family: '${family}'`)
-    expect(html).not.toMatch(/(?:href=|src=|url\()["']?(?:https?:)?\/\//)
-    expect(html).not.toContain('@import')
+    expect(text(byRole(page, 'region', { name: 'The problem' }))).toContain(
+      `${shareSaid(later.share)} of simulations finish later, the last in week ${later.last.period}.`,
+    )
   })
 })

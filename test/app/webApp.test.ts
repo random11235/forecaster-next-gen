@@ -3,6 +3,7 @@ import { APP_VERSION } from '../../src/forecast/index.js'
 import { openWebApp } from '../../src/app/webApp.js'
 import { openWebStorage } from '../../src/storage/webStorage.js'
 import { defaultTeam } from './appOnTracker.js'
+import { byRole, hasRole, one, render } from './dom.js'
 
 // The web build's screens, as its page asks for them (#114): no server, so the app answers each request itself and
 // follows a redirect to the screen it names.
@@ -14,6 +15,10 @@ function firstOpen() {
   const storage = openWebStorage(undefined)
   return { storage, app: openWebApp({ storage, clock: { now: () => `${TODAY}T09:00:00Z`, timeZone: 'UTC' } }) }
 }
+
+const TEAM = defaultTeam('').id
+/** The Capacity section of the screen `html` draws. */
+const capacitySection = (html: string) => one(render(html), '#capacity')
 
 const post = (path: string, fields: Record<string, string>) => ({ method: 'POST', path, form: new URLSearchParams(fields) })
 
@@ -44,7 +49,7 @@ describe('web app', () => {
     const page = await app.show(post('/inputs/pace', { low: '5', high: '10' }))
 
     expect(page).toMatchObject({ path: '/', status: 200 })
-    expect(page.html).toMatch(/Starting 2 Nov 2026: 85% confident of finishing by/)
+    expect(hasRole(render(page.html), 'region', { name: 'Forecast' })).toBe(true)
   })
 
   test('a save in place answers with the Inputs screen', async () => {
@@ -82,7 +87,7 @@ describe('web app', () => {
   })
 
   test('typed capacity comes back to the forecast; refused, the forecast is shown again, saying why', async () => {
-    const { app } = firstOpen()
+    const { storage, app } = firstOpen()
     await app.show(post('/inputs/milestone', { name: 'Launch', startDate: '2026-11-02', ticketsRemaining: '30' }))
     await app.show(post('/inputs/pace', { low: '5', high: '10' }))
 
@@ -93,11 +98,12 @@ describe('web app', () => {
     const refused = await app.show(post('/capacity/add', { percent: 'half', from: '2026-11-09', to: '' }))
 
     expect(refused).toMatchObject({ path: '/', status: 400 })
-    expect(refused.html).toContain('Capacity is a whole percentage, 0 or more.')
+    byRole(capacitySection(refused.html), 'alert')
+    expect(storage.capacityEntries(TEAM)).toHaveLength(1)
   })
 
-  test('capacity switched off comes back to the forecast, saying its entries are kept', async () => {
-    const { app } = firstOpen()
+  test('capacity switched off comes back to the forecast, its entries kept', async () => {
+    const { storage, app } = firstOpen()
     await app.show(post('/inputs/milestone', { name: 'Launch', startDate: '2026-11-02', ticketsRemaining: '30' }))
     await app.show(post('/inputs/pace', { low: '5', high: '10' }))
     await app.show(post('/capacity/add', { percent: '0', from: '2026-11-02', to: '2026-11-06', note: 'Offsite' }))
@@ -105,7 +111,8 @@ describe('web app', () => {
     const off = await app.show(post('/capacity/switch', { on: 'false' }))
 
     expect(off).toMatchObject({ path: '/', status: 200 })
-    expect(off.html).toContain('Capacity is switched off for this forecast; its entries are kept.')
+    expect(storage.capacityOn(TEAM)).toBe(false)
+    expect(storage.capacityEntries(TEAM)).toHaveLength(1)
   })
 
   test('the Capacity section opens at its own URL, and stays open across saves', async () => {
@@ -116,11 +123,11 @@ describe('web app', () => {
 
     const opened = await app.show({ method: 'GET', path: '/?capacity=open' })
     expect(opened).toMatchObject({ path: '/?capacity=open', status: 200 })
-    expect(opened.html).toContain('data-toggle="/#capacity" open>')
+    expect(capacitySection(opened.html).hasAttribute('open')).toBe(true)
 
     const saved = await app.show(post('/capacity/add?capacity=open', { percent: '0', from: '2026-11-30', to: '', note: 'Holiday' }))
     expect(saved).toMatchObject({ path: '/?capacity=open', status: 200 })
-    expect(saved.html).toContain('data-toggle="/#capacity" open>')
+    expect(capacitySection(saved.html).hasAttribute('open')).toBe(true)
   })
 
   test('an edited capacity entry comes back to the forecast, changed', async () => {
@@ -135,8 +142,8 @@ describe('web app', () => {
     expect(page.html).toContain('Half offsite')
   })
 
-  test('a lasting change proposed as the new usual, once made so, is listed under Past', async () => {
-    const { app } = firstOpen()
+  test('a lasting change proposed as the new usual, once made so, comes back to the section open, made the new usual', async () => {
+    const { storage, app } = firstOpen()
     await app.show(post('/inputs/milestone', { name: 'Launch', startDate: '2026-11-02', ticketsRemaining: '30' }))
     // the weeks from 28 Sep to 19 Oct, the last whole one before 30 Oct's
     await app.show(post('/inputs/pace-counts', { counts: '4, 6, 5, 7' }))
@@ -146,11 +153,11 @@ describe('web app', () => {
     const page = await app.show(post('/capacity/new-usual?capacity=open', { id: '1' }))
 
     expect(page).toMatchObject({ path: '/?capacity=open', status: 200 })
-    expect(page.html).toContain('28 Sep 2026 to 30 Oct 2026 · new usual from 30 Oct 2026')
+    expect(storage.capacityEntries(TEAM)).toMatchObject([{ id: 1, to: TODAY, newUsualOn: TODAY }])
   })
 
   test('a pace pattern’s action applied comes back to the forecast; refused, the forecast is shown again, saying why', async () => {
-    const { app } = firstOpen()
+    const { storage, app } = firstOpen()
     await app.show(post('/inputs/milestone', { name: 'Launch', startDate: '2026-11-02', ticketsRemaining: '30' }))
     await app.show(post('/inputs/pace-counts', { counts: '4, 3, 5, 4, 4, 3, 4, 5, 3, 4, 8, 9, 7, 8' }))
     await app.show(post('/inputs/pace-mode', { paceMode: 'counts' }))
@@ -158,10 +165,11 @@ describe('web app', () => {
     const applied = await app.show(post('/pace-action/apply', { action: 'startFrom', date: '2026-09-28' }))
 
     expect(applied).toMatchObject({ path: '/', status: 200 })
-    expect(applied.html).toContain('Counting pace from 28 Sep, after it stepped up.')
+    expect(storage.milestoneInputs(TEAM)?.paceWindow.action).toEqual({ kind: 'startFrom', date: '2026-09-28' })
     const refused = await app.show(post('/pace-action/apply', { action: 'startFrom', date: 'soon' }))
     expect(refused).toMatchObject({ path: '/', status: 400 })
-    expect(refused.html).toContain('That action is no longer offered.')
+    byRole(render(refused.html), 'alert')
+    expect(storage.milestoneInputs(TEAM)?.paceWindow.action).toEqual({ kind: 'startFrom', date: '2026-09-28' })
   })
 
   test('shows not found for anything but the screens', async () => {

@@ -4,7 +4,7 @@ import type { CannedFixture } from '../../src/connectors/canned.js'
 import type { Ticket } from '../../src/connectors/connector.js'
 import { TEAM } from '../trackerScenario.js'
 import { appOnTracker, type AppOnTracker } from './appOnTracker.js'
-import { post } from './forms.js'
+import { post, redirectedTo } from './forms.js'
 
 // Skipping GitHub's weeks (#213): the forms the browser posts, each repeating `period`, read into what is stored, and
 // where the browser lands. What the Inputs screen and the forecast show of it is test/forecast/skippedPeriods.test.ts's
@@ -57,8 +57,7 @@ describe('skipping GitHub’s weeks', () => {
 
     const skipped = await post(running, '/inputs/pace-skip', periods(['2026-10-12', '2026-10-19']))
 
-    expect(skipped.status).toBe(303)
-    expect(skipped.headers.get('location')).toBe('/inputs#pace-tracker')
+    expect(redirectedTo(skipped)).toBe('/inputs#pace-tracker')
     expect(skippedPeriods()).toEqual(['2026-10-12', '2026-10-19'])
   })
 
@@ -68,8 +67,7 @@ describe('skipping GitHub’s weeks', () => {
 
     const counted = await post(running, '/inputs/pace-count-again', periods(['2026-10-12', '2026-10-19']))
 
-    expect(counted.status).toBe(303)
-    expect(counted.headers.get('location')).toBe('/inputs#pace-tracker')
+    expect(redirectedTo(counted)).toBe('/inputs#pace-tracker')
     expect(skippedPeriods()).toEqual([])
   })
 })

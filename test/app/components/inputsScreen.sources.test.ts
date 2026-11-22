@@ -9,9 +9,10 @@ import {
   submitInputs,
   type ForecastingForTest,
 } from '../../forecast/forecastingForTest.js'
+import { outcomeOf } from '../../forecast/forecastViewScenario.js'
 import { finishedInWeeks, open } from '../../trackerScenario.js'
 import { accessibleName, all, allByRole, around, byRole, hasRole, one, postsTo, radios, text } from '../dom.js'
-import { drawn, hidden, READ_AT, refused, screen, section, START, TICKETS, WEEKS } from './inputsScreenHarness.js'
+import { drawn, milestoneOn, READ_AT, screen, section, START, TICKETS, WEEKS, whatItPosts } from './inputsScreenHarness.js'
 
 // The Inputs screen (#236), rendered from the views Seam B gives (see inputsScreenHarness.ts): each source of tickets
 // remaining and pace, with the chip on a typed value the tracker reads differently. What each view holds is Seam B's.
@@ -20,11 +21,7 @@ describe('each source of tickets remaining and pace', () => {
   let team: ForecastingForTest
 
   beforeEach(async () => {
-    team = await forecastingForTest({ fixture: checkoutFixture(TICKETS) })
-    await team.submit({ form: 'connection', edit: CONNECTIONS.github })
-    await submitInputs(team, { kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '40' })
-    await submitInputs(team, { kind: 'setPaceRange', low: '4', high: '8' })
-    await pick(team, READ_AT)
+    team = await milestoneOn(await forecastingForTest({ fixture: checkoutFixture(TICKETS) }))
   })
 
   test('tickets remaining typed, read differently: the chip, with its dot, the reading, and Follow GitHub', async () => {
@@ -41,8 +38,8 @@ describe('each source of tickets remaining and pace', () => {
     opened.setAttribute('open', '')
     expect(text(opened)).toBe('GitHub reads differently GitHub reads 34 tickets remaining, read 12 Nov 09:00. Follow GitHub')
     expect(byRole(opened, 'button', { name: 'Follow GitHub' }).getAttribute('form')).toBe('follow-tickets')
-    expect(hidden(one(milestone, 'form#follow-tickets'))).toEqual(['/inputs/tickets-source#milestone', [['ticketsSource', 'tracker']]])
-    expect(hidden(one(milestone, 'form#open-tickets-reading'))).toEqual(['/inputs/reading-opened', [['reading', 'ticketsRemaining']]])
+    expect(whatItPosts(one(milestone, 'form#follow-tickets'))).toEqual(['/inputs/tickets-source#milestone', [['ticketsSource', 'tracker']]])
+    expect(whatItPosts(one(milestone, 'form#open-tickets-reading'))).toEqual(['/inputs/reading-opened', [['reading', 'ticketsRemaining']]])
   })
 
   test('tickets remaining typed, its reading opened: the chip with no dot', async () => {
@@ -78,8 +75,8 @@ describe('each source of tickets remaining and pace', () => {
     chip.setAttribute('open', '')
     expect(accessibleName(byRole(chip, 'img'))).toMatch(/^Finished tickets per week, oldest first: /)
     expect(byRole(chip, 'button', { name: 'Follow GitHub' }).getAttribute('form')).toBe('follow-pace')
-    expect(hidden(one(pace, 'form#follow-pace'))).toEqual(['/inputs/pace-mode#pace', [['paceMode', 'tracker']]])
-    expect(hidden(one(pace, 'form#open-pace-reading'))).toEqual(['/inputs/reading-opened', [['reading', 'pace']]])
+    expect(whatItPosts(one(pace, 'form#follow-pace'))).toEqual(['/inputs/pace-mode#pace', [['paceMode', 'tracker']]])
+    expect(whatItPosts(one(pace, 'form#open-pace-reading'))).toEqual(['/inputs/reading-opened', [['reading', 'pace']]])
   })
 
   test('pace typed counts, read differently: the chip on the counts, GitHub’s weeks as bars inside it', async () => {
@@ -165,7 +162,7 @@ describe('each source of tickets remaining and pace', () => {
     await team.submit({ form: 'skip', edit: { kind: 'skip', periods: ['2026-10-12', '2026-10-19'] } })
     const following = one(section(await screen(team), 'Pace'), '#pace-tracker')
 
-    expect(hidden(around(byRole(following, 'button', { name: 'count them again' }), 'form'))).toEqual([
+    expect(whatItPosts(around(byRole(following, 'button', { name: 'count them again' }), 'form'))).toEqual([
       '/inputs/pace-count-again#pace-tracker',
       [
         ['period', '2026-10-12'],
@@ -176,9 +173,8 @@ describe('each source of tickets remaining and pace', () => {
 
   test('a skip refused: why, under the tracker’s heading', async () => {
     await submitInputs(team, { kind: 'setPaceMode', paceMode: 'tracker' })
-    const outcome = await team.submit({ form: 'skip', edit: { kind: 'skip', periods: [] } })
-    if (outcome.kind !== 'refused') throw new Error(`Expected the skip refused, but it was ${outcome.kind}`)
-    const following = one(drawn(outcome.view), '#pace-tracker')
+    const { view } = outcomeOf(await team.submit({ form: 'skip', edit: { kind: 'skip', periods: [] } }), 'refused')
+    const following = one(drawn(view), '#pace-tracker')
 
     expect(text(following)).toMatch(/^GitHub Choose a week to skip\. /)
     byRole(following, 'alert')
@@ -187,11 +183,7 @@ describe('each source of tickets remaining and pace', () => {
 
 describe('a source read from Jira', () => {
   test('tickets remaining typed, read differently: the chip names Jira, its reading, and Follow Jira; the tracker’s pace too', async () => {
-    const team = await forecastingForTest({ fixture: checkoutFixture(TICKETS) })
-    await team.submit({ form: 'connection', edit: CONNECTIONS.jira })
-    await submitInputs(team, { kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '40' })
-    await submitInputs(team, { kind: 'setPaceRange', low: '4', high: '8' })
-    await pick(team, READ_AT)
+    const team = await milestoneOn(await forecastingForTest({ fixture: checkoutFixture(TICKETS) }), { connection: CONNECTIONS.jira })
     const page = await screen(team)
 
     const milestone = section(page, 'Milestone')
@@ -209,10 +201,7 @@ describe('a source read from Jira', () => {
 describe('a source the tracker can’t give', () => {
   /** Connected to GitHub, the milestone entered, its tickets picked if `picked`, then each value following GitHub. */
   async function following(team: ForecastingForTest, picked: boolean) {
-    await team.submit({ form: 'connection', edit: CONNECTIONS.github })
-    await submitInputs(team, { kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '40' })
-    await submitInputs(team, { kind: 'setPaceRange', low: '4', high: '8' })
-    if (picked) await pick(team, READ_AT)
+    await milestoneOn(team, { picked })
     await submitInputs(team, { kind: 'setTicketsSource', ticketsSource: 'tracker' })
     await submitInputs(team, { kind: 'setPaceMode', paceMode: 'tracker' })
     return screen(team)

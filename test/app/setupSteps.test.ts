@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import type { CannedFixture } from '../../src/connectors/canned.js'
 import { CHECKOUT, TODAY } from '../trackerScenario.js'
-import { appOnTracker, connectAndPick, page, type AppOnTracker } from './appOnTracker.js'
-import { post } from './forms.js'
+import { appOnTracker, connectAndPick, type AppOnTracker } from './appOnTracker.js'
+import { post, redirectedTo } from './forms.js'
 
 // The Inputs screen's setup steps (#217), through the local server, on the canned connector: setup's own forms, each
 // routed to its edit, and where each goes. Which step is shown, and what the summary says, are Seam B's
@@ -34,7 +34,7 @@ describe('setup’s own forms', () => {
 
     const used = await post(onTracker.running, '/inputs/setup/use-these', {})
 
-    expect([used.status, used.headers.get('location')]).toEqual([303, '/inputs'])
+    expect(redirectedTo(used)).toBe('/inputs')
     expect(onTracker.storage.milestoneQuery('team')?.query).toBe(CHECKOUT.query)
   })
 
@@ -43,12 +43,12 @@ describe('setup’s own forms', () => {
     await post(onTracker.running, '/inputs/setup/use-these', {})
 
     const changed = await post(onTracker.running, '/inputs/setup/change', {})
-    expect([changed.status, changed.headers.get('location')]).toEqual([303, '/inputs#milestone-tickets'])
+    expect(redirectedTo(changed)).toBe('/inputs#milestone-tickets')
     expect(onTracker.storage.setupState('team')).toMatchObject({ open: true })
 
     await post(onTracker.running, '/inputs/setup/use-these', {})
     const toConnect = await post(onTracker.running, '/inputs/setup/change-connection', {})
-    expect([toConnect.status, toConnect.headers.get('location')]).toEqual([303, '/inputs?step=connect#connect'])
+    expect(redirectedTo(toConnect)).toBe('/inputs?step=connect#connect')
     expect(onTracker.storage.setupState('team')).toMatchObject({ open: true })
   })
 
@@ -57,7 +57,7 @@ describe('setup’s own forms', () => {
 
     const cancelled = await post(onTracker.running, '/inputs/setup/cancel', {})
 
-    expect([cancelled.status, cancelled.headers.get('location')]).toEqual([303, '/inputs'])
+    expect(redirectedTo(cancelled)).toBe('/inputs')
     expect(onTracker.storage.connection('team')).toBeUndefined()
     expect(onTracker.storage.setupDraft('team')).toBeUndefined()
   })
@@ -67,7 +67,7 @@ describe('setup’s own forms', () => {
 
     const skipped = await post(onTracker.running, '/inputs/setup/skip', { tracker: 'github', repo: '', token: '' })
 
-    expect([skipped.status, skipped.headers.get('location')]).toEqual([303, '/inputs'])
+    expect(redirectedTo(skipped)).toBe('/inputs')
     expect(onTracker.storage.setupState('team')).toMatchObject({ open: false })
     expect(onTracker.storage.connection('team')).toBeUndefined()
   })
@@ -80,7 +80,7 @@ describe('setup’s own forms', () => {
 
     const read = await post(onTracker.running, '/inputs/setup/read-again', {})
 
-    expect([read.status, read.headers.get('location')]).toEqual([303, '/inputs'])
+    expect(redirectedTo(read)).toBe('/inputs')
     expect(onTracker.storage.savedRead({ teamId: 'team', query: CHECKOUT.query })).toMatchObject({ readAt: `${TODAY}T14:30:00Z`, tickets: [{ id: 'o1' }] })
   })
 })

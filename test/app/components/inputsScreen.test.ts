@@ -1,9 +1,9 @@
 import type { Forecasting, InputsEdit } from '../../../src/forecast/index.js'
 import { beforeEach, describe, expect, test } from 'vitest'
 import { checkoutFixture, forecastingForTest, pick, submitInputs } from '../../forecast/forecastingForTest.js'
+import { outcomeOf } from '../../forecast/forecastViewScenario.js'
 import { label } from '../../trackerScenario.js'
 import { accessibleName, all, allByRole, around, byRole, hasRole, one, postsTo, radios, render, text } from '../dom.js'
-import { renderInputsScreen } from '../../../src/app/inputsScreen.js'
 import { drawn, READ_AT, refused, screen, section, START, TICKETS } from './inputsScreenHarness.js'
 
 // The Inputs screen (#236), rendered from the views Seam B gives (see inputsScreenHarness.ts): empty, refused, warned,
@@ -47,24 +47,6 @@ describe('the Inputs screen in the browser build', () => {
     expect(all(page, '.setup-summary')).toEqual([])
     expect(hasRole(page, 'alert')).toBe(false)
     expect(text(page)).not.toContain('⚠')
-  })
-
-  test('the sidebar links each screen, the Inputs screen’s marked current; the head carries the icon and fonts inline, loading nothing', async () => {
-    const html = renderInputsScreen(await team.inputsScreen(), () => 'opening-1')
-    const page = render(html)
-
-    expect(allByRole(byRole(page, 'navigation'), 'link').map((link) => [text(link), link.getAttribute('href'), link.getAttribute('aria-current')])).toEqual([
-      ['Milestone forecast', '/', null],
-      ['Inputs', '/inputs', 'page'],
-      ['How it works', '/how-it-works', null],
-    ])
-    expect(one(page, 'head link[rel="icon"]').getAttribute('href')).toMatch(/^data:image\/svg\+xml,%3Csvg/)
-    for (const family of ['Geist', 'Geist Mono']) {
-      expect(one(page, 'head style#fonts').textContent).toContain(`font-family: '${family}'`)
-    }
-    expect(one(page, 'head style#fonts').textContent).toMatch(/url\(data:font\/woff2;base64,/)
-    expect(html).not.toMatch(/(?:href=|src=|url\()["']?(?:https?:)?\/\//)
-    expect(html).not.toContain('@import')
   })
 
   test('every form posts to a fragment naming where it sits, so the browser lands on why, should it be refused; and the fields they carry', async () => {
@@ -111,14 +93,17 @@ describe('the Inputs screen in the browser build', () => {
   test('a milestone saved: its fields as saved, the note beside its start date, and the range per week, its warning inside it', async () => {
     await submitInputs(team, { kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '40' })
     await submitInputs(team, { kind: 'setPaceRange', low: '0', high: '0' })
-    const page = await screen(team)
+    const view = await team.inputsScreen()
+    const startDateNote = view.inputs.milestone.notes.find(({ input }) => input === 'startDate')
+    if (!startDateNote) throw new Error('Expected a note beside the start date')
+    const page = drawn(view)
 
     const milestone = section(page, 'Milestone')
     expect(byRole(milestone, 'textbox', { name: 'Name' }).getAttribute('value')).toBe('Checkout v2')
     const startDate = one(milestone, 'input[name="startDate"]')
     expect(startDate.getAttribute('value')).toBe(START)
     const note = around(startDate, 'label').nextElementSibling
-    expect(note && text(note)).toMatch(/^⚠ Start date is 73 days before today/)
+    expect(note && text(note)).toBe(`⚠ ${startDateNote.message}`)
     expect(byRole(milestone, 'spinbutton', { name: 'Tickets remaining' }).getAttribute('value')).toBe('40')
     const range = one(page, '#pace-range')
     expect(allByRole(range, 'spinbutton').map((field) => [accessibleName(field), field.getAttribute('value')])).toEqual([
@@ -244,8 +229,7 @@ describe('the Inputs screen with setup', () => {
   test('an Inputs form refused, or saved in place, at the Milestone step: the step first, the inputs numbered after it', async () => {
     const team = await forecastingForTest({ setupOpen: true, connected: true })
     await submitInputs(team, { kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '40' })
-    const inPlace = await team.submit({ form: 'inputs', edit: { kind: 'setCadence', cadenceDays: '14' } }, { inPlace: true })
-    if (inPlace.kind !== 'savedInPlace') throw new Error(`Expected the form saved in place, but it was ${inPlace.kind}`)
+    const inPlace = outcomeOf(await team.submit({ form: 'inputs', edit: { kind: 'setCadence', cadenceDays: '14' } }, { inPlace: true }), 'savedInPlace')
 
     for (const page of [await refused(team, { kind: 'setCadence', cadenceDays: '0' }), drawn(inPlace.view)])
       expect(numbered(page).slice(0, 3)).toEqual([

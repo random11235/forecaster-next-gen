@@ -1,4 +1,6 @@
 import { describe, expect, test } from 'vitest'
+import { hasRole, render } from './dom.js'
+import { redirectedTo } from './forms.js'
 import { startOnSavedData, post, stored, submitCounts, choosePace, TEAM } from './screensHarness.js'
 
 // The screens through the local server: see screensHarness.ts. What app/ owns of the pace pattern: its action's
@@ -19,13 +21,12 @@ describe('Milestone forecast screen: pace pattern', () => {
       ['date', '2026-09-22'],
     ])
 
-    expect(applied.status).toBe(303)
-    expect(applied.headers.get('location')).toBe('/')
+    expect(redirectedTo(applied)).toBe('/')
     expect(action()).toEqual({ kind: 'startFrom', date: '2026-09-22' })
 
     const undone = await post('/pace-action/undo', [])
 
-    expect(undone.headers.get('location')).toBe('/')
+    expect(redirectedTo(undone)).toBe('/')
     expect(action()).toBeUndefined()
   })
 
@@ -53,7 +54,7 @@ describe('Milestone forecast screen: pace pattern', () => {
     ])
 
     expect(refused.status).toBe(400)
-    expect(await refused.text()).toContain('That action is no longer offered.')
+    expect(hasRole(render(await refused.text()), 'alert')).toBe(true)
     expect(action()).toBeUndefined()
   })
 
@@ -65,7 +66,7 @@ describe('Milestone forecast screen: pace pattern', () => {
     const refused = await post('/pace-action/apply', [])
 
     expect(refused.status).toBe(400)
-    expect(await refused.text()).toContain('That action is no longer offered.')
+    expect(hasRole(render(await refused.text()), 'alert')).toBe(true)
     expect(action()).toBeUndefined()
   })
 })

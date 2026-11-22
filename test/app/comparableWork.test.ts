@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
-import { post } from './forms.js'
+import { all, one, render } from './dom.js'
+import { post, redirectedTo } from './forms.js'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned.js'
 import type { Connecting } from '../../src/forecast/index.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
@@ -84,13 +85,13 @@ describe('the Comparable work step', () => {
     const picked = await post(running, '/inputs/comparable-work/add', payments)
     await post(running, '/inputs/comparable-work/add', checkout)
 
-    expect([picked.status, picked.headers.get('location')]).toEqual([303, '/inputs?step=comparableWork#comparable-work'])
+    expect(redirectedTo(picked)).toBe('/inputs?step=comparableWork#comparable-work')
     expect(storage?.setupDraft('team')?.comparableWorkQuery?.query).toBe(both)
     expect(storage?.setupDraft('team')?.milestoneQuery).toBeUndefined()
 
     const afresh = await post(running, '/inputs/comparable-work/afresh', {})
 
-    expect([afresh.status, afresh.headers.get('location')]).toEqual([303, '/inputs?step=comparableWork#comparable-work'])
+    expect(redirectedTo(afresh)).toBe('/inputs?step=comparableWork#comparable-work')
     expect(storage?.setupDraft('team')?.comparableWorkQuery?.query ?? '').toBe('')
   })
 
@@ -112,18 +113,33 @@ describe('the Comparable work step', () => {
 
     const edited = await post(running, '/inputs/comparable-work/edit', { query: both })
 
-    expect([edited.status, edited.headers.get('location')]).toEqual([303, '/inputs?step=comparableWork&edit=comparable#comparable-work'])
+    expect(redirectedTo(edited)).toBe('/inputs?step=comparableWork&edit=comparable#comparable-work')
     expect(storage?.setupDraft('team')?.comparableWorkQuery?.query).toBe(both)
   })
 
-  test('its picker asks for one kind searched, less its own picks', async () => {
+  test('its picker asks for the kind searched, each choice posting to its own step, as the Milestone step’s to that', async () => {
     const running = await startConnected()
-    await post(running, '/inputs/comparable-work/add', checkout)
 
-    const list = await (await fetch(new URL('/inputs/comparable-work-choices?kind=label&comparableFind=', running.url))).text()
-    const milestones = await (await fetch(new URL('/inputs/milestone-choices?kind=label&find=', running.url))).text()
+    /** The list a step's picker is answered with: its status, the kind it lists, and where its choices post. */
+    const asked = async (path: string) => {
+      const response = await fetch(new URL(path, running.url))
+      const list = one(render(await response.text()), '.kind-list')
+      return {
+        status: response.status,
+        kind: list.getAttribute('data-kind'),
+        posts: [...new Set(all(list, 'form').map((form) => form.getAttribute('action')))],
+      }
+    }
 
-    expect(list).not.toContain('value="label:&#34;checkout&#34;"')
-    expect(milestones).toContain('value="label:&#34;checkout&#34;"')
+    expect(await asked('/inputs/comparable-work-choices?kind=label&comparableFind=')).toEqual({
+      status: 200,
+      kind: 'label',
+      posts: ['/inputs/comparable-work/add#comparable-work'],
+    })
+    expect(await asked('/inputs/milestone-choices?kind=label&find=')).toEqual({
+      status: 200,
+      kind: 'label',
+      posts: ['/inputs/milestone-query/add#milestone-tickets'],
+    })
   })
 })

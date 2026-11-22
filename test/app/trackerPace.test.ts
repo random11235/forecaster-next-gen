@@ -2,14 +2,12 @@ import { afterEach, describe, expect, test } from 'vitest'
 import type { RunningApp } from '../../src/app/launch.js'
 import type { CannedFixture } from '../../src/connectors/canned.js'
 import type { Ticket } from '../../src/connectors/connector.js'
-import { TEAM } from '../trackerScenario.js'
-import { appOnTracker, type AppOnTracker } from './appOnTracker.js'
+import { CHECKOUT, TEAM } from '../trackerScenario.js'
+import { appOnTracker, connectAndPick, type AppOnTracker } from './appOnTracker.js'
 import { post } from './forms.js'
 
 // Pace following the tracker (#212): the forms the browser posts, read into what is stored. What the Inputs screen and
 // the forecast show of it is test/forecast/trackerPace.test.ts's and test/app/components/inputsScreen.sources.test.ts's.
-
-const CHECKOUT = { kind: 'milestone', name: 'Checkout v2', query: 'milestone:"Checkout v2"' } as const
 
 // The Tuesdays of the 8 weeks the read reaches whole, from 14 Sep, the milestone started on Monday 31 Aug.
 const TUESDAYS = ['2026-09-15', '2026-09-22', '2026-09-29', '2026-10-06', '2026-10-13', '2026-10-20', '2026-10-27', '2026-11-03']
@@ -36,8 +34,7 @@ async function following(): Promise<RunningApp> {
   app = await appOnTracker(FIXTURE)
   const { running } = app
   await post(running, '/inputs/milestone', { name: 'Checkout v2', startDate: '2026-08-31', ticketsRemaining: '30' })
-  await post(running, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
-  await post(running, '/inputs/milestone-query/add', CHECKOUT)
+  await connectAndPick(running)
   await post(running, '/inputs/setup/use-these', {})
   await post(running, '/inputs/pace-mode', { paceMode: 'tracker' })
   return running

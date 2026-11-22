@@ -1,9 +1,10 @@
 import type { Element } from 'happy-dom'
 import { renderInputsScreen } from '../../../src/app/inputsScreen.js'
-import type { Forecasting, InputsEdit, InputsOpening, InputsScreen } from '../../../src/forecast/index.js'
-import { submitInputs } from '../../forecast/forecastingForTest.js'
+import type { ConnectionEdit, Forecasting, InputsEdit, InputsOpening, InputsScreen } from '../../../src/forecast/index.js'
+import { CONNECTIONS, pick, submitInputs, type ForecastingForTest } from '../../forecast/forecastingForTest.js'
+import { outcomeOf } from '../../forecast/forecastViewScenario.js'
 import { finishedInWeeks, open } from '../../trackerScenario.js'
-import { all, byRole, render } from '../dom.js'
+import { all, byRole, hiddenFields, render } from '../dom.js'
 
 // The Inputs screen's component tests' arrangement: the screen rendered from the views Seam B gives
 // (test/forecast/forecastingForTest.ts), started no server.
@@ -18,14 +19,25 @@ export const TICKETS = [...open(34), ...finishedInWeeks(WEEKS, [5, 6, 4, 7, 5, 6
 export const drawn = (view: InputsScreen) => render(renderInputsScreen(view, () => 'opening-1'))
 export const screen = async (team: Forecasting, opening?: InputsOpening) => drawn(await team.inputsScreen(opening))
 export const section = (page: ReturnType<typeof render>, name: string) => byRole(page, 'region', { name })
-/** Where `form` posts, and the fields it carries hidden, as name and value: all it posts, with nothing to type. */
-export const hidden = (form: Element) => [
-  form.getAttribute('action'),
-  all(form, 'input').map((field) => (field.getAttribute('type') === 'hidden' ? [field.getAttribute('name'), field.getAttribute('value')] : field.outerHTML)),
-]
+/** What `form` posts, with nothing for the EM to type: where to, and its hidden fields; failing if it has a field to type. */
+export function whatItPosts(form: Element) {
+  const typed = all(form, 'input:not([type="hidden"])')
+  if (typed.length > 0) throw new Error(`Expected nothing to type, but the form has ${typed.map((field) => field.outerHTML).join(', ')}`)
+  return [form.getAttribute('action'), hiddenFields(form)]
+}
 /** The screen `edit` refused draws; an edit saved instead throws. */
-export const refused = async (team: Forecasting, edit: InputsEdit) => {
-  const outcome = await submitInputs(team, edit)
-  if (outcome.kind !== 'refused') throw new Error(`Expected the form refused, but it was ${outcome.kind}`)
-  return drawn(outcome.view)
+export const refused = async (team: Forecasting, edit: InputsEdit) => drawn(outcomeOf(await submitInputs(team, edit), 'refused').view)
+/**
+ * Checkout v2 from `START` at 40 tickets remaining and 4–8 a week, on `team` connected by `connection` (GitHub unless
+ * given), its tickets picked at `READ_AT` unless `picked` is false: the team.
+ */
+export async function milestoneOn(
+  team: ForecastingForTest,
+  { connection = CONNECTIONS.github, picked = true }: { connection?: ConnectionEdit; picked?: boolean } = {},
+) {
+  await team.submit({ form: 'connection', edit: connection })
+  await submitInputs(team, { kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '40' })
+  await submitInputs(team, { kind: 'setPaceRange', low: '4', high: '8' })
+  if (picked) await pick(team, READ_AT)
+  return team
 }

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { choiceListHtml, COMPARABLE_WORK_STEP, MILESTONE_STEP, queryStepSection } from '../../../src/app/queryStepSection.js'
 import type { ChoiceList, ComparableWorkPace, QueryStep } from '../../../src/forecast/index.js'
-import { accessibleName, all, allByRole, around, byRole, hasRole, one, postsTo, render, text } from '../dom.js'
+import { accessibleName, all, allByRole, around, byRole, hasRole, hiddenFields, one, postsTo, render, text } from '../dom.js'
 
 // A query step (#236), the Milestone step's and the Comparable work step's, rendered from a view built by hand: finding
 // choices to pick, refused, flagged, and its query open for editing. What each view holds, and when, is Seam B's
@@ -147,11 +147,8 @@ describe('a query step, its query open for editing', () => {
     expect(text(milestone({ editing: { ...editing, backClears } }))).toContain(`${backClears} Back to finding`)
     const confirming = milestone({ editing: { ...editing, backClears, confirmingBack: true } })
     const clear = around(byRole(confirming, 'button', { name: 'Clear the query and go back' }), 'form')
-    expect([
-      clear.getAttribute('action'),
-      one(clear, 'input[type="hidden"]').getAttribute('name'),
-      one(clear, 'input[type="hidden"]').getAttribute('value'),
-    ]).toEqual(['/inputs/milestone-query/back#milestone-tickets', 'confirmed', 'yes'])
+    expect(clear.getAttribute('action')).toBe('/inputs/milestone-query/back#milestone-tickets')
+    expect(hiddenFields(clear)).toEqual([['confirmed', 'yes']])
     expect(byRole(confirming, 'link', { name: 'Keep editing' }).getAttribute('href')).toBe('/inputs?edit=query#milestone-tickets')
     expect(hasRole(confirming, 'button', { name: 'Back to finding' })).toBe(false)
   })

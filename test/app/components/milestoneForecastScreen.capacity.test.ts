@@ -1,14 +1,15 @@
 import { describe, expect, test } from 'vitest'
+import type { Element } from 'happy-dom'
 import { add, tenTicketsAtFive } from '../../forecast/capacityScenario.js'
 import { submitInputs } from '../../forecast/forecastingForTest.js'
 import { DEFAULT_SETTINGS } from '../../../src/forecast/index.js'
-import { newTeam } from '../../forecast/forecastViewScenario.js'
-import { accessibleName, all, allByRole, around, byRole, hasRole, one, postsTo, text } from '../dom.js'
-import { drawn, forecast, dateSaid, headline, hiddenFields, opened, entered } from './milestoneForecastScreenScenario.js'
+import { newTeam, outcomeOf } from '../../forecast/forecastViewScenario.js'
+import { accessibleName, all, allByRole, around, byRole, hasRole, hiddenFields, one, postsTo, text } from '../dom.js'
+import { drawn, forecast, dateSaid, headline, entered } from './milestoneForecastScreenHarness.js'
 
 // The Milestone forecast screen (#236), rendered from the views Seam B gives (test/forecast/forecastingForTest.ts),
 // started no server: capacity in use, the Capacity section, and a lasting change against the pace. Shared arrangement
-// is milestoneForecastScreenScenario.ts's. What each view holds is Seam B's
+// is milestoneForecastScreenHarness.ts's. What each view holds is Seam B's
 // (test/forecast/milestoneForecastView*.test.ts, capacity*.test.ts, newUsual.test.ts, pacePattern.*.test.ts).
 
 describe('the Milestone forecast screen: capacity in use', () => {
@@ -47,10 +48,9 @@ describe('the Milestone forecast screen: capacity in use', () => {
   test('a capacity refused there: the screen again, capacity open, why beside the sentence typed', async () => {
     const team = await newTeam()
     await tenTicketsAtFive(team)
-    const outcome = await add(team, '5000', '2026-09-07', '', { note: 'Half on "<leave>"' })
-    if (outcome.kind !== 'refusedOnForecast') throw new Error(`Expected refused on the forecast, but it was ${outcome.kind}`)
-    const { refusal } = forecast(outcome.view).capacity
-    const capacity = one(drawn(outcome.view), '#capacity')
+    const { view } = outcomeOf(await add(team, '5000', '2026-09-07', '', { note: 'Half on "<leave>"' }), 'refusedOnForecast')
+    const { refusal } = forecast(view).capacity
+    const capacity = one(drawn(view), '#capacity')
 
     expect(capacity.hasAttribute('open')).toBe(true)
     expect(refusal).toBeDefined()
@@ -61,6 +61,13 @@ describe('the Milestone forecast screen: capacity in use', () => {
 })
 
 describe('the Capacity section', () => {
+  /** The Capacity section of `page`, opened as the EM opens it, so what it folds is seen. */
+  function opened(page: ReturnType<typeof drawn>): Element {
+    const capacity = one(page, '#capacity')
+    capacity.setAttribute('open', '')
+    return capacity
+  }
+
   /** The section with capacity typed as these sentences, open or folded. */
   async function capacityOf(sentences: [string, string, string, { onward?: boolean; note?: string }?][], { open = true } = {}) {
     const team = await newTeam()
@@ -136,16 +143,14 @@ describe('the Capacity section', () => {
   test('an edit refused: its Edit open, why beside the sentence as typed', async () => {
     const { team, view } = await capacityOf([['50', '2026-09-21', '2026-09-25']])
     const id = String(view.capacity.entries[0]?.id)
-    const outcome = await submitInputs(
-      team,
-      { kind: 'editCapacity', id, percent: '5000', from: '2026-09-21', to: '', onward: true, note: 'Typed' },
-      { capacityOpen: true },
+    const { view: refused } = outcomeOf(
+      await submitInputs(team, { kind: 'editCapacity', id, percent: '5000', from: '2026-09-21', to: '', onward: true, note: 'Typed' }, { capacityOpen: true }),
+      'refusedOnForecast',
     )
-    if (outcome.kind !== 'refusedOnForecast') throw new Error(`Expected refused on the forecast, but it was ${outcome.kind}`)
-    const fold = one(drawn(outcome.view), '#capacity details.edit')
+    const fold = one(drawn(refused), '#capacity details.edit')
 
     expect(fold.hasAttribute('open')).toBe(true)
-    expect(text(byRole(fold, 'alert'))).toBe(forecast(outcome.view).capacity.editing?.refusal)
+    expect(text(byRole(fold, 'alert'))).toBe(forecast(refused).capacity.editing?.refusal)
     expect(byRole(fold, 'spinbutton').getAttribute('value')).toBe('5000')
     expect(byRole(fold, 'checkbox', { name: 'or onward' }).hasAttribute('checked')).toBe(true)
     expect(byRole(fold, 'textbox', { name: 'Why' }).getAttribute('value')).toBe('Typed')

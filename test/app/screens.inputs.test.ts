@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest'
+import { redirectedTo } from './forms.js'
 import { post, startOnSavedData, startWithNoMilestone, stored, submitCounts, submitMilestone, submitPace, submitCadence, TEAM } from './screensHarness.js'
 
 // The Inputs screen's forms through the local server (see screensHarness.ts): each read as the browser posts it into
@@ -11,8 +12,7 @@ describe('Inputs screen', () => {
 
     const response = await submitMilestone('Checkout v2', '2026-08-03', '25')
 
-    expect(response.status).toBe(303)
-    expect(response.headers.get('location')).toBe('/inputs')
+    expect(redirectedTo(response)).toBe('/inputs')
     expect(stored().milestoneInputs(TEAM)).toMatchObject({ name: 'Checkout v2', startDate: '2026-08-03', ticketsRemaining: 25 })
   })
 
@@ -39,8 +39,7 @@ describe('Inputs screen', () => {
 
     const response = await submitCadence('14')
 
-    expect(response.status).toBe(303)
-    expect(response.headers.get('location')).toBe('/inputs')
+    expect(redirectedTo(response)).toBe('/inputs')
     expect(stored().milestoneInputs(TEAM)?.cadenceDays).toBe(14)
   })
 
@@ -50,7 +49,6 @@ describe('Inputs screen', () => {
     ['/inputs/milestone', TYPED],
     ['/inputs/milestone', [['name', 'Checkout v3'], TICKETS_REMAINING]],
     ['/inputs/tickets-source', []],
-    ['/inputs/reading-opened', []],
     ['/inputs/cadence', []],
     ['/inputs/pace', []],
     ['/inputs/pace-mode', []],

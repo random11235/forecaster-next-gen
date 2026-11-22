@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { SAVE_IN_PLACE } from './forms.js'
+import { redirectedTo, SAVE_IN_PLACE } from './forms.js'
 import { startOnSavedData, page, post, stored, submitCounts, choosePace, saveInPlace, TEAM } from './screensHarness.js'
 
 // The Inputs screen's typed counts through the local server (see screensHarness.ts): each form read as the browser
@@ -14,8 +14,7 @@ describe('Inputs screen: typed counts', () => {
     await startOnSavedData()
 
     const saved = await submitCounts('6 4,9')
-    expect(saved.status).toBe(303)
-    expect(saved.headers.get('location')).toBe('/inputs')
+    expect(redirectedTo(saved)).toBe('/inputs')
     expect(paceCounts()).toEqual([6, 4, 9])
 
     expect((await post('/inputs/pace-counts/add', [['count', '7']])).status).toBe(303)

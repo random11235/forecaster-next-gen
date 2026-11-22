@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned.js'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
-import { post } from './forms.js'
+import { post, redirectedTo } from './forms.js'
 import { openWebApp } from '../../src/app/webApp.js'
 import type { Connecting } from '../../src/forecast/index.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
@@ -68,8 +68,7 @@ describe('the Connect step', () => {
 
     const posted = await post(app, '/inputs/connect', github('shop-team/shop'))
 
-    expect(posted.status).toBe(303)
-    expect(posted.headers.get('location')).toBe('/inputs#milestone-tickets')
+    expect(redirectedTo(posted)).toBe('/inputs#milestone-tickets')
     expect(storage.connection('team')).toEqual({ tracker: 'github', owner: 'shop-team', repo: 'shop' })
     expect(await connecting.secrets.token('team')).toBe(TOKEN)
   })
@@ -88,7 +87,7 @@ describe('the Connect step', () => {
 
     const posted = await post(app, '/inputs/connect/disconnect', {})
 
-    expect(posted.headers.get('location')).toBe('/inputs?step=connect#connect')
+    expect(redirectedTo(posted)).toBe('/inputs?step=connect#connect')
     expect(await connecting.secrets.token('team')).toBeUndefined()
   })
 
