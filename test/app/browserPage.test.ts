@@ -128,11 +128,13 @@ describe('the page a browser test drives', () => {
 
   test('fails opening a page the app can’t answer, closing the browser it opened in', async () => {
     const closing = vi.spyOn(Browser.prototype, 'close')
+    try {
+      await expect(pages.open(NOTHING, '/inputs', async (app) => app.stop())).rejects.toThrow('Failed to fetch')
 
-    await expect(pages.open(NOTHING, '/inputs', async (app) => app.stop())).rejects.toThrow('Failed to fetch')
-
-    expect(closing).toHaveBeenCalledOnce()
-    closing.mockRestore()
+      expect(closing).toHaveBeenCalledOnce()
+    } finally {
+      closing.mockRestore()
+    }
   })
 
   test('opens the page a form is answered with at the address it was redirected to', async () => {
