@@ -37,7 +37,7 @@ function renderProblem(view: HowItWorksView): string {
     `      <div class="problem">
         <figure>
           ${burndown(view)}
-          <figcaption>A <b>burndown</b> spends the average pace on the tickets we start with, or guess at. The bars show the share of simulations finishing each week, once the work may grow.</figcaption>${laterFinishes(view)}
+          <figcaption>A <b>burndown</b> spends the average pace on the tickets we start with, or guess at. The bars show the share of simulations finishing each week, once the work may grow.</figcaption>${renderLaterFinishes(view.finishGraph.later, ({ period }) => `in week ${period}`)}
         </figure>
         <ul class="points">
           <li><span class="mark">~50%</span><span>Even if nothing grows, hitting the average-pace date is a coin toss.</span></li>
@@ -113,19 +113,13 @@ function round(value: number): number {
  * simulations finishing after the last bar, these are most of the finishes, not all.
  */
 function finishSpan({ finishGraph }: HowItWorksView): { first: number; last: number } {
-  const finishing = finishGraph.bars.flatMap(({ share }, week) => (share > 0 ? [week] : []))
+  const finishing = finishGraph.bars.filter(({ share }) => share > 0).map(({ period }) => period)
   return { first: Math.min(...finishing), last: Math.max(...finishing) }
 }
 
 /** "Simulated finishes", or "most simulated finishes" when some finish after the graph's last bar. */
 function finishesShown({ finishGraph }: HowItWorksView): string {
   return finishGraph.later ? 'most simulated finishes' : 'simulated finishes'
-}
-
-/** Under the burndown, the simulations finishing after its last bar, the last in its week (`renderLaterFinishes`). */
-function laterFinishes(view: HowItWorksView): string {
-  const note = renderLaterFinishes(view.finishGraph.later, ({ period }) => `in week ${period}`)
-  return note && `\n          ${note}`
 }
 
 /** The average pace's straight line from the tickets remaining to 0, over the share of simulations finishing each week. */
@@ -145,7 +139,7 @@ function burndown(view: HowItWorksView): string {
   for (let tickets = 0; tickets <= ticketsRemaining; tickets += 10) {
     shapes.push(line(left, y(tickets), right, y(tickets), 'grid'), label(left - 6, y(tickets) + 4, tickets, '', 'end'))
   }
-  for (const [week, { share }] of view.finishGraph.bars.entries()) {
+  for (const { period: week, share } of view.finishGraph.bars) {
     const height = (share / tallest) * (bottom - top) * 0.55
     if (share > 0) shapes.push(rect(x(week) - 9, bottom - height, 18, height))
   }
@@ -226,9 +220,9 @@ function read(view: HowItWorksView): string {
     width = (right - left) / (last - first + 1)
   const x = (week: number): number => left + (week - first) * width
   const tallest = Math.max(...view.finishGraph.bars.map(({ share }) => share))
-  const shapes = [...view.finishGraph.bars.entries()]
-    .filter(([, { share }]) => share > 0)
-    .map(([week, { share }]) => rect(x(week) + 1, bottom - (share / tallest) * (bottom - top), width - 2, (share / tallest) * (bottom - top), 'bar', 1.5))
+  const shapes = view.finishGraph.bars
+    .filter(({ share }) => share > 0)
+    .map(({ period: week, share }) => rect(x(week) + 1, bottom - (share / tallest) * (bottom - top), width - 2, (share / tallest) * (bottom - top), 'bar', 1.5))
   view.weeks.forEach(({ percent, period: week }, at) => {
     const headline = at === view.weeks.length - 1
     const marker = x(week) + width - 1

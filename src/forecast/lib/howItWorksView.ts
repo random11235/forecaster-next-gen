@@ -39,15 +39,15 @@ export interface HowItWorksView {
 export function howItWorksView(settings: ForecastSettings): HowItWorksView {
   const simulationCase = exampleCase(settings)
   const result = simulateCase(simulationCase)
-  const finishes = finishGraph(result, simulationCase)
+  const graph = finishGraph(result, simulationCase)
   const perPeriod = (EXAMPLE.pace.low + EXAMPLE.pace.high) / 2
   const period = Math.ceil(EXAMPLE.ticketsRemaining / perPeriod)
   const finishPeriod = (percent: number): number => result.quantiles[percent]!
   const finishWeek = (percent: number): FinishWeek => ({ percent, period: finishPeriod(percent) })
   return {
     example: EXAMPLE,
-    finishGraph: finishes,
-    averagePace: { perPeriod, period, met: finishes.bars[period]?.finishedBy ?? 0 },
+    finishGraph: graph,
+    averagePace: { perPeriod, period, met: graph.bars[period]?.finishedBy ?? 0 },
     weeks: [finishWeek(50), finishWeek(85)],
     someFinishes: SOME_FINISHES.map(finishPeriod),
   }

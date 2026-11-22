@@ -115,6 +115,11 @@ export function formatDate(isoDate: string): string {
   return `${dayMonth(isoDate)} ${isoDate.slice(0, 4)}`
 }
 
+/** A share as a whole percent, or "under 1%" for a share that rounds to 0 but holds some simulations. */
+export function percentText(share: number): string {
+  return share > 0 && share < 0.005 ? 'under 1%' : `${Math.round(share * 100)}%`
+}
+
 export function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`)
 }
