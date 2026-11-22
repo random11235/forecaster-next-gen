@@ -3,8 +3,7 @@ import { APP_VERSION } from '../../src/forecast/index.js'
 import { openWebApp } from '../../src/app/webApp.js'
 import { openWebStorage } from '../../src/storage/webStorage.js'
 import { defaultTeam } from './appOnTracker.js'
-import { hasRole, render } from './dom.js'
-import { capacitySection } from './screensHarness.js'
+import { capacitySection, hasRole, render } from './dom.js'
 
 // The web build's screens, as its page asks for them (#114): no server, so the app answers each request itself and
 // follows a redirect to the screen it names.

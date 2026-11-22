@@ -3,7 +3,17 @@ import { mediumGrowth, submitInputs } from '../../forecast/forecastingForTest.js
 import { newTeam } from '../../forecast/forecastViewScenario.js'
 import { withTypedCounts } from '../../forecast/pacePatternScenario.js'
 import { all, byRole, one, text } from '../dom.js'
-import { drawn, forecast, dateSaid, entered, finishGraph, shareSaid, laterFinishes, saidUnderOnePercent } from './milestoneForecastScreenHarness.js'
+import {
+  drawn,
+  forecast,
+  dateSaid,
+  entered,
+  finishGraph,
+  shareSaid,
+  laterFinishes,
+  saidAsAPercent,
+  saidUnderOnePercent,
+} from './milestoneForecastScreenHarness.js'
 
 // The Milestone forecast screen (#236), rendered from the views Seam B gives (test/forecast/forecastingForTest.ts),
 // started no server: its finish graph: markers, bars and the note on later finishes. Shared arrangement is
@@ -45,7 +55,7 @@ describe('the Milestone forecast screen: the finish graph', () => {
   test('a bar’s hover text: its date, the chance of finishing by the end of its week, and the share finishing in it', async () => {
     const view = forecast(await (await entered('40', ['4', '8'])).milestoneForecastView())
     // a week some simulations finish before, so the chance by its end and its own share differ
-    const bar = view.finishGraph.bars.find(({ share, finishedBy }) => share > 0 && !saidUnderOnePercent(share) && shareSaid(finishedBy) !== shareSaid(share))
+    const bar = view.finishGraph.bars.find(({ share, finishedBy }) => saidAsAPercent(share) && shareSaid(finishedBy) !== shareSaid(share))
     if (!bar) throw new Error('Expected a week whose chance by its end differs from its own share')
 
     expect(text(one(finishGraph(view), `.bar[data-date="${bar.date}"] .tip`))).toBe(

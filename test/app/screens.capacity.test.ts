@@ -1,18 +1,7 @@
 import { describe, expect, test } from 'vitest'
+import { capacitySection } from './dom.js'
 import { redirectedTo } from './forms.js'
-import {
-  startOnSavedData,
-  page,
-  post,
-  stored,
-  submitPace,
-  submitCounts,
-  choosePace,
-  addCapacity,
-  editCapacity,
-  capacitySection,
-  TEAM,
-} from './screensHarness.js'
+import { startOnSavedData, page, post, stored, submitPace, submitCounts, choosePace, addCapacity, editCapacity, TEAM } from './screensHarness.js'
 
 // The screens through the local server: see screensHarness.ts. What app/ owns of capacity: the forms' fields read as
 // posted, where each goes back to, the section opened at its own URL, and the status of a refusal. How the section

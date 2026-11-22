@@ -1,6 +1,6 @@
 import { INPUT_LABELS } from '../../../src/app/inputsScreen.js'
 import { renderMilestoneForecastScreen } from '../../../src/app/milestoneForecastScreen.js'
-import type { InputNote, LastFinish, LaterFinishes, MilestoneForecastView } from '../../../src/forecast/index.js'
+import type { FinishGraph, InputNote, LastFinish, LaterFinishes, MilestoneForecastView } from '../../../src/forecast/index.js'
 import type { ForecastingForTest } from '../../forecast/forecastingForTest.js'
 import { enter, newTeam } from '../../forecast/forecastViewScenario.js'
 import { byRole, render } from '../dom.js'
@@ -45,12 +45,14 @@ export function dateSaid(isoDate: string | null): string {
 export const headline = (view: Forecast) => dateSaid(view.dates.find(({ percent }) => percent === view.headlinePercent)?.date ?? null)
 /** Whether the screens say `share` of the simulations as under 1%: above none, but fewer than 1 in 200. */
 export const saidUnderOnePercent = (share: number) => share > 0 && share < 0.005
+/** Whether the screens say `share` of the simulations as a whole percent of 1% or more: 1 in 200 or more. */
+export const saidAsAPercent = (share: number) => share >= 0.005
 /** A share of the simulations the view gives, from 0 to 1, as the screens say it: a whole percent; under 1% above none. */
 export const shareSaid = (share: number) => (saidUnderOnePercent(share) ? 'under 1%' : `${Math.round(share * 100)}%`)
 /** The simulations finishing after `graph`'s last bar, the last `kind`, failing unless 1 in 200 or more do. */
-export function laterFinishes<K extends LastFinish['kind']>({ later }: { later?: LaterFinishes | undefined }, kind: K) {
-  if (later?.last.kind !== kind || saidUnderOnePercent(later.share)) throw new Error(`Expected 1 in 200 simulations or more to finish later, the last ${kind}`)
-  return later as LaterFinishes & { last: Extract<LastFinish, { kind: K }> }
+export function laterFinishes<K extends LastFinish['kind']>({ later }: Pick<FinishGraph, 'later'>, kind: K) {
+  if (later?.last.kind === kind && saidAsAPercent(later.share)) return later as LaterFinishes & { last: Extract<LastFinish, { kind: K }> }
+  throw new Error(`Expected 1 in 200 simulations or more to finish later, the last ${kind}`)
 }
 
 /**

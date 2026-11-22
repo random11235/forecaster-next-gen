@@ -215,3 +215,12 @@ export function around(element: Element, selector: string): Element {
 export function hiddenFields(form: Element): [string | null, string | null][] {
   return all(form, 'input[type="hidden"]').map((field) => [field.getAttribute('name'), field.getAttribute('value')])
 }
+
+/**
+ * The Milestone forecast screen's Capacity section, in the page `html` either build serves, as the app tests read it:
+ * whether it is open, the URL its toggle goes to, and whether it says why a form was refused.
+ */
+export function capacitySection(html: string) {
+  const section = one(render(html), '#capacity')
+  return { open: section.hasAttribute('open'), toggle: section.getAttribute('data-toggle'), refused: hasRole(section, 'alert') }
+}
