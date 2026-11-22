@@ -129,9 +129,12 @@ describe('the Check step’s sources', () => {
       await connectAndPick(app)
     })
 
-  /** Chooses `source` for tickets remaining, as the EM picks its radio. */
-  function choose(page: BrowserPage, source: string): HTMLInputElement {
-    const radio = page.find(`#check form.source input[name=source][value=${source}]`, HTMLInputElement)
+  /** The radio on `page` choosing `source` for tickets remaining. */
+  const sourceRadio = (page: BrowserPage, source: string): HTMLInputElement =>
+    page.find(`#check form.source input[name=source][value=${source}]`, HTMLInputElement)
+
+  /** Chooses `radio`, a source for tickets remaining, as the EM picks it. */
+  function choose(radio: HTMLInputElement): HTMLInputElement {
     radio.checked = true
     changed(radio)
     return radio
@@ -143,7 +146,7 @@ describe('the Check step’s sources', () => {
     const { app, page } = await openCheck()
     expect(page.find('#check', HTMLElement).classList.contains('chooses-as-changed')).toBe(true)
 
-    const tracker = choose(page, 'tracker')
+    const tracker = choose(sourceRadio(page, 'tracker'))
     await page.settled()
 
     expect(posted(page)).toEqual(['/inputs/setup/source'])
@@ -157,15 +160,17 @@ describe('the Check step’s sources', () => {
 
   // the script submits the form, as a browser does, so what the page shows of a refused or failed answer is the
   // browser's own: the page the routes answer with, or the browser's saying it couldn't reach the Forecaster
-  test('a source the routes refuse, as from a form changed by hand, opens their Not found, saving nothing', async () => {
+  test('a source the routes refuse, as from a form changed by hand, is answered not found, saving nothing', async () => {
     const { app, page } = await openCheck()
-    page.find('#check form.source input[name=source][value=tracker]', HTMLInputElement).value = 'range'
+    const changedByHand = sourceRadio(page, 'tracker')
+    changedByHand.value = 'range'
 
-    choose(page, 'range')
+    choose(changedByHand)
     await page.settled()
 
     expect(posted(page)).toEqual(['/inputs/setup/source'])
-    expect(page.document.body.textContent).toBe('Not found')
+    expect(page.requests[0]?.form?.get('source')).toBe('range')
+    expect(page.requests[0]?.reply).toEqual({ kind: 'notFound' })
     expect(app.storage.setupDraft('team')?.sources).toBeUndefined()
   })
 
@@ -173,10 +178,12 @@ describe('the Check step’s sources', () => {
     const { app, page } = await openCheck()
     pages.stopApp()
 
-    choose(page, 'tracker')
+    choose(sourceRadio(page, 'tracker'))
     await page.settled()
 
     expect(posted(page)).toEqual(['/inputs/setup/source'])
+    expect(page.requests[0]?.reply).toBeUndefined()
+    // the browser's own page, which browserPage.ts stands in for: the app answered nothing
     expect(page.document.title).toBe(CANT_BE_REACHED)
     expect(app.storage.setupDraft('team')?.sources).toBeUndefined()
   })
