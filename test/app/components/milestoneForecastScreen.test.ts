@@ -22,7 +22,8 @@ function forecast(view: MilestoneForecastView): Extract<MilestoneForecastView, {
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 /**
  * A date the view gives, as the screens say it: `2027-04-06` → `6 Apr 2027`. Written out here, not imported from
- * html.ts's `formatDate`, so the test checks the screen's dates against a reading of its own.
+ * html.ts's `formatDate`, so the test checks the screen's dates against a reading of its own. The words the screen
+ * shows as given, such as `INPUT_LABELS`, are imported instead: they are what it says, not how it works it out.
  */
 function dateSaid(isoDate: string | null): string {
   if (isoDate === null) throw new Error('Expected a date, but it was later than the horizon')
@@ -47,7 +48,8 @@ describe('the Milestone forecast screen', () => {
     const team = await newTeam()
     await submitInputs(team, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-09-01', ticketsRemaining: '100' })
     const view = await team.milestoneForecastView()
-    if (view.kind !== 'problems' || view.problems.length === 0) throw new Error(`Expected problems, but it was ${view.kind}`)
+    if (view.kind !== 'problems') throw new Error(`Expected problems, but it was ${view.kind}`)
+    if (view.problems.length === 0) throw new Error('Expected problems, but the list was empty')
     const page = drawn(view)
 
     expect(text(one(page, 'header'))).toBe('Checkout v2 Fix this on the Inputs screen to see a forecast.')
@@ -92,7 +94,7 @@ describe('the Milestone forecast screen', () => {
     await submitInputs(team, { kind: 'setPaceRange', low: '4', high: '8' })
     const view = forecast(await team.milestoneForecastView())
 
-    if (view.warnings.length === 0) throw new Error('Expected the forecast warned')
+    if (view.warnings.length === 0) throw new Error('Expected warnings, but the list was empty')
     expect(text(byRole(drawn(view), 'region', { name: 'Warnings' }))).toBe(view.warnings.map(({ message }) => `⚠ ${message}`).join(' '))
   })
 
