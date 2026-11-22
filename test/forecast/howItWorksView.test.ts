@@ -15,13 +15,15 @@ describe('How it works: the example forecast', () => {
     expect(view.example).toEqual({ ticketsRemaining: 30, growth: { low: 1, high: 2 }, pace: { low: 4, high: 8 }, cadenceDays: 7 })
   })
 
-  test('its simulations all finish between week 4 and week 15, one share per week from the start', () => {
+  test('its simulations finish between week 4 and week 15, one share per week from the start to the week 99% of them have finished by', () => {
     const finishing = view.finishes.filter(({ share }) => share > 0).map(({ period }) => period)
+    const finishedBy = (shares: { share: number }[]) => shares.reduce((sum, { share }) => sum + share, 0)
 
     expect(Math.min(...finishing)).toBeGreaterThanOrEqual(4)
     expect(Math.max(...finishing)).toBeLessThanOrEqual(15)
     expect(view.finishes.map(({ period }) => period)).toEqual(view.finishes.map((_, at) => at))
-    expect(view.finishes.reduce((sum, { share }) => sum + share, 0)).toBeCloseTo(1, 9)
+    expect(finishedBy(view.finishes)).toBeGreaterThanOrEqual(0.99)
+    expect(finishedBy(view.finishes.slice(0, -1))).toBeLessThan(0.99)
   })
 
   test('the burndown at the average pace, 6 a week, reaches the 30 tickets in week 5, which far fewer than half the simulations meet', () => {

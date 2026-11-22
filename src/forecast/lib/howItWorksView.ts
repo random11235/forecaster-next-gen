@@ -25,7 +25,7 @@ interface FinishWeek {
 /** What the How it works screen shows: the example, forecast by the engine as a milestone would be. */
 export interface HowItWorksView {
   example: { ticketsRemaining: number; growth: GrowthRange; pace: ThroughputRange; cadenceDays: number }
-  /** The share of simulations finishing in each week, from week 0 (the start) to the last finish. */
+  /** The share of simulations finishing in each week, from week 0 (the start) to the 99% week. */
   finishes: { period: number; share: number }[]
   /** The burndown's answer: the tickets remaining at the middle of the pace range, and the share of simulations done by then. */
   averagePace: { perPeriod: number; period: number; met: number }
@@ -39,7 +39,7 @@ export interface HowItWorksView {
 export function howItWorksView(settings: ForecastSettings): HowItWorksView {
   const simulationCase = exampleCase(settings)
   const result = simulateCase(simulationCase)
-  const bars = finishGraph(result, simulationCase)
+  const { bars } = finishGraph(result, simulationCase)
   const perPeriod = (EXAMPLE.pace.low + EXAMPLE.pace.high) / 2
   const period = Math.ceil(EXAMPLE.ticketsRemaining / perPeriod)
   const finishPeriod = (percent: number): number => result.quantiles[percent]!
