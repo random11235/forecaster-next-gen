@@ -45,6 +45,8 @@ export interface ForecastDate {
 
 /** One period's bar on the finish graph. Shares are fractions of all trials, from 0 to 1. */
 export interface FinishBar {
+  /** Which period it is, counting the start date's as 0. */
+  period: number
   /** ISO calendar date the period ends: the start date for the first bar, which counts trials with nothing to do. */
   date: string
   /** The share of trials that finish in this period. */
@@ -53,6 +55,29 @@ export interface FinishBar {
   finishedBy: number
   /** The team's capacity in this period, in % of its usual: 100 for a usual period, and for the first bar, which ends on the start date. */
   capacity: number
+}
+
+/**
+ * When the last trial finishes: by the end of a period, its ISO calendar date and its number from the start (0), or
+ * beyond the horizon, when some trials don't finish within it.
+ */
+export type LastFinish = { kind: 'by'; date: string; period: number } | { kind: 'beyondHorizon' }
+
+/** The trials finishing after the finish graph's last bar, summed under it. */
+export interface LaterFinishes {
+  /** Their share of all trials, from 0 to 1. */
+  share: number
+  last: LastFinish
+}
+
+/**
+ * When the trials finish: one bar per period, from the start date to the 99% date, or the latest confidence date if
+ * later, and never past the last finish within the horizon; and the trials finishing after the last bar, summed.
+ */
+export interface FinishGraph {
+  bars: FinishBar[]
+  /** None when every trial finishes by the last bar, or none finishes at all. */
+  later: LaterFinishes | undefined
 }
 
 /** What the Milestone forecast screen shows. */
@@ -87,8 +112,7 @@ export type MilestoneForecastView =
       /** The milestone's ambiguity level and the growth range it used. */
       ambiguity: { level: Ambiguity } & GrowthRange
       warnings: InputNote[]
-      /** When the trials finish: one bar per period, from the start date to the last finish within the horizon. */
-      finishGraph: FinishBar[]
+      finishGraph: FinishGraph
       /** The typed counts in use and their fitted line, shown as warnings are; none with the range. */
       paceTrend: PaceTrend | undefined
       /** The shape of the typed counts in use, under the pace bars; none with the range. */
@@ -258,15 +282,36 @@ function milestoneCase(
   }
 }
 
+/** The confidence level the finish graph ends at, unless a confidence level the forecast gives is later. */
+const GRAPHED_PERCENT = 99
+
 /**
- * The finish graph: for each period from the start to the last finish, the share of trials finishing in it and by it, and
- * its capacity. A trial finishing in bar `n` finished during the engine's period `n - 1`, so that is the capacity it carries.
+ * The finish graph: for each period from the start to its last period (`lastGraphedPeriod`), the share of trials
+ * finishing in it and by it, and its capacity. A trial finishing in bar `n` finished during the engine's period `n - 1`,
+ * so that is the capacity it carries. The trials finishing after the last bar are summed, with when the last of them
+ * finishes; with no bars, there is no sum.
  */
-export function finishGraph(result: ForecastResult, { startDate, periodDays, trials, capacity = [] }: SimulationCase): FinishBar[] {
+export function finishGraph(result: ForecastResult, { startDate, periodDays, trials, percentiles, capacity = [] }: SimulationCase): FinishGraph {
   let finishedBefore = 0
-  return result.finishCounts.map((count, period) => {
+  const bars = result.finishCounts.slice(0, lastGraphedPeriod(result, percentiles) + 1).map((count, period) => {
     finishedBefore += count
     const factor = period === 0 ? 1 : (capacity[period - 1] ?? 1)
-    return { date: periodEndDate(startDate, periodDays, period), share: count / trials, finishedBy: finishedBefore / trials, capacity: factor * 100 }
+    return { period, date: periodEndDate(startDate, periodDays, period), share: count / trials, finishedBy: finishedBefore / trials, capacity: factor * 100 }
   })
+  const unshown = trials - finishedBefore
+  if (bars.length === 0 || unshown === 0) return { bars, later: undefined }
+  const lastPeriod = result.finishCounts.length - 1
+  const last: LastFinish =
+    result.finishedFraction < 1 ? { kind: 'beyondHorizon' } : { kind: 'by', date: periodEndDate(startDate, periodDays, lastPeriod), period: lastPeriod }
+  return { bars, later: { share: unshown / trials, last } }
+}
+
+/**
+ * The finish graph's last period: the 99% period, or the latest confidence level's if later, so every marker stays on
+ * the graph. A confidence level beyond the horizon has no period, so then the graph runs to the last finish. It is never
+ * before period 1, so a graph with later finishes keeps a bar to draw beside the start date's.
+ */
+function lastGraphedPeriod(result: ForecastResult, percentiles: readonly number[]): number {
+  const periods = [GRAPHED_PERCENT, ...percentiles].map((percent) => result.quantiles[percent] ?? Infinity)
+  return Math.max(1, ...periods)
 }
