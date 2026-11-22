@@ -110,9 +110,8 @@ export function renderInputsScreen(view: InputsScreen, keep: KeepOpening): strin
 /**
  * Keeps the Comparable work step's candidates' opening (`ComparableWorkStep.candidates`, #205), for the page's script to
  * read more in, and gives the id it is kept under: `keepOpening`, which writes it to the openings kept. It is called
- * once for each render whose view has candidates, whether or not the screen then shows the step, just as the route
- * called it before rendering; calling it only when the step is shown would keep fewer openings, and so drop the oldest
- * later.
+ * once for each render whose view has candidates, whether or not the screen then shows the step; calling it only when
+ * the step is shown would keep fewer openings, and so drop the oldest later.
  */
 export type KeepOpening = (opening: CandidateOpening) => string
 
