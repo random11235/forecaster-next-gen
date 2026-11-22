@@ -51,7 +51,40 @@ describe('the How it works screen', () => {
     )
   })
 
+  test('the burndown labels the share of simulations its pace meets, and the weeks most finish in', () => {
+    const problem = byRole(page, 'region', { name: 'The problem' })
+
+    expect(text(problem)).toMatch(/met in \d+% of simulations/)
+    // some finish after the graph's last week, so the spread is of most
+    expect(text(problem)).toContain('most simulated finishes: weeks 4–11')
+    expect(accessibleName(byRole(problem, 'img'))).toBe(
+      'A straight burndown at the average pace reaches 0 in week 5; most simulated finishes fall between weeks 4 and 11.',
+    )
+  })
+
+  test('the count of finishes marks the 50% and 85% weeks', () => {
+    const [half, sure] = view.weeks
+    const count = allByRole(byRole(page, 'region', { name: 'How it works' }), 'figure')[3]!
+
+    expect(text(count)).toContain(`${half?.percent}% wk ${half?.period}`)
+    expect(text(count)).toContain(`${sure?.percent}% wk ${sure?.period}`)
+  })
+
   test('the few simulations after the graph’s last week, in one line under the burndown', () => {
-    expect(text(byRole(page, 'region', { name: 'The problem' }))).toMatch(/ of simulations finish later, the last in week \d+\./)
+    expect(text(byRole(page, 'region', { name: 'The problem' }))).toContain('1% of simulations finish later, the last in week 13.')
+  })
+
+  test('the sidebar marks How it works current; the head carries the icon and fonts inline, loading nothing', () => {
+    const html = renderHowItWorksScreen(view)
+
+    expect(allByRole(byRole(page, 'navigation'), 'link').map((link) => [link.getAttribute('href'), link.getAttribute('aria-current')])).toEqual([
+      ['/', null],
+      ['/inputs', null],
+      ['/how-it-works', 'page'],
+    ])
+    expect(one(page, 'head link[rel="icon"]').getAttribute('href')).toMatch(/^data:image\/svg\+xml,%3Csvg/)
+    for (const family of ['Geist', 'Geist Mono']) expect(one(page, 'head style#fonts').textContent).toContain(`font-family: '${family}'`)
+    expect(html).not.toMatch(/(?:href=|src=|url\()["']?(?:https?:)?\/\//)
+    expect(html).not.toContain('@import')
   })
 })
