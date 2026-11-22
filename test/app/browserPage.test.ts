@@ -1,5 +1,5 @@
-import { describe, expect, test } from 'vitest'
-import { HTMLButtonElement, HTMLElement, HTMLFormElement } from 'happy-dom'
+import { describe, expect, test, vi } from 'vitest'
+import { Browser, HTMLButtonElement, HTMLElement, HTMLFormElement } from 'happy-dom'
 import type { CannedFixture } from '../../src/connectors/canned.js'
 import { CANT_BE_REACHED, type BrowserPage } from './browserPage.js'
 import { pagesOnTracker } from './pagesOnTracker.js'
@@ -126,8 +126,13 @@ describe('the page a browser test drives', () => {
     expect(page.document.title).toBe(CANT_BE_REACHED)
   })
 
-  test('fails opening a page the app can’t answer', async () => {
+  test('fails opening a page the app can’t answer, closing the browser it opened in', async () => {
+    const closing = vi.spyOn(Browser.prototype, 'close')
+
     await expect(pages.open(NOTHING, '/inputs', async (app) => app.stop())).rejects.toThrow('Failed to fetch')
+
+    expect(closing).toHaveBeenCalledOnce()
+    closing.mockRestore()
   })
 
   test('opens the page a form is answered with at the address it was redirected to', async () => {

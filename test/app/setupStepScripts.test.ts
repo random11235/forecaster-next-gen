@@ -160,7 +160,7 @@ describe('the Check step’s sources', () => {
 
   // the script submits the form, as a browser does, so what the page shows of a refused or failed answer is the
   // browser's own: the page the routes answer with, or the browser's saying it couldn't reach the Forecaster
-  test('a source the routes refuse, as from a form changed by hand, is answered not found, saving nothing', async () => {
+  test('a source the routes refuse, as from a form changed by hand, opens the routes’ not found in place of Check, saving nothing', async () => {
     const { app, page } = await openCheck()
     const changedByHand = sourceRadio(page, 'tracker')
     changedByHand.value = 'range'
@@ -171,6 +171,8 @@ describe('the Check step’s sources', () => {
     expect(posted(page)).toEqual(['/inputs/setup/source'])
     expect(page.requests[0]?.form?.get('source')).toBe('range')
     expect(page.requests[0]?.reply).toEqual({ kind: 'notFound' })
+    expect(page.window.location.pathname).toBe('/inputs/setup/source')
+    expect(page.document.querySelector('#check')).toBeNull()
     expect(app.storage.setupDraft('team')?.sources).toBeUndefined()
   })
 
