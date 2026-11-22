@@ -1,3 +1,4 @@
+import type { Element } from 'happy-dom'
 import { beforeEach, describe, expect, test } from 'vitest'
 import { renderInputsScreen } from '../../../src/app/inputsScreen.js'
 import type { Forecasting, InputsEdit, InputsOpening, InputsScreen } from '../../../src/forecast/index.js'
@@ -19,6 +20,11 @@ const TICKETS = [...open(34), ...finishedInWeeks(WEEKS, [5, 6, 4, 7, 5, 6, 8])]
 const drawn = (view: InputsScreen) => render(renderInputsScreen(view, () => 'opening-1'))
 const screen = async (team: Forecasting, opening?: InputsOpening) => drawn(await team.inputsScreen(opening))
 const section = (page: ReturnType<typeof render>, name: string) => byRole(page, 'region', { name })
+/** Where `form` posts, and the fields it carries hidden, as name and value: all it posts, with nothing to type. */
+const hidden = (form: Element) => [
+  form.getAttribute('action'),
+  all(form, 'input').map((field) => (field.getAttribute('type') === 'hidden' ? [field.getAttribute('name'), field.getAttribute('value')] : field.outerHTML)),
+]
 const refused = async (team: Forecasting, edit: InputsEdit) => {
   const outcome = await submitInputs(team, edit)
   if (outcome.kind !== 'refused') throw new Error(`Expected the form refused, but it was ${outcome.kind}`)
@@ -163,6 +169,16 @@ describe('each source of tickets remaining and pace', () => {
     opened.setAttribute('open', '')
     expect(text(opened)).toBe('GitHub reads differently GitHub reads 34 tickets remaining, read 12 Nov 09:00. Follow GitHub')
     expect(byRole(opened, 'button', { name: 'Follow GitHub' }).getAttribute('form')).toBe('follow-tickets')
+    expect(hidden(one(milestone, 'form#follow-tickets'))).toEqual(['/inputs/tickets-source#milestone', [['ticketsSource', 'tracker']]])
+    expect(hidden(one(milestone, 'form#open-tickets-reading'))).toEqual(['/inputs/reading-opened', [['reading', 'ticketsRemaining']]])
+  })
+
+  test('tickets remaining typed, its reading opened: the chip with no dot', async () => {
+    await submitInputs(team, { kind: 'openReading', reading: 'ticketsRemaining' })
+    const milestone = section(await screen(team), 'Milestone')
+
+    const chip = byRole(milestone, 'button', { name: 'GitHub reads differently' })
+    expect(all(chip, '.dot')).toEqual([])
   })
 
   test('tickets remaining following GitHub: its reading, with no field to type in and no chip', async () => {
@@ -185,8 +201,12 @@ describe('each source of tickets remaining and pace', () => {
     ])
     const chip = around(byRole(pace, 'button', { name: 'GitHub reads differently' }), 'details')
     expect(around(chip, 'form').id).toBe('pace-range')
+    one(chip, 'summary .dot')
     chip.setAttribute('open', '')
     expect(accessibleName(byRole(chip, 'img'))).toMatch(/^Finished tickets per week, oldest first: /)
+    expect(byRole(chip, 'button', { name: 'Follow GitHub' }).getAttribute('form')).toBe('follow-pace')
+    expect(hidden(one(pace, 'form#follow-pace'))).toEqual(['/inputs/pace-mode#pace', [['paceMode', 'tracker']]])
+    expect(hidden(one(pace, 'form#open-pace-reading'))).toEqual(['/inputs/reading-opened', [['reading', 'pace']]])
   })
 
   test('pace typed counts, read differently: the chip on the counts, GitHub’s weeks as bars inside it', async () => {
