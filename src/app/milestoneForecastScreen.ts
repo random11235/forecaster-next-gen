@@ -5,7 +5,6 @@ import {
   type FinishBar,
   type ForecastDate,
   type InputNote,
-  type LaterFinishes,
   type MilestoneForecastView,
   type PaceActionEdit,
   type PacePatternView,
@@ -16,6 +15,7 @@ import { escapeHtml, formatDate, htmlPage, type PageHeader } from './html.js'
 import { INPUT_LABELS } from './inputsScreen.js'
 import { renderPaceTrend } from './paceTrendGraph.js'
 import { capacitySentence, renderCapacity } from './lib/capacitySection.js'
+import { percentText, renderLaterFinishes } from './lib/laterFinishes.js'
 
 export { CAPACITY_OPEN, CAPACITY_OPEN_PATH } from './lib/capacitySection.js'
 
@@ -167,7 +167,7 @@ ${rows}
  * (`finishMarkers`). A period whose capacity isn't usual is shaded and labelled with its percentage.
  */
 function renderFinishGraph(view: Forecast): string {
-  const bars = view.finishGraph
+  const { bars } = view.finishGraph
   // with no trial finishing, or all on the start date (0 tickets), there is nothing to graph
   if (bars.length <= 1) return ''
   const tallest = Math.max(...bars.map(({ share }) => share))
@@ -196,19 +196,15 @@ ${columns}
           </div>
         </div>
         <div class="axis"><span>${formatDate(bars[0]!.date)}</span><span>${formatDate(bars[bars.length - 1]!.date)}</span></div>
-        <figcaption class="note">Share of simulations finishing each ${view.period}, from the start date. The ${view.headlinePercent}% date is the headline.${shaded}</figcaption>${renderLaterFinishes(view.laterFinishes)}
+        <figcaption class="note">Share of simulations finishing each ${view.period}, from the start date. The ${view.headlinePercent}% date is the headline.${shaded}</figcaption>${laterFinishes(view)}
       </figure>
     </section>`
 }
 
-/**
- * The simulations finishing after the finish graph's last bar, in one quiet line under it: "1% of simulations finish
- * later, the last by 8 Aug 2028.", or "…, some later than the horizon." Nothing when none do.
- */
-function renderLaterFinishes(later: LaterFinishes | undefined): string {
-  if (!later) return ''
-  const last = later.last === null ? 'some later than the horizon' : `the last by ${formatDate(later.last)}`
-  return `\n        <p class="note quiet">${percentText(later.share)} of simulations finish later, ${last}.</p>`
+/** Under the finish graph, the simulations finishing after its last bar, the last by its date (`renderLaterFinishes`). */
+function laterFinishes(view: Forecast): string {
+  const note = renderLaterFinishes(view.finishGraph.later, ({ date }) => `by ${formatDate(date)}`)
+  return note && `\n        ${note}`
 }
 
 /** A marker on the finish graph: a date the forecast gives, with every percent that shares it. */
@@ -236,7 +232,7 @@ const LABEL_WIDTH_PER_CHAR = 1.3
  * Should neither fit every label, those that fit run right above those that run left.
  */
 function finishMarkers(view: Forecast): FinishMarker[] {
-  const bars = view.finishGraph
+  const { bars } = view.finishGraph
   const byDate = new Map<string, number[]>()
   for (const { percent, date } of view.dates) {
     if (date !== null && bars.some((bar) => bar.date === date)) byDate.set(date, [...(byDate.get(date) ?? []), percent])
@@ -324,11 +320,6 @@ function changed({ capacity }: FinishBar): boolean {
 /** A changed period's capacity, labelled above its bar. */
 function capacityLabel(bar: FinishBar): string {
   return changed(bar) ? `<span class="capacity">${Math.round(bar.capacity)}%</span>` : ''
-}
-
-/** A share as a whole percent, or "under 1%" for a share that rounds to 0 but holds some simulations. */
-function percentText(share: number): string {
-  return share > 0 && share < 0.005 ? 'under 1%' : `${Math.round(share * 100)}%`
 }
 
 /** Bars near either edge of the graph, at `left`% across it, open their hover text inwards so it stays on the page. */

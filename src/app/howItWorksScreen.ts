@@ -1,5 +1,6 @@
 import type { HowItWorksView } from '../forecast/index.js'
 import { htmlPage } from './html.js'
+import { renderLaterFinishes } from './lib/laterFinishes.js'
 
 /**
  * The How it works screen: why a single date misleads, how the Forecaster plays the work out, and how the EM makes the
@@ -36,7 +37,7 @@ function renderProblem(view: HowItWorksView): string {
     `      <div class="problem">
         <figure>
           ${burndown(view)}
-          <figcaption>A <b>burndown</b> spends the average pace on the tickets we start with, or guess at. The bars show the share of simulations finishing each week, once the work may grow.</figcaption>
+          <figcaption>A <b>burndown</b> spends the average pace on the tickets we start with, or guess at. The bars show the share of simulations finishing each week, once the work may grow.</figcaption>${laterFinishes(view)}
         </figure>
         <ul class="points">
           <li><span class="mark">~50%</span><span>Even if nothing grows, hitting the average-pace date is a coin toss.</span></li>
@@ -107,10 +108,24 @@ function round(value: number): number {
   return Math.round(value * 10) / 10
 }
 
-/** The weeks a simulation can finish in: from the first to the last with any share. */
-function finishSpan({ finishes }: HowItWorksView): { first: number; last: number } {
-  const finishing = finishes.filter(({ share }) => share > 0).map(({ period }) => period)
+/**
+ * The weeks the finish graph shows simulations finishing in: from the first to the last bar with any share. With
+ * simulations finishing after the last bar, these are most of the finishes, not all.
+ */
+function finishSpan({ finishGraph }: HowItWorksView): { first: number; last: number } {
+  const finishing = finishGraph.bars.flatMap(({ share }, week) => (share > 0 ? [week] : []))
   return { first: Math.min(...finishing), last: Math.max(...finishing) }
+}
+
+/** "Simulated finishes", or "most simulated finishes" when some finish after the graph's last bar. */
+function finishesShown({ finishGraph }: HowItWorksView): string {
+  return finishGraph.later ? 'most simulated finishes' : 'simulated finishes'
+}
+
+/** Under the burndown, the simulations finishing after its last bar, the last in its week (`renderLaterFinishes`). */
+function laterFinishes(view: HowItWorksView): string {
+  const note = renderLaterFinishes(view.finishGraph.later, ({ period }) => `in week ${period}`)
+  return note && `\n          ${note}`
 }
 
 /** The average pace's straight line from the tickets remaining to 0, over the share of simulations finishing each week. */
@@ -125,12 +140,12 @@ function burndown(view: HowItWorksView): string {
     lastWeek = Math.max(12, last + 1)
   const x = (week: number): number => left + (week / lastWeek) * (right - left)
   const y = (tickets: number): number => bottom - (tickets / ticketsRemaining) * (bottom - top)
-  const tallest = Math.max(...view.finishes.map(({ share }) => share))
+  const tallest = Math.max(...view.finishGraph.bars.map(({ share }) => share))
   const shapes: string[] = []
   for (let tickets = 0; tickets <= ticketsRemaining; tickets += 10) {
     shapes.push(line(left, y(tickets), right, y(tickets), 'grid'), label(left - 6, y(tickets) + 4, tickets, '', 'end'))
   }
-  for (const { period: week, share } of view.finishes) {
+  for (const [week, { share }] of view.finishGraph.bars.entries()) {
     const height = (share / tallest) * (bottom - top) * 0.55
     if (share > 0) shapes.push(rect(x(week) - 9, bottom - height, 18, height))
   }
@@ -140,13 +155,13 @@ function burndown(view: HowItWorksView): string {
     label(x(1.5), y(ticketsRemaining) + 4, 'tickets left'),
     label(x(ticketsRemaining / perPeriod) + 6, y(ticketsRemaining) + 26, `average pace (${perPeriod}/wk): week ${period}`, 'risk'),
     label(x(ticketsRemaining / perPeriod) + 6, y(ticketsRemaining) + 42, `met in ${Math.round(met * 100)}% of simulations`, 'risk'),
-    label(right, bottom - (bottom - top) * 0.55 - 10, `simulated finishes: weeks ${first}–${last}`, 'strong', 'end'),
+    label(right, bottom - (bottom - top) * 0.55 - 10, `${finishesShown(view)}: weeks ${first}–${last}`, 'strong', 'end'),
   )
   for (let week = 0; week <= lastWeek; week += 2) shapes.push(label(x(week), bottom + 16, week, '', 'middle'))
   return svg(
     420,
     210,
-    `A straight burndown at the average pace reaches 0 in week ${period}; simulated finishes fall between weeks ${first} and ${last}.`,
+    `A straight burndown at the average pace reaches 0 in week ${period}; ${finishesShown(view)} fall between weeks ${first} and ${last}.`,
     shapes,
   )
 }
@@ -210,10 +225,10 @@ function read(view: HowItWorksView): string {
     bottom = 102,
     width = (right - left) / (last - first + 1)
   const x = (week: number): number => left + (week - first) * width
-  const tallest = Math.max(...view.finishes.map(({ share }) => share))
-  const shapes = view.finishes
-    .filter(({ share }) => share > 0)
-    .map(({ period: week, share }) => rect(x(week) + 1, bottom - (share / tallest) * (bottom - top), width - 2, (share / tallest) * (bottom - top), 'bar', 1.5))
+  const tallest = Math.max(...view.finishGraph.bars.map(({ share }) => share))
+  const shapes = [...view.finishGraph.bars.entries()]
+    .filter(([, { share }]) => share > 0)
+    .map(([week, { share }]) => rect(x(week) + 1, bottom - (share / tallest) * (bottom - top), width - 2, (share / tallest) * (bottom - top), 'bar', 1.5))
   view.weeks.forEach(({ percent, period: week }, at) => {
     const headline = at === view.weeks.length - 1
     const marker = x(week) + width - 1
