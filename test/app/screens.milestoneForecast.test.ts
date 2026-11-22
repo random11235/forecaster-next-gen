@@ -238,6 +238,15 @@ describe('Milestone forecast screen', () => {
     expect(text(graph)).toContain('1% of simulations finish later, the last by 8 Aug 2028.')
   })
 
+  test('with under 1 in 200 simulations finishing after the last bar, the note under the graph says under 1%, starting the sentence', async () => {
+    await startOnSavedData()
+    await submitPace('4', '8')
+
+    const graph = found(await page('/'), /<figure class="finish-graph"[\s\S]*?<\/figure>/)
+
+    expect(text(graph)).toMatch(/Under 1% of simulations finish later, the last by \d+ \w+ \d{4}\./)
+  })
+
   test('with some simulations finishing beyond the horizon, says under the graph that some are later than it', async () => {
     await startOnSavedData()
     await submitMilestone('Checkout v2', '2026-09-01', '30')

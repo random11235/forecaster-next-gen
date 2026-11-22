@@ -35,11 +35,14 @@ describe('the forecast from what the EM enters', () => {
       paceSaid: '5–5 tickets per week (range)',
       ambiguity: { level: 'medium', low: 1, high: 1 },
       warnings: [],
-      finishGraph: [
-        { date: '2026-09-01', share: 0, finishedBy: 0, capacity: 100 },
-        { date: '2026-09-08', share: 0, finishedBy: 0, capacity: 100 },
-        { date: '2026-09-15', share: 1, finishedBy: 1, capacity: 100 },
-      ],
+      finishGraph: {
+        bars: [
+          { period: 0, date: '2026-09-01', share: 0, finishedBy: 0, capacity: 100 },
+          { period: 1, date: '2026-09-08', share: 0, finishedBy: 0, capacity: 100 },
+          { period: 2, date: '2026-09-15', share: 1, finishedBy: 1, capacity: 100 },
+        ],
+        later: undefined,
+      },
       paceTrend: undefined,
       capacity: {
         on: true,
@@ -135,32 +138,35 @@ describe('the finish graph', () => {
     const team = await newTeam()
     await enter(team, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
 
-    const { finishGraph } = await graph(team)
+    const { bars } = (await graph(team)).finishGraph
 
-    expect(finishGraph.slice(0, 2).map(({ date }) => date)).toEqual(['2026-09-01', '2026-09-08'])
-    finishGraph.forEach(({ finishedBy }, i) => expect(finishedBy).toBeCloseTo(sum(finishGraph.slice(0, i + 1).map((bar) => bar.share)), 9))
-    expect(finishGraph.at(-1)?.finishedBy).toBeGreaterThanOrEqual(0.99)
-    expect(finishGraph.at(-2)?.finishedBy).toBeLessThan(0.99)
+    expect(bars.slice(0, 2).map(({ date }) => date)).toEqual(['2026-09-01', '2026-09-08'])
+    bars.forEach(({ finishedBy }, i) => expect(finishedBy).toBeCloseTo(sum(bars.slice(0, i + 1).map((bar) => bar.share)), 9))
+    expect(bars.at(-1)?.finishedBy).toBeGreaterThanOrEqual(0.99)
+    expect(bars.at(-2)?.finishedBy).toBeLessThan(0.99)
   })
 
   test('each bar is the share of trials finishing that week, every week from the first finish holding some', async () => {
     const team = await newTeam()
     await enter(team, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
 
-    const { finishGraph } = await graph(team)
-    const firstFinish = finishGraph.findIndex(({ share }) => share > 0)
+    const { bars } = (await graph(team)).finishGraph
+    const firstFinish = bars.findIndex(({ share }) => share > 0)
 
-    expect(finishGraph.slice(firstFinish).every(({ share }) => share > 0)).toBe(true)
+    expect(bars.slice(firstFinish).every(({ share }) => share > 0)).toBe(true)
   })
 
   test('each confidence date falls on the first bar by which that share of trials has finished', async () => {
     const team = await newTeam()
     await enter(team, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
 
-    const { finishGraph, dates } = await graph(team)
+    const {
+      finishGraph: { bars },
+      dates,
+    } = await graph(team)
 
     for (const { percent, date } of dates) {
-      expect(finishGraph.find(({ finishedBy }) => finishedBy >= percent / 100)?.date).toBe(date)
+      expect(bars.find(({ finishedBy }) => finishedBy >= percent / 100)?.date).toBe(date)
     }
   })
 
@@ -171,14 +177,18 @@ describe('the finish graph', () => {
     // 150 tickets at 0–2 a week, 1 on average: about 150 weeks, close to the 156-week horizon
     await enter(team, { startDate: '2026-09-01', ticketsRemaining: '150' }, { low: '0', high: '2' })
 
-    const { finishGraph, dates, horizonDate } = await graph(team)
-    const finished = finishGraph.at(-1)?.finishedBy ?? 0
+    const {
+      finishGraph: { bars },
+      dates,
+      horizonDate,
+    } = await graph(team)
+    const finished = bars.at(-1)?.finishedBy ?? 0
 
     expect(dates.find(({ percent }) => percent === 85)?.date).toBeNull()
     expect(finished).toBeGreaterThan(0.5)
     expect(finished).toBeLessThan(0.85)
-    expect(sum(finishGraph.map((bar) => bar.share))).toBeCloseTo(finished, 9)
-    expect(finishGraph.at(-1)?.date.localeCompare(horizonDate)).toBeLessThanOrEqual(0)
+    expect(sum(bars.map((bar) => bar.share))).toBeCloseTo(finished, 9)
+    expect(bars.at(-1)?.date.localeCompare(horizonDate)).toBeLessThanOrEqual(0)
   })
 
   /** 30 tickets growing 1–2×, on typed counts with a slow week in six: a few trials run far past the rest. */
@@ -193,24 +203,24 @@ describe('the finish graph', () => {
   test('ends on the 99% date, 3 Aug 2027, not at the slowest trial a year later, so the bars that carry the forecast fill the graph', async () => {
     const team = await slowTail()
 
-    const { finishGraph } = await graph(team)
+    const { bars } = (await graph(team)).finishGraph
 
     // the engine's 99% date and last finish for the fixed seed: 3 Aug 2027 and 8 Aug 2028
-    expect(finishGraph.at(-1)?.date).toBe('2027-08-03')
-    expect(finishGraph.at(-1)?.finishedBy).toBeGreaterThanOrEqual(0.99)
-    expect(finishGraph.at(-2)?.finishedBy).toBeLessThan(0.99)
+    expect(bars.at(-1)?.date).toBe('2027-08-03')
+    expect(bars.at(-1)?.finishedBy).toBeGreaterThanOrEqual(0.99)
+    expect(bars.at(-2)?.finishedBy).toBeLessThan(0.99)
   })
 
   test('the trials finishing after the 99% date are summed under the graph: under 1% of them, the last on 8 Aug 2028', async () => {
     const team = await slowTail()
 
-    const { finishGraph, laterFinishes } = await graph(team)
-    const shown = finishGraph.at(-1)?.finishedBy ?? 0
+    const { bars, later } = (await graph(team)).finishGraph
+    const shown = bars.at(-1)?.finishedBy ?? 0
 
-    expect(laterFinishes?.last).toBe('2028-08-08')
-    expect(laterFinishes?.share).toBeCloseTo(1 - shown, 9)
-    expect(laterFinishes?.share).toBeGreaterThan(0)
-    expect(laterFinishes?.share).toBeLessThanOrEqual(0.01)
+    expect(later?.last).toEqual({ kind: 'by', date: '2028-08-08', period: 101 })
+    expect(later?.share).toBeCloseTo(1 - shown, 9)
+    expect(later?.share).toBeGreaterThan(0)
+    expect(later?.share).toBeLessThanOrEqual(0.01)
   })
 
   test('with a confidence level of 100% the graph runs to its date, the last finish, so every marker stays on it, and no trial is left to sum', async () => {
@@ -219,18 +229,18 @@ describe('the finish graph', () => {
     const forecast = await graph(team)
 
     expect(forecast.dates.at(-1)).toEqual({ percent: 100, date: '2028-08-08', alreadyPast: false })
-    expect(forecast.finishGraph.at(-1)).toMatchObject({ date: '2028-08-08', finishedBy: 1 })
-    expect(forecast.laterFinishes).toBeUndefined()
+    expect(forecast.finishGraph.bars.at(-1)).toMatchObject({ date: '2028-08-08', finishedBy: 1 })
+    expect(forecast.finishGraph.later).toBeUndefined()
   })
 
   test('when some trials finish after the 99% date and beyond the horizon, the sum under the graph has no last date', async () => {
     const team = await slowTail(DEFAULT_SETTINGS, '0 0 0 1 1 2 8 12')
 
-    const { finishGraph, laterFinishes } = await graph(team)
+    const { bars, later } = (await graph(team)).finishGraph
 
     // the engine's 99% date for the fixed seed; a few of the 10,000 trials don't finish within the 156 weeks
-    expect(finishGraph.at(-1)?.date).toBe('2028-03-07')
-    expect(laterFinishes).toEqual({ share: expect.closeTo(1 - (finishGraph.at(-1)?.finishedBy ?? 0), 9), last: null })
+    expect(bars.at(-1)?.date).toBe('2028-03-07')
+    expect(later).toEqual({ share: expect.closeTo(1 - (bars.at(-1)?.finishedBy ?? 0), 9), last: { kind: 'beyondHorizon' } })
   })
 
   test('a forecast whose trials all finish by the 99% date has nothing to sum under the graph', async () => {
@@ -238,7 +248,7 @@ describe('the finish graph', () => {
     mediumGrowth(team, { low: 1, high: 1 })
     await enter(team, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '5', high: '5' })
 
-    expect((await graph(team)).laterFinishes).toBeUndefined()
+    expect((await graph(team)).finishGraph.later).toBeUndefined()
   })
 
   test('0 tickets remaining: one bar, on the start date, holding every trial', async () => {
@@ -246,7 +256,7 @@ describe('the finish graph', () => {
 
     await enter(team, { startDate: '2026-09-01', ticketsRemaining: '0' }, { low: '4', high: '8' })
 
-    expect((await graph(team)).finishGraph).toEqual([{ date: '2026-09-01', share: 1, finishedBy: 1, capacity: 100 }])
+    expect((await graph(team)).finishGraph.bars).toEqual([{ period: 0, date: '2026-09-01', share: 1, finishedBy: 1, capacity: 100 }])
   })
 
   test('zero pace: no trial finishes, so there are no bars', async () => {
@@ -254,7 +264,7 @@ describe('the finish graph', () => {
 
     await enter(team, { startDate: '2026-09-01', ticketsRemaining: '10' }, { low: '0', high: '0' })
 
-    expect((await graph(team)).finishGraph).toEqual([])
+    expect((await graph(team)).finishGraph.bars).toEqual([])
   })
 
   test('at a 14-day cadence, a bar per sprint: 10 tickets at exactly 5 a sprint, with no growth, all finish in the second sprint', async () => {
@@ -264,10 +274,10 @@ describe('the finish graph', () => {
 
     expect(await edit(team, { kind: 'setCadence', cadenceDays: '14' })).toEqual({ ok: true })
 
-    expect((await graph(team)).finishGraph).toEqual([
-      { date: '2026-09-01', share: 0, finishedBy: 0, capacity: 100 },
-      { date: '2026-09-15', share: 0, finishedBy: 0, capacity: 100 },
-      { date: '2026-09-29', share: 1, finishedBy: 1, capacity: 100 },
+    expect((await graph(team)).finishGraph.bars).toEqual([
+      { period: 0, date: '2026-09-01', share: 0, finishedBy: 0, capacity: 100 },
+      { period: 1, date: '2026-09-15', share: 0, finishedBy: 0, capacity: 100 },
+      { period: 2, date: '2026-09-29', share: 1, finishedBy: 1, capacity: 100 },
     ])
   })
 })

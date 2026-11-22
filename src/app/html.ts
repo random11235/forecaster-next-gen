@@ -103,6 +103,8 @@ const STYLE = `
     .past { color: var(--risk); }
     .lede { font-size: 16px; line-height: 1.5; color: var(--text-2); max-width: 680px; }
     p.note { margin: 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
+    /* A note in passing, such as the finishes a graph leaves off: quieter than the caption above it. */
+    p.note.quiet { font-size: 12px; color: var(--faint); }
     p.error { margin: 0; color: var(--risk); font-weight: 600; }
     p.warning { margin: 0; font-size: 14px; line-height: 1.5; color: var(--risk); }
 
@@ -111,6 +113,11 @@ ${MILESTONE_FORECAST_STYLE}${INPUTS_STYLE}${SETUP_STEPS_STYLE}${HOW_IT_WORKS_STY
 /** `2026-12-18` → `18 Dec 2026`. */
 export function formatDate(isoDate: string): string {
   return `${dayMonth(isoDate)} ${isoDate.slice(0, 4)}`
+}
+
+/** A share as a whole percent, or "under 1%" for a share that rounds to 0 but holds some simulations. */
+export function percentText(share: number): string {
+  return share > 0 && share < 0.005 ? 'under 1%' : `${Math.round(share * 100)}%`
 }
 
 export function escapeHtml(text: string): string {
