@@ -1,5 +1,5 @@
 import { expect } from 'vitest'
-import { DEFAULT_SETTINGS, type Forecasting, type InputsEdit, type Outcome } from '../../src/forecast/index.js'
+import { DEFAULT_SETTINGS, type Forecasting, type InputsEdit } from '../../src/forecast/index.js'
 import type { MilestoneInputs } from '../../src/model/milestoneInputs.js'
 import { forecastingForTest, submitInputs, TEAM, type ForecastingForTest } from './forecastingForTest.js'
 
@@ -35,12 +35,6 @@ export async function edit(team: Pick<Forecasting, 'submit'>, change: InputsEdit
     case 'confirmClear':
       return { ok: false, confirm: true }
   }
-}
-
-/** `outcome`, of `kind`, failing with the kind it was if not: what a test reads next, such as the view it shows. */
-export function outcomeOf<K extends Outcome['kind']>(outcome: Outcome, kind: K): Extract<Outcome, { kind: K }> {
-  if (outcome.kind !== kind) throw new Error(`Expected the submit ${kind}, but it was ${outcome.kind}`)
-  return outcome as Extract<Outcome, { kind: K }>
 }
 
 /**

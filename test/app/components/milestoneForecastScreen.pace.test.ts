@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { submitInputs } from '../../forecast/forecastingForTest.js'
-import { outcomeOf } from '../../forecast/forecastViewScenario.js'
+import { outcomeOf, submitInputs } from '../../forecast/forecastingForTest.js'
 import { ODD_WEEK, STEPPED_UP, withTypedCounts } from '../../forecast/pacePatternScenario.js'
 import { accessibleName, all, around, byRole, hiddenFields, one, postsTo, text } from '../dom.js'
 import { drawn, forecast, dateSaid, problems, whatToFix } from './milestoneForecastScreenHarness.js'

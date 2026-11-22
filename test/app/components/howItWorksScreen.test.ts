@@ -3,7 +3,7 @@ import { renderHowItWorksScreen } from '../../../src/app/howItWorksScreen.js'
 import type { HowItWorksView } from '../../../src/forecast/index.js'
 import { forecastingForTest } from '../../forecast/forecastingForTest.js'
 import { accessibleName, allByRole, byRole, one, render, text } from '../dom.js'
-import { shareSaid } from './milestoneForecastScreenHarness.js'
+import { laterFinishes, shareSaid } from './milestoneForecastScreenHarness.js'
 
 // The How it works screen (#236), rendered from the example's view Seam B gives, started no server: its three parts,
 // each picture named for a screen reader, and the example's simulations as they finish. What the example forecasts is
@@ -75,8 +75,7 @@ describe('the How it works screen', () => {
   })
 
   test('the few simulations after the graph’s last week, in one line under the burndown', () => {
-    const later = view.finishGraph.later
-    if (later?.last.kind !== 'by' || later.share < 0.005) throw new Error('Expected 1 in 200 simulations or more to finish later, the last in a week')
+    const later = laterFinishes(view.finishGraph, 'by')
 
     expect(text(byRole(page, 'region', { name: 'The problem' }))).toContain(
       `${shareSaid(later.share)} of simulations finish later, the last in week ${later.last.period}.`,

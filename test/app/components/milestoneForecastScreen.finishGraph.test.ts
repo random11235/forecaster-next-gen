@@ -3,7 +3,7 @@ import { mediumGrowth, submitInputs } from '../../forecast/forecastingForTest.js
 import { newTeam } from '../../forecast/forecastViewScenario.js'
 import { withTypedCounts } from '../../forecast/pacePatternScenario.js'
 import { all, byRole, one, text } from '../dom.js'
-import { drawn, forecast, dateSaid, entered, finishGraph, shareSaid } from './milestoneForecastScreenHarness.js'
+import { drawn, forecast, dateSaid, entered, finishGraph, shareSaid, laterFinishes, saidUnderOnePercent } from './milestoneForecastScreenHarness.js'
 
 // The Milestone forecast screen (#236), rendered from the views Seam B gives (test/forecast/forecastingForTest.ts),
 // started no server: its finish graph: markers, bars and the note on later finishes. Shared arrangement is
@@ -45,7 +45,7 @@ describe('the Milestone forecast screen: the finish graph', () => {
   test('a bar’s hover text: its date, the chance of finishing by the end of its week, and the share finishing in it', async () => {
     const view = forecast(await (await entered('40', ['4', '8'])).milestoneForecastView())
     // a week some simulations finish before, so the chance by its end and its own share differ
-    const bar = view.finishGraph.bars.find(({ share, finishedBy }) => share >= 0.005 && shareSaid(finishedBy) !== shareSaid(share))
+    const bar = view.finishGraph.bars.find(({ share, finishedBy }) => share > 0 && !saidUnderOnePercent(share) && shareSaid(finishedBy) !== shareSaid(share))
     if (!bar) throw new Error('Expected a week whose chance by its end differs from its own share')
 
     expect(text(one(finishGraph(view), `.bar[data-date="${bar.date}"] .tip`))).toBe(
@@ -66,7 +66,7 @@ describe('the Milestone forecast screen: the finish graph', () => {
   test('a bar holding fewer than 1 in 200 simulations says under 1%, not 0%', async () => {
     const view = forecast(await (await entered('40', ['1', '8'])).milestoneForecastView())
     const first = view.finishGraph.bars.find(({ share }) => share > 0)
-    if (!first || first.share >= 0.005) throw new Error('Expected a first finish holding under 1 in 200 simulations')
+    if (!first || !saidUnderOnePercent(first.share)) throw new Error('Expected a first finish holding under 1 in 200 simulations')
 
     expect(text(one(finishGraph(view), `.bar[data-date="${first.date}"] .tip`))).toContain(', under 1% of simulations are completed within.')
   })
@@ -76,8 +76,7 @@ describe('the Milestone forecast screen: the finish graph', () => {
     ['some beyond the horizon', [0, 1, 1, 2, 8, 12], 'beyondHorizon'],
   ] as const)('ending at the 99%% date, it says under the graph what share finish later: %s', async (_, counts, kind) => {
     const view = forecast(await (await withTypedCounts(counts)).milestoneForecastView())
-    const later = view.finishGraph.later
-    if (later?.last.kind !== kind || later.share < 0.005) throw new Error(`Expected 1 in 200 simulations or more to finish later, the last ${kind}`)
+    const later = laterFinishes(view.finishGraph, kind)
     const last = later.last.kind === 'by' ? `the last by ${dateSaid(later.last.date)}` : 'some later than the horizon'
 
     expect(text(one(finishGraph(view), '.note.quiet'))).toBe(`${shareSaid(later.share)} of simulations finish later, ${last}.`)
@@ -85,7 +84,7 @@ describe('the Milestone forecast screen: the finish graph', () => {
 
   test('under 1 in 200 simulations finishing later: says under 1%, starting the sentence', async () => {
     const view = forecast(await (await entered('40', ['4', '8'])).milestoneForecastView())
-    if ((view.finishGraph.later?.share ?? 1) >= 0.005) throw new Error('Expected under 1 in 200 simulations to finish later')
+    if (!saidUnderOnePercent(view.finishGraph.later?.share ?? 0)) throw new Error('Expected under 1 in 200 simulations to finish later')
 
     expect(text(one(finishGraph(view), '.note.quiet'))).toMatch(/^Under 1% of simulations finish later, the last by \d{1,2} [A-Z][a-z]{2} \d{4}\.$/)
   })

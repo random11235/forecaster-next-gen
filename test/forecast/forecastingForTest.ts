@@ -217,6 +217,12 @@ export function submitInputs(team: Pick<Forecasting, 'submit'>, edit: InputsEdit
   return team.submit({ form: 'inputs', edit }, { capacityOpen })
 }
 
+/** `outcome`, of `kind`, failing with the kind it was if not: what a test reads next, such as the view it shows. */
+export function outcomeOf<K extends Outcome['kind']>(outcome: Outcome, kind: K): Extract<Outcome, { kind: K }> {
+  if (outcome.kind !== kind) throw new Error(`Expected the submit ${kind}, but it was ${outcome.kind}`)
+  return outcome as Extract<Outcome, { kind: K }>
+}
+
 /** Sets the team's medium growth range: the growth of a milestone of medium ambiguity, the default. */
 export function mediumGrowth(team: { storage: Storage }, medium: GrowthRange): void {
   team.storage.saveAmbiguityRanges({ teamId: TEAM, low: { low: 1, high: 1.5 }, medium, high: { low: 1.5, high: 3 } })

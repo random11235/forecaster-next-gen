@@ -4,12 +4,12 @@ import {
   checkoutFixture,
   CONNECTIONS,
   forecastingForTest,
+  outcomeOf,
   pick,
   readAgain,
   submitInputs,
   type ForecastingForTest,
 } from '../../forecast/forecastingForTest.js'
-import { outcomeOf } from '../../forecast/forecastViewScenario.js'
 import { finishedInWeeks, open } from '../../trackerScenario.js'
 import { accessibleName, all, allByRole, around, byRole, hasRole, one, postsTo, radios, text } from '../dom.js'
 import { drawn, milestoneOn, READ_AT, screen, section, START, TICKETS, WEEKS, whatItPosts } from './inputsScreenHarness.js'

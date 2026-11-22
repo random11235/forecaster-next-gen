@@ -3,7 +3,8 @@ import { APP_VERSION } from '../../src/forecast/index.js'
 import { openWebApp } from '../../src/app/webApp.js'
 import { openWebStorage } from '../../src/storage/webStorage.js'
 import { defaultTeam } from './appOnTracker.js'
-import { byRole, hasRole, one, render } from './dom.js'
+import { hasRole, render } from './dom.js'
+import { capacitySection } from './screensHarness.js'
 
 // The web build's screens, as its page asks for them (#114): no server, so the app answers each request itself and
 // follows a redirect to the screen it names.
@@ -17,8 +18,6 @@ function firstOpen() {
 }
 
 const TEAM = defaultTeam('').id
-/** The Capacity section of the screen `html` draws. */
-const capacitySection = (html: string) => one(render(html), '#capacity')
 
 const post = (path: string, fields: Record<string, string>) => ({ method: 'POST', path, form: new URLSearchParams(fields) })
 
@@ -98,7 +97,7 @@ describe('web app', () => {
     const refused = await app.show(post('/capacity/add', { percent: 'half', from: '2026-11-09', to: '' }))
 
     expect(refused).toMatchObject({ path: '/', status: 400 })
-    byRole(capacitySection(refused.html), 'alert')
+    expect(capacitySection(refused.html).refused).toBe(true)
     expect(storage.capacityEntries(TEAM)).toHaveLength(1)
   })
 
@@ -123,11 +122,11 @@ describe('web app', () => {
 
     const opened = await app.show({ method: 'GET', path: '/?capacity=open' })
     expect(opened).toMatchObject({ path: '/?capacity=open', status: 200 })
-    expect(capacitySection(opened.html).hasAttribute('open')).toBe(true)
+    expect(capacitySection(opened.html).open).toBe(true)
 
     const saved = await app.show(post('/capacity/add?capacity=open', { percent: '0', from: '2026-11-30', to: '', note: 'Holiday' }))
     expect(saved).toMatchObject({ path: '/?capacity=open', status: 200 })
-    expect(capacitySection(saved.html).hasAttribute('open')).toBe(true)
+    expect(capacitySection(saved.html).open).toBe(true)
   })
 
   test('an edited capacity entry comes back to the forecast, changed', async () => {
@@ -168,7 +167,7 @@ describe('web app', () => {
     expect(storage.milestoneInputs(TEAM)?.paceWindow.action).toEqual({ kind: 'startFrom', date: '2026-09-28' })
     const refused = await app.show(post('/pace-action/apply', { action: 'startFrom', date: 'soon' }))
     expect(refused).toMatchObject({ path: '/', status: 400 })
-    byRole(render(refused.html), 'alert')
+    expect(hasRole(render(refused.html), 'alert')).toBe(true)
     expect(storage.milestoneInputs(TEAM)?.paceWindow.action).toEqual({ kind: 'startFrom', date: '2026-09-28' })
   })
 

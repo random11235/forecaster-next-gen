@@ -4,7 +4,7 @@ import { submitInputs } from '../../forecast/forecastingForTest.js'
 import { keptFromBeforeTheMvp, newTeam } from '../../forecast/forecastViewScenario.js'
 import { withTypedCounts } from '../../forecast/pacePatternScenario.js'
 import { all, allByRole, byRole, hasRole, one, text } from '../dom.js'
-import { drawn, forecast, dateSaid, headline, entered, problems, whatToFix } from './milestoneForecastScreenHarness.js'
+import { drawn, forecast, dateSaid, headline, entered, problems, whatToFix, labelled } from './milestoneForecastScreenHarness.js'
 
 // The Milestone forecast screen (#236), rendered from the views Seam B gives (test/forecast/forecastingForTest.ts),
 // started no server: empty, problems to fix, and the forecast with its headline, dates and warnings; the finish graph,
@@ -95,7 +95,7 @@ describe('the Milestone forecast screen', () => {
     // a warning about an input is labelled with it
     const [warning, ...others] = view.warnings
     if (warning?.input !== 'pace' || others.length > 0) throw new Error('Expected the one warning to be about the pace')
-    expect(text(byRole(page, 'region', { name: 'Warnings' }))).toBe(`⚠ ${INPUT_LABELS.pace}: ${warning.message}`)
+    expect(text(byRole(page, 'region', { name: 'Warnings' }))).toBe(labelled(warning))
     expect(hasRole(page, 'figure')).toBe(false)
   })
 

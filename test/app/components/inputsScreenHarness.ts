@@ -1,8 +1,7 @@
 import type { Element } from 'happy-dom'
 import { renderInputsScreen } from '../../../src/app/inputsScreen.js'
 import type { ConnectionEdit, Forecasting, InputsEdit, InputsOpening, InputsScreen } from '../../../src/forecast/index.js'
-import { CONNECTIONS, pick, submitInputs, type ForecastingForTest } from '../../forecast/forecastingForTest.js'
-import { outcomeOf } from '../../forecast/forecastViewScenario.js'
+import { CONNECTIONS, outcomeOf, pick, submitInputs, type ForecastingForTest } from '../../forecast/forecastingForTest.js'
 import { finishedInWeeks, open } from '../../trackerScenario.js'
 import { all, byRole, hiddenFields, render } from '../dom.js'
 

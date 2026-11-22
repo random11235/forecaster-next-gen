@@ -1,18 +1,23 @@
 import { describe, expect, test } from 'vitest'
-import { one, render } from './dom.js'
 import { redirectedTo } from './forms.js'
-import { startOnSavedData, page, post, stored, submitPace, submitCounts, choosePace, addCapacity, editCapacity, TEAM } from './screensHarness.js'
+import {
+  startOnSavedData,
+  page,
+  post,
+  stored,
+  submitPace,
+  submitCounts,
+  choosePace,
+  addCapacity,
+  editCapacity,
+  capacitySection,
+  TEAM,
+} from './screensHarness.js'
 
 // The screens through the local server: see screensHarness.ts. What app/ owns of capacity: the forms' fields read as
 // posted, where each goes back to, the section opened at its own URL, and the status of a refusal. How the section
 // reads is the Milestone forecast screen's component test's (components/milestoneForecastScreen.test.ts), and what each
 // entry does to the forecast Seam B's (test/forecast/capacity*.test.ts, newUsual.test.ts).
-
-/** The Capacity section of the screen `html` draws: whether it is open, and the URL its toggle goes to. */
-function capacity(html: string) {
-  const section = one(render(html), '#capacity')
-  return { open: section.hasAttribute('open'), toggle: section.getAttribute('data-toggle') }
-}
 
 describe('Milestone forecast screen: capacity', () => {
   test('the sentence’s fields are read as typed, its percent, dates, onward and note, and it goes back to the forecast', async () => {
@@ -36,7 +41,7 @@ describe('Milestone forecast screen: capacity', () => {
     const refused = await addCapacity('50', '2026-09-14', '2026-09-07', 'Half on <leave>')
 
     expect(refused.status).toBe(400)
-    expect(capacity(await refused.text()).open).toBe(true)
+    expect(capacitySection(await refused.text()).open).toBe(true)
     expect(stored().capacityEntries(TEAM)).toEqual([])
   })
 
@@ -58,9 +63,9 @@ describe('Milestone forecast screen: capacity', () => {
 
     expect(redirectedTo(saved)).toBe('/?capacity=open')
     expect(refused.status).toBe(400)
-    expect(capacity(await refused.text())).toEqual({ open: true, toggle: '/#capacity' })
-    expect(capacity(await page('/'))).toEqual({ open: false, toggle: '/?capacity=open#capacity' })
-    expect(capacity(await page('/?capacity=open'))).toEqual({ open: true, toggle: '/#capacity' })
+    expect(capacitySection(await refused.text())).toEqual({ open: true, toggle: '/#capacity', refused: true })
+    expect(capacitySection(await page('/'))).toEqual({ open: false, toggle: '/?capacity=open#capacity', refused: false })
+    expect(capacitySection(await page('/?capacity=open'))).toEqual({ open: true, toggle: '/#capacity', refused: false })
   })
 
   test('an entry’s Edit, a past one’s note alone, Remove and the switch post the id or on they carry', async () => {

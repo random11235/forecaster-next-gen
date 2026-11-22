@@ -1,7 +1,6 @@
 import type { Forecasting, InputsEdit } from '../../../src/forecast/index.js'
 import { beforeEach, describe, expect, test } from 'vitest'
-import { checkoutFixture, forecastingForTest, pick, submitInputs } from '../../forecast/forecastingForTest.js'
-import { outcomeOf } from '../../forecast/forecastViewScenario.js'
+import { checkoutFixture, forecastingForTest, outcomeOf, pick, submitInputs } from '../../forecast/forecastingForTest.js'
 import { label } from '../../trackerScenario.js'
 import { accessibleName, all, allByRole, around, byRole, hasRole, one, postsTo, radios, render, text } from '../dom.js'
 import { drawn, READ_AT, refused, screen, section, START, TICKETS } from './inputsScreenHarness.js'

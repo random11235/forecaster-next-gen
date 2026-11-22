@@ -6,6 +6,7 @@ import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js
 import type { MilestoneInputs } from '../../src/model/milestoneInputs.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { Storage } from '../../src/storage/storage.js'
+import { hasRole, one, render } from './dom.js'
 import { heldStorage } from './heldStorage.js'
 import { post as postForm, saveInPlace as saveFormInPlace } from './forms.js'
 import { found } from './found.js'
@@ -36,6 +37,12 @@ export const CHECKOUT: MilestoneInputs = {
 export let dir: string | undefined
 let app: RunningApp | undefined
 const storage = heldStorage<Storage>()
+
+/** The Capacity section of the screen `html` draws: whether it is open, the URL its toggle goes to, and whether it says why a form was refused. */
+export function capacitySection(html: string) {
+  const section = one(render(html), '#capacity')
+  return { open: section.hasAttribute('open'), toggle: section.getAttribute('data-toggle'), refused: hasRole(section, 'alert') }
+}
 
 /** The data file the app started on, by `startOnSavedData` or `startWithNoMilestone`. */
 export const stored = storage.stored

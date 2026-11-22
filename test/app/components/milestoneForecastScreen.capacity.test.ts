@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest'
 import type { Element } from 'happy-dom'
 import { add, tenTicketsAtFive } from '../../forecast/capacityScenario.js'
-import { submitInputs } from '../../forecast/forecastingForTest.js'
+import { outcomeOf, submitInputs } from '../../forecast/forecastingForTest.js'
 import { DEFAULT_SETTINGS } from '../../../src/forecast/index.js'
-import { newTeam, outcomeOf } from '../../forecast/forecastViewScenario.js'
+import { newTeam } from '../../forecast/forecastViewScenario.js'
 import { accessibleName, all, allByRole, around, byRole, hasRole, hiddenFields, one, postsTo, text } from '../dom.js'
 import { drawn, forecast, dateSaid, headline, entered } from './milestoneForecastScreenHarness.js'
 
