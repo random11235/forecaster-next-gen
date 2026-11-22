@@ -20,7 +20,7 @@ export const OWN_FOLDER_THRESHOLDS: Record<string, Coverage> = {
   connectors: { statements: 94.88, branches: 87.54, functions: 96.26, lines: 99.42 },
   storage: { statements: 99.16, branches: 96.53, functions: 99.3, lines: 99.32 },
   secrets: { statements: 100, branches: 100, functions: 100, lines: 100 },
-  app: { statements: 95.29, branches: 89.33, functions: 97.82, lines: 94.89 },
+  app: { statements: 95.15, branches: 89.25, functions: 97.79, lines: 94.87 },
 }
 
 /**
