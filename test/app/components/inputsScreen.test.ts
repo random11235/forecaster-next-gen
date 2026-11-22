@@ -15,8 +15,8 @@ const WEEKS = ['2026-09-21', '2026-09-28', '2026-10-05', '2026-10-12', '2026-10-
 // GitHub reads 34 tickets remaining, and 5, 6, 4, 7, 5, 6, 8 finished in the weeks it reads whole
 const TICKETS = [...open(34), ...finishedInWeeks(WEEKS, [5, 6, 4, 7, 5, 6, 8])]
 
-/** The screen as `renderInputsScreen` draws `view`, its candidates' opening kept as `opening-1`. */
-const drawn = (view: InputsScreen) => render(renderInputsScreen(view, 'opening-1'))
+/** The screen as `renderInputsScreen` draws `view`, its candidates' opening, if it has one, kept as `opening-1`. */
+const drawn = (view: InputsScreen) => render(renderInputsScreen(view, () => 'opening-1'))
 const screen = async (team: Forecasting, opening?: InputsOpening) => drawn(await team.inputsScreen(opening))
 const section = (page: ReturnType<typeof render>, name: string) => byRole(page, 'region', { name })
 const refused = async (team: Forecasting, edit: InputsEdit) => {

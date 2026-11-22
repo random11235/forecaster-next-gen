@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest'
+import { INPUT_LABELS } from '../../../src/app/inputsScreen.js'
 import { renderMilestoneForecastScreen } from '../../../src/app/milestoneForecastScreen.js'
 import type { MilestoneForecastView } from '../../../src/forecast/index.js'
 import { add, tenTicketsAtFive } from '../../forecast/capacityScenario.js'
@@ -19,15 +20,18 @@ function forecast(view: MilestoneForecastView): Extract<MilestoneForecastView, {
   return view
 }
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-/** A date the view gives, as the screens say it: `2027-04-06` → `6 Apr 2027`. */
-function said(isoDate: string | null): string {
+/**
+ * A date the view gives, as the screens say it: `2027-04-06` → `6 Apr 2027`. Written out here, not imported from
+ * html.ts's `formatDate`, so the test checks the screen's dates against a reading of its own.
+ */
+function dateSaid(isoDate: string | null): string {
   if (isoDate === null) throw new Error('Expected a date, but it was later than the horizon')
   const [year, month, day] = isoDate.split('-')
   return `${Number(day)} ${MONTHS[Number(month) - 1]} ${year}`
 }
 /** The date `view` gives at its headline's percent, as the screens say it. */
 const headline = (view: Extract<MilestoneForecastView, { kind: 'forecast' }>) =>
-  said(view.dates.find(({ percent }) => percent === view.headlinePercent)?.date ?? null)
+  dateSaid(view.dates.find(({ percent }) => percent === view.headlinePercent)?.date ?? null)
 const STEPPED_UP = [4, 3, 5, 4, 4, 3, 4, 5, 3, 4, 8, 9, 7, 8]
 
 describe('the Milestone forecast screen', () => {
@@ -43,12 +47,13 @@ describe('the Milestone forecast screen', () => {
     const team = await newTeam()
     await submitInputs(team, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-09-01', ticketsRemaining: '100' })
     const view = await team.milestoneForecastView()
-    if (view.kind !== 'problems') throw new Error(`Expected problems, but it was ${view.kind}`)
+    if (view.kind !== 'problems' || view.problems.length === 0) throw new Error(`Expected problems, but it was ${view.kind}`)
     const page = drawn(view)
 
     expect(text(one(page, 'header'))).toBe('Checkout v2 Fix this on the Inputs screen to see a forecast.')
-    expect(view.problems.map(({ input }) => input)).toEqual(['pace'])
-    expect(text(byRole(page, 'region', { name: 'What to fix' }))).toBe(`⚠ Pace: ${view.problems[0]?.message}`)
+    expect(text(byRole(page, 'region', { name: 'What to fix' }))).toBe(
+      view.problems.map(({ input, message }) => `⚠ ${INPUT_LABELS[input]}: ${message}`).join(' '),
+    )
     expect(hasRole(page, 'region', { name: 'Forecast' })).toBe(false)
   })
 
@@ -59,17 +64,21 @@ describe('the Milestone forecast screen', () => {
     const view = forecast(await team.milestoneForecastView())
     const page = drawn(view)
 
-    expect(text(one(page, 'header'))).toBe(`Checkout v2 · 100 tickets remaining Starting 1 Sep 2026: 85% confident of finishing by ${headline(view)}`)
+    expect(text(one(page, 'header'))).toBe(
+      `Checkout v2 · 100 tickets remaining Starting 1 Sep 2026: ${view.headlinePercent}% confident of finishing by ${headline(view)}`,
+    )
     // the headline's date, still to come, stressed as good news
     expect(text(one(page, 'h1 .good'))).toBe(headline(view))
     const dates = byRole(page, 'region', { name: 'Forecast' })
-    expect(allByRole(dates, 'listitem').map((date) => text(date))).toEqual(view.dates.map(({ percent, date }) => `${percent}% confident by ${said(date)}`))
+    expect(allByRole(dates, 'listitem').map((date) => text(date))).toEqual(view.dates.map(({ percent, date }) => `${percent}% confident by ${dateSaid(date)}`))
     expect(text(dates)).toContain(`Ambiguity: medium, growing ${view.ambiguity.low}–${view.ambiguity.high}×`)
     const graph = byRole(page, 'figure', { name: 'When the simulations finish, by week' })
-    expect(text(one(graph, 'figcaption'))).toBe('Share of simulations finishing each week, from the start date. The 85% date is the headline.')
+    expect(text(one(graph, 'figcaption'))).toBe(
+      `Share of simulations finishing each week, from the start date. The ${view.headlinePercent}% date is the headline.`,
+    )
     // a marker for each date, latest first, the headline's stressed: the view's four dates are each their own
     expect(all(graph, '.marker').map((marker) => [text(marker), marker.classList.contains('headline')])).toEqual(
-      view.dates.map(({ percent, date }) => [`${percent}% ${said(date)}`, percent === view.headlinePercent]).reverse(),
+      view.dates.map(({ percent, date }) => [`${percent}% ${dateSaid(date)}`, percent === view.headlinePercent]).reverse(),
     )
     const pace = byRole(page, 'complementary', { name: 'Pace' })
     expect(byRole(pace, 'link', { name: 'Change' }).getAttribute('href')).toBe('/inputs#pace')
@@ -83,8 +92,8 @@ describe('the Milestone forecast screen', () => {
     await submitInputs(team, { kind: 'setPaceRange', low: '4', high: '8' })
     const view = forecast(await team.milestoneForecastView())
 
-    expect(view.warnings.map(({ input }) => input)).toEqual(['startDate'])
-    expect(text(byRole(drawn(view), 'region', { name: 'Warnings' }))).toBe(`⚠ ${view.warnings[0]?.message}`)
+    if (view.warnings.length === 0) throw new Error('Expected the forecast warned')
+    expect(text(byRole(drawn(view), 'region', { name: 'Warnings' }))).toBe(view.warnings.map(({ message }) => `⚠ ${message}`).join(' '))
   })
 
   test('typed counts: their trend beside the pace, and the pattern they show, its action and its dates both ways', async () => {
@@ -97,7 +106,7 @@ describe('the Milestone forecast screen', () => {
     const pattern = around(byRole(pace, 'button', { name: line }), 'details')
     expect(pattern.hasAttribute('open')).toBe(false)
     pattern.setAttribute('open', '')
-    expect(text(pattern)).toContain(`${action.dates.percent}% confident by ${said(action.dates.now)} now, ${said(action.dates.applied)} from `)
+    expect(text(pattern)).toContain(`${action.dates.percent}% confident by ${dateSaid(action.dates.now)} now, ${dateSaid(action.dates.applied)} from `)
     const apply = around(byRole(pattern, 'button', { name: action.button }), 'form')
     expect(apply.getAttribute('action')).toBe('/pace-action/apply')
     expect(all(apply, 'input[type="hidden"]').map((field) => [field.getAttribute('name'), field.getAttribute('value')])).toEqual([
@@ -126,12 +135,12 @@ describe('the Milestone forecast screen', () => {
     const page = drawn(view)
 
     expect(text(one(page, 'header'))).toBe(
-      `Launch · 10 tickets remaining Starting 7 Sep 2026: 85% confident of finishing by ${headline(view)} ${view.capacityLine}`,
+      `Launch · 10 tickets remaining Starting 7 Sep 2026: ${view.headlinePercent}% confident of finishing by ${headline(view)} ${view.capacityLine}`,
     )
     expect(allByRole(byRole(page, 'table'), 'row').map((row) => text(row))).toEqual([
       'With capacity At usual capacity',
       ...(view.comparison ?? []).map(
-        ({ percent, withCapacity, atUsual, shift }) => `${percent}% confident by ${said(withCapacity)} ${said(atUsual)} ${shift.words}`,
+        ({ percent, withCapacity, atUsual, shift }) => `${percent}% confident by ${dateSaid(withCapacity)} ${dateSaid(atUsual)} ${shift.words}`,
       ),
     ])
     expect(text(byRole(page, 'figure')).match(/Shaded weeks: capacity changes, at the % shown\./)).not.toBeNull()

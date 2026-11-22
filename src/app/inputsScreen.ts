@@ -3,6 +3,7 @@ import {
   MAX_GROWTH,
   type GrowthView,
   type InputsEdit,
+  type CandidateOpening,
   type InputsScreen,
   type MilestoneInputsView,
   type QueryStep,
@@ -80,21 +81,15 @@ export const SKIP_FORMS: ReadonlyMap<string, (body: URLSearchParams) => SkipEdit
 /**
  * The Inputs screen: in the local server build, first its setup: the setup step the EM is on, the Connect step, the
  * query step the view shows (the Milestone step or the Comparable work step), or Check; or, once setup is closed, its
- * summary. Then the milestone, its pace and the team's growth. `openingId` is the id the Comparable work step's
- * candidates' opening is kept by (`keepOpening`), for the page's script to read more in, while it shows candidates
- * (`ComparableWorkStep.candidates`, #205).
+ * summary. Then the milestone, its pace and the team's growth. While the Comparable work step shows candidates
+ * (`ComparableWorkStep.candidates`, #205), their opening is kept by `keep` (`keepOpening`), under the id it gives, for
+ * the page's script to read more in.
  */
-export function renderInputsScreen(view: InputsScreen, openingId?: string): string {
-  const { inputs: screen, setup, step: shown } = view
+export function renderInputsScreen(view: InputsScreen, keep: (opening: CandidateOpening) => string): string {
+  const { inputs: screen, setup, step } = view
   const { milestone, forms } = screen
-  const steps = shown ? [shownStep(shown, openingId)] : []
+  const pickers = step ? [shownStep(step, keep)] : []
   const error: FormError = (form) => (screen.refusal?.form === form ? screen.refusal.error : undefined)
-  const pickers = steps.map(({ section, view, openingId }) => {
-    const picker = queryStepSection(view, section)
-    const candidates =
-      view.kind === 'comparableWorkStep' && view.candidates && openingId !== undefined ? candidatesHtml(view.candidates.shown, openingId, section) : ''
-    return { section, picker: picker + candidates }
-  })
   const sections = [
     ...setupStepSection(view, pickers),
     milestoneSection(screen, error),
@@ -113,16 +108,19 @@ export function renderInputsScreen(view: InputsScreen, openingId?: string): stri
     INPUTS_SCRIPT,
     ...(setup?.kind === 'steps' && setup.step === 'check' ? [CHECK_SCRIPT] : []),
     ...pickers.map(({ section }) => queryStepScript(section)),
-    ...steps.filter(({ openingId }) => openingId !== undefined).map(({ section }) => candidatesScript(section)),
+    ...pickers.filter(({ withCandidates }) => withCandidates).map(({ section }) => candidatesScript(section)),
   ].join(';')
   const closed = setup?.kind === 'summary' ? setupSummaryHtml(setup) : setup?.kind === 'skipped' ? setupSkippedHtml() : ''
   return htmlPage('/inputs', header, closed + sections.map((section, index) => section(index + 1)).join('\n'), script)
 }
 
-/** A step picking or writing one of the team's queries, as the screen shows it: its section, its view, and its candidates' opening while it has candidates. */
-function shownStep(view: QueryStep, openingId: string | undefined): { section: StepSection; view: QueryStep; openingId?: string } {
-  if (view.kind === 'milestoneStep') return { section: MILESTONE_STEP, view }
-  return { section: COMPARABLE_WORK_STEP, view, ...(view.candidates && openingId !== undefined && { openingId }) }
+/** A step picking or writing one of the team's queries, as the screen shows it: its section, and its picker with the candidates it shows, their opening kept by `keep`. */
+function shownStep(view: QueryStep, keep: (opening: CandidateOpening) => string): { section: StepSection; picker: string; withCandidates: boolean } {
+  if (view.kind === 'milestoneStep') return { section: MILESTONE_STEP, picker: queryStepSection(view, MILESTONE_STEP), withCandidates: false }
+  const section = COMPARABLE_WORK_STEP
+  const { candidates } = view
+  const shown = candidates ? candidatesHtml(candidates.shown, keep(candidates.opening), section) : ''
+  return { section, picker: queryStepSection(view, section) + shown, withCandidates: candidates !== undefined }
 }
 
 /** The setup step the EM is on, as its section, with the steps' list and Back and Next; none once setup is closed, or in the browser build. */

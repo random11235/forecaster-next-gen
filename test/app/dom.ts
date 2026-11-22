@@ -4,7 +4,8 @@ import { afterAll } from 'vitest'
 // The screens' HTML parsed into a page, and queried as a screen reader and the EM read it: by role and accessible name,
 // and by visible text (#236). A component test renders a view and asks what the page offers, not how the markup is
 // written. No script runs: a page's scripts are browserPage.ts's. The roles and names are the part of ARIA the
-// screens use, not all of it: a role a screen doesn't use is not in `Role`.
+// screens use, not all of it: a role a screen doesn't use is not in `Role`. Importing it registers an `afterAll` in the
+// importing test file, closing the one window the file's renders parse in.
 
 /** The one window every render parses in, with JavaScript off; closed once the test file is done. */
 const window = new Window({ settings: { disableJavaScriptEvaluation: true, disableJavaScriptFileLoading: true, disableCSSFileLoading: true } })
@@ -24,7 +25,6 @@ const INPUT_ROLES = {
   checkbox: 'checkbox',
   number: 'spinbutton',
   search: 'searchbox',
-  range: 'slider',
   date: undefined,
   password: undefined,
   hidden: undefined,
@@ -59,12 +59,7 @@ const GIVEN_ROLES = ['alert', 'switch'] as const
 
 /** A role a query can ask for: one a tag implies, or one the screens give. */
 export type Role =
-  | (typeof TAG_ROLES)[keyof typeof TAG_ROLES]
-  | NonNullable<(typeof INPUT_ROLES)[keyof typeof INPUT_ROLES]>
-  | (typeof GIVEN_ROLES)[number]
-  | 'heading'
-  | 'link'
-  | 'textbox'
+  (typeof TAG_ROLES)[keyof typeof TAG_ROLES] | NonNullable<(typeof INPUT_ROLES)[keyof typeof INPUT_ROLES]> | (typeof GIVEN_ROLES)[number] | 'heading' | 'link'
 
 /** The one element in `scope` with `role` (and `name`, if given), failing with each such role's names if not exactly one. */
 export function byRole(scope: Document | Element, role: Role, query: { name?: string | RegExp } = {}): Element {
@@ -106,7 +101,7 @@ export function postsTo(element: Element): string | null {
 export function text(of: Document | Element): string {
   const root = 'body' in of ? of.body : of
   const copy = root.cloneNode(true) as Element
-  for (const unseen of copy.querySelectorAll('style, script, template, [hidden]')) unseen.remove()
+  for (const unseen of copy.querySelectorAll(UNSEEN)) unseen.remove()
   for (const closed of copy.querySelectorAll('details:not([open])')) {
     for (const folded of [...closed.childNodes]) if ((folded as Element).localName !== 'summary') closed.removeChild(folded)
   }
@@ -118,6 +113,9 @@ export function text(of: Document | Element): string {
   return collapse(copy.textContent ?? '')
 }
 
+/** What neither the EM nor their screen reader is given: styles, scripts, templates and what is `hidden`. */
+const UNSEEN = 'style, script, template, [hidden]'
+
 const BLOCKS =
   'p, div, li, ul, ol, h1, h2, h3, h4, h5, h6, form, section, header, footer, main, nav, figure, figcaption, fieldset, legend, table, tr, td, th, br, details, summary, dl, dt, dd'
 
@@ -126,16 +124,16 @@ export function accessibleName(element: Element): string {
   const labelledBy = element.getAttribute('aria-labelledby')
   if (labelledBy) {
     const ids = labelledBy.split(/\s+/)
-    return collapse(ids.map((id) => said(element.ownerDocument.getElementById(id))).join(' '))
+    return collapse(ids.map((id) => spokenText(element.ownerDocument.getElementById(id))).join(' '))
   }
   const label = element.getAttribute('aria-label')
   if (label) return collapse(label)
   const tag = element.localName
   if (tag === 'input' || tag === 'select' || tag === 'textarea') return controlName(element)
   if (tag === 'img') return collapse(element.getAttribute('alt') ?? '')
-  if (tag === 'fieldset') return said(element.querySelector('legend'))
-  if (tag === 'figure') return said(element.querySelector('figcaption'))
-  return said(element)
+  if (tag === 'fieldset') return spokenText(element.querySelector('legend'))
+  if (tag === 'figure') return spokenText(element.querySelector('figcaption'))
+  return spokenText(element)
 }
 
 function controlName(control: Element): string {
@@ -143,14 +141,14 @@ function controlName(control: Element): string {
   if (type === 'submit' || type === 'button') return collapse(control.getAttribute('value') ?? '')
   const id = control.getAttribute('id')
   const label = (id ? control.ownerDocument.querySelector(`label[for="${id}"]`) : null) ?? control.closest('label')
-  return label ? said(label) : collapse(control.getAttribute('placeholder') ?? '')
+  return label ? spokenText(label) : collapse(control.getAttribute('placeholder') ?? '')
 }
 
 /** The text a screen reader says of `element`'s content: what is hidden from it left out. */
-function said(element: Element | null): string {
+function spokenText(element: Element | null): string {
   if (!element) return ''
   const copy = element.cloneNode(true) as Element
-  for (const unsaid of copy.querySelectorAll('style, script, template, [hidden], [aria-hidden="true"]')) unsaid.remove()
+  for (const unsaid of copy.querySelectorAll(`${UNSEEN}, [aria-hidden="true"]`)) unsaid.remove()
   return collapse(copy.textContent ?? '')
 }
 
