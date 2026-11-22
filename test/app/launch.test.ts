@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'vitest'
 import { APP_VERSION } from '../../src/forecast/index.js'
 import { request as httpRequest } from 'node:http'
 import { networkInterfaces } from 'node:os'
-import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
+import { portFromEnv, startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { QueryTarget, Storage } from '../../src/storage/storage.js'
 import { CHECKOUT, TEAM } from '../trackerScenario.js'
@@ -326,6 +326,18 @@ describe('refuses requests from other sites', () => {
     expect(await milestoneSaved(app)).toBe(true)
   })
 
+  test('a POST from the app with a body over 10,000 bytes is answered 500, saying why, and saves nothing', async () => {
+    app = await startOnFreePort()
+    const { host, origin } = new URL(app.url)
+    const body = new URLSearchParams({ ...MILESTONE, padding: 'x'.repeat(10_000) }).toString()
+
+    const answer = await send(app, 'POST', '/inputs/milestone', { host, origin, 'content-type': 'application/x-www-form-urlencoded' }, body)
+
+    expect(answer.status).toBe(500)
+    expect(answer.body).toBe('Forecaster error: Error: Request body too large.')
+    expect(await milestoneSaved(app)).toBe(false)
+  })
+
   test.each(['127.0.0.1', 'localhost'])('GET pages and /live on %s are served as today, with no Origin', async (name) => {
     app = await startOnFreePort()
     const host = `${name}:${new URL(app.url).port}`
@@ -337,5 +349,22 @@ describe('refuses requests from other sites', () => {
     expect(inputs.body).toContain('<html')
     expect(live.status).toBe(200)
     expect(live.contentType).toBe('text/event-stream')
+  })
+})
+
+// The port PORT names. Run as the built entry point, a refused value stops it with exit code 1 (smoke.test.ts).
+describe('PORT', () => {
+  test.each([
+    [undefined, 5180],
+    ['', 5180],
+    ['0', 0],
+    ['8080', 8080],
+    ['65535', 65535],
+  ])('PORT=%j starts on port %i', (value, port) => {
+    expect(portFromEnv(value)).toBe(port)
+  })
+
+  test.each(['abc', '5180.5', '-1', '65536', ' 80'])('refuses PORT=%j, naming the bad value', (value) => {
+    expect(() => portFromEnv(value)).toThrow(`PORT must be a whole number from 0 to 65535, not "${value}".`)
   })
 })
