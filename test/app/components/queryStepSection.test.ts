@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
-import { COMPARABLE_WORK_STEP, MILESTONE_STEP, queryStepSection } from '../../../src/app/queryStepSection.js'
+import { choiceListHtml, COMPARABLE_WORK_STEP, MILESTONE_STEP, queryStepSection } from '../../../src/app/queryStepSection.js'
 import type { ChoiceList, ComparableWorkPace, QueryStep } from '../../../src/forecast/index.js'
-import { accessibleName, allByRole, byRole, hasRole, render, text } from '../dom.js'
+import { accessibleName, all, allByRole, around, byRole, hasRole, one, postsTo, render, text } from '../dom.js'
 
 // A query step (#236), the Milestone step's and the Comparable work step's, rendered from a view built by hand: finding
 // choices to pick, refused, flagged, and its query open for editing. What each view holds, and when, is Seam B's
@@ -13,7 +13,8 @@ const lists: ChoiceList[] = [
   { kind: 'milestone', choices: [checkout], searchedInTracker: false },
   { kind: 'label', choices: [payments], searchedInTracker: true },
 ]
-const milestoneStep: QueryStep = {
+type Step<Kind extends QueryStep['kind']> = Extract<QueryStep, { kind: Kind }>
+const milestoneStep: Step<'milestoneStep'> = {
   kind: 'milestoneStep',
   queryName: 'Milestone query',
   find: '',
@@ -22,10 +23,9 @@ const milestoneStep: QueryStep = {
   query: '',
   note: 'Reads open and closed tickets.',
 }
-const comparableStep: QueryStep = { ...milestoneStep, kind: 'comparableWorkStep', queryName: 'Comparable-work query' }
-const milestone = (view: Partial<QueryStep> = {}) => render(queryStepSection({ ...milestoneStep, ...view } as QueryStep, MILESTONE_STEP))
-const comparable = (view: Partial<Extract<QueryStep, { kind: 'comparableWorkStep' }>> = {}) =>
-  render(queryStepSection({ ...comparableStep, ...view } as QueryStep, COMPARABLE_WORK_STEP))
+const comparableStep: Step<'comparableWorkStep'> = { ...milestoneStep, kind: 'comparableWorkStep', queryName: 'Comparable-work query' }
+const milestone = (view: Partial<Step<'milestoneStep'>> = {}) => render(queryStepSection({ ...milestoneStep, ...view }, MILESTONE_STEP))
+const comparable = (view: Partial<Step<'comparableWorkStep'>> = {}) => render(queryStepSection({ ...comparableStep, ...view }, COMPARABLE_WORK_STEP))
 const editing = { typed: 'label:payments OR', readIn: 'shop-team/shop' }
 
 describe('a query step, finding choices to pick', () => {
@@ -35,9 +35,7 @@ describe('a query step, finding choices to pick', () => {
     expect(text(page)).toContain('Milestone query Edit as a query Nothing picked yet. Reads open and closed tickets.')
     expect(byRole(page, 'searchbox', { name: 'Find a choice to pick' }).getAttribute('placeholder')).toBe('Find a milestone or label…')
     expect(allByRole(page, 'heading').map((heading) => text(heading))).toEqual(['Milestones', 'Labels'])
-    expect(byRole(page, 'button', { name: 'Checkout v2 milestone' }).closest('form')?.getAttribute('action')).toBe(
-      '/inputs/milestone-query/add#milestone-tickets',
-    )
+    expect(postsTo(byRole(page, 'button', { name: 'Checkout v2 milestone' }))).toBe('/inputs/milestone-query/add#milestone-tickets')
     expect(hasRole(page, 'list')).toBe(false)
     expect(hasRole(page, 'alert')).toBe(false)
     expect(byRole(page, 'link', { name: 'Edit as a query' }).getAttribute('href')).toBe('/inputs?edit=query#milestone-tickets')
@@ -46,19 +44,17 @@ describe('a query step, finding choices to pick', () => {
   test('a kind searched in the tracker is marked for the script, and the one choice that is the milestone query is marked', () => {
     const page = comparable({ lists: [{ ...lists[0]!, thisMilestone: checkout.query }, lists[1]!] })
 
-    expect(page.querySelector('[data-kind="label"]')?.hasAttribute('data-searched')).toBe(true)
-    expect(page.querySelector('[data-kind="milestone"]')?.hasAttribute('data-searched')).toBe(false)
-    expect(byRole(page, 'button', { name: 'Checkout v2 milestone this milestone' })).toBeTruthy()
-    expect(byRole(page, 'button', { name: 'payments label' })).toBeTruthy()
+    expect(one(page, '[data-kind="label"]').hasAttribute('data-searched')).toBe(true)
+    expect(one(page, '[data-kind="milestone"]').hasAttribute('data-searched')).toBe(false)
+    byRole(page, 'button', { name: 'Checkout v2 milestone this milestone' })
+    byRole(page, 'button', { name: 'payments label' })
   })
 
   test('picks as chips, each removable, the query they join into and its read', () => {
     const page = milestone({ picks: [checkout, payments], query: `${checkout.query} OR ${payments.query}`, read: '50 open · 43 finished in the last 8 weeks' })
 
     expect(allByRole(byRole(page, 'list'), 'listitem').map((chip) => text(chip))).toEqual(['Checkout v2 milestone ×', 'payments label ×'])
-    expect(byRole(page, 'button', { name: 'Remove payments' }).closest('form')?.querySelector('input[name="query"]')?.getAttribute('value')).toBe(
-      'label:payments',
-    )
+    expect(one(around(byRole(page, 'button', { name: 'Remove payments' }), 'form'), 'input[name="query"]').getAttribute('value')).toBe('label:payments')
     expect(text(page)).toContain('Milestone query Edit as a query milestone:"Checkout v2" OR label:payments')
     expect(text(page)).toContain('50 open · 43 finished in the last 8 weeks')
   })
@@ -79,11 +75,43 @@ describe('a query step, finding choices to pick', () => {
     const page = milestone({ picks: [checkout], query: checkout.query, refusal: 'GitHub refused the query: <bad>' })
 
     expect(text(byRole(page, 'alert'))).toBe('GitHub refused the query: <bad>')
-    expect(byRole(page, 'button', { name: 'Remove Checkout v2' })).toBeTruthy()
+    byRole(page, 'button', { name: 'Remove Checkout v2' })
   })
 
   test('with no choices listed, the find box asks for a choice', () => {
     expect(byRole(milestone({ lists: [] }), 'searchbox').getAttribute('placeholder')).toBe('Find a choice…')
+  })
+})
+
+describe('one kind’s list, alone, as the find box’s script asks for it', () => {
+  test('headed by its kind, marked searched for the script, each choice a button adding it to the step’s query', () => {
+    const page = render(
+      choiceListHtml({ kind: 'label', choices: [payments, { kind: 'label', name: 'search', query: 'label:search' }], searchedInTracker: true }, MILESTONE_STEP),
+    )
+
+    expect(text(byRole(page, 'heading'))).toBe('Labels')
+    expect(one(page, '[data-kind="label"]').hasAttribute('data-searched')).toBe(true)
+    expect(allByRole(page, 'button').map((button) => [accessibleName(button), postsTo(button)])).toEqual([
+      ['payments label', '/inputs/milestone-query/add#milestone-tickets'],
+      ['search label', '/inputs/milestone-query/add#milestone-tickets'],
+    ])
+    expect(hasRole(page, 'link')).toBe(false)
+  })
+
+  test('the Comparable work step’s: each choice also a link opening it as a candidate', () => {
+    const page = render(choiceListHtml(lists[1]!, COMPARABLE_WORK_STEP))
+
+    expect(postsTo(byRole(page, 'button', { name: 'payments label' }))).toBe('/inputs/comparable-work/add#comparable-work')
+    byRole(page, 'link', { name: 'How payments runs' })
+  })
+
+  test('the kind not searched: why, as an alert, with no choices', () => {
+    const page = render(
+      choiceListHtml({ kind: 'milestone', choices: [], searchedInTracker: true, failure: 'GitHub couldn’t search milestones.' }, MILESTONE_STEP),
+    )
+
+    expect(text(byRole(page, 'alert'))).toBe('GitHub couldn’t search milestones.')
+    expect(hasRole(page, 'button')).toBe(false)
   })
 })
 
@@ -93,7 +121,7 @@ describe('a query step, its query open for editing', () => {
 
     expect(byRole(page, 'textbox', { name: 'Milestone query, within shop-team/shop' }).getAttribute('value')).toBe('label:payments OR')
     expect(text(page)).toContain('Press Enter to read it. Reads open and closed tickets.')
-    expect(byRole(page, 'button', { name: 'Back to finding' }).closest('form')?.getAttribute('action')).toBe('/inputs/milestone-query/back#milestone-tickets')
+    expect(postsTo(byRole(page, 'button', { name: 'Back to finding' }))).toBe('/inputs/milestone-query/back#milestone-tickets')
     expect(hasRole(page, 'searchbox')).toBe(false)
     expect(hasRole(page, 'alert')).toBe(false)
   })
@@ -114,7 +142,7 @@ describe('a query step, its query open for editing', () => {
 
     expect(text(milestone({ editing: { ...editing, backClears } }))).toContain(`${backClears} Back to finding`)
     const confirming = milestone({ editing: { ...editing, backClears, confirmingBack: true } })
-    expect(byRole(confirming, 'button', { name: 'Clear the query and go back' })).toBeTruthy()
+    byRole(confirming, 'button', { name: 'Clear the query and go back' })
     expect(byRole(confirming, 'link', { name: 'Keep editing' }).getAttribute('href')).toBe('/inputs?edit=query#milestone-tickets')
     expect(hasRole(confirming, 'button', { name: 'Back to finding' })).toBe(false)
   })
@@ -137,16 +165,14 @@ describe('the Comparable work step', () => {
     expect(byRole(page, 'link', { name: 'How payments runs' }).getAttribute('href')).toBe(
       '/inputs?step=comparableWork&comparableOpen=label%3Apayments#comparable-work',
     )
-    expect(byRole(page, 'searchbox').closest('form')?.querySelector('input[name="step"]')?.getAttribute('value')).toBe('comparableWork')
+    expect(one(around(byRole(page, 'searchbox'), 'form'), 'input[name="step"]').getAttribute('value')).toBe('comparableWork')
     expect(hasRole(page, 'button', { name: 'Start afresh' })).toBe(false)
   })
 
   test('with a query: Start afresh at its end', () => {
-    expect(
-      byRole(comparable({ picks: [payments], query: payments.query }), 'button', { name: 'Start afresh' })
-        .closest('form')
-        ?.getAttribute('action'),
-    ).toBe('/inputs/comparable-work/afresh#comparable-work')
+    expect(postsTo(byRole(comparable({ picks: [payments], query: payments.query }), 'button', { name: 'Start afresh' }))).toBe(
+      '/inputs/comparable-work/afresh#comparable-work',
+    )
   })
 
   test('leads with its pace, how far it is from the milestone’s own, each period paired, and each pick’s pace on its chip', () => {
@@ -177,6 +203,6 @@ describe('the Comparable work step', () => {
   })
 
   test('no pace to lead with: nothing in its place', () => {
-    expect(comparable({ pace: { periods: [], picks: [], said: {} } }).querySelector('.step-pace')).toBeNull()
+    expect(all(comparable({ pace: { periods: [], picks: [], said: {} } }), '.step-pace')).toEqual([])
   })
 })
