@@ -65,6 +65,12 @@ const HTML = { headers: { 'content-type': 'text/html; charset=utf-8' } }
 /** Where the page is opened: an address nothing serves, as each request is answered in-process. */
 const ORIGIN = 'http://forecaster.test'
 
+/** `app`'s answer to a request: as the page reads it, and the routes' own reply, before any redirect is followed. */
+interface Answered {
+  response: Response
+  reply: RouteReply
+}
+
 /** A held answer's path, and whether its answer has come back and been released. */
 interface Hold {
   path: string
@@ -106,20 +112,20 @@ export async function openPage(app: Pick<AppInProcess, 'answer'>, path: string):
   const watch = watchPage()
   const navigating = navigations()
   let heldWhileSettling = (_hold: Hold): void => {}
-  /** `app`'s answer to `request`, as `window` reads one, at the address it was answered from; and the routes' reply. */
-  const answer = async (window: BrowserWindow, request: RouteRequest): Promise<{ response: Response; first: RouteReply }> => {
-    const first = await app.answer(request)
-    let reply = first
+  /** `app`'s answer to `request`, as `window` reads one at the address it was answered from, after any redirect. */
+  const answer = async (window: BrowserWindow, request: RouteRequest): Promise<Answered> => {
+    const reply = await app.answer(request)
+    let last = reply
     let at = request.path
-    while (reply.kind === 'redirect') {
-      at = reply.location
-      reply = await app.answer({ method: 'GET', path: at })
+    while (last.kind === 'redirect') {
+      at = last.location
+      last = await app.answer({ method: 'GET', path: at })
     }
     const response =
-      reply.kind === 'html'
-        ? new window.Response(reply.html, { ...HTML, status: reply.status })
+      last.kind === 'html'
+        ? new window.Response(last.html, { ...HTML, status: last.status })
         : new window.Response('Not found', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8' } })
-    return { response: answeredFrom(response, new URL(at, ORIGIN).href), first }
+    return { response: answeredFrom(response, new URL(at, ORIGIN).href), reply }
   }
   /** Holds the answer to `request`, if a test asked to hold the next one to its path, until released. */
   const holding = async (request: RouteRequest): Promise<void> => {
@@ -144,14 +150,14 @@ export async function openPage(app: Pick<AppInProcess, 'answer'>, path: string):
         interceptor: {
           beforeAsyncRequest: async ({ request, window }) => {
             const asked = await routeRequest(request)
-            const sent: { -readonly [K in keyof PageRequest]: PageRequest[K] } = {
+            const sent: PageRequest = {
               method: asked.method,
               url: new URL(request.url),
               saveInPlace: asked.saveInPlace === true,
               ...(asked.form && { form: asked.form }),
             }
             requests.push(sent)
-            let answered: Awaited<ReturnType<typeof answer>>
+            let answered: Answered
             try {
               answered = await answer(window, asked)
             } catch (error) {
@@ -160,7 +166,9 @@ export async function openPage(app: Pick<AppInProcess, 'answer'>, path: string):
               failRequest(window, request, error)
               return
             }
-            sent.reply = answered.first
+            // the request as sent, now with the routes' reply, in its place among those sent
+            const at = requests.indexOf(sent)
+            if (at !== -1) requests[at] = { ...sent, reply: answered.reply }
             await holding(asked)
             return answered.response
           },
@@ -170,9 +178,15 @@ export async function openPage(app: Pick<AppInProcess, 'answer'>, path: string):
   })
   const page = browser.newPage()
   const stillHeld = (hold: Hold): Error => new Error(`the answer from ${hold.path} is held: release it before the page can settle`)
-  await page.goto(new URL(path, ORIGIN).href)
-  await page.waitUntilComplete()
-  watch.throwUncaught()
+  try {
+    await page.goto(new URL(path, ORIGIN).href)
+    await page.waitUntilComplete()
+    watch.throwUncaught()
+  } catch (error) {
+    // the page never opened, so no test holds it to close
+    await browser.close()
+    throw error
+  }
   requests.length = 0
   return {
     get window() {
