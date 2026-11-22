@@ -216,13 +216,45 @@ describe('Milestone forecast screen', () => {
 
   test('a bar holding fewer than 1 in 200 simulations says under 1%, not 0%', async () => {
     await startOnSavedData()
-    await submitPace('4', '8')
+    await submitPace('1', '8')
 
     const graph = found(await page('/'), /<figure class="finish-graph"[\s\S]*?<\/figure>/)
-    const last = graph.match(/<div class="bar[^"]*"[^>]*data-date="[^"]*"[\s\S]*?<\/div>/g)?.at(-1)
-    assert(last, 'the finish graph has bars')
+    // the earliest finish: the first bar holding any simulations
+    const first = graph.match(/<div class="bar[^"]*"[^>]*data-share="(?!0")[^"]*"[\s\S]*?<\/div>/)?.[0]
+    assert(first, 'the finish graph has bars')
 
-    expect(text(last)).toContain('under 1% of simulations are completed within.')
+    expect(text(first)).toContain('under 1% of simulations are completed within.')
+  })
+
+  test('ends the finish graph at the 99% date, saying under it what share of simulations finish later, and when the last does', async () => {
+    await startOnSavedData()
+    await submitMilestone('Checkout v2', '2026-09-01', '30')
+    await submitCounts('0 1 1 2 8 12')
+    await choosePace('counts')
+
+    const graph = found(await page('/'), /<figure class="finish-graph"[\s\S]*?<\/figure>/)
+
+    expect(text(graph)).toContain('1 Sep 2026 3 Aug 2027')
+    expect(text(graph)).toContain('1% of simulations finish later, the last by 8 Aug 2028.')
+  })
+
+  test('with some simulations finishing beyond the horizon, says under the graph that some are later than it', async () => {
+    await startOnSavedData()
+    await submitMilestone('Checkout v2', '2026-09-01', '30')
+    await submitCounts('0 0 0 1 1 2 8 12')
+    await choosePace('counts')
+
+    const graph = found(await page('/'), /<figure class="finish-graph"[\s\S]*?<\/figure>/)
+
+    expect(text(graph)).toContain('1% of simulations finish later, some later than the horizon.')
+  })
+
+  test('with every simulation finishing by the last bar, says nothing of later finishes', async () => {
+    await startOnSavedData()
+    await submitMilestone('Checkout v2', '2026-09-01', '2')
+    await submitPace('4', '8')
+
+    expect(text(await page('/'))).not.toContain('finish later')
   })
 
   test('at a 14-day cadence, graphs when the simulations finish by sprint', async () => {
