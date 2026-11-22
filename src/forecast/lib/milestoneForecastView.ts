@@ -45,7 +45,7 @@ export interface ForecastDate {
 
 /** One period's bar on the finish graph. Shares are fractions of all trials, from 0 to 1. */
 export interface FinishBar {
-  /** The period's number from the start date's, 0: a forecast in weeks counts them as weeks from the start. */
+  /** Which period it is, counting the start date's as 0. */
   period: number
   /** ISO calendar date the period ends: the start date for the first bar, which counts trials with nothing to do. */
   date: string

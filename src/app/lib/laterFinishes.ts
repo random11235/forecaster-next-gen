@@ -15,5 +15,5 @@ export function renderLaterFinishes(later: LaterFinishes | undefined, lastBy: (l
   if (!later) return ''
   const share = percentText(later.share)
   const whenLast = later.last.kind === 'beyondHorizon' ? 'some later than the horizon' : `the last ${lastBy(later.last)}`
-  return `\n        <p class="note quiet">${share[0]!.toUpperCase()}${share.slice(1)} of simulations finish later, ${whenLast}.</p>`
+  return `\n<p class="note quiet">${share[0]!.toUpperCase()}${share.slice(1)} of simulations finish later, ${whenLast}.</p>`
 }
