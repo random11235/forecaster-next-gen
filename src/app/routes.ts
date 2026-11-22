@@ -114,9 +114,7 @@ function outcomeReply(request: Request, outcome: Outcome, capacityOpen: boolean)
 
 /** The Inputs screen, served at `/inputs` with `status`; its candidates' opening kept for the page's script to read more in. */
 function inputsReply(request: Request, status: number, screen: InputsScreen): Reply {
-  const { step } = screen
-  const candidates = step?.kind === 'comparableWorkStep' ? step.candidates : undefined
-  const html = renderInputsScreen(screen, candidates && keepOpening(candidates.opening))
+  const html = renderInputsScreen(screen, keepOpening)
   return { kind: 'html', status, html, ...(request.method === 'POST' && { path: SCREEN_PATHS.inputs }) }
 }
 
