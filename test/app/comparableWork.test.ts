@@ -7,8 +7,9 @@ import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { TeamStorage } from '../trackerScenario.js'
 
-// The Comparable work step on the Inputs screen (#201), through the local server as the EM's browser sees it, on the
-// canned connector.
+// The Comparable work step on the Inputs screen (#201), through the local server, on the canned connector: the query
+// parameters and form fields it reads, and where its forms go. What the step shows is Seam B's
+// (test/forecast/queryStep.*.test.ts, comparableWorkPace.test.ts); how it is drawn, the component tests'.
 
 const payments = { kind: 'milestone', name: 'Payments v2', query: 'milestone:"Payments v2"' }
 const checkout = { kind: 'label', name: 'checkout', query: 'label:"checkout"' }
@@ -77,82 +78,52 @@ function sectionOf(html: string, id: string): string {
 const stepOf = (html: string): string => sectionOf(html, 'comparable-work')
 
 describe('the Comparable work step', () => {
-  test('follows the Milestone step, the step shown, before the milestone, listing the choices, Skip going on to Check', async () => {
+  // deferred: needs test/app/components/inputsScreen.test.ts to number the sections after the Comparable work step
+  test('shown, its section is numbered before the milestone’s', async () => {
     const running = await startConnected()
 
     const html = await page(running)
 
     const numbers = [...html.matchAll(/<section[^>]* id="([^"]+)"[^]*?class="number">(\d+)</g)].map(([, id, n]) => `${id} ${n}`)
     expect(numbers.slice(0, 2)).toEqual(['comparable-work 01', 'milestone 02'])
-    const step = stepOf(html)
-    expect(step).toContain('<h2>Comparable work</h2>')
-    expect(step).toContain('Payments v2')
-    expect(step).toContain('Comparable-work query')
-    expect(step).toMatch(/<a href="\/inputs\?step=check#check" class="button primary">Skip<\/a>/)
-    expect(step).not.toContain('Start afresh')
   })
 
-  test('two picks show as chips, joined with OR, with the finished tickets read, its button reading Next; the Milestone step is left as it was', async () => {
+  test('a pick is read from its form, back to the step, the milestone’s query left as it was; Start afresh clears them', async () => {
     const running = await startConnected()
 
     const picked = await post(running, '/inputs/comparable-work/add', payments)
     await post(running, '/inputs/comparable-work/add', checkout)
 
-    expect(picked.status).toBe(303)
-    expect(picked.headers.get('location')).toBe('/inputs?step=comparableWork#comparable-work')
-    const html = await page(running)
-    const step = stepOf(html)
-    expect(step.match(/class="chip"/g)).toHaveLength(2)
-    expect(step).toContain('milestone:&#34;Payments v2&#34; OR label:&#34;checkout&#34;')
-    expect(step).toContain('<p class="read">2 finished in the last 9 weeks</p>')
-    expect(step).toMatch(/>Next<\/a>/)
-    expect(step).toContain('action="/inputs/comparable-work/afresh#comparable-work"')
-    expect(sectionOf(await page(running, '/inputs'), 'milestone-tickets')).not.toContain('class="chip"')
-  })
-
-  test('what is typed in its find box filters its lists', async () => {
-    const running = await startConnected()
-
-    const html = await page(running, `${STEP}&comparableFind=check`)
-
-    expect(stepOf(html)).not.toContain('Payments v2')
-    expect(stepOf(html)).toContain('name="comparableFind" value="check"')
-  })
-
-  test('Edit as a query opens its own query in a box', async () => {
-    const running = await startConnected()
-    await post(running, '/inputs/comparable-work/add', payments)
-
-    expect(stepOf(await page(running))).toContain('href="/inputs?step=comparableWork&#38;edit=comparable#comparable-work"')
-    const html = await page(running, `${STEP}&edit=comparable`)
-
-    expect(stepOf(html)).toMatch(
-      /<form method="post" action="\/inputs\/comparable-work\/edit#comparable-work"[^]*id="comparable-work-query" name="query" value="milestone:&#34;Payments v2&#34;"/,
-    )
-  })
-
-  test('a hand-edited query is read once submitted, and the step stays open for editing', async () => {
-    const running = await startConnected()
-
-    const edited = await post(running, '/inputs/comparable-work/edit', { query: both })
-
-    expect(edited.headers.get('location')).toBe('/inputs?step=comparableWork&edit=comparable#comparable-work')
-    const step = stepOf(await page(running, `${STEP}&edit=comparable`))
-    expect(step).toContain('2 finished in the last 9 weeks')
-    expect(step).toContain('Start afresh')
-  })
-
-  test('Start afresh clears all of comparable work, its button reading Skip again', async () => {
-    const running = await startConnected()
-    await post(running, '/inputs/comparable-work/add', payments)
-    await post(running, '/inputs/comparable-work/add', checkout)
+    expect([picked.status, picked.headers.get('location')]).toEqual([303, '/inputs?step=comparableWork#comparable-work'])
+    expect(storage?.setupDraft('team')?.comparableWorkQuery?.query).toBe(both)
+    expect(storage?.setupDraft('team')?.milestoneQuery).toBeUndefined()
 
     const afresh = await post(running, '/inputs/comparable-work/afresh', {})
 
-    expect(afresh.headers.get('location')).toBe('/inputs?step=comparableWork#comparable-work')
-    const step = stepOf(await page(running))
-    expect(step).not.toContain('class="chip"')
-    expect(step).toMatch(/>Skip<\/a>/)
+    expect([afresh.status, afresh.headers.get('location')]).toEqual([303, '/inputs?step=comparableWork#comparable-work'])
+    expect(storage?.setupDraft('team')?.comparableWorkQuery?.query ?? '').toBe('')
+  })
+
+  test('what is typed in its find box, in its own query parameter, filters its lists', async () => {
+    const running = await startConnected()
+
+    const step = stepOf(await page(running, `${STEP}&comparableFind=check`))
+
+    expect(step).not.toContain('Payments v2')
+    expect(step).toContain('name="comparableFind" value="check"')
+  })
+
+  test('edit=comparable opens its own query for editing; an edit is read from its form, and stays open', async () => {
+    const running = await startConnected()
+    await post(running, '/inputs/comparable-work/add', payments)
+
+    expect(stepOf(await page(running))).not.toContain('id="comparable-work-query"')
+    expect(stepOf(await page(running, `${STEP}&edit=comparable`))).toContain('id="comparable-work-query"')
+
+    const edited = await post(running, '/inputs/comparable-work/edit', { query: both })
+
+    expect([edited.status, edited.headers.get('location')]).toEqual([303, '/inputs?step=comparableWork&edit=comparable#comparable-work'])
+    expect(storage?.setupDraft('team')?.comparableWorkQuery?.query).toBe(both)
   })
 
   test('its picker asks for one kind searched, less its own picks', async () => {
@@ -166,26 +137,7 @@ describe('the Comparable work step', () => {
     expect(milestones).toContain('value="label:&#34;checkout&#34;"')
   })
 
-  test('leads with the pace in use and how far it is from the milestone’s own, then the two paired per week, each chip with its own (#204)', async () => {
-    const running = await startConnected()
-    await post(running, '/inputs/milestone', { name: 'Payments v2', startDate: '2026-10-01', ticketsRemaining: '1' })
-    await post(running, '/inputs/milestone-query/add', payments)
-
-    const before = stepOf(await page(running))
-    await post(running, '/inputs/comparable-work/add', checkout)
-    const step = stepOf(await page(running))
-
-    expect(before).toMatch(/<p class="headline">0 a week <small>pace, from the milestone’s own tickets, range 0–1<\/small><\/p>/)
-    expect(before).toContain('Add comparable work to measure pace from work like this milestone’s.')
-    expect(step).toMatch(/<p class="headline">0 a week <small>pace, from comparable work, range 0–1<\/small><\/p>/)
-    expect(step).toContain('<p class="delta aboutTheSame">About the same as the milestone’s own so far (0 a week).</p>')
-    // the 8 whole weeks the reads reach, from 17 Sep: those of 17 and 24 Sep before the milestone started
-    expect(step.match(/<li class="period/g)).toHaveLength(8)
-    expect(step.match(/<li class="period before"/g)).toHaveLength(2)
-    expect(step).toMatch(/class="legend"[^]*comparable work[^]*the milestone’s own[^]*before it started/)
-    expect(step).toMatch(/class="chip"[^]*class="strip"[^]*1 finished/)
-  })
-
+  // deferred: needs test/app/components/paceTrendGraph.test.ts
   test('with pace following the tracker, the pace trend pairs comparable work’s bars with the milestone’s own, hatched before it started', async () => {
     // comparable work finished one a week from 21 Sep; the milestone, started on 12 Oct, one on 20 Oct
     const weekly = ['2026-09-22', '2026-09-29', '2026-10-06', '2026-10-13', '2026-10-20', '2026-10-27', '2026-11-03']

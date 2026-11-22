@@ -1,17 +1,17 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
 import { post, saveInPlace } from './forms.js'
-import { openWebApp } from '../../src/app/webApp.js'
 import { cannedConnector, type CannedFixture } from '../../src/connectors/canned.js'
 import type { Choice, ChoicesOfKind } from '../../src/connectors/connector.js'
 import type { Connecting } from '../../src/forecast/index.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { TeamStorage } from '../trackerScenario.js'
-import { openWebStorage } from '../../src/storage/webStorage.js'
 
-// The Milestone step on the Inputs screen (#191), through the local server as the EM's browser sees it, on the canned
-// connector.
+// The Milestone step on the Inputs screen (#191), through the local server, on the canned connector: the query
+// parameters and form fields it reads, and where its forms go. What the step shows is Seam B's
+// (test/forecast/queryStep.*.test.ts); how it is drawn, the component test's
+// (test/app/components/queryStepSection.test.ts).
 
 const FIXTURE: CannedFixture = {
   milestoneChoices: [
@@ -69,20 +69,10 @@ function stepOf(html: string): string {
   return html.slice(start, html.indexOf('</section>', start))
 }
 
+const PAYMENTS = { kind: 'milestone', name: 'Payments v2', query: 'milestone:"Payments v2"' }
+
 describe('the Milestone step', () => {
-  test('once connected, follows the Connect step and lists the choices to pick, with the query and its note', async () => {
-    const running = await startConnected()
-
-    const html = await page(running)
-
-    expect(html.indexOf('id="milestone-tickets"')).toBeGreaterThan(html.indexOf('id="connect"'))
-    const step = stepOf(html)
-    expect(step).toContain('Payments v2')
-    expect(step).toContain('Checkout')
-    expect(step).toContain('Leaf tickets only. Epics include their sub-epics.')
-  })
-
-  test('what is typed to find filters the lists', async () => {
+  test('what is typed to find, in its query parameter, filters the lists', async () => {
     const running = await startConnected()
 
     const step = stepOf(await page(running, '/inputs?find=pay'))
@@ -91,28 +81,16 @@ describe('the Milestone step', () => {
     expect(step).not.toContain('Checkout')
   })
 
-  test('a pick shows as a chip marked with its kind, with the query and the read’s line', async () => {
+  test('a pick is read from its form, and a chip removed from its own, each back to the step', async () => {
     const running = await startConnected()
 
-    const picked = await post(running, '/inputs/milestone-query/add', { kind: 'milestone', name: 'Payments v2', query: 'milestone:"Payments v2"' })
+    const picked = await post(running, '/inputs/milestone-query/add', PAYMENTS)
+    expect([picked.status, picked.headers.get('location')]).toEqual([303, '/inputs#milestone-tickets'])
+    expect(storage?.setupDraft('team')?.milestoneQuery?.query).toBe(PAYMENTS.query)
 
-    expect(picked.status).toBe(303)
-    expect(picked.headers.get('location')).toBe('/inputs#milestone-tickets')
-    const step = stepOf(await page(running))
-    expect(step).toMatch(/class="chip"[^]*Payments v2[^]*milestone/)
-    expect(step).toContain('milestone:&#34;Payments v2&#34;')
-    expect(step).toContain('1 open · 1 finished in the last 9 weeks')
-  })
-
-  test('a removed chip is gone, and its choice listed again', async () => {
-    const running = await startConnected()
-    await post(running, '/inputs/milestone-query/add', { kind: 'milestone', name: 'Payments v2', query: 'milestone:"Payments v2"' })
-
-    await post(running, '/inputs/milestone-query/remove', { query: 'milestone:"Payments v2"' })
-
-    const step = stepOf(await page(running))
-    expect(step).not.toContain('class="chip"')
-    expect(step).not.toContain('open ·')
+    const removed = await post(running, '/inputs/milestone-query/remove', { query: PAYMENTS.query })
+    expect([removed.status, removed.headers.get('location')]).toEqual([303, '/inputs#milestone-tickets'])
+    expect(storage?.setupDraft('team')?.milestoneQuery).toEqual({ picks: [], query: '' })
   })
 
   describe('with more than 100 epics', () => {
@@ -124,27 +102,7 @@ describe('the Milestone step', () => {
       searchable: { epic: [...listed, epic(140, 'Card payments'), epic(141, 'Payouts')] },
     }
 
-    test('what is typed searches the epics in the tracker, and still filters the milestones', async () => {
-      const running = await startConnected(PAST_LIMIT)
-
-      const step = stepOf(await page(running, '/inputs?find=payments'))
-
-      expect(step).toContain('Card payments')
-      expect(step).toContain('Payments v2')
-      expect(step).not.toContain('Checkout')
-      expect(step).not.toContain('Epic 1<')
-    })
-
-    test('the epics are marked to be searched as the EM types, the milestones not', async () => {
-      const running = await startConnected(PAST_LIMIT)
-
-      const step = stepOf(await page(running))
-
-      expect(step).toContain('<div class="kind-list" data-kind="epic" data-searched>')
-      expect(step).toContain('<div class="kind-list" data-kind="milestone">')
-    })
-
-    test('the picker asks for one kind searched, and gets its list alone', async () => {
+    test('the picker asks for one kind searched, and gets its list alone; with the find box cleared, its first 100 again', async () => {
       const running = await startConnected(PAST_LIMIT)
 
       const response = await fetch(new URL('/inputs/milestone-choices?kind=epic&find=payouts', running.url))
@@ -155,136 +113,41 @@ describe('the Milestone step', () => {
       expect(list).toContain('value="parent-issue:shop-team/shop#141"')
       expect(list).not.toContain('Payments v2')
       expect(list).not.toContain('<html')
-    })
-
-    test('the picker asks for one kind searched with the find box cleared, and gets its first 100 again', async () => {
-      const running = await startConnected(PAST_LIMIT)
-
-      const list = await (await fetch(new URL('/inputs/milestone-choices?kind=epic&find=', running.url))).text()
-
-      expect(list).toContain('value="parent-issue:shop-team/shop#1"')
-      expect(list).toContain('value="parent-issue:shop-team/shop#100"')
-      expect(list).not.toContain('Card payments')
+      const cleared = await (await fetch(new URL('/inputs/milestone-choices?kind=epic&find=', running.url))).text()
+      expect(cleared).toContain('value="parent-issue:shop-team/shop#100"')
+      expect(cleared).not.toContain('Card payments')
     })
   })
 
-  test('Edit as a query opens the query in a box, read within the connected repo', async () => {
+  test('edit=query opens the query for editing; an edit is read from its form, and stays open', async () => {
     const running = await startConnected()
-    await post(running, '/inputs/milestone-query/add', { kind: 'milestone', name: 'Payments v2', query: 'milestone:"Payments v2"' })
+    await post(running, '/inputs/milestone-query/add', PAYMENTS)
 
-    expect(stepOf(await page(running))).toContain('href="/inputs?edit=query#milestone-tickets"')
-    const step = stepOf(await page(running, '/inputs?edit=query'))
+    expect(stepOf(await page(running))).not.toContain('id="milestone-query"')
+    expect(stepOf(await page(running, '/inputs?edit=query'))).toContain('id="milestone-query"')
 
-    expect(step).toMatch(
-      /<form method="post" action="\/inputs\/milestone-query\/edit#milestone-tickets"[^]*name="query" value="milestone:&#34;Payments v2&#34;"/,
-    )
-    expect(step).toContain('shop-team/shop')
-    expect(step).not.toContain('class="chip"')
-    expect(step).not.toContain('type="search"')
+    const edited = await post(running, '/inputs/milestone-query/edit', { query: 'milestone:"Checkout"' })
+    expect([edited.status, edited.headers.get('location')]).toEqual([303, '/inputs?edit=query#milestone-tickets'])
+    expect(storage?.setupDraft('team')?.milestoneQuery?.query).toBe('milestone:"Checkout"')
   })
 
-  test('a hand-edited query is read once submitted, and the step stays open for editing', async () => {
-    const running = await startConnected()
-
-    const edited = await post(running, '/inputs/milestone-query/edit', { query: 'milestone:"Payments v2"' })
-
-    expect(edited.status).toBe(303)
-    expect(edited.headers.get('location')).toBe('/inputs?edit=query#milestone-tickets')
-    expect(stepOf(await page(running, '/inputs?edit=query'))).toContain('1 open · 1 finished in the last 9 weeks')
-  })
-
-  test('free text is refused: the step shows again with the query as typed and why', async () => {
-    const running = await startConnected()
-
-    const refused = await post(running, '/inputs/milestone-query/edit', { query: 'payments' })
-
-    expect(refused.status).toBe(400)
-    const step = stepOf(await refused.text())
-    expect(step).toContain('name="query" value="payments"')
-    expect(step).toContain('“payments” is free text, which isn’t read.')
-  })
-
-  test('a query the tracker rejects shows again as typed with the tracker’s message, still reading the last that worked', async () => {
-    const running = await startConnected({ ...FIXTURE, reads: { ...FIXTURE.reads, 'closed:>2026-13-45': { failure: 'invalidQuery', message: 'Not a date.' } } })
-    await post(running, '/inputs/milestone-query/add', { kind: 'milestone', name: 'Payments v2', query: 'milestone:"Payments v2"' })
-
-    const rejected = await post(running, '/inputs/milestone-query/edit', { query: 'closed:>2026-13-45' })
-
-    expect(rejected.status).toBe(400)
-    const step = stepOf(await rejected.text())
-    expect(step).toContain('value="closed:&#62;2026-13-45"')
-    expect(step).toContain('GitHub rejected this query: Not a date.')
-    expect(step).toContain('Still reading <code>milestone:&#34;Payments v2&#34;</code>')
-    expect(step).toContain('1 open · 1 finished in the last 9 weeks')
-  })
-
-  test('a pick whose query the tracker rejects keeps the step finding, with the chips that worked and the tracker’s message beside them', async () => {
-    const joined = 'milestone:"Payments v2" OR milestone:"Checkout"'
-    const running = await startConnected({ ...FIXTURE, reads: { ...FIXTURE.reads, [joined]: { failure: 'invalidQuery', message: 'Too many milestones.' } } })
-    await post(running, '/inputs/milestone-query/add', { kind: 'milestone', name: 'Payments v2', query: 'milestone:"Payments v2"' })
-
-    const rejected = await post(running, '/inputs/milestone-query/add', { kind: 'milestone', name: 'Checkout', query: 'milestone:"Checkout"' })
-
-    expect(rejected.status).toBe(400)
-    const step = stepOf(await rejected.text())
-    expect(step).toMatch(/class="chip"[^]*Payments v2[^]*class="error" role="alert">GitHub rejected this query: Too many milestones\./)
-    expect(step).toContain('type="search"')
-    expect(step).not.toContain('id="milestone-query"')
-    expect(step).toContain('1 open · 1 finished in the last 9 weeks')
-  })
-
-  test('a read matching nothing is flagged beside its line, while finding and editing', async () => {
-    const running = await startConnected()
-    await post(running, '/inputs/milestone-query/add', { kind: 'milestone', name: 'Checkout', query: 'milestone:"Checkout"' })
-
-    const flagged = /0 open · 0 finished in the last 9 weeks[^]*class="note warn flag">⚠ This query matches nothing/
-    expect(stepOf(await page(running))).toMatch(flagged)
-    expect(stepOf(await page(running, '/inputs?edit=query'))).toMatch(flagged)
-  })
-
-  test('Back to finding asks first when it will clear a query the picker can’t show, and once confirmed clears it', async () => {
+  test('Back to finding asks first when it will clear a query the picker can’t show: confirm=back asks, confirmed=yes clears it', async () => {
     const running = await startConnected()
     await post(running, '/inputs/milestone-query/edit', { query: 'label:checkout -label:bug' })
 
-    const editing = stepOf(await page(running))
     const back = await post(running, '/inputs/milestone-query/back', {})
-
-    expect(editing).toContain('The picker can’t show this query, so going back to finding clears it.')
-    expect(editing).toContain('action="/inputs/milestone-query/back#milestone-tickets"')
     expect(back.headers.get('location')).toBe('/inputs?edit=query&confirm=back#milestone-tickets')
-    const asking = stepOf(await page(running, '/inputs?edit=query&confirm=back'))
-    expect(asking).toContain('name="confirmed" value="yes"')
-    expect(asking).toContain('Clear the query and go back')
-    expect(asking).toContain('href="/inputs?edit=query#milestone-tickets"')
-    expect(stepOf(await page(running))).toContain('value="label:checkout -label:bug"')
+    expect(stepOf(await page(running, '/inputs?edit=query'))).not.toContain('name="confirmed"')
+    expect(stepOf(await page(running, '/inputs?edit=query&confirm=back'))).toContain('name="confirmed" value="yes"')
+    expect(storage?.setupDraft('team')?.milestoneQuery?.query).toBe('label:checkout -label:bug')
 
     const confirmed = await post(running, '/inputs/milestone-query/back', { confirmed: 'yes' })
 
     expect(confirmed.headers.get('location')).toBe('/inputs#milestone-tickets')
-    const finding = stepOf(await page(running))
-    expect(finding).toContain('Nothing picked yet.')
-    expect(finding).toContain('type="search"')
+    expect(storage?.setupDraft('team')?.milestoneQuery).toEqual({ picks: [], query: '' })
   })
 
-  test('an incomplete read shows no count, only the flag asking to narrow the query', async () => {
-    const running = await startConnected({ ...FIXTURE, reads: { 'is:open': { tickets: [{ id: 'o1' }], incomplete: true } } })
-    await post(running, '/inputs/milestone-query/edit', { query: 'is:open' })
-
-    const step = stepOf(await page(running))
-
-    expect(step).toContain('class="note warn flag">⚠ GitHub gave only part of what this query matches')
-    expect(step).not.toContain('open ·')
-  })
-
-  test('the lists show as the step opens, before anything is typed', async () => {
-    const running = await startConnected()
-
-    const html = await page(running)
-
-    expect(html).not.toContain('.found:not(.finding)')
-    expect(stepOf(html)).toContain('<div class="found">')
-  })
-
+  // deferred: needs test/app/components/inputsScreen.test.ts to number the sections after the Milestone step
   describe('an Inputs form posted while connected', () => {
     const sectionNumbers = (html: string): string[] =>
       [...html.matchAll(/<section[^>]* id="([^"]+)"[^]*?class="number">(\d+)</g)].map(([, id, n]) => `${id} ${n}`)
@@ -311,39 +174,5 @@ describe('the Milestone step', () => {
       expect(saved.status).toBe(200)
       expect(sectionNumbers(await saved.text()).slice(0, 2)).toEqual(['milestone-tickets 01', 'milestone 02'])
     })
-  })
-
-  test('renaming the milestone, as posted or saved in place, moves a query of its tracker milestone to the new name', async () => {
-    const running = await startConnected()
-    await post(running, '/inputs/milestone', { name: 'Payments v2', startDate: '2026-10-01', ticketsRemaining: '20' })
-    await post(running, '/inputs/milestone-query/add', { kind: 'milestone', name: 'Payments v2', query: 'milestone:"Payments v2"' })
-
-    const renamed = await post(running, '/inputs/milestone', { name: 'Checkout', startDate: '2026-10-01', ticketsRemaining: '20' })
-
-    expect(renamed.status).toBe(303)
-    expect(stepOf(await page(running))).toMatch(/class="chip"[^]*Checkout[^]*This query matches nothing/)
-    const back = await saveInPlace(running, '/inputs/milestone', { name: 'Payments v2', startDate: '2026-10-01', ticketsRemaining: '20' })
-    expect(back.status).toBe(200)
-    expect(stepOf(await page(running))).toContain('1 open · 1 finished in the last 9 weeks')
-  })
-
-  test('before connecting, there is none', async () => {
-    storage = openSqliteStorage(':memory:')
-    const connecting: Connecting = {
-      connections: storage,
-      queries: storage,
-      setup: storage,
-      secrets: openMemorySecrets(),
-      connector: () => cannedConnector(FIXTURE),
-    }
-    app = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage, connecting })
-
-    expect(await page(app)).not.toContain('id="milestone-tickets"')
-  })
-
-  test('the browser build has none', async () => {
-    const web = openWebApp({ storage: openWebStorage(undefined), clock: { now: () => '2026-11-12T09:00:00Z', timeZone: 'UTC' } })
-
-    expect((await web.show({ method: 'GET', path: '/inputs' })).html).not.toContain('id="milestone-tickets"')
   })
 })

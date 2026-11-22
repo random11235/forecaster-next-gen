@@ -43,10 +43,11 @@ describe('the setup steps', () => {
     expect(byRole(page, 'link', { name: 'Next' }).getAttribute('href')).toBe('/inputs?step=comparableWork#comparable-work')
   })
 
-  test('Comparable work with no query yet: Skip in place of Next', () => {
-    expect(byRole(stepPage({ step: 'comparableWork', next: { step: 'check', label: 'skip' } }), 'link', { name: 'Skip' }).getAttribute('href')).toBe(
-      '/inputs?step=check#check',
-    )
+  test('Comparable work with no query yet: Skip in place of Next, and Back to the Milestone step, at the screen’s own URL', () => {
+    const page = stepPage({ step: 'comparableWork', back: 'milestone', next: { step: 'check', label: 'skip' } })
+
+    expect(byRole(page, 'link', { name: 'Skip' }).getAttribute('href')).toBe('/inputs?step=check#check')
+    expect(byRole(page, 'link', { name: 'Back' }).getAttribute('href')).toBe('/inputs#milestone-tickets')
   })
 
   test('on Connect: no Back; once the connection changed in the steps, why they can’t be cancelled in place of Cancel', () => {
