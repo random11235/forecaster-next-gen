@@ -1,11 +1,11 @@
 ---
 name: code-review
-description: "Review the changes since a fixed point (commit, branch, tag, or merge-base) along two axes: Standards (does the code follow this repo's documented coding standards?) and Spec (does the code match what the originating issue/spec asked for?). Runs both reviews in parallel sub-agents and reports them side by side. Use when the user wants to review a branch, a PR, work-in-progress changes, or asks to \"review since X\"."
+description: "Review the changes since a fixed point (commit, branch, tag, or merge-base) along two axes: Standards (does the code follow this repo's documented standards, a code-smell baseline, and `/codebase-design`'s module design?) and Spec (does the code match what the originating issue/spec asked for?). Runs both reviews in parallel sub-agents and reports them side by side. Use when the user wants to review a branch, a PR, work-in-progress changes, or asks to \"review since X\"."
 ---
 
 Two-axis review of the diff between `HEAD` and a fixed point the user supplies:
 
-- **Standards**: does the code conform to this repo's documented coding standards?
+- **Standards**: does the code conform to this repo's documented standards, the smell baseline, and the module-design lens (step 3)?
 - **Spec**: does the code faithfully implement the originating issue / spec?
 
 Both axes run as **parallel sub-agents** so they don't pollute each other's context, then this skill aggregates their findings.
@@ -35,10 +35,15 @@ Look for the originating spec, in this order:
 
 Search the repo for every file that documents how code should be written. When `CODING_STANDARDS.md` or `CONTRIBUTING.md` exists, it must be on the list.
 
-On top of whatever the repo documents, the Standards axis always carries the **smell baseline** below: a fixed set of Fowler code smells (_Refactoring_, ch.3) that applies even when a repo documents nothing. Two rules bind it:
+On top of whatever the repo documents, the Standards axis always carries two lenses that apply even when a repo documents nothing:
 
-- **The repo overrides.** A documented repo standard always wins; where it endorses something the baseline would flag, suppress the smell.
-- **Always a judgement call.** Each smell is a labelled heuristic ("possible Feature Envy"), never a hard violation. Like any standard here, skip anything tooling already enforces.
+- The **module-design lens**: every new or changed module judged in the `codebase-design` skill's vocabulary. The Standards sub-agent loads that skill itself (step 4).
+- The **smell baseline** below: a fixed set of Fowler code smells (_Refactoring_, ch.3).
+
+Two rules bind both lenses:
+
+- **The repo overrides.** A documented repo standard always wins; where it endorses something a lens would flag, suppress the finding.
+- **Always a judgement call.** Each finding is a labelled heuristic ("possible Feature Envy", "possibly shallow"), never a hard violation. Like any standard here, skip anything tooling already enforces.
 
 Each smell reads *what it is* → *how to fix*; match it against the diff:
 
@@ -62,8 +67,9 @@ Issue both sub-agent calls together, in the foreground, and aggregate the report
 **Standards sub-agent prompt** should include:
 
 - The full diff command and commit list.
-- The list of standards-source files you found in step 3, **plus the smell baseline from step 3** pasted in full (the sub-agent has no other access to it).
-- The brief: "Before judging, call the Skill tool with `codebase-design` and read its vocabulary. Report, per file/hunk where relevant, (a) every place the diff violates a documented standard: cite the standard (file + the rule); (b) any baseline smell you spot: name it and quote the hunk; and (c) every new or changed module judged in `codebase-design`'s terms (depth, seam, leverage, locality): flag a shallow module whose interface is nearly as large as what it hides, and logic split across modules that change together. Distinguish hard violations from judgement calls: documented-standard breaches can be hard, but baseline smells and module-depth findings are always judgement calls, and a documented repo standard overrides the baseline. Skip anything tooling enforces. Report every finding, one line each, ranked most-severe first; one-way doors (schema, stored data) rank first."
+- The list of standards-source files you found in step 3, **plus step 3's two lenses, their two rules and the smell baseline** pasted in full (the sub-agent has no other access to them).
+- The first step: "Before reading the diff, call the Skill tool with `codebase-design`; its vocabulary is the module-design lens."
+- The brief: "Report, per file/hunk where relevant, (a) every place the diff violates a documented standard: cite the standard (file + the rule); (b) any baseline smell you spot: name it and quote the hunk; and (c) each new or changed module the module-design lens flags: name the term and quote the hunk. Documented-standard breaches can be hard violations; lens findings are always judgement calls, and a documented repo standard overrides the lenses. Skip anything tooling enforces. Report every finding, one line each, ranked most-severe first; one-way doors (schema, stored data) rank first."
 
 **Spec sub-agent prompt** should include:
 
