@@ -3,6 +3,7 @@ import {
   MAX_GROWTH,
   type GrowthView,
   type InputsEdit,
+  type CandidateOpening,
   type InputsScreen,
   type MilestoneInputsView,
   type QueryStep,
@@ -16,7 +17,7 @@ import { CHECK_SCRIPT, CHECK_STEP, checkStepHtml, setupSkippedHtml, setupStepHtm
 import { escapeHtml, htmlPage } from './html.js'
 import { INPUTS_SCRIPT } from './inputsScript.js'
 import { candidatesHtml, candidatesScript } from './candidatesSection.js'
-import { queryStepScript, queryStepSection, type StepSection } from './queryStepSection.js'
+import { COMPARABLE_WORK_STEP, MILESTONE_STEP, queryStepScript, queryStepSection, type StepSection } from './queryStepSection.js'
 import { errorLine, inputSection, radios, type FormError, type Section } from './lib/inputSection.js'
 import { milestoneSection } from './lib/milestoneSection.js'
 import { paceSection } from './lib/paceSection.js'
@@ -77,35 +78,18 @@ export const SKIP_FORMS: ReadonlyMap<string, (body: URLSearchParams) => SkipEdit
   ['/inputs/pace-count-again', (body) => ({ kind: 'countAgain', periods: body.getAll('period') })],
 ])
 
-/** A step picking or writing one of the team's queries, as the Inputs screen shows it: its section, and its view. */
-export interface ShownStep {
-  section: StepSection
-  view: QueryStep
-  /**
-   * The id its candidates' opening is kept by, for the page's script to read more in (`keepOpening`): the Comparable work
-   * step's, while it shows candidates (`ComparableWorkStep.candidates`, #205).
-   */
-  openingId?: string
-}
-
 /**
  * The Inputs screen: in the local server build, first its setup: the setup step the EM is on, the Connect step, the
- * query step `shown` (the Milestone step or the Comparable work step), or Check; or, once setup is closed, its
+ * query step the view shows (the Milestone step or the Comparable work step), or Check; or, once setup is closed, its
  * summary. Then the milestone, its pace and the team's growth.
  */
-export function renderInputsScreen(view: InputsScreen, shown?: ShownStep): string {
-  const { inputs: screen, setup } = view
+export function renderInputsScreen(view: InputsScreen, keep: KeepOpening): string {
+  const { inputs: screen, setup, step } = view
   const { milestone, forms } = screen
-  const steps = shown ? [shown] : []
+  const picker = step && shownStep(step, keep)
   const error: FormError = (form) => (screen.refusal?.form === form ? screen.refusal.error : undefined)
-  const pickers = steps.map(({ section, view, openingId }) => {
-    const picker = queryStepSection(view, section)
-    const candidates =
-      view.kind === 'comparableWorkStep' && view.candidates && openingId !== undefined ? candidatesHtml(view.candidates.shown, openingId, section) : ''
-    return { section, picker: picker + candidates }
-  })
   const sections = [
-    ...setupStepSection(view, pickers),
+    ...setupStepSection(view, picker),
     milestoneSection(screen, error),
     cadenceSection(forms.cadence, error('cadence'), milestone),
     paceSection(screen, error, milestone.period),
@@ -118,21 +102,37 @@ export function renderInputsScreen(view: InputsScreen, shown?: ShownStep): strin
     lede: 'What drives the forecast: the milestone, the team’s pace, and how work grows.',
   }
   // each script is a call, so one following another would be taken to call its result: `;` ends each (#275)
-  const script = [
-    INPUTS_SCRIPT,
-    ...(setup?.kind === 'steps' && setup.step === 'check' ? [CHECK_SCRIPT] : []),
-    ...pickers.map(({ section }) => queryStepScript(section)),
-    ...steps.filter(({ openingId }) => openingId !== undefined).map(({ section }) => candidatesScript(section)),
-  ].join(';')
+  const script = [INPUTS_SCRIPT, ...(setup?.kind === 'steps' && setup.step === 'check' ? [CHECK_SCRIPT] : []), ...(picker?.scripts ?? [])].join(';')
   const closed = setup?.kind === 'summary' ? setupSummaryHtml(setup) : setup?.kind === 'skipped' ? setupSkippedHtml() : ''
   return htmlPage('/inputs', header, closed + sections.map((section, index) => section(index + 1)).join('\n'), script)
 }
 
+/**
+ * Keeps the Comparable work step's candidates' opening (`ComparableWorkStep.candidates`, #205), for the page's script to
+ * read more in, and gives the id it is kept under: `keepOpening`, which writes it to the openings kept. It is called
+ * once for each render whose view has candidates, whether or not the screen then shows the step; calling it only when
+ * the step is shown would keep fewer openings, and so drop the oldest later.
+ */
+export type KeepOpening = (opening: CandidateOpening) => string
+
+/** A step picking or writing one of the team's queries, as the screen shows it: its section, its picker with the candidates it shows, and the picker's scripts. */
+interface Picker {
+  section: StepSection
+  html: string
+  scripts: string[]
+}
+
+function shownStep(view: QueryStep, keep: KeepOpening): Picker {
+  if (view.kind === 'milestoneStep')
+    return { section: MILESTONE_STEP, html: queryStepSection(view, MILESTONE_STEP), scripts: [queryStepScript(MILESTONE_STEP)] }
+  const section = COMPARABLE_WORK_STEP
+  const { candidates } = view
+  const shown = candidates ? candidatesHtml(candidates.shown, keep(candidates.opening), section) : ''
+  return { section, html: queryStepSection(view, section) + shown, scripts: [queryStepScript(section), ...(candidates ? [candidatesScript(section)] : [])] }
+}
+
 /** The setup step the EM is on, as its section, with the steps' list and Back and Next; none once setup is closed, or in the browser build. */
-function setupStepSection(
-  { setup, connection }: Pick<InputsScreen, 'setup' | 'connection'>,
-  pickers: readonly { section: StepSection; picker: string }[],
-): Section[] {
+function setupStepSection({ setup, connection }: Pick<InputsScreen, 'setup' | 'connection'>, picker: Picker | undefined): Section[] {
   if (setup?.kind !== 'steps') return []
   const step = (label: string, hint: string, body: string, id: string): Section[] => [
     inputSection(label, label, hint, setupStepHtml(setup, body), { postsOnSubmit: true, id }),
@@ -145,8 +145,9 @@ function setupStepSection(
       return step(CHECK_STEP.title, CHECK_STEP.hint, checkStepHtml(setup.check), CHECK_STEP.id)
     case 'milestone':
     case 'comparableWork': {
-      const shown = pickers.find(({ section }) => section.setupStep === setup.step)
-      return shown === undefined ? [] : step(shown.section.title, shown.section.hint, shown.picker, shown.section.id)
+      if (picker?.section.setupStep !== setup.step) return []
+      const { section, html } = picker
+      return step(section.title, section.hint, html, section.id)
     }
   }
 }
