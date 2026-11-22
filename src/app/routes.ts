@@ -9,7 +9,6 @@ import {
   COMPARABLE_WORK_STEP,
   CONFIRMING_BACK,
   KIND_FIELD,
-  MILESTONE_STEP,
   OPEN_FIELD,
   STEP_FORMS,
   STEP_SECTION,
@@ -115,11 +114,7 @@ function outcomeReply(request: Request, outcome: Outcome, capacityOpen: boolean)
 
 /** The Inputs screen, served at `/inputs` with `status`; its candidates' opening kept for the page's script to read more in. */
 function inputsReply(request: Request, status: number, screen: InputsScreen): Reply {
-  const { step } = screen
-  const section = step && (step.kind === 'milestoneStep' ? MILESTONE_STEP : COMPARABLE_WORK_STEP)
-  const candidates = step?.kind === 'comparableWorkStep' && step.candidates
-  const shown = section && step && { section, view: step, ...(candidates && { openingId: keepOpening(candidates.opening) }) }
-  const html = renderInputsScreen(screen, shown)
+  const html = renderInputsScreen(screen, keepOpening)
   return { kind: 'html', status, html, ...(request.method === 'POST' && { path: SCREEN_PATHS.inputs }) }
 }
 

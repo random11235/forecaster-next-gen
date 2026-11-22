@@ -21,6 +21,19 @@ export interface LaunchOptions {
   clock?: Clock
 }
 
+/** The port the app starts on when PORT doesn't name one. */
+const DEFAULT_PORT = 5180
+
+/** The port PORT names (`main.ts` reads it from the environment): unset or empty gives the default; 0 picks a free port. */
+export function portFromEnv(value: string | undefined): number {
+  if (value === undefined || value === '') return DEFAULT_PORT
+  const port = Number(value)
+  if (!/^\d+$/.test(value) || port > 65535) {
+    throw new Error(`PORT must be a whole number from 0 to 65535, not "${value}".`)
+  }
+  return port
+}
+
 export interface RunningApp {
   url: string
   close: () => Promise<void>
