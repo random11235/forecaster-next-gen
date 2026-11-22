@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { APP_VERSION } from '../../src/forecast/index.js'
 import { openWebApp } from '../../src/app/webApp.js'
 import { openWebStorage } from '../../src/storage/webStorage.js'
-import { defaultTeam } from './appOnTracker.js'
+import { defaultTeam } from './defaultTeam.js'
 import { capacitySection, hasRole, render } from './dom.js'
 
 // The web build's screens, as its page asks for them (#114): no server, so the app answers each request itself and

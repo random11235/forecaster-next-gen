@@ -1,6 +1,5 @@
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
 import type { CannedFixture } from '../../src/connectors/canned.js'
-import type { Team } from '../../src/model/team.js'
 import { cannedTrackerApp, type CannedTrackerApp } from './cannedTrackerApp.js'
 
 // The local server build on the canned connector, for tests of what the tracker reads through the EM's browser
@@ -33,6 +32,3 @@ export async function appOnTracker(fixture: CannedFixture, options: { now?: stri
 
 /** The page at `path`, as HTML. */
 export const page = async (running: RunningApp, path: string): Promise<string> => (await fetch(new URL(path, running.url))).text()
-
-/** The team either build adds on first open, when nothing is stored yet, installed at `installedAt`. */
-export const defaultTeam = (installedAt: string): Team => ({ id: 'team', name: 'My team', source: 'manual', sourceRef: '', installedAt })
