@@ -2,7 +2,7 @@
  * Stored JSON, read back: the one place in storage that parses JSON (test/storedJsonRules.test.ts checks that nothing
  * else uses the `JSON` global but to stringify). Each value is checked for the shape storage reads it as, by a check
  * its reader builds from the ones here, so a blob a later version, or a damaged file, left in a shape this version
- * doesn't know is refused, never read as something it isn't (CODING_STANDARDS.md, One-way doors).
+ * doesn't know is refused, never read as something it isn't.
  */
 
 /** Whether a parsed value is the shape storage reads it as. */
