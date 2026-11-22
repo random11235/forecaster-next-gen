@@ -189,10 +189,13 @@ function collapse(text: string): string {
 // By selector, where a role and text say too little: a visual state (the headline's emphasis, a bar's height, a shaded
 // week), a block with no role of its own, or what the page carries for its scripts (a `data-` attribute, a hidden field).
 
-/** The first element in `scope` matching `selector`, failing if there is none. */
-export function one(scope: Document | Element, selector: string): Element {
+/** The first element in `scope` matching `selector`, failing if there is none, or, given a `kind`, if it isn't one. */
+export function one(scope: Document | Element, selector: string): Element
+export function one<T extends Element>(scope: Document | Element, selector: string, kind: abstract new (...args: never[]) => T): T
+export function one(scope: Document | Element, selector: string, kind?: abstract new (...args: never[]) => Element): Element {
   const found = scope.querySelector(selector)
   if (!found) throw new Error(`Expected an element matching ${selector}, found none`)
+  if (kind && !(found instanceof kind)) throw new Error(`Expected a ${kind.name} matching ${selector}, found another`)
   return found
 }
 

@@ -50,7 +50,7 @@ const periods = (starts: string[]): URLSearchParams => new URLSearchParams(start
 
 /** The Pace section of the Inputs screen. */
 async function paceSection(running: RunningApp): Promise<string> {
-  return inputsSection(running, 'pace')
+  return inputsSection(await page(running, '/inputs'), 'pace')
 }
 
 describe('skipping GitHub’s weeks', () => {

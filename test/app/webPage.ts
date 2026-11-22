@@ -1,5 +1,7 @@
 import { afterEach, vi } from 'vitest'
-import { Window } from 'happy-dom'
+import { Window, type Element } from 'happy-dom'
+import { one } from './dom.js'
+import { watchPage } from './pageWatch.js'
 
 // The web build's page (#114) in happy-dom, its page script (`webMain.ts`) running (#237): imported here, in Vitest's
 // own process, on the happy-dom window put in place of the browser's globals, so the coverage counts it, and the
@@ -11,11 +13,14 @@ export interface WebPage {
   readonly window: Window
   /** The URLs the page fetched past the app, from the browser's own `fetch`, in the order asked. */
   readonly fetchedElsewhere: readonly string[]
+  /** The first element `selector` finds, as the page holds it now, which must be a `kind`. */
+  find<T extends Element>(selector: string, kind: abstract new (...args: never[]) => T): T
   /** What the page keeps in the browser's storage now, by key. */
   stored(): Map<string, string>
   /**
    * Waits until `shows()` is true of the page, checking it each time the page changes. It fails, saying it waited for
-   * `what`, if the page hasn't shown it within `UNTIL_LIMIT_MS`, and on each error the page's scripts left uncaught.
+   * `what`, if the page hasn't shown it within `UNTIL_LIMIT_MS` (pageWatch.ts), and on each error the page's scripts left
+   * uncaught.
    */
   until(what: string, shows: () => boolean): Promise<void>
 }
@@ -29,10 +34,12 @@ export interface Opening {
   historyRefused?: boolean
 }
 
-/** How long `until` waits: far longer than any answer from the app in-process takes. */
-const UNTIL_LIMIT_MS = 2000
-
-/** For a test file of the web build's page: opens it as `opening` says, and closes it after each test. */
+/**
+ * For a test file of the web build's page: opens it as `opening` says, and closes it after each test. The page script
+ * reads the browser's globals, so these are the happy-dom window's while a page is open, and put back after each test:
+ * `window`, `document`, `location` and `history`, and the constructors it calls by name, `DOMParser`, `FormData`,
+ * `Headers` and `Response`. A global it comes to read that isn't stubbed is Node's, or missing; stub it here.
+ */
 export function webPages(): { open(opening?: Opening): Promise<WebPage> } {
   let window: Window | undefined
   afterEach(async () => {
@@ -47,8 +54,8 @@ export function webPages(): { open(opening?: Opening): Promise<WebPage> } {
         settings: { enableJavaScriptEvaluation: true, suppressInsecureJavaScriptEnvironmentWarning: true },
       })
       window = opened
-      const errors: unknown[] = []
-      opened.addEventListener('error', (event) => errors.push('error' in event ? event.error : event))
+      const watch = watchPage()
+      watch.hear(opened)
       for (const [key, value] of stored) opened.localStorage.setItem(key, value)
       if (storageBlocked) {
         Object.defineProperty(opened, 'localStorage', {
@@ -80,29 +87,8 @@ export function webPages(): { open(opening?: Opening): Promise<WebPage> } {
           const keys = Array.from({ length: localStorage.length }, (_, at) => localStorage.key(at) ?? '')
           return new Map(keys.map((key) => [key, localStorage.getItem(key) ?? '']))
         },
-        until: (what, shows) =>
-          new Promise((resolve, reject) => {
-            const check = (): void => {
-              if (errors.length > 0) {
-                done()
-                reject(new AggregateError(errors.splice(0), 'the page’s scripts threw'))
-              } else if (shows()) {
-                done()
-                resolve()
-              }
-            }
-            const watching = new opened.MutationObserver(check)
-            const limit = setTimeout(() => {
-              done()
-              reject(new Error(`the page didn’t show ${what} within ${UNTIL_LIMIT_MS}ms`))
-            }, UNTIL_LIMIT_MS)
-            const done = (): void => {
-              watching.disconnect()
-              clearTimeout(limit)
-            }
-            watching.observe(opened.document, { childList: true, subtree: true, characterData: true, attributes: true })
-            check()
-          }),
+        find: (selector, kind) => one(opened.document, selector, kind),
+        until: (what, shows) => watch.until(opened, what, shows),
       }
       await page.until('a screen of the app', () => opened.document.title.endsWith('· Forecaster'))
       return page

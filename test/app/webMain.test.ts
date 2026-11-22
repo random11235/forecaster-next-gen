@@ -1,9 +1,11 @@
 import { describe, expect, test, vi } from 'vitest'
-import type { Element } from 'happy-dom'
+import { Element, HTMLFormElement, HTMLInputElement } from 'happy-dom'
 import { openWebApp } from '../../src/app/webApp.js'
 import { openWebStorage } from '../../src/storage/webStorage.js'
 import { defaultTeam } from './appOnTracker.js'
 import { byRole, text } from './dom.js'
+import { change } from './fieldEvents.js'
+import { SAVE_IN_PLACE } from './forms.js'
 import { webPages, type WebPage } from './webPage.js'
 
 // The web build's page script (`webMain.ts`, #114), run in happy-dom (#237): the screen it shows for the URL, the
@@ -30,11 +32,10 @@ const FORECAST = 'Milestone forecast · Forecaster'
 const INPUTS = 'Inputs · Forecaster'
 
 /** The element `selector` finds, which must be there. */
-function at(page: WebPage, selector: string): Element {
-  const found = page.window.document.querySelector(selector)
-  if (!found) throw new Error(`nothing at ${selector}`)
-  return found
-}
+const at = (page: WebPage, selector: string): Element => page.find(selector, Element)
+
+/** The field named `name` of the Inputs screen's form posting to `form`. */
+const field = (page: WebPage, form: string, name: string): HTMLInputElement => page.find(`form[action^="${form}"] [name="${name}"]`, HTMLInputElement)
 
 /** Clicks `element` with the left button, and `modifiers` held; whether the page let the browser follow it. */
 function click(
@@ -43,13 +44,6 @@ function click(
   modifiers: { ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean; altKey?: boolean; button?: number } = {},
 ): boolean {
   return element.dispatchEvent(new page.window.MouseEvent('click', { bubbles: true, cancelable: true, ...modifiers }))
-}
-
-/** Types `value` into `field` of the Inputs screen's `form`, and fires its change, as the browser does on leaving it. */
-function change(page: WebPage, form: string, field: string, value: string): void {
-  const input = at(page, `form[action^="${form}"] [name="${field}"]`)
-  ;(input as unknown as { value: string }).value = value
-  input.dispatchEvent(new page.window.Event('change', { bubbles: true }))
 }
 
 describe('the web build’s page script', () => {
@@ -68,12 +62,12 @@ describe('the web build’s page script', () => {
   test('the Inputs screen’s saves are answered by the app through fetch, kept in the browser’s storage, and found again on opening', async () => {
     const page = await pages.open({ hash: '#/inputs' })
 
-    change(page, '/inputs/milestone', 'name', 'Launch')
-    change(page, '/inputs/milestone', 'startDate', '2026-11-02')
-    change(page, '/inputs/milestone', 'ticketsRemaining', '30')
+    change(field(page, '/inputs/milestone', 'name'), 'Launch')
+    change(field(page, '/inputs/milestone', 'startDate'), '2026-11-02')
+    change(field(page, '/inputs/milestone', 'ticketsRemaining'), '30')
     await page.until('the milestone saved', () => text(at(page, 'section#milestone')).includes('Saved'))
-    change(page, '/inputs/pace', 'low', '5')
-    change(page, '/inputs/pace', 'high', '10')
+    change(field(page, '/inputs/pace', 'low'), '5')
+    change(field(page, '/inputs/pace', 'high'), '10')
     await page.until('the pace saved', () => text(at(page, 'section#pace')).includes('Saved'))
 
     expect(title(page)).toBe(INPUTS)
@@ -84,10 +78,9 @@ describe('the web build’s page script', () => {
   test('an Inputs form submitted, as Enter in a field submits it, is the Inputs screen’s own to save, in place', async () => {
     const page = await pages.open({ hash: '#/inputs' })
     const typed = { name: 'Launch', startDate: '2026-11-02', ticketsRemaining: '30' }
-    for (const [name, value] of Object.entries(typed))
-      (at(page, `form[action^="/inputs/milestone"] [name="${name}"]`) as unknown as { value: string }).value = value
+    for (const [name, value] of Object.entries(typed)) field(page, '/inputs/milestone', name).value = value
 
-    ;(at(page, 'form[action^="/inputs/milestone"]') as unknown as { requestSubmit(): void }).requestSubmit()
+    page.find('form[action^="/inputs/milestone"]', HTMLFormElement).requestSubmit()
     await page.until('the milestone saved', () => text(at(page, 'section#milestone')).includes('Saved'))
 
     expect(title(page)).toBe(INPUTS)
@@ -125,8 +118,8 @@ describe('the web build’s page script', () => {
     for (const held of [{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { altKey: true }, { button: 1 }]) expect(click(page, link, held)).toBe(true)
     expect(click(page, elsewhere)).toBe(true)
     expect(click(page, page.window.document.body)).toBe(true)
-    await new Promise((resolve) => setTimeout(resolve, 20))
 
+    // the page shows a screen only once it has taken the click from the browser, which none of these clicks was
     expect(title(page)).toBe(FORECAST)
   })
 
@@ -136,7 +129,7 @@ describe('the web build’s page script', () => {
     const capacitySwitch = byRole(page.window.document, 'switch', { name: 'Use capacity in this forecast' })
     expect(capacitySwitch.getAttribute('aria-checked')).toBe('true')
 
-    ;(capacitySwitch as unknown as { click(): void }).click()
+    click(page, capacitySwitch)
     await page.until('capacity switched off', () => byRole(page.window.document, 'switch').getAttribute('aria-checked') === 'false')
 
     expect(text(page.window.document)).toContain('Off: the forecast uses pace alone.')
@@ -173,6 +166,17 @@ describe('the web build’s page script', () => {
     expect(page.fetchedElsewhere).toEqual([])
   })
 
+  test('a save sent through fetch asking to be answered in place is answered with the Inputs screen, and one not asking with the screen it goes to', async () => {
+    const page = await pages.open({ hash: '#/inputs', stored: await forecasting() })
+    const pace = { method: 'POST', body: 'low=6&high=9' }
+
+    const inPlace = await page.window.fetch('/inputs/pace', { ...pace, headers: { [SAVE_IN_PLACE.header]: SAVE_IN_PLACE.value } })
+    const notInPlace = await page.window.fetch('/inputs/pace', pace)
+
+    expect(await inPlace.text()).toContain('<title>Inputs · Forecaster</title>')
+    expect(await notInPlace.text()).toContain('<title>Milestone forecast · Forecaster</title>')
+  })
+
   test('a form posting to another site is left to the browser', async () => {
     const page = await pages.open()
     const form = page.window.document.createElement('form')
@@ -186,9 +190,9 @@ describe('the web build’s page script', () => {
   test('with the browser’s storage blocked, it still opens, and saves for as long as the page is open', async () => {
     const page = await pages.open({ hash: '#/inputs', storageBlocked: true })
 
-    change(page, '/inputs/milestone', 'name', 'Launch')
-    change(page, '/inputs/milestone', 'startDate', '2026-11-02')
-    change(page, '/inputs/milestone', 'ticketsRemaining', '30')
+    change(field(page, '/inputs/milestone', 'name'), 'Launch')
+    change(field(page, '/inputs/milestone', 'startDate'), '2026-11-02')
+    change(field(page, '/inputs/milestone', 'ticketsRemaining'), '30')
     await page.until('the milestone saved', () => text(at(page, 'section#milestone')).includes('Saved'))
     click(page, at(page, 'a[href="/"]'))
     await page.until('the Milestone forecast screen', shows(page, FORECAST))

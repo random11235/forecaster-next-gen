@@ -1,40 +1,15 @@
 import { startAppAndOpenBrowser, type RunningApp } from '../../src/app/launch.js'
-import { cannedConnector, type CannedFixture } from '../../src/connectors/canned.js'
-import type { Clock, Connecting } from '../../src/forecast/index.js'
+import type { CannedFixture } from '../../src/connectors/canned.js'
 import type { Team } from '../../src/model/team.js'
-import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
-import type { Secrets } from '../../src/secrets/secrets.js'
-import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
-import { TODAY, type TeamStorage } from '../trackerScenario.js'
+import { cannedTrackerApp, type CannedTrackerApp } from './cannedTrackerApp.js'
 
 // The local server build on the canned connector, for tests of what the tracker reads through the EM's browser
 // (#211–#215): its storage in memory, and the requests the browser makes.
 
 /** The app running on the canned connector, and what it stores. */
-export interface AppOnTracker {
+export interface AppOnTracker extends Pick<CannedTrackerApp, 'storage' | 'secrets' | 'readAt'> {
   running: RunningApp
-  storage: TeamStorage
-  /** Where the app keeps the team's token, in memory in place of the keychain. */
-  secrets: Secrets
-  /** Moves the clock: the instant the app reads the tracker at from now on. */
-  readAt(instant: string): void
   close(): Promise<void>
-}
-
-/** What either way of running the app on the canned connector runs on: storage and secrets in memory, and a clock a test moves. */
-export function onTracker(fixture: CannedFixture, { now = `${TODAY}T09:00:00Z` } = {}) {
-  const storage: TeamStorage = openSqliteStorage(':memory:')
-  const secrets = openMemorySecrets()
-  const connecting: Connecting = {
-    connections: storage,
-    queries: storage,
-    setup: storage,
-    secrets,
-    connector: () => cannedConnector(fixture),
-  }
-  let instant = now
-  const clock: Clock = { now: () => instant, timeZone: 'UTC' }
-  return { storage, secrets, connecting, clock, readAt: (later: string) => void (instant = later) }
 }
 
 /**
@@ -42,29 +17,23 @@ export function onTracker(fixture: CannedFixture, { now = `${TODAY}T09:00:00Z` }
  * when read, so a test can change what the next read finds. Not yet connected, with nothing entered.
  */
 export async function appOnTracker(fixture: CannedFixture, options: { now?: string } = {}): Promise<AppOnTracker> {
-  const { storage, secrets, connecting, clock, readAt } = onTracker(fixture, options)
-  const running = await startAppAndOpenBrowser({ port: 0, openBrowser: () => {}, storage, connecting, clock })
+  const app = cannedTrackerApp(fixture, options)
+  const running = await startAppAndOpenBrowser({ ...app, port: 0, openBrowser: () => {} })
   return {
+    ...app,
     running,
-    storage,
-    secrets,
-    readAt,
     async close() {
       await running.close()
-      storage.close()
+      app.storage.close()
     },
   }
 }
 
-/** The connection the app's tests connect with: GitHub's shop-team/shop, with a token the canned connector takes. */
-export const GITHUB_SHOP = { tracker: 'github', repo: 'shop-team/shop', token: 'token' } as const
-
 /** The page at `path`, as HTML. */
 export const page = async (running: RunningApp, path: string): Promise<string> => (await fetch(new URL(path, running.url))).text()
 
-/** The section of the Inputs screen with `id`. */
-export async function inputsSection(running: RunningApp, id: string): Promise<string> {
-  const html = await page(running, '/inputs')
+/** The section with `id` of `html`, the Inputs screen, as the app answers with it over HTTP or in-process. */
+export function inputsSection(html: string, id: string): string {
   const start = html.indexOf(`id="${id}"`)
   if (start === -1) throw new Error(`no section ${id} on the Inputs screen`)
   return html.slice(start, html.indexOf('</section>', start))
