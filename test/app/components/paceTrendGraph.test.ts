@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { renderPaceTrend } from '../../../src/app/paceTrendGraph.js'
 import type { PaceTrend, PairedPace, PeriodName } from '../../../src/forecast/index.js'
-import { accessibleName, byRole, render, text } from '../dom.js'
+import { accessibleName, all, byRole, one, render, text } from '../dom.js'
 
 // The pace trend graph (#236), rendered from a trend built by hand: what it says and draws for typed counts, and for
 // the tracker's counts paired with comparable work's. Which trend a forecast has is Seam B's (test/forecast/).
@@ -10,7 +10,7 @@ const graph = (trend: PaceTrend | undefined, period: PeriodName = 'week') => ren
 const typed = (counts: number[], start: number, end: number): PaceTrend => ({ counts, start, end, paired: undefined })
 const paired = (pairing: PairedPace, start = 4, end = 6): PaceTrend => ({ counts: pairing[pairing.from], start, end, paired: pairing })
 /** Each bar's height, in SVG units, drawn with `kind` (every bar without). */
-const heights = (trend: PaceTrend, kind = 'rect') => [...graph(trend).querySelectorAll(`.trend-bars ${kind}`)].map((bar) => Number(bar.getAttribute('height')))
+const heights = (trend: PaceTrend, kind = 'rect') => all(graph(trend), `.trend-bars ${kind}`).map((bar) => Number(bar.getAttribute('height')))
 
 describe('the pace trend graph', () => {
   test('with no trend, draws nothing', () => {
@@ -60,7 +60,7 @@ describe('the pace trend graph', () => {
 
       expect(heights(trend, '.comparable.in-use')).toEqual([32, 48, 64])
       expect(heights(trend, '.own:not(.in-use)')).toEqual([8, 16, 24])
-      expect(graph(trend).querySelector('pattern')).toBeNull()
+      expect(all(graph(trend), 'pattern')).toEqual([])
     })
 
     test('pace from the milestone’s own: marks it the pace, and says the periods before it started', () => {
@@ -80,7 +80,7 @@ describe('the pace trend graph', () => {
       expect(heights(trend, '.before')).toEqual([6, 6])
       expect(heights(trend, '.own.in-use')).toEqual([40, 56])
       expect(heights(trend, '.comparable:not(.in-use)')).toEqual([32, 48, 64, 16])
-      expect(graph(trend).querySelector('pattern#pace-trend-before')).not.toBeNull()
+      one(graph(trend), 'pattern#pace-trend-before')
     })
   })
 })

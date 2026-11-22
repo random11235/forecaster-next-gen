@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { connectSection } from '../../../src/app/connectSection.js'
 import type { ConnectStep } from '../../../src/forecast/index.js'
-import { allByRole, byRole, hasRole, render, text } from '../dom.js'
+import { allByRole, byRole, hasRole, one, postsTo, render, text } from '../dom.js'
 
 // The Connect step (#236), rendered from a view built by hand: before connecting, refused, and connected. Which view
 // the team is shown, and why a connect is refused, are Seam B's (test/forecast/connection.test.ts).
@@ -31,7 +31,7 @@ describe('the Connect step', () => {
       ['jira', false],
     ])
     expect(byRole(page, 'textbox', { name: 'Repo' }).getAttribute('value')).toBe('')
-    expect(byRole(page, 'button', { name: 'Connect' })).toBeTruthy()
+    byRole(page, 'button', { name: 'Connect' })
     expect(byRole(page, 'button', { name: 'Skip: type the inputs instead' }).getAttribute('formaction')).toBe('/inputs/setup/skip')
     expect(hasRole(page, 'alert')).toBe(false)
   })
@@ -40,8 +40,10 @@ describe('the Connect step', () => {
     const page = step(connect)
 
     expect(text(page)).toContain('on GitHub a fine-grained token with Issues: Read on the one repo; on Jira a scoped API token with read:jira-work.')
-    expect(page.querySelector('input[name="token"]')?.getAttribute('value')).toBe('')
-    expect(page.querySelector('input[name="token"]')?.getAttribute('placeholder')).toBe('read-only, never shown again')
+    // a password field has no role
+    const token = one(page, 'input[name="token"]')
+    expect(token.getAttribute('value')).toBe('')
+    expect(token.getAttribute('placeholder')).toBe('read-only, never shown again')
   })
 
   test('refused: says why, the form as typed, the chosen tracker kept', () => {
@@ -61,17 +63,17 @@ describe('the Connect step', () => {
     const page = step(connected)
 
     expect(text(page)).toMatch(/^Connected to GitHub · shop-team\/shop Disconnect Change the connection/)
-    expect(byRole(page, 'button', { name: 'Disconnect' }).closest('form')?.getAttribute('action')).toBe('/inputs/connect/disconnect#connect')
+    expect(postsTo(byRole(page, 'button', { name: 'Disconnect' }))).toBe('/inputs/connect/disconnect#connect')
     expect(hasRole(page, 'button', { name: 'Change connection' })).toBe(false)
     expect(hasRole(page, 'button', { name: /Skip/ })).toBe(false)
-    expect(page.querySelector('input[name="token"]')?.getAttribute('placeholder')).toBe('blank keeps the saved token')
+    expect(one(page, 'input[name="token"]').getAttribute('placeholder')).toBe('blank keeps the saved token')
   })
 
   test('connected, a change refused: the change form open, saying why, with the repo as typed', () => {
     const page = step({ ...connected, form: { ...blank, repo: 'shop-team/nope' }, refusal: 'GitHub has no repo shop-team/nope.' })
 
     expect(text(byRole(page, 'alert'))).toBe('GitHub has no repo shop-team/nope.')
-    expect(byRole(page, 'button', { name: 'Change connection' })).toBeTruthy()
+    byRole(page, 'button', { name: 'Change connection' })
     expect(byRole(page, 'textbox', { name: 'Repo' }).getAttribute('value')).toBe('shop-team/nope')
   })
 })
