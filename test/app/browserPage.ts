@@ -2,7 +2,7 @@ import { Browser, type BrowserWindow, type Document, type Element, type Request,
 import type { AppInProcess, RouteReply, RouteRequest } from './appInProcess.js'
 import { one } from './dom.js'
 import { SAVE_IN_PLACE } from './forms.js'
-import { answeredFrom, failRequest } from './happyDomAnswers.js'
+import { answeredFrom, failRequest, navigations } from './happyDomAnswers.js'
 import { watchPage } from './pageWatch.js'
 
 // A page of the app in happy-dom, its scripts running (#275): what the EM's browser does with the HTML the other app
@@ -27,6 +27,8 @@ export interface PageRequest {
   readonly saveInPlace: boolean
   /** The form it posted, as the routes read it; none for a GET. */
   readonly form?: URLSearchParams
+  /** The routes' own reply to it, before any redirect is followed; none until they reply, nor where they failed to. */
+  readonly reply?: RouteReply
 }
 
 /** A page open in happy-dom, its scripts running against the app. */
@@ -82,27 +84,32 @@ async function routeRequest(request: Request): Promise<RouteRequest> {
 }
 
 /**
- * The page the browser shows of its own in place of one it couldn't reach, as Chrome does: a stand-in, as happy-dom
- * shows none, and leaves the navigation failing with nothing to hear it.
+ * The title of the page the browser shows of its own in place of a form's answer it couldn't reach, as Chrome does: a
+ * stand-in made here, not the app's, as happy-dom shows none, and leaves the navigation failing with nothing to hear it.
  */
 export const CANT_BE_REACHED = 'This site can’t be reached'
+
+/** The browser's own page saying it couldn't reach the site, as `window` reads it. */
+const cantBeReachedPage = (window: BrowserWindow): Response =>
+  new window.Response(`<!doctype html><title>${CANT_BE_REACHED}</title><p>${CANT_BE_REACHED}</p>`, HTML)
 
 /**
  * Opens `path` of `app` in happy-dom, with JavaScript on, as only the app's own pages are opened here. Each request is
  * answered by `app`, a redirect followed to the page it names as a browser follows the server's. A request `app` fails
- * to answer fails, as one to a server that has stopped does: a script's `fetch` rejects, and a form submitted opens
- * the browser's own page saying so (`CANT_BE_REACHED`). It fails if the page's scripts throw as it opens.
+ * to answer fails, as one to a server that has stopped does: a script's `fetch` rejects, a form posted opens the
+ * browser's own page saying so (`CANT_BE_REACHED`), and any other navigation fails, opening the page among them. It
+ * fails if the page's scripts throw as it opens.
  */
 export async function openPage(app: Pick<AppInProcess, 'answer'>, path: string): Promise<BrowserPage> {
   const holds: Hold[] = []
   const requests: PageRequest[] = []
   const watch = watchPage()
-  /** The windows a page has opened in: a request from one is its scripts', and one from a window still opening, a page's. */
-  const opened = new WeakSet<BrowserWindow>()
+  const navigating = navigations()
   let heldWhileSettling = (_hold: Hold): void => {}
-  /** `app`'s answer to `request`, as `window` reads one, at the address it was answered from. */
-  const answer = async (window: BrowserWindow, request: RouteRequest): Promise<Response> => {
-    let reply: RouteReply = await app.answer(request)
+  /** `app`'s answer to `request`, as `window` reads one, at the address it was answered from; and the routes' reply. */
+  const answer = async (window: BrowserWindow, request: RouteRequest): Promise<{ response: Response; first: RouteReply }> => {
+    const first = await app.answer(request)
+    let reply = first
     let at = request.path
     while (reply.kind === 'redirect') {
       at = reply.location
@@ -112,7 +119,7 @@ export async function openPage(app: Pick<AppInProcess, 'answer'>, path: string):
       reply.kind === 'html'
         ? new window.Response(reply.html, { ...HTML, status: reply.status })
         : new window.Response('Not found', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8' } })
-    return answeredFrom(response, new URL(at, ORIGIN).href)
+    return { response: answeredFrom(response, new URL(at, ORIGIN).href), first }
   }
   /** Holds the answer to `request`, if a test asked to hold the next one to its path, until released. */
   const holding = async (request: RouteRequest): Promise<void> => {
@@ -129,7 +136,7 @@ export async function openPage(app: Pick<AppInProcess, 'answer'>, path: string):
       suppressInsecureJavaScriptEnvironmentWarning: true,
       navigation: {
         beforeContentCallback: (window) => {
-          opened.add(window)
+          navigating.opened(window)
           watch.hear(window)
         },
       },
@@ -137,17 +144,25 @@ export async function openPage(app: Pick<AppInProcess, 'answer'>, path: string):
         interceptor: {
           beforeAsyncRequest: async ({ request, window }) => {
             const asked = await routeRequest(request)
-            requests.push({ method: asked.method, url: new URL(request.url), saveInPlace: asked.saveInPlace === true, ...(asked.form && { form: asked.form }) })
-            let response: Response
+            const sent: { -readonly [K in keyof PageRequest]: PageRequest[K] } = {
+              method: asked.method,
+              url: new URL(request.url),
+              saveInPlace: asked.saveInPlace === true,
+              ...(asked.form && { form: asked.form }),
+            }
+            requests.push(sent)
+            let answered: Awaited<ReturnType<typeof answer>>
             try {
-              response = await answer(window, asked)
+              answered = await answer(window, asked)
             } catch (error) {
-              if (!opened.has(window)) return new window.Response(`<!doctype html><title>${CANT_BE_REACHED}</title><p>${CANT_BE_REACHED}</p>`, HTML)
+              // a form posted opens the browser's own page; a script's fetch rejects, and a page opened fails to open
+              if (asked.method === 'POST' && navigating.isNavigation(window)) return cantBeReachedPage(window)
               failRequest(window, request, error)
               return
             }
+            sent.reply = answered.first
             await holding(asked)
-            return response
+            return answered.response
           },
         },
       },

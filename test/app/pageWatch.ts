@@ -48,6 +48,13 @@ export function watchPage(): PageWatch {
         const watching = new window.MutationObserver(check)
         const limit = setTimeout(() => {
           done()
+          try {
+            throwUncaught()
+          } catch (error) {
+            // an error left uncaught with no change to the page after it: that, not the wait, is what failed
+            reject(error)
+            return
+          }
           reject(new Error(`the page didn’t show ${what} within ${UNTIL_LIMIT_MS}ms`))
         }, UNTIL_LIMIT_MS)
         const done = (): void => {

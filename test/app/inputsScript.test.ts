@@ -4,7 +4,8 @@ import type { CannedFixture } from '../../src/connectors/canned.js'
 import { CHECKOUT, TEAM } from '../trackerScenario.js'
 import { connectAndPick, type AppInProcess } from './appInProcess.js'
 import { posted, type BrowserPage } from './browserPage.js'
-import { inputsSection } from './appOnTracker.js'
+import { render } from './dom.js'
+import { inputsSection } from './inputsSection.js'
 import { change, changed } from './fieldEvents.js'
 import { pagesOnTracker } from './pagesOnTracker.js'
 
@@ -218,7 +219,7 @@ describe('the Inputs screen’s script', () => {
 
     expect(posted(page)).toEqual(['/inputs/reading-opened'])
     expect(chip.querySelector('.dot')).toBeNull()
-    expect(inputsSection(await app.page('/inputs'), 'milestone')).not.toContain('class="dot"')
+    expect(render(inputsSection(await app.page('/inputs'), 'milestone')).querySelector('.dot')).toBeNull()
   })
 
   test('a chip’s Follow switches the value back to the tracker, though nothing was typed', async () => {
