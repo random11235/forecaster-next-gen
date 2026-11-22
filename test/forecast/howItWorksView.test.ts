@@ -15,13 +15,24 @@ describe('How it works: the example forecast', () => {
     expect(view.example).toEqual({ ticketsRemaining: 30, growth: { low: 1, high: 2 }, pace: { low: 4, high: 8 }, cadenceDays: 7 })
   })
 
-  test('its simulations all finish between week 4 and week 15, one share per week from the start', () => {
-    const finishing = view.finishes.filter(({ share }) => share > 0).map(({ period }) => period)
+  test('its simulations finish between week 4 and week 15, one share per week from the start to the week 99% of them have finished by', () => {
+    const { bars } = view.finishGraph
+    const finishing = bars.filter(({ share }) => share > 0).map(({ period }) => period)
 
     expect(Math.min(...finishing)).toBeGreaterThanOrEqual(4)
-    expect(Math.max(...finishing)).toBeLessThanOrEqual(15)
-    expect(view.finishes.map(({ period }) => period)).toEqual(view.finishes.map((_, at) => at))
-    expect(view.finishes.reduce((sum, { share }) => sum + share, 0)).toBeCloseTo(1, 9)
+    expect(bars.map(({ period }) => period)).toEqual(bars.map((_, at) => at))
+    expect(bars.at(-1)?.finishedBy).toBeGreaterThanOrEqual(0.99)
+    expect(bars.at(-2)?.finishedBy).toBeLessThan(0.99)
+  })
+
+  test('the few simulations finishing after the 99% week are summed with the week the last of them does, no later than week 15', () => {
+    const { bars, later } = view.finishGraph
+    const lastWeek = later?.last.kind === 'by' ? later.last.period : Infinity
+
+    expect(later?.share).toBeCloseTo(1 - (bars.at(-1)?.finishedBy ?? 0), 9)
+    expect(later?.share).toBeGreaterThan(0)
+    expect(lastWeek).toBeGreaterThan(bars.at(-1)?.period ?? Infinity)
+    expect(lastWeek).toBeLessThanOrEqual(15)
   })
 
   test('the burndown at the average pace, 6 a week, reaches the 30 tickets in week 5, which far fewer than half the simulations meet', () => {
