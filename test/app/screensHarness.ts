@@ -74,7 +74,7 @@ export async function page(path: string): Promise<string> {
   return (await fetch(new URL(path, running().url))).text()
 }
 
-/** The page's visible text, with tags removed and spaces collapsed. */
+/** A served page's text, its styles and tags removed and spaces collapsed; dom.ts's `text` reads a parsed page instead. */
 export function text(html: string): string {
   return html
     .replace(/<style[\s\S]*?<\/style>/g, '')

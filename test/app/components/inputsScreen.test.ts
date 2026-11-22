@@ -1,10 +1,9 @@
 import { beforeEach, describe, expect, test } from 'vitest'
-import { renderInputsScreen, type ShownStep } from '../../../src/app/inputsScreen.js'
-import { COMPARABLE_WORK_STEP, MILESTONE_STEP } from '../../../src/app/queryStepSection.js'
+import { renderInputsScreen } from '../../../src/app/inputsScreen.js'
 import type { Forecasting, InputsEdit, InputsOpening, InputsScreen } from '../../../src/forecast/index.js'
 import { checkoutFixture, CONNECTIONS, forecastingForTest, pick, submitInputs, type ForecastingForTest } from '../../forecast/forecastingForTest.js'
 import { finishedInWeeks, label, open } from '../../trackerScenario.js'
-import { accessibleName, allByRole, around, byRole, hasRole, one, render, text } from '../dom.js'
+import { accessibleName, all, allByRole, around, byRole, hasRole, one, radios, render, text } from '../dom.js'
 
 // The Inputs screen (#236), rendered from the views Seam B gives (test/forecast/forecastingForTest.ts), started no
 // server: empty, refused, warned, each setup step and its summary, and each source of tickets remaining and pace, with
@@ -16,16 +15,8 @@ const WEEKS = ['2026-09-21', '2026-09-28', '2026-10-05', '2026-10-12', '2026-10-
 // GitHub reads 34 tickets remaining, and 5, 6, 4, 7, 5, 6, 8 finished in the weeks it reads whole
 const TICKETS = [...open(34), ...finishedInWeeks(WEEKS, [5, 6, 4, 7, 5, 6, 8])]
 
-/** The screen as `renderInputsScreen` draws `view`, its query step shown, as the server shows it. */
-function drawn(view: InputsScreen) {
-  const { step } = view
-  const shown: ShownStep | undefined = step && {
-    section: step.kind === 'milestoneStep' ? MILESTONE_STEP : COMPARABLE_WORK_STEP,
-    view: step,
-    ...(step.kind === 'comparableWorkStep' && step.candidates && { openingId: 'opening-1' }),
-  }
-  return render(renderInputsScreen(view, shown))
-}
+/** The screen as `renderInputsScreen` draws `view`, its candidates' opening, if it has one, kept as `opening-1`. */
+const drawn = (view: InputsScreen) => render(renderInputsScreen(view, () => 'opening-1'))
 const screen = async (team: Forecasting, opening?: InputsOpening) => drawn(await team.inputsScreen(opening))
 const section = (page: ReturnType<typeof render>, name: string) => byRole(page, 'region', { name })
 const refused = async (team: Forecasting, edit: InputsEdit) => {
@@ -51,7 +42,7 @@ describe('the Inputs screen in the browser build', () => {
       'Range',
       'Typed counts',
     ])
-    expect(page.querySelector('.setup-summary')).toBeNull()
+    expect(all(page, '.setup-summary')).toEqual([])
     expect(hasRole(page, 'alert')).toBe(false)
     expect(text(page)).not.toContain('⚠')
   })
@@ -61,14 +52,14 @@ describe('the Inputs screen in the browser build', () => {
 
     const milestone = section(page, 'Milestone')
     expect(text(byRole(milestone, 'alert'))).toMatch(/tickets remaining/i)
-    expect(milestone.querySelector('input[name="ticketsRemaining"]')?.getAttribute('value')).toBe('lots')
+    expect(byRole(milestone, 'spinbutton', { name: 'Tickets remaining' }).getAttribute('value')).toBe('lots')
     expect(allByRole(page, 'alert')).toHaveLength(1)
   })
 
   test('the pace refused: why, beside the range', async () => {
     const page = await refused(team, { kind: 'setPaceRange', low: '8', high: '4' })
 
-    expect(byRole(section(page, 'Pace'), 'alert').closest('form')?.id).toBe('pace-range')
+    expect(around(byRole(section(page, 'Pace'), 'alert'), 'form').id).toBe('pace-range')
   })
 
   test('warnings beside the input they are about, and the trend beside the typed counts in use', async () => {
@@ -91,8 +82,8 @@ describe('the Inputs screen with setup', () => {
 
     expect(allByRole(page, 'region').map((region) => accessibleName(region))).toEqual(['Connect', 'Milestone', 'Cadence', 'Pace', 'Ambiguity', 'Growth'])
     const connect = section(page, 'Connect')
-    expect(byRole(connect, 'list', { name: 'Setup steps' })).toBeTruthy()
-    expect(byRole(connect, 'button', { name: 'Connect' })).toBeTruthy()
+    byRole(connect, 'list', { name: 'Setup steps' })
+    byRole(connect, 'button', { name: 'Connect' })
   })
 
   test('connected: the Milestone step, its choices to pick', async () => {
@@ -100,7 +91,7 @@ describe('the Inputs screen with setup', () => {
     const page = await screen(team)
 
     const step = section(page, 'Milestone’s tickets')
-    expect(byRole(step, 'button', { name: 'Checkout v2 milestone' })).toBeTruthy()
+    byRole(step, 'button', { name: 'Checkout v2 milestone' })
     expect(byRole(byRole(step, 'list', { name: 'Setup steps' }), 'listitem', { name: 'Milestone' }).getAttribute('aria-current')).toBe('step')
   })
 
@@ -115,9 +106,9 @@ describe('the Inputs screen with setup', () => {
     const page = await screen(team, { step: 'comparableWork', opened: [label('payments').query] })
 
     const step = section(page, 'Comparable work')
-    expect(byRole(step, 'link', { name: 'How payments runs' })).toBeTruthy()
-    expect(byRole(step, 'heading', { name: 'Candidates' })).toBeTruthy()
-    expect(step.querySelector('.candidates')?.getAttribute('data-opening')).toBe('opening-1')
+    byRole(step, 'link', { name: 'How payments runs' })
+    byRole(step, 'heading', { name: 'Candidates' })
+    expect(one(step, '.candidates').getAttribute('data-opening')).toBe('opening-1')
   })
 
   test('the Check step, its rows read from the steps’ picks', async () => {
@@ -127,7 +118,7 @@ describe('the Inputs screen with setup', () => {
 
     const check = section(page, 'Check')
     expect(text(byRole(check, 'row', { name: /^Tickets remaining/ }))).toMatch(/^Tickets remaining — 34 GitHub Typed Choose$/)
-    expect(byRole(check, 'button', { name: 'Use these' })).toBeTruthy()
+    byRole(check, 'button', { name: 'Use these' })
   })
 
   test('done: the summary above the inputs, and no setup step', async () => {
@@ -161,18 +152,13 @@ describe('each source of tickets remaining and pace', () => {
   test('tickets remaining typed, read differently: the chip, with its dot, the reading, and Follow GitHub', async () => {
     const milestone = section(await screen(team), 'Milestone')
 
-    expect(
-      allByRole(byRole(milestone, 'group', { name: 'Where tickets remaining comes from' }), 'radio').map((radio) => [
-        accessibleName(radio),
-        radio.hasAttribute('checked'),
-      ]),
-    ).toEqual([
+    expect(radios(byRole(milestone, 'group', { name: 'Where tickets remaining comes from' }))).toEqual([
       ['GitHub', false],
       ['Typed', true],
     ])
     expect(byRole(milestone, 'spinbutton', { name: 'Tickets remaining' }).getAttribute('value')).toBe('40')
     const chip = byRole(milestone, 'button', { name: 'GitHub reads differently' })
-    expect(chip.querySelector('.dot')).not.toBeNull()
+    one(chip, '.dot')
     const opened = around(chip, 'details')
     opened.setAttribute('open', '')
     expect(text(opened)).toBe('GitHub reads differently GitHub reads 34 tickets remaining, read 12 Nov 09:00. Follow GitHub')
@@ -192,15 +178,25 @@ describe('each source of tickets remaining and pace', () => {
     await submitInputs(team, { kind: 'setPaceRange', low: '2', high: '3' })
     const pace = section(await screen(team), 'Pace')
 
-    expect(
-      allByRole(byRole(pace, 'group', { name: 'Pace the forecast uses' }), 'radio').map((radio) => [accessibleName(radio), radio.hasAttribute('checked')]),
-    ).toEqual([
+    expect(radios(byRole(pace, 'group', { name: 'Pace the forecast uses' }))).toEqual([
       ['GitHub', false],
       ['Typed counts', false],
       ['Range', true],
     ])
     const chip = around(byRole(pace, 'button', { name: 'GitHub reads differently' }), 'details')
-    expect(chip.closest('form')?.id).toBe('pace-range')
+    expect(around(chip, 'form').id).toBe('pace-range')
+    chip.setAttribute('open', '')
+    expect(accessibleName(byRole(chip, 'img'))).toMatch(/^Finished tickets per week, oldest first: /)
+  })
+
+  test('pace typed counts, read differently: the chip on the counts, GitHub’s weeks as bars inside it', async () => {
+    await submitInputs(team, { kind: 'setPaceCounts', counts: '1, 1, 1, 1, 1' })
+    await submitInputs(team, { kind: 'setPaceMode', paceMode: 'counts' })
+    const pace = section(await screen(team), 'Pace')
+
+    expect(radios(byRole(pace, 'group', { name: 'Pace the forecast uses' })).find(([, checked]) => checked)?.[0]).toBe('Typed counts')
+    const chip = around(byRole(pace, 'button', { name: 'GitHub reads differently' }), 'details')
+    expect(around(chip, 'form').id).toBe('pace-counts')
     chip.setAttribute('open', '')
     expect(accessibleName(byRole(chip, 'img'))).toMatch(/^Finished tickets per week, oldest first: /)
   })
@@ -217,7 +213,7 @@ describe('each source of tickets remaining and pace', () => {
     expect(text(one(weeks, 'summary'))).toBe('Show weeks')
     weeks.setAttribute('open', '')
     expect(allByRole(weeks, 'button', { name: 'skip' }).length).toBeGreaterThan(0)
-    expect(byRole(weeks, 'button', { name: 'Use as typed counts' })).toBeTruthy()
+    byRole(weeks, 'button', { name: 'Use as typed counts' })
   })
 
   test('a week skipped: shown as a gap, said so, with a way to count it again', async () => {
@@ -226,7 +222,28 @@ describe('each source of tickets remaining and pace', () => {
     const following = one(section(await screen(team), 'Pace'), '#pace-tracker')
 
     expect(accessibleName(byRole(following, 'img', { name: /^Finished tickets/ }))).toContain('skipped')
-    expect(byRole(following, 'button', { name: 'count it again' })).toBeTruthy()
-    expect(following.querySelector('details')?.hasAttribute('open')).toBe(true)
+    byRole(following, 'button', { name: 'count it again' })
+    expect(one(following, 'details').hasAttribute('open')).toBe(true)
+  })
+})
+
+describe('a source read from Jira', () => {
+  test('tickets remaining typed, read differently: the chip names Jira, its reading, and Follow Jira; the tracker’s pace too', async () => {
+    const team = await forecastingForTest({ fixture: checkoutFixture(TICKETS) })
+    await team.submit({ form: 'connection', edit: CONNECTIONS.jira })
+    await submitInputs(team, { kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '40' })
+    await submitInputs(team, { kind: 'setPaceRange', low: '4', high: '8' })
+    await pick(team, READ_AT)
+    const page = await screen(team)
+
+    const milestone = section(page, 'Milestone')
+    expect(radios(byRole(milestone, 'group', { name: 'Where tickets remaining comes from' }))).toEqual([
+      ['Jira', false],
+      ['Typed', true],
+    ])
+    const chip = around(byRole(milestone, 'button', { name: 'Jira reads differently' }), 'details')
+    chip.setAttribute('open', '')
+    expect(text(chip)).toBe('Jira reads differently Jira reads 34 tickets remaining, read 12 Nov 09:00. Follow Jira')
+    expect(radios(byRole(section(page, 'Pace'), 'group', { name: 'Pace the forecast uses' }))[0]).toEqual(['Jira', false])
   })
 })

@@ -2,18 +2,16 @@ import { describe, expect, test } from 'vitest'
 import { candidatesHtml } from '../../../src/app/candidatesSection.js'
 import { COMPARABLE_WORK_STEP } from '../../../src/app/queryStepSection.js'
 import type { Candidate, Candidates } from '../../../src/forecast/index.js'
-import { accessibleName, allByRole, byRole, hasRole, one, render, text } from '../dom.js'
+import { accessibleName, all, allByRole, byRole, hasRole, one, postsTo, render, text } from '../dom.js'
 
 // The Comparable work step's candidates (#236), rendered from candidates built by hand: none opened, grouped against the
 // milestone's own or by median, with nothing finished, and failed. How each is read and grouped is Seam B's
 // (test/forecast/candidates.test.ts).
 
 const label = (name: string) => ({ kind: 'label', name, query: `label:${name}` }) as const
-const read = (
-  name: string,
-  versus: Extract<Candidate, { read: unknown }>['read']['versus'],
-  more: Partial<Extract<Candidate, { read: unknown }>['read']> = {},
-) =>
+/** What a candidate read shows. */
+type Read = Extract<Candidate, { read: unknown }>['read']
+const read = (name: string, versus: Read['versus'], more: Partial<Read> = {}) =>
   ({
     choice: label(name),
     thisMilestone: false,
@@ -37,7 +35,7 @@ describe('the candidates', () => {
     expect(text(page)).toBe(
       'Candidates Open a candidate (its pace link), or type to narrow the list to 5 or fewer, to see how it runs against the milestone’s own.',
     )
-    expect(page.querySelector('.candidates')?.getAttribute('data-opening')).toBe('opening-1')
+    expect(one(page, '.candidates').getAttribute('data-opening')).toBe('opening-1')
     expect(hasRole(page, 'list')).toBe(false)
   })
 
@@ -59,7 +57,7 @@ describe('the candidates', () => {
       'About the same',
       'Faster than the milestone',
     ])
-    expect(byRole(page, 'button', { name: 'payments label' }).closest('form')?.getAttribute('action')).toBe('/inputs/comparable-work/add#comparable-work')
+    expect(postsTo(byRole(page, 'button', { name: 'payments label' }))).toBe('/inputs/comparable-work/add#comparable-work')
     const items = allByRole(page, 'listitem')
     expect(items.map((item) => text(item))).toEqual([
       'payments label 3 a week ↓ 1.3 a week slower 12 finished · last finished 10 Nov · 5 open',
@@ -67,7 +65,7 @@ describe('the candidates', () => {
       'search label 3 a week ↑ 2 a week faster 12 finished · last finished 10 Nov · 5 open',
     ])
     expect(accessibleName(one(items[0]!, '.strip'))).toBe('Finished a week: 2, 4')
-    expect([...items[0]!.querySelectorAll('.strip i')].map((bar) => [bar.getAttribute('title'), bar.getAttribute('style')])).toEqual([
+    expect(all(items[0]!, '.strip i').map((bar) => [bar.getAttribute('title'), bar.getAttribute('style')])).toEqual([
       ['week of 26 Oct: 2', 'height:50%'],
       ['week of 2 Nov: 4', 'height:100%'],
     ])
@@ -96,6 +94,6 @@ describe('the candidates', () => {
       'stale label this milestone: counts its own too 0 finished · none finished in the last 8 weeks · 5 open',
       'broken label GitHub didn’t answer.',
     ])
-    expect([...page.querySelectorAll('.strip i')].map((bar) => bar.getAttribute('style'))).toEqual(['height:0%', 'height:0%'])
+    expect(all(page, '.strip i').map((bar) => bar.getAttribute('style'))).toEqual(['height:0%', 'height:0%'])
   })
 })
