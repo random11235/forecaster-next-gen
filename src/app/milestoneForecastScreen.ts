@@ -5,6 +5,7 @@ import {
   type FinishBar,
   type ForecastDate,
   type InputNote,
+  type LaterFinishes,
   type MilestoneForecastView,
   type PaceActionEdit,
   type PacePatternView,
@@ -195,9 +196,19 @@ ${columns}
           </div>
         </div>
         <div class="axis"><span>${formatDate(bars[0]!.date)}</span><span>${formatDate(bars[bars.length - 1]!.date)}</span></div>
-        <figcaption class="note">Share of simulations finishing each ${view.period}, from the start date. The ${view.headlinePercent}% date is the headline.${shaded}</figcaption>
+        <figcaption class="note">Share of simulations finishing each ${view.period}, from the start date. The ${view.headlinePercent}% date is the headline.${shaded}</figcaption>${renderLaterFinishes(view.laterFinishes)}
       </figure>
     </section>`
+}
+
+/**
+ * The simulations finishing after the finish graph's last bar, in one quiet line under it: "1% of simulations finish
+ * later, the last by 8 Aug 2028.", or "…, some later than the horizon." Nothing when none do.
+ */
+function renderLaterFinishes(later: LaterFinishes | undefined): string {
+  if (!later) return ''
+  const last = later.last === null ? 'some later than the horizon' : `the last by ${formatDate(later.last)}`
+  return `\n        <p class="note quiet">${percentText(later.share)} of simulations finish later, ${last}.</p>`
 }
 
 /** A marker on the finish graph: a date the forecast gives, with every percent that shares it. */
