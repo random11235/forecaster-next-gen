@@ -56,7 +56,7 @@ Each module's behaviour is covered by its own test folder, not only by tests at 
 
 Tests arrange through the module: test setup calls the module's own functions, never writes its stored data in SQL or opens the database directly, so a change to how a module keeps its data leaves its tests alone; where a test needs a function the module doesn't have, it is added to the module. [`test/arrangeRules.test.ts`](../../test/arrangeRules.test.ts) enforces this across all of `test/`, failing on SQL writes or the database opened directly in any file but the exceptions it lists, each with why: the migration tests, which arrange data as it was before a migration, and the tests of stored data storage can't write, which write it through `test/storage/sqliteStraight.ts` ([`architecture-test-seams-storage.md`](architecture-test-seams-storage.md)).
 
-The tests of `test/app/`, the launch smoke test, the web build's and the browser scripts', are in [`architecture-test-seams-app.md`](architecture-test-seams-app.md).
+The tests of `test/app/`, the launch smoke test, the web build's, the browser scripts' and each screen's rendering as a component, are in [`architecture-test-seams-app.md`](architecture-test-seams-app.md).
 
 The tests of `scripts/`, the restart, the change-file check and the release among them, are in [`architecture-test-seams-scripts.md`](architecture-test-seams-scripts.md).
 
