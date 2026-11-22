@@ -36,11 +36,14 @@ const TEST_SEAMS: Record<string, readonly string[]> = {
   // The Storage contract and the migration tests, through each storage's opening, and the ledger's types it keeps.
   storage: ['storage/storage.js', 'storage/sqliteStorage.js', 'storage/webStorage.js', 'ledger/ledger.js', 'model/'],
   secrets: ['secrets/secrets.js', 'secrets/memorySecrets.js', 'secrets/keychainSecrets.js'],
-  // The app as it launches, local server or web build, with what it is built on, and the version its footer shows; and
-  // each screen's render function, which its component test calls with a view (#236).
+  // The app as it launches, local server or web build, with what it is built on, and the version its footer shows; the
+  // routes the local server answers with, and the web build's page script, which its page's tests answer and run
+  // in-process (#237); and each screen's render function, which its component test calls with a view (#236).
   app: [
     'app/launch.js',
+    'app/routes.js',
     'app/webApp.js',
+    'app/webMain.js',
     'app/inputsScreen.js',
     'app/milestoneForecastScreen.js',
     'app/howItWorksScreen.js',

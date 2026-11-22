@@ -1,14 +1,15 @@
-import { Browser, Event, type BrowserWindow, type Document, type Element, type HTMLInputElement } from 'happy-dom'
-import type { RunningApp } from '../../src/app/launch.js'
+import { Browser, Event, PropertySymbol, type BrowserWindow, type Document, type Element, type HTMLInputElement, type Request, type Response } from 'happy-dom'
+import type { AppInProcess, RouteReply, RouteRequest } from './appInProcess.js'
 
-// A page of the running app in happy-dom, its scripts running (#275): what the EM's browser does with the HTML the
-// other app tests check. Its `fetch` reaches the app's own server, so a script's saves go through the real routes to
-// the storage behind them. happy-dom does no layout, so how a page looks and where it scrolls stay with the demos
+// A page of the app in happy-dom, its scripts running (#275): what the EM's browser does with the HTML the other app
+// tests check. Each request it sends, its scripts' `fetch` and the forms it submits, is answered by the app's routes
+// in-process (#237), with no server started, so a script's saves go through the real routes to the storage behind
+// them. happy-dom does no layout, so how a page looks and where it scrolls stay with the demos
 // (docs/agents/demos.md); focus and selection it keeps.
 
 /** An answer held back from the page's scripts until released, so a test can make answers arrive out of order. */
 export interface HeldAnswer {
-  /** Resolves once the answer has come back from the server, and is held. */
+  /** Resolves once the answer has come back from the app, and is held. */
   readonly held: Promise<void>
   /** Hands the answer to the script that asked for it. */
   release(): void
@@ -18,9 +19,13 @@ export interface HeldAnswer {
 export interface PageRequest {
   readonly method: string
   readonly url: URL
+  /** Whether it asked to be answered in place, as the Inputs screen's script asks of each save. */
+  readonly saveInPlace: boolean
+  /** The form it posted, as the routes read it; none for a GET. */
+  readonly form?: URLSearchParams
 }
 
-/** A page open in happy-dom, at the app's URL, its scripts running against the app. */
+/** A page open in happy-dom, its scripts running against the app. */
 export interface BrowserPage {
   /** The page's window, and its document: a form submitted opens the page it answers with in their place. */
   readonly window: BrowserWindow
@@ -47,14 +52,17 @@ export interface BrowserPage {
   close(): Promise<void>
 }
 
-/** How long `until` waits for the page to show what it waits for: far longer than any answer from the local server takes. */
+/** How long `until` waits for the page to show what it waits for: far longer than any answer from the app takes. */
 const UNTIL_LIMIT_MS = 2000
 
-/** A stand-in for the `/live` reload script's `EventSource`, which would hold a connection open: it connects nowhere. */
-class NoEventSource {
-  onmessage = null
-  close(): void {}
-}
+/** Where the page is opened: an address nothing serves, as each request is answered in-process. */
+const ORIGIN = 'http://forecaster.test'
+
+/**
+ * The header the Inputs screen's script sends when it saves in place. It pins the wire value of `SAVE_IN_PLACE` in
+ * `src/app/inputsScript.ts` on purpose: TEST_SEAMS doesn't let app tests import that file.
+ */
+const SAVE_IN_PLACE = { header: 'forecaster-save', value: 'in-place' } as const
 
 /** A held answer's path, and whether its answer has come back and been released. */
 interface Hold {
@@ -64,40 +72,75 @@ interface Hold {
   caught: () => void
 }
 
+/** `request`, as the page sent it, read as the server reads it for the routes: its form urlencoded, or multipart as happy-dom submits one. */
+async function routeRequest(request: Request): Promise<RouteRequest> {
+  const { pathname, search } = new URL(request.url)
+  const path = pathname + search
+  if (request.method !== 'POST') return { method: request.method, path }
+  const fields = [...(await request.formData())].map(([name, value]): [string, string] => [name, String(value)])
+  const saveInPlace = request.headers.get(SAVE_IN_PLACE.header) === SAVE_IN_PLACE.value
+  return { method: 'POST', path, form: new URLSearchParams(fields), ...(saveInPlace && { saveInPlace }) }
+}
+
 /**
- * Opens `path` of `running` in happy-dom, with JavaScript on, as only the app's own pages are opened here. Each POST
- * carries the page's `Origin`, as a browser's does and the server requires; happy-dom sends it only across origins.
- * It fails if the page's scripts throw as it opens.
+ * Opens `path` of `app` in happy-dom, with JavaScript on, as only the app's own pages are opened here. Each request is
+ * answered by `app`, a redirect followed to the page it names as a browser follows the server's; a request `app` fails
+ * to answer fails, as one to a server that has stopped does. It fails if the page's scripts throw as it opens.
  */
-export async function openPage(running: Pick<RunningApp, 'url'>, path: string): Promise<BrowserPage> {
-  const origin = new URL(running.url).origin
+export async function openPage(app: Pick<AppInProcess, 'answer'>, path: string): Promise<BrowserPage> {
   const holds: Hold[] = []
   const requests: PageRequest[] = []
   const errors: unknown[] = []
   let heldWhileSettling = (_hold: Hold): void => {}
+  /** `app`'s answer to `request`, as `window` reads one, at the address it was answered from. */
+  const answer = async (window: BrowserWindow, request: RouteRequest): Promise<Response> => {
+    let reply: RouteReply = await app.answer(request)
+    let at = request.path
+    while (reply.kind === 'redirect') {
+      at = reply.location
+      reply = await app.answer({ method: 'GET', path: at })
+    }
+    const response =
+      reply.kind === 'html'
+        ? new window.Response(reply.html, { status: reply.status, headers: { 'content-type': 'text/html; charset=utf-8' } })
+        : new window.Response('Not found', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8' } })
+    // read-only by its type, a plain field in happy-dom: the page's location is set from it
+    return Object.assign(response, { url: new URL(at, ORIGIN).href })
+  }
+  /** Holds the answer to `request`, if a test asked to hold the next one to its path, until released. */
+  const holding = async (request: RouteRequest): Promise<void> => {
+    const hold = holds.find(({ path, state }) => state === 'waiting' && path === new URL(request.path, ORIGIN).pathname)
+    if (!hold) return
+    hold.state = 'held'
+    hold.caught()
+    heldWhileSettling(hold)
+    await hold.answer
+  }
   const browser = new Browser({
     settings: {
       enableJavaScriptEvaluation: true,
       suppressInsecureJavaScriptEnvironmentWarning: true,
       navigation: {
         beforeContentCallback: (window) => {
-          Object.assign(window, { EventSource: NoEventSource })
           window.addEventListener('error', (event) => errors.push('error' in event ? event.error : event))
         },
       },
       fetch: {
         interceptor: {
-          beforeAsyncRequest: async ({ request }) => {
-            if (request.method === 'POST') request.headers.set('Origin', origin)
-            requests.push({ method: request.method, url: new URL(request.url) })
-          },
-          afterAsyncResponse: async ({ request }) => {
-            const hold = holds.find(({ path, state }) => state === 'waiting' && path === new URL(request.url).pathname)
-            if (!hold) return
-            hold.state = 'held'
-            hold.caught()
-            heldWhileSettling(hold)
-            await hold.answer
+          beforeAsyncRequest: async ({ request, window }) => {
+            const asked = await routeRequest(request)
+            requests.push({ method: asked.method, url: new URL(request.url), saveInPlace: asked.saveInPlace === true, ...(asked.form && { form: asked.form }) })
+            let response: Response
+            try {
+              response = await answer(window, asked)
+            } catch (error) {
+              // a request aborted here fails as happy-dom fails one it can't send, its task ended; one thrown here would
+              // leave its task open, so the page would never settle
+              request.signal[PropertySymbol.abort](new window.TypeError(`Failed to fetch: ${String(error)}`))
+              return
+            }
+            await holding(asked)
+            return response
           },
         },
       },
@@ -109,7 +152,7 @@ export async function openPage(running: Pick<RunningApp, 'url'>, path: string): 
     if (errors.length > 0) throw new AggregateError(errors.splice(0), 'the page’s scripts threw')
   }
   const stillHeld = (hold: Hold): Error => new Error(`the answer from ${hold.path} is held: release it before the page can settle`)
-  await page.goto(new URL(path, running.url).href)
+  await page.goto(new URL(path, ORIGIN).href)
   await page.waitUntilComplete()
   throwUncaught()
   requests.length = 0
