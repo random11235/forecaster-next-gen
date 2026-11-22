@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'vitest'
-import { HTMLElement } from 'happy-dom'
+import { HTMLButtonElement, HTMLElement, HTMLFormElement } from 'happy-dom'
 import type { CannedFixture } from '../../src/connectors/canned.js'
 import { pagesOnTracker } from './pagesOnTracker.js'
 
 // The page the other browser tests drive (#275) fails them fast and says why: on what the page's scripts throw and
-// leave uncaught, on an answer held while waiting for the page to settle, and on what the page never shows.
+// leave uncaught, on an answer held while waiting for the page to settle, and on what the page never shows. And it
+// answers as a browser does where happy-dom's public interface can't say so (happyDomAnswers.ts): a fetch the app
+// can't answer failing, and a page opened at the address its answer came from.
 
 const NOTHING: CannedFixture = { milestoneChoices: [], reads: {} }
 
@@ -78,5 +80,29 @@ describe('the page a browser test drives', () => {
     const { page } = await pages.open(NOTHING, '/inputs')
 
     await expect(page.until('a heading that never comes', () => false)).rejects.toThrow('the page didn’t show a heading that never comes')
+  })
+
+  test('fails a script’s fetch the app can’t answer, as a browser fails one to a stopped server, and still settles', async () => {
+    const { page } = await pages.open(NOTHING, '/inputs')
+    pages.stopApp()
+
+    await expect(page.window.fetch('/inputs')).rejects.toThrow('Failed to fetch')
+    await expect(page.settled()).resolves.toBeUndefined()
+  })
+
+  test('opens the page a form is answered with at the address it was redirected to', async () => {
+    const { page } = await pages.open(NOTHING, '/how-it-works')
+    const form = page.document.createElement('form')
+    form.setAttribute('method', 'post')
+    form.setAttribute('action', '/inputs/milestone')
+    form.innerHTML =
+      '<input name="name" value="Launch"><input name="startDate" value="2026-11-02"><input name="ticketsRemaining" value="30"><button>Save</button>'
+    page.document.body.append(form)
+
+    page.find('body > form', HTMLFormElement).requestSubmit(page.find('body > form button', HTMLButtonElement))
+    await page.settled()
+
+    expect(page.window.location.pathname).toBe('/inputs')
+    expect(page.document.title).toBe('Inputs · Forecaster')
   })
 })

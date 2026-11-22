@@ -47,7 +47,7 @@ async function start({ connect = true, fixture = FIXTURE } = {}): Promise<Runnin
 
 /** The Pace section of the Inputs screen. */
 async function paceSection(running: RunningApp): Promise<string> {
-  return inputsSection(running, 'pace')
+  return inputsSection(await page(running, '/inputs'), 'pace')
 }
 
 describe('pace following GitHub', () => {

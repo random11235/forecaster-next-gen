@@ -1,5 +1,9 @@
-import { Browser, Event, PropertySymbol, type BrowserWindow, type Document, type Element, type HTMLInputElement, type Request, type Response } from 'happy-dom'
+import { Browser, type BrowserWindow, type Document, type Element, type Request, type Response } from 'happy-dom'
 import type { AppInProcess, RouteReply, RouteRequest } from './appInProcess.js'
+import { one } from './dom.js'
+import { SAVE_IN_PLACE } from './forms.js'
+import { answeredFrom, failRequest } from './happyDomAnswers.js'
+import { watchPage } from './pageWatch.js'
 
 // A page of the app in happy-dom, its scripts running (#275): what the EM's browser does with the HTML the other app
 // tests check. Each request it sends, its scripts' `fetch` and the forms it submits, is answered by the app's routes
@@ -46,23 +50,18 @@ export interface BrowserPage {
   settled(): Promise<void>
   /**
    * Waits until `shows()` is true of the page, checking it each time the page changes: for while an answer is held.
-   * It fails, saying it waited for `what`, if the page hasn't shown it within `UNTIL_LIMIT_MS`.
+   * It fails, saying it waited for `what`, if the page hasn't shown it within `UNTIL_LIMIT_MS` (pageWatch.ts), and on
+   * each error the page's scripts left uncaught meanwhile.
    */
   until(what: string, shows: () => boolean): Promise<void>
   close(): Promise<void>
 }
 
-/** How long `until` waits for the page to show what it waits for: far longer than any answer from the app takes. */
-const UNTIL_LIMIT_MS = 2000
+/** How an answer of HTML is sent. */
+const HTML = { headers: { 'content-type': 'text/html; charset=utf-8' } }
 
 /** Where the page is opened: an address nothing serves, as each request is answered in-process. */
 const ORIGIN = 'http://forecaster.test'
-
-/**
- * The header the Inputs screen's script sends when it saves in place. It pins the wire value of `SAVE_IN_PLACE` in
- * `src/app/inputsScript.ts` on purpose: TEST_SEAMS doesn't let app tests import that file.
- */
-const SAVE_IN_PLACE = { header: 'forecaster-save', value: 'in-place' } as const
 
 /** A held answer's path, and whether its answer has come back and been released. */
 interface Hold {
@@ -83,14 +82,23 @@ async function routeRequest(request: Request): Promise<RouteRequest> {
 }
 
 /**
+ * The page the browser shows of its own in place of one it couldn't reach, as Chrome does: a stand-in, as happy-dom
+ * shows none, and leaves the navigation failing with nothing to hear it.
+ */
+export const CANT_BE_REACHED = 'This site can’t be reached'
+
+/**
  * Opens `path` of `app` in happy-dom, with JavaScript on, as only the app's own pages are opened here. Each request is
- * answered by `app`, a redirect followed to the page it names as a browser follows the server's; a request `app` fails
- * to answer fails, as one to a server that has stopped does. It fails if the page's scripts throw as it opens.
+ * answered by `app`, a redirect followed to the page it names as a browser follows the server's. A request `app` fails
+ * to answer fails, as one to a server that has stopped does: a script's `fetch` rejects, and a form submitted opens
+ * the browser's own page saying so (`CANT_BE_REACHED`). It fails if the page's scripts throw as it opens.
  */
 export async function openPage(app: Pick<AppInProcess, 'answer'>, path: string): Promise<BrowserPage> {
   const holds: Hold[] = []
   const requests: PageRequest[] = []
-  const errors: unknown[] = []
+  const watch = watchPage()
+  /** The windows a page has opened in: a request from one is its scripts', and one from a window still opening, a page's. */
+  const opened = new WeakSet<BrowserWindow>()
   let heldWhileSettling = (_hold: Hold): void => {}
   /** `app`'s answer to `request`, as `window` reads one, at the address it was answered from. */
   const answer = async (window: BrowserWindow, request: RouteRequest): Promise<Response> => {
@@ -102,10 +110,9 @@ export async function openPage(app: Pick<AppInProcess, 'answer'>, path: string):
     }
     const response =
       reply.kind === 'html'
-        ? new window.Response(reply.html, { status: reply.status, headers: { 'content-type': 'text/html; charset=utf-8' } })
+        ? new window.Response(reply.html, { ...HTML, status: reply.status })
         : new window.Response('Not found', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8' } })
-    // read-only by its type, a plain field in happy-dom: the page's location is set from it
-    return Object.assign(response, { url: new URL(at, ORIGIN).href })
+    return answeredFrom(response, new URL(at, ORIGIN).href)
   }
   /** Holds the answer to `request`, if a test asked to hold the next one to its path, until released. */
   const holding = async (request: RouteRequest): Promise<void> => {
@@ -122,7 +129,8 @@ export async function openPage(app: Pick<AppInProcess, 'answer'>, path: string):
       suppressInsecureJavaScriptEnvironmentWarning: true,
       navigation: {
         beforeContentCallback: (window) => {
-          window.addEventListener('error', (event) => errors.push('error' in event ? event.error : event))
+          opened.add(window)
+          watch.hear(window)
         },
       },
       fetch: {
@@ -134,9 +142,8 @@ export async function openPage(app: Pick<AppInProcess, 'answer'>, path: string):
             try {
               response = await answer(window, asked)
             } catch (error) {
-              // a request aborted here fails as happy-dom fails one it can't send, its task ended; one thrown here would
-              // leave its task open, so the page would never settle
-              request.signal[PropertySymbol.abort](new window.TypeError(`Failed to fetch: ${String(error)}`))
+              if (!opened.has(window)) return new window.Response(`<!doctype html><title>${CANT_BE_REACHED}</title><p>${CANT_BE_REACHED}</p>`, HTML)
+              failRequest(window, request, error)
               return
             }
             await holding(asked)
@@ -147,14 +154,10 @@ export async function openPage(app: Pick<AppInProcess, 'answer'>, path: string):
     },
   })
   const page = browser.newPage()
-  /** Throws what the page's scripts threw and left uncaught since last asked. */
-  const throwUncaught = (): void => {
-    if (errors.length > 0) throw new AggregateError(errors.splice(0), 'the page’s scripts threw')
-  }
   const stillHeld = (hold: Hold): Error => new Error(`the answer from ${hold.path} is held: release it before the page can settle`)
   await page.goto(new URL(path, ORIGIN).href)
   await page.waitUntilComplete()
-  throwUncaught()
+  watch.throwUncaught()
   requests.length = 0
   return {
     get window() {
@@ -164,11 +167,7 @@ export async function openPage(app: Pick<AppInProcess, 'answer'>, path: string):
       return page.mainFrame.window.document
     },
     requests,
-    find(selector, kind) {
-      const found = page.mainFrame.window.document.querySelector(selector)
-      if (!(found instanceof kind)) throw new Error(`no ${kind.name} at ${selector}`)
-      return found
-    },
+    find: (selector, kind) => one(page.mainFrame.window.document, selector, kind),
     holdAnswer(path) {
       let release = () => {}
       let caught = () => {}
@@ -192,36 +191,11 @@ export async function openPage(app: Pick<AppInProcess, 'answer'>, path: string):
       } finally {
         heldWhileSettling = () => {}
       }
-      throwUncaught()
+      watch.throwUncaught()
     },
-    until(what, shows) {
-      const { window } = page.mainFrame
-      return new Promise((resolve, reject) => {
-        if (shows()) return resolve()
-        const watching = new window.MutationObserver(() => {
-          if (!shows()) return
-          done()
-          resolve()
-        })
-        const limit = setTimeout(() => {
-          done()
-          reject(new Error(`the page didn’t show ${what} within ${UNTIL_LIMIT_MS}ms`))
-        }, UNTIL_LIMIT_MS)
-        const done = (): void => {
-          watching.disconnect()
-          clearTimeout(limit)
-        }
-        watching.observe(window.document, { childList: true, subtree: true, characterData: true, attributes: true })
-      })
-    },
+    until: (what, shows) => watch.until(page.mainFrame.window, what, shows),
     close: () => browser.close(),
   }
-}
-
-/** Sets `field` to `text`, firing its input, as the browser does on each key. */
-export function typed(field: HTMLInputElement, text: string): void {
-  field.value = text
-  field.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
 /** The paths of the forms and fetches `page` has posted, in the order posted. */

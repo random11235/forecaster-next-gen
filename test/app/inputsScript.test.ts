@@ -4,12 +4,13 @@ import type { CannedFixture } from '../../src/connectors/canned.js'
 import { CHECKOUT, TEAM } from '../trackerScenario.js'
 import { connectAndPick, type AppInProcess } from './appInProcess.js'
 import { posted, type BrowserPage } from './browserPage.js'
-import { all, one, render } from './dom.js'
+import { inputsSection } from './appOnTracker.js'
+import { change, changed } from './fieldEvents.js'
 import { pagesOnTracker } from './pagesOnTracker.js'
 
 // The Inputs screen's script (#100), run in happy-dom against the app's routes in-process on the canned connector
-// (#275, #237): what the EM's browser saves as each input changes, and what the screen shows after. What each save or refusal answers is
-// tested over HTTP (screens.inputs.test.ts and the rest); these test what the script does with it.
+// (#275, #237): what the EM's browser saves as each input changes, and what the screen shows after. What each save or
+// refusal answers is tested over HTTP (screens.inputs.test.ts and the rest); these test what the script does with it.
 
 const MILESTONE = '/inputs/milestone#milestone'
 const CADENCE = '/inputs/cadence#cadence'
@@ -33,15 +34,6 @@ const openInputs = ({ connected = false } = {}): Promise<{ app: AppInProcess; pa
 
 /** The field named `name` in the form posting to `action`, as the page holds it now. */
 const field = (shown: BrowserPage, action: string, name: string): HTMLInputElement => shown.find(`form[action="${action}"] [name="${name}"]`, HTMLInputElement)
-
-/** Fires `input`'s change, as the browser does on Enter or on leaving it. */
-const changed = (input: HTMLInputElement): boolean => input.dispatchEvent(new Event('change', { bubbles: true }))
-
-/** Types `value` into `input`, and fires its change. */
-function change(input: HTMLInputElement, value: string): void {
-  input.value = value
-  changed(input)
-}
 
 /** The section with `id`, as the page holds it now. */
 const sectionOnPage = (shown: BrowserPage, id: string): HTMLElement => shown.find(`section#${id}`, HTMLElement)
@@ -226,7 +218,7 @@ describe('the Inputs screen’s script', () => {
 
     expect(posted(page)).toEqual(['/inputs/reading-opened'])
     expect(chip.querySelector('.dot')).toBeNull()
-    expect(all(one(render(await app.page('/inputs')), 'section#milestone'), '.dot')).toEqual([])
+    expect(inputsSection(await app.page('/inputs'), 'milestone')).not.toContain('class="dot"')
   })
 
   test('a chip’s Follow switches the value back to the tracker, though nothing was typed', async () => {
