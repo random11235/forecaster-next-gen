@@ -4,8 +4,8 @@ import { src } from './importScan.js'
 import { codeOf } from './sourceCode.js'
 import { typeScriptSourcesUnder } from '../scripts/sourceFiles.ts'
 
-// The One-way doors rule in CODING_STANDARDS.md, for persisted JSON: storage reads every stored JSON value through
-// one parser, which checks its shape, never `JSON.parse` cast straight to a type.
+// Persisted JSON outlives the release that wrote it, so storage reads every stored JSON value through one parser,
+// which checks its shape, never `JSON.parse` cast straight to a type.
 
 /** The one file in `src/storage/` that may use the `JSON` global but to write: the parser that checks each value's shape. */
 const PARSER = 'lib/storedJson.ts'

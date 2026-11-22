@@ -7,8 +7,8 @@ import { migrationsSource } from '../migrationsSource.js'
 import { STORED_UNIONS } from './storedUnions.js'
 import { FILES, storedValueProblems, type Branch, type Column, type Head, type StoredUnion } from './storedValues.js'
 
-// The stored-value part of CODING_STANDARDS.md's One-way doors: a value saved data can hold is renamed or removed only
-// with a migration that maps it. storedUnions.ts lists the stored unions, bound to their types by the typecheck.
+// A value saved data can hold outlives the release that wrote it, so it is renamed or removed only with a migration
+// that maps it. storedUnions.ts lists the stored unions, bound to their types by the typecheck.
 
 const root = fileURLToPath(new URL('../..', import.meta.url))
 
