@@ -71,7 +71,7 @@ describe('the week-by-week chart', () => {
 
     const forecast = await view(team)
     // the first bar is the start date itself, before any week has run
-    expect(forecast.kind === 'forecast' && forecast.finishGraph.map(({ date, capacity }) => ({ date, capacity }))).toEqual([
+    expect(forecast.kind === 'forecast' && forecast.finishGraph.bars.map(({ date, capacity }) => ({ date, capacity }))).toEqual([
       { date: '2026-09-07', capacity: 100 },
       { date: '2026-09-14', capacity: 80 },
       { date: '2026-09-21', capacity: 100 },
@@ -87,7 +87,7 @@ describe('the week-by-week chart', () => {
     await add(team, '0', '2026-09-07', '2026-09-09')
 
     const forecast = await view(team)
-    expect(forecast.kind === 'forecast' && forecast.finishGraph.map(({ capacity }) => capacity)).toEqual([100, 70, 100, 100])
+    expect(forecast.kind === 'forecast' && forecast.finishGraph.bars.map(({ capacity }) => capacity)).toEqual([100, 70, 100, 100])
   })
 })
 
