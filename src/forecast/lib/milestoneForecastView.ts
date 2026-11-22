@@ -45,6 +45,8 @@ export interface ForecastDate {
 
 /** One period's bar on the finish graph. Shares are fractions of all trials, from 0 to 1. */
 export interface FinishBar {
+  /** The period's number from the start date's, 0: a forecast in weeks counts them as weeks from the start. */
+  period: number
   /** ISO calendar date the period ends: the start date for the first bar, which counts trials with nothing to do. */
   date: string
   /** The share of trials that finish in this period. */
@@ -294,7 +296,7 @@ export function finishGraph(result: ForecastResult, { startDate, periodDays, tri
   const bars = result.finishCounts.slice(0, lastGraphedPeriod(result, percentiles) + 1).map((count, period) => {
     finishedBefore += count
     const factor = period === 0 ? 1 : (capacity[period - 1] ?? 1)
-    return { date: periodEndDate(startDate, periodDays, period), share: count / trials, finishedBy: finishedBefore / trials, capacity: factor * 100 }
+    return { period, date: periodEndDate(startDate, periodDays, period), share: count / trials, finishedBy: finishedBefore / trials, capacity: factor * 100 }
   })
   const unshown = trials - finishedBefore
   if (bars.length === 0 || unshown === 0) return { bars, later: undefined }

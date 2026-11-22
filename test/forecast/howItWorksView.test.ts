@@ -17,9 +17,10 @@ describe('How it works: the example forecast', () => {
 
   test('its simulations finish between week 4 and week 15, one share per week from the start to the week 99% of them have finished by', () => {
     const { bars } = view.finishGraph
-    const finishing = bars.flatMap(({ share }, week) => (share > 0 ? [week] : []))
+    const finishing = bars.filter(({ share }) => share > 0).map(({ period }) => period)
 
     expect(Math.min(...finishing)).toBeGreaterThanOrEqual(4)
+    expect(bars.map(({ period }) => period)).toEqual(bars.map((_, at) => at))
     expect(bars.at(-1)?.finishedBy).toBeGreaterThanOrEqual(0.99)
     expect(bars.at(-2)?.finishedBy).toBeLessThan(0.99)
   })
@@ -30,7 +31,7 @@ describe('How it works: the example forecast', () => {
 
     expect(later?.share).toBeCloseTo(1 - (bars.at(-1)?.finishedBy ?? 0), 9)
     expect(later?.share).toBeGreaterThan(0)
-    expect(lastWeek).toBeGreaterThan(bars.length - 1)
+    expect(lastWeek).toBeGreaterThan(bars.at(-1)?.period ?? Infinity)
     expect(lastWeek).toBeLessThanOrEqual(15)
   })
 

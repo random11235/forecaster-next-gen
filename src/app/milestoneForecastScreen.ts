@@ -11,11 +11,11 @@ import {
   type PatternAction,
   type PeriodName,
 } from '../forecast/index.js'
-import { escapeHtml, formatDate, htmlPage, type PageHeader } from './html.js'
+import { escapeHtml, formatDate, htmlPage, percentText, type PageHeader } from './html.js'
 import { INPUT_LABELS } from './inputsScreen.js'
 import { renderPaceTrend } from './paceTrendGraph.js'
 import { capacitySentence, renderCapacity } from './lib/capacitySection.js'
-import { percentText, renderLaterFinishes } from './lib/laterFinishes.js'
+import { renderLaterFinishes } from './lib/laterFinishes.js'
 
 export { CAPACITY_OPEN, CAPACITY_OPEN_PATH } from './lib/capacitySection.js'
 
@@ -196,15 +196,9 @@ ${columns}
           </div>
         </div>
         <div class="axis"><span>${formatDate(bars[0]!.date)}</span><span>${formatDate(bars[bars.length - 1]!.date)}</span></div>
-        <figcaption class="note">Share of simulations finishing each ${view.period}, from the start date. The ${view.headlinePercent}% date is the headline.${shaded}</figcaption>${laterFinishes(view)}
+        <figcaption class="note">Share of simulations finishing each ${view.period}, from the start date. The ${view.headlinePercent}% date is the headline.${shaded}</figcaption>${renderLaterFinishes(view.finishGraph.later, ({ date }) => `by ${formatDate(date)}`)}
       </figure>
     </section>`
-}
-
-/** Under the finish graph, the simulations finishing after its last bar, the last by its date (`renderLaterFinishes`). */
-function laterFinishes(view: Forecast): string {
-  const note = renderLaterFinishes(view.finishGraph.later, ({ date }) => `by ${formatDate(date)}`)
-  return note && `\n        ${note}`
 }
 
 /** A marker on the finish graph: a date the forecast gives, with every percent that shares it. */

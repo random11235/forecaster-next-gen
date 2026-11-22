@@ -37,9 +37,9 @@ describe('the forecast from what the EM enters', () => {
       warnings: [],
       finishGraph: {
         bars: [
-          { date: '2026-09-01', share: 0, finishedBy: 0, capacity: 100 },
-          { date: '2026-09-08', share: 0, finishedBy: 0, capacity: 100 },
-          { date: '2026-09-15', share: 1, finishedBy: 1, capacity: 100 },
+          { period: 0, date: '2026-09-01', share: 0, finishedBy: 0, capacity: 100 },
+          { period: 1, date: '2026-09-08', share: 0, finishedBy: 0, capacity: 100 },
+          { period: 2, date: '2026-09-15', share: 1, finishedBy: 1, capacity: 100 },
         ],
         later: undefined,
       },
@@ -256,7 +256,7 @@ describe('the finish graph', () => {
 
     await enter(team, { startDate: '2026-09-01', ticketsRemaining: '0' }, { low: '4', high: '8' })
 
-    expect((await graph(team)).finishGraph.bars).toEqual([{ date: '2026-09-01', share: 1, finishedBy: 1, capacity: 100 }])
+    expect((await graph(team)).finishGraph.bars).toEqual([{ period: 0, date: '2026-09-01', share: 1, finishedBy: 1, capacity: 100 }])
   })
 
   test('zero pace: no trial finishes, so there are no bars', async () => {
@@ -275,9 +275,9 @@ describe('the finish graph', () => {
     expect(await edit(team, { kind: 'setCadence', cadenceDays: '14' })).toEqual({ ok: true })
 
     expect((await graph(team)).finishGraph.bars).toEqual([
-      { date: '2026-09-01', share: 0, finishedBy: 0, capacity: 100 },
-      { date: '2026-09-15', share: 0, finishedBy: 0, capacity: 100 },
-      { date: '2026-09-29', share: 1, finishedBy: 1, capacity: 100 },
+      { period: 0, date: '2026-09-01', share: 0, finishedBy: 0, capacity: 100 },
+      { period: 1, date: '2026-09-15', share: 0, finishedBy: 0, capacity: 100 },
+      { period: 2, date: '2026-09-29', share: 1, finishedBy: 1, capacity: 100 },
     ])
   })
 })
