@@ -38,4 +38,4 @@ Communication to and from subagents should be sparse. Communicate primarily thro
 
 8. If a draft PR exists, mark it ready for review. Otherwise, resolve each ticket the way the issue tracker closes work, and report the integration branch.
 
-9. Clean up all **implementer subagent** worktrees.
+9. Clean up all **implementer subagent** worktrees, then delete every ticket branch and fix branch, locally and on the remote where pushed. Delete each (`git branch -D`, and `git push origin --delete`) only once `git merge-base --is-ancestor <branch> <integration branch>` confirms its work is on the integration branch; report any branch that isn't, and keep it. Done when `git worktree list` and `git branch -a` show no branch from this run but the integration branch, which GitHub deletes when its PR merges.
