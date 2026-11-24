@@ -2,6 +2,10 @@
 
 What each version of the app shipped, newest first. The version is the one in every screen's footer: a fix is in the app you're running if its version is the footer's or older. Each merge's release ([`docs/design/architecture.md`](docs/design/architecture.md#release)) writes its section here, a line from each change file (`changes/<ticket>.md`) a PR that changes the app adds: a PR doesn't edit the entries below ([`docs/agents/pull-requests.md`](docs/agents/pull-requests.md#version)).
 
+## 1.1.2 (2026-11-24)
+
+- All rights reserved: a LICENSE file and package.json say so, ahead of the repository going public (PR #323)
+
 ## 1.1.1 (2026-11-22)
 
 - The Inputs screen picks its query step's section itself, with no change to the app (#236, PR #319)
