@@ -1,0 +1,13 @@
+Copyright (c) 2026 Ralph Hockley. All rights reserved.
+
+This software and its source code, documentation and associated files are
+the proprietary property of Ralph Hockley. No licence is granted to use,
+copy, modify, merge, publish, distribute, sublicense or sell any part of
+it, in source or built form, without the prior written permission of the
+copyright holder.
+
+Being able to view this repository does not grant any of those rights.
+
+Third-party components bundled with or used by this software, such as the
+Geist fonts (SIL Open Font License 1.1) and the npm packages listed in
+package.json, remain under their own licences.
