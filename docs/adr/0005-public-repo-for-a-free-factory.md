@@ -16,5 +16,5 @@ The software factory runs its agents in GitHub Actions: a label on an issue star
 ## Consequences
 
 - A fork's pull request could otherwise run its own workflow on the Mac runner, so fork PR workflows need approval for every outside contributor, and the Mac runner serves `restart-local` only.
-- The author email on the commits made before the repo went public stays in its history. Commits since use GitHub's no-reply address.
+- Commits carry GitHub's no-reply address. Those made before the repo went public carried a personal email, rewritten to the no-reply address across the whole history while it was still private (#326). Every SHA changed, so a SHA quoted from before then names the old commit.
 - Issues, PRs, their comments and Actions logs are public, and anyone can open an issue or comment, so feedback from outside is welcome. Only the owner or a collaborator moves it on: the agent starts only from the `ready-for-agent` label, which only they can add, once triage has checked the issue's body, and from then on it reads only their comments.
