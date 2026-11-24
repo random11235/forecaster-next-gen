@@ -1,0 +1,39 @@
+name: Board
+
+# Keeps the project board's Status in step with each issue's state, labels and PRs (scripts/syncBoard.sh says how).
+# GITHUB_TOKEN can't write a user-owned project, so this runs with the PROJECT_TOKEN secret: a classic personal access
+# token with the `project` and `public_repo` scopes (`repo` instead if the board ever holds a private repo's issues).
+# pull_request_target, not pull_request, so the secret reaches it for every PR; it checks out the base branch's own
+# script and never runs a PR's code.
+
+on:
+  issues:
+    types: [opened, reopened, closed, labeled, unlabeled]
+  pull_request_target:
+    types: [opened, reopened, edited, closed]
+  schedule:
+    - cron: '17 3 * * *' # a daily backstop for anything an event missed
+  workflow_dispatch:
+
+# One sync at a time, each reading the whole board, so the last one to run sees every change before it.
+concurrency:
+  group: board
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/syncBoard.sh
+          sparse-checkout-cone-mode: false
+      # the board's own "Pull request linked to issue" automation runs on the same PR event and moves linked tickets
+      # to In progress, closed ones too; waiting lets it finish first, so this run corrects it rather than racing it
+      - run: sleep 30
+      - run: scripts/syncBoard.sh
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
