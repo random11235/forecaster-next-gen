@@ -17,7 +17,7 @@ We measure ticket cycle time: from the `in-progress` label being added to the ti
 - When a ticket closes, remove its workflow labels (`ready-for-agent`, `in-progress`): `gh issue edit <n> --remove-label ready-for-agent,in-progress`. Cycle time is read from the issue's timeline, so removing the label afterwards doesn't lose it.
 - An `epic` only groups child tickets: work happens on its children, and it never gets `in-progress`. Close it when its last child closes.
 - Non-epic tickets should be roughly the same size. When splitting work, aim for similar cycle times.
-- The [project board](https://github.com/users/random11235/projects/3)'s Status follows from the above (closed, an open PR, the labels), set by [`board.yml`](../../.github/workflows/board.yml) on every issue and PR event, so don't move cards by hand. If the board looks stale, run `scripts/syncBoard.sh`.
+- The [project board](https://github.com/users/random11235/projects/3)'s Status follows from the above (closed, an open PR, the labels). To bring it up to date, run `scripts/syncBoard.sh` rather than moving cards by hand. The board is only a view: the issues hold the state, and nothing reads the board.
 
 ## Pull requests as a triage surface
 
