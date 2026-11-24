@@ -94,6 +94,7 @@ describe('the candidates', () => {
       'stale label this milestone: counts its own too 0 finished · none finished in the last 8 weeks · 5 open',
       'broken label GitHub didn’t answer.',
     ])
+    expect(postsTo(byRole(page, 'button', { name: 'broken label' }))).toBe('/inputs/comparable-work/add#comparable-work')
     expect(all(page, '.strip i').map((bar) => bar.getAttribute('style'))).toEqual(['height:0%', 'height:0%'])
   })
 })

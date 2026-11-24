@@ -26,3 +26,9 @@ export const post = (running: Pick<RunningApp, 'url'>, path: string, fields: For
 /** Posts `fields` as the Inputs screen's script does when a field changes: it asks to stay on the Inputs screen. */
 export const saveInPlace = (running: Pick<RunningApp, 'url'>, path: string, fields: FormFields): Promise<Response> =>
   post(running, path, fields, { [SAVE_IN_PLACE.header]: SAVE_IN_PLACE.value })
+
+/** Where `response` redirects the browser after a post: its location, failing if it isn't a 303 to one. */
+export function redirectedTo(response: Response): string | null {
+  if (response.status !== 303) throw new Error(`Expected a 303 redirect, but it was ${response.status}`)
+  return response.headers.get('location')
+}

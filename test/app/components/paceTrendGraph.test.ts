@@ -82,5 +82,28 @@ describe('the pace trend graph', () => {
       expect(heights(trend, '.comparable:not(.in-use)')).toEqual([32, 48, 64, 16])
       one(graph(trend), 'pattern#pace-trend-before')
     })
+
+    test('pace from comparable work, the milestone started later: each period comparable work’s bar in use, then the milestone’s own, hatched before it started', () => {
+      const trend = paired({ ...fromOwn, from: 'comparableWork' }, 4, 6)
+      const page = graph(trend)
+
+      expect(accessibleName(byRole(page, 'img'))).toBe(
+        "Pace trend, oldest first: comparable work's finished tickets each week, the pace, 4, 6, 8, 2; the milestone's own, not started, not started, 5, 7, with a straight line fitted through comparable work’s from 4 to 6 tickets a week.",
+      )
+      expect(text(page)).toBe(
+        'Trend: 4 → 6 tickets a week, a straight line through comparable work’s 4 weeks, oldest first. comparable work, the pace the milestone’s own before it started',
+      )
+      expect(all(page, '.trend-bars rect').map((bar) => [bar.getAttribute('class'), Number(bar.getAttribute('height'))])).toEqual([
+        ['comparable in-use', 32],
+        ['before', 6],
+        ['comparable in-use', 48],
+        ['before', 6],
+        ['comparable in-use', 64],
+        ['own', 40],
+        ['comparable in-use', 16],
+        ['own', 56],
+      ])
+      one(page, 'pattern#pace-trend-before')
+    })
   })
 })

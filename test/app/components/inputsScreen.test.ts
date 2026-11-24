@@ -1,29 +1,16 @@
+import type { Forecasting, InputsEdit } from '../../../src/forecast/index.js'
 import { beforeEach, describe, expect, test } from 'vitest'
-import { renderInputsScreen } from '../../../src/app/inputsScreen.js'
-import type { Forecasting, InputsEdit, InputsOpening, InputsScreen } from '../../../src/forecast/index.js'
-import { checkoutFixture, CONNECTIONS, forecastingForTest, pick, submitInputs, type ForecastingForTest } from '../../forecast/forecastingForTest.js'
-import { finishedInWeeks, label, open } from '../../trackerScenario.js'
-import { accessibleName, all, allByRole, around, byRole, hasRole, one, radios, render, text } from '../dom.js'
+import { checkoutFixture, forecastingForTest, outcomeOf, pick, submitInputs } from '../../forecast/forecastingForTest.js'
+import { label } from '../../trackerScenario.js'
+import { accessibleName, all, allByRole, around, byRole, hasRole, one, postsTo, radios, render, text } from '../dom.js'
+import { drawn, READ_AT, refused, screen, section, START, TICKETS } from './inputsScreenHarness.js'
 
-// The Inputs screen (#236), rendered from the views Seam B gives (test/forecast/forecastingForTest.ts), started no
-// server: empty, refused, warned, each setup step and its summary, and each source of tickets remaining and pace, with
-// the chip on a typed value the tracker reads differently. What each view holds is Seam B's.
+// The Inputs screen (#236), rendered from the views Seam B gives (see inputsScreenHarness.ts): empty, refused, warned,
+// and each setup step and its summary; inputsScreen.sources.test.ts has each source of tickets remaining and pace. What
+// each view holds is Seam B's.
 
-const READ_AT = '2026-11-12T09:00:00Z'
-const START = '2026-08-31'
-const WEEKS = ['2026-09-21', '2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26', '2026-11-02']
-// GitHub reads 34 tickets remaining, and 5, 6, 4, 7, 5, 6, 8 finished in the weeks it reads whole
-const TICKETS = [...open(34), ...finishedInWeeks(WEEKS, [5, 6, 4, 7, 5, 6, 8])]
-
-/** The screen as `renderInputsScreen` draws `view`, its candidates' opening, if it has one, kept as `opening-1`. */
-const drawn = (view: InputsScreen) => render(renderInputsScreen(view, () => 'opening-1'))
-const screen = async (team: Forecasting, opening?: InputsOpening) => drawn(await team.inputsScreen(opening))
-const section = (page: ReturnType<typeof render>, name: string) => byRole(page, 'region', { name })
-const refused = async (team: Forecasting, edit: InputsEdit) => {
-  const outcome = await submitInputs(team, edit)
-  if (outcome.kind !== 'refused') throw new Error(`Expected the form refused, but it was ${outcome.kind}`)
-  return drawn(outcome.view)
-}
+/** Each section's name and the number it is given on the screen, in order. */
+const numbered = (page: ReturnType<typeof render>) => allByRole(page, 'region').map((region) => [accessibleName(region), text(one(region, '.number'))])
 
 describe('the Inputs screen in the browser build', () => {
   let team: Forecasting
@@ -36,8 +23,22 @@ describe('the Inputs screen in the browser build', () => {
     const page = await screen(team)
 
     expect(text(one(page, 'h1'))).toBe('Inputs')
-    expect(allByRole(page, 'region').map((region) => accessibleName(region))).toEqual(['Milestone', 'Cadence', 'Pace', 'Ambiguity', 'Growth'])
-    expect(allByRole(section(page, 'Milestone'), 'textbox').map((field) => [accessibleName(field), field.getAttribute('value')])).toEqual([['Name', '']])
+    expect(numbered(page)).toEqual([
+      ['Milestone', '01'],
+      ['Cadence', '02'],
+      ['Pace', '03'],
+      ['Ambiguity', '04'],
+      ['Growth', '05'],
+    ])
+    const milestone = section(page, 'Milestone')
+    expect(allByRole(milestone, 'textbox').map((field) => [accessibleName(field), field.getAttribute('value')])).toEqual([['Name', '']])
+    // a date field has no role
+    expect(one(milestone, 'input[name="startDate"]').getAttribute('value')).toBe('2026-11-12')
+    expect(byRole(milestone, 'spinbutton', { name: 'Tickets remaining' }).getAttribute('value')).toBe('')
+    expect(hasRole(milestone, 'group', { name: 'Where tickets remaining comes from' })).toBe(false)
+    expect(text(section(page, 'Pace'))).toContain(
+      'Typed counts need at least 4 for a forecast, and 8 to be reliable. Capacity is set beside the forecast, under Pace.',
+    )
     expect(allByRole(byRole(page, 'group', { name: 'Pace the forecast uses' }), 'radio').map((radio) => accessibleName(radio))).toEqual([
       'Range',
       'Typed counts',
@@ -45,6 +46,131 @@ describe('the Inputs screen in the browser build', () => {
     expect(all(page, '.setup-summary')).toEqual([])
     expect(hasRole(page, 'alert')).toBe(false)
     expect(text(page)).not.toContain('⚠')
+  })
+
+  test('every form posts to a fragment naming where it sits, so the browser lands on why, should it be refused; and the fields they carry', async () => {
+    const page = await screen(team)
+
+    const forms = all(page, 'form')
+    expect(forms.map((form) => form.getAttribute('action'))).toEqual([
+      '/inputs/milestone#milestone',
+      '/inputs/cadence#cadence',
+      '/inputs/pace-mode#pace',
+      '/inputs/pace#pace-range',
+      '/inputs/pace-counts#pace-counts',
+      '/inputs/pace-counts/add#pace-counts',
+      '/inputs/pace-counts/remove-last#pace-counts',
+      '/inputs/ambiguity#ambiguity',
+      '/inputs/growth#growth',
+    ])
+    for (const form of forms) {
+      const where = one(page, `#${form.getAttribute('action')?.split('#')[1]}`)
+      const inSection = around(form, 'section')
+      expect(where === inSection || inSection.contains(where), String(form.getAttribute('action'))).toBe(true)
+    }
+    // no committed date, epics, measured pace or growth, workflow, absence or capacity: capacity is typed beside the forecast
+    expect([...new Set(all(page, 'input, select, textarea').map((field) => field.getAttribute('name')))]).toEqual([
+      'name',
+      'startDate',
+      'ticketsRemaining',
+      'cadenceDays',
+      'paceMode',
+      'low',
+      'high',
+      'counts',
+      'count',
+      'ambiguity',
+      'low-low',
+      'low-high',
+      'medium-low',
+      'medium-high',
+      'high-low',
+      'high-high',
+    ])
+  })
+
+  test('a milestone saved: its fields as saved, the note beside its start date, and the range per week, its warning inside it', async () => {
+    await submitInputs(team, { kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '40' })
+    await submitInputs(team, { kind: 'setPaceRange', low: '0', high: '0' })
+    const view = await team.inputsScreen()
+    const startDateNote = view.inputs.milestone.notes.find(({ input }) => input === 'startDate')
+    if (!startDateNote) throw new Error('Expected a note beside the start date')
+    const page = drawn(view)
+
+    const milestone = section(page, 'Milestone')
+    expect(byRole(milestone, 'textbox', { name: 'Name' }).getAttribute('value')).toBe('Checkout v2')
+    const startDate = one(milestone, 'input[name="startDate"]')
+    expect(startDate.getAttribute('value')).toBe(START)
+    const note = around(startDate, 'label').nextElementSibling
+    expect(note && text(note)).toBe(`⚠ ${startDateNote.message}`)
+    expect(byRole(milestone, 'spinbutton', { name: 'Tickets remaining' }).getAttribute('value')).toBe('40')
+    const range = one(page, '#pace-range')
+    expect(allByRole(range, 'spinbutton').map((field) => [accessibleName(field), field.getAttribute('value')])).toEqual([
+      ['Low', '0'],
+      ['High', '0'],
+    ])
+    expect(text(range)).toBe('Range Low to High tickets per week ⚠ At 0 tickets a week, the work never finishes. Save and forecast')
+  })
+
+  test('the cadence: its length, and what it makes a period; at 14 days a sprint, the pace per sprint', async () => {
+    await submitInputs(team, { kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '40' })
+    const cadence = (page: ReturnType<typeof render>) => section(page, 'Cadence')
+    const weekly = await screen(team)
+
+    expect(byRole(cadence(weekly), 'spinbutton', { name: 'Cadence length' }).getAttribute('value')).toBe('7')
+    expect(text(cadence(weekly))).toContain('At 7 days a period is a week, so pace is entered per week; any other length makes it a sprint.')
+
+    await submitInputs(team, { kind: 'setCadence', cadenceDays: '14' })
+    const sprints = await screen(team)
+
+    expect(byRole(cadence(sprints), 'spinbutton', { name: 'Cadence length' }).getAttribute('value')).toBe('14')
+    expect(text(cadence(sprints))).toContain('At 14 days a period is a sprint, so pace is entered per sprint; 7 days makes it a week.')
+    expect(text(one(sprints, '#pace-range'))).toContain('tickets per sprint')
+  })
+
+  test('ambiguity and growth: each level with its range, medium chosen; the ranges as fields, saying how a range grows the work', async () => {
+    const page = await screen(team)
+
+    expect(radios(byRole(page, 'group', { name: 'Ambiguity of the milestone' }))).toEqual([
+      ['Low 1–1.5×', false],
+      ['Medium 1–2×', true],
+      ['High 1.5–3×', false],
+    ])
+    const growth = section(page, 'Growth')
+    expect(allByRole(growth, 'spinbutton').map((field) => [accessibleName(field), field.getAttribute('value')])).toEqual([
+      ['Low ambiguity, low end', '1'],
+      ['Low ambiguity, high end', '1.5'],
+      ['Medium ambiguity, low end', '1'],
+      ['Medium ambiguity, high end', '2'],
+      ['High ambiguity, low end', '1.5'],
+      ['High ambiguity, high end', '3'],
+    ])
+    expect(text(growth)).toContain('× the tickets remaining')
+    expect(text(growth)).toContain(
+      'Each simulation picks one growth from the range, every value in it equally likely, and multiplies the tickets remaining by it before working through them at the team’s pace. A wider range spreads the finish dates out.',
+    )
+  })
+
+  const GROWTH = { low: { low: '1', high: '1.5' }, medium: { low: '1', high: '2' }, high: { low: '1.5', high: '3' } }
+  test.each<[string, InputsEdit, string, [name: string, value: string] | undefined]>([
+    ['the cadence', { kind: 'setCadence', cadenceDays: '0' }, '/inputs/cadence#cadence', ['Cadence length', '0']],
+    ['the typed counts', { kind: 'setPaceCounts', counts: '6, -1' }, '/inputs/pace-counts#pace-counts', ['Tickets done each week, oldest first', '6, -1']],
+    ['a count to add', { kind: 'addPaceCount', count: '2.5' }, '/inputs/pace-counts#pace-counts', ['Newest week', '2.5']],
+    ['the ambiguity', { kind: 'setAmbiguity', level: 'extreme' }, '/inputs/ambiguity#ambiguity', undefined],
+    ['the growth ranges', { kind: 'setAmbiguityRanges', ...GROWTH, high: { low: '4', high: '3' } }, '/inputs/growth#growth', ['High ambiguity, low end', '4']],
+  ])('%s refused: why, at the top of its own form, the field as typed', async (_, edit, action, typed) => {
+    await submitInputs(team, { kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '40' })
+    const page = await refused(team, edit)
+
+    const why = byRole(page, 'alert')
+    expect(postsTo(why)).toBe(action)
+    expect(text(around(why, 'form')).startsWith(text(why))).toBe(true)
+    if (typed)
+      expect(
+        all(page, 'input')
+          .find((field) => accessibleName(field) === typed[0])
+          ?.getAttribute('value'),
+      ).toBe(typed[1])
   })
 
   test('a form refused: why, in its own section, the field as typed', async () => {
@@ -93,6 +219,23 @@ describe('the Inputs screen with setup', () => {
     const step = section(page, 'Milestone’s tickets')
     byRole(step, 'button', { name: 'Checkout v2 milestone' })
     expect(byRole(byRole(step, 'list', { name: 'Setup steps' }), 'listitem', { name: 'Milestone' }).getAttribute('aria-current')).toBe('step')
+    expect(numbered(page).slice(0, 2)).toEqual([
+      ['Milestone’s tickets', '01'],
+      ['Milestone', '02'],
+    ])
+  })
+
+  test('an Inputs form refused, or saved in place, at the Milestone step: the step first, the inputs numbered after it', async () => {
+    const team = await forecastingForTest({ setupOpen: true, connected: true })
+    await submitInputs(team, { kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '40' })
+    const inPlace = outcomeOf(await team.submit({ form: 'inputs', edit: { kind: 'setCadence', cadenceDays: '14' } }, { inPlace: true }), 'savedInPlace')
+
+    for (const page of [await refused(team, { kind: 'setCadence', cadenceDays: '0' }), drawn(inPlace.view)])
+      expect(numbered(page).slice(0, 3)).toEqual([
+        ['Milestone’s tickets', '01'],
+        ['Milestone', '02'],
+        ['Cadence', '03'],
+      ])
   })
 
   test('the Comparable work step, with the candidates opened', async () => {
@@ -109,6 +252,10 @@ describe('the Inputs screen with setup', () => {
     byRole(step, 'link', { name: 'How payments runs' })
     byRole(step, 'heading', { name: 'Candidates' })
     expect(one(step, '.candidates').getAttribute('data-opening')).toBe('opening-1')
+    expect(numbered(page).slice(0, 2)).toEqual([
+      ['Comparable work', '01'],
+      ['Milestone', '02'],
+    ])
   })
 
   test('the Check step, its rows read from the steps’ picks', async () => {
@@ -127,7 +274,15 @@ describe('the Inputs screen with setup', () => {
     const page = await screen(team)
 
     expect(text(one(page, '.setup-summary'))).toMatch(/^GitHub · shop-team\/shop read 12 Nov 09:00 Read again Change Milestone Checkout v2 \(milestone\)/)
-    expect(allByRole(page, 'region').map((region) => accessibleName(region))).toEqual(['Milestone', 'Cadence', 'Pace', 'Ambiguity', 'Growth'])
+    // the summary first, then each input in turn
+    expect(all(page, '.setup-summary, section').map((part) => (part.classList.contains('setup-summary') ? 'summary' : accessibleName(part)))).toEqual([
+      'summary',
+      'Milestone',
+      'Cadence',
+      'Pace',
+      'Ambiguity',
+      'Growth',
+    ])
   })
 
   test('connecting skipped: says no tracker is connected', async () => {
@@ -135,115 +290,5 @@ describe('the Inputs screen with setup', () => {
     await team.submit({ form: 'setup', edit: { kind: 'skipConnecting' } })
 
     expect(text(one(await screen(team), '.setup-summary'))).toBe('No tracker connected. Connect a tracker')
-  })
-})
-
-describe('each source of tickets remaining and pace', () => {
-  let team: ForecastingForTest
-
-  beforeEach(async () => {
-    team = await forecastingForTest({ fixture: checkoutFixture(TICKETS) })
-    await team.submit({ form: 'connection', edit: CONNECTIONS.github })
-    await submitInputs(team, { kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '40' })
-    await submitInputs(team, { kind: 'setPaceRange', low: '4', high: '8' })
-    await pick(team, READ_AT)
-  })
-
-  test('tickets remaining typed, read differently: the chip, with its dot, the reading, and Follow GitHub', async () => {
-    const milestone = section(await screen(team), 'Milestone')
-
-    expect(radios(byRole(milestone, 'group', { name: 'Where tickets remaining comes from' }))).toEqual([
-      ['GitHub', false],
-      ['Typed', true],
-    ])
-    expect(byRole(milestone, 'spinbutton', { name: 'Tickets remaining' }).getAttribute('value')).toBe('40')
-    const chip = byRole(milestone, 'button', { name: 'GitHub reads differently' })
-    one(chip, '.dot')
-    const opened = around(chip, 'details')
-    opened.setAttribute('open', '')
-    expect(text(opened)).toBe('GitHub reads differently GitHub reads 34 tickets remaining, read 12 Nov 09:00. Follow GitHub')
-    expect(byRole(opened, 'button', { name: 'Follow GitHub' }).getAttribute('form')).toBe('follow-tickets')
-  })
-
-  test('tickets remaining following GitHub: its reading, with no field to type in and no chip', async () => {
-    await submitInputs(team, { kind: 'setTicketsSource', ticketsSource: 'tracker' })
-    const milestone = section(await screen(team), 'Milestone')
-
-    expect(text(one(milestone, '.reading'))).toBe('34 tickets remaining · GitHub, read 12 Nov 09:00')
-    expect(hasRole(milestone, 'spinbutton', { name: 'Tickets remaining' })).toBe(false)
-    expect(hasRole(milestone, 'button', { name: 'GitHub reads differently' })).toBe(false)
-  })
-
-  test('pace a range, read differently: the chip on the range, GitHub’s weeks as bars inside it', async () => {
-    await submitInputs(team, { kind: 'setPaceRange', low: '2', high: '3' })
-    const pace = section(await screen(team), 'Pace')
-
-    expect(radios(byRole(pace, 'group', { name: 'Pace the forecast uses' }))).toEqual([
-      ['GitHub', false],
-      ['Typed counts', false],
-      ['Range', true],
-    ])
-    const chip = around(byRole(pace, 'button', { name: 'GitHub reads differently' }), 'details')
-    expect(around(chip, 'form').id).toBe('pace-range')
-    chip.setAttribute('open', '')
-    expect(accessibleName(byRole(chip, 'img'))).toMatch(/^Finished tickets per week, oldest first: /)
-  })
-
-  test('pace typed counts, read differently: the chip on the counts, GitHub’s weeks as bars inside it', async () => {
-    await submitInputs(team, { kind: 'setPaceCounts', counts: '1, 1, 1, 1, 1' })
-    await submitInputs(team, { kind: 'setPaceMode', paceMode: 'counts' })
-    const pace = section(await screen(team), 'Pace')
-
-    expect(radios(byRole(pace, 'group', { name: 'Pace the forecast uses' })).find(([, checked]) => checked)?.[0]).toBe('Typed counts')
-    const chip = around(byRole(pace, 'button', { name: 'GitHub reads differently' }), 'details')
-    expect(around(chip, 'form').id).toBe('pace-counts')
-    chip.setAttribute('open', '')
-    expect(accessibleName(byRole(chip, 'img'))).toMatch(/^Finished tickets per week, oldest first: /)
-  })
-
-  test('pace following GitHub: its weeks as bars, the line, and the weeks to type into or skip', async () => {
-    await submitInputs(team, { kind: 'setPaceMode', paceMode: 'tracker' })
-    const pace = section(await screen(team), 'Pace')
-
-    const following = one(pace, '#pace-tracker')
-    expect(text(byRole(following, 'heading'))).toBe('GitHub')
-    expect(accessibleName(byRole(following, 'img', { name: /^Finished tickets/ }))).toMatch(/oldest first: (\d+, )+\d+$/)
-    expect(hasRole(pace, 'button', { name: 'GitHub reads differently' })).toBe(false)
-    const weeks = one(following, 'details')
-    expect(text(one(weeks, 'summary'))).toBe('Show weeks')
-    weeks.setAttribute('open', '')
-    expect(allByRole(weeks, 'button', { name: 'skip' }).length).toBeGreaterThan(0)
-    byRole(weeks, 'button', { name: 'Use as typed counts' })
-  })
-
-  test('a week skipped: shown as a gap, said so, with a way to count it again', async () => {
-    await submitInputs(team, { kind: 'setPaceMode', paceMode: 'tracker' })
-    await team.submit({ form: 'skip', edit: { kind: 'skip', periods: ['2026-10-12'] } })
-    const following = one(section(await screen(team), 'Pace'), '#pace-tracker')
-
-    expect(accessibleName(byRole(following, 'img', { name: /^Finished tickets/ }))).toContain('skipped')
-    byRole(following, 'button', { name: 'count it again' })
-    expect(one(following, 'details').hasAttribute('open')).toBe(true)
-  })
-})
-
-describe('a source read from Jira', () => {
-  test('tickets remaining typed, read differently: the chip names Jira, its reading, and Follow Jira; the tracker’s pace too', async () => {
-    const team = await forecastingForTest({ fixture: checkoutFixture(TICKETS) })
-    await team.submit({ form: 'connection', edit: CONNECTIONS.jira })
-    await submitInputs(team, { kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '40' })
-    await submitInputs(team, { kind: 'setPaceRange', low: '4', high: '8' })
-    await pick(team, READ_AT)
-    const page = await screen(team)
-
-    const milestone = section(page, 'Milestone')
-    expect(radios(byRole(milestone, 'group', { name: 'Where tickets remaining comes from' }))).toEqual([
-      ['Jira', false],
-      ['Typed', true],
-    ])
-    const chip = around(byRole(milestone, 'button', { name: 'Jira reads differently' }), 'details')
-    chip.setAttribute('open', '')
-    expect(text(chip)).toBe('Jira reads differently Jira reads 34 tickets remaining, read 12 Nov 09:00. Follow Jira')
-    expect(radios(byRole(section(page, 'Pace'), 'group', { name: 'Pace the forecast uses' }))[0]).toEqual(['Jira', false])
   })
 })

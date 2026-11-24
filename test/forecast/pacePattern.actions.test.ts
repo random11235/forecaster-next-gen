@@ -1,6 +1,6 @@
 import { assert, describe, expect, test } from 'vitest'
 import { submitInputs } from './forecastingForTest.js'
-import { forecast, withTypedCounts } from './pacePatternScenario.js'
+import { forecast, ODD_WEEK, STEPPED_UP, withTypedCounts } from './pacePatternScenario.js'
 
 // A pattern's forecast action (#161): the 85% date it offers both ways, and the action applied and undone.
 
@@ -33,9 +33,6 @@ describe("an action's 85% date, with and without it", () => {
     expect(applied > now).toBe(true)
   })
 })
-
-const STEPPED_UP = [4, 3, 5, 4, 4, 3, 4, 5, 3, 4, 8, 9, 7, 8]
-const ODD_WEEK = [5, 6, 5, 4, 6, 5, 5, 4, 6, 5, 23, 5, 6, 4]
 
 describe('an applied action', () => {
   test('counting pace from the step forecasts from the counts since, saying so', async () => {

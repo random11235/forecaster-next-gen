@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { choiceListHtml, COMPARABLE_WORK_STEP, MILESTONE_STEP, queryStepSection } from '../../../src/app/queryStepSection.js'
 import type { ChoiceList, ComparableWorkPace, QueryStep } from '../../../src/forecast/index.js'
-import { accessibleName, all, allByRole, around, byRole, hasRole, one, postsTo, render, text } from '../dom.js'
+import { accessibleName, all, allByRole, around, byRole, hasRole, hiddenFields, one, postsTo, render, text } from '../dom.js'
 
 // A query step (#236), the Milestone step's and the Comparable work step's, rendered from a view built by hand: finding
 // choices to pick, refused, flagged, and its query open for editing. What each view holds, and when, is Seam B's
@@ -39,6 +39,7 @@ describe('a query step, finding choices to pick', () => {
     expect(hasRole(page, 'list')).toBe(false)
     expect(hasRole(page, 'alert')).toBe(false)
     expect(byRole(page, 'link', { name: 'Edit as a query' }).getAttribute('href')).toBe('/inputs?edit=query#milestone-tickets')
+    expect(one(page, '.found').hasAttribute('hidden')).toBe(false)
   })
 
   test('a kind searched in the tracker is marked for the script, and the one choice that is the milestone query is marked', () => {
@@ -59,10 +60,11 @@ describe('a query step, finding choices to pick', () => {
     expect(text(page)).toContain('50 open · 43 finished in the last 8 weeks')
   })
 
-  test('a read flagged: the flag beneath it', () => {
-    const page = milestone({ picks: [checkout], query: checkout.query, read: '0 open · 0 finished in the last 8 weeks', flag: 'The query matched no tickets.' })
+  test('a read flagged: the flag beneath it, finding and editing alike', () => {
+    const flagged = { picks: [checkout], query: checkout.query, read: '0 open · 0 finished in the last 8 weeks', flag: 'The query matched no tickets.' }
 
-    expect(text(page)).toContain('0 open · 0 finished in the last 8 weeks ⚠ The query matched no tickets.')
+    expect(text(milestone(flagged))).toContain('0 open · 0 finished in the last 8 weeks ⚠ The query matched no tickets.')
+    expect(text(milestone({ ...flagged, editing }))).toContain('0 open · 0 finished in the last 8 weeks ⚠ The query matched no tickets.')
   })
 
   test('the choices not listed, or a kind not searched: why, as alerts', () => {
@@ -119,7 +121,9 @@ describe('a query step, its query open for editing', () => {
   test('the query as typed, within the connected repo, read on Enter, with Back to finding', () => {
     const page = milestone({ editing })
 
-    expect(byRole(page, 'textbox', { name: 'Milestone query, within shop-team/shop' }).getAttribute('value')).toBe('label:payments OR')
+    const query = byRole(page, 'textbox', { name: 'Milestone query, within shop-team/shop' })
+    expect(query.getAttribute('value')).toBe('label:payments OR')
+    expect([query.getAttribute('name'), around(query, 'form').getAttribute('action')]).toEqual(['query', '/inputs/milestone-query/edit#milestone-tickets'])
     expect(text(page)).toContain('Press Enter to read it. Reads open and closed tickets.')
     expect(postsTo(byRole(page, 'button', { name: 'Back to finding' }))).toBe('/inputs/milestone-query/back#milestone-tickets')
     expect(hasRole(page, 'searchbox')).toBe(false)
@@ -142,7 +146,9 @@ describe('a query step, its query open for editing', () => {
 
     expect(text(milestone({ editing: { ...editing, backClears } }))).toContain(`${backClears} Back to finding`)
     const confirming = milestone({ editing: { ...editing, backClears, confirmingBack: true } })
-    byRole(confirming, 'button', { name: 'Clear the query and go back' })
+    const clear = around(byRole(confirming, 'button', { name: 'Clear the query and go back' }), 'form')
+    expect(clear.getAttribute('action')).toBe('/inputs/milestone-query/back#milestone-tickets')
+    expect(hiddenFields(clear)).toEqual([['confirmed', 'yes']])
     expect(byRole(confirming, 'link', { name: 'Keep editing' }).getAttribute('href')).toBe('/inputs?edit=query#milestone-tickets')
     expect(hasRole(confirming, 'button', { name: 'Back to finding' })).toBe(false)
   })
@@ -167,6 +173,12 @@ describe('the Comparable work step', () => {
     )
     expect(one(around(byRole(page, 'searchbox'), 'form'), 'input[name="step"]').getAttribute('value')).toBe('comparableWork')
     expect(hasRole(page, 'button', { name: 'Start afresh' })).toBe(false)
+  })
+
+  test('Edit as a query opens its own query, posted to its own path', () => {
+    expect(byRole(comparable(), 'link', { name: 'Edit as a query' }).getAttribute('href')).toBe('/inputs?step=comparableWork&edit=comparable#comparable-work')
+    const query = byRole(comparable({ editing }), 'textbox', { name: 'Comparable-work query, within shop-team/shop' })
+    expect([query.id, around(query, 'form').getAttribute('action')]).toEqual(['comparable-work-query', '/inputs/comparable-work/edit#comparable-work'])
   })
 
   test('with a query: Start afresh at its end', () => {

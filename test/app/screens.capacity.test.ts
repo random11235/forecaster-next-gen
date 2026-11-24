@@ -1,168 +1,42 @@
 import { describe, expect, test } from 'vitest'
-import { startOnSavedData, page, text, post, submitPace, dateAt, addCapacity } from './screensHarness.js'
-import { found } from './found.js'
+import { capacitySection } from './dom.js'
+import { redirectedTo } from './forms.js'
+import { startOnSavedData, page, post, stored, submitPace, submitCounts, choosePace, addCapacity, editCapacity, TEAM } from './screensHarness.js'
 
-// The screens through the local server: see screensHarness.ts.
+// The screens through the local server: see screensHarness.ts. What app/ owns of capacity: the forms' fields read as
+// posted, where each goes back to, the section opened at its own URL, and the status of a refusal. How the section
+// reads is the Milestone forecast screen's component test's (components/milestoneForecastScreen.test.ts), and what each
+// entry does to the forecast Seam B's (test/forecast/capacity*.test.ts, newUsual.test.ts).
 
 describe('Milestone forecast screen: capacity', () => {
-  test('beside the forecast, under Pace, every week is at 100% until capacity is typed, as a sentence posting to its section', async () => {
+  test('the sentence’s fields are read as typed, its percent, dates, onward and note, and it goes back to the forecast', async () => {
     await startOnSavedData()
     await submitPace('4', '8')
 
-    const html = await page('/')
+    const added = await addCapacity('0', '2026-11-02', '2026-11-06', 'Offsite')
+    await addCapacity('60', '2026-11-23', '', 'Holiday', true)
 
-    expect(text(html)).toMatch(/Pace Change 4–8 tickets per week \(range\).*Capacity.*100% = the team’s usual week, as in the pace\. Every week is at 100%\./)
-    expect(text(html)).toContain('Weekends don’t count; overlapping entries multiply. Past counts aren’t adjusted.')
-    expect(html).toContain('<form method="post" action="/capacity/add?capacity=open#capacity"')
-    expect(html).toContain('id="capacity"')
+    expect(redirectedTo(added)).toBe('/')
+    expect(stored().capacityEntries(TEAM)).toEqual([
+      { id: 1, percent: 0, from: '2026-11-02', to: '2026-11-06', note: 'Offsite' },
+      { id: 2, percent: 60, from: '2026-11-23', to: undefined, note: 'Holiday' },
+    ])
   })
 
-  test('a week off, typed, comes back to the forecast with the entry listed and the 85% date later', async () => {
+  test('refused, the forecast again with a 400, the section open, and nothing kept', async () => {
     await startOnSavedData()
     await submitPace('4', '8')
-    const before = dateAt(text(await page('/')), 85)
 
-    const response = await addCapacity('0', '2026-11-02', '2026-11-06', 'Offsite')
+    const refused = await addCapacity('50', '2026-09-14', '2026-09-07', 'Half on <leave>')
 
-    expect(response.status).toBe(303)
-    expect(response.headers.get('location')).toBe('/')
-    const screen = text(await page('/'))
-    expect(screen).toContain('0% 2 Nov 2026 to 6 Nov 2026 Offsite')
-    expect(Date.parse(dateAt(screen, 85))).toBeGreaterThan(Date.parse(before))
+    expect(refused.status).toBe(400)
+    expect(capacitySection(await refused.text()).open).toBe(true)
+    expect(stored().capacityEntries(TEAM)).toEqual([])
   })
 
-  test('lists a one-day entry by its day and an onward one from its start', async () => {
+  test('posted from the open section, it goes back to the section open, at the URL that opens it, and so does a refusal', async () => {
     await startOnSavedData()
     await submitPace('4', '8')
-
-    await addCapacity('0', '2026-11-16', '', 'Holiday')
-    await addCapacity('60', '2026-11-23', '', '', true)
-
-    const screen = text(await page('/'))
-    expect(screen).toContain('0% on 16 Nov 2026 Holiday')
-    expect(screen).toContain('60% from 23 Nov 2026 onward')
-  })
-
-  test('refused, shows the forecast again with the section open, saying why, keeping what was typed', async () => {
-    await startOnSavedData()
-    await submitPace('4', '8')
-
-    const response = await addCapacity('50', '2026-09-14', '2026-09-07', 'Half on <leave>')
-
-    expect(response.status).toBe(400)
-    const html = await response.text()
-    expect(text(html)).toContain('The end date is before the start.')
-    expect(html).toContain('<details class="capacity" id="capacity" data-toggle="/#capacity" open>')
-    expect(html).toContain('value="Half on &#60;leave&#62;"')
-    expect(html).toContain('value="2026-09-14"')
-    expect(text(html)).toContain('Starting 1 Sep 2026: 85% confident of finishing by 1 Dec 2026')
-  })
-
-  test('an entry far above usual is warned of beside it', async () => {
-    await startOnSavedData()
-    await submitPace('4', '8')
-
-    await addCapacity('300', '2026-09-07', '', '', true)
-
-    expect(text(await page('/'))).toContain('At 300%, the pace comes from a team about 33% this size, so it’s a weak guide. A pace range may be better.')
-  })
-
-  test('removing an entry takes it off the forecast', async () => {
-    await startOnSavedData()
-    await submitPace('4', '8')
-    await addCapacity('0', '2026-10-26', '2026-10-30', 'Offsite')
-
-    const response = await post('/capacity/remove', [['id', '1']])
-
-    expect(response.headers.get('location')).toBe('/')
-    const screen = text(await page('/'))
-    expect(screen).not.toContain('Offsite')
-    expect(screen).toContain('Starting 1 Sep 2026: 85% confident of finishing by 1 Dec 2026')
-  })
-
-  test('with capacity in use, the dates are compared with usual capacity, and the headline says it includes capacity', async () => {
-    await startOnSavedData()
-    await submitPace('4', '8')
-    const usual = dateAt(text(await page('/')), 85)
-
-    await addCapacity('0', '2026-11-16', '2026-11-20', 'Offsite')
-
-    const html = await page('/')
-    expect(html).toContain('<th>With capacity</th><th>At usual capacity</th>')
-    const screen = text(html)
-    expect(screen).toMatch(/: 85% confident of finishing by \d+ \w+ 2026 Includes capacity, which moves the 85% date 1 week later\./)
-    expect(screen).toMatch(new RegExp(`85% confident by \\d+ \\w+ 2026 ${usual} 1 week later`))
-    expect(screen).toContain('Capacity 1 entry · 85% date 1 week later')
-  })
-
-  test('switched off, the forecast is without capacity and says its entries are kept; switched on, it is back', async () => {
-    await startOnSavedData()
-    await submitPace('4', '8')
-    await addCapacity('0', '2026-11-16', '2026-11-20', 'Offsite')
-    const withCapacity = dateAt(text(await page('/')), 85)
-    expect(await page('/')).toContain('<form method="post" action="/capacity/switch?capacity=open#capacity"')
-
-    const response = await post('/capacity/switch', [['on', 'false']])
-
-    expect(response.headers.get('location')).toBe('/')
-    const html = await page('/')
-    const screen = text(html)
-    expect(screen).toContain('Starting 1 Sep 2026: 85% confident of finishing by 1 Dec 2026 Capacity is switched off for this forecast; its entries are kept.')
-    expect(screen).toContain('Capacity off · 1 entry')
-    expect(screen).toContain('Off: the forecast uses pace alone. Entries are kept, and still count for the next milestone.')
-    expect(screen).toContain('0% 16 Nov 2026 to 20 Nov 2026 Offsite')
-    expect(html).not.toContain('<th>With capacity</th>')
-    expect(html).toContain('role="switch" aria-checked="false"')
-
-    await post('/capacity/switch', [['on', 'true']])
-
-    expect(dateAt(text(await page('/')), 85)).toBe(withCapacity)
-  })
-
-  test('the week-by-week chart shades each week capacity changes and labels it with its %, leaving usual weeks plain', async () => {
-    await startOnSavedData()
-    await submitPace('4', '8')
-    const plain = found(await page('/'), /<figure class="finish-graph"[\s\S]*?<\/figure>/)
-    expect(plain).not.toContain('capacity')
-
-    // from Tuesday 1 Sep, a week off from Monday 2 Nov takes one working day of five from the week ending 3 Nov, four from the next
-    await addCapacity('0', '2026-11-02', '2026-11-06', 'Offsite')
-
-    const html = await page('/')
-    const graph = found(html, /<figure class="finish-graph"[\s\S]*?<\/figure>/)
-    const bar = (date: string) => found(graph, new RegExp(`<div class="bar[^"]*"[^>]*data-date="${date}"[\\s\\S]*?</div>`))
-    expect(text(html)).toContain('Week by week')
-    expect(bar('2026-11-03')).toMatch(/class="bar[^"]* changed"/)
-    expect(bar('2026-11-03')).toContain('<span class="capacity">80%</span>')
-    expect(text(bar('2026-11-10'))).toContain('At 20% capacity.')
-    expect(bar('2026-11-17')).not.toContain('changed')
-    expect(text(graph)).toContain('Shaded weeks: capacity changes, at the % shown.')
-  })
-
-  test('folded, the section gives no entry’s effect; opening it, at its own URL, gives each entry’s effect on the 85% date', async () => {
-    await startOnSavedData()
-    await submitPace('4', '8')
-    await addCapacity('0', '2026-11-02', '2026-11-06', 'Offsite')
-    await addCapacity('120', '2027-06-01', '', '', true)
-    await addCapacity('50', '2026-09-07', '2026-09-11', 'Ended')
-
-    const folded = await page('/')
-    expect(folded).toContain('<details class="capacity" id="capacity" data-toggle="/?capacity=open#capacity">')
-    expect(text(folded)).not.toContain('85% date +')
-    expect(text(folded)).not.toContain('no change to the 85% date')
-
-    const open = await page('/?capacity=open')
-    expect(open).toContain('<details class="capacity" id="capacity" data-toggle="/#capacity" open>')
-    expect(text(open)).toContain('0% 2 Nov 2026 to 6 Nov 2026 Offsite 85% date +1 wk')
-    expect(text(open)).toContain('120% from 1 Jun 2027 onward no change to the 85% date')
-    // a past entry isn't used by the forecast, so has no effect to give
-    expect(text(open)).toContain('50% 7 Sep 2026 to 11 Sep 2026 Ended Edit')
-  })
-
-  test('the section stays open across saves, its effects shown, and across a refusal', async () => {
-    await startOnSavedData()
-    await submitPace('4', '8')
-    expect(await page('/?capacity=open')).toContain('<form method="post" action="/capacity/add?capacity=open#capacity"')
 
     const saved = await post('/capacity/add?capacity=open', [
       ['percent', '0'],
@@ -170,21 +44,93 @@ describe('Milestone forecast screen: capacity', () => {
       ['to', '2026-11-06'],
       ['note', 'Offsite'],
     ])
-
-    expect(saved.headers.get('location')).toBe('/?capacity=open')
     const refused = await post('/capacity/add?capacity=open', [
       ['percent', 'half'],
       ['from', '2026-09-14'],
       ['to', ''],
     ])
-    const html = await refused.text()
-    expect(html).toContain('<details class="capacity" id="capacity" data-toggle="/#capacity" open>')
-    expect(text(html)).toContain('Offsite 85% date +1 wk')
+
+    expect(redirectedTo(saved)).toBe('/?capacity=open')
+    expect(refused.status).toBe(400)
+    expect(capacitySection(await refused.text())).toEqual({ open: true, toggle: '/#capacity', refused: true })
+    expect(capacitySection(await page('/'))).toEqual({ open: false, toggle: '/?capacity=open#capacity', refused: false })
+    expect(capacitySection(await page('/?capacity=open'))).toEqual({ open: true, toggle: '/#capacity', refused: false })
   })
 
-  test("the Inputs screen's pace says where capacity is set", async () => {
+  test('an entry’s Edit, a past one’s note alone, Remove and the switch post the id or on they carry', async () => {
     await startOnSavedData()
+    await submitPace('4', '8')
+    await addCapacity('0', '2026-11-02', '2026-11-06', 'Offsite')
+    await addCapacity('0', '2026-09-07', '2026-09-11', 'Offsite')
 
-    expect(text(await page('/inputs'))).toContain('Capacity is set beside the forecast, under Pace.')
+    const edited = await editCapacity('1', '50', '2026-11-09', '2026-11-13', 'Offsite, half the team')
+    await post('/capacity/edit', [
+      ['id', '2'],
+      ['note', 'Offsite in Lisbon'],
+    ])
+
+    expect(redirectedTo(edited)).toBe('/')
+    expect(stored().capacityEntries(TEAM)).toEqual([
+      { id: 1, percent: 50, from: '2026-11-09', to: '2026-11-13', note: 'Offsite, half the team' },
+      { id: 2, percent: 0, from: '2026-09-07', to: '2026-09-11', note: 'Offsite in Lisbon' },
+    ])
+
+    const switched = await post('/capacity/switch', [['on', 'false']])
+    expect(redirectedTo(switched)).toBe('/')
+    expect(stored().capacityOn(TEAM)).toBe(false)
+    await post('/capacity/switch', [['on', 'true']])
+    expect(stored().capacityOn(TEAM)).toBe(true)
+
+    const removed = await post('/capacity/remove', [['id', '1']])
+    expect(redirectedTo(removed)).toBe('/')
+    expect(
+      stored()
+        .capacityEntries(TEAM)
+        .map(({ id }) => id),
+    ).toEqual([2])
+  })
+
+  test('a lasting entry’s Make it the new usual, Keep it and End it today post its id, back to the section open', async () => {
+    await startOnSavedData()
+    await submitCounts('4, 6, 5, 7')
+    await choosePace('counts')
+    await addCapacity('80', '2026-09-22', '', 'Two left', true)
+    await addCapacity('90', '2026-09-22', '', 'One left', true)
+
+    const accepted = await post('/capacity/new-usual?capacity=open', [['id', '1']])
+    await post('/capacity/keep?capacity=open', [['id', '2']])
+
+    expect(redirectedTo(accepted)).toBe('/?capacity=open')
+    expect(stored().capacityEntries(TEAM)).toEqual([
+      { id: 1, percent: 80, from: '2026-09-22', to: '2026-10-24', note: 'Two left', newUsualOn: '2026-10-24' },
+      { id: 2, percent: 90, from: '2026-09-22', to: undefined, note: 'One left', kept: true },
+    ])
+
+    // with a pace range, the EM ends it themselves
+    await submitPace('4', '8')
+    await choosePace('range')
+    const ended = await post('/capacity/end-today?capacity=open', [['id', '2']])
+
+    expect(redirectedTo(ended)).toBe('/?capacity=open')
+    expect(stored().capacityEntries(TEAM)[1]).toMatchObject({ id: 2, to: '2026-10-23' })
+  })
+
+  test.each([
+    ['/capacity/edit', 400],
+    ['/capacity/new-usual', 400],
+    ['/capacity/keep', 400],
+    ['/capacity/end-today', 400],
+    // removing no entry leaves every one, as removing one already gone does
+    ['/capacity/remove', 303],
+  ])('%s posted with no id reads it as empty: answered %s, every entry kept', async (path, status) => {
+    await startOnSavedData()
+    await submitPace('4', '8')
+    // lasting, so each action would take it, given its id
+    await addCapacity('80', '2026-09-28', '', 'Two left', true)
+
+    const answered = await post(path, [])
+
+    expect(answered.status).toBe(status)
+    expect(stored().capacityEntries(TEAM)).toEqual([{ id: 1, percent: 80, from: '2026-09-28', to: undefined, note: 'Two left' }])
   })
 })

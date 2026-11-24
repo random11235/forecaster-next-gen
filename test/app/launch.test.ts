@@ -6,7 +6,8 @@ import { portFromEnv, startAppAndOpenBrowser, type RunningApp } from '../../src/
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { QueryTarget, Storage } from '../../src/storage/storage.js'
 import { CHECKOUT, TEAM } from '../trackerScenario.js'
-import { appOnTracker, defaultTeam, page, type AppOnTracker } from './appOnTracker.js'
+import { appOnTracker, page, type AppOnTracker } from './appOnTracker.js'
+import { defaultTeam } from './defaultTeam.js'
 import { post, SAVE_IN_PLACE } from './forms.js'
 
 /** When the Forecaster was installed for the team the tests store. */

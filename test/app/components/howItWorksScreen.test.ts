@@ -3,6 +3,7 @@ import { renderHowItWorksScreen } from '../../../src/app/howItWorksScreen.js'
 import type { HowItWorksView } from '../../../src/forecast/index.js'
 import { forecastingForTest } from '../../forecast/forecastingForTest.js'
 import { accessibleName, allByRole, byRole, one, render, text } from '../dom.js'
+import { laterFinishes, shareSaid } from './milestoneForecastScreenHarness.js'
 
 // The How it works screen (#236), rendered from the example's view Seam B gives, started no server: its three parts,
 // each picture named for a screen reader, and the example's simulations as they finish. What the example forecasts is
@@ -51,7 +52,33 @@ describe('the How it works screen', () => {
     )
   })
 
+  test('the burndown labels the share of simulations its pace meets, and the weeks most finish in', () => {
+    const problem = byRole(page, 'region', { name: 'The problem' })
+    const finishing = view.finishGraph.bars.filter(({ share }) => share > 0).map(({ period }) => period)
+    const [first, last] = [Math.min(...finishing), Math.max(...finishing)]
+    // some finish after the graph's last week, so the spread is of most
+    if (!view.finishGraph.later) throw new Error('Expected some simulations to finish after the graph’s last week')
+
+    expect(text(problem)).toContain(`met in ${shareSaid(view.averagePace.met)} of simulations`)
+    expect(text(problem)).toContain(`most simulated finishes: weeks ${first}–${last}`)
+    expect(accessibleName(byRole(problem, 'img'))).toBe(
+      `A straight burndown at the average pace reaches 0 in week ${view.averagePace.period}; most simulated finishes fall between weeks ${first} and ${last}.`,
+    )
+  })
+
+  test('the count of finishes marks the 50% and 85% weeks', () => {
+    const [half, sure] = view.weeks
+    const count = allByRole(byRole(page, 'region', { name: 'How it works' }), 'figure')[3]!
+
+    expect(text(count)).toContain(`${half?.percent}% wk ${half?.period}`)
+    expect(text(count)).toContain(`${sure?.percent}% wk ${sure?.period}`)
+  })
+
   test('the few simulations after the graph’s last week, in one line under the burndown', () => {
-    expect(text(byRole(page, 'region', { name: 'The problem' }))).toMatch(/ of simulations finish later, the last in week \d+\./)
+    const later = laterFinishes(view.finishGraph, 'by')
+
+    expect(text(byRole(page, 'region', { name: 'The problem' }))).toContain(
+      `${shareSaid(later.share)} of simulations finish later, the last in week ${later.last.period}.`,
+    )
   })
 })

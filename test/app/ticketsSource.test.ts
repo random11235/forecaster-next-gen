@@ -1,14 +1,12 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import type { RunningApp } from '../../src/app/launch.js'
 import type { CannedFixture } from '../../src/connectors/canned.js'
-import { appOnTracker, page, type AppOnTracker } from './appOnTracker.js'
-import { inputsSection } from './inputsSection.js'
-import { post } from './forms.js'
+import { CHECKOUT, TEAM } from '../trackerScenario.js'
+import { appOnTracker, type AppOnTracker } from './appOnTracker.js'
+import { post, redirectedTo } from './forms.js'
 
-// Tickets remaining's source on the Inputs screen (#211), through the local server as the EM's browser sees it, on
-// the canned connector.
-
-const CHECKOUT = { kind: 'milestone', name: 'Checkout v2', query: 'milestone:"Checkout v2"' } as const
+// Tickets remaining's source (#211): the forms the browser posts, read into what is stored. What the Inputs screen
+// shows of it is test/forecast/ticketsSource.test.ts's and test/app/components/inputsScreen.sources.test.ts's.
 
 const FIXTURE: CannedFixture = {
   milestoneChoices: [{ kind: 'milestone', choices: [CHECKOUT], pastLimit: false }],
@@ -22,84 +20,46 @@ afterEach(async () => {
   app = undefined
 })
 
-/** The app, its milestone entered with 30 tickets typed; connected to GitHub with them picked, unless `connect` is false. */
-async function start({ connect = true, fixture = FIXTURE } = {}): Promise<RunningApp> {
-  app = await appOnTracker(fixture)
+/** The app, its milestone entered with 30 tickets typed, connected to GitHub with them picked. */
+async function start(): Promise<RunningApp> {
+  app = await appOnTracker(FIXTURE)
   const { running } = app
   await post(running, '/inputs/milestone', { name: 'Checkout v2', startDate: '2026-11-16', ticketsRemaining: '30' })
-  if (connect) {
-    await post(running, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
-    await post(running, '/inputs/milestone-query/add', CHECKOUT)
-    await post(running, '/inputs/setup/use-these', {})
-  }
+  await post(running, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
+  await post(running, '/inputs/milestone-query/add', { ...CHECKOUT })
+  await post(running, '/inputs/setup/use-these', {})
   return running
 }
 
-/** The Milestone section of the Inputs screen. */
-async function milestoneSection(running: RunningApp): Promise<string> {
-  return inputsSection(await page(running, '/inputs'), 'milestone')
-}
-
 describe('tickets remaining’s source', () => {
-  test('connected, it offers GitHub or typed, typed chosen, with the typed number to type into', async () => {
-    const running = await start()
-
-    const section = await milestoneSection(running)
-
-    expect(section).toMatch(/<input type="radio" name="ticketsSource" value="tracker"[^>]*> GitHub/)
-    expect(section).toMatch(/<input type="radio" name="ticketsSource" value="typed" checked[^>]*> Typed/)
-    expect(section).toContain('name="ticketsRemaining"')
-    expect(section).toContain('value="30"')
-  })
-
-  test('following GitHub, it shows the latest read’s count and when it was read, with no field to type in', async () => {
+  test('choosing GitHub is saved, and lands back on the Inputs screen', async () => {
     const running = await start()
 
     const chosen = await post(running, '/inputs/tickets-source', { ticketsSource: 'tracker' })
 
-    expect(chosen.headers.get('location')).toBe('/inputs')
-    const section = await milestoneSection(running)
-    expect(section).toMatch(/value="tracker" checked/)
-    expect(section).toMatch(/<span class="reading-value">3<\/span>/)
-    expect(section).toMatch(/tickets remaining · GitHub, read 12 Nov \d\d:00/)
-    expect(section).not.toContain('name="ticketsRemaining"')
+    expect(redirectedTo(chosen)).toBe('/inputs')
+    expect(app?.storage.milestoneInputs(TEAM)?.ticketsSource).toBe('tracker')
   })
 
-  test('saving the milestone while following keeps following', async () => {
+  test('the milestone saved while following GitHub, with no tickets remaining field, reads none, and is saved', async () => {
     const running = await start()
     await post(running, '/inputs/tickets-source', { ticketsSource: 'tracker' })
 
-    await post(running, '/inputs/milestone', { name: 'Checkout v3', startDate: '2026-11-16' })
+    const saved = await post(running, '/inputs/milestone', { name: 'Checkout v3', startDate: '2026-11-16' })
 
-    const section = await milestoneSection(running)
-    expect(section).toContain('value="Checkout v3"')
-    expect(section).toMatch(/<span class="reading-value">3<\/span>/)
+    expect(redirectedTo(saved)).toBe('/inputs')
+    expect(app?.storage.milestoneInputs(TEAM)?.name).toBe('Checkout v3')
   })
 
-  test('an incomplete read’s count is marked incomplete beside it', async () => {
-    const running = await start({ fixture: { ...FIXTURE, reads: { [CHECKOUT.query]: { tickets: [{ id: 'm1' }], incomplete: true } } } })
+  test('a reading opened is kept as seen, its field read; posted with none, it is refused, and nothing kept', async () => {
+    const running = await start()
 
-    await post(running, '/inputs/tickets-source', { ticketsSource: 'tracker' })
+    const missing = await post(running, '/inputs/reading-opened', {})
+    expect(missing.status).toBe(400)
+    expect(app?.storage.milestoneInputs(TEAM)?.seenReads.ticketsRemaining).toBeUndefined()
 
-    const section = await milestoneSection(running)
-    expect(section).toMatch(/<span class="reading-value">1<\/span>\s*<span class="incomplete">incomplete<\/span>/)
-    expect(section).toContain('GitHub gave only part of the milestone’s tickets')
-  })
-
-  test('following GitHub before it has read the milestone’s tickets, it says they’re not read yet', async () => {
-    const running = await start({ fixture: { ...FIXTURE, reads: { [CHECKOUT.query]: { failure: 'unavailable' } } } })
-
-    await post(running, '/inputs/tickets-source', { ticketsSource: 'tracker' })
-
-    expect(await milestoneSection(running)).toContain('tickets remaining · GitHub, not read yet')
-  })
-
-  test('with no connection, there is no source to choose: tickets remaining is typed, as in the MVP', async () => {
-    const running = await start({ connect: false })
-
-    const section = await milestoneSection(running)
-
-    expect(section).not.toContain('name="ticketsSource"')
-    expect(section).toContain('name="ticketsRemaining"')
+    const opened = await post(running, '/inputs/reading-opened', { reading: 'ticketsRemaining' })
+    expect(redirectedTo(opened)).toBe('/inputs')
+    expect(app?.storage.milestoneInputs(TEAM)?.seenReads.ticketsRemaining).toBeDefined()
   })
 })

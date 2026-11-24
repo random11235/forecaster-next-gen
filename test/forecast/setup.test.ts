@@ -161,6 +161,20 @@ describe('"Use these"', () => {
 
     expect(forecasting.storage.setupState(TEAM)).toMatchObject({ open: true })
   })
+
+  test('once done, the Inputs screen asks the tracker nothing, its choices included, though its URL names a query step', async () => {
+    const forecasting = await team()
+    await connect(forecasting)
+    await pick(forecasting, READ_AT)
+    await setup(forecasting, { kind: 'useThese' })
+    const asked = () => ({ choices: forecasting.calls.choices, reads: forecasting.calls.reads.length, searches: forecasting.calls.searches.length })
+    const before = asked()
+
+    await setupAt(forecasting)
+    expect(await setupAt(forecasting, 'comparableWork')).toMatchObject({ kind: 'summary' })
+    expect(await forecasting.inputsScreen({ step: 'milestone', find: { milestone: 'check' }, opened: [Q3_POLISH.query] })).not.toHaveProperty('step')
+    expect(asked()).toEqual(before)
+  })
 })
 
 describe('the summary’s rows', () => {

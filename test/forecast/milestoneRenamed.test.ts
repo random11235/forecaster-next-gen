@@ -61,6 +61,18 @@ describe('renaming the milestone', () => {
     expect((await team.inputsScreen()).inputs.milestone.ticketsSource).toMatchObject({ reading: { count: 3 } })
   })
 
+  test('saved in place, as the Milestone form saves as it changes, the query follows the new name too, the screen showing its read', async () => {
+    const team = await pickedFrom(GITHUB, 'github', [checkout])
+
+    const saved = await team.submit(
+      { form: 'inputs', edit: { kind: 'setMilestone', name: RENAMED.to, startDate: '2026-11-02', ticketsRemaining: '40' } },
+      { inPlace: true },
+    )
+
+    expect(saved).toMatchObject({ kind: 'savedInPlace', followed: 'followed', view: { inputs: { milestone: { ticketsSource: { reading: { count: 3 } } } } } })
+    expect(team.storage.milestoneQuery(TEAM)).toEqual({ picks: [loyalty], query: 'milestone:"Loyalty launch"' })
+  })
+
   test('on Jira, a query of the fix version of the old name follows the new name', async () => {
     const jira: CannedFixture = { milestoneChoices: [{ kind: 'fixVersion', choices: [checkoutVersion, loyaltyVersion], pastLimit: false }], reads: READS }
     const team = await pickedFrom(jira, 'jira', [checkoutVersion])

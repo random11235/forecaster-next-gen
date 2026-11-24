@@ -7,9 +7,13 @@ import type { Connecting } from '../../src/forecast/index.js'
 import { openMemorySecrets } from '../../src/secrets/memorySecrets.js'
 import { openSqliteStorage } from '../../src/storage/sqliteStorage.js'
 import type { TeamStorage } from '../trackerScenario.js'
+import { all, render } from './dom.js'
 import { found } from './found.js'
 
-// Candidates for comparable work on the Inputs screen (#205), through the local server, on the canned connector.
+// Candidates for comparable work on the Inputs screen (#205), through the local server, on the canned connector: the
+// query parameter opening one, and the openings the server keeps for the step's script to ask in. Which are read,
+// and how they are grouped, are Seam B's (test/forecast/candidates.test.ts); how they are drawn, the component
+// test's (test/app/components/candidatesSection.test.ts).
 
 const checkout: Choice = { kind: 'milestone', name: 'Checkout v2', query: 'milestone:"Checkout v2"' }
 const payments: Choice = { kind: 'label', name: 'payments', query: 'label:"payments"' }
@@ -98,6 +102,12 @@ function stepOf(html: string): string {
 /** The candidates block's opening, as the page names it. */
 const openingOf = (html: string): string => found(stepOf(html), /data-opening="([^"]+)"/, 1)
 
+/** The candidates `html` shows, each by its query, sorted. */
+const shown = (html: string): (string | null)[] =>
+  all(render(html), 'li[data-query]')
+    .map((candidate) => candidate.getAttribute('data-query'))
+    .sort()
+
 /** What the step's script asks for once `choices` are opened, in `opening`. */
 function candidatesPath(opening: string, choices: Choice[]): string {
   const params = new URLSearchParams({ opening })
@@ -106,66 +116,13 @@ function candidatesPath(opening: string, choices: Choice[]): string {
 }
 
 describe('candidates for comparable work', () => {
-  test('the step lists them without data, reading none, each with a link to open it', async () => {
-    const running = await startConnected()
-
-    const step = stepOf(await page(running))
-
-    expect(reads).toEqual([])
-    expect(step).toContain('class="candidates"')
-    expect(step).toContain(`href="/inputs?step=comparableWork&#38;comparableOpen=${encodeURIComponent(payments.query)}#comparable-work"`)
-    expect(step).not.toContain('Slower than the milestone')
-  })
-
-  test('opening one reads it alone, and shows it in its group with its data', async () => {
+  test('comparableOpen, in the step’s URL, opens one: reads it alone, and shows it', async () => {
     const running = await startConnected()
 
     const step = stepOf(await page(running, `/inputs?step=comparableWork&comparableOpen=${encodeURIComponent(payments.query)}`))
 
     expect(reads).toEqual([payments.query])
-    expect(step).toContain('Slower than the milestone')
-    expect(step).toMatch(/payments[^]*2 a week slower/)
-    expect(step).toContain('2 finished')
-    expect(step).toContain('last finished 30 Oct')
-    expect(step).toContain('1 open')
-  })
-
-  test('the milestone itself is marked', async () => {
-    const running = await startConnected()
-
-    const step = stepOf(await page(running, `/inputs?step=comparableWork&comparableOpen=${encodeURIComponent(checkout.query)}`))
-
-    expect(step).toContain('About the same')
-    expect(step).toContain('this milestone: counts its own too')
-  })
-
-  test('the milestone itself is marked in the step’s lists, unread', async () => {
-    const running = await startConnected()
-
-    const step = stepOf(await page(running))
-
-    expect(reads).toEqual([])
-    expect(step).toMatch(/Checkout v2 <span class="kind">milestone<\/span> <span class="this">this milestone<\/span><\/button>/)
-  })
-
-  test('narrowing the list to a few by typing reads those', async () => {
-    const running = await startConnected()
-
-    const step = stepOf(await page(running, '/inputs?step=comparableWork&comparableFind=pay'))
-
-    expect(reads).toEqual([payments.query])
-    expect(step).toContain('Slower than the milestone')
-  })
-
-  test('a candidate whose read fails shows why, and can still be picked', async () => {
-    const running = await startConnected()
-
-    const step = stepOf(await page(running, `/inputs?step=comparableWork&comparableOpen=${encodeURIComponent(broken.query)}`))
-
-    expect(step).toContain('GitHub couldn’t read it just now.')
-    expect(step).toMatch(
-      /<form method="post" action="\/inputs\/comparable-work\/add#comparable-work"[^>]*>[^]*?value="label:&#34;broken&#34;"[^]*?GitHub couldn’t read it/,
-    )
+    expect(shown(step)).toEqual([payments.query])
   })
 
   test('the step’s script asks for the candidates opened, each read once in the opening', async () => {
@@ -176,8 +133,7 @@ describe('candidates for comparable work', () => {
     const html = await page(running, candidatesPath(opening, [payments, bug]))
 
     expect(reads).toEqual([payments.query, bug.query])
-    expect(html).toContain('Slower than the milestone')
-    expect(html).toContain('Nothing finished')
+    expect(shown(html)).toEqual([bug.query, payments.query].sort())
   })
 
   test('in an opening the server no longer keeps, the candidates are read in a fresh one', async () => {
@@ -186,7 +142,7 @@ describe('candidates for comparable work', () => {
     const html = await page(running, candidatesPath('gone', [payments]))
 
     expect(reads).toEqual([payments.query])
-    expect(html).toContain('Slower than the milestone')
+    expect(shown(html)).toEqual([payments.query])
   })
 
   test('the server keeps the latest 32 openings: in one older, a candidate already read is read afresh', async () => {

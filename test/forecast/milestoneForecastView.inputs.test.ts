@@ -2,7 +2,7 @@ import { assert, describe, expect, test } from 'vitest'
 import type { InputsEdit } from '../../src/forecast/index.js'
 import { DEFAULT_SETTINGS } from '../../src/forecast/index.js'
 import type { ForecastingForTest } from './forecastingForTest.js'
-import { TEAM, TODAY, newTeam, edit, enter, DATES_FROM_1_SEP, view, inputsScreenView } from './forecastViewScenario.js'
+import { TEAM, TODAY, newTeam, edit, keptFromBeforeTheMvp, enter, DATES_FROM_1_SEP, view, inputsScreenView } from './forecastViewScenario.js'
 
 // Seam B: the Inputs screen before a forecast, its refusals, and the milestone and its ambiguity there. Arranged
 // through forecastViewScenario.ts.
@@ -14,21 +14,7 @@ describe('before there is a forecast', () => {
 
   test('a milestone kept from before the MVP lists what to enter, each naming its input', async () => {
     const team = await newTeam()
-    team.storage.saveMilestoneInputs({
-      teamId: TEAM,
-      name: 'Checkout v2',
-      startDate: undefined,
-      ticketsRemaining: undefined,
-      ambiguity: 'medium',
-      cadenceDays: 7,
-      paceMode: 'range',
-      paceRange: undefined,
-      paceCounts: [],
-      paceCadenceDays: undefined,
-      paceWindow: { action: undefined, skippedPeriods: [] },
-      ticketsSource: 'typed',
-      seenReads: { ticketsRemaining: undefined, pace: undefined },
-    })
+    keptFromBeforeTheMvp(team)
 
     expect(await view(team)).toEqual({
       kind: 'problems',
@@ -43,21 +29,7 @@ describe('before there is a forecast', () => {
 
   test('a milestone kept from before the MVP, on too few typed counts, lists them with what else to enter', async () => {
     const team = await newTeam()
-    team.storage.saveMilestoneInputs({
-      teamId: TEAM,
-      name: 'Checkout v2',
-      startDate: undefined,
-      ticketsRemaining: 10,
-      ambiguity: 'medium',
-      cadenceDays: 7,
-      paceMode: 'counts',
-      paceRange: undefined,
-      paceCounts: [6],
-      paceCadenceDays: undefined,
-      paceWindow: { action: undefined, skippedPeriods: [] },
-      ticketsSource: 'typed',
-      seenReads: { ticketsRemaining: undefined, pace: undefined },
-    })
+    keptFromBeforeTheMvp(team, { ticketsRemaining: 10, paceMode: 'counts', paceCounts: [6] })
 
     expect(await view(team)).toEqual({
       kind: 'problems',
@@ -199,21 +171,7 @@ describe('the milestone on the Inputs screen', () => {
 
   test('a milestone kept from before the MVP shows today pre-filled, noting that no start date is saved yet', async () => {
     const team = await newTeam()
-    team.storage.saveMilestoneInputs({
-      teamId: TEAM,
-      name: 'Checkout v2',
-      startDate: undefined,
-      ticketsRemaining: 10,
-      ambiguity: 'medium',
-      cadenceDays: 7,
-      paceMode: 'range',
-      paceRange: { low: 4, high: 8 },
-      paceCounts: [],
-      paceCadenceDays: undefined,
-      paceWindow: { action: undefined, skippedPeriods: [] },
-      ticketsSource: 'typed',
-      seenReads: { ticketsRemaining: undefined, pace: undefined },
-    })
+    keptFromBeforeTheMvp(team, { ticketsRemaining: 10, paceRange: { low: 4, high: 8 } })
 
     expect(await inputs(team)).toMatchObject({
       startDate: TODAY,

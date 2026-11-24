@@ -15,6 +15,11 @@ export const NOW = `${TODAY}T09:00:00Z`
  */
 export const START = '2026-11-02'
 
+/** Typed counts that step up for the last four weeks: the pattern offers to start the pace from the step. */
+export const STEPPED_UP = [4, 3, 5, 4, 4, 3, 4, 5, 3, 4, 8, 9, 7, 8]
+/** Typed counts with one odd week, the eleventh: the pattern offers to leave it out. */
+export const ODD_WEEK = [5, 6, 5, 4, 6, 5, 5, 4, 6, 5, 23, 5, 6, 4]
+
 /** The team's handle on `TODAY`: as the browser build opens it, unless connecting on `fixture`. */
 export const teamOn = (fixture?: CannedFixture): Promise<ForecastingForTest> =>
   forecastingForTest({ clock: { now: NOW }, ...(fixture ? { fixture, connected: true } : { browser: true }) })
