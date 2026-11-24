@@ -2,14 +2,16 @@ import { describe, expect, test } from 'vitest'
 import { Event, HTMLButtonElement, HTMLDetailsElement, HTMLElement, HTMLFormElement, HTMLInputElement } from 'happy-dom'
 import type { CannedFixture } from '../../src/connectors/canned.js'
 import { CHECKOUT, TEAM } from '../trackerScenario.js'
-import { connectAndPick, inputsSection, type AppOnTracker } from './appOnTracker.js'
+import { connectAndPick, type AppInProcess } from './appInProcess.js'
 import { posted, type BrowserPage } from './browserPage.js'
+import { render } from './dom.js'
+import { inputsSection } from './inputsSection.js'
+import { change, changed } from './fieldEvents.js'
 import { pagesOnTracker } from './pagesOnTracker.js'
-import { post } from './forms.js'
 
-// The Inputs screen's script (#100), run in happy-dom against the local server on the canned connector (#275): what
-// the EM's browser saves as each input changes, and what the screen shows after. What each save or refusal answers is
-// tested over HTTP (screens.inputs.test.ts and the rest); these test what the script does with it.
+// The Inputs screen's script (#100), run in happy-dom against the app's routes in-process on the canned connector
+// (#275, #237): what the EM's browser saves as each input changes, and what the screen shows after. What each save or
+// refusal answers is tested over HTTP (screens.inputs.test.ts and the rest); these test what the script does with it.
 
 const MILESTONE = '/inputs/milestone#milestone'
 const CADENCE = '/inputs/cadence#cadence'
@@ -23,25 +25,16 @@ const FIXTURE: CannedFixture = {
 const pages = pagesOnTracker()
 
 /** The Inputs screen open in happy-dom, its milestone entered with 30 tickets remaining; connected, if asked, to GitHub. */
-const openInputs = ({ connected = false } = {}): Promise<{ app: AppOnTracker; page: BrowserPage }> =>
-  pages.open(FIXTURE, '/inputs', async (running) => {
-    await post(running, '/inputs/milestone', { name: 'Checkout v2', startDate: '2026-10-05', ticketsRemaining: '30' })
+const openInputs = ({ connected = false } = {}): Promise<{ app: AppInProcess; page: BrowserPage }> =>
+  pages.open(FIXTURE, '/inputs', async (app) => {
+    await app.post('/inputs/milestone', { name: 'Checkout v2', startDate: '2026-10-05', ticketsRemaining: '30' })
     if (!connected) return
-    await connectAndPick(running)
-    await post(running, '/inputs/setup/use-these', {})
+    await connectAndPick(app)
+    await app.post('/inputs/setup/use-these', {})
   })
 
 /** The field named `name` in the form posting to `action`, as the page holds it now. */
 const field = (shown: BrowserPage, action: string, name: string): HTMLInputElement => shown.find(`form[action="${action}"] [name="${name}"]`, HTMLInputElement)
-
-/** Fires `input`'s change, as the browser does on Enter or on leaving it. */
-const changed = (input: HTMLInputElement): boolean => input.dispatchEvent(new Event('change', { bubbles: true }))
-
-/** Types `value` into `input`, and fires its change. */
-function change(input: HTMLInputElement, value: string): void {
-  input.value = value
-  changed(input)
-}
 
 /** The section with `id`, as the page holds it now. */
 const sectionOnPage = (shown: BrowserPage, id: string): HTMLElement => shown.find(`section#${id}`, HTMLElement)
@@ -69,6 +62,18 @@ describe('the Inputs screen’s script', () => {
     expect(app.storage.milestoneInputs(TEAM)?.cadenceDays).toBe(14)
     expect(sectionOnPage(page, 'cadence').textContent).toContain('Saved')
     expect(sectionOnPage(page, 'pace').textContent).toContain('tickets per sprint')
+  })
+
+  test('a save posts its form’s fields, asking to be answered in place, and the page stays where it was', async () => {
+    const { page } = await openInputs()
+
+    change(field(page, CADENCE, 'cadenceDays'), '14')
+    await page.settled()
+
+    expect(page.requests).toHaveLength(1)
+    expect(page.requests[0]).toMatchObject({ method: 'POST', saveInPlace: true })
+    expect(page.requests[0]?.form?.get('cadenceDays')).toBe('14')
+    expect(page.window.location.pathname).toBe('/inputs')
   })
 
   test('a save swaps in the screen’s header too, which names the milestone', async () => {
@@ -192,7 +197,7 @@ describe('the Inputs screen’s script', () => {
 
   test('with the Forecaster not answering, the section says it isn’t saved', async () => {
     const { page } = await openInputs()
-    await pages.stopApp()
+    pages.stopApp()
 
     change(field(page, MILESTONE, 'ticketsRemaining'), '25')
     await page.settled()
@@ -214,7 +219,7 @@ describe('the Inputs screen’s script', () => {
 
     expect(posted(page)).toEqual(['/inputs/reading-opened'])
     expect(chip.querySelector('.dot')).toBeNull()
-    expect(await inputsSection(app.running, 'milestone')).not.toContain('class="dot"')
+    expect(render(inputsSection(await app.page('/inputs'), 'milestone')).querySelector('.dot')).toBeNull()
   })
 
   test('a chip’s Follow switches the value back to the tracker, though nothing was typed', async () => {

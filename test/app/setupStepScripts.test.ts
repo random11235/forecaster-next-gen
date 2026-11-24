@@ -1,16 +1,17 @@
 import { describe, expect, test } from 'vitest'
-import { Event, HTMLElement, HTMLInputElement, type Element } from 'happy-dom'
+import { HTMLElement, HTMLInputElement, type Element } from 'happy-dom'
 import type { CannedFixture } from '../../src/connectors/canned.js'
 import type { Choice } from '../../src/connectors/connector.js'
 import { CHECKOUT, finishedOn, label, open } from '../trackerScenario.js'
-import { connectAndPick, GITHUB_SHOP } from './appOnTracker.js'
-import { posted, typed, type BrowserPage } from './browserPage.js'
-import { pagesOnTracker } from './pagesOnTracker.js'
-import { post } from './forms.js'
+import { connectAndPick, GITHUB_SHOP } from './appInProcess.js'
+import { CANT_BE_REACHED, posted, type BrowserPage } from './browserPage.js'
+import { changed, typed } from './fieldEvents.js'
+import { pagesOnTracker, type OpenedPage } from './pagesOnTracker.js'
 
-// The setup steps' own scripts, run in happy-dom against the local server on the canned connector (#275): the
-// Milestone step's find box (`queryStepScript`, #191, #198), and Check's sources (`CHECK_SCRIPT`, #220). What each
-// answers is tested over HTTP (milestoneStep.test.ts, check.test.ts); these test what the scripts do in the browser.
+// The setup steps' own scripts, run in happy-dom against the app's routes in-process on the canned connector (#275,
+// #237): the Milestone step's find box (`queryStepScript`, #191, #198), and Check's sources (`CHECK_SCRIPT`, #220).
+// What each answers is tested over HTTP (milestoneStep.test.ts, check.test.ts); these test what the scripts do in the
+// browser.
 
 const STEP = '#milestone-tickets'
 
@@ -51,7 +52,7 @@ const noneFound = (shown: BrowserPage): boolean => displayed(shown, shown.find(`
 
 describe('the Milestone step’s find box', () => {
   const openStep = async (): Promise<BrowserPage> =>
-    (await pages.open(FIXTURE, '/inputs', (running) => post(running, '/inputs/connect', GITHUB_SHOP).then(() => {}))).page
+    (await pages.open(FIXTURE, '/inputs', (app) => app.post('/inputs/connect', GITHUB_SHOP).then(() => {}))).page
 
   test('narrows the lists as the EM types, to the choices whose names hold what is typed, ignoring case', async () => {
     const page = await openStep()
@@ -91,24 +92,101 @@ describe('the Milestone step’s find box', () => {
     expect(shownIn(page, 'epic')).toEqual(['Card payments'])
     expect(shownIn(page, 'milestone')).toEqual([])
   })
+
+  test('an answer to a search older than the latest is dropped', async () => {
+    const page = await openStep()
+    const first = page.holdAnswer('/inputs/milestone-choices')
+
+    setFind(page, 'card')
+    await first.held
+    setFind(page, 'payouts')
+    await page.until('the newer search’s answer', () => shownIn(page, 'epic').includes('Payouts'))
+    first.release()
+    await page.settled()
+
+    expect(shownIn(page, 'epic')).toEqual(['Payouts'])
+  })
+
+  test('with the Forecaster not answering, a search leaves the kind’s list as it was', async () => {
+    const page = await openStep()
+    expect(shownIn(page, 'epic')).toHaveLength(100)
+    pages.stopApp()
+
+    setFind(page, 'card')
+    await page.settled()
+
+    expect(page.requests).toHaveLength(1)
+    expect(shownIn(page, 'epic')).toHaveLength(100)
+  })
 })
 
 describe('the Check step’s sources', () => {
-  // happy-dom posts a submitted form as multipart, where a browser sends it urlencoded, so the server finds no source in
-  // it: what a choice posted saves is check.test.ts's, over HTTP. This tests that choosing one posts its form.
-  test('a source chosen posts its form at once, with no Choose to press', async () => {
-    const { page } = await pages.open(FIXTURE, '/inputs?step=check', async (running) => {
-      await post(running, '/inputs/milestone', { name: 'Checkout v2', startDate: '2026-09-01', ticketsRemaining: '30' })
-      await post(running, '/inputs/pace', { low: '4', high: '8' })
-      await connectAndPick(running)
+  /** Check open on the Inputs screen, its milestone and pace entered, connected to GitHub, Checkout v2 picked. */
+  const openCheck = (): Promise<OpenedPage> =>
+    pages.open(FIXTURE, '/inputs?step=check', async (app) => {
+      await app.post('/inputs/milestone', { name: 'Checkout v2', startDate: '2026-09-01', ticketsRemaining: '30' })
+      await app.post('/inputs/pace', { low: '4', high: '8' })
+      await connectAndPick(app)
     })
-    expect(page.find('#check', HTMLElement).classList.contains('chooses-as-changed')).toBe(true)
-    const tracker = page.find('#check form.source input[name=source][value=tracker]', HTMLInputElement)
 
-    tracker.checked = true
-    tracker.dispatchEvent(new Event('change', { bubbles: true }))
+  /** The radio on `page` choosing `source` for tickets remaining. */
+  const sourceRadio = (page: BrowserPage, source: string): HTMLInputElement =>
+    page.find(`#check form.source input[name=source][value=${source}]`, HTMLInputElement)
+
+  /** Chooses `radio`, a source for tickets remaining, as the EM picks it. */
+  function choose(radio: HTMLInputElement): HTMLInputElement {
+    radio.checked = true
+    changed(radio)
+    return radio
+  }
+
+  // happy-dom posts a submitted form as multipart, where a browser sends it urlencoded; the page reads either for the
+  // routes, as the form's fields are the same
+  test('a source chosen posts its form at once, with no Choose to press, and Check opens again showing it chosen', async () => {
+    const { app, page } = await openCheck()
+    expect(page.find('#check', HTMLElement).classList.contains('chooses-as-changed')).toBe(true)
+
+    const tracker = choose(sourceRadio(page, 'tracker'))
     await page.settled()
 
     expect(posted(page)).toEqual(['/inputs/setup/source'])
+    expect(page.requests[0]?.form?.toString()).toBe('value=ticketsRemaining&source=tracker')
+    expect(app.storage.setupDraft('team')?.sources).toEqual({ ticketsRemaining: 'tracker' })
+    expect(`${page.window.location.pathname}${page.window.location.search}`).toBe('/inputs?step=check')
+    const shown = page.find('#check form.source input[name=source][value=tracker]', HTMLInputElement)
+    expect(shown).not.toBe(tracker)
+    expect(shown.checked).toBe(true)
+  })
+
+  // the script submits the form, as a browser does, so what the page shows of a refused or failed answer is the
+  // browser's own: the page the routes answer with, or the browser's saying it couldn't reach the Forecaster
+  test('a source the routes refuse, as from a form changed by hand, opens the routes’ not found in place of Check, saving nothing', async () => {
+    const { app, page } = await openCheck()
+    const changedByHand = sourceRadio(page, 'tracker')
+    changedByHand.value = 'range'
+
+    choose(changedByHand)
+    await page.settled()
+
+    expect(posted(page)).toEqual(['/inputs/setup/source'])
+    expect(page.requests[0]?.form?.get('source')).toBe('range')
+    expect(page.requests[0]?.reply).toEqual({ kind: 'notFound' })
+    expect(page.window.location.pathname).toBe('/inputs/setup/source')
+    expect(page.document.querySelector('#check')).toBeNull()
+    expect(app.storage.setupDraft('team')?.sources).toBeUndefined()
+  })
+
+  test('with the Forecaster not answering, a source chosen opens the browser’s own page saying so, saving nothing', async () => {
+    const { app, page } = await openCheck()
+    pages.stopApp()
+
+    choose(sourceRadio(page, 'tracker'))
+    await page.settled()
+
+    expect(posted(page)).toEqual(['/inputs/setup/source'])
+    expect(page.requests[0]?.reply).toBeUndefined()
+    // the browser's own page, which browserPage.ts stands in for: the app answered nothing
+    expect(page.document.title).toBe(CANT_BE_REACHED)
+    expect(app.storage.setupDraft('team')?.sources).toBeUndefined()
   })
 })

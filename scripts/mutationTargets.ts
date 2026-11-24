@@ -1,11 +1,6 @@
 // Which changed lines a mutation run mutates (scripts/mutateDiff.ts).
 
 const SOURCE = /^src\/.*\.ts$/
-/**
- * Run only in a browser, so no test runs it and every mutant would survive: its demo checks it, as #114 agreed.
- * stryker.config.mjs leaves it out of a full run too; `--mutate` replaces that config, so it's left out here as well.
- */
-const UNTESTED = ['src/app/webMain.ts']
 /** A `git diff -U0` hunk header: the lines it adds start at `start` and run for `count`, 1 when it's left out. */
 const HUNK = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/
 /** The escapes git uses in a quoted path, besides 3-digit octal bytes. */
@@ -64,5 +59,5 @@ function unquote(quoted: string): string {
 
 /** The TypeScript source the tests run, which a mutation run mutates. */
 function isMutationSource(path: string): boolean {
-  return SOURCE.test(path) && !UNTESTED.includes(path)
+  return SOURCE.test(path)
 }

@@ -3,14 +3,14 @@ import { HTMLAnchorElement, HTMLElement, HTMLInputElement } from 'happy-dom'
 import type { CannedFixture } from '../../src/connectors/canned.js'
 import type { Choice } from '../../src/connectors/connector.js'
 import { CHECKOUT, finishedOn, label } from '../trackerScenario.js'
-import { connectAndPick } from './appOnTracker.js'
-import { typed, type BrowserPage } from './browserPage.js'
+import { connectAndPick } from './appInProcess.js'
+import { type BrowserPage } from './browserPage.js'
+import { typed } from './fieldEvents.js'
 import { pagesOnTracker } from './pagesOnTracker.js'
-import { post } from './forms.js'
 
-// The Comparable work step's candidates script (#205), run in happy-dom against the local server on the canned
-// connector (#275): which candidates the EM's browser asks for, and what the step shows of the answers. What each
-// answer holds is tested over HTTP (candidates.test.ts); these test what the script asks, and when.
+// The Comparable work step's candidates script (#205), run in happy-dom against the app's routes in-process on the
+// canned connector (#275, #237): which candidates the EM's browser asks for, and what the step shows of the answers.
+// What each answer holds is tested over HTTP (candidates.test.ts); these test what the script asks, and when.
 
 const CANDIDATES_PATH = '/inputs/comparable-work-candidates'
 
@@ -54,9 +54,9 @@ const pages = pagesOnTracker()
 /** The Comparable work step open in happy-dom, connected to GitHub with the milestone query picked, its lists holding `labels` too. */
 const openStep = async (labels: readonly Choice[] = []): Promise<BrowserPage> =>
   (
-    await pages.open(fixture(labels), '/inputs?step=comparableWork', async (running) => {
-      await post(running, '/inputs/milestone', { name: 'Checkout v2', startDate: '2026-10-01', ticketsRemaining: '30' })
-      await connectAndPick(running)
+    await pages.open(fixture(labels), '/inputs?step=comparableWork', async (app) => {
+      await app.post('/inputs/milestone', { name: 'Checkout v2', startDate: '2026-10-01', ticketsRemaining: '30' })
+      await connectAndPick(app)
     })
   ).page
 

@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import type { RunningApp } from '../../src/app/launch.js'
 import type { CannedFixture } from '../../src/connectors/canned.js'
-import { appOnTracker, inputsSection, type AppOnTracker } from './appOnTracker.js'
+import { appOnTracker, page, type AppOnTracker } from './appOnTracker.js'
+import { inputsSection } from './inputsSection.js'
 import { post } from './forms.js'
 
 // Tickets remaining's source on the Inputs screen (#211), through the local server as the EM's browser sees it, on
@@ -36,7 +37,7 @@ async function start({ connect = true, fixture = FIXTURE } = {}): Promise<Runnin
 
 /** The Milestone section of the Inputs screen. */
 async function milestoneSection(running: RunningApp): Promise<string> {
-  return inputsSection(running, 'milestone')
+  return inputsSection(await page(running, '/inputs'), 'milestone')
 }
 
 describe('tickets remaining’s source', () => {
