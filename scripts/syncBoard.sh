@@ -13,8 +13,7 @@
 # The board's built-in automations can't do this alone: none reads labels, and "Pull request linked to issue" moves a
 # closed ticket back to In progress when an integration PR's `Closes #n` names it, which no later event undoes.
 # Run it by hand (`scripts/syncBoard.sh`) with a gh login that has the `project` scope. It reads the whole board and
-# changes only the cards that are wrong. It doesn't run in CI: only a classic token can write a user-owned board, and
-# its `project` scope reaches every project the owner has, too broad a grant for a view of the issues.
+# changes only the cards that are wrong.
 set -euo pipefail
 
 OWNER=random11235
