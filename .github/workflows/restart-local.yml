@@ -30,6 +30,9 @@ jobs:
     if: >-
       github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success'))
+    # The repo is public, so any job on this runner runs on the dev's Mac. Only this workflow uses it, and only from
+    # main. A job triggered by `pull_request` or `pull_request_target`, or that checks out a ref a PR controls, never
+    # runs here: that would run a fork's code on the dev's machine. Use `ubuntu-latest` for those.
     runs-on: [self-hosted, macOS, forecaster-dev]
     timeout-minutes: 15
     steps:
