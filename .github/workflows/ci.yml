@@ -184,7 +184,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.release.outputs.tag }}
         run: |
-          tar -czf "forecaster-$TAG.tar.gz" --exclude=dist/web dist package.json package-lock.json
+          tar -czf "forecaster-$TAG.tar.gz" --exclude=dist/web dist package.json package-lock.json LICENSE
           cp dist/web/forecaster.html "forecaster-$TAG.html"
           gh release create "$TAG" --verify-tag --title "Forecaster $TAG" --generate-notes \
             "forecaster-$TAG.tar.gz" "forecaster-$TAG.html"

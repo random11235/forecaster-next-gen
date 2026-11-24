@@ -47,5 +47,7 @@
   },
   "dependencies": {
     "@napi-rs/keyring": "^2.1.2"
-  }
+  },
+  "license": "UNLICENSED",
+  "author": "Ralph Hockley"
 }
