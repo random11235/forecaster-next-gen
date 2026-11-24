@@ -2,8 +2,9 @@ name: Board
 
 # Keeps the project board's Status in step with each issue's state, labels and PRs (scripts/syncBoard.sh says how).
 # GITHUB_TOKEN can't write a user-owned project, so this runs with the PROJECT_TOKEN secret: a classic personal access
-# token with the `repo` and `project` scopes. pull_request_target, not pull_request, so the secret reaches it for every
-# PR; it checks out the base branch's own script and never runs a PR's code.
+# token with the `project` and `public_repo` scopes (`repo` instead if the board ever holds a private repo's issues).
+# pull_request_target, not pull_request, so the secret reaches it for every PR; it checks out the base branch's own
+# script and never runs a PR's code.
 
 on:
   issues:
