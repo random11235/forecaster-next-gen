@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'vitest'
 import type { CannedFixture } from '../../src/connectors/canned.js'
 import { CHECKOUT, finishedOn, open } from '../trackerScenario.js'
-import { appOnTracker, connectAndPick, type AppOnTracker } from './appOnTracker.js'
+import { appOnTracker, type AppOnTracker } from './appOnTracker.js'
 import { post, redirectedTo } from './forms.js'
 
 // The Check step (#220), through the local server, on the canned connector: how a choice's form is read, and where it
@@ -24,7 +24,8 @@ async function atCheck(): Promise<AppOnTracker> {
   app = await appOnTracker(fixture)
   await post(app.running, '/inputs/milestone', { name: 'Checkout v2', startDate: '2026-09-01', ticketsRemaining: '30' })
   await post(app.running, '/inputs/pace', { low: '4', high: '8' })
-  await connectAndPick(app.running)
+  await post(app.running, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
+  await post(app.running, '/inputs/milestone-query/add', { ...CHECKOUT })
   return app
 }
 

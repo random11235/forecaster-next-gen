@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'vitest'
 import type { RunningApp } from '../../src/app/launch.js'
 import type { CannedFixture } from '../../src/connectors/canned.js'
 import { CHECKOUT, TEAM } from '../trackerScenario.js'
-import { appOnTracker, connectAndPick, type AppOnTracker } from './appOnTracker.js'
+import { appOnTracker, type AppOnTracker } from './appOnTracker.js'
 import { post, redirectedTo } from './forms.js'
 
 // Tickets remaining's source (#211): the forms the browser posts, read into what is stored. What the Inputs screen
@@ -25,7 +25,8 @@ async function start(): Promise<RunningApp> {
   app = await appOnTracker(FIXTURE)
   const { running } = app
   await post(running, '/inputs/milestone', { name: 'Checkout v2', startDate: '2026-11-16', ticketsRemaining: '30' })
-  await connectAndPick(running)
+  await post(running, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
+  await post(running, '/inputs/milestone-query/add', { ...CHECKOUT })
   await post(running, '/inputs/setup/use-these', {})
   return running
 }

@@ -3,7 +3,7 @@ import type { RunningApp } from '../../src/app/launch.js'
 import type { CannedFixture } from '../../src/connectors/canned.js'
 import type { Ticket } from '../../src/connectors/connector.js'
 import { CHECKOUT, TEAM } from '../trackerScenario.js'
-import { appOnTracker, connectAndPick, type AppOnTracker } from './appOnTracker.js'
+import { appOnTracker, type AppOnTracker } from './appOnTracker.js'
 import { post } from './forms.js'
 
 // Pace following the tracker (#212): the forms the browser posts, read into what is stored. What the Inputs screen and
@@ -34,7 +34,8 @@ async function following(): Promise<RunningApp> {
   app = await appOnTracker(FIXTURE)
   const { running } = app
   await post(running, '/inputs/milestone', { name: 'Checkout v2', startDate: '2026-08-31', ticketsRemaining: '30' })
-  await connectAndPick(running)
+  await post(running, '/inputs/connect', { tracker: 'github', repo: 'shop-team/shop', token: 'token' })
+  await post(running, '/inputs/milestone-query/add', { ...CHECKOUT })
   await post(running, '/inputs/setup/use-these', {})
   await post(running, '/inputs/pace-mode', { paceMode: 'tracker' })
   return running
