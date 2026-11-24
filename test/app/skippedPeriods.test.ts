@@ -2,7 +2,8 @@ import { afterEach, describe, expect, test } from 'vitest'
 import type { RunningApp } from '../../src/app/launch.js'
 import type { CannedFixture } from '../../src/connectors/canned.js'
 import type { Ticket } from '../../src/connectors/connector.js'
-import { appOnTracker, inputsSection, page, type AppOnTracker } from './appOnTracker.js'
+import { appOnTracker, page, type AppOnTracker } from './appOnTracker.js'
+import { inputsSection } from './inputsSection.js'
 import { post } from './forms.js'
 
 // Skipping GitHub's weeks on the Inputs screen and the forecast (#213), through the local server as the EM's browser
@@ -50,7 +51,7 @@ const periods = (starts: string[]): URLSearchParams => new URLSearchParams(start
 
 /** The Pace section of the Inputs screen. */
 async function paceSection(running: RunningApp): Promise<string> {
-  return inputsSection(running, 'pace')
+  return inputsSection(await page(running, '/inputs'), 'pace')
 }
 
 describe('skipping GitHub’s weeks', () => {

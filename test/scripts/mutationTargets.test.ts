@@ -102,9 +102,9 @@ describe('the lines a branch mutates', () => {
     expect(mutationTargets(diff, changed)).toEqual([])
   })
 
-  test("the web build's page script, which only its demo checks, is not mutated", () => {
-    const diff = ['src/app/webMain.ts', 'src/app/webApp.ts'].map((path) => diffOf(path, [['@@ -1 +1 @@', '+x']])).join('\n')
+  test("the web build's page script is mutated like the rest of the source, as its tests run it (#237)", () => {
+    const diff = diffOf('src/app/webMain.ts', [['@@ -1 +1 @@', '+x']])
 
-    expect(mutationTargets(diff, ['src/app/webMain.ts'])).toEqual(['src/app/webApp.ts:1-1'])
+    expect(mutationTargets(diff, ['src/app/webMain.ts'])).toEqual(['src/app/webMain.ts:1-1', 'src/app/webMain.ts'])
   })
 })
