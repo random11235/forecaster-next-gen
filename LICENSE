@@ -9,5 +9,7 @@ copyright holder.
 Being able to view this repository does not grant any of those rights.
 
 Third-party components bundled with or used by this software, such as the
-Geist fonts (SIL Open Font License 1.1) and the npm packages listed in
-package.json, remain under their own licences.
+Geist fonts (SIL Open Font License 1.1), the npm packages listed in
+package.json, and the skills in .claude/skills/code-review and
+.claude/skills/implement-spec (MIT, see the LICENSE in each), remain under
+their own licences.
