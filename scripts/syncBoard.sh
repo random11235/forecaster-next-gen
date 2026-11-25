@@ -67,8 +67,13 @@ changed=0
 while IFS=$'\t' read -r item issue current wanted; do
   [[ -z "$item" || "$current" == "$wanted" ]] && continue
   option=$(jq -r --arg name "$wanted" '.data.user.projectV2.field.options[] | select(.name == $name) | .id' <<<"$fields")
-  gh project item-edit --project-id "$project_id" --id "$item" --field-id "$field_id" \
-    --single-select-option-id "$option" >/dev/null
+  # a plain mutation, not `gh project item-edit`: that one also demands read:org and read:discussion, which a token
+  # with only the project scope lacks
+  gh api graphql -F project="$project_id" -F item="$item" -F field="$field_id" -F option="$option" -f query='
+mutation($project: ID!, $item: ID!, $field: ID!, $option: String!) {
+  updateProjectV2ItemFieldValue(input: {projectId: $project, itemId: $item, fieldId: $field,
+                                        value: {singleSelectOptionId: $option}}) { projectV2Item { id } }
+}' >/dev/null
   echo "#$issue: ${current:-no status} -> $wanted"
   changed=$((changed + 1))
 done <<<"$items"
