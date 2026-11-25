@@ -24,23 +24,41 @@ const STDIN_PROMPT = ' -p -'
 /** `text` as one shell word, in single quotes. */
 const quoted = (text: string): string => `'${text.replaceAll("'", "'\\''")}'`
 
+/** The part of claudeCode()'s `command` before its closing `-p -`, which it throws without, plus the budget cap. */
+function capped(command: string, maxBudgetUsd: number): string {
+  if (!command.endsWith(STDIN_PROMPT)) throw new Error(`claudeCode()'s command no longer ends in -p -: ${command}`)
+  return `${command.slice(0, -STDIN_PROMPT.length)} --max-budget-usd ${maxBudgetUsd}`
+}
+
 /** claudeCode()'s `command`, which ends in `-p -`, with the budget cap and `prompt` as the argument in its place. */
 export function withPromptArgument(command: string, prompt: string, maxBudgetUsd: number): string {
-  if (!command.endsWith(STDIN_PROMPT)) throw new Error(`claudeCode()'s command no longer ends in -p -: ${command}`)
+  const start = capped(command, maxBudgetUsd)
+  if (prompt.includes('\0')) throw new Error('the prompt holds a NUL byte, which no command line can carry')
   const word = quoted(prompt)
   const bytes = Buffer.byteLength(word)
   if (bytes > MAX_PROMPT_BYTES) {
     throw new Error(`the prompt, quoted for the shell, is ${bytes} bytes, more than the ${MAX_PROMPT_BYTES} a command line can safely hold`)
   }
-  return `${command.slice(0, -STDIN_PROMPT.length)} --max-budget-usd ${maxBudgetUsd} -p -- ${word}`
+  return `${start} -p -- ${word}`
 }
 
-export function factoryAgent(model: string, { oauthToken, maxBudgetUsd }: FactoryAgentOptions): AgentProvider {
+type PromptOn = (command: string, prompt: string, maxBudgetUsd: number) => { command: string; stdin: string }
+
+function agentWith(model: string, { oauthToken, maxBudgetUsd }: FactoryAgentOptions, promptOn: PromptOn): AgentProvider {
   const agent = claudeCode(model, { env: { CLAUDE_CODE_OAUTH_TOKEN: oauthToken } })
   return {
     ...agent,
     buildPrintCommand(options) {
-      return { command: withPromptArgument(agent.buildPrintCommand(options).command, options.prompt, maxBudgetUsd), stdin: '' }
+      return promptOn(agent.buildPrintCommand(options).command, options.prompt, maxBudgetUsd)
     },
   }
+}
+
+export function factoryAgent(model: string, options: FactoryAgentOptions): AgentProvider {
+  return agentWith(model, options, (command, prompt, maxBudgetUsd) => ({ command: withPromptArgument(command, prompt, maxBudgetUsd), stdin: '' }))
+}
+
+/** The smoke test's control: the prompt on stdin, as claudeCode() sends it, where a slash command doesn't expand. */
+export function stdinAgent(model: string, options: FactoryAgentOptions): AgentProvider {
+  return agentWith(model, options, (command, prompt, maxBudgetUsd) => ({ command: `${capped(command, maxBudgetUsd)} -p -`, stdin: prompt }))
 }

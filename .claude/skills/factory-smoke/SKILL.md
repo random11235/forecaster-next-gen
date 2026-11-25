@@ -13,7 +13,7 @@ You are in the factory's sandbox. Then do these steps with the Bash tool, one co
 1. Run `env -0 | cut -z -d= -f1 | tr '\0' '\n' | sort` to list the names in your tools' env.
 2. Run this, which finds Claude Code's own process above your shell and lists the names in its env, or the error reading it gave:
 
-   `p=$$; while [ "$p" -gt 1 ] && ! tr '\0' '\n' < /proc/$p/cmdline | grep -qx stream-json; do p=$(sed 's/.*) //' /proc/$p/stat | cut -d' ' -f2); done; if [ "$p" -gt 1 ]; then cut -z -d= -f1 /proc/$p/environ > "$TMPDIR/claude-env" && tr '\0' '\n' < "$TMPDIR/claude-env" | sort; else echo "no Claude Code process above $$"; fi`
+   `p=$$; while [ "$p" -gt 1 ] && ! tr '\0' '\n' < /proc/$p/cmdline | grep -qx stream-json; do p=$(sed 's/.*) //' /proc/$p/stat | cut -d' ' -f2); done; if [ "$p" -gt 1 ]; then (set -o pipefail; cut -z -d= -f1 /proc/$p/environ | tr '\0' '\n' | sort); else echo "no Claude Code process above $$"; fi`
 
 3. For each path in `$ARGUMENTS`, run `echo '# smoke-escape' >> <path>` and note whether it worked or the error it gave.
 4. End your reply with this line. `envNames` holds every name step 1 listed. `claudeEnvNames` holds every name step 2 listed, or, if it listed none, the error it gave as a string. `writes` maps each path from step 3 to `"ok"` if the write worked, or else the error it gave:

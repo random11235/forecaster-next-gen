@@ -5,13 +5,13 @@
 // Sandcastle sends it; and that a budget cap stops a run. It builds nothing: the agent's tree is thrown away.
 // Needs CLAUDE_CODE_OAUTH_TOKEN.
 
-import { appendFileSync, existsSync, lstatSync, readFileSync, readlinkSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, lstatSync, readFileSync, readlinkSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { claudeCode, run, type AgentProvider, type AgentStreamEvent } from '@ai-hero/sandcastle'
+import { run, type AgentProvider, type AgentStreamEvent } from '@ai-hero/sandcastle'
 import { bwrap } from '@ai-hero/sandcastle/sandboxes/bwrap'
-import { factoryAgent } from './factoryAgent.ts'
+import { factoryAgent, stdinAgent } from './factoryAgent.ts'
 import { budgetVerdict, smokeVerdict, stdinNote, type Check, type Ending } from './smokeVerdict.ts'
 
 const MODEL = 'haiku'
@@ -39,8 +39,21 @@ const targets: { path: string; about?: string }[] = [
   })),
 ]
 
+/** Where each target's directory really is before the run. The agent can write in the git dir, so it could swap a
+ * directory there (refs/heads, say) for a symlink; a target whose directory has moved is then neither read nor removed. */
+const homes = new Map(targets.map(({ path }) => [path, realDir(path)]))
+function realDir(path: string): string | undefined {
+  try {
+    return realpathSync(dirname(path))
+  } catch {
+    return undefined
+  }
+}
+const moved = (path: string): boolean => realDir(path) !== homes.get(path)
+
 /** What's at `path` on the host, lstat'd so a symlink the agent leaves is seen as one, not followed. */
 function state(path: string): string | undefined {
+  if (moved(path)) return `in a moved directory, now ${String(realDir(path))}`
   if (!existsSync(path) && !isLink(path)) return undefined
   if (isLink(path)) return `symlink to ${readlinkSync(path)}`
   return lstatSync(path).isFile() ? `file: ${readFileSync(path, 'utf8')}` : 'not a file'
@@ -62,20 +75,12 @@ const restore = () => {
   for (const { path } of targets) {
     const was = before.get(path)
     if (state(path) === was) continue
+    if (moved(path)) {
+      console.log(`::warning::${dirname(path)} moved during the run, to ${String(realDir(path))}: left as it is`)
+      continue
+    }
     rmSync(path, { force: true, recursive: true })
     if (was?.startsWith('file: ')) writeFileSync(path, was.slice('file: '.length))
-  }
-}
-
-/** Sandcastle's own claudeCode(), the prompt on stdin, with the budget cap: the control. */
-function stdinAgent(token: string, maxBudgetUsd: number): AgentProvider {
-  const agent = claudeCode(MODEL, { env: { CLAUDE_CODE_OAUTH_TOKEN: token } })
-  return {
-    ...agent,
-    buildPrintCommand(options) {
-      const print = agent.buildPrintCommand(options)
-      return { ...print, command: print.command.replace(/ -p -$/, () => ` --max-budget-usd ${maxBudgetUsd} -p -`) }
-    },
   }
 }
 
@@ -118,7 +123,7 @@ const writes = targets.map(({ path, about }) => ({ path, about, changedOnHost: s
 restore()
 
 // The control: Sandcastle's own way, the prompt on stdin. The skill isn't given its paths, so it writes nothing.
-const control = await runAgent('factory-smoke-stdin', '/factory-smoke', stdinAgent(oauthToken, 0.1))
+const control = await runAgent('factory-smoke-stdin', '/factory-smoke', stdinAgent(MODEL, { oauthToken, maxBudgetUsd: 0.1 }))
 restore()
 
 // A cap far below one model call's cost: Claude Code should stop after its first turn, and Sandcastle reject the run.

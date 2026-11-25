@@ -3,7 +3,7 @@ import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
-import { factoryAgent, MAX_PROMPT_BYTES, withPromptArgument } from '../../scripts/factoryAgent.ts'
+import { factoryAgent, MAX_PROMPT_BYTES, stdinAgent, withPromptArgument } from '../../scripts/factoryAgent.ts'
 
 const COMMAND = "claude --print --verbose --dangerously-skip-permissions --output-format stream-json --model 'haiku'"
 
@@ -56,8 +56,22 @@ describe("the factory's agent", () => {
     )
   })
 
+  test('refuses a prompt holding a NUL byte, which no command line can carry', () => {
+    expect(() => withPromptArgument(`${COMMAND} -p -`, 'a\0b', 0.5)).toThrow('the prompt holds a NUL byte, which no command line can carry')
+  })
+
   test("throws if Sandcastle's command no longer ends in -p -, since only a Sandcastle bump would change it", () => {
     expect(() => withPromptArgument('claude --print -p "x"', 'hi', 0.5)).toThrow(`claudeCode()'s command no longer ends in -p -: claude --print -p "x"`)
+  })
+
+  test("the smoke test's control sends the prompt on stdin, Sandcastle's own way, with the same cap and env", () => {
+    const agent = stdinAgent('haiku', { oauthToken: 'oauth', maxBudgetUsd: 0.1 })
+
+    const print = agent.buildPrintCommand({ prompt: '/factory-smoke', dangerouslySkipPermissions: true })
+
+    expect(print.command).toBe(`${COMMAND} --max-budget-usd 0.1 -p -`)
+    expect(print.stdin).toBe('/factory-smoke')
+    expect(agent.env).toEqual({ CLAUDE_CODE_OAUTH_TOKEN: 'oauth' })
   })
 
   test('hands the sandbox only the OAuth token', () => {
