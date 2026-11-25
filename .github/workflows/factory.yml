@@ -11,7 +11,8 @@
 #
 # Every comment the factory makes carries MARK, so scripts/factoryTicket.ts can keep it out of the next prompt: the
 # token may be the owner's, and its comments would count as the owner's. To try the agent step's timeout, set the repo
-# variable FACTORY_AGENT_MINUTES to a few minutes.
+# variable FACTORY_AGENT_MINUTES to a few minutes; past 75 it's taken as 75, so the job's 90 (JOB_MINUTES) leaves time to
+# upload the logs.
 name: Factory
 
 on:
@@ -29,7 +30,8 @@ env:
   BRANCH: agent/${{ github.event.issue.number }}-${{ github.run_id }}
   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
   MARK: '<!-- forecaster-factory -->' # FACTORY_MARK in scripts/factoryTicket.ts
-  AGENT_MINUTES: ${{ vars.FACTORY_AGENT_MINUTES || '70' }} # under build's 90, so the step fails and the logs still upload
+  JOB_MINUTES: 90 # build's timeout-minutes, which can't read env
+  AGENT_MINUTES: ${{ vars.FACTORY_AGENT_MINUTES && fromJSON(vars.FACTORY_AGENT_MINUTES) > 75 && '75' || vars.FACTORY_AGENT_MINUTES || '70' }}
 
 # One run per issue at a time; a second label event waits for the first run and doesn't cancel it. Only the trigger
 # label shares the group: the labels this workflow adds (`in-progress`, `parked`) fire `labeled` too, and in the group
@@ -39,11 +41,17 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # A failed API call fails this job, and `park` says so on the ticket; a ticket not to build ends it with a notice.
+  # A failed API call fails this job. Once the labeller is known to have write access, `park` says so on the ticket;
+  # before, nothing touches it. A ticket not to build ends the job with a notice.
   gate:
     if: github.event.label.name == 'ready-for-agent'
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read # the open PRs, and the ones that would close the ticket
     outputs:
+      allowed: ${{ steps.sender.outputs.allowed }}
       go: ${{ steps.ticket.outputs.go }}
     steps:
       - name: Check that whoever added the label has write access
@@ -114,10 +122,14 @@ jobs:
     needs: start
     # pinned: bwrap needs AppArmor to let it make user namespaces, which a new image may change (R1)
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 90 # JOB_MINUTES
     outputs:
       agent: ${{ steps.agent.outcome }}
       result: ${{ steps.agent.outputs.result }}
+      why: ${{ steps.agent.outputs.why }}
+      stopped: ${{ steps.stopped.outputs.by }}
+      tip: ${{ steps.bundle.outputs.tip }}
+      body: ${{ steps.bundle.outputs.body }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -142,10 +154,13 @@ jobs:
         run: |
           gh api "repos/$REPO/issues/$ISSUE" > "$RUNNER_TEMP/ticket.json"
           gh api --paginate --slurp "repos/$REPO/issues/$ISSUE/comments" > "$RUNNER_TEMP/comments.json"
-      # Writes `result` (scripts/factoryBuild.ts); none means it ran past its timeout.
+      - name: Note when the agent starts
+        id: clock
+        run: echo "at=$(date +%s)" >> "$GITHUB_OUTPUT"
+      # Writes `result` and `why`: the values are BuildResult's, in scripts/factoryOutcome.ts
       - name: Build the ticket in the sandbox
         id: agent
-        timeout-minutes: ${{ fromJSON(vars.FACTORY_AGENT_MINUTES || '70') }} # AGENT_MINUTES, spelled out
+        timeout-minutes: ${{ fromJSON(env.AGENT_MINUTES) }}
         env:
           LOG_DIR: ${{ runner.temp }}/factory-logs # the transcript, Sandcastle's log and Claude Code's session
           OUT_DIR: ${{ runner.temp }}/factory-out # the PR body, and below the bundle
@@ -154,22 +169,39 @@ jobs:
           TICKET_JSON: ${{ runner.temp }}/ticket.json
           COMMENTS_JSON: ${{ runner.temp }}/comments.json
         run: node scripts/factoryBuild.ts
+      # A build left at `started` was stopped: by its timeout if it ran that long, or else killed
+      - name: Tell a timeout from a kill
+        id: stopped
+        if: always() && steps.agent.outputs.result == 'started'
+        env:
+          AT: ${{ steps.clock.outputs.at }}
+        run: |
+          if [ $(( $(date +%s) - AT )) -ge $(( AGENT_MINUTES * 60 - 30 )) ]; then echo "by=timeout"; else echo "by=kill"; fi >> "$GITHUB_OUTPUT"
+      # The logs are public with the run, and the PR body, from the agent's reply, will be: the token the agent held
+      # mustn't be in either.
+      - name: Scrub the Claude Code token from the logs and the PR body
+        if: always()
+        env:
+          TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          for dir in "$RUNNER_TEMP/factory-logs" "$RUNNER_TEMP/factory-out"; do
+            if [ -d "$dir" ]; then find "$dir" -type f -exec perl -pi -e 's/\Q$ENV{TOKEN}\E/[token]/g' {} +; fi
+          done
       # Before any of the agent's code runs: nothing it wrote runs in this job, and `check` runs it on these commits.
+      # The tip and the body's digest go out as outputs, which no later job can change, so `publish` pushes only these.
       - name: Bundle the ticket's commits
+        id: bundle
         if: steps.agent.outputs.result == 'built'
-        run: git bundle create "$RUNNER_TEMP/factory-out/ticket.bundle" "$BRANCH" "^origin/$BASE"
+        run: |
+          git bundle create "$RUNNER_TEMP/factory-out/ticket.bundle" "$BRANCH" "^origin/$BASE"
+          echo "tip=$(git rev-parse "refs/heads/$BRANCH")" >> "$GITHUB_OUTPUT"
+          echo "body=$(sha256sum "$RUNNER_TEMP/factory-out/pr-body.md" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
       - if: steps.agent.outputs.result == 'built'
         uses: actions/upload-artifact@v4
         with:
           name: ticket
           path: ${{ runner.temp }}/factory-out
           retention-days: 7
-      # The logs are public with the run: the token the agent held mustn't be in them.
-      - name: Scrub the Claude Code token from the logs
-        if: always()
-        env:
-          TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-        run: logs="$RUNNER_TEMP/factory-logs"; if [ -d "$logs" ]; then find "$logs" -type f -exec perl -pi -e 's/\Q$ENV{TOKEN}\E/[token]/g' {} +; fi
       - if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -178,16 +210,23 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-  # The agent's code runs here, on a fresh runner holding no secret, with the commits checked out from the bundle.
+  # The agent's code runs here, on a fresh runner holding no secret, with the commits checked out from the bundle. Node
+  # is set up before the checkout, so no action the agent wrote runs, and without npm's cache, which this job would
+  # save, after the agent's code ran, for every run on the default branch; then `npm ci` installs the branch's deps.
   check:
     needs: build
     runs-on: ubuntu-24.04
+    env:
+      TIP: ${{ needs.build.outputs.tip }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0 # the migration check reads the default branch's schema, and the change-file check diffs from it
           persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24 # as .github/actions/setup, which caches
       - uses: actions/download-artifact@v4
         with:
           name: ticket
@@ -195,8 +234,9 @@ jobs:
       - name: Check out the ticket's commits
         run: |
           git -c core.hooksPath=/dev/null fetch "$RUNNER_TEMP/ticket.bundle" "refs/heads/$BRANCH:refs/heads/$BRANCH"
+          test "$(git rev-parse "refs/heads/$BRANCH")" = "$TIP" || { echo "::error::The bundle's branch isn't the commit build made"; exit 1; }
           git -c core.hooksPath=/dev/null checkout "$BRANCH"
-      - uses: ./.github/actions/setup
+          npm ci
       # What the pre-push hook runs, which the push in `publish`, with hooks off, skips
       - name: npm run check
         run: CHECK_BASE="origin/$BASE" npm run check
@@ -206,6 +246,9 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       refused: ${{ steps.branch.outputs.refused }}
+    env:
+      TIP: ${{ needs.build.outputs.tip }}
+      BODY: ${{ needs.build.outputs.body }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -216,12 +259,15 @@ jobs:
         with:
           name: ticket
           path: ${{ runner.temp }}
-      # Only the ticket's branch, by its name, comes out of the bundle. A PR from this repo runs the workflows it changes
-      # with the repo's secrets, so a change under .github/ is refused: build such a ticket locally.
+      # Only the ticket's branch, by its name, comes out of the bundle, and only if it and the body are what `build` made:
+      # `check` ran the agent's code, which could have uploaded the artifact again. A PR from this repo runs the
+      # workflows it changes with the repo's secrets, so a change under .github/ is refused: build such a ticket locally.
       - name: Take the ticket's branch from the bundle
         id: branch
         run: |
           git -c core.hooksPath=/dev/null fetch "$RUNNER_TEMP/ticket.bundle" "refs/heads/$BRANCH:refs/heads/$BRANCH"
+          test "$(git rev-parse "refs/heads/$BRANCH")" = "$TIP" || { echo "::error::The bundle's branch isn't the commit build made"; exit 1; }
+          echo "$BODY  $RUNNER_TEMP/pr-body.md" | sha256sum -c --quiet || { echo "::error::The PR body isn't the one build wrote"; exit 1; }
           changed=$(git diff --name-only "origin/$BASE...$BRANCH" -- .github/)
           if [ -n "$changed" ]; then
             echo "refused=true" >> "$GITHUB_OUTPUT"
@@ -235,18 +281,19 @@ jobs:
           git -c core.hooksPath=/dev/null \
             -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" \
             push origin "refs/heads/$BRANCH:refs/heads/$BRANCH"
-      # The body is the agent's, written with /pr, and the factory's closing line (scripts/factoryTicket.ts)
+      # The body is the agent's, written with /pr, and the factory's closing line (scripts/factoryPullRequest.ts)
       - name: Open the PR
         env:
           GH_TOKEN: ${{ secrets.FACTORY_TOKEN }}
           TITLE: ${{ github.event.issue.title }}
         run: gh pr create --repo "$REPO" --base "$BASE" --head "$BRANCH" --title "$TITLE" --body-file "$RUNNER_TEMP/pr-body.md"
 
-  # A run that started but didn't end in a PR parks the ticket, saying why; so does a gate that failed.
+  # A run that started but didn't end in a PR parks the ticket, saying why; so does a gate that failed once it knew the
+  # labeller has write access.
   park:
     needs: [gate, start, build, check, publish]
     if: >-
-      always() && github.event.label.name == 'ready-for-agent'
+      always() && github.event.label.name == 'ready-for-agent' && needs.gate.outputs.allowed == 'true'
       && (needs.gate.result == 'failure' || (needs.gate.outputs.go == 'true' && needs.publish.result != 'success'))
     runs-on: ubuntu-24.04
     steps:
@@ -258,17 +305,20 @@ jobs:
           BUILD: ${{ needs.build.result }}
           AGENT: ${{ needs.build.outputs.agent }}
           RESULT: ${{ needs.build.outputs.result }}
+          BUILD_WHY: ${{ needs.build.outputs.why }}
+          STOPPED: ${{ needs.build.outputs.stopped }}
           CHECK: ${{ needs.check.result }}
           REFUSED: ${{ needs.publish.outputs.refused }}
         run: |
-          if [ "$GATE" = failure ]; then why="checking who labelled it, or the ticket, failed (a GitHub API call)"
+          # BUILD_WHY is scripts/factoryOutcome.ts's reason: no commits, a dirty tree, the budget, the idle timeout, an error
+          if [ "$GATE" = failure ]; then why="checking the ticket failed (a GitHub API call)"
           elif [ "$START" != success ]; then why="labelling it in-progress failed"
-          elif [ "$BUILD" = cancelled ]; then why="the build was cancelled, or ran past the job's 90-minute timeout"
+          elif [ "$BUILD" = cancelled ]; then why="the build was cancelled, or ran past the job's $JOB_MINUTES-minute timeout"
           elif [ -z "$AGENT" ] || [ "$AGENT" = skipped ]; then why="setting up the build failed, before the agent ran"
-          elif [ "$AGENT" = failure ] && [ -z "$RESULT" ]; then why="the agent ran past its $AGENT_MINUTES-minute timeout"
-          elif [ "$RESULT" = no-commits ]; then why="the agent made no commit"
-          elif [ "$RESULT" = dirty ]; then why="the agent left changes it didn't commit"
-          elif [ "$RESULT" = error ]; then why="the build script failed: see its log in the run"
+          elif [ -z "$RESULT" ]; then why="the build script crashed before it started"
+          elif [ "$RESULT" = started ] && [ "$STOPPED" = timeout ]; then why="the agent ran past its $AGENT_MINUTES-minute timeout"
+          elif [ "$RESULT" = started ]; then why="the build was killed mid-run, before its timeout"
+          elif [ -n "$BUILD_WHY" ]; then why="$BUILD_WHY"
           elif [ "$BUILD" != success ]; then why="bundling or uploading the agent's commits failed"
           elif [ "$CHECK" != success ]; then why="\`npm run check\` failed on the ticket's branch"
           elif [ "$REFUSED" = true ]; then why="the agent's commits change files under .github/, which the factory doesn't push: build this ticket locally"
