@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, test } from 'vitest'
-import { FACTORY_MARK, ticketPrompt, type Association, type Authored, type Ticket } from '../../scripts/factoryTicket.ts'
+import { ticketPrompt, type Authored, type Ticket } from '../../scripts/factoryTicket.ts'
+import { FACTORY_MARK, type Association } from '../../scripts/factoryTrust.ts'
 
 const TICKET: Ticket = { number: 42, title: 'Show the forecast', body: 'Build the screen.', user: { login: 'owner' }, author_association: 'OWNER' }
 

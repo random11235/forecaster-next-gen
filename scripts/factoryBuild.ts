@@ -1,12 +1,14 @@
-// The factory's build of one ticket (#336), alone or a spec's (#337), run by .github/workflows/factory.yml once bwrap's probe has passed, on the
-// branch the ticket is built on. It runs Claude Code in Sandcastle's bwrap() sandbox on `/implement <n>` with the
-// ticket's text (scripts/factoryTicket.ts), and Sandcastle merges the agent's commits into that branch. It pushes
-// nothing and holds no GitHub token: the workflow's later jobs check the commits and do every write to GitHub.
+// The factory's build of one ticket (#336), alone or a spec's (#337), run by .github/workflows/factory.yml once bwrap's
+// probe has passed. It runs from the runner's checkout of the default branch, and builds in TREE, a checkout of the
+// branch the ticket is built on (scripts/factoryTree.ts): it runs Claude Code in Sandcastle's bwrap() sandbox on
+// `/implement <n>` with the ticket's text (scripts/factoryTicket.ts), and Sandcastle merges the agent's commits into
+// that branch. It pushes nothing and holds no GitHub token: the workflow's later jobs check the commits and do every
+// write to GitHub.
 //
 // It writes `result` and `why` to the step's outputs (scripts/factoryOutcome.ts); only `built` passes. Into LOG_DIR go
 // the agent's stream-json as it comes (`transcript.jsonl`, so a stopped run keeps it), Sandcastle's log, and Claude
 // Code's session; into OUT_DIR, the PR body. The other inputs are environment variables too: CLAUDE_CODE_OAUTH_TOKEN,
-// TICKET_JSON, COMMENTS_JSON, SPEC_JSON (a spec's ticket only), BRANCH and RUN_URL.
+// TREE, TICKET_JSON, COMMENTS_JSON, SPEC_JSON (a spec's ticket only), BRANCH and RUN_URL.
 
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -15,6 +17,7 @@ import { bwrap } from '@ai-hero/sandcastle/sandboxes/bwrap'
 import { factoryAgent } from './factoryAgent.ts'
 import { buildOutcome, type BuildResult, type Ending } from './factoryOutcome.ts'
 import { pullRequestBody } from './factoryPullRequest.ts'
+import { treeSetup } from './factoryTree.ts'
 import { ticketPrompt, type Authored, type Ticket } from './factoryTicket.ts'
 
 const MODEL = 'opus'
@@ -48,15 +51,17 @@ async function build(logs: Logs): Promise<Ending> {
   const comments = (JSON.parse(readFileSync(env('COMMENTS_JSON'), 'utf8')) as Authored[][]).flat()
   // SPEC_JSON, for a spec's ticket: the spec, fetched as the ticket is
   const spec = process.env.SPEC_JSON ? (JSON.parse(readFileSync(process.env.SPEC_JSON, 'utf8')) as Ticket) : undefined
+  const tree = env('TREE')
   const ran = await run({
     name: `ticket-${ticket.number}`,
+    cwd: tree,
     prompt: ticketPrompt(ticket, comments, spec),
     agent: factoryAgent(MODEL, { oauthToken: env('CLAUDE_CODE_OAUTH_TOKEN'), maxBudgetUsd: MAX_BUDGET_USD }),
     // the test suite runs for minutes, past Claude Code's 2-minute default for a Bash command
     sandbox: bwrap({ env: { BASH_DEFAULT_TIMEOUT_MS: '900000' } }),
     branchStrategy: { type: 'merge-to-head' },
-    // the worktree holds only what git tracks: the dependencies, and the skills installed from skills-lock.json, are copied in
-    copyToWorktree: ['node_modules', '.claude/skills'],
+    // the worktree holds only what git tracks: the dependencies, and the skills installed from skills-lock.json, go in
+    ...treeSetup(process.cwd(), tree),
     timeouts: { copyToWorktreeMs: 600_000 },
     maxIterations: 1,
     idleTimeoutSeconds: 1200,
