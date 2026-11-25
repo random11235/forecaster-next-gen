@@ -7,7 +7,7 @@
 
 import { appendFileSync, existsSync, lstatSync, readFileSync, readlinkSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { run, type AgentProvider, type AgentStreamEvent } from '@ai-hero/sandcastle'
 import { bwrap } from '@ai-hero/sandcastle/sandboxes/bwrap'
@@ -39,9 +39,9 @@ const targets: { path: string; about?: string }[] = [
   })),
 ]
 
-/** Where each target's directory really is before the run. The agent can write in the git dir, so it could swap a
- * directory there (refs/heads, say) for a symlink; a target whose directory has moved is then neither read nor removed. */
-const homes = new Map(targets.map(({ path }) => [path, realDir(path)]))
+// The agent can write in the git dir, so it could swap a directory there (refs/heads, say) for a symlink, or remove
+// one. A target whose directory has moved or gone is then neither read nor removed. One the agent created where none
+// was is a change like any other, so its file is read and removed.
 function realDir(path: string): string | undefined {
   try {
     return realpathSync(dirname(path))
@@ -49,11 +49,32 @@ function realDir(path: string): string | undefined {
     return undefined
   }
 }
-const moved = (path: string): boolean => realDir(path) !== homes.get(path)
+/** Where `path`'s directory really is, or would be if it's missing: under its nearest ancestor's real path. */
+function homeOf(path: string): string {
+  const missing: string[] = []
+  for (let dir = dirname(path); ; dir = dirname(dir)) {
+    try {
+      return join(realpathSync(dir), ...missing)
+    } catch {
+      if (dirname(dir) === dir) return dirname(path)
+      missing.unshift(basename(dir))
+    }
+  }
+}
+const homes = new Map(targets.map(({ path }) => [path, homeOf(path)]))
+const hadDir = new Set(targets.filter(({ path }) => realDir(path) !== undefined).map(({ path }) => path))
+/** Whether `path`'s directory is where it was before the run (or, missing then, where it would have been). */
+function whereabouts(path: string): 'home' | 'removed' | 'moved' {
+  const now = realDir(path)
+  if (now === undefined) return hadDir.has(path) ? 'removed' : 'home'
+  return now === homes.get(path) ? 'home' : 'moved'
+}
 
 /** What's at `path` on the host, lstat'd so a symlink the agent leaves is seen as one, not followed. */
 function state(path: string): string | undefined {
-  if (moved(path)) return `in a moved directory, now ${String(realDir(path))}`
+  const where = whereabouts(path)
+  if (where === 'removed') return 'in a removed directory'
+  if (where === 'moved') return `in a moved directory, now ${String(realDir(path))}`
   if (!existsSync(path) && !isLink(path)) return undefined
   if (isLink(path)) return `symlink to ${readlinkSync(path)}`
   return lstatSync(path).isFile() ? `file: ${readFileSync(path, 'utf8')}` : 'not a file'
@@ -71,12 +92,18 @@ function isLink(path: string): boolean {
 // after the run; it doesn't protect the host while the run goes on. It removes what's there first, so a symlink the
 // agent left is replaced, not written through.
 const before = new Map(targets.map(({ path }) => [path, state(path)]))
+/** The directories already warned of, so one that stays moved is warned of once, not after each run. */
+const warned = new Set<string>()
 const restore = () => {
   for (const { path } of targets) {
     const was = before.get(path)
     if (state(path) === was) continue
-    if (moved(path)) {
-      console.log(`::warning::${dirname(path)} moved during the run, to ${String(realDir(path))}: left as it is`)
+    const where = whereabouts(path)
+    if (where !== 'home') {
+      const dir = dirname(path)
+      const how = where === 'removed' ? 'was removed' : `moved, to ${String(realDir(path))}`
+      if (!warned.has(dir)) console.log(`::warning::${dir} ${how} during the run: left as it is`)
+      warned.add(dir)
       continue
     }
     rmSync(path, { force: true, recursive: true })
