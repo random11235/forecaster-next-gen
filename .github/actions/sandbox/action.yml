@@ -1,0 +1,24 @@
+# What the factory's jobs that run an agent do after setup (docs/research/sandcastle-factory.md, R1): install
+# bubblewrap, let it make user namespaces through AppArmor, probe it, and install Claude Code. If the probe fails, the
+# job stops here and the agent never runs, sandboxed or not. Run it on ubuntu-24.04, pinned: a new image may change what
+# bwrap needs.
+name: Sandbox
+description: Bubblewrap, allowed through AppArmor and probed, and Claude Code
+runs:
+  using: composite
+  steps:
+    - name: Install bubblewrap and allow it user namespaces
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y bubblewrap
+        printf 'abi <abi/4.0>,\ninclude <tunables/global>\nprofile bwrap /usr/bin/bwrap flags=(unconfined) {\n  userns,\n}\n' \
+          | sudo tee /etc/apparmor.d/bwrap
+        sudo apparmor_parser -r /etc/apparmor.d/bwrap
+    # The gate: if bwrap can't make a sandbox, the job stops here.
+    - name: Probe bwrap
+      shell: bash
+      run: bwrap --ro-bind / / true
+    - name: Install Claude Code
+      shell: bash
+      run: npm install -g @anthropic-ai/claude-code@2.1.331

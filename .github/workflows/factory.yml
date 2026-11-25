@@ -1,0 +1,215 @@
+# The factory (#334): labelling a ticket `ready-for-agent` builds it with Claude Code in Sandcastle's bwrap() sandbox
+# and opens a PR to main that closes it. This file builds a ticket outside any spec (#336); a spec, and a spec's
+# tickets, are skipped with a log line. Background, and the risks it answers (R1-R10): docs/research/sandcastle-factory.md.
+#
+# The jobs keep FACTORY_TOKEN, which can push and label, away from code the agent wrote. `build` runs the agent and the
+# checks, and never holds it; the jobs that write to GitHub (`start`, `publish`, `park`) run on fresh runners that run
+# none of the ticket's code, and set it only on the steps that write. `build` hands `publish` its commits as a git bundle.
+# Event text (titles, logins) reaches scripts through `env:` only, never `${{ }}` inside a `run:`.
+name: Factory
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: read
+  issues: read
+
+# One run per issue at a time; a second label event waits for the first run and doesn't cancel it. Only the trigger
+# label shares the group: the labels this workflow adds (`in-progress`, `parked`) fire `labeled` too, and in the group
+# their runs would take the one pending place from a waiting `ready-for-agent`.
+concurrency:
+  group: factory-issue-${{ github.event.label.name == 'ready-for-agent' && github.event.issue.number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    if: github.event.label.name == 'ready-for-agent'
+    runs-on: ubuntu-24.04
+    outputs:
+      go: ${{ steps.standalone.outputs.go }}
+    steps:
+      - name: Check that whoever added the label has write access
+        id: sender
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SENDER: ${{ github.event.sender.login }}
+        run: |
+          permission=$(gh api "repos/$REPO/collaborators/$SENDER/permission" --jq .permission 2>/dev/null || echo none)
+          case "$permission" in
+            admin | write) echo "allowed=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::notice::@$SENDER added the label but has $permission permission, not admin or write: nothing to build." ;;
+          esac
+      - name: Check that the ticket is outside any spec
+        id: standalone
+        if: steps.sender.outputs.allowed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+          NAME: ${{ github.event.repository.name }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          found=$(gh api graphql -F n="$ISSUE" -f o="$OWNER" -f r="$NAME" \
+            -f query='query($o: String!, $r: String!, $n: Int!) { repository(owner: $o, name: $r) { issue(number: $n) { parent { number } subIssuesSummary { total } } } }' \
+            --jq '.data.repository.issue | "\(.parent.number // "none") \(.subIssuesSummary.total)"')
+          read -r parent subs <<< "$found"
+          if [ "$parent" != none ]; then
+            echo "::notice::#$ISSUE is a ticket of #$parent: the factory doesn't build a spec's tickets yet."
+          elif [ "$subs" != 0 ]; then
+            echo "::notice::#$ISSUE has $subs sub-issues, so is a spec: the factory doesn't build specs yet."
+          else
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  start:
+    needs: gate
+    if: needs.gate.outputs.go == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      # cycle time starts here (docs/agents/issue-tracker.md); a parked ticket labelled again is a new start
+      - name: Label the ticket in-progress and comment the run link
+        env:
+          GH_TOKEN: ${{ secrets.FACTORY_TOKEN }}
+          REPO: ${{ github.repository }}
+          ISSUE: ${{ github.event.issue.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if gh issue view "$ISSUE" --repo "$REPO" --json labels --jq '.labels[].name' | grep -qx parked; then
+            gh issue edit "$ISSUE" --repo "$REPO" --remove-label parked
+          fi
+          gh issue edit "$ISSUE" --repo "$REPO" --add-label in-progress
+          gh issue comment "$ISSUE" --repo "$REPO" --body "The factory is building this ticket: $RUN_URL"
+
+  build:
+    needs: start
+    # pinned: bwrap needs AppArmor to let it make user namespaces, which a new image may change (R1)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    outputs:
+      commits: ${{ steps.agent.outputs.commits }}
+      checks: ${{ steps.checks.outcome }}
+    env:
+      BRANCH: agent/${{ github.event.issue.number }}-${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0 # the migration check reads origin/main's schema, and the change-file check diffs from it
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      # bubblewrap, probed, and Claude Code: if the probe fails, the job stops before the agent runs, sandboxed or not
+      - uses: ./.github/actions/sandbox
+      # Sandcastle copies the host's git identity into the sandbox, and merges the agent's work into the branch checked out.
+      # The checkout runs .husky/post-checkout, which installs the skills skills-lock.json lists (/implement's /tdd among
+      # them); run it again so a failed install shows, as the check after it fails.
+      - name: Make the ticket's branch from main, with the skills installed
+        run: |
+          git config --global user.name 'forecaster-factory'
+          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -b "$BRANCH"
+          sh .husky/post-checkout HEAD HEAD 1
+          for skill in implement tdd code-review; do test -f ".claude/skills/$skill/SKILL.md" || { echo "::error::the $skill skill isn't installed"; exit 1; }; done
+      - name: Fetch the ticket
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          gh api "repos/$REPO/issues/$ISSUE" > "$RUNNER_TEMP/ticket.json"
+          gh api --paginate --slurp "repos/$REPO/issues/$ISSUE/comments" > "$RUNNER_TEMP/comments.json"
+      - name: Build the ticket in the sandbox
+        id: agent
+        env:
+          # reaches the agent only through factoryAgent()'s env, which Sandcastle hands bwrap
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          TICKET_JSON: ${{ runner.temp }}/ticket.json
+          COMMENTS_JSON: ${{ runner.temp }}/comments.json
+        run: node scripts/factoryBuild.ts
+      # The ticket's code runs here, outside the sandbox, so this step and the ones after it hold no secret.
+      - name: Typecheck, tests and the migration check
+        id: checks
+        run: |
+          rm -rf .sandcastle/worktrees && git worktree prune # a worktree Sandcastle kept would hold a second copy of the tests
+          npm run typecheck && npm test && npm run check:migrations
+      - name: Bundle the ticket's commits
+        run: git bundle create "$RUNNER_TEMP/ticket.bundle" "$BRANCH" ^origin/main
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ticket-bundle
+          path: ${{ runner.temp }}/ticket.bundle
+          retention-days: 7
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    env:
+      BRANCH: agent/${{ github.event.issue.number }}-${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0 # a bundle needs the commits it was made on
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: ticket-bundle
+          path: ${{ runner.temp }}
+      # Only the ticket's branch, by its name, comes out of the bundle. A PR from this repo runs the workflows it changes
+      # with the repo's secrets, so a change under .github/ is refused: build such a ticket locally.
+      - name: Take the ticket's branch from the bundle
+        run: |
+          git -c core.hooksPath=/dev/null fetch "$RUNNER_TEMP/ticket.bundle" "refs/heads/$BRANCH:refs/heads/$BRANCH"
+          changed=$(git diff --name-only "origin/main...$BRANCH" -- .github/)
+          if [ -n "$changed" ]; then
+            echo "::error::The ticket's branch changes files under .github/, which the factory doesn't push: $changed"
+            exit 1
+          fi
+      - name: Push the branch
+        env:
+          GH_TOKEN: ${{ secrets.FACTORY_TOKEN }}
+        run: |
+          git -c core.hooksPath=/dev/null \
+            -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" \
+            push origin "refs/heads/$BRANCH:refs/heads/$BRANCH"
+      - name: Open the PR to main
+        env:
+          GH_TOKEN: ${{ secrets.FACTORY_TOKEN }}
+          REPO: ${{ github.repository }}
+          ISSUE: ${{ github.event.issue.number }}
+          TITLE: ${{ github.event.issue.title }}
+          BASE: ${{ github.event.repository.default_branch }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          printf 'Closes #%s.\n\nBuilt by the factory from #%s, in run %s.\n' "$ISSUE" "$ISSUE" "$RUN_URL" > "$RUNNER_TEMP/body.md"
+          gh pr create --repo "$REPO" --base "$BASE" --head "$BRANCH" --title "$TITLE" --body-file "$RUNNER_TEMP/body.md"
+
+  # A run that started but didn't end in a PR parks the ticket: no commits, the checks failed, a timeout, or a failed push.
+  park:
+    needs: [gate, start, build, publish]
+    if: always() && needs.gate.outputs.go == 'true' && needs.publish.result != 'success'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Park the ticket and comment why, with the run link
+        env:
+          GH_TOKEN: ${{ secrets.FACTORY_TOKEN }}
+          REPO: ${{ github.repository }}
+          ISSUE: ${{ github.event.issue.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          START: ${{ needs.start.result }}
+          BUILD: ${{ needs.build.result }}
+          COMMITS: ${{ needs.build.outputs.commits }}
+          CHECKS: ${{ needs.build.outputs.checks }}
+        run: |
+          if [ "$START" != success ]; then why="labelling it in-progress failed"
+          elif [ "$BUILD" = cancelled ]; then why="the build was cancelled or timed out"
+          elif [ "$BUILD" != success ] && [ "$COMMITS" = 0 ]; then why="the agent made no commit"
+          elif [ "$BUILD" != success ] && [ "$CHECKS" = failure ]; then why="typecheck, the tests or the migration check failed"
+          elif [ "$BUILD" != success ]; then why="the build failed or timed out"
+          else why="pushing the branch or opening the PR failed"
+          fi
+          gh api "repos/$REPO/labels/parked" > /dev/null 2>&1 \
+            || gh label create parked --repo "$REPO" --color B60205 --description 'The factory failed to build it; label it ready-for-agent again to retry'
+          gh issue edit "$ISSUE" --repo "$REPO" --remove-label in-progress,ready-for-agent --add-label parked
+          gh issue comment "$ISSUE" --repo "$REPO" --body "The factory parked this ticket: $why. Run: $RUN_URL"

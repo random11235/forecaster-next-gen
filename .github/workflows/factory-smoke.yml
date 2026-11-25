@@ -19,18 +19,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-      - name: Install bubblewrap and allow it user namespaces
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y bubblewrap
-          printf 'abi <abi/4.0>,\ninclude <tunables/global>\nprofile bwrap /usr/bin/bwrap flags=(unconfined) {\n  userns,\n}\n' \
-            | sudo tee /etc/apparmor.d/bwrap
-          sudo apparmor_parser -r /etc/apparmor.d/bwrap
-      # The gate: if bwrap can't make a sandbox, the job stops here and the agent never runs, sandboxed or not.
-      - name: Probe bwrap
-        run: bwrap --ro-bind / / true
-      - name: Install Claude Code
-        run: npm install -g @anthropic-ai/claude-code@2.1.331
+      # bubblewrap, probed, and Claude Code: if the probe fails, the job stops before the agent runs, sandboxed or not
+      - uses: ./.github/actions/sandbox
       # Sandcastle's merge-to-head strategy merges back into the branch checked out, so check one out.
       - name: Check out a branch for Sandcastle to merge into
         run: git checkout -B factory-smoke
