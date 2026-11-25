@@ -2,7 +2,7 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSy
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
-import { prepareTree } from '../../scripts/factoryTree.ts'
+import { NOT_HELD, ONLY_DIRECTORIES, prepareTree, UnbuildableTree } from '../../scripts/factoryTree.ts'
 
 const made: string[] = []
 afterEach(() => {
@@ -35,7 +35,7 @@ const COPY = { copyToWorktree: ['node_modules', '.claude/skills'] }
 
 const INSTALL = {
   copyToWorktree: ['.claude/skills'],
-  hooks: { sandbox: { onSandboxReady: [{ command: 'env -u CLAUDE_CODE_OAUTH_TOKEN npm ci', timeoutMs: 600_000 }] } },
+  hooks: { sandbox: { onSandboxReady: [{ command: 'npm ci', timeoutMs: 600_000 }] } },
 }
 
 describe('the tree the factory builds a ticket in, apart from the runner’s checkout', () => {
@@ -58,7 +58,7 @@ describe('the tree the factory builds a ticket in, apart from the runner’s che
     expect(lstatSync(join(tree, '.claude/skills/tdd')).isSymbolicLink()).toBe(false)
   })
 
-  test('installs its own dependencies with npm ci in the sandbox, without the OAuth token, when its lockfile or package.json differs', () => {
+  test('installs its own dependencies with npm ci in the sandbox when its lockfile or package.json differs', () => {
     expect(prepareTree(runner(), checkout({ ...PACKAGE, 'package-lock.json': '{"lockfileVersion":3,"packages":{}}' }))).toEqual(INSTALL)
     expect(prepareTree(runner(), checkout({ ...PACKAGE, 'package.json': '{"name":"forecaster","scripts":{}}' }))).toEqual(INSTALL)
     expect(prepareTree(runner(), checkout({ 'package.json': PACKAGE['package.json'] }))).toEqual(INSTALL)
@@ -75,7 +75,7 @@ describe('the tree the factory builds a ticket in, apart from the runner’s che
     expect(prepareTree(from, device)).toEqual(INSTALL)
   })
 
-  test('refuses a tree holding .sandcastle or node_modules, or linking .claude or its skills elsewhere, saying which', () => {
+  test('refuses a tree holding .sandcastle or node_modules, or .claude or its skills as anything but a directory, saying which', () => {
     const elsewhere = checkout({})
     const linked = (path: string) => {
       const tree = checkout(PACKAGE)
@@ -91,8 +91,23 @@ describe('the tree the factory builds a ticket in, apart from the runner’s che
       "the branch holds node_modules, which the factory won't build on",
     )
     expect(() => prepareTree(runner(), linked('node_modules'))).toThrow('the branch holds node_modules')
-    expect(() => prepareTree(runner(), linked('.claude'))).toThrow("the branch links .claude elsewhere, which the factory won't build on")
-    expect(() => prepareTree(runner(), linked('.claude/skills'))).toThrow("the branch links .claude/skills elsewhere, which the factory won't build on")
+    expect(() => prepareTree(runner(), linked('.claude'))).toThrow(
+      "the branch holds .claude as something other than a directory, which the factory won't build on",
+    )
+    expect(() => prepareTree(runner(), linked('.claude/skills'))).toThrow(
+      "the branch holds .claude/skills as something other than a directory, which the factory won't build on",
+    )
+    expect(() => prepareTree(runner(), checkout({ ...PACKAGE, '.claude': '' }))).toThrow('the branch holds .claude as something other than a directory')
+    expect(() => prepareTree(runner(), checkout({ ...PACKAGE, '.claude/skills': '' }))).toThrow(UnbuildableTree)
     expect(existsSync(join(elsewhere, 'tdd'))).toBe(false)
   })
+})
+
+test("the factory's workflow refuses to push a branch holding what the build refuses", () => {
+  const workflow = readFileSync(new URL('../../.github/workflows/factory.yml', import.meta.url), 'utf8')
+  const paths = (marker: string) =>
+    new RegExp(String.raw`git ls-tree [^\n]*"\$BRANCH" -- ([^|)\n]+?)(?:\)| \|)[^\n]*# ${marker} in scripts/factoryTree\.ts`).exec(workflow)?.[1]?.split(' ')
+
+  expect(paths('NOT_HELD')).toEqual(NOT_HELD)
+  expect(paths('ONLY_DIRECTORIES')).toEqual(ONLY_DIRECTORIES)
 })

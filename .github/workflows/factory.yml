@@ -49,9 +49,9 @@ concurrency:
 
 jobs:
   # A failed step fails this job. Once the labeller is known to have write access, `tell` says so on the labelled
-  # issue, and parks nothing, a ticket outside any spec as well as a spec; before, nothing touches it. A ticket not to build ends the job with a notice; a spec with
-  # none, with `tell`'s comment. The jobs after take the ticket to build, its branch, and the spec it's in, if any, from
-  # here.
+  # issue, and parks nothing, a ticket outside any spec as well as a spec; before, nothing touches it. A ticket not to
+  # build ends the job with a notice; a spec with none, with `tell`'s comment. The jobs after take the ticket to build,
+  # its branch, and the spec it's in, if any, from here.
   gate:
     if: github.event.label.name == 'ready-for-agent'
     runs-on: ubuntu-24.04
@@ -177,7 +177,8 @@ jobs:
           BRANCH: ${{ needs.gate.outputs.branch }}
           SAY: ${{ needs.gate.outputs.say }}
         run: |
-          if [ "$GATE" = failure ]; then said="The factory built nothing: checking the issue, or picking a spec's next ticket, failed: the run's gate job says why"
+          if [ "$GATE" = failure ]; then
+            said="The factory built nothing: checking the issue, or picking a spec's next ticket, failed: the run's gate job says why"
           elif [ -n "$SAY" ]; then said="The factory built nothing: $SAY"
           else said="The factory is building #$TICKET on $BRANCH"
           fi
@@ -406,6 +407,7 @@ jobs:
       refused: ${{ steps.branch.outputs.refused }}
       unbuildable: ${{ steps.branch.outputs.unbuildable }}
       untrusted: ${{ steps.merged.outputs.untrusted }}
+      posted: ${{ steps.merged.outputs.posted }}
       tampered: ${{ steps.fetch.outputs.tampered || steps.branch.outputs.tampered }}
       pushed: ${{ steps.push.outcome }}
     env:
@@ -451,9 +453,9 @@ jobs:
             echo "::error::The ticket's branch changes files under .github/, which the factory doesn't push: $changed"
             exit 1
           fi
-          held=$(git ls-tree --name-only "$BRANCH" -- .sandcastle node_modules)
-          linked=$(git ls-tree "$BRANCH" -- .claude .claude/skills | awk '$1 == "120000" { print $4 }')
-          unbuildable=$(printf '%s\n%s\n' "$held" "$linked" | sed '/^$/d' | paste -sd' ' -)
+          held=$(git ls-tree --name-only "$BRANCH" -- .sandcastle node_modules) # NOT_HELD in scripts/factoryTree.ts
+          files=$(git ls-tree "$BRANCH" -- .claude .claude/skills | awk '$2 != "tree" { print $4 }') # ONLY_DIRECTORIES in scripts/factoryTree.ts
+          unbuildable=$(printf '%s\n%s\n' "$held" "$files" | sed '/^$/d' | paste -sd' ' -)
           if [ -n "$unbuildable" ]; then
             echo "unbuildable=$unbuildable" >> "$GITHUB_OUTPUT"
             echo "::error::The ticket's branch holds $unbuildable, which the factory won't build on, so it doesn't push it"
@@ -478,7 +480,8 @@ jobs:
       # Cycle time stops here (docs/agents/issue-tracker.md); the ticket stays open, to close with the spec's PR to main.
       # Opening with the mark, by a trusted author, it's what scripts/factoryFrontier.ts reads as merged into spec/<n>.
       # FACTORY_TOKEN's account is taken to be trusted, and checked here: if it isn't, the frontier would pick this
-      # ticket again on the spec's next label, so the step fails and `park` says why.
+      # ticket again on the spec's next label, so the step fails and `park` says why. `posted` tells `park` the comment
+      # is there, though checking it failed.
       - name: Comment merged on the spec's ticket, and check the frontier will trust it
         id: merged
         if: needs.gate.outputs.spec != ''
@@ -487,12 +490,16 @@ jobs:
         run: |
           url=$(gh issue comment "$TICKET" --repo "$REPO" --body "$MARK
           merged into $BRANCH: $RUN_URL")
-          association=$(gh api "repos/$REPO/issues/comments/${url##*-}" --jq .author_association)
+          echo "posted=true" >> "$GITHUB_OUTPUT"
+          if ! association=$(gh api "repos/$REPO/issues/comments/${url##*-}" --jq '.author_association // "none given"'); then
+            echo "::error::Couldn't read who GitHub says wrote the merged comment on #$TICKET"
+            exit 1
+          fi
           case "$association" in
             OWNER | MEMBER | COLLABORATOR) ;; # isTrusted in scripts/factoryTrust.ts
             *)
               echo "untrusted=$association" >> "$GITHUB_OUTPUT"
-              echo "::error::FACTORY_TOKEN's comment is by a $association, whom the frontier doesn't trust: it would build #$TICKET again"
+              echo "::error::FACTORY_TOKEN's comment has the author association $association, which the frontier doesn't trust: it would build #$TICKET again"
               exit 1
               ;;
           esac
@@ -523,7 +530,9 @@ jobs:
           REFUSED: ${{ needs.publish.outputs.refused }}
           UNBUILDABLE: ${{ needs.publish.outputs.unbuildable }}
           UNTRUSTED: ${{ needs.publish.outputs.untrusted }}
+          POSTED: ${{ needs.publish.outputs.posted }}
         run: |
+          by_hand="comment \`merged into $BRANCH\` by hand, opening with the factory's hidden mark (MARK in factory.yml), and take \`parked\` off"
           # BUILD_WHY is scripts/factoryOutcome.ts's reason: no commits, a dirty tree, the budget, the idle timeout, an error
           if [ "$TAMPERED" = true ]; then why="the agent's commits or the PR body changed after the build made them, so the factory didn't use them"
           elif [ "$START" != success ]; then why="labelling it in-progress failed"
@@ -533,6 +542,7 @@ jobs:
           elif [ -z "$RESULT" ]; then why="the build script crashed before it started"
           elif [ "$RESULT" = started ] && [ "$STOPPED" = timeout ]; then why="the agent ran past its $AGENT_MINUTES-minute timeout"
           elif [ "$RESULT" = started ]; then why="the build was killed mid-run, before its timeout"
+          elif [ "$RESULT" = unbuildable ]; then why="$BUILD_WHY, before the agent ran: fix the branch it starts from, $BRANCH or else $BASE, by hand"
           elif [ -n "$BUILD_WHY" ]; then why="$BUILD_WHY"
           elif [ "$BUILD" != success ]; then why="bundling or uploading the agent's commits failed"
           elif [ "$CHECK" = cancelled ]; then why="the check was cancelled, or ran past its job's $CHECK_MINUTES-minute timeout"
@@ -540,14 +550,21 @@ jobs:
           elif [ "$CHECK" != success ]; then why="setting up the check failed, or its job lost its runner"
           elif [ "$REFUSED" = true ]; then why="the agent's commits change files under .github/, which the factory doesn't push: build this ticket locally"
           elif [ -n "$UNBUILDABLE" ]; then why="the agent's commits leave $UNBUILDABLE in the branch, which the factory won't build on, so it didn't push them"
-          elif [ -n "$UNTRUSTED" ]; then why="it merged into $BRANCH, but GitHub calls FACTORY_TOKEN's account a $UNTRUSTED, not an owner, member or collaborator, so the factory won't read its merged comment as merged: give the factory a collaborator's token, comment \`merged into $BRANCH\` by hand, opening with the factory's hidden mark (MARK in factory.yml), and take \`parked\` off"
-          elif [ "$PUSHED" = success ]; then why="it merged into $BRANCH, but commenting so on it failed: comment \`merged into $BRANCH\` by hand, opening with the factory's hidden mark (MARK in factory.yml), and take \`parked\` off"
+          elif [ -n "$UNTRUSTED" ]; then
+            why="it merged into $BRANCH, but GitHub gives FACTORY_TOKEN's merged comment the author association $UNTRUSTED,"
+            why="$why not OWNER, MEMBER or COLLABORATOR, so the factory won't read it as merged: make the token's account a"
+            why="$why collaborator, or $by_hand"
+          elif [ "$POSTED" = true ]; then
+            why="it merged into $BRANCH, and the factory commented so, but reading the comment's author failed: if it's the"
+            why="$why owner, a member or a collaborator, take \`parked\` off; else make it one, or $by_hand"
+          elif [ -n "$SPEC" ] && [ "$PUSHED" = success ]; then why="it merged into $BRANCH, but commenting so on it failed: $by_hand"
           elif [ -n "$SPEC" ]; then why="pushing $BRANCH failed: it may have moved since the build"
           else why="pushing the branch or opening the PR failed"
           fi
           # Nothing reaches spec/<n> but a push of checked commits, the last step before the merged comment
           if [ -n "$SPEC" ] && [ "$PUSHED" != success ]; then why="$why. $BRANCH is unchanged"; fi
-          if [ -n "$SPEC" ]; then retry="To retry, take \`parked\` off and label the spec, #$SPEC, ready-for-agent again. "; fi
+          # A ticket on spec/<n> already is done: rebuilding it would build it twice
+          if [ -n "$SPEC" ] && [ "$PUSHED" != success ]; then retry="To retry, take \`parked\` off and label the spec, #$SPEC, ready-for-agent again. "; fi
           # --force: another ticket's park may create it at the same moment
           gh label create parked --force --repo "$REPO" --color B60205 --description 'The factory failed to build it; label it ready-for-agent again to retry'
           labels=$(gh issue view "$TICKET" --repo "$REPO" --json labels --jq '.labels[].name')
@@ -557,7 +574,8 @@ jobs:
           done
           gh issue edit "$TICKET" --repo "$REPO" --add-label parked "${remove[@]}"
           # factory-logs has files only once the agent step ran: not when build lost its runner, nor when its setup failed
-          if [ -n "$AGENT" ] && [ "$AGENT" != skipped ]; then logs="The agent's transcript and Sandcastle's log are in the run's factory-logs artifact"
+          if [ "$RESULT" = unbuildable ]; then logs="The build stopped before the agent ran, so only the run's own log has it"
+          elif [ -n "$AGENT" ] && [ "$AGENT" != skipped ]; then logs="The agent's transcript and Sandcastle's log are in the run's factory-logs artifact"
           else logs="The build didn't run, so there are no logs beyond the run's own"
           fi
           gh issue comment "$TICKET" --repo "$REPO" --body "$MARK

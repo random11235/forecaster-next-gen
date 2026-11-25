@@ -18,11 +18,23 @@ const PACKAGE_FILES = ['package.json', 'package-lock.json']
 /** An install's time: about the setup action's `npm ci`, with room to spare. */
 const INSTALL_MS = 600_000
 
+/** The install runs the tree's lifecycle scripts, in the sandbox, which holds the agent's OAuth token (R3). */
+const INSTALL = 'npm ci'
+
 /**
- * The install runs the tree's lifecycle scripts; it needs no model, so it doesn't get the agent's token, which
- * Sandcastle puts in every sandbox command's env. The agent runs the tree's code later with it all the same (R3).
+ * What the factory won't build on, as a branch holds it, so won't push either (the workflow's publish job): Sandcastle
+ * reads a tree's .sandcastle/.env into the sandbox's env, filling a key left empty from the host's, and the runner's
+ * node_modules goes where the tree's would.
  */
-const INSTALL = 'env -u CLAUDE_CODE_OAUTH_TOKEN npm ci'
+export const NOT_HELD = ['.sandcastle', 'node_modules']
+
+/** What must be a directory if the branch holds it, as the runner's skills go in it. */
+export const ONLY_DIRECTORIES = ['.claude', '.claude/skills']
+
+/** Why the factory won't build on the branch: its fault, not the build's, so building again won't help. */
+export class UnbuildableTree extends Error {
+  override name = 'UnbuildableTree'
+}
 
 const statOf = (path: string): Stats | undefined => lstatSync(path, { throwIfNoEntry: false })
 
@@ -30,19 +42,20 @@ const statOf = (path: string): Stats | undefined => lstatSync(path, { throwIfNoE
 const plainText = (path: string): string | undefined => (statOf(path)?.isFile() ? readFileSync(path, 'utf8') : undefined)
 
 /**
- * Readies the tree for Sandcastle, or throws why the factory won't build on it, and says what to copy into the
- * worktree. Sandcastle reads the tree's .sandcastle/.env into the sandbox's env, filling a key left empty from the
- * host's, so a tree holding .sandcastle is refused; and so is one holding node_modules, or linking .claude or its skills
- * elsewhere, where the runner's go. The runner's skills that the tree lacks are copied in: the ones it tracks stay its
- * own. The runner's node_modules is linked in, to be copied, when the tree's package files are the runner's, read only
- * if plain files; otherwise the sandbox runs `npm ci`, whose lifecycle scripts are then the tree's, in bwrap.
+ * Readies the tree for Sandcastle, or throws UnbuildableTree, and says what to copy into the worktree. The runner's
+ * skills that the tree lacks are copied in: the ones it tracks stay its own. The runner's node_modules is linked in, to
+ * be copied, when the tree's package files are the runner's, read only if plain files; otherwise the sandbox runs
+ * `npm ci`, whose lifecycle scripts are then the tree's, in bwrap.
  */
 export function prepareTree(runnerDir: string, treeDir: string): TreeSetup {
-  for (const path of ['.sandcastle', 'node_modules']) {
-    if (statOf(join(treeDir, path))) throw new Error(`the branch holds ${path}, which the factory won't build on`)
+  for (const path of NOT_HELD) {
+    if (statOf(join(treeDir, path))) throw new UnbuildableTree(`the branch holds ${path}, which the factory won't build on`)
   }
-  for (const path of ['.claude', '.claude/skills']) {
-    if (statOf(join(treeDir, path))?.isSymbolicLink()) throw new Error(`the branch links ${path} elsewhere, which the factory won't build on`)
+  for (const path of ONLY_DIRECTORIES) {
+    const stats = statOf(join(treeDir, path))
+    if (stats && !stats.isDirectory()) {
+      throw new UnbuildableTree(`the branch holds ${path} as something other than a directory, which the factory won't build on`)
+    }
   }
   const skills = join(treeDir, '.claude/skills')
   mkdirSync(skills, { recursive: true })

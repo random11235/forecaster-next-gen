@@ -5,9 +5,9 @@
 // The next ticket is the first of the spec's sub-issues, in their order, that is neither done, nor parked, nor blocked.
 // A ticket is done once closed, or once it merged into spec/<n>, which leaves it open (it closes with the spec's PR):
 // that is the factory's comment `merged into spec/<n>`, which opens with its mark and is by the owner or a
-// collaborator, as the factory's token is taken to be, which the workflow checks (scripts/factoryTrust.ts). A blocker counts while it is open and
-// not merged into spec/<n>, as the ticket built on it then has its code. A parked ticket waits for the owner, who takes
-// the label off.
+// collaborator, as the factory's token is taken to be, which the workflow checks (scripts/factoryTrust.ts). A blocker
+// counts while it is open and not merged into spec/<n>, as the ticket built on it then has its code. A parked ticket
+// waits for the owner, who takes the label off.
 
 import { factoryWords, isTrusted, type Association } from './factoryTrust.ts'
 
