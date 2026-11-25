@@ -550,10 +550,10 @@ jobs:
           comment_by_hand="comment \`merged into $BRANCH\` by hand, opening with the factory's hidden mark \`$MARK\`, and take \`parked\` off"
           # How far publish's push to spec/<n> got (`push`), the one step that reaches it:
           # - finished: it pushed, so only the merged comment after it can have failed
-          # - unstarted: check or publish stopped before the push step began, or build made nothing to push
+          # - unstarted: an earlier job, or publish before its push step, stopped, or build made nothing to push
           # - failed: its step failed, which it can have done after the push landed
-          # - cut-off: its step didn't finish, which it can have done after the push landed
-          # Only after failed or cut-off is spec/<n> read (`branch`):
+          # - cut-off: publishing stopped before its push was known to finish, which can be after it landed
+          # Only after failed or cut-off is spec/<n> read (`position`):
           # - unreadable: reading it failed
           # - tip: it's at the commit build made, so it has the ticket's commits
           # - unchanged: it's not there, or at the commit build started from
@@ -566,17 +566,17 @@ jobs:
             else push=cut-off
             fi
             if [ "$push" = failed ] || [ "$push" = cut-off ]; then
-              if ! remote=$(git ls-remote "$GITHUB_SERVER_URL/$REPO.git" "refs/heads/$BRANCH"); then branch=unreadable
+              if ! remote=$(git ls-remote "$GITHUB_SERVER_URL/$REPO.git" "refs/heads/$BRANCH"); then position=unreadable
               else
                 at=${remote%%[[:space:]]*}
-                if [ "$at" = "$TIP" ]; then branch=tip
-                elif [ -z "$at" ] || [ "$at" = "$BUILT_ON" ]; then branch=unchanged
-                else branch=moved
+                if [ "$at" = "$TIP" ]; then position=tip
+                elif [ -z "$at" ] || [ "$at" = "$BUILT_ON" ]; then position=unchanged
+                else position=moved
                 fi
               fi
             fi
-            if [ "$push" = finished ] || [ "$branch" = tip ]; then commits=yes
-            elif [ "$branch" = moved ] || [ "$branch" = unreadable ]; then commits=unknown
+            if [ "$push" = finished ] || [ "$position" = tip ]; then commits=yes
+            elif [ "$position" = moved ] || [ "$position" = unreadable ]; then commits=unknown
             else commits=no
             fi
           fi
@@ -600,16 +600,16 @@ jobs:
           elif [ -n "$UNBUILDABLE" ]; then why="the agent's commits leave $UNBUILDABLE in the branch, which the factory won't build on, so it didn't push them"
           elif [ -z "$SPEC" ]; then why="pushing the branch or opening the PR failed"
           elif [ "$push" = finished ]; then why="it merged into $BRANCH, but commenting so on it failed"
-          elif [ "$branch" = tip ]; then
+          elif [ "$position" = tip ]; then
             why="the push to $BRANCH landed, though its step failed or didn't finish, so the factory didn't comment merged"
           elif [ "$push" = failed ]; then why="pushing $BRANCH failed"
-          elif [ "$push" = cut-off ]; then why="publishing stopped before it finished pushing to $BRANCH"
+          elif [ "$push" = cut-off ]; then why="publishing stopped before its push to $BRANCH was known to finish"
           else why="publishing stopped before it pushed to $BRANCH"
           fi
           tell="so the factory can't tell whether it has the ticket's commits"
           if [ "$commits" = no ]; then why="$why. $BRANCH is unchanged"
-          elif [ "$branch" = moved ]; then why="$why, and $BRANCH moved since the build, $tell"
-          elif [ "$branch" = unreadable ]; then why="$why, and reading $BRANCH afterwards failed, $tell"
+          elif [ "$position" = moved ]; then why="$why, and $BRANCH moved since the build, $tell"
+          elif [ "$position" = unreadable ]; then why="$why, and reading $BRANCH afterwards failed, $tell"
           fi
           # What to do: a ticket on spec/<n> already is done, so rebuilding it would build it twice; one refused would be
           # refused again
