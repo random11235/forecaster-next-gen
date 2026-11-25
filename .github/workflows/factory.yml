@@ -253,6 +253,11 @@ jobs:
           sudo tar -xJf "$RUNNER_TEMP/$file" -C /opt/node --strip-components 1
       - uses: ./.github/actions/ticket-branch # from the default branch's clone, before the ticket's is checked out
         id: fetch
+      - name: Stop on a bundle that isn't build's
+        if: steps.fetch.outputs.tampered == 'true'
+        run: |
+          echo "::error::The bundle's branch isn't the commit build made"
+          exit 1
       - name: Check out the ticket's commits
         run: git -c core.hooksPath=/dev/null checkout --quiet "$BRANCH"
       # What the pre-push hook runs, which the push in `publish`, with hooks off, skips. The step's parent is the runner's
@@ -293,6 +298,11 @@ jobs:
       # workflows it changes with the repo's secrets, so a change under .github/ is refused: build such a ticket locally.
       - uses: ./.github/actions/ticket-branch
         id: fetch
+      - name: Stop on a bundle that isn't build's
+        if: steps.fetch.outputs.tampered == 'true'
+        run: |
+          echo "::error::The bundle's branch isn't the commit build made"
+          exit 1
       - name: Check the ticket's branch and the PR body
         id: branch
         run: |
@@ -371,8 +381,8 @@ jobs:
             if grep -qx "$label" <<< "$labels"; then remove+=(--remove-label "$label"); fi
           done
           gh issue edit "$ISSUE" --repo "$REPO" --add-label parked "${remove[@]}"
-          # factory-logs is uploaded only by a build that ran its steps
-          if [ -n "$AGENT" ]; then logs="The agent's transcript and Sandcastle's log are in the run's factory-logs artifact"
+          # factory-logs has files only once the agent step ran: not when build lost its runner, nor when its setup failed
+          if [ -n "$AGENT" ] && [ "$AGENT" != skipped ]; then logs="The agent's transcript and Sandcastle's log are in the run's factory-logs artifact"
           else logs="The build didn't run, so there are no logs beyond the run's own"
           fi
           gh issue comment "$ISSUE" --repo "$REPO" --body "$MARK
