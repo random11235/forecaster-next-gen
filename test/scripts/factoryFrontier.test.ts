@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, test } from 'vitest'
 import { nextStep, stepOutputs, subIssuesOf, type SubIssue } from '../../scripts/factoryFrontier.ts'
-import { FACTORY_MARK, type Association } from '../../scripts/factoryTrust.ts'
+import { FACTORY_MARK, isTrusted, type Association } from '../../scripts/factoryTrust.ts'
 
 const SPEC = 9
 
@@ -121,4 +121,16 @@ test("the factory's workflow comments merged in words the frontier reads as merg
   expect(said).toBeDefined()
   const body = `${FACTORY_MARK}\n${String(said).replaceAll('$BRANCH', `spec/${SPEC}`).replaceAll('$RUN_URL', 'https://run')}`
   expect(nextStep(SPEC, [ticket(12, { comments: { nodes: [comment('OWNER', body)] } })])).toEqual({ action: 'open-pr' })
+})
+
+test("the factory's workflow fails its publish unless its merged comment's author is one the frontier trusts", () => {
+  const workflow = readFileSync(new URL('../../.github/workflows/factory.yml', import.meta.url), 'utf8')
+  const accepted = /\n\s*([A-Z_ |]+)\) ;; # isTrusted in scripts\/factoryTrust\.ts/
+    .exec(workflow)?.[1]
+    ?.split('|')
+    .map((each) => each.trim())
+  const all: Association[] = ['OWNER', 'MEMBER', 'COLLABORATOR', 'CONTRIBUTOR', 'FIRST_TIME_CONTRIBUTOR', 'FIRST_TIMER', 'MANNEQUIN', 'NONE']
+
+  expect(accepted).toBeDefined()
+  expect(all.filter((each) => accepted?.includes(each))).toEqual(all.filter(isTrusted))
 })

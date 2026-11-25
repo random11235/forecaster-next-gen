@@ -1,29 +1,98 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { describe, expect, test } from 'vitest'
-import { treeSetup } from '../../scripts/factoryTree.ts'
+import { dirname, join } from 'node:path'
+import { afterEach, describe, expect, test } from 'vitest'
+import { prepareTree } from '../../scripts/factoryTree.ts'
 
-/** A checkout holding just these package files. */
+const made: string[] = []
+afterEach(() => {
+  for (const dir of made.splice(0)) rmSync(dir, { recursive: true, force: true })
+})
+
+/** A checkout holding these files, by path. */
 const checkout = (files: Record<string, string>): string => {
   const dir = mkdtempSync(join(tmpdir(), 'factory-tree-'))
-  mkdirSync(dir, { recursive: true })
-  for (const [name, text] of Object.entries(files)) writeFileSync(join(dir, name), text)
+  made.push(dir)
+  for (const [path, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, path)), { recursive: true })
+    writeFileSync(join(dir, path), text)
+  }
   return dir
 }
 
-const MAIN = { 'package.json': '{"name":"forecaster"}', 'package-lock.json': '{"lockfileVersion":3}' }
+const PACKAGE = { 'package.json': '{"name":"forecaster"}', 'package-lock.json': '{"lockfileVersion":3}' }
 
-describe('how the sandbox gets the dependencies of the tree it builds on', () => {
-  test("copies in the runner's node_modules, and the skills, when the tree's package files are the runner's", () => {
-    expect(treeSetup(checkout(MAIN), checkout(MAIN))).toEqual({ copyToWorktree: ['node_modules', '.claude/skills'] })
+/** The runner's checkout of the default branch: its package files, node_modules and skills. */
+const runner = () =>
+  checkout({
+    ...PACKAGE,
+    'node_modules/vitest/index.js': '',
+    '.claude/skills/tdd/SKILL.md': 'runner tdd',
+    '.claude/skills/implement/SKILL.md': 'runner implement',
   })
 
-  test("installs the tree's own, with npm ci in the sandbox, when its lockfile or package.json differs", () => {
-    const install = { copyToWorktree: ['.claude/skills'], hooks: { sandbox: { onSandboxReady: [{ command: 'npm ci', timeoutMs: 600_000 }] } } }
+const COPY = { copyToWorktree: ['node_modules', '.claude/skills'] }
 
-    expect(treeSetup(checkout(MAIN), checkout({ ...MAIN, 'package-lock.json': '{"lockfileVersion":3,"packages":{}}' }))).toEqual(install)
-    expect(treeSetup(checkout(MAIN), checkout({ ...MAIN, 'package.json': '{"name":"forecaster","scripts":{}}' }))).toEqual(install)
-    expect(treeSetup(checkout(MAIN), checkout({ 'package.json': MAIN['package.json'] }))).toEqual(install)
+const INSTALL = {
+  copyToWorktree: ['.claude/skills'],
+  hooks: { sandbox: { onSandboxReady: [{ command: 'env -u CLAUDE_CODE_OAUTH_TOKEN npm ci', timeoutMs: 600_000 }] } },
+}
+
+describe('the tree the factory builds a ticket in, apart from the runner’s checkout', () => {
+  test("gets the runner's node_modules, linked, to be copied into the worktree, when its package files are the runner's", () => {
+    const from = runner()
+    const tree = checkout(PACKAGE)
+
+    expect(prepareTree(from, tree)).toEqual(COPY)
+    expect(readlinkSync(join(tree, 'node_modules'))).toBe(join(from, 'node_modules'))
+    expect(readFileSync(join(tree, '.git/info/exclude'), 'utf8')).toContain('node_modules\n')
+  })
+
+  test("gets the runner's skills that it lacks, and keeps the ones it tracks as its own", () => {
+    const tree = checkout({ ...PACKAGE, '.claude/skills/implement/SKILL.md': 'tree implement' })
+
+    prepareTree(runner(), tree)
+
+    expect(readFileSync(join(tree, '.claude/skills/tdd/SKILL.md'), 'utf8')).toBe('runner tdd')
+    expect(readFileSync(join(tree, '.claude/skills/implement/SKILL.md'), 'utf8')).toBe('tree implement')
+    expect(lstatSync(join(tree, '.claude/skills/tdd')).isSymbolicLink()).toBe(false)
+  })
+
+  test('installs its own dependencies with npm ci in the sandbox, without the OAuth token, when its lockfile or package.json differs', () => {
+    expect(prepareTree(runner(), checkout({ ...PACKAGE, 'package-lock.json': '{"lockfileVersion":3,"packages":{}}' }))).toEqual(INSTALL)
+    expect(prepareTree(runner(), checkout({ ...PACKAGE, 'package.json': '{"name":"forecaster","scripts":{}}' }))).toEqual(INSTALL)
+    expect(prepareTree(runner(), checkout({ 'package.json': PACKAGE['package.json'] }))).toEqual(INSTALL)
+  })
+
+  test("takes a package file that isn't a plain file as differing, without reading through it", () => {
+    const from = runner()
+    const tree = checkout({ 'package.json': PACKAGE['package.json'] })
+    symlinkSync(join(from, 'package-lock.json'), join(tree, 'package-lock.json'))
+    const device = checkout({ 'package.json': PACKAGE['package.json'] })
+    symlinkSync('/dev/zero', join(device, 'package-lock.json'))
+
+    expect(prepareTree(from, tree)).toEqual(INSTALL)
+    expect(prepareTree(from, device)).toEqual(INSTALL)
+  })
+
+  test('refuses a tree holding .sandcastle or node_modules, or linking .claude or its skills elsewhere, saying which', () => {
+    const elsewhere = checkout({})
+    const linked = (path: string) => {
+      const tree = checkout(PACKAGE)
+      mkdirSync(dirname(join(tree, path)), { recursive: true })
+      symlinkSync(elsewhere, join(tree, path))
+      return tree
+    }
+
+    expect(() => prepareTree(runner(), checkout({ ...PACKAGE, '.sandcastle/.env': 'GH_TOKEN=' }))).toThrow(
+      "the branch holds .sandcastle, which the factory won't build on",
+    )
+    expect(() => prepareTree(runner(), checkout({ ...PACKAGE, 'node_modules/x.js': '' }))).toThrow(
+      "the branch holds node_modules, which the factory won't build on",
+    )
+    expect(() => prepareTree(runner(), linked('node_modules'))).toThrow('the branch holds node_modules')
+    expect(() => prepareTree(runner(), linked('.claude'))).toThrow("the branch links .claude elsewhere, which the factory won't build on")
+    expect(() => prepareTree(runner(), linked('.claude/skills'))).toThrow("the branch links .claude/skills elsewhere, which the factory won't build on")
+    expect(existsSync(join(elsewhere, 'tdd'))).toBe(false)
   })
 })

@@ -32,7 +32,7 @@ env:
   REPO: ${{ github.repository }}
   BASE: ${{ github.event.repository.default_branch }}
   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-  MARK: '<!-- forecaster-factory -->' # FACTORY_MARK in scripts/factoryTicket.ts
+  MARK: '<!-- forecaster-factory -->' # FACTORY_MARK in scripts/factoryTrust.ts
   JOB_MINUTES: 90 # build's timeout-minutes, which can't read env
   CHECK_MINUTES: 30 # check's timeout-minutes, likewise
   NODE_MAJOR: 24 # the Node check installs; .github/actions/setup's node-version, which can't read it, must match
@@ -48,8 +48,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # A failed API call fails this job. Once the labeller is known to have write access, `tell` says so on the labelled
-  # issue, and parks nothing; before, nothing touches it. A ticket not to build ends the job with a notice; a spec with
+  # A failed step fails this job. Once the labeller is known to have write access, `tell` says so on the labelled
+  # issue, and parks nothing, a ticket outside any spec as well as a spec; before, nothing touches it. A ticket not to build ends the job with a notice; a spec with
   # none, with `tell`'s comment. The jobs after take the ticket to build, its branch, and the spec it's in, if any, from
   # here.
   gate:
@@ -177,7 +177,7 @@ jobs:
           BRANCH: ${{ needs.gate.outputs.branch }}
           SAY: ${{ needs.gate.outputs.say }}
         run: |
-          if [ "$GATE" = failure ]; then said="The factory built nothing: checking the issue, or picking a spec's next ticket, failed (a GitHub API call)"
+          if [ "$GATE" = failure ]; then said="The factory built nothing: checking the issue, or picking a spec's next ticket, failed: the run's gate job says why"
           elif [ -n "$SAY" ]; then said="The factory built nothing: $SAY"
           else said="The factory is building #$TICKET on $BRANCH"
           fi
@@ -243,13 +243,12 @@ jobs:
       # The ticket is built in TREE, a plain clone of this public repo, on the ticket's branch: a spec's spec/<n>, as
       # pushed so far, or from the default branch if it isn't there yet; a ticket's own branch, from the default branch.
       # A clone that fails fails the step, so a spec/<n> there is never taken for missing. spec/<n> holds earlier
-      # agents' code, so nothing in TREE runs here: git's hooks are off in it, and its dependencies, if they aren't the
-      # default branch's, are installed in the sandbox (scripts/factoryTree.ts). Sandcastle reads TREE's .sandcastle/.env
-      # into the sandbox's env, filling a key left empty from this job's, so a branch holding .sandcastle is refused, as
-      # is one holding node_modules or a linked .claude, where the runner's are put. Sandcastle copies the host's git
-      # identity into the sandbox. `base` is where the branch starts, so the bundle and the checks on .github/ take
-      # only what the agent added.
-      - name: Make the ticket's branch, with the skills installed
+      # agents' code, so nothing in TREE runs here: git's hooks are off in it, and scripts/factoryTree.ts, in the build
+      # step, readies it as plain files: it refuses a branch Sandcastle would take the host's secrets or files into, puts
+      # in the runner's skills and node_modules, and has the sandbox install the branch's own dependencies if they
+      # differ. Sandcastle copies the host's git identity into the sandbox. `base` is where the branch starts, so the
+      # bundle and the checks in `publish` take only what the agent added.
+      - name: Install the skills, and clone the ticket's branch
         id: branch
         env:
           GH_TOKEN: ${{ github.token }}
@@ -268,19 +267,6 @@ jobs:
           from="origin/$BASE"
           if git -C "$tree" rev-parse --verify --quiet "refs/remotes/origin/$BRANCH" > /dev/null; then from="origin/$BRANCH"; fi
           git -C "$tree" checkout --quiet -b "$BRANCH" "$from"
-          for path in .sandcastle node_modules; do
-            if [ -e "$tree/$path" ] || [ -L "$tree/$path" ]; then echo "::error::$BRANCH holds $path, which the factory won't build on"; exit 1; fi
-          done
-          if [ -L "$tree/.claude" ] || [ -L "$tree/.claude/skills" ]; then
-            echo "::error::$BRANCH links .claude or .claude/skills elsewhere, which the factory won't build on"; exit 1
-          fi
-          ln -s "$GITHUB_WORKSPACE/node_modules" "$tree/node_modules"
-          echo node_modules >> "$tree/.git/info/exclude"
-          mkdir -p "$tree/.claude/skills"
-          for dir in .claude/skills/*/; do # the runner's skills that the tree lacks; the ones it tracks stay its own
-            name=$(basename "$dir")
-            if [ ! -e "$tree/.claude/skills/$name" ] && [ ! -L "$tree/.claude/skills/$name" ]; then cp -R "$dir" "$tree/.claude/skills/$name"; fi
-          done
           echo "base=$(git -C "$tree" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Fetch the ticket, and its spec
         env:
@@ -418,6 +404,8 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       refused: ${{ steps.branch.outputs.refused }}
+      unbuildable: ${{ steps.branch.outputs.unbuildable }}
+      untrusted: ${{ steps.merged.outputs.untrusted }}
       tampered: ${{ steps.fetch.outputs.tampered || steps.branch.outputs.tampered }}
       pushed: ${{ steps.push.outcome }}
     env:
@@ -440,6 +428,8 @@ jobs:
       # Only the ticket's branch, by its name, comes out of the bundle, and only if it and the body are what `build` made:
       # `check` ran the agent's code, which could have uploaded the artifact again. A PR from this repo runs the
       # workflows it changes with the repo's secrets, so a change under .github/ is refused: build such a ticket locally.
+      # A branch that `build` would refuse (scripts/factoryTree.ts) is refused too, so it never reaches spec/<n> and stops
+      # the spec's later tickets.
       - uses: ./.github/actions/ticket-branch
         id: fetch
       - name: Stop on a bundle that isn't build's
@@ -461,6 +451,14 @@ jobs:
             echo "::error::The ticket's branch changes files under .github/, which the factory doesn't push: $changed"
             exit 1
           fi
+          held=$(git ls-tree --name-only "$BRANCH" -- .sandcastle node_modules)
+          linked=$(git ls-tree "$BRANCH" -- .claude .claude/skills | awk '$1 == "120000" { print $4 }')
+          unbuildable=$(printf '%s\n%s\n' "$held" "$linked" | sed '/^$/d' | paste -sd' ' -)
+          if [ -n "$unbuildable" ]; then
+            echo "unbuildable=$unbuildable" >> "$GITHUB_OUTPUT"
+            echo "::error::The ticket's branch holds $unbuildable, which the factory won't build on, so it doesn't push it"
+            exit 1
+          fi
       # Never forced: a spec/<n> that moved since build, or was made meanwhile, refuses the push, and is left as it is
       - name: Push the branch
         id: push
@@ -478,14 +476,26 @@ jobs:
           TITLE: ${{ github.event.issue.title }}
         run: gh pr create --repo "$REPO" --base "$BASE" --head "$BRANCH" --title "$TITLE" --body-file "$RUNNER_TEMP/pr-body.md"
       # Cycle time stops here (docs/agents/issue-tracker.md); the ticket stays open, to close with the spec's PR to main.
-      # Opening with the mark, by the owner's token, it's what scripts/factoryFrontier.ts reads as merged into spec/<n>.
-      - name: Comment merged on the spec's ticket
+      # Opening with the mark, by a trusted author, it's what scripts/factoryFrontier.ts reads as merged into spec/<n>.
+      # FACTORY_TOKEN's account is taken to be trusted, and checked here: if it isn't, the frontier would pick this
+      # ticket again on the spec's next label, so the step fails and `park` says why.
+      - name: Comment merged on the spec's ticket, and check the frontier will trust it
+        id: merged
         if: needs.gate.outputs.spec != ''
         env:
           GH_TOKEN: ${{ secrets.FACTORY_TOKEN }}
         run: |
-          gh issue comment "$TICKET" --repo "$REPO" --body "$MARK
-          merged into $BRANCH: $RUN_URL"
+          url=$(gh issue comment "$TICKET" --repo "$REPO" --body "$MARK
+          merged into $BRANCH: $RUN_URL")
+          association=$(gh api "repos/$REPO/issues/comments/${url##*-}" --jq .author_association)
+          case "$association" in
+            OWNER | MEMBER | COLLABORATOR) ;; # isTrusted in scripts/factoryTrust.ts
+            *)
+              echo "untrusted=$association" >> "$GITHUB_OUTPUT"
+              echo "::error::FACTORY_TOKEN's comment is by a $association, whom the frontier doesn't trust: it would build #$TICKET again"
+              exit 1
+              ;;
+          esac
 
   # A run that picked a ticket but didn't end in a PR, or in spec/<n>, parks the ticket, saying why
   park:
@@ -511,6 +521,8 @@ jobs:
           CHECKED: ${{ needs.check.outputs.checked }}
           TAMPERED: ${{ needs.check.outputs.tampered || needs.publish.outputs.tampered }}
           REFUSED: ${{ needs.publish.outputs.refused }}
+          UNBUILDABLE: ${{ needs.publish.outputs.unbuildable }}
+          UNTRUSTED: ${{ needs.publish.outputs.untrusted }}
         run: |
           # BUILD_WHY is scripts/factoryOutcome.ts's reason: no commits, a dirty tree, the budget, the idle timeout, an error
           if [ "$TAMPERED" = true ]; then why="the agent's commits or the PR body changed after the build made them, so the factory didn't use them"
@@ -527,6 +539,8 @@ jobs:
           elif [ "$CHECKED" = failure ]; then why="\`npm ci\` or \`npm run check\` failed on $BRANCH with the ticket's commits, or bwrap didn't start"
           elif [ "$CHECK" != success ]; then why="setting up the check failed, or its job lost its runner"
           elif [ "$REFUSED" = true ]; then why="the agent's commits change files under .github/, which the factory doesn't push: build this ticket locally"
+          elif [ -n "$UNBUILDABLE" ]; then why="the agent's commits leave $UNBUILDABLE in the branch, which the factory won't build on, so it didn't push them"
+          elif [ -n "$UNTRUSTED" ]; then why="it merged into $BRANCH, but GitHub calls FACTORY_TOKEN's account a $UNTRUSTED, not an owner, member or collaborator, so the factory won't read its merged comment as merged: give the factory a collaborator's token, comment \`merged into $BRANCH\` by hand, opening with the factory's hidden mark (MARK in factory.yml), and take \`parked\` off"
           elif [ "$PUSHED" = success ]; then why="it merged into $BRANCH, but commenting so on it failed: comment \`merged into $BRANCH\` by hand, opening with the factory's hidden mark (MARK in factory.yml), and take \`parked\` off"
           elif [ -n "$SPEC" ]; then why="pushing $BRANCH failed: it may have moved since the build"
           else why="pushing the branch or opening the PR failed"

@@ -11,11 +11,9 @@ export type Authored = { body: string | null; user: { login: string }; author_as
 /** A ticket as GitHub's REST API gives it (`gh api repos/<o>/<r>/issues/<n>`), the fields the prompt reads. */
 export type Ticket = Authored & { number: number; title: string }
 
-const trusted = ({ author_association }: Authored): boolean => isTrusted(author_association)
-
 /** An issue's title and body, if the owner or a collaborator opened it, or a line saying they're left out. */
 const titleAndBody = (issue: Ticket, kind: 'ticket' | 'spec'): string[] =>
-  trusted(issue)
+  isTrusted(issue.author_association)
     ? [`# ${issue.title}`, '', issue.body ?? '']
     : [`(The ${kind}'s own title and body are left out: @${issue.user.login}, who opened it, isn't the owner or a collaborator.)`]
 
@@ -26,7 +24,7 @@ const titleAndBody = (issue: Ticket, kind: 'ticket' | 'spec'): string[] =>
  */
 export function ticketPrompt(ticket: Ticket, comments: readonly Authored[], spec?: Ticket): string {
   const trustedComments = comments
-    .filter((each) => trusted(each) && !byFactory(each.body))
+    .filter((each) => isTrusted(each.author_association) && !byFactory(each.body))
     .map(({ user, body }) => `\n## Comment by @${user.login}\n\n${body ?? ''}`)
   const specBlock = spec ? ['', `<spec number="${spec.number}">`, ...titleAndBody(spec, 'spec'), '</spec>'] : []
   return [
