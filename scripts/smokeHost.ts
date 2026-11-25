@@ -39,7 +39,7 @@ export function hostWrite(before: Watched, after: Seen): Restore {
       ? MADE[before.dir.kind]
       : undefined
   if (made === undefined) {
-    const warn = away(before.dir, after.dir)
+    const warn = away(before.dir, after.dir, before.home)
     if (warn !== undefined) return { do: 'leave', warn }
   }
   const undo: Restore = same(before.file, after.file)
@@ -57,12 +57,13 @@ export function reachedHost(restore: Restore): boolean {
 }
 
 /** What to warn of when the directory isn't as it was before the run, and the agent didn't make it where it would be. */
-function away(before: DirSeen, after: DirSeen): string | undefined {
+function away(before: DirSeen, after: DirSeen, home: string): string | undefined {
   if (same(before, after)) return undefined
   if (after.kind === 'missing') return 'was removed during the run: left as it is'
   if (after.kind === 'other') return 'became something other than a directory during the run: left as it is'
   if (after.kind === 'unreadable') return `couldn't be read after the run (${after.code}): left as it is`
   if (before.kind === 'other') return `was something other than a directory before the run, and now resolves to a directory at ${after.real}: left as it is`
+  if (before.kind === 'missing') return `was made during the run, resolving to ${after.real} rather than ${home}: left as it is`
   if (before.kind === 'unreadable') return `couldn't be read before the run (${before.code}), and is now a directory: left as it is`
   return `moved during the run, to ${after.real}: left as it is`
 }
