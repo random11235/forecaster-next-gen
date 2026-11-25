@@ -10,7 +10,11 @@ const tool = (name: string, input: object) => ({ type: 'tool_use', name, input }
 const init = JSON.stringify({ type: 'system', subtype: 'init', model: 'claude-haiku-5-5' })
 
 const report = (r: object) => `Done.\n<smoke-report>${JSON.stringify(r)}</smoke-report>`
-const CLEAN = { envNames: ['CLAUDECODE', 'PATH'], claudeEnvNames: ['CLAUDE_CODE_OAUTH_TOKEN', 'HOME', 'PATH'] }
+const CLEAN = {
+  envNames: ['CLAUDECODE', 'PATH'],
+  claudeEnvNames: ['CLAUDE_CODE_OAUTH_TOKEN', 'HOME', 'PATH'],
+  writes: { '/w/repo/escape.txt': 'ok', '/usr/local/escape.txt': 'Read-only file system' },
+}
 
 /** What a passing run shows. */
 function facts(overrides: Partial<SmokeFacts> = {}): SmokeFacts {
@@ -19,7 +23,11 @@ function facts(overrides: Partial<SmokeFacts> = {}): SmokeFacts {
     stream: [init, said({ type: 'thinking', thinking: '' }), said(text(`${WORD}\n`)), said(tool('Bash', { command: 'env' }))],
     skillWord: WORD,
     gitDir: '/w/repo/.git',
-    targets: [{ path: '/w/repo/escape.txt', reached: false }],
+    writes: [
+      { path: '/w/repo/escape.txt', changedOnHost: false },
+      { path: '/usr/local/escape.txt', changedOnHost: false },
+      { path: '/w/_temp/escape.txt', changedOnHost: false, about: 'which tests only that the sandbox hides RUNNER_TEMP' },
+    ],
     commits: 0,
     sandcastleEnvFile: false,
     ...overrides,
@@ -35,9 +43,11 @@ describe('the smoke test verdict', () => {
       'note the model ran as claude-haiku-5-5',
       'pass no FACTORY_TOKEN, GITHUB_TOKEN or GH_TOKEN in the env of Claude Code or of its tools',
       "pass CLAUDE_CODE_OAUTH_TOKEN reached Claude Code's env, from which its tools can read it through /proc/$CLAUDE_PID/environ (R3)",
-      "pass no .sandcastle/.env, so the sandbox's env is factoryAgent()'s, plus bwrap's PATH, HOME and TMPDIR",
+      "pass no .sandcastle/.env, so the sandbox's env is factoryAgent()'s, plus bwrap's HOME, PATH, PWD and TMPDIR",
       'pass the agent made no commit',
-      'pass the write to /w/repo/escape.txt never reached the host',
+      "pass the write to /w/repo/escape.txt worked inside the sandbox, landing in the sandbox's own files, and never reached the host",
+      'pass the write to /usr/local/escape.txt failed inside the sandbox (Read-only file system), and never reached the host',
+      'pass the write to /w/_temp/escape.txt never reached the host, which tests only that the sandbox hides RUNNER_TEMP',
     ])
   })
 
@@ -55,6 +65,12 @@ describe('the smoke test verdict', () => {
     )
   })
 
+  test('passes a run whose first words were the skill word in light markdown', () => {
+    for (const words of [`**${WORD}**`, `\`${WORD}\``, `# ${WORD}`, `_${WORD}_ next`]) {
+      expect(says(facts({ stream: [said(text(words))] }))[0]).toMatch(/^pass /)
+    }
+  })
+
   test("fails a run whose agent's first words weren't the skill's word", () => {
     expect(says(facts({ stream: [said(text("I'll look for the skill."))] }))[0]).toBe(
       `fail the slash command didn't expand: the agent's first move was to say "I'll look for the skill."`,
@@ -69,10 +85,15 @@ describe('the smoke test verdict', () => {
 
   test("fails a run whose Claude Code env lacked the OAuth token, and notes when its own env couldn't be read", () => {
     expect(says(facts({ stdout: report({ ...CLEAN, claudeEnvNames: ['PATH'] }) }))[3]).toBe("fail CLAUDE_CODE_OAUTH_TOKEN wasn't in Claude Code's env")
-    expect(says(facts({ stdout: report({ ...CLEAN, claudeEnvNames: 'Permission denied' }) })).slice(2, 4)).toEqual([
-      "note Claude Code's own env couldn't be read (Permission denied): only its tools' env was checked",
-      "pass no FACTORY_TOKEN, GITHUB_TOKEN or GH_TOKEN in the env of Claude Code's tools",
-    ])
+    for (const [claudeEnvNames, why] of [
+      ['Permission denied', 'Permission denied'],
+      [[], 'it listed no names'],
+    ] as const) {
+      expect(says(facts({ stdout: report({ ...CLEAN, claudeEnvNames }) })).slice(2, 4)).toEqual([
+        `note Claude Code's own env couldn't be read (${why}): only its tools' env was checked`,
+        "pass no FACTORY_TOKEN, GITHUB_TOKEN or GH_TOKEN in the env of Claude Code's tools",
+      ])
+    }
   })
 
   test('fails a run with a .sandcastle/.env, whose keys Sandcastle passes into the sandbox, or a commit', () => {
@@ -83,12 +104,12 @@ describe('the smoke test verdict', () => {
   })
 
   test("fails a write that reached the host outside the git dir, or into git's hooks, config or info", () => {
-    const targets = ['/w/repo/escape.txt', '/w/repo/.git/hooks/x', '/w/repo/.git/config', '/w/repo/.git/info/exclude'].map((path) => ({
+    const writes = ['/w/repo/escape.txt', '/w/repo/.git/hooks/x', '/w/repo/.git/config', '/w/repo/.git/info/exclude'].map((path) => ({
       path,
-      reached: true,
+      changedOnHost: true,
     }))
 
-    expect(says(facts({ targets })).slice(-4)).toEqual([
+    expect(says(facts({ writes })).slice(-4)).toEqual([
       'fail the write to /w/repo/escape.txt reached the host',
       'fail the write to /w/repo/.git/hooks/x reached the host, where git runs or reads it (R4)',
       'fail the write to /w/repo/.git/config reached the host, where git runs or reads it (R4)',
@@ -97,11 +118,13 @@ describe('the smoke test verdict', () => {
   })
 
   test('notes a write that reached the rest of the git dir, which the sandbox mounts writable so the agent can commit', () => {
-    const targets = ['/w/repo/.git/refs/heads/x.lock', '/w/repo/.git/escape'].map((path) => ({ path, reached: true }))
+    const writes = ['/w/repo/.git/refs/heads/x.lock', '/w/repo/.git/escape'].map((path) => ({ path, changedOnHost: true }))
+    const why =
+      'the sandbox mounts the git dir writable, so the agent can rewrite HEAD, packed-refs, refs and objects (objects/info/alternates too), and no host step may trust them'
 
-    expect(says(facts({ targets })).slice(-2)).toEqual([
-      'note the write to /w/repo/.git/refs/heads/x.lock reached the host: the git dir is writable, so host steps must not trust its refs',
-      'note the write to /w/repo/.git/escape reached the host: the git dir is writable, so host steps must not trust its refs',
+    expect(says(facts({ writes })).slice(-2)).toEqual([
+      `note the write to /w/repo/.git/refs/heads/x.lock reached the host, outside the agent's tree: ${why}`,
+      `note the write to /w/repo/.git/escape reached the host, outside the agent's tree: ${why}`,
     ])
   })
 
@@ -132,14 +155,24 @@ describe("the budget cap's verdict", () => {
     expect(failed.says).toMatch(/^the capped run failed, not on its budget: rate limited x+…$/)
     expect(failed.says.length).toBeLessThan(300)
   })
+
+  test("says so when Claude Code's result leaves out its turns or cost", () => {
+    expect(budgetVerdict({ error: exited({ subtype: 'error_max_budget_usd' }) }, 0.0001).says).toMatch(
+      /^the \$0.0001 cap stopped the run after an unreported number of turns, at an unreported cost: /,
+    )
+  })
 })
 
 describe('the stdin control', () => {
   test("notes whether the slash command expanded when Sandcastle's own claudeCode() sends it on stdin", () => {
     expect(stdinNote([said(tool('Skill', { skill: 'factory-smoke' }))], WORD)).toEqual({
       status: 'note',
-      says: `on stdin, as Sandcastle sends it, the slash command didn't expand: the agent's first move was Skill {"skill":"factory-smoke"}`,
+      says:
+        `on stdin, as Sandcastle's claudeCode() sends it, the slash command didn't expand: the agent's first move was Skill {"skill":"factory-smoke"}; ` +
+        "so factoryAgent() passes the prompt as Claude Code's argument instead",
     })
-    expect(stdinNote([said(text(WORD))], WORD).says).toMatch(/^on stdin, as Sandcastle sends it, the slash command expanded: /)
+    expect(stdinNote([said(text(WORD))], WORD).says).toMatch(
+      /^on stdin, as Sandcastle's claudeCode\(\) sends it, the slash command expanded: .*; so the prompt needn't be Claude Code's argument$/,
+    )
   })
 })
