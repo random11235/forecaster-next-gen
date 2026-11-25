@@ -49,7 +49,7 @@ query($owner: String!, $number: Int!, $endCursor: String) {
       elif any(.content.labels.nodes[]; .name == "ready-for-agent") then "Ready"
       elif (.status.name // "") | IN("Ready", "Backlog") then .status.name
       else "Backlog" end)]
-  | @tsv')
+  | map(tostring) | join("\u001f")')
 
 fields=$(gh api graphql -F owner="$OWNER" -F number="$NUMBER" -f query='
 query($owner: String!, $number: Int!) {
@@ -64,12 +64,13 @@ project_id=$(jq -r '.data.user.projectV2.id' <<<"$fields")
 field_id=$(jq -r '.data.user.projectV2.field.id' <<<"$fields")
 
 changed=0
-while IFS=$'\t' read -r item issue current wanted; do
+# \x1f, not a tab: read collapses runs of a whitespace separator, so a card with no status would shift its columns
+while IFS=$'\x1f' read -r item issue current wanted; do
   [[ -z "$item" || "$current" == "$wanted" ]] && continue
   option=$(jq -r --arg name "$wanted" '.data.user.projectV2.field.options[] | select(.name == $name) | .id' <<<"$fields")
   # a plain mutation, not `gh project item-edit`: that one also demands read:org and read:discussion, which a token
-  # with only the project scope lacks
-  gh api graphql -F project="$project_id" -F item="$item" -F field="$field_id" -F option="$option" -f query='
+  # with only the project scope lacks. -f, not -F: -F sends an all-digit option id (Done's is one) as a number
+  gh api graphql -f project="$project_id" -f item="$item" -f field="$field_id" -f option="$option" -f query='
 mutation($project: ID!, $item: ID!, $field: ID!, $option: String!) {
   updateProjectV2ItemFieldValue(input: {projectId: $project, itemId: $item, fieldId: $field,
                                         value: {singleSelectOptionId: $option}}) { projectV2Item { id } }
