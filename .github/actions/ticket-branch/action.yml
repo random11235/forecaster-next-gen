@@ -1,0 +1,21 @@
+# What factory.yml's `check` and `publish` take from build's bundle: only the ticket's branch, by its name, and only if
+# it's the commit build made (TIP). Run it from the default branch's checkout, never the ticket's: it's the check on what
+# the ticket's code may have changed. Reads BRANCH, TIP and the bundle in RUNNER_TEMP.
+name: Ticket branch
+description: Fetch the ticket's branch from build's bundle, and fail with tampered=true unless it's build's commit
+outputs:
+  tampered:
+    description: true if the bundle's branch isn't the commit build made
+    value: ${{ steps.fetch.outputs.tampered }}
+runs:
+  using: composite
+  steps:
+    - id: fetch
+      shell: bash
+      run: |
+        git -c core.hooksPath=/dev/null fetch --quiet "$RUNNER_TEMP/ticket.bundle" "refs/heads/$BRANCH:refs/heads/$BRANCH"
+        if [ "$(git rev-parse "refs/heads/$BRANCH")" != "$TIP" ]; then
+          echo "tampered=true" >> "$GITHUB_OUTPUT"
+          echo "::error::The bundle's branch isn't the commit build made"
+          exit 1
+        fi

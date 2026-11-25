@@ -30,6 +30,8 @@ env:
   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
   MARK: '<!-- forecaster-factory -->' # FACTORY_MARK in scripts/factoryTicket.ts
   JOB_MINUTES: 90 # build's timeout-minutes, which can't read env
+  CHECK_MINUTES: 30 # check's timeout-minutes, likewise
+  NODE_MAJOR: 24 # the Node check installs; .github/actions/setup's node-version, which can't read it, must match
   # At most 75, JOB_MINUTES - 15, so the build job has time to bundle and upload the logs once the agent is stopped
   AGENT_MINUTES: ${{ vars.FACTORY_AGENT_MINUTES && fromJSON(vars.FACTORY_AGENT_MINUTES) > 75 && '75' || vars.FACTORY_AGENT_MINUTES || '70' }}
 
@@ -185,6 +187,7 @@ jobs:
         env:
           TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
+          if [ -z "$TOKEN" ]; then exit 0; fi # an empty pattern would match everywhere
           for dir in "$RUNNER_TEMP/factory-logs" "$RUNNER_TEMP/factory-out"; do
             if [ -d "$dir" ]; then find "$dir" -type f -exec perl -pi -e 's/\Q$ENV{TOKEN}\E/[token]/g' {} +; fi
           done
@@ -222,8 +225,9 @@ jobs:
   check:
     needs: build
     runs-on: ubuntu-24.04 # pinned, for bwrap, as build
+    timeout-minutes: 30 # CHECK_MINUTES
     outputs:
-      tampered: ${{ steps.branch.outputs.tampered }}
+      tampered: ${{ steps.fetch.outputs.tampered }}
       checked: ${{ steps.check.outcome }}
     env:
       TIP: ${{ needs.build.outputs.tip }}
@@ -238,25 +242,19 @@ jobs:
         with:
           name: ticket
           path: ${{ runner.temp }}
-      - name: Install Node 24, as .github/actions/setup does
+      - name: Install Node ${{ env.NODE_MAJOR }}
         run: |
-          dist=https://nodejs.org/dist/latest-v24.x
+          dist="https://nodejs.org/dist/latest-v$NODE_MAJOR.x"
           curl -fsSL -o "$RUNNER_TEMP/SHASUMS256.txt" "$dist/SHASUMS256.txt"
-          file=$(grep -o 'node-v24\.[0-9.]*-linux-x64\.tar\.xz' "$RUNNER_TEMP/SHASUMS256.txt" | head -n 1)
+          file=$(grep -o "node-v$NODE_MAJOR\.[0-9.]*-linux-x64\.tar\.xz" "$RUNNER_TEMP/SHASUMS256.txt" | head -n 1)
           curl -fsSL -o "$RUNNER_TEMP/$file" "$dist/$file"
           (cd "$RUNNER_TEMP" && grep "  $file\$" SHASUMS256.txt | sha256sum -c --quiet)
           sudo mkdir -p /opt/node
           sudo tar -xJf "$RUNNER_TEMP/$file" -C /opt/node --strip-components 1
+      - uses: ./.github/actions/ticket-branch # from the default branch's clone, before the ticket's is checked out
+        id: fetch
       - name: Check out the ticket's commits
-        id: branch
-        run: |
-          git -c core.hooksPath=/dev/null fetch --quiet "$RUNNER_TEMP/ticket.bundle" "refs/heads/$BRANCH:refs/heads/$BRANCH"
-          if [ "$(git rev-parse "refs/heads/$BRANCH")" != "$TIP" ]; then
-            echo "tampered=true" >> "$GITHUB_OUTPUT"
-            echo "::error::The bundle's branch isn't the commit build made"
-            exit 1
-          fi
-          git -c core.hooksPath=/dev/null checkout --quiet "$BRANCH"
+        run: git -c core.hooksPath=/dev/null checkout --quiet "$BRANCH"
       # What the pre-push hook runs, which the push in `publish`, with hooks off, skips. The step's parent is the runner's
       # Runner.Worker, in <runner>/bin, which is hidden too, wherever the image puts it.
       - name: npm ci and npm run check, in bwrap
@@ -276,7 +274,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       refused: ${{ steps.branch.outputs.refused }}
-      tampered: ${{ steps.branch.outputs.tampered }}
+      tampered: ${{ steps.fetch.outputs.tampered || steps.branch.outputs.tampered }}
     env:
       TIP: ${{ needs.build.outputs.tip }}
       BODY: ${{ needs.build.outputs.body }}
@@ -293,15 +291,11 @@ jobs:
       # Only the ticket's branch, by its name, comes out of the bundle, and only if it and the body are what `build` made:
       # `check` ran the agent's code, which could have uploaded the artifact again. A PR from this repo runs the
       # workflows it changes with the repo's secrets, so a change under .github/ is refused: build such a ticket locally.
-      - name: Take the ticket's branch from the bundle
+      - uses: ./.github/actions/ticket-branch
+        id: fetch
+      - name: Check the ticket's branch and the PR body
         id: branch
         run: |
-          git -c core.hooksPath=/dev/null fetch "$RUNNER_TEMP/ticket.bundle" "refs/heads/$BRANCH:refs/heads/$BRANCH"
-          if [ "$(git rev-parse "refs/heads/$BRANCH")" != "$TIP" ]; then
-            echo "tampered=true" >> "$GITHUB_OUTPUT"
-            echo "::error::The bundle's branch isn't the commit build made"
-            exit 1
-          fi
           if ! echo "$BODY  $RUNNER_TEMP/pr-body.md" | sha256sum -c --quiet; then
             echo "tampered=true" >> "$GITHUB_OUTPUT"
             echo "::error::The PR body isn't the one build wrote"
@@ -363,8 +357,8 @@ jobs:
           elif [ "$RESULT" = started ]; then why="the build was killed mid-run, before its timeout"
           elif [ -n "$BUILD_WHY" ]; then why="$BUILD_WHY"
           elif [ "$BUILD" != success ]; then why="bundling or uploading the agent's commits failed"
-          elif [ "$CHECK" = cancelled ]; then why="the check was cancelled, or ran past its job's timeout"
-          elif [ "$CHECKED" = failure ]; then why="\`npm run check\` failed on the ticket's branch"
+          elif [ "$CHECK" = cancelled ]; then why="the check was cancelled, or ran past its job's $CHECK_MINUTES-minute timeout"
+          elif [ "$CHECKED" = failure ]; then why="\`npm ci\` or \`npm run check\` failed on the ticket's branch, or bwrap didn't start"
           elif [ "$CHECK" != success ]; then why="setting up the check failed, or its job lost its runner"
           elif [ "$REFUSED" = true ]; then why="the agent's commits change files under .github/, which the factory doesn't push: build this ticket locally"
           else why="pushing the branch or opening the PR failed"
@@ -377,5 +371,9 @@ jobs:
             if grep -qx "$label" <<< "$labels"; then remove+=(--remove-label "$label"); fi
           done
           gh issue edit "$ISSUE" --repo "$REPO" --add-label parked "${remove[@]}"
+          # factory-logs is uploaded only by a build that ran its steps
+          if [ -n "$AGENT" ]; then logs="The agent's transcript and Sandcastle's log are in the run's factory-logs artifact"
+          else logs="The build didn't run, so there are no logs beyond the run's own"
+          fi
           gh issue comment "$ISSUE" --repo "$REPO" --body "$MARK
-          The factory parked this ticket: $why. The agent's transcript and Sandcastle's log are in the run's factory-logs artifact: $RUN_URL"
+          The factory parked this ticket: $why. $logs: $RUN_URL"
