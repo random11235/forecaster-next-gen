@@ -26,6 +26,7 @@ describe('a write the smoke test tried on the host', () => {
     const link: Seen = { dir: atHome, file: { kind: 'symlink', target: '/etc/passwd' } }
     expect(hostWrite(was(nothing), link)).toEqual({ do: 'remove' })
     expect(hostWrite(was(config), link)).toEqual({ do: 'remove', put: '[core]\n' })
+    expect(hostWrite(was(link), { dir: atHome, file: { kind: 'symlink', target: '/etc/shadow' } })).toEqual({ do: 'remove' })
   })
 
   test('reached the host when the agent left something other than a file at the path, which restore removes', () => {
@@ -64,6 +65,18 @@ describe('a write the smoke test tried on the host', () => {
   test("didn't reach the host when its directory was something other than a directory before the run, and still is", () => {
     const blocked: Seen = { dir: { kind: 'other' }, file: { kind: 'missing' } }
     expect(hostWrite(was(blocked), blocked)).toEqual({ do: 'nothing' })
+  })
+
+  test('reached the host when what was at its directory, not a directory, became one, which restore leaves and warns of truthfully', () => {
+    const missing = { kind: 'missing' } as const
+    expect(hostWrite(was({ dir: { kind: 'other' }, file: missing }), nothing)).toEqual({
+      do: 'leave',
+      warn: 'was something other than a directory before the run, and is now one: left as it is',
+    })
+    expect(hostWrite(was({ dir: { kind: 'unreadable', code: 'EACCES' }, file: missing }), nothing)).toEqual({
+      do: 'leave',
+      warn: "couldn't be read before the run (EACCES), and is now a directory: left as it is",
+    })
   })
 
   describe('whose directory was missing before the run', () => {

@@ -76,15 +76,15 @@ function codeOf(error: unknown): string {
   return (error as NodeJS.ErrnoException).code ?? String(error)
 }
 function seenFile(path: string): FileSeen {
-  let stat
   try {
-    stat = lstatSync(path)
+    const stat = lstatSync(path)
+    if (stat.isSymbolicLink()) return { kind: 'symlink', target: readlinkSync(path) }
+    return stat.isFile() ? { kind: 'file', content: readFileSync(path, 'utf8') } : { kind: 'other' }
   } catch (error: unknown) {
-    // Any other error, such as EACCES from a directory the agent made unreadable, may hide a write, so counts as one
+    // Any other error, such as EACCES from a file, or a directory, the agent made unreadable, may hide a write, so
+    // counts as one
     return ['ENOENT', 'ENOTDIR'].includes(codeOf(error)) ? { kind: 'missing' } : { kind: 'other' }
   }
-  if (stat.isSymbolicLink()) return { kind: 'symlink', target: readlinkSync(path) }
-  return stat.isFile() ? { kind: 'file', content: readFileSync(path, 'utf8') } : { kind: 'other' }
 }
 
 // What was there before: only the git config, which the agent appends to. This is read from disk, so a local run that
@@ -92,9 +92,12 @@ function seenFile(path: string): FileSeen {
 // after the run; it doesn't protect the host while the run goes on. It removes what's there first, so a symlink the
 // agent left is replaced, not written through.
 const watched = targets.map((target) => ({ ...target, before: { ...seen(target.path), home: homeOf(target.path) } satisfies Watched }))
-// A target that's a symlink would hide writes through it, and restoring wouldn't make it again
-const linked = watched.filter(({ before }) => before.file.kind === 'symlink').map(({ path }) => path)
-if (linked.length > 0) throw new Error(`targets are symlinks before the run, so writes through them would go unseen: ${linked.join(', ')}`)
+// A target that's a symlink, or neither a file nor missing (a directory, or unreadable), would hide writes through it or
+// in it, and restoring wouldn't make it again
+const hiding = watched.filter(({ before }) => before.file.kind === 'symlink' || before.file.kind === 'other').map(({ path }) => path)
+if (hiding.length > 0) {
+  throw new Error(`targets are symlinks, or neither files nor missing, before the run, so writes to them would go unseen: ${hiding.join(', ')}`)
+}
 const now = ({ path, before }: (typeof watched)[number]) => hostWrite(before, seen(path))
 /** The warnings given, so a directory that stays moved is warned of once, not after each run. */
 const warned = new Set<string>()
@@ -102,6 +105,8 @@ const warn = (warning: string) => {
   if (!warned.has(warning)) console.log(`::warning::${warning}`)
   warned.add(warning)
 }
+/** The targets restoring failed on, after any run, which fail the smoke test: the host keeps what the agent left. */
+const unrestored = new Set<string>()
 const restore = () => {
   for (const target of watched) {
     const undo = now(target)
@@ -111,8 +116,9 @@ const restore = () => {
       rmSync(target.path, { force: true, recursive: true })
       if (undo.put !== undefined) writeFileSync(target.path, undo.put)
     } catch (error: unknown) {
-      // such as EACCES from a directory the agent made unreadable: the verdict still counts the write
+      // such as EACCES from a directory the agent made unreadable
       warn(`${target.path} couldn't be restored: ${codeOf(error)}`)
+      unrestored.add(target.path)
     }
   }
 }
@@ -176,6 +182,9 @@ const checks: Check[] = [
     : [{ status: 'fail' as const, says: `the smoke run failed: ${smoke.ending.error.slice(0, 300)}` }]),
   stdinNote(control.stream, skillWord),
   budgetVerdict(capped.ending, CAP),
+  ...(unrestored.size > 0
+    ? [{ status: 'fail' as const, says: `restoring failed, so the host keeps what the agent left at ${[...unrestored].join(', ')}` }]
+    : []),
 ]
 const lines = checks.map(({ status, says }) => `${status.toUpperCase()} ${says}`)
 console.log(lines.join('\n'))
