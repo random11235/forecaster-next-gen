@@ -1,12 +1,12 @@
 // What the factory (.github/workflows/factory.yml) says about a ticket: the prompt it gives its agent, `/implement <n>`
 // then the ticket's text, which a workflow step fetched, so the agent needs no GitHub token. The repo is public, so
 // anyone can comment on a ticket: only the text the owner and collaborators wrote reaches the prompt, and not the factory's
-// own comments (scripts/factoryTrust.ts).
+// own comments, besides triage's newest brief, which github-actions wrote (scripts/factoryTrust.ts).
 
-import { byFactory, isTrusted, type Association } from './factoryTrust.ts'
+import { briefWords, byFactory, isActionsBotUser, isTrusted, type Association } from './factoryTrust.ts'
 
 /** An issue's or a comment's text and author, as GitHub's REST API gives them. */
-export type Authored = { body: string | null; user: { login: string }; author_association: Association }
+export type Authored = { body: string | null; user: { login: string; type: string }; author_association: Association }
 
 /** A ticket as GitHub's REST API gives it (`gh api repos/<o>/<r>/issues/<n>`), the fields the prompt reads. */
 export type Ticket = Authored & { number: number; title: string }
@@ -17,9 +17,20 @@ const titleAndBody = (issue: Ticket, kind: 'ticket' | 'spec'): string[] =>
     ? [`# ${issue.title}`, '', issue.body ?? '']
     : [`(The ${kind}'s own title and body are left out: @${issue.user.login}, who opened it, isn't the owner or a collaborator.)`]
 
+/** Triage's brief under its heading: the newest brief-marked comment github-actions wrote, or nothing if there is none. */
+const brief = (comments: readonly Authored[]): string[] => {
+  const words = comments
+    .filter((each) => isActionsBotUser(each.user))
+    .map((each) => briefWords(each.body))
+    .filter((each) => each !== undefined)
+    .at(-1)
+  return words === undefined ? [] : ['', "## Triage's brief", '', words]
+}
+
 /**
  * `/implement <n>`, then the ticket's text in a `<ticket>` block: its title and body, if the owner or a collaborator
- * opened it, and their comments, leaving out the factory's. A spec's ticket is followed by the spec's title and body, on
+ * opened it, triage's newest brief, even if they didn't, and their comments, leaving out the factory's. GitHub's REST
+ * API lists comments oldest first, so the newest brief is the last. A spec's ticket is followed by the spec's title and body, on
  * the same terms, in a `<spec>` block.
  */
 export function ticketPrompt(ticket: Ticket, comments: readonly Authored[], spec?: Ticket): string {
@@ -32,6 +43,7 @@ export function ticketPrompt(ticket: Ticket, comments: readonly Authored[], spec
     '',
     `<ticket number="${ticket.number}">`,
     ...titleAndBody(ticket, 'ticket'),
+    ...brief(comments),
     ...trustedComments,
     '</ticket>',
     ...specBlock,
