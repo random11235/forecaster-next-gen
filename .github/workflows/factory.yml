@@ -144,13 +144,20 @@ jobs:
       # Sandcastle copies the host's git identity into the sandbox, and merges the agent's work into the branch checked
       # out. `git checkout -b` runs .husky/post-checkout, which npm ci's husky install hooked up, to install the skills
       # skills-lock.json lists (/implement's /tdd among them); it never fails a checkout, so it's run again, then checked.
+      # The installer fetches from GitHub: unauthenticated, a runner's shared IP hits the API's rate limit.
       - name: Make the ticket's branch, with the skills installed
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git checkout -b "$BRANCH"
           sh .husky/post-checkout HEAD HEAD 1
-          for skill in implement tdd code-review pr; do test -f ".claude/skills/$skill/SKILL.md" || { echo "::error::the $skill skill isn't installed"; exit 1; }; done
+          for skill in implement tdd code-review pr; do
+            test -f ".claude/skills/$skill/SKILL.md" && continue
+            npx -y skills experimental_install </dev/null 2>&1 | tail -20 || true # the hook hides why it failed
+            echo "::error::the $skill skill isn't installed"; exit 1
+          done
       - name: Fetch the ticket
         env:
           GH_TOKEN: ${{ github.token }}
@@ -373,8 +380,8 @@ jobs:
           elif [ "$REFUSED" = true ]; then why="the agent's commits change files under .github/, which the factory doesn't push: build this ticket locally"
           else why="pushing the branch or opening the PR failed"
           fi
-          gh api "repos/$REPO/labels/parked" > /dev/null 2>&1 \
-            || gh label create parked --repo "$REPO" --color B60205 --description 'The factory failed to build it; label it ready-for-agent again to retry'
+          # --force: another ticket's park may create it at the same moment
+          gh label create parked --force --repo "$REPO" --color B60205 --description 'The factory failed to build it; label it ready-for-agent again to retry'
           labels=$(gh issue view "$ISSUE" --repo "$REPO" --json labels --jq '.labels[].name')
           remove=()
           for label in ready-for-agent in-progress; do
