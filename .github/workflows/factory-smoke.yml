@@ -1,0 +1,45 @@
+# The factory's smoke test (#335): Claude Code runs in Sandcastle's bwrap() sandbox on a hosted runner, on a skill typed
+# as `/factory-smoke`, and scripts/factorySmoke.ts reports what it found. It builds nothing and pushes nothing. Started by
+# hand only; each run spends a little of the owner's model usage. Background: docs/research/sandcastle-factory.md.
+name: Factory smoke test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    # pinned: bwrap needs AppArmor to let it make user namespaces, which a new image may change (R1)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - name: Install bubblewrap and allow it user namespaces
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap
+          printf 'abi <abi/4.0>,\ninclude <tunables/global>\nprofile bwrap /usr/bin/bwrap flags=(unconfined) {\n  userns,\n}\n' \
+            | sudo tee /etc/apparmor.d/bwrap
+          sudo apparmor_parser -r /etc/apparmor.d/bwrap
+      # The gate: if bwrap can't make a sandbox, the job stops here and the agent never runs, sandboxed or not.
+      - name: Probe bwrap
+        run: bwrap --ro-bind / / true
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code@2.1.331
+      # Sandcastle's merge-to-head strategy merges back into the branch checked out, so check one out.
+      - name: Check out a branch for Sandcastle to merge into
+        run: git checkout -B factory-smoke
+      - name: Run the agent in the sandbox
+        env:
+          # reaches the agent only through factoryAgent()'s env, which Sandcastle hands bwrap
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # decoys, not secrets: the agent must not see them, though this step's env holds them
+          FACTORY_TOKEN: decoy-factory-token
+          GITHUB_TOKEN: decoy-github-token
+          GH_TOKEN: decoy-gh-token
+        run: node scripts/factorySmoke.ts
