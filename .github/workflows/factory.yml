@@ -3,15 +3,16 @@
 # spec's tickets, a closed ticket and one with an open PR are skipped with a log line. Background, and the risks it
 # answers (R1-R10): docs/research/sandcastle-factory.md.
 #
-# The factory holds no long-lived GitHub token. The jobs that write to GitHub (`start`, `publish`, `park`) use the job's
-# own GITHUB_TOKEN, raised to the write it needs in that job alone, and it expires when the job ends. They run none of
-# the ticket's code. `build` runs the agent, in the sandbox, with a read-only token; `check` runs the agent's code,
-# `npm run check` on exactly the commits built, and holds no secret. `build` hands the commits on as a git bundle.
+# The jobs that write to GitHub (`start`, `publish`, `park`) use the job's own GITHUB_TOKEN, raised to the write it
+# needs in that job alone, and it expires when the job ends. They run none of the ticket's code. The one long-lived
+# token, FACTORY_TOKEN, only opens the PR: a fine-grained token on this repo with Pull requests write and nothing else,
+# so a leaked copy can't push or merge. `build` runs the agent, in the sandbox, with a read-only token; `check` runs
+# the agent's code, `npm run check` on exactly the commits built, and holds no secret. `build` hands the commits on as
+# a git bundle.
 # Event text (titles, logins) reaches scripts through `env:` only, never `${{ }}` inside a `run:`.
 #
-# What GITHUB_TOKEN does starts no workflow, so `publish` starts CI on the PR's branch itself, and each writing job
-# starts the board sync. For `gh pr create` to work, the repo's Settings > Actions > General must allow GitHub Actions
-# to create pull requests.
+# What GITHUB_TOKEN does starts no workflow. The PR is FACTORY_TOKEN's, so CI and the board sync start on it as on any
+# PR; `start` and `park` start the board sync themselves.
 #
 # Every comment the factory makes carries MARK, so scripts/factoryTicket.ts keeps it out of the next prompt. To try the
 # agent step's timeout, set the repo variable FACTORY_AGENT_MINUTES to a few minutes; past AGENT_MINUTES' cap, it's
@@ -297,8 +298,6 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write # to push the ticket's branch
-      pull-requests: write
-      actions: write # to start CI and the board sync
     outputs:
       refused: ${{ steps.branch.outputs.refused }}
       tampered: ${{ steps.fetch.outputs.tampered || steps.branch.outputs.tampered }}
@@ -346,22 +345,13 @@ jobs:
           git -c core.hooksPath=/dev/null \
             -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" \
             push origin "refs/heads/$BRANCH:refs/heads/$BRANCH"
-      # The body is the agent's, written with /pr, and the factory's closing line (scripts/factoryPullRequest.ts)
+      # The body is the agent's, written with /pr, and the factory's closing line (scripts/factoryPullRequest.ts). The
+      # token is FACTORY_TOKEN, not GITHUB_TOKEN, so the PR starts CI without waiting for a maintainer's approval.
       - name: Open the PR
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.FACTORY_TOKEN }}
           TITLE: ${{ github.event.issue.title }}
         run: gh pr create --repo "$REPO" --base "$BASE" --head "$BRANCH" --title "$TITLE" --body-file "$RUNNER_TEMP/pr-body.md"
-      # The push and the PR were GITHUB_TOKEN's, so CI didn't start; its checks land on the branch's tip, which the PR
-      # shows. The branch's ci.yml is the base's: a change under .github/ was refused above.
-      - name: Start CI on the ticket's branch
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run ci.yml --repo "$REPO" --ref "$BRANCH" || echo "::warning::starting CI failed; run it from the Actions tab"
-      - name: Start the board sync
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run board.yml --repo "$REPO" --ref "$BASE" || echo "::warning::the board sync didn't start; its daily run catches up"
 
   # A run that started but didn't end in a PR parks the ticket, saying why; so does a gate that failed once it knew the
   # labeller has write access.
