@@ -3,15 +3,19 @@
 # spec's tickets, a closed ticket and one with an open PR are skipped with a log line. Background, and the risks it
 # answers (R1-R10): docs/research/sandcastle-factory.md.
 #
-# The jobs keep FACTORY_TOKEN, which can push and label, away from code the agent wrote. `build` runs the agent, in the
-# sandbox, and never holds it; `check` runs the agent's code, `npm run check` on exactly the commits built, and holds no
-# secret; the jobs that write to GitHub (`start`, `publish`, `park`) run none of the ticket's code, and set the token
-# only on the steps that write. `build` hands the commits on as a git bundle. Event text (titles, logins) reaches
-# scripts through `env:` only, never `${{ }}` inside a `run:`.
+# The factory holds no long-lived GitHub token. The jobs that write to GitHub (`start`, `publish`, `park`) use the job's
+# own GITHUB_TOKEN, raised to the write it needs in that job alone, and it expires when the job ends. They run none of
+# the ticket's code. `build` runs the agent, in the sandbox, with a read-only token; `check` runs the agent's code,
+# `npm run check` on exactly the commits built, and holds no secret. `build` hands the commits on as a git bundle.
+# Event text (titles, logins) reaches scripts through `env:` only, never `${{ }}` inside a `run:`.
 #
-# Every comment the factory makes carries MARK, so scripts/factoryTicket.ts can keep it out of the next prompt: the
-# token may be the owner's, and its comments would count as the owner's. To try the agent step's timeout, set the repo
-# variable FACTORY_AGENT_MINUTES to a few minutes; past AGENT_MINUTES' cap, it's taken as the cap.
+# What GITHUB_TOKEN does starts no workflow, so `publish` starts CI on the PR's branch itself, and each writing job
+# starts the board sync. For `gh pr create` to work, the repo's Settings > Actions > General must allow GitHub Actions
+# to create pull requests.
+#
+# Every comment the factory makes carries MARK, so scripts/factoryTicket.ts keeps it out of the next prompt. To try the
+# agent step's timeout, set the repo variable FACTORY_AGENT_MINUTES to a few minutes; past AGENT_MINUTES' cap, it's
+# taken as the cap.
 name: Factory
 
 on:
@@ -36,8 +40,8 @@ env:
   AGENT_MINUTES: ${{ vars.FACTORY_AGENT_MINUTES && fromJSON(vars.FACTORY_AGENT_MINUTES) > 75 && '75' || vars.FACTORY_AGENT_MINUTES || '70' }}
 
 # One run per issue at a time; a second label event waits for the first run and doesn't cancel it. Only the trigger
-# label shares the group: the labels this workflow adds (`in-progress`, `parked`) fire `labeled` too, and in the group
-# their runs would take the one pending place from a waiting `ready-for-agent`.
+# label shares the group, so another label someone adds by hand can't take the one pending place from a waiting
+# `ready-for-agent`.
 concurrency:
   group: factory-issue-${{ github.event.label.name == 'ready-for-agent' && github.event.issue.number || github.run_id }}
   cancel-in-progress: false
@@ -105,12 +109,15 @@ jobs:
     needs: gate
     if: needs.gate.outputs.go == 'true'
     runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+      actions: write # to start the board sync
     steps:
       # Cycle time starts here (docs/agents/issue-tracker.md); a parked ticket labelled again is a new start. The trigger
       # label comes off, so taking it off and on again while this run or its PR is open can't build the ticket twice.
       - name: Label the ticket in-progress and comment the run link
         env:
-          GH_TOKEN: ${{ secrets.FACTORY_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           labels=$(gh issue view "$ISSUE" --repo "$REPO" --json labels --jq '.labels[].name')
           remove=()
@@ -120,6 +127,10 @@ jobs:
           gh issue edit "$ISSUE" --repo "$REPO" --add-label in-progress "${remove[@]}"
           gh issue comment "$ISSUE" --repo "$REPO" --body "$MARK
           The factory is building this ticket: $RUN_URL"
+      - name: Start the board sync
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run board.yml --repo "$REPO" --ref "$BASE" || echo "::warning::the board sync didn't start; its daily run catches up"
 
   build:
     needs: start
@@ -284,6 +295,10 @@ jobs:
   publish:
     needs: [build, check]
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write # to push the ticket's branch
+      pull-requests: write
+      actions: write # to start CI and the board sync
     outputs:
       refused: ${{ steps.branch.outputs.refused }}
       tampered: ${{ steps.fetch.outputs.tampered || steps.branch.outputs.tampered }}
@@ -326,7 +341,7 @@ jobs:
           fi
       - name: Push the branch
         env:
-          GH_TOKEN: ${{ secrets.FACTORY_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           git -c core.hooksPath=/dev/null \
             -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" \
@@ -334,9 +349,19 @@ jobs:
       # The body is the agent's, written with /pr, and the factory's closing line (scripts/factoryPullRequest.ts)
       - name: Open the PR
         env:
-          GH_TOKEN: ${{ secrets.FACTORY_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           TITLE: ${{ github.event.issue.title }}
         run: gh pr create --repo "$REPO" --base "$BASE" --head "$BRANCH" --title "$TITLE" --body-file "$RUNNER_TEMP/pr-body.md"
+      # The push and the PR were GITHUB_TOKEN's, so CI didn't start; its checks land on the branch's tip, which the PR
+      # shows. The branch's ci.yml is the base's: a change under .github/ was refused above.
+      - name: Start CI on the ticket's branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run ci.yml --repo "$REPO" --ref "$BRANCH" || echo "::warning::starting CI failed; run it from the Actions tab"
+      - name: Start the board sync
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run board.yml --repo "$REPO" --ref "$BASE" || echo "::warning::the board sync didn't start; its daily run catches up"
 
   # A run that started but didn't end in a PR parks the ticket, saying why; so does a gate that failed once it knew the
   # labeller has write access.
@@ -346,10 +371,13 @@ jobs:
       always() && github.event.label.name == 'ready-for-agent' && needs.gate.outputs.allowed == 'true'
       && (needs.gate.result == 'failure' || (needs.gate.outputs.go == 'true' && needs.publish.result != 'success'))
     runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+      actions: write # to start the board sync
     steps:
       - name: Park the ticket and comment why, with the run link
         env:
-          GH_TOKEN: ${{ secrets.FACTORY_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           GATE: ${{ needs.gate.result }}
           START: ${{ needs.start.result }}
           BUILD: ${{ needs.build.result }}
@@ -394,3 +422,7 @@ jobs:
           fi
           gh issue comment "$ISSUE" --repo "$REPO" --body "$MARK
           The factory parked this ticket: $why. $logs: $RUN_URL"
+      - name: Start the board sync
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run board.yml --repo "$REPO" --ref "$BASE" || echo "::warning::the board sync didn't start; its daily run catches up"
