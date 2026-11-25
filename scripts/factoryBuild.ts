@@ -1,4 +1,4 @@
-// The factory's build of one ticket (#336), run by .github/workflows/factory.yml once bwrap's probe has passed, on the
+// The factory's build of one ticket (#336), alone or a spec's (#337), run by .github/workflows/factory.yml once bwrap's probe has passed, on the
 // branch the ticket is built on. It runs Claude Code in Sandcastle's bwrap() sandbox on `/implement <n>` with the
 // ticket's text (scripts/factoryTicket.ts), and Sandcastle merges the agent's commits into that branch. It pushes
 // nothing and holds no GitHub token: the workflow's later jobs check the commits and do every write to GitHub.
@@ -6,7 +6,7 @@
 // It writes `result` and `why` to the step's outputs (scripts/factoryOutcome.ts); only `built` passes. Into LOG_DIR go
 // the agent's stream-json as it comes (`transcript.jsonl`, so a stopped run keeps it), Sandcastle's log, and Claude
 // Code's session; into OUT_DIR, the PR body. The other inputs are environment variables too: CLAUDE_CODE_OAUTH_TOKEN,
-// TICKET_JSON, COMMENTS_JSON, BRANCH and RUN_URL.
+// TICKET_JSON, COMMENTS_JSON, SPEC_JSON (a spec's ticket only), BRANCH and RUN_URL.
 
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -46,9 +46,11 @@ async function build(logs: Logs): Promise<Ending> {
   // TICKET_JSON and COMMENTS_JSON: what a step fetched with `gh api`, the comments with `--paginate --slurp`, a list of pages
   const ticket = JSON.parse(readFileSync(env('TICKET_JSON'), 'utf8')) as Ticket
   const comments = (JSON.parse(readFileSync(env('COMMENTS_JSON'), 'utf8')) as Authored[][]).flat()
+  // SPEC_JSON, for a spec's ticket: the spec, fetched as the ticket is
+  const spec = process.env.SPEC_JSON ? (JSON.parse(readFileSync(process.env.SPEC_JSON, 'utf8')) as Ticket) : undefined
   const ran = await run({
     name: `ticket-${ticket.number}`,
-    prompt: ticketPrompt(ticket, comments),
+    prompt: ticketPrompt(ticket, comments, spec),
     agent: factoryAgent(MODEL, { oauthToken: env('CLAUDE_CODE_OAUTH_TOKEN'), maxBudgetUsd: MAX_BUDGET_USD }),
     // the test suite runs for minutes, past Claude Code's 2-minute default for a Bash command
     sandbox: bwrap({ env: { BASH_DEFAULT_TIMEOUT_MS: '900000' } }),
