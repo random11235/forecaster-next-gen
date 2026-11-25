@@ -10,4 +10,4 @@ The skills speak in terms of five canonical triage roles. In this repo each role
 | `ready-for-human` | Requires human implementation            |
 | `wontfix`         | Will not be actioned                     |
 
-The lifecycle labels `in-progress` and `epic` aren't triage roles. Their rules live in `issue-tracker.md` (Ticket lifecycle).
+The lifecycle labels `in-progress`, `parked` and `epic` aren't triage roles. Their rules live in `issue-tracker.md` (Ticket lifecycle).
