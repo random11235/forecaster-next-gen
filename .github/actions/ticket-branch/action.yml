@@ -14,5 +14,8 @@ runs:
     - id: fetch
       shell: bash
       run: |
-        git -c core.hooksPath=/dev/null fetch --quiet "$RUNNER_TEMP/ticket.bundle" "refs/heads/$BRANCH:refs/heads/$BRANCH"
-        if [ "$(git rev-parse "refs/heads/$BRANCH")" != "$TIP" ]; then echo "tampered=true" >> "$GITHUB_OUTPUT"; fi
+        # a bundle that won't fetch, or lacks the branch, was replaced or broken after build made it, as is a wrong tip
+        if ! git -c core.hooksPath=/dev/null fetch --quiet "$RUNNER_TEMP/ticket.bundle" "refs/heads/$BRANCH:refs/heads/$BRANCH" \
+          || [ "$(git rev-parse --verify --quiet "refs/heads/$BRANCH")" != "$TIP" ]; then
+          echo "tampered=true" >> "$GITHUB_OUTPUT"
+        fi
