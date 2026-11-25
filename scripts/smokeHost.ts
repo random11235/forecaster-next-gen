@@ -62,7 +62,7 @@ function away(before: DirSeen, after: DirSeen): string | undefined {
   if (after.kind === 'missing') return 'was removed during the run: left as it is'
   if (after.kind === 'other') return 'became something other than a directory during the run: left as it is'
   if (after.kind === 'unreadable') return `couldn't be read after the run (${after.code}): left as it is`
-  if (before.kind === 'other') return 'was something other than a directory before the run, and is now one: left as it is'
+  if (before.kind === 'other') return `was something other than a directory before the run, and now resolves to a directory at ${after.real}: left as it is`
   if (before.kind === 'unreadable') return `couldn't be read before the run (${before.code}), and is now a directory: left as it is`
   return `moved during the run, to ${after.real}: left as it is`
 }

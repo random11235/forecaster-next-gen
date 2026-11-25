@@ -101,7 +101,7 @@ function skillCheck(stream: string[], skillWord: string): Check {
  * write none, but its agent may find the skill and write anyway.
  */
 export function controlWrites(writes: Write[], gitDir: string): Check[] {
-  return writes.filter(({ changedOnHost }) => changedOnHost).map((write) => writeCheck(write, undefined, gitDir, "the stdin control's agent's write"))
+  return writes.filter(({ changedOnHost }) => changedOnHost).map(({ path }) => reachedCheck("the stdin control's agent's write", path, gitDir))
 }
 
 /** The control: the same check on a run that sent the prompt on stdin, as a note, since the model may find the skill. */
@@ -144,16 +144,19 @@ function envChecks({ envNames, claudeEnvNames }: Report): Check[] {
 const GIT_DIR_WRITABLE =
   'the sandbox mounts the git dir writable, so the agent can rewrite HEAD, packed-refs, refs and objects (objects/info/alternates too), and no host step may trust them'
 
-function writeCheck({ path, changedOnHost, about }: Write, inside: string | undefined, gitDir: string, whose = 'the write'): Check {
-  if (!changedOnHost) {
-    const there =
-      inside === undefined
-        ? ''
-        : inside === 'ok'
-          ? " worked inside the sandbox, landing in the sandbox's own files, and"
-          : ` failed inside the sandbox (${cut(inside, 100)}), and`
-    return pass(`${whose} to ${path}${there} never reached the host${about ? `, ${about}` : ''}`)
-  }
+function writeCheck({ path, changedOnHost, about }: Write, inside: string | undefined, gitDir: string): Check {
+  if (changedOnHost) return reachedCheck('the write', path, gitDir)
+  const there =
+    inside === undefined
+      ? ''
+      : inside === 'ok'
+        ? " worked inside the sandbox, landing in the sandbox's own files, and"
+        : ` failed inside the sandbox (${cut(inside, 100)}), and`
+  return pass(`the write to ${path}${there} never reached the host${about ? `, ${about}` : ''}`)
+}
+
+/** A write that reached the host: a note in the git dir, which the sandbox mounts writable, and a fail anywhere else. */
+function reachedCheck(whose: string, path: string, gitDir: string): Check {
   if (GIT_CONTROL.some((part) => path === `${gitDir}/${part}` || path.startsWith(`${gitDir}/${part}/`))) {
     return fail(`${whose} to ${path} reached the host, where git runs or reads it (R4)`)
   }

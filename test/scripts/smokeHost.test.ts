@@ -80,6 +80,14 @@ describe('a write the smoke test tried on the host', () => {
     })
   })
 
+  test('reached the host when its directory was something other than a directory before the run, and is one elsewhere now, which restore leaves', () => {
+    const blocked: Watched = was({ dir: { kind: 'other' }, file: { kind: 'missing' } })
+    expect(hostWrite(blocked, { dir: { kind: 'directory', real: '/w/elsewhere' }, file: { kind: 'file', content: '# x\n' } })).toEqual({
+      do: 'leave',
+      warn: 'was something other than a directory before the run, and now resolves to a directory at /w/elsewhere: left as it is',
+    })
+  })
+
   test("reached the host when its directory couldn't be read before the run and is one now, which restore leaves, file and all", () => {
     const unread: Watched = was({ dir: { kind: 'unreadable', code: 'EACCES' }, file: { kind: 'missing' } })
     expect(hostWrite(unread, { dir: atHome, file: { kind: 'file', content: '# x\n' } })).toEqual({
