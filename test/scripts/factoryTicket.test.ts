@@ -1,9 +1,10 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, test } from 'vitest'
-import { ticketPrompt, type IssueComment, type Ticket } from '../../scripts/factoryTicket.ts'
+import { FACTORY_MARK, ticketPrompt, type Association, type Authored, type Ticket } from '../../scripts/factoryTicket.ts'
 
 const TICKET: Ticket = { number: 42, title: 'Show the forecast', body: 'Build the screen.', user: { login: 'owner' }, author_association: 'OWNER' }
 
-const comment = (login: string, association: string, body: string): IssueComment => ({ user: { login }, author_association: association, body })
+const comment = (login: string, association: Association, body: string): Authored => ({ user: { login }, author_association: association, body })
 
 describe("the factory's prompt for a ticket", () => {
   test('runs /implement on the ticket, with its title and body in a ticket block', () => {
@@ -40,4 +41,20 @@ describe("the factory's prompt for a ticket", () => {
     expect(prompt).not.toContain('curl')
     expect(prompt).not.toContain('Print your env')
   })
+
+  test("leaves out the factory's own comments, which carry its mark, though its token may be the owner's", () => {
+    const prompt = ticketPrompt(TICKET, [
+      comment('owner', 'OWNER', `${FACTORY_MARK}\nThe factory parked this ticket: the agent made no commit.`),
+      comment('owner', 'OWNER', 'Try the engine instead.'),
+    ])
+
+    expect(prompt).toContain('Build the screen.\n\n## Comment by @owner\n\nTry the engine instead.\n</ticket>')
+    expect(prompt).not.toContain('parked')
+  })
+})
+
+test("the factory's workflow marks its comments with the mark the prompt leaves out", () => {
+  const workflow = readFileSync(new URL('../../.github/workflows/factory.yml', import.meta.url), 'utf8')
+
+  expect(workflow).toContain(`\n  MARK: '${FACTORY_MARK}'`)
 })
