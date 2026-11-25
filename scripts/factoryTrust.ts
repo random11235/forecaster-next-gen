@@ -6,7 +6,7 @@
 // The factory writes with its jobs' GITHUB_TOKEN, as github-actions[bot], whom GitHub gives no author association. So a
 // merged comment counts when github-actions wrote it, as well as the owner or a collaborator by hand. GraphQL names it
 // a Bot, which no user account can be, and only a workflow in this repo writes as github-actions here. That makes it
-// the factory only while factory.yml is the one workflow whose jobs may write to issues. test/scripts/factoryTrust.test.ts
+// the factory only while factory.yml is the one workflow whose jobs may write to issues. test/scripts/workflowPermissions.test.ts
 // pins it: every workflow sets its own token read-only, and no job outside factory.yml grants `issues: write` or
 // `write-all`.
 
