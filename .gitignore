@@ -1,6 +1,7 @@
 .claude/skills/*
-# installed from skills-lock.json; these two carry local edits, so git tracks them
+# installed from skills-lock.json; these carry local edits, so git tracks them
 !.claude/skills/code-review/
+!.claude/skills/implement/
 !.claude/skills/implement-spec/
 # the factory smoke test's own skill (#335), in no skills repo
 !.claude/skills/factory-smoke/
