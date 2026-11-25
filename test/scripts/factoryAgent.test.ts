@@ -1,13 +1,32 @@
 import { describe, expect, test } from 'vitest'
 import { factoryAgent } from '../../scripts/factoryAgent.ts'
 
+const COMMAND = "claude --print --verbose --dangerously-skip-permissions --output-format stream-json --model 'haiku'"
+
 describe("the factory's agent", () => {
-  test('runs Claude Code on the prompt from stdin, capped at the budget given', () => {
+  test('runs Claude Code on the prompt as its argument, where a slash command expands, capped at the budget given', () => {
     const agent = factoryAgent('haiku', { oauthToken: 'oauth', maxBudgetUsd: 0.5 })
 
     const print = agent.buildPrintCommand({ prompt: '/factory-smoke 42', dangerouslySkipPermissions: true })
 
-    expect(print.command).toBe("claude --print --verbose --dangerously-skip-permissions --output-format stream-json --model 'haiku' --max-budget-usd 0.5 -p -")
+    expect(print.command).toBe(`${COMMAND} --max-budget-usd 0.5 -p '/factory-smoke 42'`)
+    expect(print.stdin).toBe('')
+  })
+
+  test('quotes the prompt for the shell, whatever it holds', () => {
+    const agent = factoryAgent('haiku', { oauthToken: 'oauth', maxBudgetUsd: 0.5 })
+
+    const print = agent.buildPrintCommand({ prompt: "it's $HOME `x`", dangerouslySkipPermissions: true })
+
+    expect(print.command).toBe(`${COMMAND} --max-budget-usd 0.5 -p 'it'\\''s $HOME \`x\`'`)
+  })
+
+  test("can send the prompt on stdin, Sandcastle's own way, where a slash command doesn't expand", () => {
+    const agent = factoryAgent('haiku', { oauthToken: 'oauth', maxBudgetUsd: 0.5, promptOn: 'stdin' })
+
+    const print = agent.buildPrintCommand({ prompt: '/factory-smoke 42', dangerouslySkipPermissions: true })
+
+    expect(print.command).toBe(`${COMMAND} --max-budget-usd 0.5 -p -`)
     expect(print.stdin).toBe('/factory-smoke 42')
   })
 
