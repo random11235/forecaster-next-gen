@@ -58,9 +58,11 @@ const capped: Check = await run({
 }).then(
   (result) => ({ ok: false, says: `the $0.0001 cap didn't stop the run, which said: ${result.stdout.trim()}` }),
   (error: unknown) => {
+    // Sandcastle's error holds Claude Code's stream-json, whose result is error_max_budget_usd when the cap stops it
     const message = error instanceof Error ? error.message : String(error)
-    return /budget/i.test(message)
-      ? { ok: true, says: `the $0.0001 cap stopped the run: ${message.split('\n').join(' ')}` }
+    const cost = /"total_cost_usd":([\d.e-]+)/.exec(message)?.[1]
+    return message.includes('"subtype":"error_max_budget_usd"')
+      ? { ok: true, says: `the $0.0001 cap stopped the run after one turn, at $${cost} (error_max_budget_usd)` }
       : { ok: false, says: `the capped run failed, not on its budget: ${message}` }
   },
 )

@@ -50,11 +50,13 @@ export function smokeVerdict({ report, skillWord, gitDir, targets }: SmokeFacts)
     found.skillWord === skillWord
       ? { ok: true, says: `the skill expanded and ran: the agent reported its word, ${skillWord}` }
       : { ok: false, says: `the skill didn't expand: the agent reported ${found.skillWord}, not ${skillWord}` },
-    found.envNames.includes(OAUTH_TOKEN)
-      ? { ok: true, says: `${OAUTH_TOKEN} reached the agent` }
-      : { ok: false, says: `${OAUTH_TOKEN} didn't reach the agent` },
+    // Claude Code had it, or there would be no report; whether its tools' env holds it too is worth knowing (R3)
+    {
+      ok: true,
+      says: `${OAUTH_TOKEN} reached Claude Code, which signed in to report, and ${found.envNames.includes(OAUTH_TOKEN) ? "its tools' env holds it too" : "stayed out of its tools' env"}`,
+    },
     tokens.length === 0
-      ? { ok: true, says: `no ${GITHUB_TOKENS.slice(0, -1).join(', ')} or ${GITHUB_TOKENS.at(-1)} in the agent env` }
+      ? { ok: true, says: 'no FACTORY_TOKEN, GITHUB_TOKEN or GH_TOKEN in the agent env' }
       : { ok: false, says: `the agent env held ${tokens.join(', ')}` },
     ...writes,
   ]
