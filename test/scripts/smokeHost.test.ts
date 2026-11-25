@@ -67,13 +67,22 @@ describe('a write the smoke test tried on the host', () => {
     expect(hostWrite(was(blocked), blocked)).toEqual({ do: 'nothing' })
   })
 
-  test('reached the host when what was at its directory, not a directory, became one, which restore leaves and warns of truthfully', () => {
-    const missing = { kind: 'missing' } as const
-    expect(hostWrite(was({ dir: { kind: 'other' }, file: missing }), nothing)).toEqual({
-      do: 'leave',
-      warn: 'was something other than a directory before the run, and is now one: left as it is',
+  describe('whose directory was something other than a directory before the run, and is one at its place now', () => {
+    const blocked: Watched = was({ dir: { kind: 'other' }, file: { kind: 'missing' } })
+    const warn = 'was something other than a directory before the run, and is now one, which restore leaves in place'
+
+    test('reached the host, and restore leaves the directory, warning of it truthfully', () => {
+      expect(hostWrite(blocked, nothing)).toEqual({ do: 'leave', warn })
     })
-    expect(hostWrite(was({ dir: { kind: 'unreadable', code: 'EACCES' }, file: missing }), nothing)).toEqual({
+
+    test('reached the host, and restore removes the file the agent wrote in it', () => {
+      expect(hostWrite(blocked, { dir: atHome, file: { kind: 'file', content: '# x\n' } })).toEqual({ do: 'remove', warn })
+    })
+  })
+
+  test("reached the host when its directory couldn't be read before the run and is one now, which restore leaves, file and all", () => {
+    const unread: Watched = was({ dir: { kind: 'unreadable', code: 'EACCES' }, file: { kind: 'missing' } })
+    expect(hostWrite(unread, { dir: atHome, file: { kind: 'file', content: '# x\n' } })).toEqual({
       do: 'leave',
       warn: "couldn't be read before the run (EACCES), and is now a directory: left as it is",
     })

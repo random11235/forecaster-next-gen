@@ -23,12 +23,22 @@ export type Watched = Seen & { home: string }
  */
 export type Restore = { do: 'nothing' } | { do: 'remove'; put?: string; warn?: string } | { do: 'leave'; warn: string }
 
-const MADE = 'was made during the run, and restore leaves it in place'
+/**
+ * What to warn of a directory the agent put where there was none, or only something that wasn't one, and that is where
+ * its target's directory would be, so the target in it is safe to remove.
+ */
+const MADE = {
+  missing: 'was made during the run, and restore leaves it in place',
+  other: 'was something other than a directory before the run, and is now one, which restore leaves in place',
+}
 
 /** How to undo the write to a target, from what the host had there before the run and has after it. */
 export function hostWrite(before: Watched, after: Seen): Restore {
-  const made = before.dir.kind === 'missing' && after.dir.kind === 'directory' && after.dir.real === before.home
-  if (!made) {
+  const made =
+    (before.dir.kind === 'missing' || before.dir.kind === 'other') && after.dir.kind === 'directory' && after.dir.real === before.home
+      ? MADE[before.dir.kind]
+      : undefined
+  if (made === undefined) {
     const warn = away(before.dir, after.dir)
     if (warn !== undefined) return { do: 'leave', warn }
   }
@@ -37,8 +47,8 @@ export function hostWrite(before: Watched, after: Seen): Restore {
     : before.file.kind === 'file'
       ? { do: 'remove', put: before.file.content }
       : { do: 'remove' }
-  if (!made) return undo
-  return undo.do === 'nothing' ? { do: 'leave', warn: MADE } : { ...undo, warn: MADE }
+  if (made === undefined) return undo
+  return undo.do === 'nothing' ? { do: 'leave', warn: made } : { ...undo, warn: made }
 }
 
 /** Whether the write reached the host: whether there's anything to undo. */

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { budgetVerdict, smokeVerdict, stdinNote, type SmokeFacts } from '../../scripts/smokeVerdict.ts'
+import { budgetVerdict, controlWrites, smokeVerdict, stdinNote, type SmokeFacts } from '../../scripts/smokeVerdict.ts'
 
 const WORD = 'periwinkle'
 
@@ -174,5 +174,21 @@ describe('the stdin control', () => {
     expect(stdinNote([said(text(WORD))], WORD).says).toMatch(
       /^on stdin, as Sandcastle's claudeCode\(\) sends it, the slash command expanded: .*; so the prompt needn't be Claude Code's argument$/,
     )
+  })
+
+  test("judges the writes its agent got to the host as the smoke run's are judged, and says nothing of the rest", () => {
+    const writes = [
+      { path: '/w/repo/escape.txt', changedOnHost: true },
+      { path: '/w/repo/.git/hooks/x', changedOnHost: true },
+      { path: '/w/repo/.git/refs/heads/x.lock', changedOnHost: true },
+      { path: '/w/repo/.git/config', changedOnHost: false },
+    ]
+
+    expect(controlWrites(writes, '/w/repo/.git').map(({ status, says }) => `${status} ${says}`)).toEqual([
+      "fail the stdin control's agent's write to /w/repo/escape.txt reached the host",
+      "fail the stdin control's agent's write to /w/repo/.git/hooks/x reached the host, where git runs or reads it (R4)",
+      expect.stringMatching(/^note the stdin control's agent's write to \/w\/repo\/\.git\/refs\/heads\/x\.lock reached the host, outside the agent's tree: /),
+    ])
+    expect(controlWrites([{ path: '/w/repo/escape.txt', changedOnHost: false }], '/w/repo/.git')).toEqual([])
   })
 })

@@ -13,7 +13,7 @@ import { run, type AgentProvider, type AgentStreamEvent } from '@ai-hero/sandcas
 import { bwrap } from '@ai-hero/sandcastle/sandboxes/bwrap'
 import { factoryAgent, stdinAgent } from './factoryAgent.ts'
 import { hostWrite, reachedHost, type DirSeen, type FileSeen, type Seen, type Watched } from './smokeHost.ts'
-import { budgetVerdict, smokeVerdict, stdinNote, type Check, type Ending } from './smokeVerdict.ts'
+import { budgetVerdict, controlWrites, smokeVerdict, stdinNote, type Check, type Ending, type Write } from './smokeVerdict.ts'
 
 const MODEL = 'haiku'
 const CAP = 0.0001
@@ -105,7 +105,7 @@ const warn = (warning: string) => {
   if (!warned.has(warning)) console.log(`::warning::${warning}`)
   warned.add(warning)
 }
-/** The targets restoring failed on, after any run, which fail the smoke test: the host keeps what the agent left. */
+/** The targets restoring failed on, after any run, which fail the smoke test: the host kept what the agent left. */
 const unrestored = new Set<string>()
 const restore = () => {
   for (const target of watched) {
@@ -161,8 +161,12 @@ const smoke = await runAgent(
 const writes = watched.map((target) => ({ path: target.path, about: target.about, changedOnHost: reachedHost(now(target)) }))
 restore()
 
-// The control: Sandcastle's own way, the prompt on stdin. The skill isn't given its paths, so it writes nothing.
+// The control: Sandcastle's own way, the prompt on stdin. The skill isn't given its paths, so should write nothing; any
+// write that reaches the host is judged as the smoke run's are, against the host as restoring left it, so what the smoke
+// run's agent left isn't counted again.
+const afterSmoke = watched.map((target) => ({ ...target, before: { ...seen(target.path), home: target.before.home } satisfies Watched }))
 const control = await runAgent('factory-smoke-stdin', '/factory-smoke', stdinAgent(MODEL, { oauthToken, maxBudgetUsd: 0.1 }))
+const controlWritten: Write[] = afterSmoke.map((target) => ({ path: target.path, changedOnHost: reachedHost(now(target)) }))
 restore()
 
 // A cap far below one model call's cost: Claude Code should stop after its first turn, and Sandcastle reject the run.
@@ -181,9 +185,10 @@ const checks: Check[] = [
       })
     : [{ status: 'fail' as const, says: `the smoke run failed: ${smoke.ending.error.slice(0, 300)}` }]),
   stdinNote(control.stream, skillWord),
+  ...controlWrites(controlWritten, gitDir),
   budgetVerdict(capped.ending, CAP),
   ...(unrestored.size > 0
-    ? [{ status: 'fail' as const, says: `restoring failed, so the host keeps what the agent left at ${[...unrestored].join(', ')}` }]
+    ? [{ status: 'fail' as const, says: `restoring failed at least once, so the host kept what the agent left, at ${[...unrestored].join(', ')}` }]
     : []),
 ]
 const lines = checks.map(({ status, says }) => `${status.toUpperCase()} ${says}`)

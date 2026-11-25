@@ -96,6 +96,14 @@ function skillCheck(stream: string[], skillWord: string): Check {
   return failed(`to say ${JSON.stringify(cut(said, 100))}`)
 }
 
+/**
+ * The control's writes that reached the host, judged as the smoke run's are. It isn't given the paths, so it should
+ * write none, but its agent may find the skill and write anyway.
+ */
+export function controlWrites(writes: Write[], gitDir: string): Check[] {
+  return writes.filter(({ changedOnHost }) => changedOnHost).map((write) => writeCheck(write, undefined, gitDir, "the stdin control's agent's write"))
+}
+
 /** The control: the same check on a run that sent the prompt on stdin, as a note, since the model may find the skill. */
 export function stdinNote(stream: string[], skillWord: string): Check {
   const check = skillCheck(stream, skillWord)
@@ -136,7 +144,7 @@ function envChecks({ envNames, claudeEnvNames }: Report): Check[] {
 const GIT_DIR_WRITABLE =
   'the sandbox mounts the git dir writable, so the agent can rewrite HEAD, packed-refs, refs and objects (objects/info/alternates too), and no host step may trust them'
 
-function writeCheck({ path, changedOnHost, about }: Write, inside: string | undefined, gitDir: string): Check {
+function writeCheck({ path, changedOnHost, about }: Write, inside: string | undefined, gitDir: string, whose = 'the write'): Check {
   if (!changedOnHost) {
     const there =
       inside === undefined
@@ -144,13 +152,13 @@ function writeCheck({ path, changedOnHost, about }: Write, inside: string | unde
         : inside === 'ok'
           ? " worked inside the sandbox, landing in the sandbox's own files, and"
           : ` failed inside the sandbox (${cut(inside, 100)}), and`
-    return pass(`the write to ${path}${there} never reached the host${about ? `, ${about}` : ''}`)
+    return pass(`${whose} to ${path}${there} never reached the host${about ? `, ${about}` : ''}`)
   }
   if (GIT_CONTROL.some((part) => path === `${gitDir}/${part}` || path.startsWith(`${gitDir}/${part}/`))) {
-    return fail(`the write to ${path} reached the host, where git runs or reads it (R4)`)
+    return fail(`${whose} to ${path} reached the host, where git runs or reads it (R4)`)
   }
-  if (path.startsWith(`${gitDir}/`)) return note(`the write to ${path} reached the host, outside the agent's tree: ${GIT_DIR_WRITABLE}`)
-  return fail(`the write to ${path} reached the host`)
+  if (path.startsWith(`${gitDir}/`)) return note(`${whose} to ${path} reached the host, outside the agent's tree: ${GIT_DIR_WRITABLE}`)
+  return fail(`${whose} to ${path} reached the host`)
 }
 
 export function smokeVerdict(facts: SmokeFacts): Check[] {
