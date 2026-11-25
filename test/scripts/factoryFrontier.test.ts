@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { describe, expect, test } from 'vitest'
 import { nextStep, stepOutputs, subIssuesOf, type SubIssue } from '../../scripts/factoryFrontier.ts'
 import { FACTORY_MARK, type Association, type Author } from '../../scripts/factoryTrust.ts'
@@ -138,14 +138,4 @@ test("the factory's workflow comments merged with its publish job's GITHUB_TOKEN
   expect(publish).toMatch(/\n {4}permissions:\n(?: {6}[^\n]*\n)* {6}issues: write\b/)
   expect(step).toContain('GH_TOKEN: ${{ github.token }}')
   expect(step).not.toContain('secrets.')
-})
-
-// isActionsBot takes github-actions' comment as the factory's only while no other workflow may write to issues
-test('only the factory grants a workflow job issues: write, and every other workflow caps its token', () => {
-  const dir = new URL('../../.github/workflows/', import.meta.url)
-  const workflows = readdirSync(dir).filter((name) => /\.ya?ml$/.test(name))
-  const read = (name: string) => readFileSync(new URL(name, dir), 'utf8')
-
-  expect(workflows.filter((name) => /\bissues: write\b/.test(read(name)))).toEqual(['factory.yml'])
-  for (const name of workflows) expect([name, /^permissions:/m.test(read(name))]).toEqual([name, true])
 })

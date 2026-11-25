@@ -536,7 +536,10 @@ jobs:
       - name: Park the ticket and comment why, with the run link
         env:
           GH_TOKEN: ${{ github.token }}
+          PUBLISH: ${{ needs.publish.result }}
           PUSHED: ${{ needs.publish.outputs.pushed }}
+          BUILT_ON: ${{ needs.build.outputs.base }}
+          TIP: ${{ needs.build.outputs.tip }}
           START: ${{ needs.start.result }}
           BUILD: ${{ needs.build.result }}
           AGENT: ${{ needs.build.outputs.agent }}
@@ -549,7 +552,19 @@ jobs:
           REFUSED: ${{ needs.publish.outputs.refused }}
           UNBUILDABLE: ${{ needs.publish.outputs.unbuildable }}
         run: |
-          comment_by_hand="comment \`merged into $BRANCH\` by hand, opening with the factory's hidden mark (MARK in factory.yml), and take \`parked\` off"
+          comment_by_hand="comment \`merged into $BRANCH\` by hand, opening with the factory's hidden mark \`$MARK\`, and take \`parked\` off"
+          # Where spec/<n> is: unchanged, or holding the ticket's commits (TIP), or unknown. Only publish pushes, and a push
+          # can land though its step failed or was cut off, so a publish that ran is checked against spec/<n> itself. A
+          # spec/<n> that isn't there wasn't made; one at neither the commit build started from nor TIP moved some other way.
+          if [ -n "$SPEC" ]; then
+            if [ "$PUSHED" = success ]; then landed=yes
+            elif [ "$PUBLISH" = skipped ] || [ -z "$PUBLISH" ]; then landed=no
+            elif ! remote=$(git ls-remote "$GITHUB_SERVER_URL/$REPO.git" "refs/heads/$BRANCH"); then landed=unknown
+            elif [ -n "$TIP" ] && [ "${remote%%[[:space:]]*}" = "$TIP" ]; then landed=yes
+            elif [ -z "$remote" ] || [ "${remote%%[[:space:]]*}" = "$BUILT_ON" ]; then landed=no
+            else landed=unknown
+            fi
+          fi
           if [ -n "$SPEC" ]; then starts_from="$BRANCH, or else $BASE"; else starts_from="$BASE"; fi
           # BUILD_WHY is scripts/factoryOutcome.ts's reason: no commits, a dirty tree, the budget, the idle timeout, an error
           if [ "$TAMPERED" = true ]; then why="the agent's commits or the PR body changed after the build made them, so the factory didn't use them"
@@ -566,24 +581,27 @@ jobs:
           elif [ "$CHECK" = cancelled ]; then why="the check was cancelled, or ran past its job's $CHECK_MINUTES-minute timeout"
           elif [ "$CHECKED" = failure ]; then why="\`npm ci\` or \`npm run check\` failed on $BRANCH with the ticket's commits, or bwrap didn't start"
           elif [ "$CHECK" != success ]; then why="setting up the check failed, or its job lost its runner"
-          elif [ "$REFUSED" = true ] && [ -n "$SPEC" ]; then
-            why="the agent's commits change files under .github/, which the factory doesn't push: build this ticket locally,"
-            why="$why merge it into $BRANCH, then $comment_by_hand"
-          elif [ "$REFUSED" = true ]; then why="the agent's commits change files under .github/, which the factory doesn't push: build this ticket locally"
+          elif [ "$REFUSED" = true ]; then why="the agent's commits change files under .github/, which the factory doesn't push"
           elif [ -n "$UNBUILDABLE" ]; then why="the agent's commits leave $UNBUILDABLE in the branch, which the factory won't build on, so it didn't push them"
-          elif [ -n "$SPEC" ] && [ "$PUSHED" = success ]; then why="it merged into $BRANCH, but commenting so on it failed: $comment_by_hand"
-          elif [ -n "$SPEC" ] && [ "$PUSHED" = failure ]; then why="pushing $BRANCH failed: it may have moved since the build"
-          elif [ -n "$SPEC" ] && [ "$PUSHED" = cancelled ]; then
-            why="the push to $BRANCH was cancelled, so it may have landed: if $BRANCH has the ticket's commits, $comment_by_hand"
-          elif [ -n "$SPEC" ]; then why="setting up the push to $BRANCH failed, before it pushed"
-          else why="pushing the branch or opening the PR failed"
+          elif [ -z "$SPEC" ]; then why="pushing the branch or opening the PR failed"
+          elif [ "$landed" = yes ]; then why="it merged into $BRANCH, but commenting so on it failed"
+          elif [ "$landed" = unknown ] && [ "$PUSHED" = failure ]; then
+            why="pushing $BRANCH failed, and it moved since the build, so the factory can't tell whether it has the ticket's commits"
+          elif [ "$landed" = unknown ]; then why="publishing didn't finish, and the factory can't tell whether $BRANCH has the ticket's commits"
+          elif [ "$PUSHED" = failure ]; then why="pushing $BRANCH failed"
+          else why="publishing stopped without pushing to $BRANCH"
           fi
-          # Nothing reaches spec/<n> but a push of checked commits, the last step before the merged comment; a cancelled
-          # push may have landed
-          if [ -n "$SPEC" ] && [ "$PUSHED" != success ] && [ "$PUSHED" != cancelled ]; then unchanged=true; fi
-          if [ "$unchanged" = true ]; then why="$why. $BRANCH is unchanged"; fi
-          # A ticket on spec/<n> already is done: rebuilding it would build it twice. One refused would be refused again.
-          if [ "$unchanged" = true ] && [ "$REFUSED" != true ]; then retry="To retry, take \`parked\` off and label the spec, #$SPEC, ready-for-agent again. "; fi
+          if [ "$landed" = no ]; then why="$why. $BRANCH is unchanged"; fi
+          # What to do: a ticket on spec/<n> already is done, so rebuilding it would build it twice; one refused would be
+          # refused again
+          if [ "$REFUSED" = true ] && [ -n "$SPEC" ]; then todo="Build it locally, merge it into $BRANCH, then $comment_by_hand. "
+          elif [ "$REFUSED" = true ]; then todo="Build this ticket locally. "
+          elif [ "$landed" = yes ]; then todo="To finish it, $comment_by_hand. "
+          elif [ "$landed" = unknown ]; then
+            todo="If $BRANCH has the ticket's commits, $comment_by_hand; if not, take \`parked\` off and label the spec, #$SPEC,"
+            todo="$todo ready-for-agent again. "
+          elif [ "$landed" = no ]; then todo="To retry, take \`parked\` off and label the spec, #$SPEC, ready-for-agent again. "
+          fi
           # --force: another ticket's park may create it at the same moment
           gh label create parked --force --repo "$REPO" --color B60205 --description 'The factory failed to build it; label it ready-for-agent again to retry'
           labels=$(gh issue view "$TICKET" --repo "$REPO" --json labels --jq '.labels[].name')
@@ -598,7 +616,7 @@ jobs:
           else logs="The build didn't run, so there are no logs beyond the run's own"
           fi
           gh issue comment "$TICKET" --repo "$REPO" --body "$MARK
-          The factory parked this ticket: $why. $retry$logs: $RUN_URL"
+          The factory parked this ticket: $why. $todo$logs: $RUN_URL"
       - name: Start the board sync
         env:
           GH_TOKEN: ${{ github.token }}
