@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { buildOutcome } from '../../scripts/factoryOutcome.ts'
+import { buildOutcome, UnbuildableTree } from '../../scripts/factoryOutcome.ts'
 // Sandcastle 0.14.0 bundles effect and doesn't export its errors: these are its own, as its run() throws them, from
 // Effect.runPromise. A Sandcastle bump renames the chunks, so this import fails rather than tests a stale shape.
 // @ts-expect-error -- a bundle chunk, with no types
@@ -43,6 +43,13 @@ describe("the factory build's outcome", () => {
     expect(buildOutcome({ error: thrown }, [])).toEqual({
       result: 'idle-timeout',
       why: 'the agent went 20 minutes without output, so Sandcastle stopped it',
+    })
+  })
+
+  test("is unbuildable when the branch it builds on holds what the factory won't build on, saying what", () => {
+    expect(buildOutcome({ error: new UnbuildableTree('the branch holds node_modules') }, [])).toEqual({
+      result: 'unbuildable',
+      why: 'the branch holds node_modules',
     })
   })
 

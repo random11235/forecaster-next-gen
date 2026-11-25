@@ -1,18 +1,23 @@
 # The factory (#334): labelling a ticket `ready-for-agent` builds it with Claude Code in Sandcastle's bwrap() sandbox
-# and opens a PR to the default branch that closes it. This file builds a ticket outside any spec (#336); a spec, a
-# spec's tickets, a closed ticket and one with an open PR are skipped with a log line. Background, and the risks it
-# answers (R1-R10): docs/research/sandcastle-factory.md.
+# and opens a PR to the default branch that closes it (#336). Labelling a spec builds its next ticket
+# (scripts/factoryFrontier.ts) on the spec's branch, spec/<n>, made from the default branch if it isn't there yet, and
+# comments `merged into spec/<n>` on the ticket once its commits, checked, are pushed there; the ticket stays open
+# (#337). A spec with no ticket to build is told why, in a comment. A spec's ticket labelled on its own, a closed issue
+# and a ticket with an open PR are skipped with a log line. Background, and the risks it answers (R1-R10):
+# docs/research/sandcastle-factory.md.
 #
-# The jobs that write to GitHub (`start`, `publish`, `park`) use the job's own GITHUB_TOKEN, raised to the write it
-# needs in that job alone, and it expires when the job ends. They run none of the ticket's code. The one long-lived
+# The jobs that write to GitHub (`tell`, `start`, `publish`, `park`) use the job's own GITHUB_TOKEN, raised to the
+# write it needs in that job alone, and it expires when the job ends. They run none of the code an agent wrote, which
+# spec/<n> holds too, from the spec's earlier tickets: every job's own code is the default branch's. The one long-lived
 # token, FACTORY_TOKEN, only opens the PR: a fine-grained token on this repo with Pull requests write and nothing else,
-# so a leaked copy can't push or merge. `build` runs the agent, in the sandbox, with a read-only token; `check` runs
-# the agent's code, `npm run check` on exactly the commits built, and holds no secret. `build` hands the commits on as
-# a git bundle.
-# Event text (titles, logins) reaches scripts through `env:` only, never `${{ }}` inside a `run:`.
+# so a leaked copy can't push or merge. `build` runs the agent, in the sandbox, on a separate checkout of the ticket's
+# branch, none of which runs outside the sandbox, with a read-only token; `check` runs the agent's code,
+# `npm run check` on exactly the commits built, in bwrap, and holds no secret. `build` hands the commits on as a git
+# bundle. Event text (titles, logins) reaches scripts through `env:` only, never `${{ }}` inside a `run:`.
 #
 # What GITHUB_TOKEN does starts no workflow. The PR is FACTORY_TOKEN's, so CI and the board sync start on it as on any
-# PR; `start` and `park` start the board sync themselves.
+# PR; `tell`, `start` and `park` start the board sync themselves, and so does `publish` after a spec's ticket. spec/<n>
+# gets its CI with the spec's PR.
 #
 # Every comment the factory makes carries MARK, so scripts/factoryTicket.ts keeps it out of the next prompt. To try the
 # agent step's timeout, set the repo variable FACTORY_AGENT_MINUTES to a few minutes; past AGENT_MINUTES' cap, it's
@@ -31,25 +36,26 @@ env:
   ISSUE: ${{ github.event.issue.number }}
   REPO: ${{ github.repository }}
   BASE: ${{ github.event.repository.default_branch }}
-  BRANCH: agent/${{ github.event.issue.number }}-${{ github.run_id }}
   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-  MARK: '<!-- forecaster-factory -->' # FACTORY_MARK in scripts/factoryTicket.ts
+  MARK: '<!-- forecaster-factory -->' # FACTORY_MARK in scripts/factoryTrust.ts
   JOB_MINUTES: 90 # build's timeout-minutes, which can't read env
   CHECK_MINUTES: 30 # check's timeout-minutes, likewise
   NODE_MAJOR: 24 # the Node check installs; .github/actions/setup's node-version, which can't read it, must match
   # At most 75, JOB_MINUTES - 15, so the build job has time to bundle and upload the logs once the agent is stopped
   AGENT_MINUTES: ${{ vars.FACTORY_AGENT_MINUTES && fromJSON(vars.FACTORY_AGENT_MINUTES) > 75 && '75' || vars.FACTORY_AGENT_MINUTES || '70' }}
 
-# One run per issue at a time; a second label event waits for the first run and doesn't cancel it. Only the trigger
-# label shares the group, so another label someone adds by hand can't take the one pending place from a waiting
-# `ready-for-agent`.
+# One run per issue at a time, and so one per spec, whose run is the spec's own (its tickets are skipped when labelled
+# alone): a second label event waits for the first run and doesn't cancel it. Only the trigger label shares the group,
+# so another label someone adds by hand can't take the one pending place from a waiting `ready-for-agent`.
 concurrency:
   group: factory-issue-${{ github.event.label.name == 'ready-for-agent' && github.event.issue.number || github.run_id }}
   cancel-in-progress: false
 
 jobs:
-  # A failed API call fails this job. Once the labeller is known to have write access, `park` says so on the ticket;
-  # before, nothing touches it. A ticket not to build ends the job with a notice.
+  # A failed step fails this job. Once the labeller is known to have write access, `tell` says so on the labelled
+  # issue, and parks nothing, a ticket outside any spec as well as a spec; before, nothing touches it. A ticket not to
+  # build ends the job with a notice; a spec with none, with `tell`'s comment. The jobs after take the ticket to build,
+  # its branch, and the spec it's in, if any, from here.
   gate:
     if: github.event.label.name == 'ready-for-agent'
     runs-on: ubuntu-24.04
@@ -59,7 +65,11 @@ jobs:
       pull-requests: read # the open PRs, and the ones that would close the ticket
     outputs:
       allowed: ${{ steps.sender.outputs.allowed }}
-      go: ${{ steps.ticket.outputs.go }}
+      go: ${{ steps.pick.outputs.go }}
+      ticket: ${{ steps.pick.outputs.ticket }}
+      branch: ${{ steps.pick.outputs.branch }}
+      spec: ${{ steps.pick.outputs.spec }}
+      say: ${{ steps.pick.outputs.say }}
     steps:
       - name: Check that whoever added the label has write access
         id: sender
@@ -75,7 +85,7 @@ jobs:
             admin | write) echo "allowed=true" >> "$GITHUB_OUTPUT" ;;
             *) echo "::notice::@$SENDER added the label but has $permission permission, not admin or write: nothing to build." ;;
           esac
-      - name: Check that the ticket is open, has no open PR, and is outside any spec
+      - name: Check that the issue is open, and a spec or a ticket outside any spec, with no open PR
         id: ticket
         if: steps.sender.outputs.allowed == 'true'
         shell: bash # with pipefail, so a failed `gh pr list` fails the step, as a failed lookup does
@@ -96,15 +106,98 @@ jobs:
           prs=$(printf '%s,%s' "$linked" "$built" | tr ',' '\n' | sed '/^$/d' | sort -un | sed 's/^/#/' | paste -sd' ' -)
           if [ "$state" != OPEN ]; then
             echo "::notice::#$ISSUE is closed: nothing to build."
+          elif [ "$parent" != none ]; then
+            echo "::notice::#$ISSUE is a ticket of #$parent: label the spec, #$parent, ready-for-agent to build its next ticket."
+          elif [ "$subs" != 0 ]; then
+            echo "kind=spec" >> "$GITHUB_OUTPUT"
           elif [ -n "$prs" ]; then
             echo "::notice::#$ISSUE already has an open PR ($prs): the factory doesn't open a second."
-          elif [ "$parent" != none ]; then
-            echo "::notice::#$ISSUE is a ticket of #$parent: the factory doesn't build a spec's tickets yet."
-          elif [ "$subs" != 0 ]; then
-            echo "::notice::#$ISSUE has $subs sub-issues, so is a spec: the factory doesn't build specs yet."
           else
-            echo "go=true" >> "$GITHUB_OUTPUT"
+            echo "kind=ticket" >> "$GITHUB_OUTPUT"
           fi
+      # The frontier runs no code but the default branch's, and needs nothing installed
+      - if: steps.ticket.outputs.kind == 'spec'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - if: steps.ticket.outputs.kind == 'spec'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24 # NODE_MAJOR
+      # Writes `action` (build, open-pr or stop), and `ticket` or `why`. A spec holds at most 100 sub-issues.
+      - name: Pick the spec's next ticket
+        id: frontier
+        if: steps.ticket.outputs.kind == 'spec'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+          NAME: ${{ github.event.repository.name }}
+          SPEC: ${{ github.event.issue.number }}
+          SPEC_JSON: ${{ runner.temp }}/sub-issues.json
+        run: |
+          gh api graphql -F n="$ISSUE" -f o="$OWNER" -f r="$NAME" -f query='
+            query($o: String!, $r: String!, $n: Int!) { repository(owner: $o, name: $r) { issue(number: $n) {
+              subIssues(first: 100) { nodes { number state labels(first: 50) { nodes { name } }
+                blockedBy(first: 50) { nodes { number state } }
+                comments(last: 100) { nodes { body authorAssociation author { __typename login } } } } } } } }' > "$SPEC_JSON"
+          node scripts/factoryNext.ts
+      - name: Choose the ticket and its branch
+        id: pick
+        if: steps.ticket.outputs.kind != ''
+        env:
+          KIND: ${{ steps.ticket.outputs.kind }}
+          ACTION: ${{ steps.frontier.outputs.action }}
+          NEXT: ${{ steps.frontier.outputs.ticket }}
+          WHY: ${{ steps.frontier.outputs.why }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          if [ "$KIND" = ticket ]; then
+            printf 'go=true\nticket=%s\nbranch=agent/%s-%s\n' "$ISSUE" "$ISSUE" "$RUN_ID" >> "$GITHUB_OUTPUT"
+          elif [ "$ACTION" = build ]; then
+            printf 'go=true\nticket=%s\nbranch=spec/%s\nspec=%s\n' "$NEXT" "$ISSUE" "$ISSUE" >> "$GITHUB_OUTPUT"
+          elif [ "$ACTION" = open-pr ]; then
+            echo "say=every ticket has merged into spec/$ISSUE or closed, and the factory doesn't open the spec's PR to $BASE yet" >> "$GITHUB_OUTPUT"
+          else
+            echo "say=$WHY" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Tells the labelled issue what came of the label, unless it's a ticket being built, which `start` tells: a spec,
+  # which ticket is being built, or why none can be; any issue, that checking it failed. The label comes off, as an
+  # epic's would: labelling it again, once the owner has seen to it, starts a run. Nothing is parked here: a failed
+  # check, and a spec with nothing to build, are the owner's to see to.
+  tell:
+    needs: gate
+    if: >-
+      always() && github.event.label.name == 'ready-for-agent' && needs.gate.outputs.allowed == 'true'
+      && (needs.gate.result == 'failure' || needs.gate.outputs.spec != '' || needs.gate.outputs.say != '')
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+      actions: write # to start the board sync
+    steps:
+      - name: Take the label off and comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GATE: ${{ needs.gate.result }}
+          TICKET: ${{ needs.gate.outputs.ticket }}
+          BRANCH: ${{ needs.gate.outputs.branch }}
+          SAY: ${{ needs.gate.outputs.say }}
+        run: |
+          if [ "$GATE" = failure ]; then
+            said="The factory built nothing: checking the issue, or picking a spec's next ticket, failed: the run's gate job says why"
+          elif [ -n "$SAY" ]; then said="The factory built nothing: $SAY"
+          else said="The factory is building #$TICKET on $BRANCH"
+          fi
+          if gh issue view "$ISSUE" --repo "$REPO" --json labels --jq '.labels[].name' | grep -qx ready-for-agent; then
+            gh issue edit "$ISSUE" --repo "$REPO" --remove-label ready-for-agent
+          fi
+          gh issue comment "$ISSUE" --repo "$REPO" --body "$MARK
+          $said. $RUN_URL"
+      - name: Start the board sync
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run board.yml --repo "$REPO" --ref "$BASE" || echo "::warning::the board sync didn't start; its daily run catches up"
 
   start:
     needs: gate
@@ -113,32 +206,41 @@ jobs:
     permissions:
       issues: write
       actions: write # to start the board sync
+    env:
+      TICKET: ${{ needs.gate.outputs.ticket }}
+      BRANCH: ${{ needs.gate.outputs.branch }}
     steps:
       # Cycle time starts here (docs/agents/issue-tracker.md); a parked ticket labelled again is a new start. The trigger
-      # label comes off, so taking it off and on again while this run or its PR is open can't build the ticket twice.
+      # label comes off, so taking it off and on again while this run or its PR is open can't build the ticket twice. A
+      # spec's comes off its spec, in `tell`: a spec never gets in-progress, as an epic doesn't.
       - name: Label the ticket in-progress and comment the run link
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          labels=$(gh issue view "$ISSUE" --repo "$REPO" --json labels --jq '.labels[].name')
+          labels=$(gh issue view "$TICKET" --repo "$REPO" --json labels --jq '.labels[].name')
           remove=()
           for label in ready-for-agent parked; do
             if grep -qx "$label" <<< "$labels"; then remove+=(--remove-label "$label"); fi
           done
-          gh issue edit "$ISSUE" --repo "$REPO" --add-label in-progress "${remove[@]}"
-          gh issue comment "$ISSUE" --repo "$REPO" --body "$MARK
-          The factory is building this ticket: $RUN_URL"
+          gh issue edit "$TICKET" --repo "$REPO" --add-label in-progress "${remove[@]}"
+          gh issue comment "$TICKET" --repo "$REPO" --body "$MARK
+          The factory is building this ticket on $BRANCH: $RUN_URL"
       - name: Start the board sync
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run board.yml --repo "$REPO" --ref "$BASE" || echo "::warning::the board sync didn't start; its daily run catches up"
 
   build:
-    needs: start
+    needs: [gate, start]
     # pinned: bwrap needs AppArmor to let it make user namespaces, which a new image may change (R1)
     runs-on: ubuntu-24.04
     timeout-minutes: 90 # JOB_MINUTES
+    env:
+      TICKET: ${{ needs.gate.outputs.ticket }}
+      BRANCH: ${{ needs.gate.outputs.branch }}
+      SPEC: ${{ needs.gate.outputs.spec }}
     outputs:
+      base: ${{ steps.branch.outputs.base }}
       agent: ${{ steps.agent.outcome }}
       result: ${{ steps.agent.outputs.result }}
       why: ${{ steps.agent.outputs.why }}
@@ -149,33 +251,52 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.repository.default_branch }}
-          fetch-depth: 0 # the bundle is cut against the default branch
           persist-credentials: false
       - uses: ./.github/actions/setup
       - uses: ./.github/actions/sandbox
-      # Sandcastle copies the host's git identity into the sandbox, and merges the agent's work into the branch checked
-      # out. `git checkout -b` runs .husky/post-checkout, which npm ci's husky install hooked up, to install the skills
-      # skills-lock.json lists (/implement's /tdd among them); it never fails a checkout, so it's run again, then checked.
-      # The installer fetches from GitHub: unauthenticated, a runner's shared IP hits the API's rate limit.
-      - name: Make the ticket's branch, with the skills installed
+      # The runner's checkout stays on the default branch: its scripts, node_modules, hooks and skills are the only code
+      # that runs here outside the sandbox. .husky/post-checkout, which npm ci's husky install hooked up, installs there
+      # the skills skills-lock.json lists (/implement's /tdd among them); it never fails, so it's checked. The installer
+      # fetches from GitHub: unauthenticated, a runner's shared IP hits the API's rate limit.
+      #
+      # The ticket is built in TREE, a plain clone of this public repo, on the ticket's branch: a spec's spec/<n>, as
+      # pushed so far, or from the default branch if it isn't there yet; a ticket's own branch, from the default branch.
+      # A clone that fails fails the step, so a spec/<n> there is never taken for missing. spec/<n> holds earlier
+      # agents' code, so nothing in TREE runs here: git's hooks are off in it, and scripts/factoryTree.ts, in the build
+      # step, readies it as plain files: it refuses a branch Sandcastle would take the host's secrets or files into, puts
+      # in the runner's skills and node_modules, and has the sandbox install the branch's own dependencies if they
+      # differ. Sandcastle copies the host's git identity into the sandbox. `base` is where the branch starts, so the
+      # bundle and the checks in `publish` take only what the agent added.
+      - name: Install the skills, and clone the ticket's branch
+        id: branch
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git checkout -b "$BRANCH"
           sh .husky/post-checkout HEAD HEAD 1
           for skill in implement tdd code-review pr; do
             test -f ".claude/skills/$skill/SKILL.md" && continue
             npx -y skills experimental_install --no-frozen-lockfile </dev/null 2>&1 | tail -20 || true # the hook hides why it failed
             echo "::error::the $skill skill isn't installed"; exit 1
           done
-      - name: Fetch the ticket
+          tree="$RUNNER_TEMP/tree"
+          echo "TREE=$tree" >> "$GITHUB_ENV"
+          git clone --quiet --no-checkout -c core.hooksPath=/dev/null "$GITHUB_SERVER_URL/$REPO.git" "$tree"
+          from="origin/$BASE"
+          if git -C "$tree" rev-parse --verify --quiet "refs/remotes/origin/$BRANCH" > /dev/null; then from="origin/$BRANCH"; fi
+          git -C "$tree" checkout --quiet -b "$BRANCH" "$from"
+          echo "base=$(git -C "$tree" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Fetch the ticket, and its spec
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api "repos/$REPO/issues/$ISSUE" > "$RUNNER_TEMP/ticket.json"
-          gh api --paginate --slurp "repos/$REPO/issues/$ISSUE/comments" > "$RUNNER_TEMP/comments.json"
+          gh api "repos/$REPO/issues/$TICKET" > "$RUNNER_TEMP/ticket.json"
+          gh api --paginate --slurp "repos/$REPO/issues/$TICKET/comments" > "$RUNNER_TEMP/comments.json"
+          if [ -n "$SPEC" ]; then
+            gh api "repos/$REPO/issues/$SPEC" > "$RUNNER_TEMP/spec.json"
+            echo "SPEC_JSON=$RUNNER_TEMP/spec.json" >> "$GITHUB_ENV"
+          fi
       - name: Note when the agent starts
         id: clock
         run: echo "at=$(date +%s)" >> "$GITHUB_OUTPUT"
@@ -210,14 +331,16 @@ jobs:
           for dir in "$RUNNER_TEMP/factory-logs" "$RUNNER_TEMP/factory-out"; do
             if [ -d "$dir" ]; then find "$dir" -type f -exec perl -pi -e 's/\Q$ENV{TOKEN}\E/[token]/g' {} +; fi
           done
-      # Before any of the agent's code runs: nothing it wrote runs in this job, and `check` runs it on these commits.
-      # The tip and the body's digest go out as outputs, which no later job can change, so `publish` pushes only these.
+      # Nothing an agent wrote runs outside the sandbox in this job; `check` runs it on these commits. The tip and the
+      # body's digest go out as outputs, which no later job can change, so `publish` pushes only these.
       - name: Bundle the ticket's commits
         id: bundle
         if: steps.agent.outputs.result == 'built'
+        env:
+          BUILT_ON: ${{ steps.branch.outputs.base }}
         run: |
-          git bundle create "$RUNNER_TEMP/factory-out/ticket.bundle" "$BRANCH" "^origin/$BASE"
-          echo "tip=$(git rev-parse "refs/heads/$BRANCH")" >> "$GITHUB_OUTPUT"
+          git -C "$TREE" bundle create "$RUNNER_TEMP/factory-out/ticket.bundle" "$BRANCH" "^$BUILT_ON"
+          echo "tip=$(git -C "$TREE" rev-parse "refs/heads/$BRANCH")" >> "$GITHUB_OUTPUT"
           echo "body=$(sha256sum "$RUNNER_TEMP/factory-out/pr-body.md" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
       - if: steps.agent.outputs.result == 'built'
         uses: actions/upload-artifact@v4
@@ -242,16 +365,18 @@ jobs:
   # temp dir with the step command files), the runner's own directory, /run (docker's socket) and the runner's processes
   # out of sight; and no new privileges, so no sudo.
   check:
-    needs: build
+    needs: [gate, build]
     runs-on: ubuntu-24.04 # pinned, for bwrap, as build
     timeout-minutes: 30 # CHECK_MINUTES
     outputs:
       tampered: ${{ steps.fetch.outputs.tampered }}
       checked: ${{ steps.check.outcome }}
     env:
+      BRANCH: ${{ needs.gate.outputs.branch }}
       TIP: ${{ needs.build.outputs.tip }}
     steps:
-      # All of it: the migration check reads the default branch's schema, and the change-file check diffs from it
+      # All of it: the migration check reads the default branch's schema, the change-file check diffs from it, and a
+      # spec's bundle is cut against spec/<n>
       - name: Clone the default branch
         run: git clone --quiet "$GITHUB_SERVER_URL/$REPO.git" .
       - uses: ./.github/actions/sandbox
@@ -294,14 +419,22 @@ jobs:
             sh -c 'npm ci && npm run check'
 
   publish:
-    needs: [build, check]
+    needs: [gate, build, check]
     runs-on: ubuntu-24.04
     permissions:
       contents: write # to push the ticket's branch
+      issues: write # to comment merged on a spec's ticket
+      actions: write # to start the board sync after a spec's ticket, which opens no PR
     outputs:
       refused: ${{ steps.branch.outputs.refused }}
+      unbuildable: ${{ steps.branch.outputs.unbuildable }}
       tampered: ${{ steps.fetch.outputs.tampered || steps.branch.outputs.tampered }}
+      pushed: ${{ steps.push.outcome }}
     env:
+      TICKET: ${{ needs.gate.outputs.ticket }}
+      BRANCH: ${{ needs.gate.outputs.branch }}
+      SPEC: ${{ needs.gate.outputs.spec }}
+      BUILT_ON: ${{ needs.build.outputs.base }}
       TIP: ${{ needs.build.outputs.tip }}
       BODY: ${{ needs.build.outputs.body }}
     steps:
@@ -317,6 +450,8 @@ jobs:
       # Only the ticket's branch, by its name, comes out of the bundle, and only if it and the body are what `build` made:
       # `check` ran the agent's code, which could have uploaded the artifact again. A PR from this repo runs the
       # workflows it changes with the repo's secrets, so a change under .github/ is refused: build such a ticket locally.
+      # A branch that `build` would refuse (scripts/factoryTree.ts) is refused too, so it never reaches spec/<n> and stops
+      # the spec's later tickets.
       - uses: ./.github/actions/ticket-branch
         id: fetch
       - name: Stop on a bundle that isn't build's
@@ -332,13 +467,23 @@ jobs:
             echo "::error::The PR body isn't the one build wrote"
             exit 1
           fi
-          changed=$(git diff --name-only "origin/$BASE...$BRANCH" -- .github/)
+          changed=$(git diff --name-only "$BUILT_ON...$BRANCH" -- .github/)
           if [ -n "$changed" ]; then
             echo "refused=true" >> "$GITHUB_OUTPUT"
             echo "::error::The ticket's branch changes files under .github/, which the factory doesn't push: $changed"
             exit 1
           fi
+          held=$(git ls-tree --name-only "$BRANCH" -- .sandcastle node_modules) # REFUSED_PATHS in scripts/factoryTree.ts
+          files=$(git ls-tree "$BRANCH" -- .claude .claude/skills | awk '$2 != "tree" { print $4 }') # ONLY_DIRECTORIES in scripts/factoryTree.ts
+          unbuildable=$(printf '%s\n%s\n' "$held" "$files" | sed '/^$/d' | paste -sd' ' -)
+          if [ -n "$unbuildable" ]; then
+            echo "unbuildable=$unbuildable" >> "$GITHUB_OUTPUT"
+            echo "::error::The ticket's branch holds $unbuildable, which the factory won't build on, so it doesn't push it"
+            exit 1
+          fi
+      # Never forced: a spec/<n> that moved since build, or was made meanwhile, refuses the push, and is left as it is
       - name: Push the branch
+        id: push
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -348,28 +493,49 @@ jobs:
       # The body is the agent's, written with /pr, and the factory's closing line (scripts/factoryPullRequest.ts). The
       # token is FACTORY_TOKEN, not GITHUB_TOKEN, so the PR starts CI without waiting for a maintainer's approval.
       - name: Open the PR
+        if: needs.gate.outputs.spec == ''
         env:
           GH_TOKEN: ${{ secrets.FACTORY_TOKEN }}
           TITLE: ${{ github.event.issue.title }}
         run: gh pr create --repo "$REPO" --base "$BASE" --head "$BRANCH" --title "$TITLE" --body-file "$RUNNER_TEMP/pr-body.md"
+      # Cycle time stops here (docs/agents/issue-tracker.md); the ticket stays open, to close with the spec's PR to main.
+      # Opening with the mark, by this job's GITHUB_TOKEN, github-actions[bot], it's what scripts/factoryFrontier.ts
+      # reads as merged into spec/<n> (scripts/factoryTrust.ts).
+      - name: Comment merged on the spec's ticket
+        if: needs.gate.outputs.spec != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue comment "$TICKET" --repo "$REPO" --body "$MARK
+          merged into $BRANCH: $RUN_URL"
+      # A PR starts the board sync itself; a push to spec/<n> by GITHUB_TOKEN doesn't
+      - name: Start the board sync
+        if: needs.gate.outputs.spec != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run board.yml --repo "$REPO" --ref "$BASE" || echo "::warning::the board sync didn't start; its daily run catches up"
 
-  # A run that started but didn't end in a PR parks the ticket, saying why; so does a gate that failed once it knew the
-  # labeller has write access.
+  # A run that picked a ticket but didn't end in a PR, or in spec/<n>, parks the ticket, saying why
   park:
     needs: [gate, start, build, check, publish]
-    if: >-
-      always() && github.event.label.name == 'ready-for-agent' && needs.gate.outputs.allowed == 'true'
-      && (needs.gate.result == 'failure' || (needs.gate.outputs.go == 'true' && needs.publish.result != 'success'))
+    if: always() && needs.gate.outputs.go == 'true' && needs.publish.result != 'success'
     runs-on: ubuntu-24.04
     permissions:
       issues: write
       actions: write # to start the board sync
+    env:
+      TICKET: ${{ needs.gate.outputs.ticket }}
+      BRANCH: ${{ needs.gate.outputs.branch }}
+      SPEC: ${{ needs.gate.outputs.spec }}
     steps:
       - name: Park the ticket and comment why, with the run link
         env:
           GH_TOKEN: ${{ github.token }}
-          GATE: ${{ needs.gate.result }}
-          START: ${{ needs.start.result }}
+          PUBLISH: ${{ needs.publish.result }}
+          PUSHED: ${{ needs.publish.outputs.pushed }}
+          BUILT_ON: ${{ needs.build.outputs.base }}
+          TIP: ${{ needs.build.outputs.tip }}
+          START_RESULT: ${{ needs.start.result }}
           BUILD: ${{ needs.build.result }}
           AGENT: ${{ needs.build.outputs.agent }}
           RESULT: ${{ needs.build.outputs.result }}
@@ -379,39 +545,97 @@ jobs:
           CHECKED: ${{ needs.check.outputs.checked }}
           TAMPERED: ${{ needs.check.outputs.tampered || needs.publish.outputs.tampered }}
           REFUSED: ${{ needs.publish.outputs.refused }}
+          UNBUILDABLE: ${{ needs.publish.outputs.unbuildable }}
         run: |
+          comment_by_hand="comment \`merged into $BRANCH\` by hand, opening with the factory's hidden mark \`$MARK\`, and take \`parked\` off"
+          # How far publish's push to spec/<n> got (`push`), the one step that reaches it:
+          # - finished: it pushed, so only the merged comment after it can have failed
+          # - unstarted: an earlier job, or publish before its push step, stopped, or build made nothing to push
+          # - failed: its step failed, which it can have done after the push landed
+          # - cut-off: publishing stopped before its push was known to finish, which can be after it landed
+          # Only after failed or cut-off is spec/<n> read (`position`):
+          # - unreadable: reading it failed
+          # - tip: it's at the commit build made, so it has the ticket's commits
+          # - unchanged: it's not there, or at the commit build started from
+          # - moved: it's somewhere else, moved by some other hand
+          # `commits` is whether spec/<n> has the ticket's commits: yes, unknown or no.
+          if [ -n "$SPEC" ]; then
+            if [ "$PUSHED" = success ]; then push=finished
+            elif [ "$CHECK" != success ] || [ "$PUBLISH" = skipped ] || [ "$PUSHED" = skipped ] || [ -z "$TIP" ]; then push=unstarted
+            elif [ "$PUSHED" = failure ]; then push=failed
+            else push=cut-off
+            fi
+            if [ "$push" = failed ] || [ "$push" = cut-off ]; then
+              if ! remote=$(git ls-remote "$GITHUB_SERVER_URL/$REPO.git" "refs/heads/$BRANCH"); then position=unreadable
+              else
+                at=${remote%%[[:space:]]*}
+                if [ "$at" = "$TIP" ]; then position=tip
+                elif [ -z "$at" ] || [ "$at" = "$BUILT_ON" ]; then position=unchanged
+                else position=moved
+                fi
+              fi
+            fi
+            if [ "$push" = finished ] || [ "$position" = tip ]; then commits=yes
+            elif [ "$position" = moved ] || [ "$position" = unreadable ]; then commits=unknown
+            else commits=no
+            fi
+          fi
+          if [ -n "$SPEC" ]; then starts_from="$BRANCH, or else $BASE"; else starts_from="$BASE"; fi
           # BUILD_WHY is scripts/factoryOutcome.ts's reason: no commits, a dirty tree, the budget, the idle timeout, an error
           if [ "$TAMPERED" = true ]; then why="the agent's commits or the PR body changed after the build made them, so the factory didn't use them"
-          elif [ "$GATE" = failure ]; then why="checking the ticket failed (a GitHub API call)"
-          elif [ "$START" != success ]; then why="labelling it in-progress failed"
+          elif [ "$START_RESULT" != success ]; then why="labelling it in-progress failed"
           elif [ "$BUILD" = cancelled ]; then why="the build was cancelled, or ran past the job's $JOB_MINUTES-minute timeout"
           elif [ -z "$AGENT" ]; then why="the build job failed before any step ran, or lost its runner"
           elif [ "$AGENT" = skipped ]; then why="setting up the build failed, before the agent ran"
           elif [ -z "$RESULT" ]; then why="the build script crashed before it started"
           elif [ "$RESULT" = started ] && [ "$STOPPED" = timeout ]; then why="the agent ran past its $AGENT_MINUTES-minute timeout"
           elif [ "$RESULT" = started ]; then why="the build was killed mid-run, before its timeout"
+          elif [ "$RESULT" = unbuildable ]; then why="$BUILD_WHY, before the agent ran: fix the branch it starts from, $starts_from, by hand"
           elif [ -n "$BUILD_WHY" ]; then why="$BUILD_WHY"
           elif [ "$BUILD" != success ]; then why="bundling or uploading the agent's commits failed"
           elif [ "$CHECK" = cancelled ]; then why="the check was cancelled, or ran past its job's $CHECK_MINUTES-minute timeout"
-          elif [ "$CHECKED" = failure ]; then why="\`npm ci\` or \`npm run check\` failed on the ticket's branch, or bwrap didn't start"
+          elif [ "$CHECKED" = failure ]; then why="\`npm ci\` or \`npm run check\` failed on $BRANCH with the ticket's commits, or bwrap didn't start"
           elif [ "$CHECK" != success ]; then why="setting up the check failed, or its job lost its runner"
-          elif [ "$REFUSED" = true ]; then why="the agent's commits change files under .github/, which the factory doesn't push: build this ticket locally"
-          else why="pushing the branch or opening the PR failed"
+          elif [ "$REFUSED" = true ]; then why="the agent's commits change files under .github/, which the factory doesn't push"
+          elif [ -n "$UNBUILDABLE" ]; then why="the agent's commits leave $UNBUILDABLE in the branch, which the factory won't build on, so it didn't push them"
+          elif [ -z "$SPEC" ]; then why="pushing the branch or opening the PR failed"
+          elif [ "$push" = finished ]; then why="it merged into $BRANCH, but commenting so on it failed"
+          elif [ "$position" = tip ]; then
+            why="the push to $BRANCH landed, though its step failed or didn't finish, so the factory didn't comment merged"
+          elif [ "$push" = failed ]; then why="pushing $BRANCH failed"
+          elif [ "$push" = cut-off ]; then why="publishing stopped before its push to $BRANCH was known to finish"
+          else why="publishing stopped before it pushed to $BRANCH"
+          fi
+          tell="so the factory can't tell whether it has the ticket's commits"
+          if [ "$commits" = no ]; then why="$why. $BRANCH is unchanged"
+          elif [ "$position" = moved ]; then why="$why, and $BRANCH moved since the build, $tell"
+          elif [ "$position" = unreadable ]; then why="$why, and reading $BRANCH afterwards failed, $tell"
+          fi
+          # What to do: a ticket on spec/<n> already is done, so rebuilding it would build it twice; one refused would be
+          # refused again
+          if [ "$REFUSED" = true ] && [ -n "$SPEC" ]; then todo="Build it locally, merge it into $BRANCH, then $comment_by_hand. "
+          elif [ "$REFUSED" = true ]; then todo="Build this ticket locally. "
+          elif [ "$commits" = yes ]; then todo="To finish it, $comment_by_hand. "
+          elif [ "$commits" = unknown ]; then
+            todo="If $BRANCH has the ticket's commits, $comment_by_hand; if not, take \`parked\` off and label the spec, #$SPEC,"
+            todo="$todo ready-for-agent again. "
+          elif [ "$commits" = no ]; then todo="To retry, take \`parked\` off and label the spec, #$SPEC, ready-for-agent again. "
           fi
           # --force: another ticket's park may create it at the same moment
           gh label create parked --force --repo "$REPO" --color B60205 --description 'The factory failed to build it; label it ready-for-agent again to retry'
-          labels=$(gh issue view "$ISSUE" --repo "$REPO" --json labels --jq '.labels[].name')
+          labels=$(gh issue view "$TICKET" --repo "$REPO" --json labels --jq '.labels[].name')
           remove=()
           for label in ready-for-agent in-progress; do
             if grep -qx "$label" <<< "$labels"; then remove+=(--remove-label "$label"); fi
           done
-          gh issue edit "$ISSUE" --repo "$REPO" --add-label parked "${remove[@]}"
+          gh issue edit "$TICKET" --repo "$REPO" --add-label parked "${remove[@]}"
           # factory-logs has files only once the agent step ran: not when build lost its runner, nor when its setup failed
-          if [ -n "$AGENT" ] && [ "$AGENT" != skipped ]; then logs="The agent's transcript and Sandcastle's log are in the run's factory-logs artifact"
+          if [ "$RESULT" = unbuildable ]; then logs="The build stopped before the agent ran, so only the run's own log has it"
+          elif [ -n "$AGENT" ] && [ "$AGENT" != skipped ]; then logs="The agent's transcript and Sandcastle's log are in the run's factory-logs artifact"
           else logs="The build didn't run, so there are no logs beyond the run's own"
           fi
-          gh issue comment "$ISSUE" --repo "$REPO" --body "$MARK
-          The factory parked this ticket: $why. $logs: $RUN_URL"
+          gh issue comment "$TICKET" --repo "$REPO" --body "$MARK
+          The factory parked this ticket: $why. $todo$logs: $RUN_URL"
       - name: Start the board sync
         env:
           GH_TOKEN: ${{ github.token }}

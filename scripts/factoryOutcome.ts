@@ -5,9 +5,14 @@
  * The build's `result`. `started` is written first, so a step left at `started` was stopped mid-run (by its timeout, or
  * killed); one with no result at all crashed before it began.
  */
-export type BuildResult = 'started' | 'built' | 'no-commits' | 'dirty' | 'idle-timeout' | 'budget' | 'error'
+export type BuildResult = 'started' | 'built' | 'no-commits' | 'dirty' | 'idle-timeout' | 'budget' | 'unbuildable' | 'error'
 
-/** How Sandcastle's `run()` ended: with the agent's commits, or with what it threw. */
+/** Why the factory won't build on the branch (scripts/factoryTree.ts): its fault, not the build's, so building again won't help. */
+export class UnbuildableTree extends Error {
+  override name = 'UnbuildableTree'
+}
+
+/** How the build ended: with the agent's commits, or with what readying the tree or Sandcastle's `run()` threw. */
 export type Ending = { commits: number; preservedWorktreePath?: string | undefined } | { error: unknown }
 
 /** Built, or a failure with why, as a park comment's reason. */
@@ -18,6 +23,7 @@ export function buildOutcome(ending: Ending, transcript: readonly string[]): Out
   const budget = budgetStop(transcript)
   if (budget) return { result: 'budget', why: budget }
   if ('error' in ending) {
+    if (ending.error instanceof UnbuildableTree) return { result: 'unbuildable', why: ending.error.message }
     const error = sandcastleError(ending.error)
     if (tagOf(error) === 'AgentIdleTimeoutError') {
       const { timeoutMs } = error as { timeoutMs?: unknown }
