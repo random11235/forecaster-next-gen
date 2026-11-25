@@ -5,13 +5,14 @@
 // Sandcastle sends it; and that a budget cap stops a run. It builds nothing: the agent's tree is thrown away.
 // Needs CLAUDE_CODE_OAUTH_TOKEN.
 
-import { appendFileSync, existsSync, lstatSync, readFileSync, readlinkSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, lstatSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { run, type AgentProvider, type AgentStreamEvent } from '@ai-hero/sandcastle'
 import { bwrap } from '@ai-hero/sandcastle/sandboxes/bwrap'
 import { factoryAgent, stdinAgent } from './factoryAgent.ts'
+import { hostWrite, type DirSeen, type FileSeen, type Seen } from './smokeHost.ts'
 import { budgetVerdict, smokeVerdict, stdinNote, type Check, type Ending } from './smokeVerdict.ts'
 
 const MODEL = 'haiku'
@@ -39,16 +40,10 @@ const targets: { path: string; about?: string }[] = [
   })),
 ]
 
-// The agent can write in the git dir, so it could swap a directory there (refs/heads, say) for a symlink, or remove
-// one. A target whose directory has moved or gone is then neither read nor removed. One the agent created where none
-// was is a change like any other, so its file is read and removed.
-function realDir(path: string): string | undefined {
-  try {
-    return realpathSync(dirname(path))
-  } catch {
-    return undefined
-  }
-}
+// The agent can write in the git dir, so it could swap a directory there (refs/heads, say) for a symlink or a file, or
+// remove one. scripts/smokeHost.ts decides from what this sees, before the run and after, whether a write reached the
+// host and how to undo it. A directory the agent made is seen only through the file in it: an empty one isn't reported,
+// and restoring leaves the directories it made behind.
 /** Where `path`'s directory really is, or would be if it's missing: under its nearest ancestor's real path. */
 function homeOf(path: string): string {
   const missing: string[] = []
@@ -56,58 +51,55 @@ function homeOf(path: string): string {
     try {
       return join(realpathSync(dir), ...missing)
     } catch {
-      if (dirname(dir) === dir) return dirname(path)
       missing.unshift(basename(dir))
     }
   }
 }
-const homes = new Map(targets.map(({ path }) => [path, homeOf(path)]))
-const hadDir = new Set(targets.filter(({ path }) => realDir(path) !== undefined).map(({ path }) => path))
-/** Whether `path`'s directory is where it was before the run (or, missing then, where it would have been). */
-function whereabouts(path: string): 'home' | 'removed' | 'moved' {
-  const now = realDir(path)
-  if (now === undefined) return hadDir.has(path) ? 'removed' : 'home'
-  return now === homes.get(path) ? 'home' : 'moved'
+/**
+ * What's at `path` and its directory on the host. The directory is followed, to where it really is; the path is lstat'd,
+ * so a symlink the agent left is seen as one.
+ */
+function seen(path: string): Seen {
+  return { dir: seenDir(dirname(path)), file: seenFile(path) }
 }
-
-/** What's at `path` on the host, lstat'd so a symlink the agent leaves is seen as one, not followed. */
-function state(path: string): string | undefined {
-  const where = whereabouts(path)
-  if (where === 'removed') return 'in a removed directory'
-  if (where === 'moved') return `in a moved directory, now ${String(realDir(path))}`
-  if (!existsSync(path) && !isLink(path)) return undefined
-  if (isLink(path)) return `symlink to ${readlinkSync(path)}`
-  return lstatSync(path).isFile() ? `file: ${readFileSync(path, 'utf8')}` : 'not a file'
-}
-function isLink(path: string): boolean {
+function seenDir(dir: string): DirSeen {
   try {
-    return lstatSync(path).isSymbolicLink()
-  } catch {
-    return false
+    return statSync(dir).isDirectory() ? { kind: 'directory', real: realpathSync(dir) } : { kind: 'other' }
+  } catch (error: unknown) {
+    // ENOTDIR: an ancestor isn't a directory, so neither is this
+    return (error as NodeJS.ErrnoException).code === 'ENOTDIR' ? { kind: 'other' } : { kind: 'missing' }
   }
+}
+function seenFile(path: string): FileSeen {
+  let stat
+  try {
+    stat = lstatSync(path)
+  } catch {
+    return { kind: 'missing' }
+  }
+  if (stat.isSymbolicLink()) return { kind: 'symlink', target: readlinkSync(path) }
+  return stat.isFile() ? { kind: 'file', content: readFileSync(path, 'utf8') } : { kind: 'other' }
 }
 
 // What was there before: only the git config, which the agent appends to. This is read from disk, so a local run that
 // crashed before restoring would bake its comment in. Restoring runs after Sandcastle's host-side merge, so it cleans up
 // after the run; it doesn't protect the host while the run goes on. It removes what's there first, so a symlink the
 // agent left is replaced, not written through.
-const before = new Map(targets.map(({ path }) => [path, state(path)]))
-/** The directories already warned of, so one that stays moved is warned of once, not after each run. */
+const watched = targets.map((target) => ({ ...target, home: homeOf(target.path), before: seen(target.path) }))
+const now = ({ path, home, before }: (typeof watched)[number]) => hostWrite(home, before, seen(path))
+/** The warnings given, so a directory that stays moved is warned of once, not after each run. */
 const warned = new Set<string>()
 const restore = () => {
-  for (const { path } of targets) {
-    const was = before.get(path)
-    if (state(path) === was) continue
-    const where = whereabouts(path)
-    if (where !== 'home') {
-      const dir = dirname(path)
-      const how = where === 'removed' ? 'was removed' : `moved, to ${String(realDir(path))}`
-      if (!warned.has(dir)) console.log(`::warning::${dir} ${how} during the run: left as it is`)
-      warned.add(dir)
-      continue
+  for (const target of watched) {
+    const { restore: undo } = now(target)
+    if (undo.do === 'leave') {
+      const warning = `${dirname(target.path)} ${undo.why} during the run: left as it is`
+      if (!warned.has(warning)) console.log(`::warning::${warning}`)
+      warned.add(warning)
+    } else if (undo.do === 'remove') {
+      rmSync(target.path, { force: true, recursive: true })
+      if (undo.put !== undefined) writeFileSync(target.path, undo.put)
     }
-    rmSync(path, { force: true, recursive: true })
-    if (was?.startsWith('file: ')) writeFileSync(path, was.slice('file: '.length))
   }
 }
 
@@ -146,7 +138,7 @@ const smoke = await runAgent(
   `/factory-smoke ${targets.map(({ path }) => path).join(' ')}`,
   factoryAgent(MODEL, { oauthToken, maxBudgetUsd: 0.5 }),
 )
-const writes = targets.map(({ path, about }) => ({ path, about, changedOnHost: state(path) !== before.get(path) }))
+const writes = watched.map((target) => ({ path: target.path, about: target.about, changedOnHost: now(target).changed }))
 restore()
 
 // The control: Sandcastle's own way, the prompt on stdin. The skill isn't given its paths, so it writes nothing.
