@@ -18,8 +18,9 @@ missing=$(node -e '
 [ -n "$missing" ] || exit 0
 
 echo "post-checkout: restoring skills from skills-lock.json..."
-# experimental_install only writes to .agents/skills; Claude Code reads .claude/skills
-if npx -y skills experimental_install </dev/null >/dev/null 2>&1 && [ -d .agents/skills ]; then
+# experimental_install only writes to .agents/skills; Claude Code reads .claude/skills. Under CI (the factory's runner)
+# it defaults to --frozen-lockfile, which refuses any lockfile it would rewrite; off it, it installs as on a dev machine.
+if npx -y skills experimental_install --no-frozen-lockfile </dev/null >/dev/null 2>&1 && [ -d .agents/skills ]; then
   git checkout -q -- skills-lock.json 2>/dev/null || true   # the installer rewrites it; keep the committed one
   mkdir -p .claude/skills
   for name in $missing; do
