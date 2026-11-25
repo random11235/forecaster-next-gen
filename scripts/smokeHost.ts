@@ -4,36 +4,57 @@
 /** What was at a target's path: nothing, a file, a symlink (not followed), or something else, such as a directory. */
 export type FileSeen = { kind: 'missing' } | { kind: 'file'; content: string } | { kind: 'symlink'; target: string } | { kind: 'other' }
 
-/** What was at a target's directory: a directory, at its real path; nothing; or something else, such as a file. */
-export type DirSeen = { kind: 'missing' } | { kind: 'directory'; real: string } | { kind: 'other' }
+/**
+ * What was at a target's directory: a directory, at its real path; nothing; something else, such as a file; or what
+ * couldn't be read, with the error's code (ELOOP, EACCES).
+ */
+export type DirSeen = { kind: 'missing' } | { kind: 'directory'; real: string } | { kind: 'other' } | { kind: 'unreadable'; code: string }
 
 /** What the host had at a target: its directory, and the path itself. */
 export type Seen = { dir: DirSeen; file: FileSeen }
 
+/** What the host had at a target before the run, and `home`: the real path its directory had, or would have had if missing. */
+export type Watched = Seen & { home: string }
+
 /**
  * What undoes a write: nothing; remove what's at the path and put back the file that was there, if one was; or, when
- * its directory isn't where it was, leave it, and warn why.
+ * the directory isn't as it was, leave it. `warn` is what to warn of, said of the directory: one the agent made is left
+ * in place, though the file in it is removed.
  */
-export type Restore = { do: 'nothing' } | { do: 'remove'; put?: string } | { do: 'leave'; why: string }
+export type Restore = { do: 'nothing' } | { do: 'remove'; put?: string; warn?: string } | { do: 'leave'; warn: string }
 
-/**
- * Whether the write to a target reached the host, and how to undo it. `home` is the real path its directory had before
- * the run, or would have had if missing then.
- */
-export function hostWrite(home: string, before: Seen, after: Seen): { changed: boolean; restore: Restore } {
-  const why = away(home, before.dir, after.dir)
-  if (why !== undefined) return { changed: true, restore: { do: 'leave', why } }
-  if (sameFile(before.file, after.file)) return { changed: false, restore: { do: 'nothing' } }
-  return { changed: true, restore: before.file.kind === 'file' ? { do: 'remove', put: before.file.content } : { do: 'remove' } }
+const MADE = 'was made during the run, and restore leaves it in place'
+
+/** How to undo the write to a target, from what the host had there before the run and has after it. */
+export function hostWrite(before: Watched, after: Seen): Restore {
+  const made = before.dir.kind !== 'directory' && after.dir.kind === 'directory' && after.dir.real === before.home
+  if (!made) {
+    const warn = away(before.dir, after.dir)
+    if (warn !== undefined) return { do: 'leave', warn }
+  }
+  const undo: Restore = same(before.file, after.file)
+    ? { do: 'nothing' }
+    : before.file.kind === 'file'
+      ? { do: 'remove', put: before.file.content }
+      : { do: 'remove' }
+  if (!made) return undo
+  return undo.do === 'nothing' ? { do: 'leave', warn: MADE } : { ...undo, warn: MADE }
 }
 
-/** Why the directory isn't where it was before the run, or would have been if missing then; undefined if it is. */
-function away(home: string, before: DirSeen, after: DirSeen): string | undefined {
-  if (after.kind === 'missing') return before.kind === 'missing' ? undefined : 'was removed'
-  if (after.kind === 'other') return 'is now something other than a directory'
-  return after.real === home ? undefined : `moved, to ${after.real}`
+/** Whether the write reached the host: whether there's anything to undo. */
+export function reachedHost(restore: Restore): boolean {
+  return restore.do !== 'nothing'
 }
 
-function sameFile(a: FileSeen, b: FileSeen): boolean {
+/** What to warn of when the directory isn't as it was before the run, and the agent didn't make it where it would be. */
+function away(before: DirSeen, after: DirSeen): string | undefined {
+  if (same(before, after)) return undefined
+  if (after.kind === 'missing') return 'was removed during the run: left as it is'
+  if (after.kind === 'other') return 'became something other than a directory during the run: left as it is'
+  if (after.kind === 'unreadable') return `couldn't be read after the run (${after.code}): left as it is`
+  return `moved during the run, to ${after.real}: left as it is`
+}
+
+function same<T extends FileSeen | DirSeen>(a: T, b: T): boolean {
   return JSON.stringify(a) === JSON.stringify(b)
 }

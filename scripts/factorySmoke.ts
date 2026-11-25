@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url'
 import { run, type AgentProvider, type AgentStreamEvent } from '@ai-hero/sandcastle'
 import { bwrap } from '@ai-hero/sandcastle/sandboxes/bwrap'
 import { factoryAgent, stdinAgent } from './factoryAgent.ts'
-import { hostWrite, type DirSeen, type FileSeen, type Seen } from './smokeHost.ts'
+import { hostWrite, reachedHost, type DirSeen, type FileSeen, type Seen, type Watched } from './smokeHost.ts'
 import { budgetVerdict, smokeVerdict, stdinNote, type Check, type Ending } from './smokeVerdict.ts'
 
 const MODEL = 'haiku'
@@ -42,8 +42,8 @@ const targets: { path: string; about?: string }[] = [
 
 // The agent can write in the git dir, so it could swap a directory there (refs/heads, say) for a symlink or a file, or
 // remove one. scripts/smokeHost.ts decides from what this sees, before the run and after, whether a write reached the
-// host and how to undo it. A directory the agent made is seen only through the file in it: an empty one isn't reported,
-// and restoring leaves the directories it made behind.
+// host and how to undo it. A directory the agent made where one was missing counts as reaching the host, even empty;
+// restoring removes the target in it but leaves the directory, and warns of it.
 /** Where `path`'s directory really is, or would be if it's missing: under its nearest ancestor's real path. */
 function homeOf(path: string): string {
   const missing: string[] = []
@@ -66,16 +66,22 @@ function seenDir(dir: string): DirSeen {
   try {
     return statSync(dir).isDirectory() ? { kind: 'directory', real: realpathSync(dir) } : { kind: 'other' }
   } catch (error: unknown) {
+    const code = codeOf(error)
+    if (code === 'ENOENT') return { kind: 'missing' }
     // ENOTDIR: an ancestor isn't a directory, so neither is this
-    return (error as NodeJS.ErrnoException).code === 'ENOTDIR' ? { kind: 'other' } : { kind: 'missing' }
+    return code === 'ENOTDIR' ? { kind: 'other' } : { kind: 'unreadable', code }
   }
+}
+function codeOf(error: unknown): string {
+  return (error as NodeJS.ErrnoException).code ?? String(error)
 }
 function seenFile(path: string): FileSeen {
   let stat
   try {
     stat = lstatSync(path)
-  } catch {
-    return { kind: 'missing' }
+  } catch (error: unknown) {
+    // Any other error, such as EACCES from a directory the agent made unreadable, may hide a write, so counts as one
+    return ['ENOENT', 'ENOTDIR'].includes(codeOf(error)) ? { kind: 'missing' } : { kind: 'other' }
   }
   if (stat.isSymbolicLink()) return { kind: 'symlink', target: readlinkSync(path) }
   return stat.isFile() ? { kind: 'file', content: readFileSync(path, 'utf8') } : { kind: 'other' }
@@ -85,20 +91,28 @@ function seenFile(path: string): FileSeen {
 // crashed before restoring would bake its comment in. Restoring runs after Sandcastle's host-side merge, so it cleans up
 // after the run; it doesn't protect the host while the run goes on. It removes what's there first, so a symlink the
 // agent left is replaced, not written through.
-const watched = targets.map((target) => ({ ...target, home: homeOf(target.path), before: seen(target.path) }))
-const now = ({ path, home, before }: (typeof watched)[number]) => hostWrite(home, before, seen(path))
+const watched = targets.map((target) => ({ ...target, before: { ...seen(target.path), home: homeOf(target.path) } satisfies Watched }))
+// A target that's a symlink would hide writes through it, and restoring wouldn't make it again
+const linked = watched.filter(({ before }) => before.file.kind === 'symlink').map(({ path }) => path)
+if (linked.length > 0) throw new Error(`targets are symlinks before the run, so writes through them would go unseen: ${linked.join(', ')}`)
+const now = ({ path, before }: (typeof watched)[number]) => hostWrite(before, seen(path))
 /** The warnings given, so a directory that stays moved is warned of once, not after each run. */
 const warned = new Set<string>()
+const warn = (warning: string) => {
+  if (!warned.has(warning)) console.log(`::warning::${warning}`)
+  warned.add(warning)
+}
 const restore = () => {
   for (const target of watched) {
-    const { restore: undo } = now(target)
-    if (undo.do === 'leave') {
-      const warning = `${dirname(target.path)} ${undo.why} during the run: left as it is`
-      if (!warned.has(warning)) console.log(`::warning::${warning}`)
-      warned.add(warning)
-    } else if (undo.do === 'remove') {
+    const undo = now(target)
+    if (undo.do !== 'nothing' && undo.warn !== undefined) warn(`${dirname(target.path)} ${undo.warn}`)
+    if (undo.do !== 'remove') continue
+    try {
       rmSync(target.path, { force: true, recursive: true })
       if (undo.put !== undefined) writeFileSync(target.path, undo.put)
+    } catch (error: unknown) {
+      // such as EACCES from a directory the agent made unreadable: the verdict still counts the write
+      warn(`${target.path} couldn't be restored: ${codeOf(error)}`)
     }
   }
 }
@@ -138,7 +152,7 @@ const smoke = await runAgent(
   `/factory-smoke ${targets.map(({ path }) => path).join(' ')}`,
   factoryAgent(MODEL, { oauthToken, maxBudgetUsd: 0.5 }),
 )
-const writes = watched.map((target) => ({ path: target.path, about: target.about, changedOnHost: now(target).changed }))
+const writes = watched.map((target) => ({ path: target.path, about: target.about, changedOnHost: reachedHost(now(target)) }))
 restore()
 
 // The control: Sandcastle's own way, the prompt on stdin. The skill isn't given its paths, so it writes nothing.
