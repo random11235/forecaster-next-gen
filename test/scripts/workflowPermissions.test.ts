@@ -4,7 +4,10 @@ import { expect, test } from 'vitest'
 const DIR = new URL('../../.github/workflows/', import.meta.url)
 const WORKFLOWS = readdirSync(DIR).filter((name) => /\.ya?ml$/.test(name))
 
-/** One `permissions:` of a workflow: its indent (0 for the workflow's own) and its grants, `scope: access` or `write-all`. */
+/**
+ * One `permissions:` of a workflow: its indent (0 for the workflow's own) and its grants, `scope: access`, `read-all` or
+ * `write-all`, or the raw text of one this test can't read.
+ */
 type Permissions = { indent: number; grants: string[] }
 
 /**
@@ -39,8 +42,11 @@ const permissionsIn = (name: string): Permissions[] => {
 /** A grant this test can read: anything else fails it, rather than passing unread. */
 const readable = (grant: string) => /^(read-all|write-all|[a-z-]+: (read|write|none))$/.test(grant)
 
-/** Whether a grant lets the token write: to the scope named, or to any. */
-const writes = (grant: string, scope?: string) => grant === 'write-all' || (scope ? grant === `${scope}: write` : grant.endsWith(': write'))
+/** Whether a grant lets the token write to any scope. */
+const writesAny = (grant: string) => grant === 'write-all' || grant.endsWith(': write')
+
+/** Whether a grant lets the token write to issues. */
+const writesIssues = (grant: string) => grant === 'write-all' || grant === 'issues: write'
 
 // isActionsBot (scripts/factoryTrust.ts) takes a github-actions comment as the factory's only while no other workflow's
 // token may write to issues
@@ -50,8 +56,8 @@ test('every workflow caps its own token at read, and only the factory grants a j
     expect([name, all.flatMap(({ grants }) => grants).filter((grant) => !readable(grant))]).toEqual([name, []])
     const own = all.filter(({ indent }) => indent === 0)
     expect([name, own.length]).toEqual([name, 1])
-    expect([name, own[0]!.grants.filter((grant) => writes(grant))]).toEqual([name, []])
+    expect([name, own[0]!.grants.filter(writesAny)]).toEqual([name, []])
   }
-  const granting = WORKFLOWS.filter((name) => permissionsIn(name).some(({ grants }) => grants.some((grant) => writes(grant, 'issues'))))
+  const granting = WORKFLOWS.filter((name) => permissionsIn(name).some(({ grants }) => grants.some(writesIssues)))
   expect(granting).toEqual(['factory.yml'])
 })

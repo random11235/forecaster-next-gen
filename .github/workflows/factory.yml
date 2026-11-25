@@ -553,21 +553,36 @@ jobs:
           UNBUILDABLE: ${{ needs.publish.outputs.unbuildable }}
         run: |
           comment_by_hand="comment \`merged into $BRANCH\` by hand, opening with the factory's hidden mark \`$MARK\`, and take \`parked\` off"
-          # Where spec/<n> is. Only publish's push step reaches it, and a push can land though its step failed or was cut
-          # off, so once that step started spec/<n> itself is read: at TIP it has the ticket's commits (`landed`), not
-          # there or at the commit build started from it's `unchanged`, else it `moved` some other way, or is `unreadable`.
-          # `merged` is a push that finished, which only the merged comment can have failed after. Before the push step
-          # started, or with no TIP, nothing was pushed.
+          # How far publish's push to spec/<n> got (`push`), the one step that reaches it:
+          # - finished: it pushed, so only the merged comment after it can have failed
+          # - unstarted: check or publish stopped before the push step began, or build made nothing to push
+          # - failed: its step failed, which it can have done after the push landed
+          # - cut-off: its step didn't finish, which it can have done after the push landed
+          # Only after failed or cut-off is spec/<n> read (`branch`):
+          # - unreadable: reading it failed
+          # - tip: it's at the commit build made, so it has the ticket's commits
+          # - unchanged: it's not there, or at the commit build started from
+          # - moved: it's somewhere else, moved by some other hand
+          # `commits` is whether spec/<n> has the ticket's commits: yes, unknown or no.
           if [ -n "$SPEC" ]; then
-            if [ "$PUSHED" = success ]; then where=merged
-            elif [ "$PUBLISH" = skipped ] || [ "$PUSHED" = skipped ] || [ -z "$TIP" ]; then where=unchanged
-            elif ! remote=$(git ls-remote "$GITHUB_SERVER_URL/$REPO.git" "refs/heads/$BRANCH"); then where=unreadable
-            else
-              at=${remote%%[[:space:]]*}
-              if [ "$at" = "$TIP" ]; then where=landed
-              elif [ -z "$at" ] || [ "$at" = "$BUILT_ON" ]; then where=unchanged
-              else where=moved
+            if [ "$PUSHED" = success ]; then push=finished
+            elif [ "$CHECK" != success ] || [ "$PUBLISH" = skipped ] || [ "$PUSHED" = skipped ] || [ -z "$TIP" ]; then push=unstarted
+            elif [ "$PUSHED" = failure ]; then push=failed
+            else push=cut-off
+            fi
+            if [ "$push" = failed ] || [ "$push" = cut-off ]; then
+              if ! remote=$(git ls-remote "$GITHUB_SERVER_URL/$REPO.git" "refs/heads/$BRANCH"); then branch=unreadable
+              else
+                at=${remote%%[[:space:]]*}
+                if [ "$at" = "$TIP" ]; then branch=tip
+                elif [ -z "$at" ] || [ "$at" = "$BUILT_ON" ]; then branch=unchanged
+                else branch=moved
+                fi
               fi
+            fi
+            if [ "$push" = finished ] || [ "$branch" = tip ]; then commits=yes
+            elif [ "$branch" = moved ] || [ "$branch" = unreadable ]; then commits=unknown
+            else commits=no
             fi
           fi
           if [ -n "$SPEC" ]; then starts_from="$BRANCH, or else $BASE"; else starts_from="$BASE"; fi
@@ -589,26 +604,27 @@ jobs:
           elif [ "$REFUSED" = true ]; then why="the agent's commits change files under .github/, which the factory doesn't push"
           elif [ -n "$UNBUILDABLE" ]; then why="the agent's commits leave $UNBUILDABLE in the branch, which the factory won't build on, so it didn't push them"
           elif [ -z "$SPEC" ]; then why="pushing the branch or opening the PR failed"
-          elif [ "$where" = merged ]; then why="it merged into $BRANCH, but commenting so on it failed"
-          elif [ "$where" = landed ]; then why="the push to $BRANCH landed, though its step didn't finish, so the factory didn't comment merged"
-          elif [ "$PUSHED" = failure ] && [ -n "$TIP" ]; then why="pushing $BRANCH failed"
-          elif [ "$PUSHED" = skipped ] || [ -z "$TIP" ]; then why="publishing stopped before it pushed to $BRANCH"
-          else why="publishing stopped before it finished pushing to $BRANCH"
+          elif [ "$push" = finished ]; then why="it merged into $BRANCH, but commenting so on it failed"
+          elif [ "$branch" = tip ]; then
+            why="the push to $BRANCH landed, though its step failed or didn't finish, so the factory didn't comment merged"
+          elif [ "$push" = failed ]; then why="pushing $BRANCH failed"
+          elif [ "$push" = cut-off ]; then why="publishing stopped before it finished pushing to $BRANCH"
+          else why="publishing stopped before it pushed to $BRANCH"
           fi
           tell="so the factory can't tell whether it has the ticket's commits"
-          if [ "$where" = unchanged ]; then why="$why. $BRANCH is unchanged"
-          elif [ "$where" = moved ]; then why="$why, and $BRANCH moved since the build, $tell"
-          elif [ "$where" = unreadable ]; then why="$why, and reading $BRANCH afterwards failed, $tell"
+          if [ "$commits" = no ]; then why="$why. $BRANCH is unchanged"
+          elif [ "$branch" = moved ]; then why="$why, and $BRANCH moved since the build, $tell"
+          elif [ "$branch" = unreadable ]; then why="$why, and reading $BRANCH afterwards failed, $tell"
           fi
           # What to do: a ticket on spec/<n> already is done, so rebuilding it would build it twice; one refused would be
           # refused again
           if [ "$REFUSED" = true ] && [ -n "$SPEC" ]; then todo="Build it locally, merge it into $BRANCH, then $comment_by_hand. "
           elif [ "$REFUSED" = true ]; then todo="Build this ticket locally. "
-          elif [ "$where" = merged ] || [ "$where" = landed ]; then todo="To finish it, $comment_by_hand. "
-          elif [ "$where" = moved ] || [ "$where" = unreadable ]; then
+          elif [ "$commits" = yes ]; then todo="To finish it, $comment_by_hand. "
+          elif [ "$commits" = unknown ]; then
             todo="If $BRANCH has the ticket's commits, $comment_by_hand; if not, take \`parked\` off and label the spec, #$SPEC,"
             todo="$todo ready-for-agent again. "
-          elif [ "$where" = unchanged ]; then todo="To retry, take \`parked\` off and label the spec, #$SPEC, ready-for-agent again. "
+          elif [ "$commits" = no ]; then todo="To retry, take \`parked\` off and label the spec, #$SPEC, ready-for-agent again. "
           fi
           # --force: another ticket's park may create it at the same moment
           gh label create parked --force --repo "$REPO" --color B60205 --description 'The factory failed to build it; label it ready-for-agent again to retry'
