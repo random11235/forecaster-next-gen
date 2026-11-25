@@ -423,6 +423,7 @@ jobs:
     permissions:
       contents: write # to push the ticket's branch
       pull-requests: write
+      issues: write # to comment merged on a spec's ticket
       actions: write # to start CI and the board sync
     outputs:
       refused: ${{ steps.branch.outputs.refused }}
@@ -565,17 +566,24 @@ jobs:
           elif [ "$CHECK" = cancelled ]; then why="the check was cancelled, or ran past its job's $CHECK_MINUTES-minute timeout"
           elif [ "$CHECKED" = failure ]; then why="\`npm ci\` or \`npm run check\` failed on $BRANCH with the ticket's commits, or bwrap didn't start"
           elif [ "$CHECK" != success ]; then why="setting up the check failed, or its job lost its runner"
+          elif [ "$REFUSED" = true ] && [ -n "$SPEC" ]; then
+            why="the agent's commits change files under .github/, which the factory doesn't push: build this ticket locally,"
+            why="$why merge it into $BRANCH, then $comment_by_hand"
           elif [ "$REFUSED" = true ]; then why="the agent's commits change files under .github/, which the factory doesn't push: build this ticket locally"
           elif [ -n "$UNBUILDABLE" ]; then why="the agent's commits leave $UNBUILDABLE in the branch, which the factory won't build on, so it didn't push them"
           elif [ -n "$SPEC" ] && [ "$PUSHED" = success ]; then why="it merged into $BRANCH, but commenting so on it failed: $comment_by_hand"
           elif [ -n "$SPEC" ] && [ "$PUSHED" = failure ]; then why="pushing $BRANCH failed: it may have moved since the build"
+          elif [ -n "$SPEC" ] && [ "$PUSHED" = cancelled ]; then
+            why="the push to $BRANCH was cancelled, so it may have landed: if $BRANCH has the ticket's commits, $comment_by_hand"
           elif [ -n "$SPEC" ]; then why="setting up the push to $BRANCH failed, before it pushed"
           else why="pushing the branch or opening the PR failed"
           fi
-          # Nothing reaches spec/<n> but a push of checked commits, the last step before the merged comment
-          if [ -n "$SPEC" ] && [ "$PUSHED" != success ]; then why="$why. $BRANCH is unchanged"; fi
-          # A ticket on spec/<n> already is done: rebuilding it would build it twice
-          if [ -n "$SPEC" ] && [ "$PUSHED" != success ]; then retry="To retry, take \`parked\` off and label the spec, #$SPEC, ready-for-agent again. "; fi
+          # Nothing reaches spec/<n> but a push of checked commits, the last step before the merged comment; a cancelled
+          # push may have landed
+          if [ -n "$SPEC" ] && [ "$PUSHED" != success ] && [ "$PUSHED" != cancelled ]; then unchanged=true; fi
+          if [ "$unchanged" = true ]; then why="$why. $BRANCH is unchanged"; fi
+          # A ticket on spec/<n> already is done: rebuilding it would build it twice. One refused would be refused again.
+          if [ "$unchanged" = true ] && [ "$REFUSED" != true ]; then retry="To retry, take \`parked\` off and label the spec, #$SPEC, ready-for-agent again. "; fi
           # --force: another ticket's park may create it at the same moment
           gh label create parked --force --repo "$REPO" --color B60205 --description 'The factory failed to build it; label it ready-for-agent again to retry'
           labels=$(gh issue view "$TICKET" --repo "$REPO" --json labels --jq '.labels[].name')

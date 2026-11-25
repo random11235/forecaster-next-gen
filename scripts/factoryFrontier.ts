@@ -4,12 +4,12 @@
 //
 // The next ticket is the first of the spec's sub-issues, in their order, that is neither done, nor parked, nor blocked.
 // A ticket is done once closed, or once it merged into spec/<n>, which leaves it open (it closes with the spec's PR):
-// that is the factory's comment `merged into spec/<n>`, which opens with its mark and is by the factory's
-// github-actions bot, or by the owner or a collaborator by hand (scripts/factoryTrust.ts). A blocker
-// counts while it is open and not merged into spec/<n>, as the ticket built on it then has its code. A parked ticket
-// waits for the owner, who takes the label off.
+// that is the factory's comment `merged into spec/<n>`, which opens with its mark and is by the factory's github-actions
+// bot, or by the owner or a collaborator by hand (scripts/factoryTrust.ts). A blocker counts while it is open and not
+// merged into spec/<n>, as the ticket built on it then has its code. A parked ticket waits for the owner, who takes
+// the label off.
 
-import { factoryWords, isFactory, isTrusted, type Association, type Author } from './factoryTrust.ts'
+import { factoryWords, isActionsBot, isTrusted, type Association, type Author } from './factoryTrust.ts'
 
 type State = 'OPEN' | 'CLOSED'
 
@@ -46,7 +46,7 @@ export function subIssuesOf(response: SubIssuesResponse): SubIssue[] {
 const mergedInto =
   (spec: number) =>
   ({ body, authorAssociation, author }: Comment): boolean =>
-    (isFactory(author) || isTrusted(authorAssociation)) && new RegExp(`^merged into spec/${spec}\\b`, 'i').test(factoryWords(body) ?? '')
+    (isActionsBot(author) || isTrusted(authorAssociation)) && new RegExp(`^merged into spec/${spec}\\b`, 'i').test(factoryWords(body) ?? '')
 
 const parked = ({ labels }: SubIssue): boolean => labels.nodes.some(({ name }) => name === 'parked')
 

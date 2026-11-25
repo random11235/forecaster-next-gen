@@ -6,6 +6,10 @@ on:
     branches: [main]
   workflow_dispatch: # the factory starts it on the branch of each PR it opens, which GITHUB_TOKEN's push doesn't
 
+# Read only, as a job that writes raises its own: only factory.yml may write to issues (scripts/factoryTrust.ts)
+permissions:
+  contents: read
+
 jobs:
   check:
     runs-on: ubuntu-latest
