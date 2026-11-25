@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, test } from 'vitest'
 import { nextStep, stepOutputs, subIssuesOf, type SubIssue } from '../../scripts/factoryFrontier.ts'
-import { FACTORY_MARK, isTrusted, type Association } from '../../scripts/factoryTrust.ts'
+import { FACTORY_MARK, type Association, type Author } from '../../scripts/factoryTrust.ts'
 
 const SPEC = 9
 
@@ -14,17 +14,21 @@ const ticket = (number: number, more: Partial<SubIssue> = {}): SubIssue => ({
   ...more,
 })
 
-const comment = (authorAssociation: Association, body: string) => ({ authorAssociation, body })
+const OWNER: Author = { __typename: 'User', login: 'owner' }
+/** Who writes with a workflow's GITHUB_TOKEN, as GitHub's GraphQL API names it. */
+const ACTIONS: Author = { __typename: 'Bot', login: 'github-actions' }
 
-/** The factory's comment on a ticket it pushed to spec/9. */
-const MERGED = comment('OWNER', `${FACTORY_MARK}\nmerged into spec/${SPEC}: https://run`)
+const comment = (authorAssociation: Association, body: string, author: Author | null = OWNER) => ({ authorAssociation, author, body })
+
+/** The factory's comment on a ticket it pushed to spec/9, by publish's GITHUB_TOKEN. */
+const MERGED = comment('NONE', `${FACTORY_MARK}\nmerged into spec/${SPEC}: https://run`, ACTIONS)
 
 describe("the factory's next step on a spec", () => {
   test('builds the first open ticket, in order', () => {
     expect(nextStep(SPEC, [ticket(12), ticket(13)])).toEqual({ action: 'build', ticket: 12 })
   })
 
-  test("skips a closed ticket, and one the factory commented merged into the spec's branch", () => {
+  test("skips a closed ticket, and one the factory, or the owner or a collaborator by hand, commented merged into the spec's branch", () => {
     const tickets = [
       ticket(10, { state: 'CLOSED' }),
       ticket(11, { comments: { nodes: [MERGED] } }),
@@ -35,11 +39,14 @@ describe("the factory's next step on a spec", () => {
     expect(nextStep(SPEC, tickets)).toEqual({ action: 'build', ticket: 13 })
   })
 
-  test("doesn't take merged from a comment without the factory's mark, a stranger's, another spec's, or one that only mentions merging", () => {
+  test("doesn't take merged from a comment without the factory's mark, a stranger's or another bot's, another spec's, or one that only mentions merging", () => {
     const comments = [
       comment('OWNER', 'merged'),
       comment('OWNER', `merged into spec/${SPEC}`),
       comment('NONE', `${FACTORY_MARK}\nmerged into spec/${SPEC}: https://run`),
+      comment('NONE', `${FACTORY_MARK}\nmerged into spec/${SPEC}: https://run`, { __typename: 'User', login: 'github-actions' }),
+      comment('NONE', `${FACTORY_MARK}\nmerged into spec/${SPEC}: https://run`, { __typename: 'Bot', login: 'dependabot' }),
+      comment('NONE', `${FACTORY_MARK}\nmerged into spec/${SPEC}: https://run`, null),
       comment('OWNER', `${FACTORY_MARK}\nmerged into spec/${SPEC}0: https://run`),
       comment('OWNER', `${FACTORY_MARK}\nmerged into spec/8: https://run`),
       comment('OWNER', `${FACTORY_MARK}\nNot merged into spec/${SPEC} yet.`),
@@ -120,17 +127,13 @@ test("the factory's workflow comments merged in words the frontier reads as merg
 
   expect(said).toBeDefined()
   const body = `${FACTORY_MARK}\n${String(said).replaceAll('$BRANCH', `spec/${SPEC}`).replaceAll('$RUN_URL', 'https://run')}`
-  expect(nextStep(SPEC, [ticket(12, { comments: { nodes: [comment('OWNER', body)] } })])).toEqual({ action: 'open-pr' })
+  expect(nextStep(SPEC, [ticket(12, { comments: { nodes: [comment('NONE', body, ACTIONS)] } })])).toEqual({ action: 'open-pr' })
 })
 
-test("the factory's workflow fails its publish unless its merged comment's author is one the frontier trusts", () => {
+test("the factory's workflow comments merged with its job's GITHUB_TOKEN, github-actions, whom the frontier trusts", () => {
   const workflow = readFileSync(new URL('../../.github/workflows/factory.yml', import.meta.url), 'utf8')
-  const accepted = /\n\s*([A-Z_ |]+)\) ;; # isTrusted in scripts\/factoryTrust\.ts/
-    .exec(workflow)?.[1]
-    ?.split('|')
-    .map((each) => each.trim())
-  const all: Association[] = ['OWNER', 'MEMBER', 'COLLABORATOR', 'CONTRIBUTOR', 'FIRST_TIME_CONTRIBUTOR', 'FIRST_TIMER', 'MANNEQUIN', 'NONE']
+  const step = /- name: Comment merged on the spec's ticket\n(?:\s+[^-\s][^\n]*\n)*/.exec(workflow)?.[0]
 
-  expect(accepted).toBeDefined()
-  expect(all.filter((each) => accepted?.includes(each))).toEqual(all.filter(isTrusted))
+  expect(step).toContain('GH_TOKEN: ${{ github.token }}')
+  expect(step).not.toContain('secrets.')
 })

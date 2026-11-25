@@ -1,7 +1,12 @@
 // Whose words the factory (.github/workflows/factory.yml) believes. The repo is public, so anyone can comment on an
 // issue: only the owner's and collaborators' text reaches an agent's prompt (ADR 0005, risk R2 in
 // docs/research/sandcastle-factory.md), or tells the factory a ticket merged. Every comment the factory makes carries
-// FACTORY_MARK: its token may be the owner's, so the mark is how its comments are told from the owner's.
+// FACTORY_MARK, which keeps it out of a prompt.
+//
+// The factory writes with its jobs' GITHUB_TOKEN, as github-actions[bot], whom GitHub gives no author association. So a
+// merged comment counts when github-actions wrote it, as well as the owner or a collaborator by hand. Only a workflow
+// in this repo writes as github-actions here, and only factory.yml's jobs may write to issues; GraphQL names it as a
+// Bot, which no user account can be.
 
 /** GitHub's author association: how the author of an issue or comment is related to the repo. */
 export type Association = 'OWNER' | 'MEMBER' | 'COLLABORATOR' | 'CONTRIBUTOR' | 'FIRST_TIME_CONTRIBUTOR' | 'FIRST_TIMER' | 'MANNEQUIN' | 'NONE'
@@ -9,8 +14,14 @@ export type Association = 'OWNER' | 'MEMBER' | 'COLLABORATOR' | 'CONTRIBUTOR' | 
 /** The hidden mark every comment the factory makes carries, as MARK in the workflow. */
 export const FACTORY_MARK = '<!-- forecaster-factory -->'
 
+/** A comment's author, as GitHub's GraphQL API gives it: null for a deleted account. */
+export type Author = { __typename: string; login: string }
+
 /** Whether the author is the owner or one of the repo's collaborators. */
 export const isTrusted = (association: Association): boolean => association === 'OWNER' || association === 'MEMBER' || association === 'COLLABORATOR'
+
+/** Whether the author is github-actions, the bot a workflow's GITHUB_TOKEN writes as: the factory's jobs. */
+export const isFactory = (author: Author | null): boolean => author?.__typename === 'Bot' && author.login === 'github-actions'
 
 /**
  * The factory's words in a comment, after the mark it opens with, or undefined if it doesn't open with the mark. The

@@ -6,6 +6,7 @@
 
 import { appendFileSync, cpSync, lstatSync, mkdirSync, readdirSync, readFileSync, symlinkSync, type Stats } from 'node:fs'
 import { join } from 'node:path'
+import { UnbuildableTree } from './factoryOutcome.ts'
 
 /** What Sandcastle copies into the worktree from the tree, and the commands it runs in the sandbox before the agent. */
 export type TreeSetup = {
@@ -26,15 +27,10 @@ const INSTALL = 'npm ci'
  * reads a tree's .sandcastle/.env into the sandbox's env, filling a key left empty from the host's, and the runner's
  * node_modules goes where the tree's would.
  */
-export const NOT_HELD = ['.sandcastle', 'node_modules']
+export const REFUSED_PATHS = ['.sandcastle', 'node_modules']
 
 /** What must be a directory if the branch holds it, as the runner's skills go in it. */
 export const ONLY_DIRECTORIES = ['.claude', '.claude/skills']
-
-/** Why the factory won't build on the branch: its fault, not the build's, so building again won't help. */
-export class UnbuildableTree extends Error {
-  override name = 'UnbuildableTree'
-}
 
 const statOf = (path: string): Stats | undefined => lstatSync(path, { throwIfNoEntry: false })
 
@@ -48,7 +44,7 @@ const plainText = (path: string): string | undefined => (statOf(path)?.isFile() 
  * `npm ci`, whose lifecycle scripts are then the tree's, in bwrap.
  */
 export function prepareTree(runnerDir: string, treeDir: string): TreeSetup {
-  for (const path of NOT_HELD) {
+  for (const path of REFUSED_PATHS) {
     if (statOf(join(treeDir, path))) throw new UnbuildableTree(`the branch holds ${path}, which the factory won't build on`)
   }
   for (const path of ONLY_DIRECTORIES) {

@@ -4,12 +4,12 @@
 //
 // The next ticket is the first of the spec's sub-issues, in their order, that is neither done, nor parked, nor blocked.
 // A ticket is done once closed, or once it merged into spec/<n>, which leaves it open (it closes with the spec's PR):
-// that is the factory's comment `merged into spec/<n>`, which opens with its mark and is by the owner or a
-// collaborator, as the factory's token is taken to be, which the workflow checks (scripts/factoryTrust.ts). A blocker
+// that is the factory's comment `merged into spec/<n>`, which opens with its mark and is by the factory's
+// github-actions bot, or by the owner or a collaborator by hand (scripts/factoryTrust.ts). A blocker
 // counts while it is open and not merged into spec/<n>, as the ticket built on it then has its code. A parked ticket
 // waits for the owner, who takes the label off.
 
-import { factoryWords, isTrusted, type Association } from './factoryTrust.ts'
+import { factoryWords, isFactory, isTrusted, type Association, type Author } from './factoryTrust.ts'
 
 type State = 'OPEN' | 'CLOSED'
 
@@ -19,7 +19,7 @@ export type SubIssue = {
   state: State
   labels: { nodes: readonly { name: string }[] }
   blockedBy: { nodes: readonly { number: number; state: State }[] }
-  comments: { nodes: readonly { body: string; authorAssociation: Association }[] }
+  comments: { nodes: readonly { body: string; authorAssociation: Association; author: Author | null }[] }
 }
 
 export type Next = { action: 'build'; ticket: number } | { action: 'open-pr' } | { action: 'stop'; why: string }
@@ -42,11 +42,11 @@ export function subIssuesOf(response: SubIssuesResponse): SubIssue[] {
   return nodes
 }
 
-/** The factory's comment, after its mark, saying the ticket merged into the spec's branch, by a trusted author. */
+/** The factory's comment, after its mark, saying the ticket merged into the spec's branch: the factory's, or by hand. */
 const mergedInto =
   (spec: number) =>
-  ({ body, authorAssociation }: Comment): boolean =>
-    isTrusted(authorAssociation) && new RegExp(`^merged into spec/${spec}\\b`, 'i').test(factoryWords(body) ?? '')
+  ({ body, authorAssociation, author }: Comment): boolean =>
+    (isFactory(author) || isTrusted(authorAssociation)) && new RegExp(`^merged into spec/${spec}\\b`, 'i').test(factoryWords(body) ?? '')
 
 const parked = ({ labels }: SubIssue): boolean => labels.nodes.some(({ name }) => name === 'parked')
 

@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch: # the factory starts it on the branch of each PR it opens, which GITHUB_TOKEN's push doesn't
 
 jobs:
   check:
@@ -83,9 +84,9 @@ jobs:
   # Mutation tests only the lines of source a pull request adds or changes (scripts/mutateDiff.ts). It reports the
   # score and the survivors (scripts/mutationSummary.ts), and fails only if Stryker can't run; the uploaded report
   # keeps mutation.json and targets.json for counting survivors across pull requests. A push to main has no branch to
-  # diff, so it runs on pull requests alone.
+  # diff, so it runs on pull requests, and when the factory starts CI on the branch of a PR it opened.
   mutation:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -99,7 +100,7 @@ jobs:
         run: |
           set -o pipefail
           status=0
-          timeout --kill-after=1m 25m npm run test:mutation -- origin/${{ github.base_ref }} | tee mutation.txt || status=$?
+          timeout --kill-after=1m 25m npm run test:mutation -- origin/${{ github.base_ref || 'main' }} | tee mutation.txt || status=$?
           if [ "$status" -eq 124 ]; then touch mutation-timed-out; fi
           exit "$status"
       - name: Mutation summary

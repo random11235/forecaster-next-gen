@@ -1,15 +1,18 @@
 // How the factory's build of a ticket (scripts/factoryBuild.ts) ended, as the `result` and `why` it writes to its step's
 // outputs, which the `park` job of .github/workflows/factory.yml reads. Only `built` goes on to be checked and pushed.
 
-import { UnbuildableTree } from './factoryTree.ts'
-
 /**
  * The build's `result`. `started` is written first, so a step left at `started` was stopped mid-run (by its timeout, or
  * killed); one with no result at all crashed before it began.
  */
 export type BuildResult = 'started' | 'built' | 'no-commits' | 'dirty' | 'idle-timeout' | 'budget' | 'unbuildable' | 'error'
 
-/** How Sandcastle's `run()` ended: with the agent's commits, or with what it threw. */
+/** Why the factory won't build on the branch (scripts/factoryTree.ts): its fault, not the build's, so building again won't help. */
+export class UnbuildableTree extends Error {
+  override name = 'UnbuildableTree'
+}
+
+/** How the build ended: with the agent's commits, or with what readying the tree or Sandcastle's `run()` threw. */
 export type Ending = { commits: number; preservedWorktreePath?: string | undefined } | { error: unknown }
 
 /** Built, or a failure with why, as a park comment's reason. */

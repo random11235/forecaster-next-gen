@@ -2,8 +2,8 @@
 // probe has passed. It runs from the runner's checkout of the default branch, and builds in TREE, the workflow's clone
 // of the branch the ticket is built on, which scripts/factoryTree.ts readies: it runs Claude Code in Sandcastle's
 // bwrap() sandbox on `/implement <n>` with the ticket's text (scripts/factoryTicket.ts), and Sandcastle merges the
-// agent's commits into that branch. It pushes nothing and holds no GitHub token: the workflow's later jobs check the commits and do every
-// write to GitHub.
+// agent's commits into that branch. It pushes nothing and holds no GitHub token: the workflow's later jobs check the
+// commits and do every write to GitHub.
 //
 // It writes `result` and `why` to the step's outputs (scripts/factoryOutcome.ts); only `built` passes. Into LOG_DIR go
 // the agent's stream-json as it comes (`transcript.jsonl`, so a stopped run keeps it), Sandcastle's log, and Claude

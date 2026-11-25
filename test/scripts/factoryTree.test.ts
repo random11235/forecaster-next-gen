@@ -2,7 +2,8 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSy
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
-import { NOT_HELD, ONLY_DIRECTORIES, prepareTree, UnbuildableTree } from '../../scripts/factoryTree.ts'
+import { UnbuildableTree } from '../../scripts/factoryOutcome.ts'
+import { ONLY_DIRECTORIES, prepareTree, REFUSED_PATHS } from '../../scripts/factoryTree.ts'
 
 const made: string[] = []
 afterEach(() => {
@@ -105,9 +106,8 @@ describe('the tree the factory builds a ticket in, apart from the runner’s che
 
 test("the factory's workflow refuses to push a branch holding what the build refuses", () => {
   const workflow = readFileSync(new URL('../../.github/workflows/factory.yml', import.meta.url), 'utf8')
-  const paths = (marker: string) =>
-    new RegExp(String.raw`git ls-tree [^\n]*"\$BRANCH" -- ([^|)\n]+?)(?:\)| \|)[^\n]*# ${marker} in scripts/factoryTree\.ts`).exec(workflow)?.[1]?.split(' ')
+  const line = (marker: string) => workflow.split('\n').find((each) => each.endsWith(`# ${marker} in scripts/factoryTree.ts`))
 
-  expect(paths('NOT_HELD')).toEqual(NOT_HELD)
-  expect(paths('ONLY_DIRECTORIES')).toEqual(ONLY_DIRECTORIES)
+  expect(line('REFUSED_PATHS')).toContain(`$(git ls-tree --name-only "$BRANCH" -- ${REFUSED_PATHS.join(' ')})`)
+  expect(line('ONLY_DIRECTORIES')).toContain(`$(git ls-tree "$BRANCH" -- ${ONLY_DIRECTORIES.join(' ')} | awk '$2 != "tree" { print $4 }')`)
 })
