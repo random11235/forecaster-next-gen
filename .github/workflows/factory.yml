@@ -155,7 +155,7 @@ jobs:
           sh .husky/post-checkout HEAD HEAD 1
           for skill in implement tdd code-review pr; do
             test -f ".claude/skills/$skill/SKILL.md" && continue
-            npx -y skills experimental_install </dev/null 2>&1 | tail -20 || true # the hook hides why it failed
+            npx -y skills experimental_install --no-frozen-lockfile </dev/null 2>&1 | tail -20 || true # the hook hides why it failed
             echo "::error::the $skill skill isn't installed"; exit 1
           done
       - name: Fetch the ticket
