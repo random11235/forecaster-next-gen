@@ -13,7 +13,7 @@ export type Authored = { body: string | null; user: { login: string }; author_as
 export type Ticket = Authored & { number: number; title: string }
 
 /** The authors whose text the agent is given: the owner, and the repo's collaborators. */
-const TRUSTED: readonly Association[] = ['OWNER', 'MEMBER', 'COLLABORATOR']
+export const TRUSTED: readonly Association[] = ['OWNER', 'MEMBER', 'COLLABORATOR']
 
 /** The hidden mark every comment the factory makes carries, so its comments never reach a later prompt. */
 export const FACTORY_MARK = '<!-- forecaster-factory -->'
@@ -22,16 +22,29 @@ const trusted = ({ author_association }: Authored): boolean => TRUSTED.includes(
 
 const byFactory = ({ body }: Authored): boolean => (body ?? '').includes(FACTORY_MARK)
 
+/** An issue's title and body, if the owner or a collaborator opened it, or a line saying they're left out. */
+const titleAndBody = (issue: Ticket, kind: 'ticket' | 'spec'): string[] =>
+  trusted(issue)
+    ? [`# ${issue.title}`, '', issue.body ?? '']
+    : [`(The ${kind}'s own title and body are left out: @${issue.user.login}, who opened it, isn't the owner or a collaborator.)`]
+
 /**
  * `/implement <n>`, then the ticket's text in a `<ticket>` block: its title and body, if the owner or a collaborator
- * opened it, and their comments, leaving out the factory's.
+ * opened it, and their comments, leaving out the factory's. A spec's ticket is followed by the spec's title and body, on
+ * the same terms, in a `<spec>` block.
  */
-export function ticketPrompt(ticket: Ticket, comments: readonly Authored[]): string {
-  const titleAndBody = trusted(ticket)
-    ? [`# ${ticket.title}`, '', ticket.body ?? '']
-    : [`(The ticket's own title and body are left out: @${ticket.user.login}, who opened it, isn't the owner or a collaborator.)`]
+export function ticketPrompt(ticket: Ticket, comments: readonly Authored[], spec?: Ticket): string {
   const trustedComments = comments
     .filter((each) => trusted(each) && !byFactory(each))
     .map(({ user, body }) => `\n## Comment by @${user.login}\n\n${body ?? ''}`)
-  return [`/implement ${ticket.number}`, '', `<ticket number="${ticket.number}">`, ...titleAndBody, ...trustedComments, '</ticket>'].join('\n')
+  const specBlock = spec ? ['', `<spec number="${spec.number}">`, ...titleAndBody(spec, 'spec'), '</spec>'] : []
+  return [
+    `/implement ${ticket.number}`,
+    '',
+    `<ticket number="${ticket.number}">`,
+    ...titleAndBody(ticket, 'ticket'),
+    ...trustedComments,
+    '</ticket>',
+    ...specBlock,
+  ].join('\n')
 }
