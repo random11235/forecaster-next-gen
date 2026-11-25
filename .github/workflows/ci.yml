@@ -139,6 +139,9 @@ jobs:
   # test/scripts/release.run.test.ts.
   release:
     needs: [check, browser]
+    outputs:
+      # true when this run published the last tag's GitHub release, so the pages job deploys its web build
+      published: ${{ steps.published.outputs.published == 'false' }}
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -192,3 +195,31 @@ jobs:
           cp dist/web/forecaster.html "forecaster-$TAG.html"
           gh release create "$TAG" --verify-tag --title "Forecaster $TAG" --generate-notes \
             "forecaster-$TAG.tar.gz" "forecaster-$TAG.html"
+      # the web build's page as GitHub Pages' site, deployed by the pages job
+      - if: steps.published.outputs.published == 'false'
+        run: mkdir _site && cp dist/web/forecaster.html _site/index.html
+      - if: steps.published.outputs.published == 'false'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  # GitHub Pages shows the web build's page of the release the release job just published, at
+  # https://random11235.github.io/forecaster-next-gen/ (Settings > Pages: source GitHub Actions). A run that
+  # publishes no release deploys nothing; a failed deploy is re-run on its own, the release job's artifact kept.
+  pages:
+    needs: release
+    if: needs.release.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write # to deploy the site
+      id-token: write # to show Pages the deploy comes from this workflow
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
