@@ -33,12 +33,14 @@ const env = (name: string): string => {
   return value
 }
 
+/** Where the logs go, in LOG_DIR, which the workflow uploads. */
+type Logs = { dir: string; transcript: string; sandcastle: string }
+
 const logDir = process.env.LOG_DIR
-const transcript = logDir && join(logDir, 'transcript.jsonl')
-const sandcastleLog = logDir && join(logDir, 'sandcastle.log')
+const logs: Logs | undefined = logDir ? { dir: logDir, transcript: join(logDir, 'transcript.jsonl'), sandcastle: join(logDir, 'sandcastle.log') } : undefined
 
 /** Runs the agent on the ticket, and writes the PR body from its reply. */
-async function build(logs: string): Promise<Ending> {
+async function build(logs: Logs): Promise<Ending> {
   const outDir = env('OUT_DIR')
   mkdirSync(outDir, { recursive: true })
   // TICKET_JSON and COMMENTS_JSON: what a step fetched with `gh api`, the comments with `--paginate --slurp`, a list of pages
@@ -58,15 +60,15 @@ async function build(logs: string): Promise<Ending> {
     idleTimeoutSeconds: 1200,
     logging: {
       type: 'file',
-      path: join(logs, 'sandcastle.log'),
+      path: logs.sandcastle,
       verbose: true,
       onAgentStreamEvent: (event: AgentStreamEvent) => {
-        if (event.type === 'raw') appendFileSync(join(logs, 'transcript.jsonl'), `${event.line}\n`)
+        if (event.type === 'raw') appendFileSync(logs.transcript, `${event.line}\n`)
       },
     },
   })
   for (const [at, { sessionFilePath }] of ran.iterations.entries()) {
-    if (sessionFilePath && existsSync(sessionFilePath)) copyFileSync(sessionFilePath, join(logs, `session-${at + 1}.jsonl`))
+    if (sessionFilePath && existsSync(sessionFilePath)) copyFileSync(sessionFilePath, join(logs.dir, `session-${at + 1}.jsonl`))
   }
   writeFileSync(join(outDir, 'pr-body.md'), pullRequestBody(ran.stdout, ticket.number, env('RUN_URL')))
   console.log(`The agent made ${ran.commits.length} commit(s), merged into ${env('BRANCH')}.`)
@@ -75,25 +77,25 @@ async function build(logs: string): Promise<Ending> {
 
 let ending: Ending
 try {
-  if (!logDir) throw new Error('LOG_DIR is not set')
-  mkdirSync(logDir, { recursive: true })
-  ending = await build(logDir)
+  if (!logs) throw new Error('LOG_DIR is not set')
+  mkdirSync(logs.dir, { recursive: true })
+  ending = await build(logs)
 } catch (error: unknown) {
   ending = { error }
 }
-const lines = transcript && existsSync(transcript) ? readFileSync(transcript, 'utf8').split('\n') : []
-const { result: final, why } = buildOutcome(ending, lines)
-result(final)
-if (why) {
+const lines = logs && existsSync(logs.transcript) ? readFileSync(logs.transcript, 'utf8').split('\n') : []
+const outcome = buildOutcome(ending, lines)
+result(outcome.result)
+if (outcome.result !== 'built') {
   // one line, as an output and a park comment's reason
-  const said = why.split('\n')[0]!.slice(0, 300)
+  const said = outcome.why.split('\n')[0]!.slice(0, 300)
   output('why', said)
   console.log(`::error::${said}`)
   if ('error' in ending) console.error(ending.error)
   process.exitCode = 1
 }
-if (sandcastleLog && existsSync(sandcastleLog)) {
+if (logs && existsSync(logs.sandcastle)) {
   console.log('::group::Sandcastle log')
-  console.log(readFileSync(sandcastleLog, 'utf8'))
+  console.log(readFileSync(logs.sandcastle, 'utf8'))
   console.log('::endgroup::')
 }

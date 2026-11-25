@@ -11,8 +11,7 @@
 #
 # Every comment the factory makes carries MARK, so scripts/factoryTicket.ts can keep it out of the next prompt: the
 # token may be the owner's, and its comments would count as the owner's. To try the agent step's timeout, set the repo
-# variable FACTORY_AGENT_MINUTES to a few minutes; past 75 it's taken as 75, so the job's 90 (JOB_MINUTES) leaves time to
-# upload the logs.
+# variable FACTORY_AGENT_MINUTES to a few minutes; past AGENT_MINUTES' cap, it's taken as the cap.
 name: Factory
 
 on:
@@ -31,6 +30,7 @@ env:
   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
   MARK: '<!-- forecaster-factory -->' # FACTORY_MARK in scripts/factoryTicket.ts
   JOB_MINUTES: 90 # build's timeout-minutes, which can't read env
+  # At most 75, JOB_MINUTES - 15, so the build job has time to bundle and upload the logs once the agent is stopped
   AGENT_MINUTES: ${{ vars.FACTORY_AGENT_MINUTES && fromJSON(vars.FACTORY_AGENT_MINUTES) > 75 && '75' || vars.FACTORY_AGENT_MINUTES || '70' }}
 
 # One run per issue at a time; a second label event waits for the first run and doesn't cancel it. Only the trigger
@@ -71,6 +71,7 @@ jobs:
       - name: Check that the ticket is open, has no open PR, and is outside any spec
         id: ticket
         if: steps.sender.outputs.allowed == 'true'
+        shell: bash # with pipefail, so a failed `gh pr list` fails the step, as a failed lookup does
         env:
           GH_TOKEN: ${{ github.token }}
           OWNER: ${{ github.repository_owner }}
@@ -210,42 +211,72 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-  # The agent's code runs here, on a fresh runner holding no secret, with the commits checked out from the bundle. Node
-  # is set up before the checkout, so no action the agent wrote runs, and without npm's cache, which this job would
-  # save, after the agent's code ran, for every run on the default branch; then `npm ci` installs the branch's deps.
+  # The agent's code runs here, on a fresh runner holding no secret, on exactly the commits built. No action, nor its post
+  # step, runs once that code has: an action runs with the job's ACTIONS_RUNTIME_TOKEN, which can write the default
+  # branch's caches (an `issues` run is the default branch's), the npm cache `build` and CI restore among them; and
+  # actions/checkout's post step runs git in the checkout, whose .git/config the agent's code could write. So the branch
+  # comes from a plain clone of this public repo, Node from nodejs.org, and nothing is cached. `npm ci` and
+  # `npm run check` run in bwrap: only the checkout writable; the environment cleared; /home (the runner's actions, its
+  # temp dir with the step command files), the runner's own directory, /run (docker's socket) and the runner's processes
+  # out of sight; and no new privileges, so no sudo.
   check:
     needs: build
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04 # pinned, for bwrap, as build
+    outputs:
+      tampered: ${{ steps.branch.outputs.tampered }}
+      checked: ${{ steps.check.outcome }}
     env:
       TIP: ${{ needs.build.outputs.tip }}
     steps:
-      - uses: actions/checkout@v4
+      # All of it: the migration check reads the default branch's schema, and the change-file check diffs from it
+      - name: Clone the default branch
+        run: git clone --quiet "$GITHUB_SERVER_URL/$REPO.git" .
+      - uses: ./.github/actions/sandbox
         with:
-          ref: ${{ github.event.repository.default_branch }}
-          fetch-depth: 0 # the migration check reads the default branch's schema, and the change-file check diffs from it
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24 # as .github/actions/setup, which caches
-      - uses: actions/download-artifact@v4
+          claude-code: false
+      - uses: actions/download-artifact@v4 # it has no post step
         with:
           name: ticket
           path: ${{ runner.temp }}
-      - name: Check out the ticket's commits
+      - name: Install Node 24, as .github/actions/setup does
         run: |
-          git -c core.hooksPath=/dev/null fetch "$RUNNER_TEMP/ticket.bundle" "refs/heads/$BRANCH:refs/heads/$BRANCH"
-          test "$(git rev-parse "refs/heads/$BRANCH")" = "$TIP" || { echo "::error::The bundle's branch isn't the commit build made"; exit 1; }
-          git -c core.hooksPath=/dev/null checkout "$BRANCH"
-          npm ci
-      # What the pre-push hook runs, which the push in `publish`, with hooks off, skips
-      - name: npm run check
-        run: CHECK_BASE="origin/$BASE" npm run check
+          dist=https://nodejs.org/dist/latest-v24.x
+          curl -fsSL -o "$RUNNER_TEMP/SHASUMS256.txt" "$dist/SHASUMS256.txt"
+          file=$(grep -o 'node-v24\.[0-9.]*-linux-x64\.tar\.xz' "$RUNNER_TEMP/SHASUMS256.txt" | head -n 1)
+          curl -fsSL -o "$RUNNER_TEMP/$file" "$dist/$file"
+          (cd "$RUNNER_TEMP" && grep "  $file\$" SHASUMS256.txt | sha256sum -c --quiet)
+          sudo mkdir -p /opt/node
+          sudo tar -xJf "$RUNNER_TEMP/$file" -C /opt/node --strip-components 1
+      - name: Check out the ticket's commits
+        id: branch
+        run: |
+          git -c core.hooksPath=/dev/null fetch --quiet "$RUNNER_TEMP/ticket.bundle" "refs/heads/$BRANCH:refs/heads/$BRANCH"
+          if [ "$(git rev-parse "refs/heads/$BRANCH")" != "$TIP" ]; then
+            echo "tampered=true" >> "$GITHUB_OUTPUT"
+            echo "::error::The bundle's branch isn't the commit build made"
+            exit 1
+          fi
+          git -c core.hooksPath=/dev/null checkout --quiet "$BRANCH"
+      # What the pre-push hook runs, which the push in `publish`, with hooks off, skips. The step's parent is the runner's
+      # Runner.Worker, in <runner>/bin, which is hidden too, wherever the image puts it.
+      - name: npm ci and npm run check, in bwrap
+        id: check
+        run: |
+          worker=$(readlink -f "/proc/$PPID/exe")
+          bwrap --die-with-parent --unshare-all --share-net --clearenv \
+            --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --dir /tmp/home \
+            --tmpfs /home --tmpfs /run --ro-bind-try /run/systemd/resolve /run/systemd/resolve \
+            --tmpfs "${worker%/bin/*}" \
+            --bind "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE" --chdir "$GITHUB_WORKSPACE" \
+            --setenv HOME /tmp/home --setenv PATH /opt/node/bin:/usr/bin:/bin --setenv CI true --setenv CHECK_BASE "origin/$BASE" \
+            sh -c 'npm ci && npm run check'
 
   publish:
     needs: [build, check]
     runs-on: ubuntu-24.04
     outputs:
       refused: ${{ steps.branch.outputs.refused }}
+      tampered: ${{ steps.branch.outputs.tampered }}
     env:
       TIP: ${{ needs.build.outputs.tip }}
       BODY: ${{ needs.build.outputs.body }}
@@ -266,8 +297,16 @@ jobs:
         id: branch
         run: |
           git -c core.hooksPath=/dev/null fetch "$RUNNER_TEMP/ticket.bundle" "refs/heads/$BRANCH:refs/heads/$BRANCH"
-          test "$(git rev-parse "refs/heads/$BRANCH")" = "$TIP" || { echo "::error::The bundle's branch isn't the commit build made"; exit 1; }
-          echo "$BODY  $RUNNER_TEMP/pr-body.md" | sha256sum -c --quiet || { echo "::error::The PR body isn't the one build wrote"; exit 1; }
+          if [ "$(git rev-parse "refs/heads/$BRANCH")" != "$TIP" ]; then
+            echo "tampered=true" >> "$GITHUB_OUTPUT"
+            echo "::error::The bundle's branch isn't the commit build made"
+            exit 1
+          fi
+          if ! echo "$BODY  $RUNNER_TEMP/pr-body.md" | sha256sum -c --quiet; then
+            echo "tampered=true" >> "$GITHUB_OUTPUT"
+            echo "::error::The PR body isn't the one build wrote"
+            exit 1
+          fi
           changed=$(git diff --name-only "origin/$BASE...$BRANCH" -- .github/)
           if [ -n "$changed" ]; then
             echo "refused=true" >> "$GITHUB_OUTPUT"
@@ -308,19 +347,25 @@ jobs:
           BUILD_WHY: ${{ needs.build.outputs.why }}
           STOPPED: ${{ needs.build.outputs.stopped }}
           CHECK: ${{ needs.check.result }}
+          CHECKED: ${{ needs.check.outputs.checked }}
+          TAMPERED: ${{ needs.check.outputs.tampered || needs.publish.outputs.tampered }}
           REFUSED: ${{ needs.publish.outputs.refused }}
         run: |
           # BUILD_WHY is scripts/factoryOutcome.ts's reason: no commits, a dirty tree, the budget, the idle timeout, an error
-          if [ "$GATE" = failure ]; then why="checking the ticket failed (a GitHub API call)"
+          if [ "$TAMPERED" = true ]; then why="the agent's commits or the PR body changed after the build made them, so the factory didn't use them"
+          elif [ "$GATE" = failure ]; then why="checking the ticket failed (a GitHub API call)"
           elif [ "$START" != success ]; then why="labelling it in-progress failed"
           elif [ "$BUILD" = cancelled ]; then why="the build was cancelled, or ran past the job's $JOB_MINUTES-minute timeout"
-          elif [ -z "$AGENT" ] || [ "$AGENT" = skipped ]; then why="setting up the build failed, before the agent ran"
+          elif [ -z "$AGENT" ]; then why="the build job failed before any step ran, or lost its runner"
+          elif [ "$AGENT" = skipped ]; then why="setting up the build failed, before the agent ran"
           elif [ -z "$RESULT" ]; then why="the build script crashed before it started"
           elif [ "$RESULT" = started ] && [ "$STOPPED" = timeout ]; then why="the agent ran past its $AGENT_MINUTES-minute timeout"
           elif [ "$RESULT" = started ]; then why="the build was killed mid-run, before its timeout"
           elif [ -n "$BUILD_WHY" ]; then why="$BUILD_WHY"
           elif [ "$BUILD" != success ]; then why="bundling or uploading the agent's commits failed"
-          elif [ "$CHECK" != success ]; then why="\`npm run check\` failed on the ticket's branch"
+          elif [ "$CHECK" = cancelled ]; then why="the check was cancelled, or ran past its job's timeout"
+          elif [ "$CHECKED" = failure ]; then why="\`npm run check\` failed on the ticket's branch"
+          elif [ "$CHECK" != success ]; then why="setting up the check failed, or its job lost its runner"
           elif [ "$REFUSED" = true ]; then why="the agent's commits change files under .github/, which the factory doesn't push: build this ticket locally"
           else why="pushing the branch or opening the PR failed"
           fi

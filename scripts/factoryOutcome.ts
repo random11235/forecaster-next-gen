@@ -10,21 +10,21 @@ export type BuildResult = 'started' | 'built' | 'no-commits' | 'dirty' | 'idle-t
 /** How Sandcastle's `run()` ended: with the agent's commits, or with what it threw. */
 export type Ending = { commits: number; preservedWorktreePath?: string | undefined } | { error: unknown }
 
-/** The result, and, unless it's built, why it fails, as a park comment's reason. */
-export type Outcome = { result: Exclude<BuildResult, 'started'>; why?: string }
+/** Built, or a failure with why, as a park comment's reason. */
+export type Outcome = { result: 'built' } | { result: Exclude<BuildResult, 'started' | 'built'>; why: string }
 
 /** The outcome of a run that ended so, given the stream-json lines Claude Code wrote. */
 export function buildOutcome(ending: Ending, transcript: readonly string[]): Outcome {
   const budget = budgetStop(transcript)
   if (budget) return { result: 'budget', why: budget }
   if ('error' in ending) {
-    const idle = idleTimeout(ending.error)
-    if (idle !== undefined)
-      return {
-        result: 'idle-timeout',
-        why: `the agent went ${Number.isNaN(idle) ? 'too long' : `${idle / 60_000} minutes`} without output, so Sandcastle stopped it`,
-      }
-    return { result: 'error', why: `the build script failed: ${ending.error instanceof Error ? ending.error.message : String(ending.error)}` }
+    const error = sandcastleError(ending.error)
+    if (tagOf(error) === 'AgentIdleTimeoutError') {
+      const { timeoutMs } = error as { timeoutMs?: unknown }
+      const quiet = typeof timeoutMs === 'number' ? `${timeoutMs / 60_000} minutes` : 'too long'
+      return { result: 'idle-timeout', why: `the agent went ${quiet} without output, so Sandcastle stopped it` }
+    }
+    return { result: 'error', why: `the build script failed: ${error instanceof Error ? error.message : String(error)}` }
   }
   if (ending.commits === 0) return { result: 'no-commits', why: 'the agent made no commit' }
   if (ending.preservedWorktreePath) return { result: 'dirty', why: "the agent left changes it didn't commit" }
@@ -47,11 +47,25 @@ const parse = (line: string): Record<string, unknown> | undefined => {
   }
 }
 
-/** The idle timeout, in ms, if the error is Sandcastle's AgentIdleTimeoutError, itself or as a cause. */
-function idleTimeout(error: unknown): number | undefined {
-  for (let at = error; typeof at === 'object' && at !== null; at = (at as { cause?: unknown }).cause) {
-    const { _tag, timeoutMs } = at as { _tag?: unknown; timeoutMs?: unknown }
-    if (_tag === 'AgentIdleTimeoutError') return typeof timeoutMs === 'number' ? timeoutMs : Number.NaN
-  }
+/** Where effect's FiberFailure, which Sandcastle's run() rethrows from Effect.runPromise, keeps its Cause. */
+const FIBER_FAILURE_CAUSE = Symbol.for('effect/Runtime/FiberFailure/Cause')
+
+/**
+ * The error Sandcastle failed with, out of the FiberFailure run() throws: its Cause's first failure (`Fail`'s error,
+ * or `Die`'s defect, through `Sequential` and `Parallel`). Anything else is itself.
+ */
+function sandcastleError(thrown: unknown): unknown {
+  const cause = typeof thrown === 'object' && thrown !== null ? (thrown as Record<symbol, unknown>)[FIBER_FAILURE_CAUSE] : undefined
+  return cause === undefined ? thrown : (failure(cause) ?? thrown)
+}
+
+function failure(cause: unknown): unknown {
+  if (typeof cause !== 'object' || cause === null) return undefined
+  const node = cause as { _tag?: unknown; error?: unknown; defect?: unknown; left?: unknown; right?: unknown }
+  if (node._tag === 'Fail') return node.error
+  if (node._tag === 'Die') return node.defect
+  if (node._tag === 'Sequential' || node._tag === 'Parallel') return failure(node.left) ?? failure(node.right)
   return undefined
 }
+
+const tagOf = (error: unknown): unknown => (typeof error === 'object' && error !== null ? (error as { _tag?: unknown })._tag : undefined)
