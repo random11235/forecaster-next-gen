@@ -5,6 +5,8 @@
 !.claude/skills/implement-spec/
 # the factory smoke test's own skill (#335), in no skills repo
 !.claude/skills/factory-smoke/
+# factory triage (#359) reads its rules from these files, so a fresh clone, CI and the factory's check need them
+!.claude/skills/triage/
 .agents/
 .DS_Store
 node_modules/
