@@ -665,6 +665,7 @@ jobs:
       contents: read
       issues: read
       pull-requests: read
+      actions: read # statusCheckRollup reads each check run's workflow run
       checks: read # the PRs' checks
       statuses: read
     outputs:

@@ -61,7 +61,7 @@ const instructions = (asker: string, issue: Issue): string[] => [
   'Asked to build something, say that labelling it `ready-for-agent` does.',
   '',
   'End your reply with your answer in an <answer> block. It is posted as it is, as a comment on the issue, in GitHub Markdown: answer',
-  'the question first, short and plain, then what it rests on, linking the files, commits, PRs and runs.',
+  'the question first, short and plain, then what it rests on, linking the files, commits and PRs.',
 ]
 
 /**
