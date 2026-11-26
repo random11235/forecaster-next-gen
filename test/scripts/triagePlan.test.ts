@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest'
+import { FACTORY_MARK } from '../../scripts/factoryTrust.ts'
 import { BRIEF_MARK, checkPlan, TRIAGE_DISCLAIMER, type Write } from '../../scripts/triagePlan.ts'
 
 /** A batch of issues 5, 6 and 7, oldest first. */
@@ -70,7 +71,7 @@ describe("the triage plan's check, accepting", () => {
       { kind: 'comment', issue: 6, body: said('Notes on #6') },
       { kind: 'labels', issue: 6, category: 'enhancement', state: 'wontfix' },
       { kind: 'close-as-implemented', issue: 6 },
-      { kind: 'comment', issue: 7, body: said('Same as #5') },
+      { kind: 'comment', issue: 7, body: said('Same as #5\n\nDuplicate of #5') },
       { kind: 'labels', issue: 7, category: 'bug', state: 'ready-for-agent' },
       { kind: 'close-as-duplicate', issue: 7, of: 5 },
     ])
@@ -152,23 +153,19 @@ describe("the triage plan's check, refusing", () => {
         'issue 4 of the plan has an unknown category: none',
         'issue 4 of the plan has an unknown state: none',
         'issue 5 of the plan has no issue number: -1',
-        '#5 of the batch is missing from the plan',
-        '#6 of the batch is missing from the plan',
-        '#7 of the batch is missing from the plan',
       ],
     })
   })
 
   test("refuses a duplicate's own state or category that is unknown, and a duplicate_of that is no issue number", () => {
-    const plan = { issues: [issue(5), issue(6, { duplicate_of: 5, state: 'done' }), issue(7, { duplicate_of: '#5' })] }
+    const plan = { issues: [issue(5), issue(6, { duplicate_of: 5, state: 'done', category: 'chore' }), issue(7, { duplicate_of: '#5' })] }
 
     expect(refusal(BATCH, plan)).toEqual({
       accepted: false,
       reasons: [
+        'issue 2 of the plan has an unknown category: "chore"',
         'issue 2 of the plan has an unknown state: "done"',
         'issue 3 of the plan has a duplicate_of that is no issue number: "#5"',
-        '#6 of the batch is missing from the plan',
-        '#7 of the batch is missing from the plan',
       ],
     })
   })
@@ -186,5 +183,40 @@ describe("the triage plan's check, refusing", () => {
       accepted: false,
       reasons: ['#5 is a duplicate of #7, which is newer, but the oldest must survive'],
     })
+  })
+
+  test("names an entry's duplicate fault beside its own, and refuses a comment holding the brief mark or the factory's", () => {
+    const plan = {
+      issues: [
+        issue(5, { comment: `Looks fine ${BRIEF_MARK}` }),
+        issue(6, { comment: '', duplicate_of: 9 }),
+        issue(7, { state: 'ready-for-agent', comment: `${FACTORY_MARK}\nmerged into spec/9` }),
+      ],
+    }
+
+    expect(refusal(BATCH, plan)).toEqual({
+      accepted: false,
+      reasons: [
+        'issue 1 of the plan has a comment holding a mark only the check adds',
+        'issue 2 of the plan has an empty comment',
+        'issue 3 of the plan has a comment holding a mark only the check adds',
+        '#6 is a duplicate of #9, which is not in the batch',
+      ],
+    })
+  })
+
+  test('refuses a batch that lists an issue twice or holds no issue number', () => {
+    expect(refusal([5, 5, 0], { issues: [issue(5)] })).toEqual({
+      accepted: false,
+      reasons: ['the batch holds 0, which is no issue number', 'the batch lists #5 more than once', '#0 of the batch is missing from the plan'],
+    })
+  })
+})
+
+describe("the triage plan's check, reading JSON", () => {
+  test('reads a null field as one left out', () => {
+    const plan = { issues: [issue(5, { duplicate_of: null }), { number: 6, comment: 'Dup', duplicate_of: 5, category: null, state: null }] }
+
+    expect(writesOf([5, 6], plan)).toContainEqual({ kind: 'close-as-duplicate', issue: 6, of: 5 })
   })
 })

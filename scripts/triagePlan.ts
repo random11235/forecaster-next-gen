@@ -6,6 +6,8 @@
 // gets no state of its own. Only an issue the plan makes `ready-for-agent` is dispatched to the factory's build, and no
 // write adds `in-progress`, which only the build adds.
 
+import { FACTORY_MARK } from './factoryTrust.ts'
+
 /** The category roles a triaged issue carries one of (`.claude/skills/triage/SKILL.md`). */
 export const CATEGORIES = ['bug', 'enhancement'] as const
 export type Category = (typeof CATEGORIES)[number]
@@ -53,16 +55,16 @@ export type Checked = { accepted: false; reasons: readonly string[] } | { accept
  */
 export function checkPlan(batch: readonly number[], plan: unknown): Checked {
   if (!isRecord(plan) || !Array.isArray(plan.issues)) return refused(['the plan is not an object with a list of issues'])
-  const reasons: string[] = []
-  const entries = plan.issues.flatMap((entry: unknown, index): PlannedIssue[] => {
-    const problems = entryProblems(entry)
-    reasons.push(...problems.map((problem) => `issue ${index + 1} of the plan ${problem}`))
-    return problems.length === 0 ? [entry as PlannedIssue] : []
-  })
-  reasons.push(...batchProblems(batch, entries), ...duplicateProblems(batch, entries))
+  const checked = plan.issues.map((entry: unknown, index) => checkEntry(entry, index))
+  const reasons = [
+    ...batchProblems(batch),
+    ...checked.flatMap(({ problems }) => problems),
+    ...planBatchProblems(batch, checked),
+    ...duplicateProblems(batch, checked),
+  ]
   if (reasons.length > 0) return refused(reasons)
 
-  const byNumber = new Map(entries.map((entry) => [entry.number, entry]))
+  const byNumber = new Map(checked.flatMap(({ issue }) => (issue ? [[issue.number, issue] as const] : [])))
   const ordered = batch.flatMap((number) => byNumber.get(number) ?? [])
   const survivors = ordered.filter((entry) => entry.duplicate_of === undefined)
   const duplicates = ordered.filter((entry) => entry.duplicate_of !== undefined)
@@ -77,7 +79,7 @@ function writesFor(entry: PlannedIssue, byNumber: ReadonlyMap<number, PlannedIss
     const survivor = byNumber.get(entry.duplicate_of)
     if (survivor?.duplicate_of !== undefined || !survivor) throw new Error(`#${issue}'s survivor wasn't checked`)
     return [
-      { kind: 'comment', issue, body: commentBody(entry.comment, false) },
+      { kind: 'comment', issue, body: `${commentBody(entry.comment, false)}\n\nDuplicate of #${survivor.number}` },
       { kind: 'labels', issue, category: survivor.category, state: stateLabel(survivor.state) },
       { kind: 'close-as-duplicate', issue, of: survivor.number },
     ]
@@ -94,28 +96,49 @@ function writesFor(entry: PlannedIssue, byNumber: ReadonlyMap<number, PlannedIss
 
 const stateLabel = (state: State): StateLabel => (state === 'already-implemented' ? 'wontfix' : state)
 
-const commentBody = (comment: string, brief: boolean): string =>
-  [TRIAGE_DISCLAIMER, ...(brief ? [BRIEF_MARK] : []), comment.trim()].join('\n\n')
+const commentBody = (comment: string, brief: boolean): string => [TRIAGE_DISCLAIMER, ...(brief ? [BRIEF_MARK] : []), comment.trim()].join('\n\n')
 
-/** What's wrong with one entry of the plan, each said after "issue <i> of the plan". */
-function entryProblems(entry: unknown): string[] {
-  if (!isRecord(entry)) return ['is not an object']
+/**
+ * One entry of the plan as far as it could be read: its number and `duplicate_of` when they are issue numbers, so the
+ * batch and duplicate checks still name its other faults, and the entry itself only when it has none. A JSON `null`
+ * reads as a field left out.
+ */
+type CheckedEntry = { number?: number; duplicateOf?: number; issue?: PlannedIssue; problems: readonly string[] }
+
+function checkEntry(entry: unknown, index: number): CheckedEntry {
+  const at = `issue ${index + 1} of the plan`
+  if (!isRecord(entry)) return { problems: [`${at} is not an object`] }
+  const field = (key: string): unknown => entry[key] ?? undefined
+  const [number, category, state, comment, duplicateOf] = ['number', 'category', 'state', 'comment', 'duplicate_of'].map(field)
+  const duplicate = duplicateOf !== undefined
   const problems: string[] = []
-  const { number, category, state, comment, duplicate_of } = entry
-  const duplicate = duplicate_of !== undefined
-  if (!isIssueNumber(number)) problems.push(`has no issue number: ${show(number)}`)
-  if (duplicate && !isIssueNumber(duplicate_of)) problems.push(`has a duplicate_of that is no issue number: ${show(duplicate_of)}`)
-  if (!(duplicate && category === undefined) && !isOneOf(CATEGORIES, category)) problems.push(`has an unknown category: ${show(category)}`)
-  if (!(duplicate && state === undefined) && !isOneOf(STATES, state)) problems.push(`has an unknown state: ${show(state)}`)
-  if (typeof comment !== 'string' || comment.trim() === '') problems.push('has an empty comment')
-  return problems
+  if (!isIssueNumber(number)) problems.push(`${at} has no issue number: ${show(number)}`)
+  if (duplicate && !isIssueNumber(duplicateOf)) problems.push(`${at} has a duplicate_of that is no issue number: ${show(duplicateOf)}`)
+  if (!(duplicate && category === undefined) && !isOneOf(CATEGORIES, category)) problems.push(`${at} has an unknown category: ${show(category)}`)
+  if (!(duplicate && state === undefined) && !isOneOf(STATES, state)) problems.push(`${at} has an unknown state: ${show(state)}`)
+  if (typeof comment !== 'string' || comment.trim() === '') problems.push(`${at} has an empty comment`)
+  else if (MARKS.some((mark) => comment.includes(mark))) problems.push(`${at} has a comment holding a mark only the check adds`)
+  const read: CheckedEntry = { problems, ...(isIssueNumber(number) && { number }), ...(isIssueNumber(duplicateOf) && { duplicateOf }) }
+  if (problems.length > 0) return read
+  const issue = { number, category, state, comment, ...(duplicate && { duplicate_of: duplicateOf }) } as PlannedIssue
+  return { ...read, issue }
+}
+
+/** The marks the factory trusts a comment by, which the agent's own text may not hold. */
+const MARKS = [BRIEF_MARK, FACTORY_MARK]
+
+/** The batch itself: issue numbers, each once. */
+function batchProblems(batch: readonly number[]): string[] {
+  const bad = batch.filter((number) => !isIssueNumber(number)).map((number) => `the batch holds ${show(number)}, which is no issue number`)
+  const twice = [...new Set(batch.filter((number, index) => batch.indexOf(number) !== index))]
+  return [...bad, ...twice.map((number) => `the batch lists #${number} more than once`)]
 }
 
 /** Each issue of the batch, and only those, listed once. */
-function batchProblems(batch: readonly number[], entries: readonly PlannedIssue[]): string[] {
+function planBatchProblems(batch: readonly number[], entries: readonly CheckedEntry[]): string[] {
   const inBatch = new Set(batch)
   const counts = new Map<number, number>()
-  for (const { number } of entries) counts.set(number, (counts.get(number) ?? 0) + 1)
+  for (const { number } of entries) if (number !== undefined) counts.set(number, (counts.get(number) ?? 0) + 1)
   return [
     ...batch.filter((number) => !counts.has(number)).map((number) => `#${number} of the batch is missing from the plan`),
     ...[...counts.keys()].filter((number) => !inBatch.has(number)).map((number) => `#${number} is in the plan but not the batch`),
@@ -124,11 +147,11 @@ function batchProblems(batch: readonly number[], entries: readonly PlannedIssue[
 }
 
 /** Each duplicate onto an older issue of the batch that is no duplicate itself, so the oldest survives. */
-function duplicateProblems(batch: readonly number[], entries: readonly PlannedIssue[]): string[] {
+function duplicateProblems(batch: readonly number[], entries: readonly CheckedEntry[]): string[] {
   const age = new Map(batch.map((number, index) => [number, index]))
-  const duplicates = new Set(entries.flatMap(({ number, duplicate_of }) => (duplicate_of === undefined ? [] : [number])))
-  return entries.flatMap(({ number, duplicate_of: of }) => {
-    if (of === undefined) return []
+  const duplicates = new Set(entries.flatMap(({ number, duplicateOf }) => (number !== undefined && duplicateOf !== undefined ? [number] : [])))
+  return entries.flatMap(({ number, duplicateOf: of }) => {
+    if (number === undefined || of === undefined) return []
     const ofAge = age.get(of)
     const numberAge = age.get(number)
     if (ofAge === undefined) return [`#${number} is a duplicate of #${of}, which is not in the batch`]
