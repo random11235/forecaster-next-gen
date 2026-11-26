@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node scripts/feedbackRepo.ts",
     "check": "npm run check:static && npm test",
     "check:ci": "npm run check:static && npm run test:coverage",
     "check:static": "npm run typecheck && npm run lint:boundaries && npm run check:migrations && npm run check:changes -- ${CHECK_BASE:-origin/main}",
