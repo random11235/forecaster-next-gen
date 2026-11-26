@@ -2,6 +2,10 @@
 
 What each version of the app shipped, newest first. The version is the one in every screen's footer: a fix is in the app you're running if its version is the footer's or older. Each merge's release ([`docs/design/architecture.md`](docs/design/architecture.md#release)) writes its section here, a line from each change file (`changes/<ticket>.md`) a PR that changes the app adds: a PR doesn't edit the entries below ([`docs/agents/pull-requests.md`](docs/agents/pull-requests.md#version)).
 
+## 1.4.0 (2026-11-26)
+
+- The favicon is dark green, its cream curve unchanged (#375, PR #376)
+
 ## 1.3.0 (2026-11-26)
 
 - Send feedback beside the version in every screen's footer, opening a new GitHub issue on the repo the build was made from (#370, PR #372)
