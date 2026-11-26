@@ -48,7 +48,7 @@ jobs:
           : "${FORECASTER_DATA_FILE:?is unset: run scripts/setupRunner.sh, which sets it in the .env of the runner}"
           echo "The app keeps its data in $FORECASTER_DATA_FILE"
       # main's tip, the release commit included, not the merge CI ran on
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: main
       - run: npm ci
