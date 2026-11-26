@@ -83,13 +83,10 @@ describe('launch smoke test', () => {
     const live = await fetch(new URL('/live', url))
     const first = await live.body?.getReader().read()
 
-    // A clone of a GitHub repo, or CI's checkout, records one; scripts/feedbackRepo.ts's tests say which, and the
+    // Send feedback follows wherever the build recorded a GitHub repo: scripts/feedbackRepo.ts's tests say when, and the
     // component tests what the link opens.
-    expect(html).toMatch(
-      new RegExp(
-        `<footer class="version">Forecaster ${APP_VERSION.replaceAll('.', '\\.')} · <a href="https://github\\.com/[^/"]+/[^/"]+/issues/new\\?[^"]*" target="_blank" rel="noopener">Send feedback</a></footer>`,
-      ),
-    )
+    const footer = html.match(/<footer class="version">(.*)<\/footer>/)?.[1]
+    expect(footer?.replace(/<[^>]*>/g, '')).toMatch(new RegExp(`^Forecaster ${APP_VERSION.replaceAll('.', '\\.')}(?: · Send feedback)?$`))
     expect(new TextDecoder().decode(first?.value)).toBe(`retry: 500\ndata: ${APP_VERSION}\n\n`)
   }, 15_000)
 

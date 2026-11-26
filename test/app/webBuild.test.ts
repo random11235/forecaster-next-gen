@@ -28,9 +28,11 @@ describe('web build smoke test', () => {
     expect(html.indexOf('<script>')).toBeLessThan(html.indexOf('</script>'))
     expect(html).toContain("@font-face { font-family: 'Geist'; src: url(data:font/woff2;base64,")
     expect(html).toContain("@font-face { font-family: 'Geist Mono'; src: url(data:font/woff2;base64,")
-    // the script names the SVG namespace, `http://www.w3.org/2000/svg`, which loads nothing; a link, such as Send
-    // feedback's, loads nothing until it's followed
-    expect(html.replace(/<a\s[^>]*>/g, '')).not.toMatch(/(?:href=|src=|url\()["']?(?:https?:)?\/\//)
+    // the script names the SVG namespace, `http://www.w3.org/2000/svg`, which loads nothing; Send feedback's link loads
+    // nothing until it's followed
+    expect(html.replace(/<a href="https:\/\/github\.com\/[^"]*" target="_blank" rel="noopener">Send feedback<\/a>/, '')).not.toMatch(
+      /(?:href=|src=|url\()["']?(?:https?:)?\/\//,
+    )
     expect(html).not.toMatch(/@import/)
   })
 
@@ -39,11 +41,8 @@ describe('web build smoke test', () => {
     const footer = html.match(/<footer class="version">(.*)<\/footer>/)?.[1]
     const script = html.match(/<script>([^]*)<\/script>/)?.[1]
     if (FEEDBACK_REPO) {
-      expect(footer).toMatch(
-        new RegExp(
-          `^Forecaster ${PACKAGE.version.replaceAll('.', '\\.')} · <a href="https://github\\.com/${FEEDBACK_REPO}/issues/new\\?[^"]*" target="_blank" rel="noopener">Send feedback</a>$`,
-        ),
-      )
+      expect(footer?.replace(/<[^>]*>/g, '')).toBe(`Forecaster ${PACKAGE.version} · Send feedback`)
+      expect(footer).toContain(`href="https://github.com/${FEEDBACK_REPO}/issues/new?`)
       expect(script).toContain(JSON.stringify(FEEDBACK_REPO))
     } else expect(footer).toBe(`Forecaster ${PACKAGE.version}`)
     expect(script).toContain(JSON.stringify(PACKAGE.version))
