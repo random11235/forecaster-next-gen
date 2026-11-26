@@ -76,3 +76,8 @@ _Avoid_: measurement, sync result
 
 **Finished** (of a ticket): done in the team's tracker, whatever the reason, and counted once, at its last finish. Only leaves count.
 _Avoid_: completed, resolved
+
+## Telling the makers
+
+**Feedback**: what someone using the app tells the people who make it about it, sent from the app as a new issue on the repo the app was built from. That repo is never the team's connection, though both may be on GitHub.
+_Avoid_: request, bug report, ticket
