@@ -1,7 +1,7 @@
 // Whose words the factory (.github/workflows/factory.yml) believes. The repo is public, so anyone can comment on an
 // issue: only the owner's and collaborators' text reaches an agent's prompt (ADR 0005, risk R2 in
 // docs/research/sandcastle-factory.md), or tells the factory a ticket merged. Every comment the factory makes carries
-// FACTORY_MARK, which keeps it out of a prompt.
+// FACTORY_MARK, which keeps it out of a prompt, save triage's brief.
 //
 // The factory writes with its jobs' GITHUB_TOKEN, as github-actions[bot], whom GitHub gives no author association. So a
 // merged comment counts when github-actions wrote it, as well as the owner or a collaborator by hand. GraphQL names it
@@ -10,8 +10,9 @@
 // pins it: every workflow sets its own token read-only, and no job outside factory.yml grants `issues: write` or
 // `write-all`.
 //
-// Triage's brief for a ticket is a comment carrying BRIEF_MARK, which only counts when github-actions wrote it: the
-// owner's or a collaborator's by hand is a comment like any other, and anyone else's is left out.
+// Triage's brief for a ticket is a comment opening with BRIEF_MARK, which only counts when github-actions wrote it: the
+// owner's or a collaborator's by hand is a comment like any other, and anyone else's is left out. It reaches the prompt
+// even when it also carries FACTORY_MARK, as triage's comments, being the factory's, may.
 
 /** GitHub's author association: how the author of an issue or comment is related to the repo. */
 export type Association = 'OWNER' | 'MEMBER' | 'COLLABORATOR' | 'CONTRIBUTOR' | 'FIRST_TIME_CONTRIBUTOR' | 'FIRST_TIMER' | 'MANNEQUIN' | 'NONE'
@@ -32,28 +33,30 @@ export const isTrusted = (association: Association): boolean => association === 
 export const isActionsBot = (author: Author | null): boolean => author?.__typename === 'Bot' && author.login === 'github-actions'
 
 /**
- * Whether a comment's author, as GitHub's REST API gives it, is github-actions: there, a Bot named `github-actions[bot]`,
- * a login no user account can have.
- */
-export const isActionsBotUser = (user: { login: string; type: string }): boolean => user.type === 'Bot' && user.login === 'github-actions[bot]'
-
-/**
  * The factory's words in a comment, after the mark it opens with, or undefined if it doesn't open with the mark. The
  * mark alone says nothing about who wrote it: anyone can type it, so check the author too.
  */
-export const factoryWords = (body: string | null): string | undefined => {
+export const factoryWords = (body: string | null): string | undefined => wordsAfter(FACTORY_MARK, body)
+
+/** The words in a comment after the mark it opens with, or undefined if it doesn't open with the mark. */
+const wordsAfter = (mark: string, body: string | null): string | undefined => {
   const text = (body ?? '').trimStart()
-  return text.startsWith(FACTORY_MARK) ? text.slice(FACTORY_MARK.length).trim() : undefined
+  return text.startsWith(mark) ? text.slice(mark.length).trim() : undefined
 }
 
 /** Whether the comment carries the factory's mark anywhere, so it is kept out of a prompt. */
 export const byFactory = (body: string | null): boolean => (body ?? '').includes(FACTORY_MARK)
 
+/** An issue's or a comment's text and author, as GitHub's REST API gives them: a Bot's login ends `[bot]`, as no user's can. */
+export type Authored = { body: string | null; user: { login: string; type: 'Bot' | 'User' | 'Organization' }; author_association: Association }
+
 /**
- * The brief's words in a comment, after the mark it opens with, or undefined if it doesn't open with the mark. As with
- * factoryWords, anyone can type the mark, so check the author too.
+ * Triage's brief for a ticket, from its comments as GitHub's REST API lists them, oldest first: the words of the newest
+ * that opens with BRIEF_MARK and that github-actions wrote, or undefined if there is none or it says nothing.
  */
-export const briefWords = (body: string | null): string | undefined => {
-  const text = (body ?? '').trimStart()
-  return text.startsWith(BRIEF_MARK) ? text.slice(BRIEF_MARK.length).trim() : undefined
-}
+export const triageBrief = (comments: readonly Authored[]): string | undefined =>
+  comments
+    .filter(({ user }) => user.type === 'Bot' && user.login === 'github-actions[bot]')
+    .map(({ body }) => wordsAfter(BRIEF_MARK, body))
+    .filter((words) => words !== undefined && words !== '')
+    .at(-1)

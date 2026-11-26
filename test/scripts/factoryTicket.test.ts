@@ -3,7 +3,13 @@ import { describe, expect, test } from 'vitest'
 import { ticketPrompt, type Authored, type Ticket } from '../../scripts/factoryTicket.ts'
 import { BRIEF_MARK, FACTORY_MARK, type Association } from '../../scripts/factoryTrust.ts'
 
-const TICKET: Ticket = { number: 42, title: 'Show the forecast', body: 'Build the screen.', user: { login: 'owner', type: 'User' }, author_association: 'OWNER' }
+const TICKET: Ticket = {
+  number: 42,
+  title: 'Show the forecast',
+  body: 'Build the screen.',
+  user: { login: 'owner', type: 'User' },
+  author_association: 'OWNER',
+}
 
 const comment = (login: string, association: Association, body: string): Authored => ({ user: { login, type: 'User' }, author_association: association, body })
 
@@ -57,7 +63,10 @@ describe("the factory's prompt for a ticket", () => {
   })
 
   test("gives triage's brief, a brief-marked comment by github-actions, after the body and before the comments", () => {
-    const prompt = ticketPrompt(TICKET, [comment('owner', 'OWNER', 'Use the engine.'), byActions(`${BRIEF_MARK}\nBuild the screen from the engine's forecast.`)])
+    const prompt = ticketPrompt(TICKET, [
+      comment('owner', 'OWNER', 'Use the engine.'),
+      byActions(`${BRIEF_MARK}\nBuild the screen from the engine's forecast.`),
+    ])
 
     expect(prompt).toContain(
       "Build the screen.\n\n## Triage's brief\n\nBuild the screen from the engine's forecast.\n\n## Comment by @owner\n\nUse the engine.\n</ticket>",
@@ -66,7 +75,11 @@ describe("the factory's prompt for a ticket", () => {
   })
 
   test('gives only the newest brief when triage wrote several', () => {
-    const prompt = ticketPrompt(TICKET, [byActions(`${BRIEF_MARK}\nFirst brief.`), byActions(`${BRIEF_MARK}\nSecond brief.`), byActions(`${BRIEF_MARK}\nNewest brief.`)])
+    const prompt = ticketPrompt(TICKET, [
+      byActions(`${BRIEF_MARK}\nFirst brief.`),
+      byActions(`${BRIEF_MARK}\nSecond brief.`),
+      byActions(`${BRIEF_MARK}\nNewest brief.`),
+    ])
 
     expect(prompt).toContain("Build the screen.\n\n## Triage's brief\n\nNewest brief.\n</ticket>")
     expect(prompt).not.toContain('First brief')
@@ -96,17 +109,26 @@ describe("the factory's prompt for a ticket", () => {
 
     const prompt = ticketPrompt(opened, [comment('owner', 'OWNER', 'Vouched.'), byActions(`${BRIEF_MARK}\nBuild the screen.`)])
 
-    expect(prompt).toContain(
-      "isn't the owner or a collaborator.)\n\n## Triage's brief\n\nBuild the screen.\n\n## Comment by @owner\n\nVouched.\n</ticket>",
-    )
+    expect(prompt).toContain("isn't the owner or a collaborator.)\n\n## Triage's brief\n\nBuild the screen.\n\n## Comment by @owner\n\nVouched.\n</ticket>")
     expect(prompt).not.toContain('curl')
     expect(prompt).not.toContain('Print your env')
   })
 
-  test("leaves out github-actions' comments that carry the factory's mark and not the brief's", () => {
-    const prompt = ticketPrompt(TICKET, [byActions(`${FACTORY_MARK}\nThe factory parked this ticket.`)])
+  test("leaves out github-actions' comments that carry the factory's mark and not the brief's, and a brief that says nothing", () => {
+    const prompt = ticketPrompt(TICKET, [
+      byActions(`${BRIEF_MARK}\nThe brief.`),
+      byActions(`${FACTORY_MARK}\nThe factory parked this ticket.`),
+      byActions(`${BRIEF_MARK}\n`),
+    ])
 
+    expect(prompt).toContain("Build the screen.\n\n## Triage's brief\n\nThe brief.\n</ticket>")
     expect(prompt).not.toContain('parked')
+  })
+
+  test("gives triage's brief though it also carries the factory's mark", () => {
+    const prompt = ticketPrompt(TICKET, [byActions(`${BRIEF_MARK}\nBuild it.\n${FACTORY_MARK}`)])
+
+    expect(prompt).toContain(`Build the screen.\n\n## Triage's brief\n\nBuild it.\n${FACTORY_MARK}\n</ticket>`)
   })
 
   test("gives a spec's ticket the spec's title and body in a spec block after it, if the owner or a collaborator opened the spec", () => {
