@@ -2,6 +2,11 @@
 
 What each version of the app shipped, newest first. The version is the one in every screen's footer: a fix is in the app you're running if its version is the footer's or older. Each merge's release ([`docs/design/architecture.md`](docs/design/architecture.md#release)) writes its section here, a line from each change file (`changes/<ticket>.md`) a PR that changes the app adds: a PR doesn't edit the entries below ([`docs/agents/pull-requests.md`](docs/agents/pull-requests.md#version)).
 
+## 1.3.0 (2026-11-26)
+
+- Send feedback beside the version in every screen's footer, opening a new GitHub issue on the repo the build was made from (#370, PR #372)
+- The web build is tested to carry Send feedback for the repo it was built with, on every screen its script shows, and none when built with no repo, with no change to the app (#371, PR #372)
+
 ## 1.2.2 (2026-11-25)
 
 - The web build is on GitHub Pages, at https://random11235.github.io/forecaster-next-gen/ (PR #357)
