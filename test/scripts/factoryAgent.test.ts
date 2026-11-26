@@ -74,18 +74,16 @@ describe("the factory's agent", () => {
     expect(agent.env).toEqual({ CLAUDE_CODE_OAUTH_TOKEN: 'oauth' })
   })
 
-  test("answering a question, allows only tools that read, denies the rest, and hands the sandbox the job's read-only token", () => {
-    const agent = readOnlyAgent('haiku', { oauthToken: 'oauth', maxBudgetUsd: 2, ghToken: 'read' })
+  test('answering a question, has only the file-reading tools, no shell, and only the OAuth token in its env', () => {
+    const agent = readOnlyAgent('haiku', { oauthToken: 'oauth', maxBudgetUsd: 2 })
 
     const { command } = agent.buildPrintCommand({ prompt: 'Is it done?', dangerouslySkipPermissions: true })
 
-    expect(command).toMatch(
-      /^claude --print --verbose --permission-mode dontAsk --output-format stream-json --model 'haiku' --tools 'Read,Grep,Glob,Bash' --allowedTools 'Read' 'Grep' 'Glob' 'Bash\(git log:\*\)' .* --disallowedTools 'Edit' 'Write' 'NotebookEdit' --max-budget-usd 2 -p -- 'Is it done\?'$/,
+    expect(command).toBe(
+      "claude --print --verbose --permission-mode dontAsk --output-format stream-json --model 'haiku' --tools 'Read,Grep,Glob' --allowedTools 'Read' 'Grep' 'Glob'" +
+        " --disallowedTools 'Bash' 'Edit' 'Write' 'NotebookEdit' 'WebFetch' 'WebSearch' --max-budget-usd 2 -p -- 'Is it done?'",
     )
-    expect(command).toContain("'Bash(gh pr checks:*)'")
-    expect(command).not.toContain('dangerously')
-    expect(command).not.toMatch(/push|gh api|comment|edit:/)
-    expect(agent.env).toEqual({ CLAUDE_CODE_OAUTH_TOKEN: 'oauth', GH_TOKEN: 'read' })
+    expect(agent.env).toEqual({ CLAUDE_CODE_OAUTH_TOKEN: 'oauth' })
   })
 
   test('hands the sandbox only the OAuth token', () => {

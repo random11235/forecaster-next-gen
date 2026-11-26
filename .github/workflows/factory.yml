@@ -6,7 +6,7 @@
 # and a ticket with an open PR are skipped with a log line. Background, and the risks it answers (R1-R10):
 # docs/research/sandcastle-factory.md.
 #
-# The jobs that write to GitHub (`tell`, `start`, `publish`, `park`) use the job's own GITHUB_TOKEN, raised to the
+# The jobs that write to GitHub (`tell`, `start`, `publish`, `park`, `reply`) use the job's own GITHUB_TOKEN, raised to the
 # write it needs in that job alone, and it expires when the job ends. They run none of the code an agent wrote, which
 # spec/<n> holds too, from the spec's earlier tickets: every job's own code is the default branch's. The one long-lived
 # token, FACTORY_TOKEN, only opens the PR: a fine-grained token on this repo with Pull requests write and nothing else,
@@ -24,9 +24,11 @@
 # taken as the cap.
 #
 # A comment on an issue or a PR that mentions @claude, by the owner or a collaborator, asks the factory a question
-# (#380, scripts/factoryQuestion.ts): `ask` runs Claude Code in the sandbox with tools that only read, on a checkout of
-# the default branch and the issue fetched beforehand, and `reply` posts its answer with MARK. A question builds nothing,
-# and no other job runs on it, nor `ask` on a label.
+# (#380, scripts/factoryQuestion.ts): `ask` runs Claude Code in the sandbox with tools that only read files, and no
+# GitHub token, on a checkout of the default branch and the issue, PRs and commits fetched beforehand, and `reply` posts
+# its answer with MARK. `reply` runs none of the agent's output as code: it posts the reply as a comment's body, from a
+# file, checked against the digest `ask` took. A question builds nothing, and no other job runs on it, nor `ask` on a
+# label.
 name: Factory
 
 on:
@@ -649,10 +651,10 @@ jobs:
         run: gh workflow run board.yml --repo "$REPO" --ref "$BASE" || echo "::warning::the board sync didn't start; its daily run catches up"
 
   # A question: the `if` passes only a comment that may ask one, so most comments start no runner, and
-  # scripts/factoryAsked.ts decides. Everything here only reads: the token, and the agent's tools, which are allowed
-  # file reads, `git` reads and `gh` reads of issues, PRs and runs, and denied the rest (scripts/factoryAgent.ts). The
-  # agent gets the read token for its `gh` reads, which can read no more than this public repo, and expires with the
-  # job. It answers in OUT_DIR's reply.md, which `reply` posts.
+  # scripts/factoryAsked.ts decides, before anything is installed: it imports no package (test/scripts/factoryAsked.test.ts).
+  # Everything here only reads: the token, which stays outside the sandbox, and the agent's tools, Read, Grep and Glob,
+  # with no shell (scripts/factoryAgent.ts). What it needs from GitHub and git, a step fetches into its prompt. It
+  # answers in OUT_DIR's reply.md, which `reply` posts.
   ask:
     if: >-
       github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')
@@ -663,7 +665,6 @@ jobs:
       contents: read
       issues: read
       pull-requests: read
-      actions: read # the agent's `gh run` reads
       checks: read # the PRs' checks
       statuses: read
     outputs:
@@ -676,6 +677,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 30 # the commits scripts/factoryAsk.ts lists in the prompt
           persist-credentials: false
       - uses: actions/setup-node@v7
         with:
@@ -718,7 +720,6 @@ jobs:
         env:
           # reach the agent only through readOnlyAgent()'s env, which Sandcastle hands bwrap
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          GH_TOKEN: ${{ github.token }}
           ISSUE_JSON: ${{ runner.temp }}/issue.json
           COMMENTS_JSON: ${{ runner.temp }}/comments.json
           PRS_JSON: ${{ runner.temp }}/prs.json
@@ -726,17 +727,16 @@ jobs:
           git config core.hooksPath /dev/null
           git checkout --quiet -B factory-ask
           node scripts/factoryAsk.ts
-      # The logs are public with the run, and the reply will be: neither token the agent held may be in them
-      - name: Scrub the tokens from the logs and the reply
+      # The logs are public with the run, and the reply will be: the token the agent held may be in neither
+      - name: Scrub the token from the logs and the reply
         id: reply
         if: always() && steps.asked.outputs.asked == 'true'
         env:
           TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          READ_TOKEN: ${{ github.token }}
         run: |
           for dir in "$LOG_DIR" "$OUT_DIR"; do
             if [ -d "$dir" ]; then
-              find "$dir" -type f -exec perl -pi -e 's/\Q$ENV{TOKEN}\E/[token]/g if length $ENV{TOKEN}; s/\Q$ENV{READ_TOKEN}\E/[token]/g if length $ENV{READ_TOKEN}' {} +
+              find "$dir" -type f -exec perl -pi -e 's/\Q$ENV{TOKEN}\E/[token]/g if length $ENV{TOKEN}' {} +
             fi
           done
           if [ -f "$OUT_DIR/reply.md" ]; then echo "digest=$(sha256sum "$OUT_DIR/reply.md" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"; fi

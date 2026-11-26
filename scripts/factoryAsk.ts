@@ -1,12 +1,14 @@
 // The factory's answer to a question (#380), run by .github/workflows/factory.yml's `ask` job once bwrap's probe has
-// passed: Claude Code, in Sandcastle's bwrap() sandbox, with tools that only read (scripts/factoryAgent.ts), on the
-// question and the issue a step fetched (scripts/factoryQuestion.ts), in the runner's checkout of the default branch.
-// It builds and pushes nothing, and holds only the job's read-only GITHUB_TOKEN: the `reply` job posts what it writes.
+// passed: Claude Code, in Sandcastle's bwrap() sandbox, with tools that only read files (scripts/factoryAgent.ts), on the
+// question and the issue a step fetched and the default branch's latest commits (scripts/factoryQuestion.ts), in the
+// runner's checkout of the default branch. It builds and pushes nothing, and the sandbox holds no GitHub token, only
+// the OAuth one: the `reply` job posts what it writes.
 //
 // Into OUT_DIR it writes `reply.md`, the comment to post: the agent's answer, or why there is none. Into LOG_DIR go the
 // agent's stream-json (`transcript.jsonl`) and Sandcastle's log. The other inputs are environment variables too:
-// CLAUDE_CODE_OAUTH_TOKEN, GH_TOKEN, GITHUB_EVENT_PATH, ISSUE_JSON, COMMENTS_JSON, PRS_JSON and RUN_URL.
+// CLAUDE_CODE_OAUTH_TOKEN, GITHUB_EVENT_PATH, ISSUE_JSON, COMMENTS_JSON, PRS_JSON and RUN_URL.
 
+import { execFileSync } from 'node:child_process'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { run, type AgentStreamEvent } from '@ai-hero/sandcastle'
@@ -18,6 +20,8 @@ import { questionPrompt, replyTo, type Answered, type Comment, type CommentEvent
 const MODEL = 'opus'
 /** An answer reads and writes no code, so it needs far less than a build's $25. */
 const MAX_BUDGET_USD = 3
+/** How many of the default branch's commits the prompt lists. */
+const COMMITS = 30
 
 const env = (name: string): string => {
   const value = process.env[name]
@@ -34,13 +38,14 @@ const transcript = join(logDir, 'transcript.jsonl')
 const sandcastleLog = join(logDir, 'sandcastle.log')
 const event = json<CommentEvent>('GITHUB_EVENT_PATH')
 
-let ending: Answered
+let answered: Answered
 try {
-  const prompt = questionPrompt(event, json<Issue>('ISSUE_JSON'), json<Comment[][]>('COMMENTS_JSON').flat(), json<PullRequest[]>('PRS_JSON'))
+  const commits = execFileSync('git', ['log', `-n${COMMITS}`, '--date=short', '--format=%h %ad %s'], { encoding: 'utf8' })
+  const prompt = questionPrompt(event, json<Issue>('ISSUE_JSON'), json<Comment[][]>('COMMENTS_JSON').flat(), json<PullRequest[]>('PRS_JSON'), commits)
   const ran = await run({
     name: `question-${event.issue.number}`,
     prompt,
-    agent: readOnlyAgent(MODEL, { oauthToken: env('CLAUDE_CODE_OAUTH_TOKEN'), maxBudgetUsd: MAX_BUDGET_USD, ghToken: env('GH_TOKEN') }),
+    agent: readOnlyAgent(MODEL, { oauthToken: env('CLAUDE_CODE_OAUTH_TOKEN'), maxBudgetUsd: MAX_BUDGET_USD }),
     sandbox: bwrap(),
     branchStrategy: { type: 'merge-to-head' },
     maxIterations: 1,
@@ -54,15 +59,15 @@ try {
       },
     },
   })
-  ending = { stdout: ran.stdout }
+  answered = { stdout: ran.stdout }
 } catch (error: unknown) {
   console.error(error)
   const lines = existsSync(transcript) ? readFileSync(transcript, 'utf8').split('\n') : []
   const outcome = buildOutcome({ error }, lines)
-  ending = { why: 'why' in outcome ? outcome.why.split('\n')[0]!.slice(0, 300) : 'the agent failed' }
+  answered = { why: 'why' in outcome ? outcome.why.split('\n')[0]!.slice(0, 300) : 'the agent failed' }
   process.exitCode = 1
 }
-writeFileSync(join(outDir, 'reply.md'), replyTo(event.comment, ending, env('RUN_URL')))
+writeFileSync(join(outDir, 'reply.md'), replyTo(event.comment, answered, env('RUN_URL')))
 if (existsSync(sandcastleLog)) {
   console.log('::group::Sandcastle log')
   console.log(readFileSync(sandcastleLog, 'utf8'))

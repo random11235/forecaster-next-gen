@@ -8,6 +8,9 @@
 // option. As an argument, it's in the command line, which anything in the sandbox can read from /proc/<pid>/cmdline.
 
 import { claudeCode, type AgentProvider } from '@ai-hero/sandcastle'
+import { MAX_PROMPT_BYTES, shellWord } from './factoryShell.ts'
+
+export { MAX_PROMPT_BYTES }
 
 export type FactoryAgentOptions = {
   /** CLAUDE_CODE_OAUTH_TOKEN, the one secret the sandbox gets. */
@@ -16,28 +19,25 @@ export type FactoryAgentOptions = {
   maxBudgetUsd: number
 }
 
-/** Linux caps one argument, and so Sandcastle's whole `sh -c` command, at 128 KiB; this leaves room for the rest. */
-export const MAX_PROMPT_BYTES = 100_000
-
 const STDIN_PROMPT = ' -p -'
 
-/** `text` as one shell word, in single quotes. */
-const quoted = (text: string): string => `'${text.replaceAll("'", "'\\''")}'`
-
-/** The part of claudeCode()'s `command` before its closing `-p -`, which it throws without. */
-function ending(command: string): string {
+/** claudeCode()'s `command` without its closing `-p -`, which it throws without. */
+function withoutStdinPrompt(command: string): string {
   if (!command.endsWith(STDIN_PROMPT)) throw new Error(`claudeCode()'s command no longer ends in -p -: ${command}`)
   return command.slice(0, -STDIN_PROMPT.length)
 }
 
-/** The part of claudeCode()'s `command` before its closing `-p -`, plus the budget cap. */
-const capped = (command: string, maxBudgetUsd: number): string => `${ending(command)} --max-budget-usd ${maxBudgetUsd}`
+/** claudeCode()'s `command`, without its closing `-p -`, then `flags` and the budget cap. */
+const capped = (command: string, maxBudgetUsd: number, flags = ''): string => `${withoutStdinPrompt(command)}${flags} --max-budget-usd ${maxBudgetUsd}`
 
-/** claudeCode()'s `command`, which ends in `-p -`, with the budget cap and `prompt` as the argument in its place. */
-export function withPromptArgument(command: string, prompt: string, maxBudgetUsd: number): string {
-  const start = capped(command, maxBudgetUsd)
+/**
+ * claudeCode()'s `command`, which ends in `-p -`, with any `flags`, the budget cap, and `prompt` as the argument in
+ * place of `-p -`.
+ */
+export function withPromptArgument(command: string, prompt: string, maxBudgetUsd: number, flags = ''): string {
+  const start = capped(command, maxBudgetUsd, flags)
   if (prompt.includes('\0')) throw new Error('the prompt holds a NUL byte, which no command line can carry')
-  const word = quoted(prompt)
+  const word = shellWord(prompt)
   const bytes = Buffer.byteLength(word)
   if (bytes > MAX_PROMPT_BYTES) {
     throw new Error(`the prompt, quoted for the shell, is ${bytes} bytes, more than the ${MAX_PROMPT_BYTES} a command line can safely hold`)
@@ -47,13 +47,8 @@ export function withPromptArgument(command: string, prompt: string, maxBudgetUsd
 
 type PromptOn = (command: string, prompt: string, maxBudgetUsd: number) => { command: string; stdin: string }
 
-function agentWith(
-  model: string,
-  { oauthToken, maxBudgetUsd }: FactoryAgentOptions,
-  promptOn: PromptOn,
-  more: { env?: Record<string, string>; permissionMode?: 'dontAsk' } = {},
-): AgentProvider {
-  const agent = claudeCode(model, { ...more, env: { CLAUDE_CODE_OAUTH_TOKEN: oauthToken, ...more.env } })
+function agentWith(model: string, { oauthToken, maxBudgetUsd }: FactoryAgentOptions, promptOn: PromptOn, permissionMode?: 'dontAsk'): AgentProvider {
+  const agent = claudeCode(model, { env: { CLAUDE_CODE_OAUTH_TOKEN: oauthToken }, ...(permissionMode && { permissionMode }) })
   return {
     ...agent,
     buildPrintCommand(options) {
@@ -66,32 +61,24 @@ export function factoryAgent(model: string, options: FactoryAgentOptions): Agent
   return agentWith(model, options, (command, prompt, maxBudgetUsd) => ({ command: withPromptArgument(command, prompt, maxBudgetUsd), stdin: '' }))
 }
 
-/** The built-in tools the agent answering a question has: Bash only for the reads ALLOWED names. */
-const TOOLS = ['Read', 'Grep', 'Glob', 'Bash']
-/** What it may run without asking. Anything else, such as `git push` or `gh api`, it would ask for, and so is denied. */
-const ALLOWED = [
-  'Read',
-  'Grep',
-  'Glob',
-  ...['log', 'show', 'diff', 'status', 'blame', 'grep', 'ls-files', 'rev-parse'].map((read) => `Bash(git ${read}:*)`),
-  ...['issue view', 'issue list', 'pr view', 'pr list', 'pr diff', 'pr checks', 'run view', 'run list'].map((read) => `Bash(gh ${read}:*)`),
-]
-/** Denied outright too, though TOOLS leaves them out. */
-const DISALLOWED = ['Edit', 'Write', 'NotebookEdit']
+/** The only tools the agent answering a question has, all of which read files: no shell, so no `git` or `gh`. */
+const READ_TOOLS = ['Read', 'Grep', 'Glob']
+/** Denied outright too, though `--tools` leaves them out. */
+const DENIED_TOOLS = ['Bash', 'Edit', 'Write', 'NotebookEdit', 'WebFetch', 'WebSearch']
 
 /**
- * The agent that answers a question (scripts/factoryAsk.ts): it can read and nothing more. In `dontAsk` mode, in place
- * of Sandcastle's `--dangerously-skip-permissions`, Claude Code denies whatever isn't allowed, as no one is there to ask.
- * `ghToken`, the job's GITHUB_TOKEN, reads only, so a `gh` or `git` write that got past the tools would fail anyway.
+ * The agent that answers a question (scripts/factoryAsk.ts): it can read files and nothing more, as everything else it
+ * needs from git and GitHub is in its prompt. In `dontAsk` mode, in place of Sandcastle's
+ * `--dangerously-skip-permissions`, Claude Code denies whatever isn't allowed, as no one is there to ask.
  */
-export function readOnlyAgent(model: string, options: FactoryAgentOptions & { ghToken: string }): AgentProvider {
-  const words = (flag: string, list: string[]) => `${flag} ${list.map(quoted).join(' ')}`
-  const tools = ` --tools ${quoted(TOOLS.join(','))} ${words('--allowedTools', ALLOWED)} ${words('--disallowedTools', DISALLOWED)}`
+export function readOnlyAgent(model: string, options: FactoryAgentOptions): AgentProvider {
+  const list = (flag: string, tools: string[]) => ` ${flag} ${tools.map(shellWord).join(' ')}`
+  const flags = ` --tools ${shellWord(READ_TOOLS.join(','))}${list('--allowedTools', READ_TOOLS)}${list('--disallowedTools', DENIED_TOOLS)}`
   return agentWith(
     model,
     options,
-    (command, prompt, maxBudgetUsd) => ({ command: withPromptArgument(`${ending(command)}${tools}${STDIN_PROMPT}`, prompt, maxBudgetUsd), stdin: '' }),
-    { env: { GH_TOKEN: options.ghToken }, permissionMode: 'dontAsk' },
+    (command, prompt, maxBudgetUsd) => ({ command: withPromptArgument(command, prompt, maxBudgetUsd, flags), stdin: '' }),
+    'dontAsk',
   )
 }
 

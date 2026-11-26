@@ -1,7 +1,9 @@
 // Whose words the factory (.github/workflows/factory.yml) believes. The repo is public, so anyone can comment on an
 // issue: only the owner's and collaborators' text reaches an agent's prompt (ADR 0005, risk R2 in
 // docs/research/sandcastle-factory.md), or tells the factory a ticket merged. Every comment the factory makes carries
-// FACTORY_MARK, which keeps it out of a prompt, save triage's brief.
+// FACTORY_MARK, which keeps it out of a prompt, with two exceptions: triage's brief reaches a build's prompt, and the
+// factory's comments saying what it did (merged into spec/<n>, parked, and so on) reach a question's
+// (scripts/factoryQuestion.ts), though not its earlier answers to questions.
 //
 // The factory writes with its jobs' GITHUB_TOKEN, as github-actions[bot], whom GitHub gives no author association. So a
 // merged comment counts when github-actions wrote it, as well as the owner or a collaborator by hand. GraphQL names it
@@ -50,13 +52,16 @@ export const byFactory = (body: string | null): boolean => (body ?? '').includes
 /** An issue's or a comment's text and author, as GitHub's REST API gives them: a Bot's login ends `[bot]`, as no user's can. */
 export type Authored = { body: string | null; user: { login: string; type: 'Bot' | 'User' | 'Organization' }; author_association: Association }
 
+/** Whether github-actions wrote the comment, as GitHub's REST API names it: here, the factory, as with isActionsBot. */
+export const byActionsBot = ({ user }: Authored): boolean => user.type === 'Bot' && user.login === 'github-actions[bot]'
+
 /**
  * Triage's brief for a ticket, from its comments as GitHub's REST API lists them, oldest first: the words of the newest
  * that opens with BRIEF_MARK and that github-actions wrote, or undefined if there is none or it says nothing.
  */
 export const triageBrief = (comments: readonly Authored[]): string | undefined =>
   comments
-    .filter(({ user }) => user.type === 'Bot' && user.login === 'github-actions[bot]')
+    .filter(byActionsBot)
     .map(({ body }) => wordsAfter(BRIEF_MARK, body))
     .filter((words) => words !== undefined && words !== '')
     .at(-1)
