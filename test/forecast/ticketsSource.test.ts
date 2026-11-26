@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from 'vitest'
 import type { Choice, Ticket } from '../../src/connectors/connector.js'
 import type { InputsEdit } from '../../src/forecast/index.js'
-import { CHECKOUT, checkoutFixture, CONNECTIONS, forecastingForTest, NOW, pick, readAgain, type ForecastingForTest } from './forecastingForTest.js'
+import { CHECKOUT, checkoutFixture, CONNECTIONS, forecastingForTest, pick, readAgain, type ForecastingForTest } from './forecastingForTest.js'
 
 // Tickets remaining's source (#211): following the tracker's latest read of the milestone query, or typed.
 

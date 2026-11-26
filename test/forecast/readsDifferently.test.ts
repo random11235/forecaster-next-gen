@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test } from 'vitest'
 import type { Choice, Ticket } from '../../src/connectors/connector.js'
 import type { InputsEdit } from '../../src/forecast/index.js'
 import { CHECKOUT, finishedInWeeks as finishedInWeeksOf, open } from '../trackerScenario.js'
-import { checkoutFixture, CONNECTIONS, forecastingForTest, NOW, pick, readAgain, type ForecastingForTest, submitInputs } from './forecastingForTest.js'
+import { checkoutFixture, CONNECTIONS, forecastingForTest, pick, readAgain, type ForecastingForTest, submitInputs } from './forecastingForTest.js'
 
 // A typed value the tracker reads differently (#215): its chip, the dot on it for a read the EM hasn't opened, and
 // Follow, which switches the value back to the tracker. Mirrors the prototype's `handNew` scenario.

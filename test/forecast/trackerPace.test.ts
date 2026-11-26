@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test } from 'vitest'
 import type { Choice, Ticket } from '../../src/connectors/connector.js'
 import type { InputsEdit } from '../../src/forecast/index.js'
 import { finishedOn, finishedInWeeks as finishedInWeeksOf } from '../trackerScenario.js'
-import { CHECKOUT, checkoutFixture, CONNECTIONS, forecastingForTest, NOW, pick, type ForecastingForTest } from './forecastingForTest.js'
+import { CHECKOUT, checkoutFixture, CONNECTIONS, forecastingForTest, pick, type ForecastingForTest } from './forecastingForTest.js'
 
 // Pace following the tracker (#212): up to the 8 most recent whole periods it reads, the current one left out, quiet
 // ones 0, leaving out quiet periods before the first finished ticket.
