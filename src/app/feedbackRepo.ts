@@ -1,7 +1,8 @@
 /**
- * The GitHub repo this build sends Feedback to (#370), as `owner/repo`, or none. `npm run build` records it once tsc
- * has built dist/ (`scripts/feedbackRepo.ts`), writing the built `dist/app/feedbackRepo.js` in place of this file's,
- * which records none: the tests, run from src/, have no repo. The web build's bundle gets the one recorded
- * (`scripts/buildWeb.ts`).
+ * The GitHub repo (`owner/repo`) that the footer's "Send feedback" link opens an issue in (#370).
+ *
+ * This source file always says "no repo", which is what the tests see. When you run `npm run build`,
+ * `scripts/feedbackRepo.ts` works out the real repo and overwrites the compiled `dist/app/feedbackRepo.js` with it.
+ * The web build (`scripts/buildWeb.ts`) then bakes that value into its bundle.
  */
 export const FEEDBACK_REPO: string | undefined = undefined
