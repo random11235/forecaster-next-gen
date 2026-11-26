@@ -2,6 +2,10 @@
 
 What each version of the app shipped, newest first. The version is the one in every screen's footer: a fix is in the app you're running if its version is the footer's or older. Each merge's release ([`docs/design/architecture.md`](docs/design/architecture.md#release)) writes its section here, a line from each change file (`changes/<ticket>.md`) a PR that changes the app adds: a PR doesn't edit the entries below ([`docs/agents/pull-requests.md`](docs/agents/pull-requests.md#version)).
 
+## 1.5.1 (2026-11-26)
+
+- The type checker refuses unused locals and parameters, with no change to the app (PR #379)
+
 ## 1.5.0 (2026-11-26)
 
 - The favicon is burnt orange, its cream curve unchanged (#377, PR #378)
