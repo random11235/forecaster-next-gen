@@ -82,7 +82,6 @@ describe('canned connector', () => {
 
 describe("demo mode's connector", () => {
   const REPO: Connection = { tracker: 'github', owner: 'shop-team', repo: 'shop' }
-  const PROJECT: Connection = { tracker: 'jira', site: 'shop.atlassian.net', projectKey: 'SHOP', email: 'em@shop.example' }
 
   /** Each choice's query reads synthetic tickets. */
   async function expectEachReadsTickets(connector: ReturnType<typeof demoConnector>, choices: Choice[]): Promise<void> {

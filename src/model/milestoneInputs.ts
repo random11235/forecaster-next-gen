@@ -16,7 +16,7 @@ export type TicketsSource = 'tracker' | 'typed'
 export const TICKETS_SOURCES = ['tracker', 'typed'] as const satisfies readonly TicketsSource[]
 
 // fails to compile while TICKETS_SOURCES leaves out a tickets source
-type _ = NoneMissing<Exclude<TicketsSource, (typeof TICKETS_SOURCES)[number]>>
+export type TicketsSourcesComplete = NoneMissing<Exclude<TicketsSource, (typeof TICKETS_SOURCES)[number]>>
 
 /**
  * The milestone as the EM enters it on the Inputs screen, one per team. Every field the MVP forecasts from is here,

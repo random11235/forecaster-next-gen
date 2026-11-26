@@ -10,7 +10,7 @@ export type TeamSource = 'manual' | 'sample' | 'jira' | 'github'
 export const TEAM_SOURCES = ['manual', 'sample', 'jira', 'github'] as const satisfies readonly TeamSource[]
 
 // fails to compile while TEAM_SOURCES leaves out a team source
-type _ = NoneMissing<Exclude<TeamSource, (typeof TEAM_SOURCES)[number]>>
+export type TeamSourcesComplete = NoneMissing<Exclude<TeamSource, (typeof TEAM_SOURCES)[number]>>
 
 /** A team, which owns every other record. v1 has one; keying by team means multi-team needs no migration. */
 export interface Team {

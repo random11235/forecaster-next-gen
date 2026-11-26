@@ -4,6 +4,7 @@
 - **Triage labels**: `docs/agents/triage-labels.md`.
 - **Domain terms, glossary and ADRs**: before exploring, or when naming a domain concept, read `docs/agents/domain.md`.
 - **Coding standards**: `CODING_STANDARDS.md`, when writing or reviewing code.
+- **Code review**: when running `/code-review`, or `/implement-spec`'s review loop, follow `docs/agents/review.md`. Its rules override both skills'.
 - **Module layout**: `src/README.md`. Import a module only through its root files; `npm run lint:boundaries` checks it.
 - **Production code**: test-first via `/tdd`, at the seams in `docs/design/architecture-test-seams.md`.
 - **Demos**: a ticket with a visible change ships screenshots in its PR. When writing, building or reviewing one, follow `docs/agents/demos.md`.

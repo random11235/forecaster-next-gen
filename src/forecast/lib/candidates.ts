@@ -1,4 +1,4 @@
-import type { Choice, ChoiceKind, Failure } from '../../connectors/connector.js'
+import type { Choice, Failure } from '../../connectors/connector.js'
 import type { Connection } from '../../model/connection.js'
 import type { MilestoneInputs } from '../../model/milestoneInputs.js'
 import type { SavedRead } from '../../model/savedRead.js'
