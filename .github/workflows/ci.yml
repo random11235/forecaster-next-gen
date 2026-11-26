@@ -13,7 +13,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # the migration check reads origin/main's schema, and the stored-values test its snapshot
       - uses: ./.github/actions/setup
@@ -57,7 +57,7 @@ jobs:
         if: always()
         continue-on-error: true
         run: node scripts/reportShallowModules.ts >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage-reports
@@ -72,12 +72,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
       # Chrome for Testing, and the libraries it needs on Linux
       - run: npx agent-browser install --with-deps
       - run: npm run check:browser
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: browser-check
@@ -93,7 +93,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # the diff starts at the merge-base with the base branch
       - uses: ./.github/actions/setup
@@ -126,7 +126,7 @@ jobs:
             fi
             { echo '```'; grep 'Mutation testing' mutation.txt | tail -1 || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: mutation-report
@@ -154,7 +154,7 @@ jobs:
       group: release
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: main # main's tip, which a later merge or an earlier release may have moved on since this run's commit
           fetch-depth: 0 # the tags, to find the last release, and main's merges, for each change file's PR
@@ -199,7 +199,7 @@ jobs:
       - if: steps.published.outputs.published == 'false'
         run: mkdir _site && cp dist/web/forecaster.html _site/index.html
       - if: steps.published.outputs.published == 'false'
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: _site
 
@@ -222,4 +222,4 @@ jobs:
       cancel-in-progress: false
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

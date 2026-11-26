@@ -5,7 +5,7 @@ description: Node 24 and the locked dependencies (npm ci)
 runs:
   using: composite
   steps:
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@v7
       with:
         node-version: 24 # NODE_MAJOR in .github/workflows/factory.yml must match
         cache: npm

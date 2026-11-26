@@ -117,12 +117,12 @@ jobs:
           fi
       # The frontier runs no code but the default branch's, and needs nothing installed
       - if: steps.ticket.outputs.kind == 'spec'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
       - if: steps.ticket.outputs.kind == 'spec'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 24 # NODE_MAJOR
       # Writes `action` (build, open-pr or stop), and `ticket` or `why`. A spec holds at most 100 sub-issues.
@@ -248,7 +248,7 @@ jobs:
       tip: ${{ steps.bundle.outputs.tip }}
       body: ${{ steps.bundle.outputs.body }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
@@ -343,13 +343,13 @@ jobs:
           echo "tip=$(git -C "$TREE" rev-parse "refs/heads/$BRANCH")" >> "$GITHUB_OUTPUT"
           echo "body=$(sha256sum "$RUNNER_TEMP/factory-out/pr-body.md" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
       - if: steps.agent.outputs.result == 'built'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ticket
           path: ${{ runner.temp }}/factory-out
           retention-days: 7
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: factory-logs
           path: ${{ runner.temp }}/factory-logs
@@ -382,7 +382,7 @@ jobs:
       - uses: ./.github/actions/sandbox
         with:
           claude-code: false
-      - uses: actions/download-artifact@v4 # it has no post step
+      - uses: actions/download-artifact@v8 # it has no post step
         with:
           name: ticket
           path: ${{ runner.temp }}
@@ -438,12 +438,12 @@ jobs:
       TIP: ${{ needs.build.outputs.tip }}
       BODY: ${{ needs.build.outputs.body }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0 # a bundle needs the commits it was made on
           persist-credentials: false
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: ticket
           path: ${{ runner.temp }}
