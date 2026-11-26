@@ -24,11 +24,14 @@ const STDIN_PROMPT = ' -p -'
 /** `text` as one shell word, in single quotes. */
 const quoted = (text: string): string => `'${text.replaceAll("'", "'\\''")}'`
 
-/** The part of claudeCode()'s `command` before its closing `-p -`, which it throws without, plus the budget cap. */
-function capped(command: string, maxBudgetUsd: number): string {
+/** The part of claudeCode()'s `command` before its closing `-p -`, which it throws without. */
+function ending(command: string): string {
   if (!command.endsWith(STDIN_PROMPT)) throw new Error(`claudeCode()'s command no longer ends in -p -: ${command}`)
-  return `${command.slice(0, -STDIN_PROMPT.length)} --max-budget-usd ${maxBudgetUsd}`
+  return command.slice(0, -STDIN_PROMPT.length)
 }
+
+/** The part of claudeCode()'s `command` before its closing `-p -`, plus the budget cap. */
+const capped = (command: string, maxBudgetUsd: number): string => `${ending(command)} --max-budget-usd ${maxBudgetUsd}`
 
 /** claudeCode()'s `command`, which ends in `-p -`, with the budget cap and `prompt` as the argument in its place. */
 export function withPromptArgument(command: string, prompt: string, maxBudgetUsd: number): string {
@@ -44,8 +47,13 @@ export function withPromptArgument(command: string, prompt: string, maxBudgetUsd
 
 type PromptOn = (command: string, prompt: string, maxBudgetUsd: number) => { command: string; stdin: string }
 
-function agentWith(model: string, { oauthToken, maxBudgetUsd }: FactoryAgentOptions, promptOn: PromptOn): AgentProvider {
-  const agent = claudeCode(model, { env: { CLAUDE_CODE_OAUTH_TOKEN: oauthToken } })
+function agentWith(
+  model: string,
+  { oauthToken, maxBudgetUsd }: FactoryAgentOptions,
+  promptOn: PromptOn,
+  more: { env?: Record<string, string>; permissionMode?: 'dontAsk' } = {},
+): AgentProvider {
+  const agent = claudeCode(model, { ...more, env: { CLAUDE_CODE_OAUTH_TOKEN: oauthToken, ...more.env } })
   return {
     ...agent,
     buildPrintCommand(options) {
@@ -56,6 +64,35 @@ function agentWith(model: string, { oauthToken, maxBudgetUsd }: FactoryAgentOpti
 
 export function factoryAgent(model: string, options: FactoryAgentOptions): AgentProvider {
   return agentWith(model, options, (command, prompt, maxBudgetUsd) => ({ command: withPromptArgument(command, prompt, maxBudgetUsd), stdin: '' }))
+}
+
+/** The built-in tools the agent answering a question has: Bash only for the reads ALLOWED names. */
+const TOOLS = ['Read', 'Grep', 'Glob', 'Bash']
+/** What it may run without asking. Anything else, such as `git push` or `gh api`, it would ask for, and so is denied. */
+const ALLOWED = [
+  'Read',
+  'Grep',
+  'Glob',
+  ...['log', 'show', 'diff', 'status', 'blame', 'grep', 'ls-files', 'rev-parse'].map((read) => `Bash(git ${read}:*)`),
+  ...['issue view', 'issue list', 'pr view', 'pr list', 'pr diff', 'pr checks', 'run view', 'run list'].map((read) => `Bash(gh ${read}:*)`),
+]
+/** Denied outright too, though TOOLS leaves them out. */
+const DISALLOWED = ['Edit', 'Write', 'NotebookEdit']
+
+/**
+ * The agent that answers a question (scripts/factoryAsk.ts): it can read and nothing more. In `dontAsk` mode, in place
+ * of Sandcastle's `--dangerously-skip-permissions`, Claude Code denies whatever isn't allowed, as no one is there to ask.
+ * `ghToken`, the job's GITHUB_TOKEN, reads only, so a `gh` or `git` write that got past the tools would fail anyway.
+ */
+export function readOnlyAgent(model: string, options: FactoryAgentOptions & { ghToken: string }): AgentProvider {
+  const words = (flag: string, list: string[]) => `${flag} ${list.map(quoted).join(' ')}`
+  const tools = ` --tools ${quoted(TOOLS.join(','))} ${words('--allowedTools', ALLOWED)} ${words('--disallowedTools', DISALLOWED)}`
+  return agentWith(
+    model,
+    options,
+    (command, prompt, maxBudgetUsd) => ({ command: withPromptArgument(`${ending(command)}${tools}${STDIN_PROMPT}`, prompt, maxBudgetUsd), stdin: '' }),
+    { env: { GH_TOKEN: options.ghToken }, permissionMode: 'dontAsk' },
+  )
 }
 
 /** The smoke test's control: the prompt on stdin, as claudeCode() sends it, where a slash command doesn't expand. */

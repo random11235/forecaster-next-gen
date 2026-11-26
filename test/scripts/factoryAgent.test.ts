@@ -3,7 +3,7 @@ import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
-import { factoryAgent, MAX_PROMPT_BYTES, stdinAgent, withPromptArgument } from '../../scripts/factoryAgent.ts'
+import { factoryAgent, MAX_PROMPT_BYTES, readOnlyAgent, stdinAgent, withPromptArgument } from '../../scripts/factoryAgent.ts'
 
 const COMMAND = "claude --print --verbose --dangerously-skip-permissions --output-format stream-json --model 'haiku'"
 
@@ -72,6 +72,20 @@ describe("the factory's agent", () => {
     expect(print.command).toBe(`${COMMAND} --max-budget-usd 0.1 -p -`)
     expect(print.stdin).toBe('/factory-smoke')
     expect(agent.env).toEqual({ CLAUDE_CODE_OAUTH_TOKEN: 'oauth' })
+  })
+
+  test("answering a question, allows only tools that read, denies the rest, and hands the sandbox the job's read-only token", () => {
+    const agent = readOnlyAgent('haiku', { oauthToken: 'oauth', maxBudgetUsd: 2, ghToken: 'read' })
+
+    const { command } = agent.buildPrintCommand({ prompt: 'Is it done?', dangerouslySkipPermissions: true })
+
+    expect(command).toMatch(
+      /^claude --print --verbose --permission-mode dontAsk --output-format stream-json --model 'haiku' --tools 'Read,Grep,Glob,Bash' --allowedTools 'Read' 'Grep' 'Glob' 'Bash\(git log:\*\)' .* --disallowedTools 'Edit' 'Write' 'NotebookEdit' --max-budget-usd 2 -p -- 'Is it done\?'$/,
+    )
+    expect(command).toContain("'Bash(gh pr checks:*)'")
+    expect(command).not.toContain('dangerously')
+    expect(command).not.toMatch(/push|gh api|comment|edit:/)
+    expect(agent.env).toEqual({ CLAUDE_CODE_OAUTH_TOKEN: 'oauth', GH_TOKEN: 'read' })
   })
 
   test('hands the sandbox only the OAuth token', () => {

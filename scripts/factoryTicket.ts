@@ -11,7 +11,7 @@ export type { Authored }
 export type Ticket = Authored & { number: number; title: string }
 
 /** An issue's title and body, if the owner or a collaborator opened it, or a line saying they're left out. */
-const titleAndBody = (issue: Ticket, kind: 'ticket' | 'spec'): string[] =>
+export const titleAndBody = (issue: Ticket, kind: 'ticket' | 'spec'): string[] =>
   isTrusted(issue.author_association)
     ? [`# ${issue.title}`, '', issue.body ?? '']
     : [`(The ${kind}'s own title and body are left out: @${issue.user.login}, who opened it, isn't the owner or a collaborator.)`]
