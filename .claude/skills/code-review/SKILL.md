@@ -62,36 +62,22 @@ Each smell reads *what it is* → *how to fix*; match it against the diff:
 - **Middle Man**: a class or function that mostly just delegates onward. → cut it, call the real target direct.
 - **Refused Bequest**: a subclass or implementer that ignores or overrides most of what it inherits. → drop the inheritance, use composition.
 
-#### Severity
-
-Every finding, on both axes, carries one severity:
-
-- **high**: wrong behaviour a user or the factory will hit, lost or misread stored data, a one-way door, or a hole an attacker the spec names can use.
-- **medium**: a documented standard breached, or a bug on an edge path someone can reach.
-- **low**: naming, wording, layout, readability, and defences against an attacker or failure the spec doesn't name.
-
-Judge robustness against the bar the spec or its linked research sets (a threat model, a list of risks). Where it sets none, the bar is honest mistakes, and a defence against a deliberately evasive actor is low.
-
-A finding on code the diff didn't change is **pre-existing**: label it so, and rank it low unless it is high.
-
-**Follow-up rounds.** When the fixed point is an earlier round's tip (a fix branch), the caller hands over the earlier rounds' findings and the implementer's decisions on them. Report a finding only where the fix introduced it or left it unfixed. A decision an earlier round settled, fixed or declined with a reason, stays settled; raise it again only at high.
-
 ### 4. Spawn both sub-agents in parallel
 
-Issue both sub-agent calls together, in the foreground, and aggregate the reports they return. Paste step 3's Severity subsection in full into both prompts, and in a follow-up round the earlier rounds' findings and decisions too: the sub-agents have no other access to them.
+Issue both sub-agent calls together, in the foreground, and aggregate the reports they return.
 
 **Standards sub-agent prompt** should include:
 
 - The full diff command and commit list.
 - The list of standards-source files you found in step 3, **plus step 3's Lenses subsection**, pasted in full from its heading to the last smell (the sub-agent has no other access to it).
 - The first step: "Before reading the diff, call the Skill tool with `codebase-design`; its vocabulary is the module-design lens."
-- The brief: "Report, per file/hunk where relevant, (a) every place the diff violates a documented standard: cite the standard (file + the rule); (b) each smell the smell baseline flags: name it and quote the hunk; and (c) each new or changed module the module-design lens flags on depth, seam, leverage or locality: name the term and quote the hunk. Mark each documented-standard breach hard or a judgement call. Report every finding, one line each, tagged high, medium or low, ranked most-severe first; one-way doors (schema, stored data) rank first."
+- The brief: "Report, per file/hunk where relevant, (a) every place the diff violates a documented standard: cite the standard (file + the rule); (b) each smell the smell baseline flags: name it and quote the hunk; and (c) each new or changed module the module-design lens flags on depth, seam, leverage or locality: name the term and quote the hunk. Mark each documented-standard breach hard or a judgement call. Report every finding, one line each, ranked most-severe first; one-way doors (schema, stored data) rank first."
 
 **Spec sub-agent prompt** should include:
 
 - The diff command and commit list.
 - The path or fetched contents of the spec.
-- The brief: "Report: (a) requirements the spec asked for that are missing or partial; (b) behaviour in the diff that wasn't asked for (scope creep); (c) requirements that look implemented but where the implementation looks wrong. Quote the spec line for each finding. Report every finding, one line each, tagged high, medium or low, ranked most-severe first."
+- The brief: "Report: (a) requirements the spec asked for that are missing or partial; (b) behaviour in the diff that wasn't asked for (scope creep); (c) requirements that look implemented but where the implementation looks wrong. Quote the spec line for each finding. Report every finding, one line each, ranked most-severe first."
 
 If the spec is missing, skip the Spec sub-agent and note this in the final report.
 
@@ -99,7 +85,7 @@ If the spec is missing, skip the Spec sub-agent and note this in the final repor
 
 Present the two reports under `## Standards` and `## Spec` headings, verbatim or lightly cleaned. Do **not** merge or rerank findings, because the two axes are deliberately separate (see _Why two axes_).
 
-End with a one-line summary: total findings per axis by severity, and the worst issue _within each axis_ (if any). Don't pick a single winner across axes: that's the reranking the separation exists to prevent.
+End with a one-line summary: total findings per axis, and the worst issue _within each axis_ (if any). Don't pick a single winner across axes: that's the reranking the separation exists to prevent.
 
 ## Why two axes
 
