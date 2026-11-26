@@ -18,9 +18,9 @@ export interface PageHeader {
   lede?: string
 }
 
-/** The app's icon: a finish distribution in small, cream on a dark green, its last 15% past the 85% mark shaded lighter, inline so no file is served. */
+/** The app's icon: a finish distribution in small, cream on a burnt orange, its last 15% past the 85% mark shaded lighter, inline so no file is served. */
 const FAVICON = `data:image/svg+xml,${encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1E4D2B"/>' +
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#CC5500"/>' +
     '<clipPath id="hill"><path d="M3 26C9 26 10 8 15 8S22 26 29 26Z"/></clipPath>' +
     '<g clip-path="url(#hill)" fill="#F7F5F0"><rect width="22" height="32"/><rect x="22" width="10" height="32" opacity=".4"/></g></svg>',
 )}`
