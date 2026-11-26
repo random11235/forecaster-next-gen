@@ -14,21 +14,24 @@ const { openWebApp }: typeof import('../src/app/webApp.js') = await import(new U
 const { openWebStorage }: typeof import('../src/storage/webStorage.js') = await import(new URL('../dist/storage/webStorage.js', import.meta.url).href)
 const { FONT_FACES }: typeof import('../src/app/fonts.js') = await import(new URL('../dist/app/fonts.js', import.meta.url).href)
 const { APP_VERSION }: typeof import('../src/forecast/index.js') = await import(new URL('../dist/forecast/index.js', import.meta.url).href)
+const { FEEDBACK_REPO }: typeof import('../src/app/feedbackRepo.js') = await import(new URL('../dist/app/feedbackRepo.js', import.meta.url).href)
 
 /**
  * What the bundle gets in place of a file, matched by the file an import resolves to: another folder's file of the same
  * name is its own (#280). `src/app/fonts.ts` reads its font files from disk, which a browser can't, so the bundle gets
  * the faces it read. `src/forecast/lib/appVersion.ts` imports `package.json`, which the page is shared without (#57): the
- * bundle gets its version alone, none of its scripts or dependencies.
+ * bundle gets its version alone, none of its scripts or dependencies. `src/app/feedbackRepo.ts` records no repo, which
+ * `npm run build` records in dist/ alone (#370): the bundle gets the one recorded, as the page it opens on has.
  */
 const INLINED: Record<string, string> = {
   [fileURLToPath(new URL('../src/app/fonts.js', import.meta.url))]: `export const FONT_FACES = ${JSON.stringify(FONT_FACES)}`,
   [fileURLToPath(new URL('../package.json', import.meta.url))]: `export default { version: ${JSON.stringify(APP_VERSION)} }`,
+  [fileURLToPath(new URL('../src/app/feedbackRepo.js', import.meta.url))]: `export const FEEDBACK_REPO = ${JSON.stringify(FEEDBACK_REPO)}`,
 }
 const inline: Plugin = {
   name: 'inline',
   setup(build) {
-    build.onResolve({ filter: /\/(fonts\.js|package\.json)$/ }, (args) => {
+    build.onResolve({ filter: /\/(fonts\.js|feedbackRepo\.js|package\.json)$/ }, (args) => {
       const file = resolve(args.resolveDir, args.path)
       return file in INLINED ? { path: file, namespace: 'inline' } : undefined
     })

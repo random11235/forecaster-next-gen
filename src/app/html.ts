@@ -4,6 +4,7 @@ import { INPUTS_STYLE } from './lib/inputsStyle.js'
 import { SETUP_STEPS_STYLE } from './lib/setupStepsStyle.js'
 import { HOW_IT_WORKS_STYLE } from './lib/howItWorksStyle.js'
 import { APP_VERSION, dayMonth } from '../forecast/index.js'
+import { FEEDBACK_REPO } from './feedbackRepo.js'
 
 /** The screens in the sidebar, by path. */
 const SCREENS = { '/': 'Milestone forecast', '/inputs': 'Inputs', '/how-it-works': 'How it works' } as const
@@ -57,11 +58,37 @@ ${links}
       <h1>${header.heading}</h1>${lede}
     </header>
 ${main}
-    <footer class="version">Forecaster ${escapeHtml(APP_VERSION)}</footer>
+    <footer class="version">Forecaster ${escapeHtml(APP_VERSION)}${sendFeedback(title)}</footer>
   </main>${script ? `\n  <script>${script}</script>` : ''}
 </body>
 </html>
 `
+}
+
+/**
+ * Send feedback, beside the version, for a build with a GitHub repo (#370): GitHub's new-issue form for that repo in a
+ * new tab, untitled, asking for `needs-triage` (which GitHub applies only for someone with triage permission), its
+ * body prefilled with the version and the screen's name and nothing else of the EM's. Nothing for a build with none.
+ */
+function sendFeedback(screen: string): string {
+  if (!FEEDBACK_REPO) return ''
+  const body = `> This issue is public, screenshots included. Blur or crop anything about a real team's work.
+
+### What happened
+
+
+### What you expected
+
+
+### Screenshots
+
+<!-- Paste or drag screenshots here. -->
+
+---
+Version: ${APP_VERSION}
+Screen: ${screen}`
+  const href = `https://github.com/${FEEDBACK_REPO}/issues/new?labels=needs-triage&body=${encodeURIComponent(body)}`
+  return ` · <a href="${escapeHtml(href)}" target="_blank" rel="noopener">Send feedback</a>`
 }
 
 const STYLE = `

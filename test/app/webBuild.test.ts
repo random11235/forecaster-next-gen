@@ -28,14 +28,25 @@ describe('web build smoke test', () => {
     expect(html.indexOf('<script>')).toBeLessThan(html.indexOf('</script>'))
     expect(html).toContain("@font-face { font-family: 'Geist'; src: url(data:font/woff2;base64,")
     expect(html).toContain("@font-face { font-family: 'Geist Mono'; src: url(data:font/woff2;base64,")
-    // the script names the SVG namespace, `http://www.w3.org/2000/svg`, which loads nothing
-    expect(html).not.toMatch(/(?:href=|src=|url\()["']?(?:https?:)?\/\//)
+    // the script names the SVG namespace, `http://www.w3.org/2000/svg`, which loads nothing; a link, such as Send
+    // feedback's, loads nothing until it's followed
+    expect(html.replace(/<a\s[^>]*>/g, '')).not.toMatch(/(?:href=|src=|url\()["']?(?:https?:)?\/\//)
     expect(html).not.toMatch(/@import/)
   })
 
-  test('shows the version in its footer, and its script carries it for the screens it shows, with no live reload', () => {
-    expect(html).toContain(`<footer class="version">Forecaster ${PACKAGE.version}</footer>`)
-    expect(html.match(/<script>([^]*)<\/script>/)?.[1]).toContain(JSON.stringify(PACKAGE.version))
+  test('shows the version in its footer, then Send feedback for the repo the build recorded, and its script carries both for the screens it shows, with no live reload', async () => {
+    const { FEEDBACK_REPO }: { FEEDBACK_REPO: string | undefined } = await import(new URL('../../dist/app/feedbackRepo.js', import.meta.url).href)
+    const footer = html.match(/<footer class="version">(.*)<\/footer>/)?.[1]
+    const script = html.match(/<script>([^]*)<\/script>/)?.[1]
+    if (FEEDBACK_REPO) {
+      expect(footer).toMatch(
+        new RegExp(
+          `^Forecaster ${PACKAGE.version.replaceAll('.', '\\.')} · <a href="https://github\\.com/${FEEDBACK_REPO}/issues/new\\?[^"]*" target="_blank" rel="noopener">Send feedback</a>$`,
+        ),
+      )
+      expect(script).toContain(JSON.stringify(FEEDBACK_REPO))
+    } else expect(footer).toBe(`Forecaster ${PACKAGE.version}`)
+    expect(script).toContain(JSON.stringify(PACKAGE.version))
     expect(html).not.toContain('EventSource')
     expect(html).not.toContain('/live')
   })

@@ -76,14 +76,20 @@ describe('launch smoke test', () => {
     expect(html).not.toContain('Checkout v2')
   }, 15_000)
 
-  test('the built entry point shows the version in the footer and streams it on /live', async () => {
+  test('the built entry point shows the version in the footer, then Send feedback for the repo the build recorded, and streams it on /live', async () => {
     const url = await printedUrl(runEntry({ PORT: '0' }))
 
     const html = await (await fetch(url)).text()
     const live = await fetch(new URL('/live', url))
     const first = await live.body?.getReader().read()
 
-    expect(html).toContain(`<footer class="version">Forecaster ${APP_VERSION}</footer>`)
+    // A clone of a GitHub repo, or CI's checkout, records one; scripts/feedbackRepo.ts's tests say which, and the
+    // component tests what the link opens.
+    expect(html).toMatch(
+      new RegExp(
+        `<footer class="version">Forecaster ${APP_VERSION.replaceAll('.', '\\.')} · <a href="https://github\\.com/[^/"]+/[^/"]+/issues/new\\?[^"]*" target="_blank" rel="noopener">Send feedback</a></footer>`,
+      ),
+    )
     expect(new TextDecoder().decode(first?.value)).toBe(`retry: 500\ndata: ${APP_VERSION}\n\n`)
   }, 15_000)
 

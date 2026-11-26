@@ -1,19 +1,10 @@
 import { describe, expect, test } from 'vitest'
-import { renderHowItWorksScreen } from '../../../src/app/howItWorksScreen.js'
-import { renderInputsScreen } from '../../../src/app/inputsScreen.js'
-import { renderMilestoneForecastScreen } from '../../../src/app/milestoneForecastScreen.js'
-import { forecastingForTest } from '../../forecast/forecastingForTest.js'
-import { allByRole, byRole, one, render, text } from '../dom.js'
-import { entered, forecast } from './milestoneForecastScreenHarness.js'
+import { APP_VERSION } from '../../../src/forecast/index.js'
+import { allByRole, byRole, hasRole, one, render, text } from '../dom.js'
+import { SCREENS } from './htmlPageHarness.js'
 
 // What every screen carries around its own (#236): the sidebar, its own screen marked current, and the head with the
 // icon and fonts inline, so a screen loads nothing from anywhere. Each screen drawn from a view Seam B gives.
-
-const SCREENS = [
-  ['Milestone forecast', '/', async () => renderMilestoneForecastScreen(forecast(await (await entered('100', ['4', '8'])).milestoneForecastView()))],
-  ['Inputs', '/inputs', async () => renderInputsScreen(await (await forecastingForTest()).browserBuild().inputsScreen(), () => 'opening-1')],
-  ['How it works', '/how-it-works', async () => renderHowItWorksScreen(await (await forecastingForTest()).howItWorksView())],
-] as const
 
 describe('every screen', () => {
   test.each(SCREENS)(
@@ -32,4 +23,11 @@ describe('every screen', () => {
       expect(html).not.toContain('@import')
     },
   )
+
+  test.each(SCREENS)('%s: with no GitHub repo recorded, the footer shows the version alone, with no Send feedback link', async (_, __, drawn) => {
+    const page = render(await drawn())
+
+    expect(text(one(page, 'footer'))).toBe(`Forecaster ${APP_VERSION}`)
+    expect(hasRole(page, 'link', { name: 'Send feedback' })).toBe(false)
+  })
 })
