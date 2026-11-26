@@ -1,7 +1,9 @@
-// The GitHub repo a build sends Feedback to (#370), recorded by `npm run build` once tsc has built dist/: the app
-// links each screen's footer to that repo's new-issue page, and never asks for it. A release builds in a checkout of
-// its own repo, with GITHUB_REPOSITORY set; a clone has its origin. The release's tarball ships dist/, so its app
-// links to the repo it was released from, and a fork's to the fork, with no step of the release's own.
+// Works out which GitHub repo the footer's "Send feedback" link should open an issue in (#370), and writes it
+// into the compiled dist/app/feedbackRepo.js. `npm run build` runs this after tsc has built dist/.
+//
+// It uses GITHUB_REPOSITORY if that's set (as it is in CI), otherwise the clone's `origin` remote, otherwise no
+// repo, in which case the footer shows no link. Because the release tarball ships dist/, a released app links
+// to the repo it was released from, and a fork's build links to the fork, with no extra release step.
 import { execFileSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 
