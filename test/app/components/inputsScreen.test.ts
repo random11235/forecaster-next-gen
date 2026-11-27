@@ -19,7 +19,7 @@ describe('the Inputs screen in the browser build', () => {
     team = (await forecastingForTest()).browserBuild()
   })
 
-  test('empty: each input a numbered section, no setup, and pace a range or typed counts', async () => {
+  test('empty: each input a numbered section, in place of setup a note that it reads no tracker, and pace a range or typed counts', async () => {
     const page = await screen(team)
 
     expect(text(one(page, 'h1'))).toBe('Inputs')
