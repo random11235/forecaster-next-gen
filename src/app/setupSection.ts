@@ -13,6 +13,7 @@ import {
 } from '../forecast/index.js'
 import { PACE_MODES, TICKETS_SOURCES, type PaceMode } from '../model/milestoneInputs.js'
 import { escapeHtml } from './html.js'
+import { FEEDBACK_REPO } from './feedbackRepo.js'
 
 /**
  * Where setup's own forms post: "Use these", Change (or Connect a tracker, once skipped), Change from a refused
@@ -273,6 +274,20 @@ function flagHtml({ of, flag, change }: SummaryFlag): string {
   return `\n      <div class="note warn flag">${text}
         ${changeHtml(SETUP_PATHS.changeConnection, 'Change')}
       </div>`
+}
+
+/**
+ * What the browser build shows in place of setup, which it hasn't (#396): that it reads no tracker, and that the app run
+ * on the EM's own machine does, linking to how to run it, the README of the repo the build was made from, where it has one.
+ */
+export function noSetupHtml(): string {
+  const readme = FEEDBACK_REPO && `https://github.com/${FEEDBACK_REPO}#readme`
+  const ownMachine = readme
+    ? `<a href="${escapeHtml(readme)}" target="_blank" rel="noopener">run the Forecaster on your own machine</a>`
+    : 'run the Forecaster on your own machine'
+  return summaryBoxHtml(
+    `      <span class="muted">This page reads no tracker: type the inputs below. To read the milestone’s tickets from GitHub or Jira, ${ownMachine}.</span>`,
+  )
 }
 
 /** Connecting skipped: the inputs typed, as the MVP has them, with a way to connect a tracker after all; above the inputs. */

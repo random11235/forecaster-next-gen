@@ -99,6 +99,29 @@ describe('the web build’s Send feedback (#371)', () => {
   })
 })
 
+describe('the web build’s Inputs screen (#396)', () => {
+  /** The note in place of setup, as `[its text, the link in it as tag]`. */
+  const noTrackerNote = (page: string): [string | undefined, string | undefined] => {
+    const note = page.match(/<div class="setup-summary"[^>]*>([^]*?)<\/div>/)?.[1]
+    return [note?.replace(/<[^>]*>/g, '').trim(), note?.match(/<a [^>]*>/)?.[0]]
+  }
+  const NOTE = 'This page reads no tracker: type the inputs below. To read the milestone’s tickets from GitHub or Jira, run the Forecaster on your own machine.'
+
+  test('built for a repo, says how to run the Forecaster on your own machine: that repo’s README, in a new tab', async () => {
+    const page = openBuiltScript(await webPage('a-fork/forecaster'))
+
+    const inputs = await page.get('/inputs')
+
+    expect(noTrackerNote(inputs)).toEqual([NOTE, '<a href="https://github.com/a-fork/forecaster#readme" target="_blank" rel="noopener">'])
+  })
+
+  test('built with no repo, says it with no link', async () => {
+    const page = openBuiltScript(await webPage(undefined))
+
+    expect(noTrackerNote(await page.get('/inputs'))).toEqual([NOTE, undefined])
+  })
+})
+
 /** The text of `page`'s footer, its tags left out. */
 const footerText = (page: string): string | undefined => page.match(/<footer class="version">(.*)<\/footer>/)?.[1]?.replace(/<[^>]*>/g, '')
 
