@@ -125,6 +125,13 @@ describe('each source of tickets remaining and pace', () => {
     expect(all(following, '.pace-bars .bar.zero')).toHaveLength(1)
   })
 
+  test('pace following GitHub: under the bars, the current week, left out until it ends, with what it finished so far (#390)', async () => {
+    await submitInputs(team, { kind: 'setPaceMode', paceMode: 'tracker' })
+    const following = one(section(await screen(team), 'Pace'), '#pace-tracker')
+
+    expect(all(following, '.reading-line').map(text)).toContain('This week, from 9 Nov, counts once it ends: none finished so far.')
+  })
+
   test('following GitHub after a new read: each value shows faintly what it replaced, and when that was read', async () => {
     await submitInputs(team, { kind: 'setTicketsSource', ticketsSource: 'tracker' })
     await submitInputs(team, { kind: 'setPaceMode', paceMode: 'tracker' })

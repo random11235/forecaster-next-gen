@@ -125,6 +125,75 @@ describe('the window', () => {
     expect(await forecast()).toMatchObject({ kind: 'forecast', pace: { source: 'tracker', counts } })
   })
 
+  test('the current period, left out until it ends, is named with the tickets finished in it so far (#390)', async () => {
+    // finished on Tuesday 10 Nov, in the current week of 9 Nov, before the read at 09:00 on Thursday 12 Nov
+    await following([...finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]), ...finishedOn('current', '2026-11-10', 2)])
+
+    expect((await inputs()).milestone.trackerPace?.reading).toMatchObject({
+      counts: [3, 5, 6, 4, 7, 5, 6, 8],
+      current: 'This week, from 9 Nov, counts once it ends: 2 finished so far.',
+    })
+  })
+
+  test('read before the current week began, the week the read saw only part of isn’t counted until read again (#390)', async () => {
+    await following([...finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]), ...finishedOn('read', '2026-11-10', 2)])
+
+    // Tuesday 17 Nov: the week of 9 Nov has ended since the read, on Thursday 12 Nov, which saw only its first days
+    team.at('2026-11-17T09:00:00Z')
+
+    expect((await inputs()).milestone.trackerPace?.reading).toMatchObject({
+      counts: [3, 5, 6, 4, 7, 5, 6, 8],
+      line: 'last 8 weeks · read 12 Nov 09:00',
+      current: 'This week, from 16 Nov, counts once it ends. The week of 9 Nov counts once read again: the last read, on 12 Nov, came before it ended.',
+    })
+    expect(await forecast()).toMatchObject({ kind: 'forecast', pace: { source: 'tracker', counts: [3, 5, 6, 4, 7, 5, 6, 8] } })
+  })
+
+  test('the window ends at the older of the two reads, and the line says so, though pace comes from the newer (#390)', async () => {
+    const like: Choice = { kind: 'label', name: 'checkout-like', query: 'label:"checkout-like"' }
+    team.fixture.milestoneChoices = [
+      { kind: 'milestone', choices: [CHECKOUT], pastLimit: false },
+      { kind: 'label', choices: [like], pastLimit: false },
+    ]
+    team.fixture.reads[like.query] = {
+      tickets: [...finishedInWeeks([2, 3, 2, 3, 2, 3, 2, 3]), ...finishedOn('since', '2026-11-10', 4)].map((ticket) => ({
+        ...ticket,
+        id: `like-${ticket.id}`,
+      })),
+      incomplete: false,
+    }
+    // the milestone read on Thursday 12 Nov; comparable work, which pace comes from, on Tuesday 17 Nov
+    await following(finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]))
+    team.at('2026-11-17T09:00:00Z')
+    await pick(team, '2026-11-17T09:00:00Z', like, 'comparableWork')
+
+    expect((await inputs()).milestone.trackerPace?.reading).toMatchObject({
+      // comparable work's read, on 17 Nov, reaches whole from w/c 21 Sep; the milestone's, on 12 Nov, up to w/c 2 Nov
+      counts: [3, 2, 3, 2, 3, 2, 3],
+      current: 'This week, from 16 Nov, counts once it ends. The week of 9 Nov counts once read again: the last read, on 12 Nov, came before it ended.',
+    })
+  })
+
+  test('read sprints ago, the sprints since the read wait for it too', async () => {
+    await following(finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]), { cadenceDays: '14' })
+
+    // Thursday 10 Dec: the sprints of 9 and 23 Nov have ended since the read on 12 Nov, and that of 7 Dec is the current one
+    team.at('2026-12-10T09:00:00Z')
+
+    expect((await inputs()).milestone.trackerPace?.reading).toMatchObject({
+      counts: [8, 10, 12, 14],
+      current: 'This sprint, from 7 Dec, counts once it ends. The sprints from 9 Nov count once read again: the last read, on 12 Nov, came before they ended.',
+    })
+  })
+
+  test('with nothing finished yet in the current sprint, it says so', async () => {
+    await following(finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]), { cadenceDays: '14' })
+
+    expect((await inputs()).milestone.trackerPace?.reading).toMatchObject({
+      current: 'This sprint, from 9 Nov, counts once it ends: none finished so far.',
+    })
+  })
+
   test('quiet weeks before the first finished ticket are left out, and those after it count 0', async () => {
     await following(finishedInWeeks([0, 0, 0, 0, 2, 3, 0, 4]))
 
