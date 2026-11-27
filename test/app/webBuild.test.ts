@@ -106,9 +106,8 @@ interface Feedback {
   href: string
   /** The page it opens, its query left out. */
   form: string
-  labels: string | null
-  title: string | null
-  body: string | null
+  /** Its query, which names the form and fills in its fields. */
+  query: Record<string, string>
   target: string
 }
 
@@ -121,24 +120,16 @@ function sendFeedback(page: string): Feedback {
   return {
     href,
     form: `${url.origin}${url.pathname}`,
-    labels: url.searchParams.get('labels'),
-    title: url.searchParams.get('title'),
-    body: url.searchParams.get('body'),
+    query: Object.fromEntries(url.searchParams),
     target: link[2]!,
   }
 }
 
-/** Send feedback as it opens `repo`'s new-issue form from `screen`: titled `Feedback: ` (#389), asking for needs-triage, in a new tab. */
+/** Send feedback as it opens `repo`'s Feedback form from `screen`, the version and screen filled in (#389), in a new tab. */
 const feedbackTo = (repo: string, screen: string): Feedback => ({
   href: expect.any(String) as string,
   form: `https://github.com/${repo}/issues/new`,
-  labels: 'needs-triage',
-  title: 'Feedback: ',
-  body: expect.stringMatching(
-    new RegExp(
-      `^> This issue is public, screenshots included\\.[^]*### What happened[^]*### What you expected[^]*### Screenshots[^]*\nVersion: ${PACKAGE.version.replaceAll('.', '\\.')}\nScreen: ${screen}$`,
-    ),
-  ) as string,
+  query: { template: 'feedback.yml', version: PACKAGE.version, screen },
   target: '_blank',
 })
 
