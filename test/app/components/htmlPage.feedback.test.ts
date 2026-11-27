@@ -27,7 +27,7 @@ Screen: ${screen}`
 
 describe('every screen, in a build with a GitHub repo', () => {
   test.each(SCREENS)(
-    "%s: the footer reads the version, then Send feedback, which opens a new tab on the repo's new-issue form, labelled for triage, untitled, its body naming the version and screen",
+    "%s: the footer reads the version, then Send feedback, which opens a new tab on the repo's new-issue form, labelled for triage, titled Feedback: for the reporter to finish (#389), its body naming the version and screen",
     async (screen, _, drawn) => {
       const page = render(await drawn())
 
@@ -37,7 +37,7 @@ describe('every screen, in a build with a GitHub repo', () => {
       const opened = new URL(link.getAttribute('href') ?? '')
       expect(`${opened.origin}${opened.pathname}`).toBe('https://github.com/owner/repo/issues/new')
       expect(opened.searchParams.get('labels')).toBe('needs-triage')
-      expect(opened.searchParams.get('title') ?? '').toBe('')
+      expect(opened.searchParams.get('title')).toBe('Feedback: ')
       expect(opened.searchParams.get('body')).toBe(body(APP_VERSION, screen))
     },
   )

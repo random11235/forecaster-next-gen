@@ -128,12 +128,12 @@ function sendFeedback(page: string): Feedback {
   }
 }
 
-/** Send feedback as it opens `repo`'s new-issue form from `screen`: untitled, asking for needs-triage, in a new tab. */
+/** Send feedback as it opens `repo`'s new-issue form from `screen`: titled `Feedback: ` (#389), asking for needs-triage, in a new tab. */
 const feedbackTo = (repo: string, screen: string): Feedback => ({
   href: expect.any(String) as string,
   form: `https://github.com/${repo}/issues/new`,
   labels: 'needs-triage',
-  title: null,
+  title: 'Feedback: ',
   body: expect.stringMatching(
     new RegExp(
       `^> This issue is public, screenshots included\\.[^]*### What happened[^]*### What you expected[^]*### Screenshots[^]*\nVersion: ${PACKAGE.version.replaceAll('.', '\\.')}\nScreen: ${screen}$`,

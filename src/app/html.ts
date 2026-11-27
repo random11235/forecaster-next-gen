@@ -65,9 +65,13 @@ ${main}
 `
 }
 
+/** How Send feedback's issue title begins, left for the reporter to finish. */
+const FEEDBACK_TITLE = 'Feedback: '
+
 /**
  * Send feedback, beside the version, for a build with a GitHub repo (#370): GitHub's new-issue form for that repo in a
- * new tab, untitled, asking for `needs-triage` (which GitHub applies only for someone with triage permission), its
+ * new tab, asking for `needs-triage` (which GitHub applies only for someone with triage permission), its title begun
+ * `Feedback: ` for the reporter to finish, so the issue and its board card read as Feedback whoever sent it (#389), its
  * body prefilled with the version and the screen's name and nothing else of the EM's. Nothing for a build with none.
  */
 function sendFeedback(screen: string): string {
@@ -87,7 +91,7 @@ function sendFeedback(screen: string): string {
 ---
 Version: ${APP_VERSION}
 Screen: ${screen}`
-  const href = `https://github.com/${FEEDBACK_REPO}/issues/new?labels=needs-triage&body=${encodeURIComponent(body)}`
+  const href = `https://github.com/${FEEDBACK_REPO}/issues/new?labels=needs-triage&title=${encodeURIComponent(FEEDBACK_TITLE)}&body=${encodeURIComponent(body)}`
   return ` · <a href="${escapeHtml(href)}" target="_blank" rel="noopener">Send feedback</a>`
 }
 
