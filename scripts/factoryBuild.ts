@@ -1,8 +1,8 @@
 // The factory's build of one ticket (#336), alone or a spec's (#337), run by .github/workflows/factory.yml once bwrap's
 // probe has passed. It runs from the runner's checkout of the default branch, and builds in TREE, the workflow's clone
 // of the branch the ticket is built on, which scripts/factoryTree.ts readies: it runs Claude Code in Sandcastle's
-// bwrap() sandbox on `/implement <n>` with the factory's rules and the ticket's text (scripts/factoryTicket.ts), and Sandcastle merges the
-// agent's commits into that branch. It pushes nothing and holds no GitHub token: the workflow's later jobs check the
+// bwrap() sandbox on `/implement <n>` with the factory's rules and the ticket's text (scripts/factoryTicket.ts), and
+// Sandcastle merges the agent's commits into that branch. It pushes nothing and holds no GitHub token: the workflow's later jobs check the
 // commits and do every write to GitHub.
 //
 // It writes `result` and `why` to the step's outputs (scripts/factoryOutcome.ts); only `built` passes. Into LOG_DIR go

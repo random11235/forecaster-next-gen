@@ -2,9 +2,8 @@
 // then the factory's rules for an unattended run, then the ticket's text, which a workflow step fetched, so the agent
 // needs no GitHub token. The rules are the factory's contract with its agent, so `/implement` stays upstream's copy:
 // they name no file or rule of the repo's, only the check command, and send the agent to the repo's own rules through
-// `AGENTS.md`. The repo is public, so
-// anyone can comment on a ticket: only the text the owner and collaborators wrote reaches the prompt, and not the factory's
-// own comments, save triage's brief (scripts/factoryTrust.ts).
+// `AGENTS.md`. The repo is public, so anyone can comment on a ticket: only the text the owner and collaborators wrote
+// reaches the prompt, and not the factory's own comments, save triage's brief (scripts/factoryTrust.ts).
 
 import { byFactory, isTrusted, triageBrief, type Authored } from './factoryTrust.ts'
 

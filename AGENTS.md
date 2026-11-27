@@ -10,6 +10,7 @@
 - **Production code**: test-first via `/tdd`, at the seams in `docs/design/architecture-test-seams.md`.
 - **Demos**: a ticket with a visible change ships screenshots in its PR. When writing, building or reviewing one, follow `docs/agents/demos.md`.
 - **Browser**: to check a change in the running app, or reproduce a reported UI bug, follow `docs/agents/browser.md`.
+- **Change file**: a branch that changes the app adds `changes/<ticket>.md`, as `docs/agents/pull-requests.md` says under Version. `npm run check` fails without it.
 - **PR bodies**: when writing or updating one, follow `docs/agents/pull-requests.md` with `/pr`.
 - **Path to production**: when a PR merges, follow "After a PR merges" in `docs/agents/pull-requests.md`: update `main` locally. CI's green run on `main` releases the merge and restarts the local app.
 - **Design and v1 scope**: `docs/design/README.md`, the index of the design docs.
