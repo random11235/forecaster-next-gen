@@ -129,21 +129,23 @@ export function finishedPerPeriod(
 }
 
 /**
- * The current period, the one holding today, which pace leaves out until it ends: the date it starts on, and the
- * tickets the read finished in it so far, each counted on its calendar day in the EM's time zone.
+ * The current period, the one holding today, which pace leaves out until it ends: the date it starts on, and as the
+ * read sees it, each finish counted on its calendar day in the EM's time zone.
  */
-export function finishedInCurrent(read: SavedRead, { startDate, cadence, today, timeZone }: ReadCalendar & { startDate: string }): CurrentPeriod {
+export function currentPeriod(read: SavedRead, { startDate, cadence, today, timeZone }: ReadCalendar & { startDate: string }): CurrentPeriod {
   const start = addDays(startDate, Math.floor(daysBetween(startDate, today) / cadence) * cadence)
   const dayOf = calendarDayIn(timeZone)
-  const count = read.tickets.filter(({ finishedAt }) => finishedAt !== undefined && daysBetween(start, dayOf(finishedAt)) >= 0).length
-  return { start, count }
+  const readOn = dayOf(read.readAt)
+  // a read from before the period began can't see its finishes, nor those after it in the periods since
+  if (daysBetween(start, readOn) < 0) return { start, readBefore: readOn }
+  return { start, finished: read.tickets.filter(({ finishedAt }) => finishedAt !== undefined && daysBetween(start, dayOf(finishedAt)) >= 0).length }
 }
 
-/** The current period: the date it starts on, and the tickets finished in it so far. */
-export interface CurrentPeriod {
-  start: string
-  count: number
-}
+/**
+ * The current period: the date it starts on; and the tickets the read finished in it so far, or, read before it
+ * began, the day it was read on, whose periods since show only what finished by then.
+ */
+export type CurrentPeriod = { start: string } & ({ finished: number } | { readBefore: string })
 
 /**
  * The periods the reads all reach whole, up to the current one, which is left out: the `first`, counted from the start

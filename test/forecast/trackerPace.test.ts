@@ -135,6 +135,18 @@ describe('the window', () => {
     })
   })
 
+  test('read before the current week began, it says the weeks since count only what finished by then, not that none has (#390)', async () => {
+    await following(finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]))
+
+    // Tuesday 17 Nov: the week of 9 Nov has ended since the read, on Thursday 12 Nov
+    team.at('2026-11-17T09:00:00Z')
+
+    expect((await inputs()).milestone.trackerPace?.reading).toMatchObject({
+      current:
+        'This week, from 16 Nov, counts once it ends. Read 12 Nov, before it began, so the weeks since count only what finished by then: read again to count the rest.',
+    })
+  })
+
   test('with nothing finished yet in the current sprint, it says so', async () => {
     await following(finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]), { cadenceDays: '14' })
 

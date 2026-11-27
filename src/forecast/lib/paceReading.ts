@@ -3,7 +3,7 @@ import { periodName, type PeriodName } from './cadence.js'
 import { dayMonth, readOn } from './calendarDate.js'
 import {
   calendarDayIn,
-  finishedInCurrent,
+  currentPeriod,
   sideBySide,
   type CurrentPeriod,
   type DatedCounts,
@@ -46,7 +46,8 @@ export interface PaceReading {
   skippedLine: string | undefined
   /**
    * The current period, left out of pace until it ends, with the tickets the read pace comes from finished in it so
-   * far: "This week, from 9 Nov, counts once it ends: 2 finished so far." (#390)
+   * far: "This week, from 9 Nov, counts once it ends: 2 finished so far." Read before it began, that the periods
+   * since count only what finished by then (#390).
    */
   current: string
   /** When the read pace comes from was read, in the EM's time zone: "4 Nov 09:12". */
@@ -88,16 +89,22 @@ export function readingOf(
     comparableWork: sides.comparableWork,
     said: BOUND_SAID[bound]({ tracker, period, window, sides, counts }),
     skippedLine: skippedLine(skipped, window, period, tracker),
-    current: currentSaid(finishedInCurrent(paceRead, { ...of, startDate: of.startDate }), period),
+    current: currentSaid(currentPeriod(paceRead, { ...of, startDate: of.startDate }), period),
     readOn: readOn(paceRead.readAt, of.timeZone),
     readAt: paceRead.readAt,
     was: fromReads && wasPace(saved, fromReads, sides.from, window.counts, of),
   }
 }
 
-/** The current period, as the reading's line says it: "This sprint, from 9 Nov, counts once it ends: none finished so far." */
-function currentSaid({ start, count }: CurrentPeriod, period: PeriodName): string {
-  return `This ${period}, from ${dayMonth(start)}, counts once it ends: ${count === 0 ? 'none' : count} finished so far.`
+/**
+ * The current period, as the reading's line says it: "This sprint, from 9 Nov, counts once it ends: none finished so
+ * far."; read before it began, that the periods since count only what finished by then.
+ */
+function currentSaid(current: CurrentPeriod, period: PeriodName): string {
+  const counts = `This ${period}, from ${dayMonth(current.start)}, counts once it ends`
+  if ('readBefore' in current)
+    return `${counts}. Read ${dayMonth(current.readBefore)}, before it began, so the ${period}s since count only what finished by then: read again to count the rest.`
+  return `${counts}: ${current.finished === 0 ? 'none' : current.finished} finished so far.`
 }
 
 /** The same counts, in the same order; never with none to compare. */
