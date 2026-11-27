@@ -149,6 +149,31 @@ describe('the window', () => {
     expect(await forecast()).toMatchObject({ kind: 'forecast', pace: { source: 'tracker', counts: [3, 5, 6, 4, 7, 5, 6, 8] } })
   })
 
+  test('the window ends at the older of the two reads, and the line says so, though pace comes from the newer (#390)', async () => {
+    const like: Choice = { kind: 'label', name: 'checkout-like', query: 'label:"checkout-like"' }
+    team.fixture.milestoneChoices = [
+      { kind: 'milestone', choices: [CHECKOUT], pastLimit: false },
+      { kind: 'label', choices: [like], pastLimit: false },
+    ]
+    team.fixture.reads[like.query] = {
+      tickets: [...finishedInWeeks([2, 3, 2, 3, 2, 3, 2, 3]), ...finishedOn('since', '2026-11-10', 4)].map((ticket) => ({
+        ...ticket,
+        id: `like-${ticket.id}`,
+      })),
+      incomplete: false,
+    }
+    // the milestone read on Thursday 12 Nov; comparable work, which pace comes from, on Tuesday 17 Nov
+    await following(finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]))
+    team.at('2026-11-17T09:00:00Z')
+    await pick(team, '2026-11-17T09:00:00Z', like, 'comparableWork')
+
+    expect((await inputs()).milestone.trackerPace?.reading).toMatchObject({
+      // comparable work's read, on 17 Nov, reaches whole from w/c 21 Sep; the milestone's, on 12 Nov, up to w/c 2 Nov
+      counts: [3, 2, 3, 2, 3, 2, 3],
+      current: 'This week, from 16 Nov, counts once it ends. The week of 9 Nov counts once read again: the last read, on 12 Nov, came before it ended.',
+    })
+  })
+
   test('read sprints ago, the sprints since the read wait for it too', async () => {
     await following(finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]), { cadenceDays: '14' })
 

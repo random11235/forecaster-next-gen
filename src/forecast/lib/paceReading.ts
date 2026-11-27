@@ -13,6 +13,7 @@ import {
   type SavedPaceReads,
   type SideBySide,
 } from './periodCounts.js'
+import { completeRead } from './queryRead.js'
 import { BOUND_SAID, skippedLine, trackerWindow, type BoundSaid, type TrackerWindowBound } from './trackerWindow.js'
 
 // The tracker's reading of pace, from the reads side by side, and the pace the latest read replaced.
@@ -89,7 +90,7 @@ export function readingOf(
     comparableWork: sides.comparableWork,
     said: BOUND_SAID[bound]({ tracker, period, window, sides, counts }),
     skippedLine: skippedLine(skipped, window, period, tracker),
-    current: currentSaid(currentPeriod(paceRead, { ...of, startDate: of.startDate }), period),
+    current: currentSaid(currentPeriod(paceRead, windowReads(saved), { ...of, startDate: of.startDate }), period),
     readOn: readOn(paceRead.readAt, of.timeZone),
     readAt: paceRead.readAt,
     was: fromReads && wasPace(saved, fromReads, sides.from, window.counts, of),
@@ -106,6 +107,11 @@ function currentSaid(current: CurrentPeriod, period: PeriodName): string {
   const { from, periods, readOn } = current.waiting
   const [which, they] = periods === 1 ? [`The ${period} of`, 'it'] : [`The ${period}s from`, 'they']
   return `${counts}. ${which} ${dayMonth(from)} count${periods === 1 ? 's' : ''} once read again: the last read, on ${dayMonth(readOn)}, came before ${they} ended.`
+}
+
+/** The reads the window ends at, the oldest's period left out: the complete latest reads of the milestone query and comparable work. */
+function windowReads({ milestone, comparableWork }: SavedPaceReads): SavedRead[] {
+  return [completeRead(milestone?.latest), completeRead(comparableWork?.latest)].filter((read) => read !== undefined)
 }
 
 /** The same counts, in the same order; never with none to compare. */

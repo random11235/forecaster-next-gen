@@ -135,14 +135,15 @@ export function finishedPerPeriod(
  * The current period, the one holding today, which pace leaves out until it ends: the date it starts on, and the
  * tickets the read finished in it so far, each counted on its calendar day in the EM's time zone. Read before it
  * began, the read finished none it can see: instead, the periods waiting for a read, which pace leaves out too
- * (`wholePeriods`).
+ * (`wholePeriods`), from the oldest of it and the other reads the window ends at (`windowReads`).
  */
-export function currentPeriod(read: SavedRead, of: ReadCalendar & { startDate: string }): CurrentPeriod {
+export function currentPeriod(read: SavedRead, windowReads: readonly SavedRead[], of: ReadCalendar & { startDate: string }): CurrentPeriod {
   const { startDate, cadence, today, timeZone } = of
   const current = periodOn(today, of)
   const start = addDays(startDate, current * cadence)
   const dayOf = calendarDayIn(timeZone)
-  const readOn = dayOf(read.readAt)
+  // the window ends at the oldest of the reads
+  const readOn = [read, ...windowReads].map(({ readAt }) => dayOf(readAt)).reduce((oldest, day) => (day < oldest ? day : oldest))
   const readIn = periodOn(readOn, of)
   if (readIn < current) return { start, waiting: { from: addDays(startDate, readIn * cadence), periods: current - readIn, readOn } }
   return { start, finished: read.tickets.filter(({ finishedAt }) => finishedAt !== undefined && daysBetween(start, dayOf(finishedAt)) >= 0).length }
