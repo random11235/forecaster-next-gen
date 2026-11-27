@@ -3,7 +3,7 @@ import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
-import { factoryAgent, MAX_PROMPT_BYTES, stdinAgent, withPromptArgument } from '../../scripts/factoryAgent.ts'
+import { factoryAgent, MAX_PROMPT_BYTES, readOnlyAgent, stdinAgent, withPromptArgument } from '../../scripts/factoryAgent.ts'
 
 const COMMAND = "claude --print --verbose --dangerously-skip-permissions --output-format stream-json --model 'haiku'"
 
@@ -71,6 +71,18 @@ describe("the factory's agent", () => {
 
     expect(print.command).toBe(`${COMMAND} --max-budget-usd 0.1 -p -`)
     expect(print.stdin).toBe('/factory-smoke')
+    expect(agent.env).toEqual({ CLAUDE_CODE_OAUTH_TOKEN: 'oauth' })
+  })
+
+  test('answering a question, has only the file-reading tools, no shell, and only the OAuth token in its env', () => {
+    const agent = readOnlyAgent('haiku', { oauthToken: 'oauth', maxBudgetUsd: 2 })
+
+    const { command } = agent.buildPrintCommand({ prompt: 'Is it done?', dangerouslySkipPermissions: true })
+
+    expect(command).toBe(
+      "claude --print --verbose --permission-mode dontAsk --output-format stream-json --model 'haiku' --tools 'Read,Grep,Glob' --allowedTools 'Read' 'Grep' 'Glob'" +
+        " --disallowedTools 'Bash' 'Edit' 'Write' 'NotebookEdit' 'WebFetch' 'WebSearch' --max-budget-usd 2 -p -- 'Is it done?'",
+    )
     expect(agent.env).toEqual({ CLAUDE_CODE_OAUTH_TOKEN: 'oauth' })
   })
 

@@ -6,22 +6,22 @@
  * closing ticket `issue` and the run that built it, which the factory adds itself.
  */
 export function pullRequestBody(reply: string, issue: number, runUrl: string): string {
-  const written = lastBlock(reply)?.trim() || noBody(issue, runUrl)
+  const written = lastBlock(reply, 'pr-body')?.trim() || noBody(issue, runUrl)
   const closing = `\n\nCloses #${issue}.\n\nBuilt by the factory in run ${runUrl}.\n`
   const cut = `\n\n(The agent's body was cut here: it was ${written.length} characters, more than a PR body holds.)`
   const room = MAX_BODY - closing.length - cut.length
   return `${written.length + closing.length > MAX_BODY ? written.slice(0, room) + cut : written}${closing}`
 }
 
-/** What the reply's last `<pr-body>` block holds: the one it ends with, though it may name the tag before. */
-function lastBlock(reply: string): string | undefined {
-  const close = reply.lastIndexOf('</pr-body>')
-  const open = reply.lastIndexOf('<pr-body>', close)
-  return close === -1 || open === -1 ? undefined : reply.slice(open + '<pr-body>'.length, close)
+/** What the reply's last `<tag>` block holds: the one it ends with, though it may name the tag before. */
+export function lastBlock(reply: string, tag: string): string | undefined {
+  const close = reply.lastIndexOf(`</${tag}>`)
+  const open = reply.lastIndexOf(`<${tag}>`, close)
+  return close === -1 || open === -1 ? undefined : reply.slice(open + `<${tag}>`.length, close)
 }
 
-/** The most characters GitHub takes in a PR body. */
-const MAX_BODY = 65_536
+/** The most characters GitHub takes in a PR body, or a comment. */
+export const MAX_BODY = 65_536
 
 /** A body in `/pr`'s sections for a PR whose agent wrote none. */
 const noBody = (issue: number, runUrl: string): string =>

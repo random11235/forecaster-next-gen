@@ -6,7 +6,7 @@
 # and a ticket with an open PR are skipped with a log line. Background, and the risks it answers (R1-R10):
 # docs/research/sandcastle-factory.md.
 #
-# The jobs that write to GitHub (`tell`, `start`, `publish`, `park`) use the job's own GITHUB_TOKEN, raised to the
+# The jobs that write to GitHub (`tell`, `start`, `publish`, `park`, `reply`) use the job's own GITHUB_TOKEN, raised to the
 # write it needs in that job alone, and it expires when the job ends. They run none of the code an agent wrote, which
 # spec/<n> holds too, from the spec's earlier tickets: every job's own code is the default branch's. The one long-lived
 # token, FACTORY_TOKEN, only opens the PR: a fine-grained token on this repo with Pull requests write and nothing else,
@@ -22,11 +22,20 @@
 # Every comment the factory makes carries MARK, so scripts/factoryTicket.ts keeps it out of the next prompt. To try the
 # agent step's timeout, set the repo variable FACTORY_AGENT_MINUTES to a few minutes; past AGENT_MINUTES' cap, it's
 # taken as the cap.
+#
+# A comment on an issue or a PR that mentions @claude, by the owner or a collaborator, asks the factory a question
+# (#380, scripts/factoryQuestion.ts): `ask` runs Claude Code in the sandbox with tools that only read files, and no
+# GitHub token, on a checkout of the default branch and the issue, PRs and commits fetched beforehand, and `reply` posts
+# its answer with MARK. `reply` runs none of the agent's output as code: it posts the reply as a comment's body, from a
+# file, checked against the digest `ask` took. A question builds nothing, and no other job runs on it, nor `ask` on a
+# label.
 name: Factory
 
 on:
   issues:
     types: [labeled]
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: read
@@ -640,3 +649,137 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run board.yml --repo "$REPO" --ref "$BASE" || echo "::warning::the board sync didn't start; its daily run catches up"
+
+  # A question: the `if` passes only a comment that may ask one, so most comments start no runner, and
+  # scripts/factoryAsked.ts decides, before anything is installed: it imports no package (test/scripts/factoryAsked.test.ts).
+  # Everything here only reads: the token, which stays outside the sandbox, and the agent's tools, Read, Grep and Glob,
+  # with no shell (scripts/factoryAgent.ts). What it needs from GitHub and git, a step fetches into its prompt. It
+  # answers in OUT_DIR's reply.md, which `reply` posts.
+  ask:
+    if: >-
+      github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')
+      && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: ubuntu-24.04 # pinned, for bwrap, as build
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+      actions: read # statusCheckRollup reads each check run's workflow run
+      checks: read # the PRs' checks
+      statuses: read
+    outputs:
+      asked: ${{ steps.asked.outputs.asked }}
+      reply: ${{ steps.reply.outputs.digest }}
+    env:
+      OUT_DIR: ${{ runner.temp }}/factory-out
+      LOG_DIR: ${{ runner.temp }}/factory-logs
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 30 # the commits scripts/factoryAsk.ts lists in the prompt
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24 # NODE_MAJOR
+      - name: Decide whether the comment asks a question
+        id: asked
+        run: node scripts/factoryAsked.ts
+      - if: steps.asked.outputs.asked == 'true'
+        uses: ./.github/actions/setup
+      - if: steps.asked.outputs.asked == 'true'
+        uses: ./.github/actions/sandbox
+      # GitHub fires issue_comment for a PR's comments too: a PR's own checks, or an issue's linked PRs' with theirs
+      - name: Fetch the issue, its comments, and its PRs with their checks
+        if: steps.asked.outputs.asked == 'true'
+        shell: bash # with pipefail, so a failed `gh pr view` fails the step
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+          NAME: ${{ github.event.repository.name }}
+          IS_PR: ${{ github.event.issue.pull_request && 'true' || '' }}
+        run: |
+          gh api "repos/$REPO/issues/$ISSUE" > "$RUNNER_TEMP/issue.json"
+          gh api --paginate --slurp "repos/$REPO/issues/$ISSUE/comments" > "$RUNNER_TEMP/comments.json"
+          if [ -n "$IS_PR" ]; then prs=$ISSUE
+          else
+            prs=$(gh api graphql -F n="$ISSUE" -f o="$OWNER" -f r="$NAME" -f query='
+              query($o: String!, $r: String!, $n: Int!) { repository(owner: $o, name: $r) { issue(number: $n) {
+                closedByPullRequestsReferences(first: 20, includeClosedPrs: true) { nodes { number } } } } }' \
+              --jq '.data.repository.issue.closedByPullRequestsReferences.nodes[].number')
+          fi
+          for pr in $prs; do
+            gh pr view "$pr" --repo "$REPO" --json number,title,state,isDraft,url,headRefName,statusCheckRollup
+          done | jq -s . > "$RUNNER_TEMP/prs.json"
+      # Sandcastle's merge-to-head strategy merges back into the branch checked out, so check one out; the agent has no
+      # tool to commit with, and the hooks npm ci set up have nothing to do here
+      - name: Answer the question in the sandbox
+        id: agent
+        if: steps.asked.outputs.asked == 'true'
+        timeout-minutes: 20
+        env:
+          # reach the agent only through readOnlyAgent()'s env, which Sandcastle hands bwrap
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ISSUE_JSON: ${{ runner.temp }}/issue.json
+          COMMENTS_JSON: ${{ runner.temp }}/comments.json
+          PRS_JSON: ${{ runner.temp }}/prs.json
+        run: |
+          git config core.hooksPath /dev/null
+          git checkout --quiet -B factory-ask
+          node scripts/factoryAsk.ts
+      # The logs are public with the run, and the reply will be: the token the agent held may be in neither
+      - name: Scrub the token from the logs and the reply
+        id: reply
+        if: always() && steps.asked.outputs.asked == 'true'
+        env:
+          TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          for dir in "$LOG_DIR" "$OUT_DIR"; do
+            if [ -d "$dir" ]; then
+              find "$dir" -type f -exec perl -pi -e 's/\Q$ENV{TOKEN}\E/[token]/g if length $ENV{TOKEN}' {} +
+            fi
+          done
+          if [ -f "$OUT_DIR/reply.md" ]; then echo "digest=$(sha256sum "$OUT_DIR/reply.md" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"; fi
+      - if: always() && steps.reply.outputs.digest != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: reply
+          path: ${{ runner.temp }}/factory-out
+          retention-days: 7
+      - if: always() && steps.asked.outputs.asked == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: factory-logs
+          path: ${{ runner.temp }}/factory-logs
+          if-no-files-found: warn
+          retention-days: 14
+
+  # Posts the one reply, as github-actions[bot], whose comment starts no workflow, and with MARK, so it asks nothing: the
+  # answer `ask` wrote, if it's the one `ask` scrubbed, or else that there is none. It runs nothing `ask` made.
+  reply:
+    needs: ask
+    if: always() && needs.ask.outputs.asked == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write # the issues API comments on a PR too
+    steps:
+      - uses: actions/download-artifact@v8
+        if: needs.ask.outputs.reply != ''
+        with:
+          name: reply
+          path: ${{ runner.temp }}/reply
+      - name: Post the reply
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DIGEST: ${{ needs.ask.outputs.reply }}
+          ASKER: ${{ github.event.comment.user.login }}
+          ASKED_AT: ${{ github.event.comment.html_url }}
+        run: |
+          reply="$RUNNER_TEMP/reply/reply.md"
+          if [ -z "$DIGEST" ] || ! echo "$DIGEST  $reply" | sha256sum -c --quiet; then
+            mkdir -p "$RUNNER_TEMP/reply"
+            printf "%s\n@%s, the factory couldn't answer [your question](%s): the ask job failed before it wrote a reply. %s\n" \
+              "$MARK" "$ASKER" "$ASKED_AT" "$RUN_URL" > "$reply"
+          fi
+          gh api "repos/$REPO/issues/$ISSUE/comments" -F body=@"$reply" --silent
