@@ -27,7 +27,7 @@ Screen: ${screen}`
 
 describe('every screen, in a build with a GitHub repo', () => {
   test.each(SCREENS)(
-    "%s: the footer reads the version, then Send feedback, which opens a new tab on the repo's new-issue form, labelled for triage, titled Feedback: for the reporter to finish (#389), its body naming the version and screen",
+    "%s: the footer reads the version, then Send feedback, which opens a new tab on the repo's new-issue form, prefilled for triage",
     async (screen, _, drawn) => {
       const page = render(await drawn())
 

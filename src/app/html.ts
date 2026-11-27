@@ -71,8 +71,8 @@ const FEEDBACK_TITLE = 'Feedback: '
 /**
  * Send feedback, beside the version, for a build with a GitHub repo (#370): GitHub's new-issue form for that repo in a
  * new tab, asking for `needs-triage` (which GitHub applies only for someone with triage permission), its title begun
- * `Feedback: ` for the reporter to finish, so the issue and its board card read as Feedback whoever sent it (#389), its
- * body prefilled with the version and the screen's name and nothing else of the EM's. Nothing for a build with none.
+ * `FEEDBACK_TITLE`, so the issue and its board card read as Feedback unless the reporter clears it (#389), its body
+ * prefilled with the version and the screen's name and nothing else of the EM's. Nothing for a build with none.
  */
 function sendFeedback(screen: string): string {
   if (!FEEDBACK_REPO) return ''
