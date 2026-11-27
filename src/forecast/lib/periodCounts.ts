@@ -129,6 +129,23 @@ export function finishedPerPeriod(
 }
 
 /**
+ * The current period, the one holding today, which pace leaves out until it ends: the date it starts on, and the
+ * tickets the read finished in it so far, each counted on its calendar day in the EM's time zone.
+ */
+export function finishedInCurrent(read: SavedRead, { startDate, cadence, today, timeZone }: ReadCalendar & { startDate: string }): CurrentPeriod {
+  const start = addDays(startDate, Math.floor(daysBetween(startDate, today) / cadence) * cadence)
+  const dayOf = calendarDayIn(timeZone)
+  const count = read.tickets.filter(({ finishedAt }) => finishedAt !== undefined && daysBetween(start, dayOf(finishedAt)) >= 0).length
+  return { start, count }
+}
+
+/** The current period: the date it starts on, and the tickets finished in it so far. */
+export interface CurrentPeriod {
+  start: string
+  count: number
+}
+
+/**
  * The periods the reads all reach whole, up to the current one, which is left out: the `first`, counted from the start
  * date (negative before it), and how many (`periods`). A period a read reaches only part of would pass for a quiet one.
  */

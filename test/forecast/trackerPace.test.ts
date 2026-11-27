@@ -125,6 +125,24 @@ describe('the window', () => {
     expect(await forecast()).toMatchObject({ kind: 'forecast', pace: { source: 'tracker', counts } })
   })
 
+  test('the current period, left out until it ends, is named with the tickets finished in it so far (#390)', async () => {
+    // finished on Tuesday 10 Nov, in the current week of 9 Nov, before the read at 09:00 on Thursday 12 Nov
+    await following([...finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]), ...finishedOn('current', '2026-11-10', 2)])
+
+    expect((await inputs()).milestone.trackerPace?.reading).toMatchObject({
+      counts: [3, 5, 6, 4, 7, 5, 6, 8],
+      current: 'This week, from 9 Nov, counts once it ends: 2 finished so far.',
+    })
+  })
+
+  test('with nothing finished yet in the current sprint, it says so', async () => {
+    await following(finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]), { cadenceDays: '14' })
+
+    expect((await inputs()).milestone.trackerPace?.reading).toMatchObject({
+      current: 'This sprint, from 9 Nov, counts once it ends: none finished so far.',
+    })
+  })
+
   test('quiet weeks before the first finished ticket are left out, and those after it count 0', async () => {
     await following(finishedInWeeks([0, 0, 0, 0, 2, 3, 0, 4]))
 

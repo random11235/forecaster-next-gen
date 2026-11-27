@@ -63,7 +63,14 @@ describe('the Check step', () => {
   const pace: PaceCheck = {
     yours: { source: 'range', range: { low: 2, high: 4 } },
     period: 'week',
-    reading: { periods: [], counts: [4, 6, 5], line: 'last 3 weeks · read 12 Nov 09:00', firstFinished: undefined, skipped: undefined },
+    reading: {
+      periods: [],
+      counts: [4, 6, 5],
+      line: 'last 3 weeks · read 12 Nov 09:00',
+      firstFinished: undefined,
+      current: 'This week, from 9 Nov, counts once it ends: 2 finished so far.',
+      skipped: undefined,
+    },
     incomplete: false,
     noStartDate: false,
     source: 'tracker',
