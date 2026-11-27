@@ -43,7 +43,11 @@ describe('the Inputs screen in the browser build', () => {
       'Range',
       'Typed counts',
     ])
-    expect(all(page, '.setup-summary')).toEqual([])
+    // in place of setup, why it reads no tickets, and where they can be read (#396)
+    expect(text(one(page, '.setup-summary'))).toBe(
+      'This page reads no tracker: type the inputs below. To read the milestone’s tickets from GitHub or Jira, run the Forecaster on your own machine.',
+    )
+    expect(hasRole(page, 'button', { name: /Connect/ })).toBe(false)
     expect(hasRole(page, 'alert')).toBe(false)
     expect(text(page)).not.toContain('⚠')
   })

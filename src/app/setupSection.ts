@@ -276,6 +276,16 @@ function flagHtml({ of, flag, change }: SummaryFlag): string {
 }
 
 /** Connecting skipped: the inputs typed, as the MVP has them, with a way to connect a tracker after all; above the inputs. */
+/**
+ * What the browser build shows in place of setup, which it hasn't (#396): that it reads no tracker, and that the app run
+ * on the EM's own machine does, so an EM who opens it to read their tickets learns why they can't here.
+ */
+export function noSetupHtml(): string {
+  return summaryBoxHtml(
+    `      <span class="muted">This page reads no tracker: type the inputs below. To read the milestone’s tickets from GitHub or Jira, run the Forecaster on your own machine.</span>`,
+  )
+}
+
 export function setupSkippedHtml(): string {
   return summaryBoxHtml(`      <span class="muted">No tracker connected.</span>
       ${changeHtml(SETUP_PATHS.change, 'Connect a tracker')}`)

@@ -13,7 +13,7 @@ import {
 } from '../forecast/index.js'
 import { AMBIGUITIES, type Ambiguity } from '../model/ambiguity.js'
 import { CONNECT_HINT, connectSection } from './connectSection.js'
-import { CHECK_SCRIPT, CHECK_STEP, checkStepHtml, setupSkippedHtml, setupStepHtml, setupSummaryHtml } from './setupSection.js'
+import { CHECK_SCRIPT, CHECK_STEP, checkStepHtml, noSetupHtml, setupSkippedHtml, setupStepHtml, setupSummaryHtml } from './setupSection.js'
 import { escapeHtml, htmlPage } from './html.js'
 import { INPUTS_SCRIPT } from './inputsScript.js'
 import { candidatesHtml, candidatesScript } from './candidatesSection.js'
@@ -81,7 +81,7 @@ export const SKIP_FORMS: ReadonlyMap<string, (body: URLSearchParams) => SkipEdit
 /**
  * The Inputs screen: in the local server build, first its setup: the setup step the EM is on, the Connect step, the
  * query step the view shows (the Milestone step or the Comparable work step), or Check; or, once setup is closed, its
- * summary. Then the milestone, its pace and the team's growth.
+ * summary; in the browser build, that it reads no tracker. Then the milestone, its pace and the team's growth.
  */
 export function renderInputsScreen(view: InputsScreen, keep: KeepOpening): string {
   const { inputs: screen, setup, step } = view
@@ -103,7 +103,7 @@ export function renderInputsScreen(view: InputsScreen, keep: KeepOpening): strin
   }
   // each script is a call, so one following another would be taken to call its result: `;` ends each (#275)
   const script = [INPUTS_SCRIPT, ...(setup?.kind === 'steps' && setup.step === 'check' ? [CHECK_SCRIPT] : []), ...(picker?.scripts ?? [])].join(';')
-  const closed = setup?.kind === 'summary' ? setupSummaryHtml(setup) : setup?.kind === 'skipped' ? setupSkippedHtml() : ''
+  const closed = setup?.kind === 'summary' ? setupSummaryHtml(setup) : setup?.kind === 'skipped' ? setupSkippedHtml() : setup === undefined ? noSetupHtml() : ''
   return htmlPage('/inputs', header, closed + sections.map((section, index) => section(index + 1)).join('\n'), script)
 }
 
