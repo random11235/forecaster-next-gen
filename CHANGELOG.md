@@ -2,6 +2,10 @@
 
 What each version of the app shipped, newest first. The version is the one in every screen's footer: a fix is in the app you're running if its version is the footer's or older. Each merge's release ([`docs/design/architecture.md`](docs/design/architecture.md#release)) writes its section here, a line from each change file (`changes/<ticket>.md`) a PR that changes the app adds: a PR doesn't edit the entries below ([`docs/agents/pull-requests.md`](docs/agents/pull-requests.md#version)).
 
+## 1.7.0 (2026-11-27)
+
+- The web build's Inputs screen says it reads no tracker, and links to how to run the Forecaster on your own machine, which reads tickets from GitHub or Jira (#396, PR #397)
+
 ## 1.6.0 (2026-11-27)
 
 - The tracker's pace names the current period, left out until it ends, with the tickets finished in it so far; a period that ended after the last read waits for the next read rather than counting only part of its tickets (#390, PR #393)
