@@ -135,15 +135,29 @@ describe('the window', () => {
     })
   })
 
-  test('read before the current week began, it says the weeks since count only what finished by then, not that none has (#390)', async () => {
-    await following(finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]))
+  test('read before the current week began, the week the read saw only part of isn’t counted until read again (#390)', async () => {
+    await following([...finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]), ...finishedOn('read', '2026-11-10', 2)])
 
-    // Tuesday 17 Nov: the week of 9 Nov has ended since the read, on Thursday 12 Nov
+    // Tuesday 17 Nov: the week of 9 Nov has ended since the read, on Thursday 12 Nov, which saw only its first days
     team.at('2026-11-17T09:00:00Z')
 
     expect((await inputs()).milestone.trackerPace?.reading).toMatchObject({
-      current:
-        'This week, from 16 Nov, counts once it ends. Read 12 Nov, before it began, so the weeks since count only what finished by then: read again to count the rest.',
+      counts: [3, 5, 6, 4, 7, 5, 6, 8],
+      line: 'last 8 weeks · read 12 Nov 09:00',
+      current: 'This week, from 16 Nov, counts once it ends. The week of 9 Nov counts once read again: the last read, on 12 Nov, came before it ended.',
+    })
+    expect(await forecast()).toMatchObject({ kind: 'forecast', pace: { source: 'tracker', counts: [3, 5, 6, 4, 7, 5, 6, 8] } })
+  })
+
+  test('read sprints ago, the sprints since the read wait for it too', async () => {
+    await following(finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]), { cadenceDays: '14' })
+
+    // Thursday 10 Dec: the sprints of 9 and 23 Nov have ended since the read on 12 Nov, and that of 7 Dec is the current one
+    team.at('2026-12-10T09:00:00Z')
+
+    expect((await inputs()).milestone.trackerPace?.reading).toMatchObject({
+      counts: [8, 10, 12, 14],
+      current: 'This sprint, from 7 Dec, counts once it ends. The sprints from 9 Nov count once read again: the last read, on 12 Nov, came before they ended.',
     })
   })
 

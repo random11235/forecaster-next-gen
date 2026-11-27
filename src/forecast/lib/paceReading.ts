@@ -98,13 +98,14 @@ export function readingOf(
 
 /**
  * The current period, as the reading's line says it: "This sprint, from 9 Nov, counts once it ends: none finished so
- * far."; read before it began, that the periods since count only what finished by then.
+ * far."; read before it began, the periods waiting for a read.
  */
 function currentSaid(current: CurrentPeriod, period: PeriodName): string {
   const counts = `This ${period}, from ${dayMonth(current.start)}, counts once it ends`
-  if ('readBefore' in current)
-    return `${counts}. Read ${dayMonth(current.readBefore)}, before it began, so the ${period}s since count only what finished by then: read again to count the rest.`
-  return `${counts}: ${current.finished === 0 ? 'none' : current.finished} finished so far.`
+  if (!('waiting' in current)) return `${counts}: ${current.finished === 0 ? 'none' : current.finished} finished so far.`
+  const { from, periods, readOn } = current.waiting
+  const [which, they] = periods === 1 ? [`The ${period} of`, 'it'] : [`The ${period}s from`, 'they']
+  return `${counts}. ${which} ${dayMonth(from)} count${periods === 1 ? 's' : ''} once read again: the last read, on ${dayMonth(readOn)}, came before ${they} ended.`
 }
 
 /** The same counts, in the same order; never with none to compare. */

@@ -115,8 +115,7 @@ function measuredFrom(saved: SavedPaceReads, tracker: string | undefined, of: Re
 /** A candidate's finished tickets in every whole period its read reaches, laid from today before the milestone has a start date. */
 function candidateCounts(candidate: SavedRead, of: ReadCalendar): DatedCounts {
   const laid = { ...of, startDate: of.startDate ?? of.today }
-  const { periods } = wholePeriods([candidate], laid)
-  return finishedPerPeriod(candidate, { ...laid, periods })
+  return finishedPerPeriod(candidate, { ...laid, ...wholePeriods([candidate], laid) })
 }
 
 const NO_PACE: Pace = { counts: undefined, sideBySide: undefined, reading: undefined, incomplete: false, inUse: undefined, problems: [], warnings: [] }

@@ -53,7 +53,8 @@ async function readAgain(readAt = READ_AT, found = tickets(34, [5, 6, 8, 5, 7, 6
 describe('a value following the tracker', () => {
   test('after the first read, neither value has a previous one', async () => {
     expect((await inputs()).ticketsSource).toMatchObject({ reading: { count: 34 }, was: undefined })
-    expect((await inputs()).trackerPace).toMatchObject({ reading: { line: 'last 8 weeks · read 5 Nov 09:05' }, was: undefined })
+    // read on 5 Nov, it reaches the weeks up to w/c 26 Oct whole; w/c 2 Nov waits for a read (#390)
+    expect((await inputs()).trackerPace).toMatchObject({ reading: { line: '7 weeks · read 5 Nov 09:05' }, was: undefined })
   })
 
   test('a read updates tickets remaining, with the value it replaced and when that was read', async () => {
@@ -76,7 +77,7 @@ describe('a value following the tracker', () => {
     await readAgain('2026-11-05T15:00:00Z')
 
     expect((await inputs()).ticketsSource).toMatchObject({ reading: { readOn: '5 Nov 15:00' }, was: undefined })
-    expect((await inputs()).trackerPace).toMatchObject({ reading: { line: 'last 8 weeks · read 5 Nov 15:00' }, was: undefined })
+    expect((await inputs()).trackerPace).toMatchObject({ reading: { line: '7 weeks · read 5 Nov 15:00' }, was: undefined })
   })
 
   test('a typed value shows none: only a value following the tracker does', async () => {

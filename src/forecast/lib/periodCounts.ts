@@ -107,21 +107,24 @@ export function calendarDayIn(timeZone: string): (instant: string) => string {
   return (instant) => format.format(new Date(instant))
 }
 
+/** The period a calendar day falls in, counted from the start date (negative before it). */
+function periodOn(day: string, { startDate, cadence }: { startDate: string; cadence: number }): number {
+  return Math.floor(daysBetween(startDate, day) / cadence)
+}
+
 /**
- * The tickets the read finished in each of the `periods` before the current one (the one holding today), oldest
- * first, each finish counted on its calendar day in the EM's time zone. A quiet period counts 0.
+ * The tickets the read finished in each of the `periods` from the `first` (`wholePeriods`), oldest first, each finish
+ * counted on its calendar day in the EM's time zone. A quiet period counts 0.
  */
 export function finishedPerPeriod(
   read: SavedRead,
-  { startDate, cadence, today, timeZone, periods }: ReadCalendar & { startDate: string; periods: number },
+  { startDate, cadence, timeZone, first, periods }: Pick<ReadCalendar, 'cadence' | 'timeZone'> & { startDate: string; first: number; periods: number },
 ): DatedCounts {
-  const current = Math.floor(daysBetween(startDate, today) / cadence)
-  const first = current - periods
   const counts = Array.from({ length: periods }, () => 0)
   const dayOf = calendarDayIn(timeZone)
   for (const { finishedAt } of read.tickets) {
     if (finishedAt === undefined) continue
-    const period = Math.floor(daysBetween(startDate, dayOf(finishedAt)) / cadence) - first
+    const period = periodOn(dayOf(finishedAt), { startDate, cadence }) - first
     if (period >= 0 && period < periods) counts[period]! += 1
   }
   const starts = counts.map((_, period) => addDays(startDate, (first + period) * cadence))
@@ -129,35 +132,38 @@ export function finishedPerPeriod(
 }
 
 /**
- * The current period, the one holding today, which pace leaves out until it ends: the date it starts on, and as the
- * read sees it, each finish counted on its calendar day in the EM's time zone.
+ * The current period, the one holding today, which pace leaves out until it ends: the date it starts on, and the
+ * tickets the read finished in it so far, each counted on its calendar day in the EM's time zone. Read before it
+ * began, the read finished none it can see: instead, the periods waiting for a read, which pace leaves out too
+ * (`wholePeriods`).
  */
-export function currentPeriod(read: SavedRead, { startDate, cadence, today, timeZone }: ReadCalendar & { startDate: string }): CurrentPeriod {
-  const start = addDays(startDate, Math.floor(daysBetween(startDate, today) / cadence) * cadence)
+export function currentPeriod(read: SavedRead, of: ReadCalendar & { startDate: string }): CurrentPeriod {
+  const { startDate, cadence, today, timeZone } = of
+  const current = periodOn(today, of)
+  const start = addDays(startDate, current * cadence)
   const dayOf = calendarDayIn(timeZone)
   const readOn = dayOf(read.readAt)
-  // a read from before the period began can't see its finishes, nor those after it in the periods since
-  if (daysBetween(start, readOn) < 0) return { start, readBefore: readOn }
+  const readIn = periodOn(readOn, of)
+  if (readIn < current) return { start, waiting: { from: addDays(startDate, readIn * cadence), periods: current - readIn, readOn } }
   return { start, finished: read.tickets.filter(({ finishedAt }) => finishedAt !== undefined && daysBetween(start, dayOf(finishedAt)) >= 0).length }
 }
 
 /**
- * The current period: the date it starts on; and the tickets the read finished in it so far, or, read before it
- * began, the day it was read on, whose periods since show only what finished by then.
+ * The current period: the date it starts on; and the tickets the read finished in it so far, or, read before it began,
+ * the periods waiting for a read: from the one it was read in, how many, up to the current one, and the day it was read on.
  */
-export type CurrentPeriod = { start: string } & ({ finished: number } | { readBefore: string })
+export type CurrentPeriod = { start: string } & ({ finished: number } | { waiting: { from: string; periods: number; readOn: string } })
 
 /**
- * The periods the reads all reach whole, up to the current one, which is left out: the `first`, counted from the start
- * date (negative before it), and how many (`periods`). A period a read reaches only part of would pass for a quiet one.
+ * The periods the reads all reach whole: the `first`, counted from the start date (negative before it), and how many
+ * (`periods`), up to the current one, which is left out, or the earlier one a read was made in, which it reaches only
+ * part of. A period a read reaches only part of would pass for a quieter one.
  */
-export function wholePeriods(
-  reads: readonly SavedRead[],
-  { startDate, cadence, today, timeZone }: ReadCalendar & { startDate: string },
-): { first: number; periods: number } {
-  const current = Math.floor(daysBetween(startDate, today) / cadence)
-  const first = Math.max(...reads.map((read) => Math.ceil((daysBetween(startDate, calendarDayIn(timeZone)(read.finishedSince)) + 1) / cadence)))
-  return { first, periods: Math.max(0, current - first) }
+export function wholePeriods(reads: readonly SavedRead[], of: ReadCalendar & { startDate: string }): { first: number; periods: number } {
+  const dayOf = calendarDayIn(of.timeZone)
+  const last = Math.min(periodOn(of.today, of), ...reads.map((read) => periodOn(dayOf(read.readAt), of)))
+  const first = Math.max(...reads.map((read) => Math.ceil((daysBetween(of.startDate, dayOf(read.finishedSince)) + 1) / of.cadence)))
+  return { first, periods: Math.max(0, last - first) }
 }
 
 /** Whether the latest read of the milestone query, or of comparable work, is incomplete. */
@@ -181,7 +187,7 @@ export function sideBySide(
   if (reads.length === 0) return undefined
   const laid = { ...of, startDate }
   const { first, periods } = wholePeriods(reads, laid)
-  const counted = (read: SavedRead): DatedCounts => finishedPerPeriod(read, { ...laid, periods })
+  const counted = (read: SavedRead): DatedCounts => finishedPerPeriod(read, { ...laid, first, periods })
   const milestone = milestoneRead && counted(milestoneRead)
   const comparableWork = comparableRead && counted(comparableRead)
   // a query matching nothing finished in the periods counted is flagged as not used, so pace falls back to the milestone's own
