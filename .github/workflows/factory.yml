@@ -671,9 +671,8 @@ jobs:
     outputs:
       asked: ${{ steps.asked.outputs.asked }}
       reply: ${{ steps.reply.outputs.digest }}
-    env:
-      OUT_DIR: ${{ runner.temp }}/factory-out
-      LOG_DIR: ${{ runner.temp }}/factory-logs
+    # OUT_DIR and LOG_DIR are set in each step that uses them: a job's env has no runner context, and GitHub refuses
+    # the whole workflow file over it
     steps:
       - uses: actions/checkout@v7
         with:
@@ -724,6 +723,8 @@ jobs:
           ISSUE_JSON: ${{ runner.temp }}/issue.json
           COMMENTS_JSON: ${{ runner.temp }}/comments.json
           PRS_JSON: ${{ runner.temp }}/prs.json
+          OUT_DIR: ${{ runner.temp }}/factory-out
+          LOG_DIR: ${{ runner.temp }}/factory-logs
         run: |
           git config core.hooksPath /dev/null
           git checkout --quiet -B factory-ask
@@ -734,6 +735,8 @@ jobs:
         if: always() && steps.asked.outputs.asked == 'true'
         env:
           TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          OUT_DIR: ${{ runner.temp }}/factory-out
+          LOG_DIR: ${{ runner.temp }}/factory-logs
         run: |
           for dir in "$LOG_DIR" "$OUT_DIR"; do
             if [ -d "$dir" ]; then
