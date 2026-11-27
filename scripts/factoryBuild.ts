@@ -1,7 +1,7 @@
 // The factory's build of one ticket (#336), alone or a spec's (#337), run by .github/workflows/factory.yml once bwrap's
 // probe has passed. It runs from the runner's checkout of the default branch, and builds in TREE, the workflow's clone
 // of the branch the ticket is built on, which scripts/factoryTree.ts readies: it runs Claude Code in Sandcastle's
-// bwrap() sandbox on `/implement <n>` with the ticket's text (scripts/factoryTicket.ts), and Sandcastle merges the
+// bwrap() sandbox on `/implement <n>` with the factory's rules and the ticket's text (scripts/factoryTicket.ts), and Sandcastle merges the
 // agent's commits into that branch. It pushes nothing and holds no GitHub token: the workflow's later jobs check the
 // commits and do every write to GitHub.
 //
@@ -23,6 +23,8 @@ import { ticketPrompt, type Authored, type Ticket } from './factoryTicket.ts'
 const MODEL = 'opus'
 /** Claude Code stops after the turn that passes this, so a stuck run can't spend without end. */
 const MAX_BUDGET_USD = 25
+/** What the workflow's `check` job runs on the agent's commits, which the prompt tells the agent. */
+const CHECK = 'npm run check'
 
 const output = (name: 'result' | 'why', value: string) => {
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${value}\n`)
@@ -57,7 +59,7 @@ async function build(logs: Logs): Promise<Ending> {
   const ran = await run({
     name: `ticket-${ticket.number}`,
     cwd: tree,
-    prompt: ticketPrompt(ticket, comments, spec),
+    prompt: ticketPrompt(ticket, comments, CHECK, spec),
     agent: factoryAgent(MODEL, { oauthToken: env('CLAUDE_CODE_OAUTH_TOKEN'), maxBudgetUsd: MAX_BUDGET_USD }),
     // the test suite runs for minutes, past Claude Code's 2-minute default for a Bash command
     sandbox: bwrap({ env: { BASH_DEFAULT_TIMEOUT_MS: '900000' } }),
