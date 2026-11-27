@@ -765,7 +765,8 @@ jobs:
     if: always() && needs.ask.outputs.asked == 'true'
     runs-on: ubuntu-24.04
     permissions:
-      issues: write # the issues API comments on a PR too
+      issues: write
+      pull-requests: write # the issues API comments on a PR too, but with this permission, not issues: write
     steps:
       - uses: actions/download-artifact@v8
         if: needs.ask.outputs.reply != ''
