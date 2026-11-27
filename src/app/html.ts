@@ -66,28 +66,15 @@ ${main}
 }
 
 /**
- * Send feedback, beside the version, for a build with a GitHub repo (#370): GitHub's new-issue form for that repo in a
- * new tab, untitled, asking for `needs-triage` (which GitHub applies only for someone with triage permission), its
- * body prefilled with the version and the screen's name and nothing else of the EM's. Nothing for a build with none.
+ * Send feedback, beside the version, for a build with a GitHub repo (#370): that repo's Feedback form
+ * (`.github/ISSUE_TEMPLATE/feedback.yml`) in a new tab, with the version and the screen's name filled in and nothing
+ * else of the EM's. The form titles the issue `Feedback: ` and labels it `feedback` and `needs-triage` for any
+ * reporter, where a `labels` query applies only for someone with triage permission (#389). Nothing for a build with none.
  */
 function sendFeedback(screen: string): string {
   if (!FEEDBACK_REPO) return ''
-  const body = `> This issue is public, screenshots included. Blur or crop anything about a real team's work.
-
-### What happened
-
-
-### What you expected
-
-
-### Screenshots
-
-<!-- Paste or drag screenshots here. -->
-
----
-Version: ${APP_VERSION}
-Screen: ${screen}`
-  const href = `https://github.com/${FEEDBACK_REPO}/issues/new?labels=needs-triage&body=${encodeURIComponent(body)}`
+  const query = new URLSearchParams({ template: 'feedback.yml', version: APP_VERSION, screen })
+  const href = `https://github.com/${FEEDBACK_REPO}/issues/new?${query}`
   return ` · <a href="${escapeHtml(href)}" target="_blank" rel="noopener">Send feedback</a>`
 }
 

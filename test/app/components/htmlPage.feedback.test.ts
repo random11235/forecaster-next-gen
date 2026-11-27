@@ -8,26 +8,9 @@ import { SCREENS } from './htmlPageHarness.js'
 // this file gives it one; htmlPage.test.ts checks the footer with none.
 vi.mock('../../../src/app/feedbackRepo.js', () => ({ FEEDBACK_REPO: 'owner/repo' }))
 
-/** The new issue's body as GitHub's form opens with it, for the version and screen given. */
-const body = (version: string, screen: string) => `> This issue is public, screenshots included. Blur or crop anything about a real team's work.
-
-### What happened
-
-
-### What you expected
-
-
-### Screenshots
-
-<!-- Paste or drag screenshots here. -->
-
----
-Version: ${version}
-Screen: ${screen}`
-
 describe('every screen, in a build with a GitHub repo', () => {
   test.each(SCREENS)(
-    "%s: the footer reads the version, then Send feedback, which opens a new tab on the repo's new-issue form, labelled for triage, untitled, its body naming the version and screen",
+    "%s: the footer reads the version, then Send feedback, which opens a new tab on the repo's Feedback form, which labels it",
     async (screen, _, drawn) => {
       const page = render(await drawn())
 
@@ -36,9 +19,8 @@ describe('every screen, in a build with a GitHub repo', () => {
       expect(link.getAttribute('target')).toBe('_blank')
       const opened = new URL(link.getAttribute('href') ?? '')
       expect(`${opened.origin}${opened.pathname}`).toBe('https://github.com/owner/repo/issues/new')
-      expect(opened.searchParams.get('labels')).toBe('needs-triage')
-      expect(opened.searchParams.get('title') ?? '').toBe('')
-      expect(opened.searchParams.get('body')).toBe(body(APP_VERSION, screen))
+      // the form's own labels apply for any reporter, where a `labels` query applies only for someone with triage (#389)
+      expect(Object.fromEntries(opened.searchParams)).toEqual({ template: 'feedback.yml', version: APP_VERSION, screen })
     },
   )
 })

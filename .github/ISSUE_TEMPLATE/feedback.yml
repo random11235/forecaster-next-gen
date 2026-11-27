@@ -1,0 +1,33 @@
+# Send feedback, in the app's footer, opens this form with the version and screen filled in (#389, src/app/html.ts).
+# Its labels apply for any reporter, where a `labels` query in the link applies only for someone with triage.
+name: Feedback
+description: Something in Forecaster didn't work, or could work better.
+title: 'Feedback: '
+labels: [feedback, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: This issue is public, screenshots included. Blur or crop anything about a real team's work.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: Paste or drag screenshots here.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+  - type: input
+    id: screen
+    attributes:
+      label: Screen

@@ -2,6 +2,14 @@
 
 What each version of the app shipped, newest first. The version is the one in every screen's footer: a fix is in the app you're running if its version is the footer's or older. Each merge's release ([`docs/design/architecture.md`](docs/design/architecture.md#release)) writes its section here, a line from each change file (`changes/<ticket>.md`) a PR that changes the app adds: a PR doesn't edit the entries below ([`docs/agents/pull-requests.md`](docs/agents/pull-requests.md#version)).
 
+## 1.6.0 (2026-11-27)
+
+- The tracker's pace names the current period, left out until it ends, with the tickets finished in it so far; a period that ended after the last read waits for the next read rather than counting only part of its tickets (#390, PR #393)
+
+## 1.5.2 (2026-11-27)
+
+- Send feedback opens a Feedback form that titles the issue `Feedback: ` and labels it `feedback`, for anyone sending it, so feedback can be filtered on the issues list and the board (#389, PR #392)
+
 ## 1.5.1 (2026-11-26)
 
 - The type checker refuses unused locals and parameters, with no change to the app (PR #379)

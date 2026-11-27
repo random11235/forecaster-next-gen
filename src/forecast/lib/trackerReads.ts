@@ -47,6 +47,11 @@ export interface PaceReadingView {
   /** With the quiet periods before the first finished ticket left out, from when: "From the first finished ticket, 3 Nov." */
   firstFinished: string | undefined
   /**
+   * The current period, left out until it ends, with the tickets finished in it so far: "This week, from 9 Nov, counts
+   * once it ends: 2 finished so far."; or, read before it began, that the periods since count only what finished by then.
+   */
+  current: string
+  /**
    * With periods skipped, which, and what the window counts instead, with those skipped, to count again: "2 skipped
    * (12 Oct, 19 Oct), reaching back to w/c 31 Aug"; none with none skipped.
    */
@@ -54,7 +59,7 @@ export interface PaceReadingView {
 }
 
 /** The tracker's reading of pace, as the Inputs screen shows it. */
-export function paceReadingView({ window, skipped, said, skippedLine, readOn }: PaceReading): PaceReadingView {
+export function paceReadingView({ window, skipped, said, skippedLine, current, readOn }: PaceReading): PaceReadingView {
   const dated = ({ counts, starts }: DatedCounts, isSkipped: boolean) => starts.map((start, at) => ({ start, count: counts[at]!, skipped: isSkipped }))
   // ISO calendar dates order as strings do
   const periods = said.bars ? [...dated(window, false), ...dated(skipped, true)].sort((a, b) => a.start.localeCompare(b.start)) : []
@@ -63,6 +68,7 @@ export function paceReadingView({ window, skipped, said, skippedLine, readOn }: 
     counts: window.counts,
     line: `${said.periods} · read ${readOn}`,
     firstFinished: said.firstFinished,
+    current,
     skipped: skippedLine === undefined ? undefined : { line: skippedLine, starts: skipped.starts },
   }
 }

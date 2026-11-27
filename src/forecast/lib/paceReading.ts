@@ -1,9 +1,11 @@
 import type { SavedRead } from '../../model/savedRead.js'
-import { periodName } from './cadence.js'
-import { readOn } from './calendarDate.js'
+import { periodName, type PeriodName } from './cadence.js'
+import { dayMonth, readOn } from './calendarDate.js'
 import {
   calendarDayIn,
+  currentPeriod,
   sideBySide,
+  type CurrentPeriod,
   type DatedCounts,
   type PaceFrom,
   type QueryReads,
@@ -11,6 +13,7 @@ import {
   type SavedPaceReads,
   type SideBySide,
 } from './periodCounts.js'
+import { completeRead } from './queryRead.js'
 import { BOUND_SAID, skippedLine, trackerWindow, type BoundSaid, type TrackerWindowBound } from './trackerWindow.js'
 
 // The tracker's reading of pace, from the reads side by side, and the pace the latest read replaced.
@@ -42,6 +45,12 @@ export interface PaceReading {
    * w/c 31 Aug"; none with none skipped.
    */
   skippedLine: string | undefined
+  /**
+   * The current period, left out of pace until it ends, with the tickets the read pace comes from finished in it so
+   * far: "This week, from 9 Nov, counts once it ends: 2 finished so far." Read before it began, that the periods
+   * since count only what finished by then (#390).
+   */
+  current: string
   /** When the read pace comes from was read, in the EM's time zone: "4 Nov 09:12". */
   readOn: string
   /** The same instant in UTC, as the EM's opening of the reading is kept by (`SeenReads`). */
@@ -69,7 +78,7 @@ export function readingOf(
 ): PaceReading | undefined {
   const fromReads = sides.from === 'milestone' ? saved.milestone : saved.comparableWork
   const paceRead = fromReads?.latest
-  if (!paceRead) return undefined
+  if (!paceRead || of.startDate === undefined) return undefined
   const { window, skipped, bound } = trackerWindow(counts, sides, of.paceWindow.skippedPeriods)
   const period = periodName(of.cadence)
   return {
@@ -81,10 +90,28 @@ export function readingOf(
     comparableWork: sides.comparableWork,
     said: BOUND_SAID[bound]({ tracker, period, window, sides, counts }),
     skippedLine: skippedLine(skipped, window, period, tracker),
+    current: currentSaid(currentPeriod(paceRead, windowReads(saved), { ...of, startDate: of.startDate }), period),
     readOn: readOn(paceRead.readAt, of.timeZone),
     readAt: paceRead.readAt,
     was: fromReads && wasPace(saved, fromReads, sides.from, window.counts, of),
   }
+}
+
+/**
+ * The current period, as the reading's line says it: "This sprint, from 9 Nov, counts once it ends: none finished so
+ * far."; read before it began, the periods waiting for a read.
+ */
+function currentSaid(current: CurrentPeriod, period: PeriodName): string {
+  const counts = `This ${period}, from ${dayMonth(current.start)}, counts once it ends`
+  if (!('waiting' in current)) return `${counts}: ${current.finished === 0 ? 'none' : current.finished} finished so far.`
+  const { from, periods, readOn } = current.waiting
+  const [which, they] = periods === 1 ? [`The ${period} of`, 'it'] : [`The ${period}s from`, 'they']
+  return `${counts}. ${which} ${dayMonth(from)} count${periods === 1 ? 's' : ''} once read again: the last read, on ${dayMonth(readOn)}, came before ${they} ended.`
+}
+
+/** The reads the window ends at, the oldest's period left out: the complete latest reads of the milestone query and comparable work. */
+function windowReads({ milestone, comparableWork }: SavedPaceReads): SavedRead[] {
+  return [completeRead(milestone?.latest), completeRead(comparableWork?.latest)].filter((read) => read !== undefined)
 }
 
 /** The same counts, in the same order; never with none to compare. */
