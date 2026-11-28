@@ -5,7 +5,6 @@ import {
   type InputsEdit,
   type CandidateOpening,
   type InputsScreen,
-  type MilestoneInputsView,
   type QueryStep,
   type SkipEdit,
   type TypedForms,
@@ -92,7 +91,7 @@ export function renderInputsScreen(view: InputsScreen, keep: KeepOpening): strin
   const sections = [
     ...setupStepSection(view, picker),
     milestoneSection(screen, error),
-    cadenceSection(forms.cadence, error('cadence'), milestone),
+    cadenceSection(forms.cadence, error('cadence')),
     paceSection(screen, error, milestone.period),
     ambiguitySection(milestone.ambiguity, screen.growth, error('ambiguity')),
     growthSection(forms.growth, screen.growth.names, error('growth')),
@@ -153,11 +152,11 @@ function setupStepSection({ setup, connection }: Pick<InputsScreen, 'setup' | 'c
   }
 }
 
-function cadenceSection(form: TypedForms['cadence'], error: string | undefined, saved: Pick<MilestoneInputsView, 'cadenceDays' | 'period'>): Section {
+function cadenceSection(form: TypedForms['cadence'], error: string | undefined): Section {
   return inputSection(
     'Cadence',
     'Cadence',
-    cadenceHint(saved),
+    'Days per period. 7 is a week; anything else is a sprint.',
     `        <form method="post" action="/inputs/cadence#cadence">${errorLine(error)}
           <div class="pace">
             <label>Cadence length <input type="number" name="cadenceDays" min="1" max="${MAX_CADENCE_DAYS}" step="1" value="${escapeHtml(form.cadenceDays)}" required></label>
@@ -168,20 +167,12 @@ function cadenceSection(form: TypedForms['cadence'], error: string | undefined, 
   )
 }
 
-/** What the saved cadence makes a period, which pace is entered per, and what the other lengths make it. */
-function cadenceHint({ cadenceDays, period }: Pick<MilestoneInputsView, 'cadenceDays' | 'period'>): string {
-  const lasts = 'How many days one of the team’s periods lasts.'
-  return period === 'week'
-    ? `${lasts} At 7 days a period is a week, so pace is entered per week; any other length makes it a sprint.`
-    : `${lasts} At ${cadenceDays} days a period is a sprint, so pace is entered per sprint; 7 days makes it a week.`
-}
-
 function ambiguitySection(chosen: Ambiguity, { ranges, names }: GrowthView, error: string | undefined): Section {
   const level = (level: Ambiguity): string => `${names[level]} <span class="range">${ranges[level].low}–${ranges[level].high}×</span>`
   return inputSection(
     'Ambiguity',
     'Ambiguity',
-    'How well the milestone’s work is understood. The less it is, the more the work may grow, by the ranges below.',
+    'How well the work is understood. The less, the more it may grow.',
     `        <form method="post" action="/inputs/ambiguity#ambiguity">${errorLine(error)}
 ${radios('ambiguity', 'Ambiguity of the milestone', AMBIGUITIES, chosen, level)}
           <div class="actions"><button type="submit" class="primary">Save and forecast</button></div>
@@ -201,7 +192,7 @@ function growthSection(form: TypedForms['growth'], names: GrowthView['names'], e
   return inputSection(
     'Growth',
     'Growth',
-    'How much the work may grow at each ambiguity level. The milestone grows by the range of its own level. Each simulation picks one growth from the range, every value in it equally likely, and multiplies the tickets remaining by it before working through them at the team’s pace. A wider range spreads the finish dates out.',
+    'How much the work may grow, by ambiguity. Each simulation multiplies tickets remaining by a random value in the milestone’s range. Wider ranges spread the dates.',
     `        <form method="post" action="/inputs/growth#growth">${errorLine(error)}
           <table class="growth">
             <thead>

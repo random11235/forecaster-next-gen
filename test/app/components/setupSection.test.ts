@@ -86,7 +86,7 @@ describe('the Check step', () => {
     const page = render(checkStepHtml(undefined))
 
     expect(hasRole(page, 'table')).toBe(false)
-    expect(text(page)).toBe('Nothing picked here changes the inputs below or the forecast until you use these. Use these')
+    expect(text(page)).toBe('Nothing changes until you use these. Use these')
     expect(postsTo(byRole(page, 'button', { name: 'Use these' }))).toBe('/inputs/setup/use-these')
   })
 
@@ -147,7 +147,7 @@ describe('the Check step', () => {
 
   test('no start date yet: says pace counts from it', () => {
     expect(rows({ ...check, pace: { ...unread, noStartDate: true } })[2]).toBe(
-      'Pace 2–4 a week None yet: pace counts GitHub’s weeks from the milestone’s start date, entered below. GitHub Range Choose',
+      'Pace 2–4 a week None yet: enter the milestone’s start date below. GitHub Range Choose',
     )
   })
 })

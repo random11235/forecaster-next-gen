@@ -33,7 +33,7 @@ describe('the candidates', () => {
     const page = shown({ groups: [], period: 'week' })
 
     expect(text(page)).toBe(
-      'Candidates Open a candidate (its pace link), or type to narrow the list to 5 or fewer, to see how it runs against the milestone’s own.',
+      'Candidates Open a candidate’s pace, or narrow the list to 5 or fewer, to compare it with the milestone.',
     )
     expect(one(page, '.candidates').getAttribute('data-opening')).toBe('opening-1')
     expect(hasRole(page, 'list')).toBe(false)
@@ -74,7 +74,7 @@ describe('the candidates', () => {
   test('too few periods of the milestone’s own: listed by median, a pace without a comparison', () => {
     const page = shown({ period: 'sprint', groups: [{ group: 'byMedian', candidates: [read('payments', { kind: 'tooFewToCompare' })] }] })
 
-    expect(text(page)).toContain('The milestone has too few sprints of its own to compare, so candidates are listed by median.')
+    expect(text(page)).toContain('Too few of the milestone’s own sprints to compare: listed by median.')
     expect(text(byRole(page, 'heading', { name: 'By median a sprint' }))).toBe('By median a sprint')
     expect(text(byRole(page, 'listitem'))).toBe('payments label 3 a sprint 12 finished · last finished 10 Nov · 5 open')
   })

@@ -210,7 +210,7 @@ describe('the Comparable work step', () => {
     }
     const page = comparable({ pace: own, read: '0 finished in the last 8 weeks' })
 
-    expect(text(page)).toContain('3 a week Add comparable work to measure pace from work like this milestone’s.')
+    expect(text(page)).toContain('3 a week Add comparable work to measure pace from it.')
     expect(text(page)).toContain('0 finished in the last 8 weeks ⚠ Comparable work finished nothing, so it isn’t used.')
   })
 
