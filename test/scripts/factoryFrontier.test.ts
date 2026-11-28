@@ -102,6 +102,17 @@ describe("the factory's next step on a spec", () => {
     })
   })
 
+  test('builds on a run the chain started, below the hop cap of 20', () => {
+    expect(nextStep(SPEC, [ticket(12)], 19)).toEqual({ action: 'build', ticket: 12 })
+  })
+
+  test('stops at the hop cap, though a ticket could be built, saying how to go on', () => {
+    expect(nextStep(SPEC, [ticket(12)], 20)).toEqual({
+      action: 'stop',
+      why: 'its runs have chained 20 times, the cap: label the spec ready-for-agent to build on',
+    })
+  })
+
   test('stops on a spec with no tickets', () => {
     expect(nextStep(SPEC, [])).toEqual({ action: 'stop', why: 'the spec has no tickets (sub-issues)' })
   })
