@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'vitest'
 import type { InputsEdit } from '../../src/forecast/index.js'
-import type { ForecastingForTest } from './forecastingForTest.js'
 import { mediumGrowth } from './forecastingForTest.js'
 import { newTeam, edit, enter, DATES_FROM_1_SEP, view, inputsScreenView } from './forecastViewScenario.js'
 
@@ -34,19 +33,38 @@ describe('the cadence', () => {
     forecast.dates.forEach(({ date }, index) => expect(date !== null && date > (DATES_FROM_1_SEP[index]?.date ?? '')).toBe(true))
   })
 
-  test('changing the cadence after the pace is entered warns that the cadence length has changed, beside the pace and on the forecast', async () => {
+  test('a range kept through a cadence change is per sprint on both screens, with no warning', async () => {
     const team = await newTeam()
     await enter(team, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
 
-    expect(await edit(team, { kind: 'setCadence', cadenceDays: '14' })).toEqual({ ok: true })
+    expect(await edit(team, { kind: 'setCadence', cadenceDays: '3' })).toEqual({ ok: true })
 
     expect(await view(team)).toMatchObject({
       kind: 'forecast',
-      warnings: [{ input: 'pace', message: 'Pace: cadence length has changed. Please verify that the per period numbers are aligned.' }],
+      cadenceDays: 3,
+      pace: { source: 'range', low: 4, high: 8 },
+      paceSaid: '4–8 tickets per sprint (range)',
+      warnings: [],
     })
-    expect((await inputsScreenView(team)).milestone.notes).toEqual([
-      { input: 'pace', message: 'Cadence length has changed. Please verify that the per period numbers are aligned.' },
-    ])
+    expect((await inputsScreenView(team)).milestone).toMatchObject({ cadenceDays: 3, period: 'sprint', paceRange: { low: 4, high: 8 }, notes: [] })
+  })
+
+  test('typed counts kept through a cadence change are what the forecast draws from, with no warning', async () => {
+    const team = await newTeam()
+    await enter(team, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
+    expect(await edit(team, { kind: 'setPaceCounts', counts: '2, 4, 6, 8, 4, 5, 3, 3, 0, 5' })).toEqual({ ok: true })
+    expect(await edit(team, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
+
+    expect(await edit(team, { kind: 'setCadence', cadenceDays: '3' })).toEqual({ ok: true })
+    team.restart()
+
+    expect(await view(team)).toMatchObject({
+      kind: 'forecast',
+      cadenceDays: 3,
+      pace: { source: 'counts', counts: [2, 4, 6, 8, 4, 5, 3, 3, 0, 5] },
+      warnings: [],
+    })
+    expect((await inputsScreenView(team)).milestone).toMatchObject({ period: 'sprint', paceCounts: [2, 4, 6, 8, 4, 5, 3, 3, 0, 5], notes: [] })
   })
 
   test('a forecast at the untouched cadence is in 7-day periods', async () => {
@@ -85,73 +103,6 @@ describe('the cadence', () => {
     team.restart()
     expect((await inputsScreenView(team)).milestone.cadenceDays).toBe(14)
     expect(await view(team)).toMatchObject({ cadenceDays: 14, horizonDate: '2032-08-24' })
-  })
-})
-
-describe('a pace entered for a different cadence', () => {
-  const CADENCE_CHANGED = 'Pace: cadence length has changed. Please verify that the per period numbers are aligned.'
-
-  /** 100 tickets at 4–8 a week, entered at the untouched cadence, which then changes to 14 days. */
-  async function enteredWeeklyThenSprints(): Promise<ForecastingForTest> {
-    const team = await newTeam()
-    await enter(team, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
-    expect(await edit(team, { kind: 'setCadence', cadenceDays: '14' })).toEqual({ ok: true })
-    expect(await view(team)).toMatchObject({ warnings: [{ input: 'pace', message: CADENCE_CHANGED }] })
-    return team
-  }
-
-  test.each<[string, InputsEdit]>([
-    ['the pace range', { kind: 'setPaceRange', low: '8', high: '16' }],
-    ['the typed counts', { kind: 'setPaceCounts', counts: '9, 12' }],
-    ['a typed count added', { kind: 'addPaceCount', count: '9' }],
-    ['the cadence changed back to 7 days', { kind: 'setCadence', cadenceDays: '7' }],
-  ])('editing %s clears the warning', async (_, change) => {
-    const team = await enteredWeeklyThenSprints()
-
-    expect(await edit(team, change)).toEqual({ ok: true })
-
-    expect(await view(team)).toMatchObject({ warnings: [] })
-    expect((await inputsScreenView(team)).milestone.notes).toEqual([])
-  })
-
-  test('choosing the other pace, or removing the last typed count, keeps the warning', async () => {
-    const team = await newTeam()
-    await enter(team, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
-    expect(await edit(team, { kind: 'setPaceCounts', counts: '6, 4, 9, 7, 5, 8, 6, 7' })).toEqual({ ok: true })
-    expect(await edit(team, { kind: 'setCadence', cadenceDays: '14' })).toEqual({ ok: true })
-
-    expect(await edit(team, { kind: 'setPaceMode', paceMode: 'counts' })).toEqual({ ok: true })
-    expect(await edit(team, { kind: 'removeLastPaceCount' })).toEqual({ ok: true })
-
-    expect(await view(team)).toMatchObject({ warnings: expect.arrayContaining([{ input: 'pace', message: CADENCE_CHANGED }]) })
-  })
-
-  test('changing the cadence before any pace is entered gives no warning', async () => {
-    const team = await newTeam()
-    expect(await edit(team, { kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-09-01', ticketsRemaining: '100' })).toEqual({ ok: true })
-
-    expect(await edit(team, { kind: 'setCadence', cadenceDays: '14' })).toEqual({ ok: true })
-
-    expect((await inputsScreenView(team)).milestone.notes).toEqual([{ input: 'pace', message: 'Enter a pace range.' }])
-  })
-
-  test('from one sprint length to another, warns again', async () => {
-    const team = await enteredWeeklyThenSprints()
-    expect(await edit(team, { kind: 'setPaceRange', low: '8', high: '16' })).toEqual({ ok: true })
-
-    expect(await edit(team, { kind: 'setCadence', cadenceDays: '10' })).toEqual({ ok: true })
-
-    expect(await view(team)).toMatchObject({ warnings: [{ input: 'pace', message: CADENCE_CHANGED }] })
-    expect((await inputsScreenView(team)).milestone.notes).toEqual([
-      { input: 'pace', message: 'Cadence length has changed. Please verify that the per period numbers are aligned.' },
-    ])
-  })
-
-  test('the warning is kept across a restart', async () => {
-    const team = await enteredWeeklyThenSprints()
-    team.restart()
-
-    expect(await view(team)).toMatchObject({ warnings: [{ input: 'pace', message: CADENCE_CHANGED }] })
   })
 })
 

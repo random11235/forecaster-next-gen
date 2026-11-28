@@ -21,7 +21,6 @@ describe("step 17: a data file from schema version 16, before the values' source
       paceMode,
       paceRange: { low: 4, high: 8 },
       paceCounts: [6, 9],
-      paceCadenceDays: 14,
       paceWindow: { action: { kind: 'leaveOut', period: '2026-08-17' }, skippedPeriods: [] },
       seenReads: { ticketsRemaining: undefined, pace: undefined },
     })
@@ -70,7 +69,7 @@ describe('step 18: a data file from schema version 17, before previous reads', (
     const again = openSqliteStorage(file)
     expect(again.previousRead({ teamId: TEAM, query })).toEqual(saved)
     again.close()
-    expect(versionOf(file)).toBe(21)
+    expect(versionOf(file)).toBe(22)
   })
 })
 
@@ -102,7 +101,7 @@ describe('step 19: a data file from schema version 18, before reads reached back
     open(file).saveRead({ teamId: TEAM, query: 'milestone:"Launch"' }, read)
 
     expect(open(file).savedRead({ teamId: TEAM, query: 'milestone:"Launch"' })).toEqual(read)
-    expect(versionOf(file)).toBe(21)
+    expect(versionOf(file)).toBe(22)
   })
 })
 
@@ -149,6 +148,6 @@ INSERT INTO milestone_queries VALUES ('EMPTY', '', '[]');
     expect(open(migrated).setupState(TEAM)).toStrictEqual({ open: true, reopened: 'done' })
     expect(open(migrated).setupDraft(TEAM)).toStrictEqual(draft)
     expect(open(migrated).readFailures(TEAM)).toStrictEqual(failures)
-    expect(versionOf(migrated)).toBe(21)
+    expect(versionOf(migrated)).toBe(22)
   })
 })

@@ -19,7 +19,7 @@ describe('the Inputs screen in the browser build', () => {
     team = (await forecastingForTest()).browserBuild()
   })
 
-  test('empty: each input a numbered section, in place of setup a note that it reads no tracker, and pace a range or typed counts', async () => {
+  test('empty: each input a numbered section, in place of setup a note on GitHub and Jira, and pace a range or typed counts', async () => {
     const page = await screen(team)
 
     expect(text(one(page, 'h1'))).toBe('Inputs')
@@ -43,10 +43,8 @@ describe('the Inputs screen in the browser build', () => {
       'Range',
       'Typed counts',
     ])
-    // in place of setup, why it reads no tickets, and where they can be read (#396)
-    expect(text(one(page, '.setup-summary'))).toBe(
-      'This page reads no tracker: type the inputs below. To read the milestone’s tickets from GitHub or Jira, run the Forecaster on your own machine.',
-    )
+    // in place of setup, that the Forecaster also integrates with GitHub and Jira, or the inputs do without (#396, #403)
+    expect(text(one(page, '.setup-summary'))).toBe('The Forecaster also supports integration with GitHub and Jira! Or you can just use the inputs below.')
     expect(hasRole(page, 'button', { name: /Connect/ })).toBe(false)
     expect(hasRole(page, 'alert')).toBe(false)
     expect(text(page)).not.toContain('⚠')

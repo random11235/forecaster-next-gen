@@ -24,9 +24,10 @@
 # taken as the cap.
 #
 # A comment on an issue or a PR that mentions @claude, by the owner or a collaborator, asks the factory a question
-# (#380, scripts/factoryQuestion.ts): `ask` runs Claude Code in the sandbox with tools that only read files, and no
+# (#380, scripts/factoryQuestion.ts), and so does one on a line of a PR's diff, which reaches it through
+# factory-relay.yml's completed run, by its id alone, so the factory's code is still the default branch's: `ask` runs Claude Code in the sandbox with tools that only read files, and no
 # GitHub token, on a checkout of the default branch and the issue, PRs and commits fetched beforehand, and `reply` posts
-# its answer with MARK. `reply` runs none of the agent's output as code: it posts the reply as a comment's body, from a
+# its answer with MARK, under the question's thread when it was asked on a line. `reply` runs none of the agent's output as code: it posts the reply as a comment's body, from a
 # file, checked against the digest `ask` took. A question builds nothing, and no other job runs on it, nor `ask` on a
 # label.
 name: Factory
@@ -36,6 +37,9 @@ on:
     types: [labeled]
   issue_comment:
     types: [created]
+  workflow_run: # a question asked on a line of a PR's diff, named by factory-relay.yml
+    workflows: [Factory relay]
+    types: [completed]
 
 permissions:
   contents: read
@@ -655,10 +659,14 @@ jobs:
   # Everything here only reads: the token, which stays outside the sandbox, and the agent's tools, Read, Grep and Glob,
   # with no shell (scripts/factoryAgent.ts). What it needs from GitHub and git, a step fetches into its prompt. It
   # answers in OUT_DIR's reply.md, which `reply` posts.
+  # A relayed question's issue is the PR the fetched comment names, so `asked` says which, and every later step and
+  # `reply` take ISSUE from it rather than the event.
   ask:
     if: >-
-      github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')
-      && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')
+      && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association))
+      || (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request_review_comment'
+      && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-24.04 # pinned, for bwrap, as build
     timeout-minutes: 30
     permissions:
@@ -670,6 +678,10 @@ jobs:
       statuses: read
     outputs:
       asked: ${{ steps.asked.outputs.asked }}
+      issue: ${{ steps.asked.outputs.issue }}
+      review: ${{ steps.asked.outputs.review }}
+      asker: ${{ steps.asked.outputs.asker }}
+      asked_at: ${{ steps.asked.outputs.asked_at }}
       reply: ${{ steps.reply.outputs.digest }}
     # OUT_DIR and LOG_DIR are set in each step that uses them: a job's env has no runner context, and GitHub refuses
     # the whole workflow file over it
@@ -682,8 +694,22 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24 # NODE_MAJOR
+      # The relay's run may be a PR's own copy, so only a number is taken from it: the comment, its author and its PR
+      # come from the API
+      - name: Fetch the review comment the relay named
+        if: github.event_name == 'workflow_run'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELAY_RUN: ${{ github.event.workflow_run.id }}
+        run: |
+          gh run download "$RELAY_RUN" --repo "$REPO" --name review-comment --dir "$RUNNER_TEMP/relay"
+          id=$(head -c 32 "$RUNNER_TEMP/relay/comment-id" | tr -d '\n')
+          if ! [[ "$id" =~ ^[0-9]+$ ]]; then echo "::error::the relay named no comment id"; exit 1; fi
+          gh api "repos/$REPO/pulls/comments/$id" > "$RUNNER_TEMP/review-comment.json"
       - name: Decide whether the comment asks a question
         id: asked
+        env:
+          REVIEW_COMMENT_JSON: ${{ github.event_name == 'workflow_run' && format('{0}/review-comment.json', runner.temp) || '' }}
         run: node scripts/factoryAsked.ts
       - if: steps.asked.outputs.asked == 'true'
         uses: ./.github/actions/setup
@@ -695,12 +721,17 @@ jobs:
         shell: bash # with pipefail, so a failed `gh pr view` fails the step
         env:
           GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ steps.asked.outputs.issue }}
           OWNER: ${{ github.repository_owner }}
           NAME: ${{ github.event.repository.name }}
-          IS_PR: ${{ github.event.issue.pull_request && 'true' || '' }}
+          IS_PR: ${{ (github.event.issue.pull_request || github.event_name == 'workflow_run') && 'true' || '' }}
         run: |
           gh api "repos/$REPO/issues/$ISSUE" > "$RUNNER_TEMP/issue.json"
           gh api --paginate --slurp "repos/$REPO/issues/$ISSUE/comments" > "$RUNNER_TEMP/comments.json"
+          echo '[]' > "$RUNNER_TEMP/review-comments.json"
+          if [ -n "$IS_PR" ]; then
+            gh api --paginate --slurp "repos/$REPO/pulls/$ISSUE/comments" > "$RUNNER_TEMP/review-comments.json"
+          fi
           if [ -n "$IS_PR" ]; then prs=$ISSUE
           else
             prs=$(gh api graphql -F n="$ISSUE" -f o="$OWNER" -f r="$NAME" -f query='
@@ -722,6 +753,8 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           ISSUE_JSON: ${{ runner.temp }}/issue.json
           COMMENTS_JSON: ${{ runner.temp }}/comments.json
+          REVIEW_COMMENTS_JSON: ${{ runner.temp }}/review-comments.json
+          REVIEW_COMMENT_JSON: ${{ github.event_name == 'workflow_run' && format('{0}/review-comment.json', runner.temp) || '' }}
           PRS_JSON: ${{ runner.temp }}/prs.json
           OUT_DIR: ${{ runner.temp }}/factory-out
           LOG_DIR: ${{ runner.temp }}/factory-logs
@@ -777,8 +810,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           DIGEST: ${{ needs.ask.outputs.reply }}
-          ASKER: ${{ github.event.comment.user.login }}
-          ASKED_AT: ${{ github.event.comment.html_url }}
+          ISSUE: ${{ needs.ask.outputs.issue }}
+          REVIEW: ${{ needs.ask.outputs.review }}
+          ASKER: ${{ needs.ask.outputs.asker }}
+          ASKED_AT: ${{ needs.ask.outputs.asked_at }}
         run: |
           reply="$RUNNER_TEMP/reply/reply.md"
           if [ -z "$DIGEST" ] || ! echo "$DIGEST  $reply" | sha256sum -c --quiet; then
@@ -786,4 +821,6 @@ jobs:
             printf "%s\n@%s, the factory couldn't answer [your question](%s): the ask job failed before it wrote a reply. %s\n" \
               "$MARK" "$ASKER" "$ASKED_AT" "$RUN_URL" > "$reply"
           fi
-          gh api "repos/$REPO/issues/$ISSUE/comments" -F body=@"$reply" --silent
+          if [ -n "$REVIEW" ]; then gh api "repos/$REPO/pulls/$ISSUE/comments/$REVIEW/replies" -F body=@"$reply" --silent
+          else gh api "repos/$REPO/issues/$ISSUE/comments" -F body=@"$reply" --silent
+          fi

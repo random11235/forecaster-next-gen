@@ -95,7 +95,6 @@ describe("step 15: a data file from schema version 14, before the milestone's pi
       paceMode: 'range',
       paceRange: { low: 4, high: 8 },
       paceCounts: [6, 9],
-      paceCadenceDays: 14,
       paceWindow: { action: undefined, skippedPeriods: [] },
       ticketsSource: 'typed',
       seenReads: { ticketsRemaining: undefined, pace: undefined },
