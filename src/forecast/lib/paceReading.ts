@@ -14,7 +14,7 @@ import {
   type SideBySide,
 } from './periodCounts.js'
 import { completeRead } from './queryRead.js'
-import { BOUND_SAID, skippedLine, trackerWindow, type BoundSaid, type TrackerWindowBound } from './trackerWindow.js'
+import { skippedLine, trackerWindow, windowSaid, type BoundSaid, type TrackerWindowBound } from './trackerWindow.js'
 
 // The tracker's reading of pace, from the reads side by side, and the pace the latest read replaced.
 
@@ -79,7 +79,7 @@ export function readingOf(
   const fromReads = sides.from === 'milestone' ? saved.milestone : saved.comparableWork
   const paceRead = fromReads?.latest
   if (!paceRead || of.startDate === undefined) return undefined
-  const { window, skipped, bound } = trackerWindow(counts, sides, of.paceWindow.skippedPeriods)
+  const { window, skipped, bound, lastFinished } = trackerWindow(counts, sides, of.paceWindow.skippedPeriods)
   const period = periodName(of.cadence)
   return {
     window,
@@ -88,7 +88,7 @@ export function readingOf(
     from: sides.from,
     milestone: sides.milestone,
     comparableWork: sides.comparableWork,
-    said: BOUND_SAID[bound]({ tracker, period, window, sides, counts }),
+    said: windowSaid(bound, { tracker, period, window, sides, counts }, lastFinished),
     skippedLine: skippedLine(skipped, window, period, tracker),
     current: currentSaid(currentPeriod(paceRead, windowReads(saved), { ...of, startDate: of.startDate }), period),
     readOn: readOn(paceRead.readAt, of.timeZone),

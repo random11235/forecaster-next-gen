@@ -132,6 +132,18 @@ describe('each source of tickets remaining and pace', () => {
     expect(all(following, '.reading-line').map(text)).toContain('This week, from 9 Nov, counts once it ends: none finished so far.')
   })
 
+  test('pace following GitHub, ended at finished comparable work: under the line, where it stops (#411)', async () => {
+    await submitInputs(team, { kind: 'setPaceMode', paceMode: 'tracker' })
+    const view = await team.inputsScreen()
+    const pace = view.inputs.milestone.trackerPace
+    const lastFinished = 'To the last finished ticket, 13 Oct: comparable work has no open tickets.'
+    if (!pace?.reading) throw new Error('Expected GitHub’s pace')
+    const milestone = { ...view.inputs.milestone, trackerPace: { ...pace, reading: { ...pace.reading, lastFinished } } }
+    const following = one(section(drawn({ ...view, inputs: { ...view.inputs, milestone } }), 'Pace'), '#pace-tracker')
+
+    expect(all(following, '.reading-line').map(text).slice(0, 3)).toEqual([pace.reading.line, pace.reading.firstFinished, lastFinished])
+  })
+
   test('following GitHub after a new read: each value shows faintly what it replaced, and when that was read', async () => {
     await submitInputs(team, { kind: 'setTicketsSource', ticketsSource: 'tracker' })
     await submitInputs(team, { kind: 'setPaceMode', paceMode: 'tracker' })

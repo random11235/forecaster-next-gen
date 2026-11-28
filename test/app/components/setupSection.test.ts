@@ -68,6 +68,7 @@ describe('the Check step', () => {
       counts: [4, 6, 5],
       line: 'last 3 weeks · read 12 Nov 09:00',
       firstFinished: undefined,
+      lastFinished: undefined,
       current: 'This week, from 9 Nov, counts once it ends: 2 finished so far.',
       skipped: undefined,
     },

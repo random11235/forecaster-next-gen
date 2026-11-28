@@ -90,3 +90,15 @@ describe('the Milestone forecast screen: the pace pattern', () => {
     expect(accessibleName(byRole(pace, 'img'))).toMatch(new RegExp(`^Pace trend: typed counts of ${view.paceTrend?.counts.join(', ')}, oldest first`))
   })
 })
+
+describe('the Milestone forecast screen: pace from finished comparable work (#411)', () => {
+  test('under what the pace is, where it stops', async () => {
+    const view = forecast(await (await withTypedCounts(STEPPED_UP)).milestoneForecastView())
+    const lastFinished = 'To the last finished ticket, 13 Oct: comparable work has no open tickets.'
+    const pace = byRole(drawn({ ...view, pace: { source: 'tracker', tracker: 'GitHub', counts: STEPPED_UP, skipped: 0, lastFinished } }), 'complementary', {
+      name: 'Pace',
+    })
+
+    expect(all(pace, '.note').map(text).slice(0, 2)).toEqual([view.paceSaid, lastFinished])
+  })
+})

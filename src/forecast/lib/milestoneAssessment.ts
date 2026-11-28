@@ -22,10 +22,13 @@ export interface Warning extends InputNote {
 
 /**
  * The pace the forecast runs on: the range, the typed counts, or the counts the connected `tracker` reads, with how many
- * periods the EM skipped among them, whichever the EM chose; the counts are those in the pace window.
+ * periods the EM skipped among them and, with finished comparable work ending the window, where it stops, whichever
+ * the EM chose; the counts are those in the pace window.
  */
 export type ForecastPace =
-  ({ source: 'range' } & ThroughputRange) | { source: 'counts'; counts: number[] } | { source: 'tracker'; tracker: string; counts: number[]; skipped: number }
+  | ({ source: 'range' } & ThroughputRange)
+  | { source: 'counts'; counts: number[] }
+  | { source: 'tracker'; tracker: string; counts: number[]; skipped: number; lastFinished?: string }
 
 /** A milestone with every input its forecast needs, its tickets remaining the ones in use, from the source the EM chose. */
 export type ForecastableInputs = MilestoneInputs & { startDate: string; ticketsRemaining: number }
@@ -92,7 +95,13 @@ function ticketsInUse(inputs: MilestoneInputs, measured: Measured | undefined): 
 function forecastPace(inUse: PaceInUse): ForecastPace | undefined {
   if (inUse.source === 'counts') return { source: 'counts', counts: inUse.window.counts }
   if (inUse.source === 'tracker')
-    return { source: 'tracker', tracker: inUse.tracker, counts: inUse.window.counts, skipped: inUse.reading?.skipped.starts.length ?? 0 }
+    return {
+      source: 'tracker',
+      tracker: inUse.tracker,
+      counts: inUse.window.counts,
+      skipped: inUse.reading?.skipped.starts.length ?? 0,
+      ...(inUse.reading?.said.lastFinished !== undefined && { lastFinished: inUse.reading.said.lastFinished }),
+    }
   return inUse.range && { source: 'range', ...inUse.range }
 }
 
