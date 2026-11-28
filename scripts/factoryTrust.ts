@@ -3,7 +3,8 @@
 // docs/research/sandcastle-factory.md), or tells the factory a ticket merged. Every comment the factory makes carries
 // FACTORY_MARK, which keeps it out of a prompt, with two exceptions: triage's brief reaches a build's prompt, and the
 // factory's comments saying what it did (merged into spec/<n>, parked, and so on) reach a question's
-// (scripts/factoryQuestion.ts), though not its earlier answers to questions.
+// (scripts/factoryQuestion.ts), though not its earlier answers to questions. A spec's decision-log entry carries no
+// FACTORY_MARK, only its own DECISION_MARK: it reaches both prompts, as the spec's decision log.
 //
 // The factory writes with its jobs' GITHUB_TOKEN, as github-actions[bot], whom GitHub gives no author association. So a
 // merged comment counts when github-actions wrote it, as well as the owner or a collaborator by hand. GraphQL names it

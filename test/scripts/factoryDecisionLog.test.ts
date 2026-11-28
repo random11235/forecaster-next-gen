@@ -52,7 +52,7 @@ describe("a spec's decision-log entry for a ticket merged into spec/<n>", () => 
     const entry = decisionEntry(TICKET, `<pr-body>${'x'.repeat(70_000)}</pr-body>`, 'spec/40', RUN)
 
     expect(entry.length).toBe(MAX_BODY)
-    expect(entry).toMatch(/x\n\n\(The entry was cut here: the agent's body was 70000 characters, more than a comment holds\.\)\n$/)
+    expect(entry).toMatch(/x\n\n\(The entry was cut here: what it keeps of the agent's body was 70000 characters, more than a comment holds\.\)\n$/)
   })
 })
 

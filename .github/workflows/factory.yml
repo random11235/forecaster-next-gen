@@ -19,7 +19,8 @@
 # PR; `tell`, `start` and `park` start the board sync themselves, and so does `publish` after a spec's ticket. spec/<n>
 # gets its CI with the spec's PR.
 #
-# Every comment the factory makes carries MARK, so scripts/factoryTicket.ts keeps it out of the next prompt. To try the
+# Every comment the factory makes carries MARK, so scripts/factoryTicket.ts keeps it out of the next prompt, but a spec's
+# decision-log entry, which opens with its own mark for the next prompt to read (scripts/factoryDecisionLog.ts). To try the
 # agent step's timeout, set the repo variable FACTORY_AGENT_MINUTES to a few minutes; past AGENT_MINUTES' cap, it's
 # taken as the cap.
 #

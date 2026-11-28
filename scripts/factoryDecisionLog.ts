@@ -22,7 +22,7 @@ export function decisionEntry(ticket: Authored & { number: number; title: string
   const opening = `${DECISION_MARK}\n## #${ticket.number}${title}\n\nMerged into ${branch} in ${runUrl}.\n\n`
   const written = decisions(lastBlock(reply, 'pr-body') ?? '')
   const said = written || "(The agent wrote no PR body: read the ticket's commits.)"
-  const cut = `\n\n(The entry was cut here: the agent's body was ${said.length} characters, more than a comment holds.)\n`
+  const cut = `\n\n(The entry was cut here: what it keeps of the agent's body was ${said.length} characters, more than a comment holds.)\n`
   const room = MAX_BODY - opening.length - 1
   return opening + (said.length > room ? said.slice(0, MAX_BODY - opening.length - cut.length) + cut : `${said}\n`)
 }
