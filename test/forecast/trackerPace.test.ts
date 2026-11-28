@@ -220,7 +220,7 @@ describe('the window', () => {
     })
   })
 
-  test('a change of cadence reads GitHub as far back as the new periods need, rather than counting only those the weekly read reached (#415)', async () => {
+  test('a change of cadence reads GitHub as far back as the new periods need (#415)', async () => {
     await following(finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]))
     // two finished in the sprint of 31 Aug, before the weekly read's reach, back to Thursday 10 Sep
     scenario.team.fixture.reads[CHECKOUT.query] = {
@@ -239,7 +239,7 @@ describe('the window', () => {
     })
   })
 
-  test('a change of cadence GitHub can’t be read further back for says the read’s reach bounds the window, not that GitHub has nothing before it (#415)', async () => {
+  test('a change of cadence GitHub can’t be read further back for says how far the read reaches (#415)', async () => {
     await following(finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]))
     scenario.team.fixture.reads[CHECKOUT.query] = { failure: 'unavailable' }
 
@@ -250,6 +250,25 @@ describe('the window', () => {
       counts: [8, 10, 12, 14],
       line: '4 sprints · the read reaches back to the sprint of 14 Sep · read 12 Nov 09:00',
       firstFinished: undefined,
+    })
+  })
+
+  test('too few periods for the read’s reach offer to read GitHub again, which reaches back as far as they need (#415)', async () => {
+    await following(finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]))
+    scenario.team.fixture.reads[CHECKOUT.query] = { failure: 'unavailable' }
+
+    // 28-day sprints from 31 Aug: the weekly read, back to 10 Sep, reaches whole only the one of 28 Sep
+    await submit({ kind: 'setCadence', cadenceDays: '28' })
+
+    expect(await forecast()).toMatchObject({
+      kind: 'problems',
+      problems: [
+        {
+          input: 'pace',
+          message:
+            'GitHub’s pace: 1 sprint · the read reaches back to the sprint of 28 Sep. The forecast needs at least 4. Read again to reach further back, type counts, or switch pace to the range.',
+        },
+      ],
     })
   })
 

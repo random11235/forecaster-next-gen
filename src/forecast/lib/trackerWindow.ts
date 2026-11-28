@@ -26,6 +26,8 @@ export interface BoundSaid {
   /** With finished comparable work ending the window, where: "To the last finished ticket, 15 Nov: comparable work has no open tickets." */
   lastFinished?: string
   problem?: string
+  /** With the read's reach bounding the window, that reading the tracker again reaches back as far as the window needs (#415). */
+  readFurther?: true
 }
 
 /**
@@ -93,7 +95,9 @@ export function windowSaid(bound: TrackerWindowBound, facts: BoundFacts, lastFin
   const said = BOUND_SAID[bound](facts)
   if (lastFinished === undefined) return said
   const periods = bound === 'full' ? counted(TRACKER_PERIODS, facts.period) : said.periods
-  return { ...said, periods, lastFinished: `To the last finished ticket, ${dayMonth(lastFinished)}: comparable work has no open tickets.` }
+  // ended at its last finished ticket, the window is as long as comparable work is: reading again reaches no further
+  const { readFurther: _, ...ended } = said
+  return { ...ended, periods, lastFinished: `To the last finished ticket, ${dayMonth(lastFinished)}: comparable work has no open tickets.` }
 }
 
 /** What each bound says of the window, in one place: the reading's line, and the problem when it leaves no pace. */
@@ -105,10 +109,11 @@ const BOUND_SAID: Record<TrackerWindowBound, (facts: BoundFacts) => BoundSaid> =
     firstFinished: `From the first finished ticket, ${dayMonth(window.starts[0]!)}.`,
   }),
   // the read's reach, not the tracker's history, bounds it: the tracker may hold earlier periods the read didn't ask for (#415)
-  reach: ({ period, window, sides }) => ({
-    periods: `${counted(window.counts.length, period)} · ${finishedBeforeStart(sides) !== undefined ? 'since the start date' : `the read reaches back to ${periodOf(period, window.starts[0]!)}`}`,
-    bars: true,
-  }),
+  reach: ({ period, window, sides }) => {
+    const periods = counted(window.counts.length, period)
+    if (finishedBeforeStart(sides) !== undefined) return { periods: `${periods} · since the start date`, bars: true }
+    return { periods: `${periods} · the read reaches back to ${periodOf(period, window.starts[0]!)}`, bars: true, readFurther: true }
+  },
   // with nothing finished there are no bars
   nothingFinished: ({ tracker, period, counts, sides }) => {
     const before = finishedBeforeStart(sides)

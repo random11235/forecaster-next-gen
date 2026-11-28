@@ -120,7 +120,9 @@ function trackerPaceNotes(
   // its bound leaves no periods counted: nothing finished, or every period skipped
   if (reading.said.problem) return problem(reading.said.problem)
   const counting = `${tracker}’s pace: ${reading.said.periods}${inUse === reading.window.counts.length ? '' : `, ${counted(inUse, period)} counted`}.`
-  if (inUse < forForecast) return problem(`${counting} The forecast needs at least ${forForecast}. ${instead}`)
+  // a read reaching back too little for the window is widened by reading again, as far back as the milestone needs (#415)
+  const readAgain = reading.said.readFurther ? `Read again to reach further back, ${instead.toLowerCase()}` : instead
+  if (inUse < forForecast) return problem(`${counting} The forecast needs at least ${forForecast}. ${readAgain}`)
   if (inUse >= reliable) return { problems: [], warnings: [] }
   return {
     problems: [],
