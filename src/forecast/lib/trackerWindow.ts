@@ -104,8 +104,9 @@ const BOUND_SAID: Record<TrackerWindowBound, (facts: BoundFacts) => BoundSaid> =
     bars: true,
     firstFinished: `From the first finished ticket, ${dayMonth(window.starts[0]!)}.`,
   }),
-  reach: ({ tracker, period, window, sides }) => ({
-    periods: `${counted(window.counts.length, period)} · ${finishedBeforeStart(sides) !== undefined ? 'since the start date' : `${tracker} has nothing before ${periodOf(period, window.starts[0]!)}`}`,
+  // the read's reach, not the tracker's history, bounds it: the tracker may hold earlier periods the read didn't ask for (#415)
+  reach: ({ period, window, sides }) => ({
+    periods: `${counted(window.counts.length, period)} · ${finishedBeforeStart(sides) !== undefined ? 'since the start date' : `the read reaches back to ${periodOf(period, window.starts[0]!)}`}`,
     bars: true,
   }),
   // with nothing finished there are no bars

@@ -220,15 +220,35 @@ describe('the window', () => {
     })
   })
 
-  test('a read reaching back less far than the window, as before a change of cadence, says where the tracker’s periods run out', async () => {
+  test('a change of cadence reads GitHub as far back as the new periods need, rather than counting only those the weekly read reached (#415)', async () => {
     await following(finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]))
+    // two finished in the sprint of 31 Aug, before the weekly read's reach, back to Thursday 10 Sep
+    scenario.team.fixture.reads[CHECKOUT.query] = {
+      tickets: [...OPEN, ...finishedOn('early', '2026-09-01', 1), ...finishedOn('earlier', '2026-09-08', 1), ...finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8])],
+      incomplete: false,
+    }
+    scenario.team.calls.since.splice(0)
+
+    // fortnightly sprints from 31 Aug: 9 sprints back from Thursday 12 Nov, 18 weeks
+    await submit({ kind: 'setCadence', cadenceDays: '14' })
+
+    expect(scenario.team.calls.since).toEqual(['2026-07-09T09:00:00.000Z'])
+    expect((await inputs()).milestone.trackerPace?.reading).toMatchObject({
+      counts: [2, 8, 10, 12, 14],
+      line: '5 sprints · since the start date · read 12 Nov 09:00',
+    })
+  })
+
+  test('a change of cadence GitHub can’t be read further back for says the read’s reach bounds the window, not that GitHub has nothing before it (#415)', async () => {
+    await following(finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]))
+    scenario.team.fixture.reads[CHECKOUT.query] = { failure: 'unavailable' }
 
     // fortnightly sprints from 31 Aug: the weekly read, back to 10 Sep, reaches whole only those from 14 Sep
     await submit({ kind: 'setCadence', cadenceDays: '14' })
 
     expect((await inputs()).milestone.trackerPace?.reading).toMatchObject({
       counts: [8, 10, 12, 14],
-      line: '4 sprints · GitHub has nothing before the sprint of 14 Sep · read 12 Nov 09:00',
+      line: '4 sprints · the read reaches back to the sprint of 14 Sep · read 12 Nov 09:00',
       firstFinished: undefined,
     })
   })
