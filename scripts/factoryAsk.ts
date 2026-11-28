@@ -7,7 +7,8 @@
 // Into OUT_DIR it writes `reply.md`, the comment to post: the agent's answer, or why there is none. Into LOG_DIR go the
 // agent's stream-json (`transcript.jsonl`) and Sandcastle's log. The other inputs are environment variables too:
 // CLAUDE_CODE_OAUTH_TOKEN, GITHUB_EVENT_PATH, or REVIEW_COMMENT_JSON for a question asked on a line, ISSUE_JSON,
-// COMMENTS_JSON, REVIEW_COMMENTS_JSON (a PR's comments on lines of its diff, empty for an issue), PRS_JSON and RUN_URL.
+// COMMENTS_JSON, REVIEW_COMMENTS_JSON (a PR's comments on lines of its diff, empty for an issue), PRS_JSON, RUN_URL, and
+// for a spec or a spec's ticket SPEC_JSON and SPEC_COMMENTS_JSON: the spec and its comments, which hold its decision log.
 
 import { execFileSync } from 'node:child_process'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -27,6 +28,7 @@ import {
   type PullRequest,
   type ReviewComment,
 } from './factoryQuestion.ts'
+import type { Ticket } from './factoryTicket.ts'
 
 const MODEL = 'opus'
 /** An answer reads and writes no code, so it needs far less than a build's $25. */
@@ -53,7 +55,8 @@ let answered: Answered
 try {
   const commits = execFileSync('git', ['log', `-n${COMMITS}`, '--date=short', '--format=%h %ad %s'], { encoding: 'utf8' })
   const comments = [...json<Comment[][]>('COMMENTS_JSON').flat(), ...json<Comment[][]>('REVIEW_COMMENTS_JSON').flat()]
-  const prompt = questionPrompt(event, json<Issue>('ISSUE_JSON'), comments, json<PullRequest[]>('PRS_JSON'), commits)
+  const spec = process.env.SPEC_JSON ? { issue: json<Ticket>('SPEC_JSON'), comments: json<Comment[][]>('SPEC_COMMENTS_JSON').flat() } : undefined
+  const prompt = questionPrompt(event, json<Issue>('ISSUE_JSON'), comments, json<PullRequest[]>('PRS_JSON'), commits, spec)
   const ran = await run({
     name: `question-${event.issue.number}`,
     prompt,
