@@ -135,6 +135,22 @@ module.exports = {
       from: { path: `^${R}/`, pathNot: `^${R}/forecast/lib/appVersion\\.ts$` },
       to: { path: '^package\\.json$' },
     },
+    // The factory (factory/, docs/agents/factory.md) is a module apart from the app: src/, its scripts and its tests.
+    // It may import Sandcastle and Node's built-ins.
+    {
+      name: 'factory-imports-no-app',
+      comment: 'factory/ imports nothing from the app: src/, scripts/ or test/.',
+      severity: 'error',
+      from: { path: '^factory/' },
+      to: { path: '^(src|scripts|test)/' },
+    },
+    {
+      name: 'app-imports-no-factory',
+      comment: 'The app (src/, scripts/, test/) imports nothing from factory/.',
+      severity: 'error',
+      from: { path: '^(src|scripts|test)/' },
+      to: { path: '^factory/' },
+    },
     {
       name: 'no-circular',
       comment: 'No dependency cycles.',

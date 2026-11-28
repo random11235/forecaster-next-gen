@@ -186,3 +186,46 @@ test('forecast/lib/appVersion.ts importing package.json passes, and any other fi
   expectPasses(importing('src/forecast/lib/appVersion.ts'))
   expectBreaks('package-json-only-from-app-version', importing('src/forecast/settings.ts'))
 })
+
+/** The factory (factory/) and the app (src/, and the app's scripts), each with a file for an import to reach. */
+const factoryAndApp = {
+  'src/model/team.ts': exporting('team'),
+  'scripts/release.ts': exporting('release'),
+  'factory/factoryTrust.ts': exporting('trusted'),
+  'node_modules/@ai-hero/sandcastle/package.json': '{ "name": "@ai-hero/sandcastle", "type": "module", "main": "index.js" }\n',
+  'node_modules/@ai-hero/sandcastle/index.js': 'export const run = 1\n',
+}
+
+/** Lints the stand-in repo's app and factory after writing `files` beside them. */
+function lintFactoryWith(files: Record<string, string>) {
+  repo.write({ ...factoryAndApp, ...files })
+  return repo.lint('src', 'scripts', 'factory')
+}
+
+test('the factory importing Sandcastle and Node passes', () => {
+  const { code, output } = lintFactoryWith({
+    'factory/factorySandcastle.ts': "import { run } from '@ai-hero/sandcastle'\nimport { join } from 'node:path'\nexport const sandbox = [run, join]\n",
+  })
+
+  expect(output).toContain('no dependency violations found')
+  expect(code).toBe(0)
+})
+
+test('the factory importing the app fails, from src/ or from its scripts', () => {
+  for (const imports of ["import { team } from '../src/model/team.ts'", "import { release } from '../scripts/release.ts'"]) {
+    const { code, output } = lintFactoryWith({ 'factory/factoryBuild.ts': `${imports}\nexport const build = 1\n` })
+
+    expect(output).toContain('factory-imports-no-app')
+    expect(code).not.toBe(0)
+  }
+})
+
+test('the app importing the factory fails, from src/ or from its scripts', () => {
+  const importing = { 'src/model/ticket.ts': '../../factory/factoryTrust.ts', 'scripts/changeFiles.ts': '../factory/factoryTrust.ts' }
+  for (const [file, from] of Object.entries(importing)) {
+    const { code, output } = lintFactoryWith({ [file]: `import { trusted } from '${from}'\nexport const uses = trusted\n` })
+
+    expect(output).toContain('app-imports-no-factory')
+    expect(code).not.toBe(0)
+  }
+})
