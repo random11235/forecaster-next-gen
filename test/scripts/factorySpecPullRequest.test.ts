@@ -57,9 +57,12 @@ describe("the factory's PR for a spec whose tickets are all in", () => {
   })
 
   test('uses no closing keyword, as they stop at 10, saying the factory closes the spec and its tickets on merge', () => {
-    const { body } = specPullRequest(SPEC, [ticket(41), ticket(42)], [], RUN)
+    const log = [entry('## #41\n\nFixes #123, closes: owner/repo#7 and RESOLVED https://github.com/owner/repo/issues/9.')]
 
-    expect(body).not.toMatch(/\b(close[sd]?|fix(e[sd])?|resolve[sd]?) #\d/i)
+    const { body } = specPullRequest(SPEC, [ticket(41), ticket(42)], log, RUN)
+
+    expect(body).not.toMatch(/\b(close[sd]?|fix(e[sd])?|resolve[sd]?):?\s+([\w.-]+\/[\w.-]+#\d|#\d|https?:\/\/)/i)
+    expect(body).toContain('`Fixes` #123, `closes`: owner/repo#7 and `RESOLVED` https://github.com/owner/repo/issues/9.')
     expect(body).toContain('Once it merges, the factory closes spec #40 and its 2 tickets, and deletes `spec/40`')
     expect(body).toMatch(new RegExp(`\n\nOpened by the factory in run ${RUN}\\.\n$`))
   })

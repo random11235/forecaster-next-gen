@@ -2,7 +2,7 @@
 // the spec is in (#339), when scripts/factoryFrontier.ts says `open-pr`. Its body follows docs/agents/pull-requests.md
 // as far as a generated one can: a Summary opening with every ticket in a table, the spec's decision log
 // (scripts/factoryDecisionLog.ts) for what each ticket decided, then Evidence and Merge Danger. It uses no closing
-// keyword: they stop at 10 issues, so the factory's `close` job closes the spec and its tickets once it merges
+// keyword, and defuses those the log's entries hold: they stop at 10 issues, so the factory's `close` job closes the spec and its tickets once it merges
 // (scripts/factorySpecMerged.ts). scripts/factorySpecOpen.ts hands it the spec, its sub-issues and its comments.
 
 import { MAX_BODY } from './factoryPullRequest.ts'
@@ -43,9 +43,18 @@ export function specPullRequest(
 /** The title, if the owner or a collaborator opened the issue: anyone else's could say anything. */
 const titleOf = ({ title, author_association }: SpecTicket): string | undefined => (isTrusted(author_association) ? title : undefined)
 
+/**
+ * GitHub's closing keywords before an issue (`#n`, `owner/repo#n` or a URL), as an agent's body may hold them: merging the
+ * PR would close that issue, even one outside the spec.
+ */
+const CLOSING = /\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?)(:?\s+)(?=#\d|[\w.-]+\/[\w.-]+#\d|https?:\/\/)/gi
+
+/** The text with each closing keyword in a code span, which GitHub doesn't read as one, so it still reads but closes nothing. */
+const defused = (text: string): string => text.replace(CLOSING, '`$1`$2')
+
 /** The spec's decision log as the body's section, its headings a level down, keeping the oldest entries that fit `room`. */
 function logSection(spec: number, comments: readonly Authored[], room: number): string {
-  const entries = decisionLog(comments).map((entry) => entry.replace(/^(#{1,5}) /gm, '#$1 '))
+  const entries = decisionLog(comments).map((entry) => defused(entry.replace(/^(#{1,5}) /gm, '#$1 ')))
   if (entries.length === 0) return ''
   const opening = `## Decision log\n\nWhat each ticket decided, as its build wrote it on #${spec}.`
   const note = (left: number) => `(The log's ${left} latest entries are left out, to fit a PR body: read them on #${spec}.)`
