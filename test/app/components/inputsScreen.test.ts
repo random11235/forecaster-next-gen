@@ -114,13 +114,13 @@ describe('the Inputs screen in the browser build', () => {
     expect(text(range)).toBe('Range Low to High tickets per week ⚠ At 0 tickets a week, the work never finishes. Save and forecast')
   })
 
-  test('the cadence: its length, and what makes a period a week or a sprint; at 14 days, the pace per sprint', async () => {
+  test('the cadence: its length, and the period it samples; at 14 days, the pace per sprint', async () => {
     await submitInputs(team, { kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '40' })
     const cadence = (page: ReturnType<typeof render>) => section(page, 'Cadence')
     const weekly = await screen(team)
 
     expect(byRole(cadence(weekly), 'spinbutton', { name: 'Cadence length' }).getAttribute('value')).toBe('7')
-    expect(text(cadence(weekly))).toContain('Days per period. 7 is a week; anything else is a sprint.')
+    expect(text(cadence(weekly))).toContain('The length of period sampled: could be a sprint length or other.')
 
     await submitInputs(team, { kind: 'setCadence', cadenceDays: '14' })
     const sprints = await screen(team)

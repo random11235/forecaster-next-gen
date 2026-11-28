@@ -156,7 +156,7 @@ function cadenceSection(form: TypedForms['cadence'], error: string | undefined):
   return inputSection(
     'Cadence',
     'Cadence',
-    'Days per period. 7 is a week; anything else is a sprint.',
+    'The length of period sampled: could be a sprint length or other.',
     `        <form method="post" action="/inputs/cadence#cadence">${errorLine(error)}
           <div class="pace">
             <label>Cadence length <input type="number" name="cadenceDays" min="1" max="${MAX_CADENCE_DAYS}" step="1" value="${escapeHtml(form.cadenceDays)}" required></label>
