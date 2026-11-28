@@ -2,22 +2,26 @@
 # and opens a PR to the default branch that closes it (#336). Labelling a spec builds its next ticket
 # (scripts/factoryFrontier.ts) on the spec's branch, spec/<n>, made from the default branch if it isn't there yet, and
 # comments `merged into spec/<n>` on the ticket once its commits, checked, are pushed there; the ticket stays open
-# (#337). A spec with no ticket to build is told why, in a comment. A spec's ticket labelled on its own, a closed issue
-# and a ticket with an open PR are skipped with a log line. Background, and the risks it answers (R1-R10):
-# docs/research/sandcastle-factory.md.
+# (#337). Then it starts its own next run on the spec, a workflow_dispatch one hop further along, so the spec builds
+# ticket after ticket until none is left to build, one is parked, or the chain reaches its hop cap (#338). Once every
+# ticket is in, `propose` opens the spec's one PR, from spec/<n> to the default branch, listing its tickets, unless one
+# is open already; once the owner merges it, `close` closes the spec and every ticket, takes ready-for-agent and
+# in-progress off them, and deletes spec/<n> (#339). A spec with no ticket to build is told why, in a comment, and so
+# is one whose chain stops. A spec's ticket labelled on its own, a closed issue and a ticket with an open PR are skipped
+# with a log line. Background, and the risks it answers (R1-R10): docs/research/sandcastle-factory.md.
 #
-# The jobs that write to GitHub (`tell`, `start`, `publish`, `park`, `reply`) use the job's own GITHUB_TOKEN, raised to the
-# write it needs in that job alone, and it expires when the job ends. They run none of the code an agent wrote, which
-# spec/<n> holds too, from the spec's earlier tickets: every job's own code is the default branch's. The one long-lived
-# token, FACTORY_TOKEN, only opens the PR: a fine-grained token on this repo with Pull requests write and nothing else,
-# so a leaked copy can't push or merge. `build` runs the agent, in the sandbox, on a separate checkout of the ticket's
+# The jobs that write to GitHub (`tell`, `start`, `publish`, `park`, `close`, `reply`) use the job's own GITHUB_TOKEN,
+# raised to the write it needs in that job alone, and it expires when the job ends. They run none of the code an agent
+# wrote, which spec/<n> holds too, from the spec's earlier tickets: every job's own code is the default branch's. The
+# one long-lived token, FACTORY_TOKEN, only opens PRs, a ticket's and a spec's: a fine-grained token on this repo with
+# Pull requests write and nothing else, so a leaked copy can't push or merge. `build` runs the agent, in the sandbox, on a separate checkout of the ticket's
 # branch, none of which runs outside the sandbox, with a read-only token; `check` runs the agent's code,
 # `npm run check` on exactly the commits built, in bwrap, and holds no secret. `build` hands the commits on as a git
 # bundle. Event text (titles, logins) reaches scripts through `env:` only, never `${{ }}` inside a `run:`.
 #
-# What GITHUB_TOKEN does starts no workflow. The PR is FACTORY_TOKEN's, so CI and the board sync start on it as on any
-# PR; `tell`, `start` and `park` start the board sync themselves, and so does `publish` after a spec's ticket. spec/<n>
-# gets its CI with the spec's PR.
+# What GITHUB_TOKEN does starts no workflow, but a workflow_dispatch: the board sync's, and the spec's next run. A PR
+# is FACTORY_TOKEN's, so CI and the board sync start on it as on any PR; `tell`, `start`, `park` and `close` start the
+# board sync themselves, and so does `publish` after a spec's ticket. spec/<n> gets its CI with the spec's PR.
 #
 # Every comment the factory makes carries MARK, so scripts/factoryTicket.ts keeps it out of the next prompt, but a spec's
 # decision-log entry, which opens with its own mark for the next prompt to read (scripts/factoryDecisionLog.ts). To try the
@@ -38,16 +42,30 @@ on:
     types: [labeled]
   issue_comment:
     types: [created]
+  pull_request_target: # a spec's PR merged, so `close` closes the spec and its tickets (#339): the default branch's code
+    types: [closed]
   workflow_run: # a question asked on a line of a PR's diff, named by factory-relay.yml
     workflows: [Factory relay]
     types: [completed]
+  workflow_dispatch: # a spec's next run, which publish starts once a ticket merges into spec/<n> (#338)
+    inputs:
+      spec:
+        description: The spec whose next ticket to build
+        required: true
+        type: number
+      hop:
+        description: How many runs chained before this one; 0 starts a new chain, as a label does
+        required: false
+        type: number
+        default: 0
 
 permissions:
   contents: read
   issues: read
 
 env:
-  ISSUE: ${{ github.event.issue.number }}
+  ISSUE: ${{ github.event.issue.number || inputs.spec }}
+  HOP: ${{ inputs.hop || 0 }} # how many runs chained before this one: 0 for a label's (scripts/factoryFrontier.ts)
   REPO: ${{ github.repository }}
   BASE: ${{ github.event.repository.default_branch }}
   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -60,9 +78,12 @@ env:
 
 # One run per issue at a time, and so one per spec, whose run is the spec's own (its tickets are skipped when labelled
 # alone): a second label event waits for the first run and doesn't cancel it. Only the trigger label shares the group,
-# so another label someone adds by hand can't take the one pending place from a waiting `ready-for-agent`.
+# so another label someone adds by hand can't take the one pending place from a waiting `ready-for-agent`. A spec's
+# dispatched next run shares its spec's group, so it waits for the run that started it to finish.
 concurrency:
-  group: factory-issue-${{ github.event.label.name == 'ready-for-agent' && github.event.issue.number || github.run_id }}
+  group: >-
+    factory-issue-${{ (github.event.label.name == 'ready-for-agent' && github.event.issue.number)
+    || (github.event_name == 'workflow_dispatch' && inputs.spec) || github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -71,7 +92,7 @@ jobs:
   # build ends the job with a notice; a spec with none, with `tell`'s comment. The jobs after take the ticket to build,
   # its branch, and the spec it's in, if any, from here.
   gate:
-    if: github.event.label.name == 'ready-for-agent'
+    if: github.event.label.name == 'ready-for-agent' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -83,21 +104,30 @@ jobs:
       ticket: ${{ steps.pick.outputs.ticket }}
       branch: ${{ steps.pick.outputs.branch }}
       spec: ${{ steps.pick.outputs.spec }}
+      propose: ${{ steps.pick.outputs.propose }}
       say: ${{ steps.pick.outputs.say }}
     steps:
-      - name: Check that whoever added the label has write access
+      # A dispatch by github-actions[bot] is a job's GITHUB_TOKEN's, with actions: write, which only this repo's own
+      # workflows hold, publish's among them: a fork's PR gets a read-only token. Anyone else's dispatch is checked as a
+      # label is.
+      - name: Check that whoever added the label, or started the run, has write access
         id: sender
         env:
           GH_TOKEN: ${{ github.token }}
           SENDER: ${{ github.event.sender.login }}
+          EVENT: ${{ github.event_name }}
         run: |
+          if [ "$EVENT" = workflow_dispatch ] && [ "$SENDER" = 'github-actions[bot]' ]; then
+            echo "allowed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if ! permission=$(gh api "repos/$REPO/collaborators/$SENDER/permission" --jq .permission); then
             echo "::error::Couldn't read @$SENDER's permission on $REPO, so the factory can't tell whether to build #$ISSUE."
             exit 1
           fi
           case "$permission" in
             admin | write) echo "allowed=true" >> "$GITHUB_OUTPUT" ;;
-            *) echo "::notice::@$SENDER added the label but has $permission permission, not admin or write: nothing to build." ;;
+            *) echo "::notice::@$SENDER started the run but has $permission permission, not admin or write: nothing to build." ;;
           esac
       - name: Check that the issue is open, and a spec or a ticket outside any spec, with no open PR
         id: ticket
@@ -107,6 +137,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           OWNER: ${{ github.repository_owner }}
           NAME: ${{ github.event.repository.name }}
+          EVENT: ${{ github.event_name }}
         run: |
           found=$(gh api graphql -F n="$ISSUE" -f o="$OWNER" -f r="$NAME" -f query='
             query($o: String!, $r: String!, $n: Int!) { repository(owner: $o, name: $r) { issue(number: $n) {
@@ -124,6 +155,8 @@ jobs:
             echo "::notice::#$ISSUE is a ticket of #$parent: label the spec, #$parent, ready-for-agent to build its next ticket."
           elif [ "$subs" != 0 ]; then
             echo "kind=spec" >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT" = workflow_dispatch ]; then
+            echo "::notice::#$ISSUE isn't a spec: a dispatched run only builds a spec's next ticket."
           elif [ -n "$prs" ]; then
             echo "::notice::#$ISSUE already has an open PR ($prs): the factory doesn't open a second."
           else
@@ -139,7 +172,8 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: 24 # NODE_MAJOR
-      # Writes `action` (build, open-pr or stop), and `ticket` or `why`. A spec holds at most 100 sub-issues.
+      # Writes `action` (build, open-pr or stop), and `ticket` or `why`, stopping at the hop cap. A spec holds at most 100
+      # sub-issues.
       - name: Pick the spec's next ticket
         id: frontier
         if: steps.ticket.outputs.kind == 'spec'
@@ -147,7 +181,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           OWNER: ${{ github.repository_owner }}
           NAME: ${{ github.event.repository.name }}
-          SPEC: ${{ github.event.issue.number }}
           SPEC_JSON: ${{ runner.temp }}/sub-issues.json
         run: |
           gh api graphql -F n="$ISSUE" -f o="$OWNER" -f r="$NAME" -f query='
@@ -155,7 +188,7 @@ jobs:
               subIssues(first: 100) { nodes { number state labels(first: 50) { nodes { name } }
                 blockedBy(first: 50) { nodes { number state } }
                 comments(last: 100) { nodes { body authorAssociation author { __typename login } } } } } } } }' > "$SPEC_JSON"
-          node scripts/factoryNext.ts
+          SPEC="$ISSUE" node scripts/factoryNext.ts
       - name: Choose the ticket and its branch
         id: pick
         if: steps.ticket.outputs.kind != ''
@@ -171,20 +204,89 @@ jobs:
           elif [ "$ACTION" = build ]; then
             printf 'go=true\nticket=%s\nbranch=spec/%s\nspec=%s\n' "$NEXT" "$ISSUE" "$ISSUE" >> "$GITHUB_OUTPUT"
           elif [ "$ACTION" = open-pr ]; then
-            echo "say=every ticket has merged into spec/$ISSUE or closed, and the factory doesn't open the spec's PR to $BASE yet" >> "$GITHUB_OUTPUT"
+            echo "propose=true" >> "$GITHUB_OUTPUT"
           else
             echo "say=$WHY" >> "$GITHUB_OUTPUT"
           fi
 
-  # Tells the labelled issue what came of the label, unless it's a ticket being built, which `start` tells: a spec,
-  # which ticket is being built, or why none can be; any issue, that checking it failed. The label comes off, as an
-  # epic's would: labelling it again, once the owner has seen to it, starts a run. Nothing is parked here: a failed
-  # check, and a spec with nothing to build, are the owner's to see to.
-  tell:
+  # Every ticket of the spec is in (scripts/factoryFrontier.ts says `open-pr`): opens the spec's one PR, from spec/<n>
+  # to the default branch (#339), with FACTORY_TOKEN, so CI starts on it as on a ticket's PR. Not when an open PR from
+  # spec/<n> is there already, so a later run, or the spec labelled again, opens no second; nor when spec/<n> isn't
+  # there, or has no commits the default branch lacks, which GitHub opens no PR for. The body
+  # (scripts/factorySpecPullRequest.ts) links the spec, lists every ticket and says the spec's decision log is in its
+  # comments, with no closing keyword: `close` closes the spec and its tickets once it merges. `tell` says on the spec what
+  # came of it. Only the default branch's code runs here, and this job's own GITHUB_TOKEN only reads.
+  propose:
     needs: gate
+    if: needs.gate.outputs.propose == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read # the open PRs from spec/<n>
+    outputs:
+      pr: ${{ steps.find.outputs.pr || steps.open.outputs.pr }}
+      had: ${{ steps.find.outputs.had }}
+      missing: ${{ steps.find.outputs.missing }}
+      empty: ${{ steps.find.outputs.empty }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24 # NODE_MAJOR
+      # A fork's PR from a branch of the same name isn't the spec's. git ls-remote exits 2 when the branch isn't there,
+      # and otherwise fails the step; a branch with nothing to merge, which a label again wouldn't change, is told apart.
+      - name: Look for the spec's open PR, and its branch
+        id: find
+        shell: bash # with pipefail, so a failed `gh pr list` fails the step
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          open=$(gh pr list --repo "$REPO" --state open --head "spec/$ISSUE" --base "$BASE" --json url,isCrossRepository \
+            --jq '[.[] | select(.isCrossRepository | not) | .url][0] // ""')
+          if [ -n "$open" ]; then printf 'had=true\npr=%s\n' "$open" >> "$GITHUB_OUTPUT"; exit 0; fi
+          found=0
+          git ls-remote --exit-code "$GITHUB_SERVER_URL/$REPO.git" "refs/heads/spec/$ISSUE" > /dev/null || found=$?
+          if [ "$found" = 2 ]; then echo "missing=true" >> "$GITHUB_OUTPUT"
+          elif [ "$found" != 0 ]; then echo "::error::Reading spec/$ISSUE failed"; exit 1
+          elif [ "$(gh api "repos/$REPO/compare/$BASE...spec/$ISSUE" --jq .ahead_by)" = 0 ]; then echo "empty=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Write the PR's title and body
+        if: steps.find.outputs.had != 'true' && steps.find.outputs.missing != 'true' && steps.find.outputs.empty != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SPEC_JSON: ${{ runner.temp }}/spec.json
+          SUB_ISSUES_JSON: ${{ runner.temp }}/sub-issues.json
+          OUT_DIR: ${{ runner.temp }}/spec-pr
+        run: |
+          gh api "repos/$REPO/issues/$ISSUE" > "$SPEC_JSON"
+          gh api --paginate --slurp "repos/$REPO/issues/$ISSUE/sub_issues?per_page=100" > "$SUB_ISSUES_JSON"
+          node scripts/factorySpecOpen.ts
+      - name: Open the PR
+        id: open
+        if: steps.find.outputs.had != 'true' && steps.find.outputs.missing != 'true' && steps.find.outputs.empty != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.FACTORY_TOKEN }}
+          OUT_DIR: ${{ runner.temp }}/spec-pr
+        run: |
+          title=$(cat "$OUT_DIR/title")
+          url=$(gh pr create --repo "$REPO" --base "$BASE" --head "spec/$ISSUE" --title="$title" --body-file "$OUT_DIR/body.md")
+          echo "pr=$url" >> "$GITHUB_OUTPUT"
+
+  # Tells the labelled issue what came of the label, unless it's a ticket being built, which `start` tells: a spec,
+  # which ticket is being built, its PR to the default branch, or why there's neither; any issue, that checking it
+  # failed. The label comes off, as an epic's would: labelling it again, once the owner has seen to it, starts a run.
+  # Nothing is parked here: a failed check, and a spec with nothing to build, are the owner's to see to.
+  tell:
+    needs: [gate, propose]
     if: >-
-      always() && github.event.label.name == 'ready-for-agent' && needs.gate.outputs.allowed == 'true'
-      && (needs.gate.result == 'failure' || needs.gate.outputs.spec != '' || needs.gate.outputs.say != '')
+      always() && (github.event.label.name == 'ready-for-agent' || github.event_name == 'workflow_dispatch')
+      && needs.gate.outputs.allowed == 'true'
+      && (needs.gate.result == 'failure' || needs.gate.outputs.spec != '' || needs.gate.outputs.say != ''
+      || needs.gate.outputs.propose == 'true')
     runs-on: ubuntu-24.04
     permissions:
       issues: write
@@ -197,11 +299,28 @@ jobs:
           TICKET: ${{ needs.gate.outputs.ticket }}
           BRANCH: ${{ needs.gate.outputs.branch }}
           SAY: ${{ needs.gate.outputs.say }}
+          PROPOSING: ${{ needs.gate.outputs.propose }}
+          PROPOSE: ${{ needs.propose.result }}
+          PR: ${{ needs.propose.outputs.pr }}
+          HAD: ${{ needs.propose.outputs.had }}
+          MISSING: ${{ needs.propose.outputs.missing }}
+          EMPTY: ${{ needs.propose.outputs.empty }}
         run: |
           if [ "$GATE" = failure ]; then
             said="The factory built nothing: checking the issue, or picking a spec's next ticket, failed: the run's gate job says why"
+          elif [ "$PROPOSING" = true ] && [ "$PROPOSE" != success ]; then
+            said="Every ticket has merged into spec/$ISSUE or closed, but opening its PR to $BASE failed: the run's propose job says why. Label the spec ready-for-agent to try again"
+          elif [ "$PROPOSING" = true ] && [ "$MISSING" = true ]; then
+            said="The factory opened no PR: every ticket has closed or merged, but there's no spec/$ISSUE to open it from"
+          elif [ "$PROPOSING" = true ] && [ "$EMPTY" = true ]; then
+            said="The factory opened no PR: every ticket has closed or merged, but spec/$ISSUE has no commits $BASE lacks, so there's nothing to merge into $BASE"
+          elif [ "$PROPOSING" = true ] && [ "$HAD" = true ]; then
+            said="Every ticket has merged into spec/$ISSUE or closed, and its PR to $BASE is open already, so the factory opened no other: $PR"
+          elif [ "$PROPOSING" = true ]; then
+            said="Every ticket has merged into spec/$ISSUE or closed: the factory opened its PR to $BASE, $PR. Once it merges, the factory closes this spec and its tickets"
           elif [ -n "$SAY" ]; then said="The factory built nothing: $SAY"
-          else said="The factory is building #$TICKET on $BRANCH"
+          elif [ "$HOP" = 0 ]; then said="The factory is building #$TICKET on $BRANCH"
+          else said="The factory is building #$TICKET on $BRANCH, its run $HOP chained since the spec was labelled"
           fi
           if gh issue view "$ISSUE" --repo "$REPO" --json labels --jq '.labels[].name' | grep -qx ready-for-agent; then
             gh issue edit "$ISSUE" --repo "$REPO" --remove-label ready-for-agent
@@ -443,7 +562,7 @@ jobs:
     permissions:
       contents: write # to push the ticket's branch
       issues: write # to comment merged on a spec's ticket, and its entry in the spec's decision log
-      actions: write # to start the board sync after a spec's ticket, which opens no PR
+      actions: write # to start the board sync after a spec's ticket, which opens no PR, and the spec's next run
     outputs:
       refused: ${{ steps.branch.outputs.refused }}
       unbuildable: ${{ steps.branch.outputs.unbuildable }}
@@ -549,6 +668,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run board.yml --repo "$REPO" --ref "$BASE" || echo "::warning::the board sync didn't start; its daily run catches up"
+      # The chain (#338): a workflow_dispatch is the one event a GITHUB_TOKEN may start a workflow with. The next run is
+      # the default branch's, waits in the spec's concurrency group for this one to end, and picks the spec's next ticket,
+      # which may build on this one's code, now on spec/<n>; it stops, telling the spec, at the hop cap
+      # (scripts/factoryFrontier.ts). The ticket has merged, so a failure here parks nothing: it tells the spec.
+      - name: Start the spec's next run
+        if: needs.gate.outputs.spec != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh workflow run factory.yml --repo "$REPO" --ref "$BASE" -f spec="$SPEC" -f hop="$((HOP + 1))"; then
+            echo "::warning::the spec's next run didn't start"
+            gh issue comment "$SPEC" --repo "$REPO" --body "$MARK
+          The factory stopped building this spec: #$TICKET merged into $BRANCH, but starting the spec's next run failed. Label the spec ready-for-agent to build on. $RUN_URL" \
+              || echo "::warning::nor did the comment saying so reach #$SPEC"
+          fi
 
   # A run that picked a ticket but didn't end in a PR, or in spec/<n>, parks the ticket, saying why
   park:
@@ -671,7 +805,95 @@ jobs:
           fi
           gh issue comment "$TICKET" --repo "$REPO" --body "$MARK
           The factory parked this ticket: $why. $todo$logs: $RUN_URL"
+          # A spec's chain stops here: no next run starts, and the spec says why
+          if [ -n "$SPEC" ]; then
+            gh issue comment "$SPEC" --repo "$REPO" --body "$MARK
+          The factory stopped building this spec: it parked #$TICKET, as $why. #$TICKET's comment says what to do. $RUN_URL"
+          fi
       - name: Start the board sync
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run board.yml --repo "$REPO" --ref "$BASE" || echo "::warning::the board sync didn't start; its daily run catches up"
+
+  # A spec's PR merged into the default branch (#339): closes the spec and every one of its tickets, takes
+  # ready-for-agent and in-progress off them, and deletes spec/<n> (scripts/factorySpecMerged.ts). Closing keywords stop
+  # at 10 issues, so the PR's body has none and the factory closes them here, its sub-issues read page by page. Its
+  # event, pull_request_target, runs the default branch's workflow with a token that can write, so the job checks out
+  # only the default branch and runs none of the PR's code; a fork's PR, one into another branch and any but spec/<n>'s
+  # close nothing. A ticket merging into spec/<n> is a push, not a PR, so closes nothing either.
+  close:
+    if: >-
+      github.event_name == 'pull_request_target' && github.event.pull_request.merged
+      && startsWith(github.event.pull_request.head.ref, 'spec/')
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write # to close the spec and its tickets, take their labels off, and comment
+      contents: write # to delete spec/<n>
+      actions: write # to start the board sync
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24 # NODE_MAJOR
+      - name: Check that the PR is a spec's, from this repo into the default branch
+        id: spec
+        run: node scripts/factorySpecClose.ts spec
+      - name: Read what closing the spec does to it and its tickets
+        id: plan
+        if: steps.spec.outputs.spec != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SPEC: ${{ steps.spec.outputs.spec }}
+          SPEC_JSON: ${{ runner.temp }}/spec.json
+          SUB_ISSUES_JSON: ${{ runner.temp }}/sub-issues.json
+          PLAN: ${{ runner.temp }}/plan
+        run: |
+          gh api "repos/$REPO/issues/$SPEC" > "$SPEC_JSON"
+          gh api --paginate --slurp "repos/$REPO/issues/$SPEC/sub_issues?per_page=100" > "$SUB_ISSUES_JSON"
+          node scripts/factorySpecClose.ts plan
+      # Each line of the plan is an issue, the spec last: its number, close or keep, and the labels to take off, or -.
+      # gh reads from no stdin of the loop's, which reads the plan on fd 3.
+      - name: Close the spec and its tickets, taking their workflow labels off
+        if: steps.spec.outputs.spec != '' && steps.plan.outputs.none != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SPEC: ${{ steps.spec.outputs.spec }}
+          PR: ${{ github.event.pull_request.number }}
+          PLAN: ${{ runner.temp }}/plan
+        run: |
+          gh issue comment "$SPEC" --repo "$REPO" --body "$MARK
+          Its PR to $BASE, #$PR, merged: the factory is closing this spec and its tickets, and deleting spec/$SPEC. $RUN_URL"
+          failed=()
+          while read -r number close labels <&3; do
+            remove=()
+            if [ "$labels" != - ]; then
+              for label in ${labels//,/ }; do remove+=(--remove-label "$label"); done
+            fi
+            if [ ${#remove[@]} -gt 0 ]; then gh issue edit "$number" --repo "$REPO" "${remove[@]}" || failed+=("#$number"); fi
+            if [ "$close" = close ]; then gh issue close "$number" --repo "$REPO" --reason completed || failed+=("#$number"); fi
+          done 3< "$PLAN"
+          if [ ${#failed[@]} -gt 0 ]; then
+            echo "::error::Closing, or taking the labels off, failed for ${failed[*]}"
+            gh issue comment "$SPEC" --repo "$REPO" --body "$MARK
+          The factory couldn't close, or take ready-for-agent and in-progress off, ${failed[*]}: see to them by hand. $RUN_URL"
+            exit 1
+          fi
+      # A repo that deletes a merged PR's branch itself may have done it already
+      - name: Delete spec/<n>
+        if: always() && steps.plan.outcome == 'success' && steps.plan.outputs.none != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SPEC: ${{ steps.spec.outputs.spec }}
+        run: |
+          if gh api -X DELETE "repos/$REPO/git/refs/heads/spec/$SPEC" --silent; then exit 0; fi
+          if [ -n "$(git ls-remote "$GITHUB_SERVER_URL/$REPO.git" "refs/heads/spec/$SPEC")" ]; then exit 1; fi
+          echo "::notice::spec/$SPEC was deleted already"
+      - name: Start the board sync
+        if: always() && steps.plan.outcome == 'success' && steps.plan.outputs.none != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run board.yml --repo "$REPO" --ref "$BASE" || echo "::warning::the board sync didn't start; its daily run catches up"

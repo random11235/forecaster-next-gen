@@ -52,6 +52,11 @@ export function githubNamed(query: string): string | undefined {
   return qualifier ? unquoted(qualifier[2]!) : undefined
 }
 
+/** Whether a GitHub query picks tickets by a label: a `label:` qualifier not negated, as `-label:"wontfix"` is. */
+export function githubPicksByLabel(query: string): boolean {
+  return githubTerms(query).some(({ text }) => /^label:/i.test(text))
+}
+
 /** The parts a JQL query joins with `OR`, in any case, or `||`: `labels = "a" or fixVersion = "b"` has two. */
 export function jqlOrParts(query: string): string[] {
   return orParts(query, jqlTokens(query), (token) => token.toLowerCase() === 'or' || token === '||')
@@ -61,6 +66,12 @@ export function jqlOrParts(query: string): string[] {
 export function jqlNamed(query: string): string | undefined {
   const tokens = jqlTokens(query).map(({ text }) => text)
   return tokens.length === 3 && tokens[1] === '=' ? unquoted(tokens[2]!) : undefined
+}
+
+/** Whether a JQL query picks tickets by a label: `labels =` or `labels in`, not `!=` or `not in`, in any case. */
+export function jqlPicksByLabel(query: string): boolean {
+  const tokens = jqlTokens(query).map(({ text }) => text.toLowerCase())
+  return tokens.some((token, at) => token === 'labels' && (tokens[at + 1] === '=' || tokens[at + 1] === 'in'))
 }
 
 /** Why GitHub search query `query` is refused, if it is: its first free-text term or empty qualifier. */

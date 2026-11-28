@@ -1,5 +1,5 @@
 import type { Connection } from '../../model/connection.js'
-import { githubNamed, githubOrParts, githubQueryRefusal, jqlNamed, jqlOrParts, jqlRefusal } from './queryLanguage.js'
+import { githubNamed, githubOrParts, githubPicksByLabel, githubQueryRefusal, jqlNamed, jqlOrParts, jqlPicksByLabel, jqlRefusal } from './queryLanguage.js'
 
 /** A tracker a team can connect to. */
 export type Tracker = Connection['tracker']
@@ -42,6 +42,10 @@ export interface TrackerFacts<C extends Connection = Connection> {
   named(part: string): string | undefined
   /** Why a milestone query reaching outside the connection isn't read, worded for the Milestone step. */
   outOfScope(connection: C): string
+  /** Whether a query picks tickets by a label, which counts a ticket only while it has the label (#416). */
+  picksByLabel(query: string): boolean
+  /** The kinds of choice usually kept on a ticket until it's finished, as a query step's note names them: "A milestone or an epic". */
+  lastingKinds: string
 }
 
 const BLANK_FORM: Omit<ConnectionForm, 'tracker'> = { repo: '', site: '', projectKey: '', email: '' }
@@ -67,6 +71,8 @@ export const TRACKERS: { readonly [T in Tracker]: TrackerFacts<Extract<Connectio
     named: githubNamed,
     outOfScope: (connection) =>
       `This query reaches outside ${TRACKERS.github.where(connection)}, the connected repo. Take out what names another repo, owner or organisation.`,
+    picksByLabel: githubPicksByLabel,
+    lastingKinds: 'A milestone or an epic',
   },
   jira: {
     name: 'Jira',
@@ -97,6 +103,8 @@ export const TRACKERS: { readonly [T in Tracker]: TrackerFacts<Extract<Connectio
     orParts: jqlOrParts,
     named: jqlNamed,
     outOfScope: ({ projectKey }) => `This query reaches outside project ${projectKey}, the connected Jira project. Take out what names another project.`,
+    picksByLabel: jqlPicksByLabel,
+    lastingKinds: 'A fix version or an epic',
   },
 }
 
