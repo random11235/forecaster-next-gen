@@ -260,6 +260,7 @@ jobs:
       stopped: ${{ steps.stopped.outputs.by }}
       tip: ${{ steps.bundle.outputs.tip }}
       body: ${{ steps.bundle.outputs.body }}
+      entry: ${{ steps.bundle.outputs.entry }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -300,6 +301,7 @@ jobs:
           if git -C "$tree" rev-parse --verify --quiet "refs/remotes/origin/$BRANCH" > /dev/null; then from="origin/$BRANCH"; fi
           git -C "$tree" checkout --quiet -b "$BRANCH" "$from"
           echo "base=$(git -C "$tree" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      # The spec's comments hold its decision log (scripts/factoryDecisionLog.ts), which the prompt gives
       - name: Fetch the ticket, and its spec
         env:
           GH_TOKEN: ${{ github.token }}
@@ -308,7 +310,8 @@ jobs:
           gh api --paginate --slurp "repos/$REPO/issues/$TICKET/comments" > "$RUNNER_TEMP/comments.json"
           if [ -n "$SPEC" ]; then
             gh api "repos/$REPO/issues/$SPEC" > "$RUNNER_TEMP/spec.json"
-            echo "SPEC_JSON=$RUNNER_TEMP/spec.json" >> "$GITHUB_ENV"
+            gh api --paginate --slurp "repos/$REPO/issues/$SPEC/comments" > "$RUNNER_TEMP/spec-comments.json"
+            printf 'SPEC_JSON=%s\nSPEC_COMMENTS_JSON=%s\n' "$RUNNER_TEMP/spec.json" "$RUNNER_TEMP/spec-comments.json" >> "$GITHUB_ENV"
           fi
       - name: Note when the agent starts
         id: clock
@@ -345,7 +348,8 @@ jobs:
             if [ -d "$dir" ]; then find "$dir" -type f -exec perl -pi -e 's/\Q$ENV{TOKEN}\E/[token]/g' {} +; fi
           done
       # Nothing an agent wrote runs outside the sandbox in this job; `check` runs it on these commits. The tip and the
-      # body's digest go out as outputs, which no later job can change, so `publish` pushes only these.
+      # digests of the body and of a spec's ticket's decision-log entry go out as outputs, which no later job can change,
+      # so `publish` pushes and posts only these.
       - name: Bundle the ticket's commits
         id: bundle
         if: steps.agent.outputs.result == 'built'
@@ -355,6 +359,7 @@ jobs:
           git -C "$TREE" bundle create "$RUNNER_TEMP/factory-out/ticket.bundle" "$BRANCH" "^$BUILT_ON"
           echo "tip=$(git -C "$TREE" rev-parse "refs/heads/$BRANCH")" >> "$GITHUB_OUTPUT"
           echo "body=$(sha256sum "$RUNNER_TEMP/factory-out/pr-body.md" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          if [ -n "$SPEC" ]; then echo "entry=$(sha256sum "$RUNNER_TEMP/factory-out/decision.md" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"; fi
       - if: steps.agent.outputs.result == 'built'
         uses: actions/upload-artifact@v7
         with:
@@ -436,7 +441,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write # to push the ticket's branch
-      issues: write # to comment merged on a spec's ticket
+      issues: write # to comment merged on a spec's ticket, and its entry in the spec's decision log
       actions: write # to start the board sync after a spec's ticket, which opens no PR
     outputs:
       refused: ${{ steps.branch.outputs.refused }}
@@ -450,6 +455,7 @@ jobs:
       BUILT_ON: ${{ needs.build.outputs.base }}
       TIP: ${{ needs.build.outputs.tip }}
       BODY: ${{ needs.build.outputs.body }}
+      ENTRY: ${{ needs.build.outputs.entry }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -472,12 +478,17 @@ jobs:
         run: |
           echo "::error::The bundle's branch isn't the commit build made"
           exit 1
-      - name: Check the ticket's branch and the PR body
+      - name: Check the ticket's branch, the PR body and the decision-log entry
         id: branch
         run: |
           if ! echo "$BODY  $RUNNER_TEMP/pr-body.md" | sha256sum -c --quiet; then
             echo "tampered=true" >> "$GITHUB_OUTPUT"
             echo "::error::The PR body isn't the one build wrote"
+            exit 1
+          fi
+          if [ -n "$SPEC" ] && ! echo "$ENTRY  $RUNNER_TEMP/decision.md" | sha256sum -c --quiet; then
+            echo "tampered=true" >> "$GITHUB_OUTPUT"
+            echo "::error::The decision-log entry isn't the one build wrote"
             exit 1
           fi
           changed=$(git diff --name-only "$BUILT_ON...$BRANCH" -- .github/)
@@ -521,6 +532,16 @@ jobs:
         run: |
           gh issue comment "$TICKET" --repo "$REPO" --body "$MARK
           merged into $BRANCH: $RUN_URL"
+      # The spec's decision log (scripts/factoryDecisionLog.ts): the entry build wrote from the agent's PR body, which a
+      # later ticket's prompt and a question's read. It opens with its own mark, by this job's GITHUB_TOKEN, as
+      # scripts/factoryTrust.ts requires. A record, not a gate: the ticket has merged, so a failure only warns.
+      - name: Add the ticket's entry to the spec's decision log
+        if: needs.gate.outputs.spec != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$REPO/issues/$SPEC/comments" -F body=@"$RUNNER_TEMP/decision.md" --silent \
+            || echo "::warning::#$TICKET's entry didn't reach #$SPEC's decision log; later tickets build without it"
       # A PR starts the board sync itself; a push to spec/<n> by GITHUB_TOKEN doesn't
       - name: Start the board sync
         if: needs.gate.outputs.spec != ''
@@ -715,8 +736,9 @@ jobs:
         uses: ./.github/actions/setup
       - if: steps.asked.outputs.asked == 'true'
         uses: ./.github/actions/sandbox
-      # GitHub fires issue_comment for a PR's comments too: a PR's own checks, or an issue's linked PRs' with theirs
-      - name: Fetch the issue, its comments, and its PRs with their checks
+      # GitHub fires issue_comment for a PR's comments too: a PR's own checks, or an issue's linked PRs' with theirs. An
+      # issue that is a spec, or a spec's ticket, has the spec and its comments, which hold its decision log, fetched too.
+      - name: Fetch the issue, its comments, its PRs with their checks, and its spec
         if: steps.asked.outputs.asked == 'true'
         shell: bash # with pipefail, so a failed `gh pr view` fails the step
         env:
@@ -734,10 +756,18 @@ jobs:
           fi
           if [ -n "$IS_PR" ]; then prs=$ISSUE
           else
-            prs=$(gh api graphql -F n="$ISSUE" -f o="$OWNER" -f r="$NAME" -f query='
+            found=$(gh api graphql -F n="$ISSUE" -f o="$OWNER" -f r="$NAME" -f query='
               query($o: String!, $r: String!, $n: Int!) { repository(owner: $o, name: $r) { issue(number: $n) {
+                parent { number } subIssuesSummary { total }
                 closedByPullRequestsReferences(first: 20, includeClosedPrs: true) { nodes { number } } } } }' \
-              --jq '.data.repository.issue.closedByPullRequestsReferences.nodes[].number')
+              --jq '.data.repository.issue | "\(.parent.number // "none") \(.subIssuesSummary.total) \([.closedByPullRequestsReferences.nodes[].number | tostring] | join(" "))"')
+            read -r parent subs prs <<< "$found"
+            if [ "$parent" != none ]; then spec=$parent; elif [ "$subs" != 0 ]; then spec=$ISSUE; fi
+          fi
+          if [ -n "${spec:-}" ]; then
+            gh api "repos/$REPO/issues/$spec" > "$RUNNER_TEMP/spec.json"
+            gh api --paginate --slurp "repos/$REPO/issues/$spec/comments" > "$RUNNER_TEMP/spec-comments.json"
+            printf 'SPEC_JSON=%s\nSPEC_COMMENTS_JSON=%s\n' "$RUNNER_TEMP/spec.json" "$RUNNER_TEMP/spec-comments.json" >> "$GITHUB_ENV"
           fi
           for pr in $prs; do
             gh pr view "$pr" --repo "$REPO" --json number,title,state,isDraft,url,headRefName,statusCheckRollup

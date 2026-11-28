@@ -15,6 +15,9 @@
 // Triage's brief for a ticket is a comment opening with BRIEF_MARK, which only counts when github-actions wrote it: the
 // owner's or a collaborator's by hand is a comment like any other, and anyone else's is left out. It reaches the prompt
 // even when it also carries FACTORY_MARK, as triage's comments, being the factory's, may.
+//
+// A spec's decision log is its comments opening with DECISION_MARK that github-actions wrote, one for each ticket the
+// factory merged into spec/<n> (scripts/factoryDecisionLog.ts): anyone else's, the owner's too, is left out of it.
 
 /** GitHub's author association: how the author of an issue or comment is related to the repo. */
 export type Association = 'OWNER' | 'MEMBER' | 'COLLABORATOR' | 'CONTRIBUTOR' | 'FIRST_TIME_CONTRIBUTOR' | 'FIRST_TIMER' | 'MANNEQUIN' | 'NONE'
@@ -24,6 +27,9 @@ export const FACTORY_MARK = '<!-- forecaster-factory -->'
 
 /** The hidden mark triage's brief for a ticket opens with: distinct from FACTORY_MARK, so the brief reaches a prompt. */
 export const BRIEF_MARK = '<!-- forecaster-brief -->'
+
+/** The hidden mark an entry of a spec's decision log opens with, distinct from FACTORY_MARK and BRIEF_MARK. */
+export const DECISION_MARK = '<!-- forecaster-decision -->'
 
 /** A comment's author, as GitHub's GraphQL API gives it: null for a deleted account. */
 export type Author = { __typename: 'Bot' | 'User' | 'Mannequin' | 'Organization' | 'EnterpriseUserAccount'; login: string }
@@ -65,3 +71,13 @@ export const triageBrief = (comments: readonly Authored[]): string | undefined =
     .map(({ body }) => wordsAfter(BRIEF_MARK, body))
     .filter((words) => words !== undefined && words !== '')
     .at(-1)
+
+/** Whether the comment is an entry of a spec's decision log: it opens with DECISION_MARK, and github-actions wrote it. */
+export const isDecisionEntry = (comment: Authored): boolean => byActionsBot(comment) && wordsAfter(DECISION_MARK, comment.body) !== undefined
+
+/** A spec's decision log, from its comments as GitHub's REST API lists them, oldest first: each entry's words, in order. */
+export const decisionLog = (comments: readonly Authored[]): string[] =>
+  comments
+    .filter(isDecisionEntry)
+    .map(({ body }) => wordsAfter(DECISION_MARK, body) ?? '')
+    .filter((words) => words !== '')
