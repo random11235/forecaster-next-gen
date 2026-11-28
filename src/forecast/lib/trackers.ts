@@ -42,6 +42,8 @@ export interface TrackerFacts<C extends Connection = Connection> {
   named(part: string): string | undefined
   /** Why a milestone query reaching outside the connection isn't read, worded for the Milestone step. */
   outOfScope(connection: C): string
+  /** The kinds of choice that stay with a ticket until it's finished, as the Milestone step names them: "a milestone or an epic". */
+  lastingKinds: string
 }
 
 const BLANK_FORM: Omit<ConnectionForm, 'tracker'> = { repo: '', site: '', projectKey: '', email: '' }
@@ -67,6 +69,7 @@ export const TRACKERS: { readonly [T in Tracker]: TrackerFacts<Extract<Connectio
     named: githubNamed,
     outOfScope: (connection) =>
       `This query reaches outside ${TRACKERS.github.where(connection)}, the connected repo. Take out what names another repo, owner or organisation.`,
+    lastingKinds: 'a milestone or an epic',
   },
   jira: {
     name: 'Jira',
@@ -97,6 +100,7 @@ export const TRACKERS: { readonly [T in Tracker]: TrackerFacts<Extract<Connectio
     orParts: jqlOrParts,
     named: jqlNamed,
     outOfScope: ({ projectKey }) => `This query reaches outside project ${projectKey}, the connected Jira project. Take out what names another project.`,
+    lastingKinds: 'a fix version or an epic',
   },
 }
 

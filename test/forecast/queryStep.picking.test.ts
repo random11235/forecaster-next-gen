@@ -2,7 +2,22 @@ import { describe, expect, test } from 'vitest'
 import type { CannedFixture } from '../../src/connectors/canned.js'
 import type { Choice, ChoicesOfKind } from '../../src/connectors/connector.js'
 import { forecastingForTest } from './forecastingForTest.js'
-import { TEAM, payments, checkout, repay, bug, FIXTURE, connected, current, change, stepView, add, remove } from './queryStepScenario.js'
+import {
+  TEAM,
+  payments,
+  checkout,
+  repay,
+  bug,
+  FIXTURE,
+  connected,
+  connectedToJira,
+  onComparableWork,
+  current,
+  change,
+  stepView,
+  add,
+  remove,
+} from './queryStepScenario.js'
 
 // The Milestone step (#191): opening it, its lists of choices, and picking the milestone’s tickets.
 
@@ -225,5 +240,49 @@ describe('picking', () => {
     await stepView(team, 'pay')
 
     expect(team.calls.reads).toEqual(['milestone:"Payments v2"'])
+  })
+})
+
+describe('a label among the picks (#416)', () => {
+  const LEAF = 'Leaf tickets only. Epics include their sub-epics.'
+
+  test('the note says a label counts a ticket only while it has it, and what stays with a ticket until it’s finished', async () => {
+    const team = await connected()
+
+    await change(team, add(payments))
+    await change(team, add(bug))
+
+    expect((await stepView(team)).note).toBe(
+      `${LEAF} A label counts a ticket only while the ticket has it: taken off as the ticket moves on or closes, the ticket leaves tickets remaining, and its finish leaves pace. A milestone or an epic stays with a ticket until it’s finished.`,
+    )
+  })
+
+  test('on Jira, a fix version stays with a ticket in place of a milestone', async () => {
+    const team = await connectedToJira(FIXTURE)
+
+    await change(team, add(repay))
+
+    expect((await stepView(team)).note).toBe(
+      `${LEAF} A label counts a ticket only while the ticket has it: taken off as the ticket moves on or closes, the ticket leaves tickets remaining, and its finish leaves pace. A fix version or an epic stays with a ticket until it’s finished.`,
+    )
+  })
+
+  test('in the Comparable work step, whose open tickets don’t count, the note says only that its finish leaves pace', async () => {
+    const team = await connected()
+    onComparableWork(team)
+
+    await change(team, add(bug), 'comparableWork')
+
+    expect((await stepView(team, '', {}, 'comparableWork')).note).toBe(
+      `${LEAF} A label counts a ticket only while the ticket has it: taken off as the ticket moves on or closes, its finish leaves pace. A milestone or an epic stays with a ticket until it’s finished.`,
+    )
+  })
+
+  test('with no label picked, the note is the leaf note alone', async () => {
+    const team = await connected()
+
+    await change(team, add(payments))
+
+    expect((await stepView(team)).note).toBe(LEAF)
   })
 })
