@@ -16,7 +16,7 @@ export function paceHtml(pace: ComparableWorkPace | undefined): string {
       ? `\n            <p class="delta ${pace.comparison.versus.kind}">${escapeHtml(pace.said.comparison ?? '')}</p>`
       : comparing
         ? ''
-        : '\n            <p class="delta">Add comparable work to measure pace from work like this milestone’s.</p>'
+        : '\n            <p class="delta">Add comparable work to measure pace from it.</p>'
   const top = Math.max(1, ...pace.periods.flatMap((period) => [period.milestone ?? 0, period.comparableWork ?? 0]))
   const periods = pace.periods.map((period) => periodHtml(period, top)).join('\n')
   const own = pace.periods.some((period) => period.milestone !== undefined)

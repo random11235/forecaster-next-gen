@@ -105,7 +105,7 @@ describe('the web build’s Inputs screen (#396)', () => {
     const note = page.match(/<div class="setup-summary"[^>]*>([^]*?)<\/div>/)?.[1]
     return [note?.replace(/<[^>]*>/g, '').trim(), note?.match(/<a [^>]*>/)?.[0]]
   }
-  const NOTE = 'The Forecaster also supports integration with GitHub and Jira! Or you can just use the inputs below.'
+  const NOTE = 'The Forecaster can also connect to GitHub and Jira.'
 
   test('built for a repo, says how to run the Forecaster on your own machine: that repo’s README, in a new tab', async () => {
     const page = openBuiltScript(await webPage('a-fork/forecaster'))

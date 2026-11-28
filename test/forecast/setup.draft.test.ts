@@ -6,8 +6,7 @@ import { CHECKOUT, pick, skip, TEAM, type ForecastingForTest, submitInputs } fro
 import { READ_AT, Q3_POLISH, connect, inputs, setup, setupAt, stepQuery, team } from './setupScenario.js'
 
 /** What the step says when Cancel can't put the connection back (lib/setup.ts's NO_CANCEL), written out so the test checks the words, not the constant. */
-const NO_CANCEL =
-  'The connection changed in these steps, so they can’t be cancelled: Cancel would keep the new connection with the old picks and reads. Go on to Check and use these.'
+const NO_CANCEL = 'The connection changed, so these steps can’t be cancelled. Go on to Check and use these.'
 
 let current: ForecastingForTest
 const forecast = () => current.milestoneForecastView()

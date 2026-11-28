@@ -122,7 +122,7 @@ export function checkStepHtml(check: SetupCheck | undefined): string {
   const table =
     check === undefined
       ? ''
-      : `        <p class="muted">A value following ${escapeHtml(check.tracker)} updates on each read; typed or a range, it stays yours. Each is kept while the other is used.</p>
+      : `        <p class="muted">Values from ${escapeHtml(check.tracker)} update on each read; yours stay as you set them. Choosing one keeps the other.</p>
         <table class="check">
           <thead>
             <tr><th scope="col"></th><th scope="col">Yours now</th><th scope="col">From ${escapeHtml(check.tracker)}</th><th scope="col">Use</th></tr>
@@ -133,7 +133,7 @@ ${paceRowHtml(check.tracker, check.pace)}
           </tbody>
         </table>
 `
-  return `${table}        <p class="note">Nothing picked here changes the inputs below or the forecast until you use these.</p>
+  return `${table}        <p class="note">Nothing changes until you use these.</p>
         <form method="post" action="${SETUP_PATHS.useThese}">
           <button type="submit" class="primary">Use these</button>
         </form>`
@@ -167,7 +167,7 @@ function paceRowHtml(tracker: string, { yours, period, reading, incomplete, noSt
     : incomplete
       ? `<span class="note warn">None: ${partOf(tracker)}</span>`
       : noStartDate
-        ? `<span class="note">None yet: pace counts ${escapeHtml(tracker)}’s ${period}s from the milestone’s start date, entered below.</span>`
+        ? `<span class="note">None yet: enter the milestone’s start date below.</span>`
         : '—'
   const use = sourceFormHtml('pace', 'Pace the forecast uses', choices, source, (each) => (each === 'tracker' ? tracker : PACE_NAMES[each]))
   return `            <tr>
@@ -277,16 +277,14 @@ function flagHtml({ of, flag, change }: SummaryFlag): string {
 }
 
 /**
- * What the browser build shows in place of setup, which it hasn't (#396): that the Forecaster also integrates with GitHub and Jira,
- * linking to how to run it on the EM's own machine, the README of the repo the build was made from, where it has one, and
- * that the inputs below will do without it (#403).
+ * What the browser build shows in place of setup, which it hasn't (#396): that the Forecaster can also connect to GitHub
+ * and Jira, linking to how to run it on the EM's own machine, the README of the repo the build was made from, where it
+ * has one (#403).
  */
 export function noSetupHtml(): string {
   const readme = FEEDBACK_REPO && `https://github.com/${FEEDBACK_REPO}#readme`
-  const integration = readme
-    ? `<a href="${escapeHtml(readme)}" target="_blank" rel="noopener">integration with GitHub and Jira</a>`
-    : 'integration with GitHub and Jira'
-  return summaryBoxHtml(`      <span class="muted">The Forecaster also supports ${integration}! Or you can just use the inputs below.</span>`)
+  const connect = readme ? `<a href="${escapeHtml(readme)}" target="_blank" rel="noopener">connect to GitHub and Jira</a>` : 'connect to GitHub and Jira'
+  return summaryBoxHtml(`      <span class="muted">The Forecaster can also ${connect}.</span>`)
 }
 
 /** Connecting skipped: the inputs typed, as the MVP has them, with a way to connect a tracker after all; above the inputs. */

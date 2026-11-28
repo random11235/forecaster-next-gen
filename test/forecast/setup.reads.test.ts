@@ -8,7 +8,7 @@ import { READ_AT, Q3_POLISH, anyCounted, atCheck, connect, inputs, setup, setupA
 // again's outcome is the Inputs screen whatever it read, so each test asserts what it read through the summary.
 
 /** The note beneath a row whose picks' counts wait for Check (lib/setupSummary.ts's COUNTS_WAIT), written out so the test checks the words, not the constant. */
-const COUNTS_WAIT = 'Read again reads each query whole, so the picks show no counts. Change, then Check, counts each pick again.'
+const COUNTS_WAIT = 'After Read again, picks show no counts. Change, then Check, counts them.'
 const LATER = '2026-11-12T14:30:00Z'
 
 let current: ForecastingForTest

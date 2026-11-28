@@ -58,8 +58,7 @@ export interface SetupSteps {
 }
 
 /** Why steps opened again can't be cancelled once the connection they opened on was changed: Cancel would keep the change but not what it read. */
-const NO_CANCEL =
-  'The connection changed in these steps, so they can’t be cancelled: Cancel would keep the new connection with the old picks and reads. Go on to Check and use these.'
+const NO_CANCEL = 'The connection changed, so these steps can’t be cancelled. Go on to Check and use these.'
 
 /**
  * Check (#220): for each value the tracker can supply, the EM's value now, the tracker's reading from the setup

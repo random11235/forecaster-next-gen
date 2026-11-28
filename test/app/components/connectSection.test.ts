@@ -39,7 +39,7 @@ describe('the Connect step', () => {
   test('says the read-only permission to make each tracker’s token with, and the token field is blank', () => {
     const page = step(connect)
 
-    expect(text(page)).toContain('on GitHub a fine-grained token with Issues: Read on the one repo; on Jira a scoped API token with read:jira-work.')
+    expect(text(page)).toContain('on GitHub, a fine-grained token with Issues: Read on the repo; on Jira, a scoped API token with read:jira-work.')
     // a password field has no role
     const token = one(page, 'input[name="token"]')
     expect(token.getAttribute('value')).toBe('')
