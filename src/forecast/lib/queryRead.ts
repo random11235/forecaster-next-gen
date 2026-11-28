@@ -54,13 +54,15 @@ function lastFinished(read: SavedRead | undefined): string | undefined {
 }
 
 /**
- * Whether `last` falls before the last whole period at `readAt`, the milestone's periods laid from its start date, on
- * UTC days: the window ending there is short of what a read reaching back from `readAt` gives it.
+ * Whether `last` may fall before the last whole period at `readAt`, the milestone's periods laid from its start date:
+ * the window ending there is then short of what a read reaching back from `readAt` gives it. Pace lays them on the EM's
+ * calendar days, which may be a day either side of UTC's, so each is taken at the day that reads it as early, or as
+ * late, as can be: reaching back further than needed costs nothing the window counts.
  */
 function endsBefore(last: string, readAt: string, { startDate, cadenceDays }: Pick<MilestoneInputs, 'cadenceDays' | 'startDate'>): boolean {
   if (startDate === undefined) return false
-  const period = (instant: string): number => Math.floor(daysBetween(startDate, instant.slice(0, 10)) / cadenceDays)
-  return period(last) <= period(readAt) - 2
+  const period = (instant: string, days: number): number => Math.floor(daysBetween(startDate, addDays(instant.slice(0, 10), days)) / cadenceDays)
+  return period(last, -1) <= period(readAt, 1) - 2
 }
 
 /** How many weeks back the read counts finished tickets: "finished in the last 9 weeks". */

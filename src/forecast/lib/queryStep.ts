@@ -363,7 +363,9 @@ export async function changeStepQuery(
   save()
   // one pick's read is the query's; a pick's own read failing leaves its chip without its pace, and nothing else
   if (stepQuery.kind === 'comparableWork' && after.picks.length > 1 && chipsShow(tracker, after)) {
-    for (const pick of after.picks) await readQuery(connector, connecting.reads, { teamId, query: pick.query, finishedSince, readAt })
+    // as far back as the read just saved needs, ended (`paceReachFor`)
+    const picksSince = paceReachFor(connecting, teamId, readAt, inputs)
+    for (const pick of after.picks) await readQuery(connector, connecting.reads, { teamId, query: pick.query, finishedSince: picksSince, readAt })
   }
   return { kind: 'saved', read }
 }

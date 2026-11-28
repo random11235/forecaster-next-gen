@@ -93,14 +93,13 @@ export async function submit(team: TeamCall, edit: Edit, opening: SubmitOpening 
       return { kind: saved ? 'saved' : 'refusedThere', next: inputsAt(next) }
     }
     case 'readAgain':
-      await submitReadAgain(connected(team), teamId, at.readAt)
-      await paceReachedBack(team, { ended: true })
+      if ((await submitReadAgain(connected(team), teamId, at.readAt)).kind === 'read') await paceReachedBack(team, { ended: true })
       return { kind: 'saved', next: { kind: 'screen', screen: 'inputs' } }
     case 'stepQuery': {
       const submitted = await submitStepQuery(connected(team), teamId, edit.edit, at.readAt, STEP_QUERIES[edit.step])
       if (submitted.kind === 'refused') return again({ refused: { step: edit.step, query: submitted } })
       if (submitted.kind === 'confirmClear') return { kind: 'confirmClear', next: { kind: 'confirmingBack', step: edit.step } }
-      if (submitted.kind === 'saved') await paceReachedBack(team, { ended: true })
+      if (submitted.kind === 'saved' && submitted.read?.ok) await paceReachedBack(team, { ended: true })
       // a query edited by hand stays open for editing; every other change goes back to finding
       return { kind: 'saved', next: { kind: edit.edit.kind === 'editQuery' ? 'editing' : 'step', step: edit.step } }
     }
