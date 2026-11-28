@@ -89,11 +89,23 @@ export const BOUND_SAID: Record<TrackerWindowBound, (facts: BoundFacts) => Bound
     bars: true,
   }),
   // with nothing finished there are no bars
-  nothingFinished: ({ tracker, period, counts }) => ({
-    periods: `nothing finished in the ${counted(counts.counts.length, period)} ${tracker} reads`,
-    bars: false,
-    problem: `${tracker} has no finished tickets in the ${period}s it read, so there is no pace. Type counts, or switch pace to the range.`,
-  }),
+  nothingFinished: ({ tracker, period, counts, sides }) => {
+    const before = finishedBeforeStart(sides)
+    if (before === 0) {
+      return {
+        periods: `nothing finished in the ${counted(counts.counts.length, period)} ${tracker} reads`,
+        bars: false,
+        problem: `${tracker} has no finished tickets in the ${period}s it read, so there is no pace. Type counts, or switch pace to the range.`,
+      }
+    }
+    // the milestone's own pace counts only the periods since its start date, so what finished before it is said, not hidden (#405)
+    const since = counts.counts.length
+    return {
+      periods: `${since === 0 ? `no ${period} since the start date has ended` : `nothing finished in the ${counted(since, period)} since the start date`} · ${tracker} finished ${before} before it`,
+      bars: false,
+      problem: `The milestone’s own pace counts only the ${period}s since its start date, and ${since === 0 ? 'none has ended yet' : 'nothing finished in them'}: the ${counted(before, 'ticket')} ${tracker} finished before it ${before === 1 ? 'doesn’t' : 'don’t'} count. Add comparable work, type counts, or switch pace to the range.`,
+    }
+  },
   // with every period skipped, the bars show the gaps to count again
   everySkipped: ({ tracker, period }) => ({
     periods: `every ${period} skipped`,
@@ -105,6 +117,12 @@ export const BOUND_SAID: Record<TrackerWindowBound, (facts: BoundFacts) => Bound
     bars: true,
     problem: `Every ${period} that finished something is skipped, so ${tracker} gives no pace. Count a ${period} again, or use typed counts or the range.`,
   }),
+}
+
+/** The tickets the milestone's own read finished in the periods before its start date, when pace is its own; else 0. */
+function finishedBeforeStart(sides: SideBySide): number {
+  if (sides.from !== 'milestone') return 0
+  return sides.milestone.counts.slice(0, sides.beforeStart).reduce((sum, count) => sum + count, 0)
 }
 
 /**
