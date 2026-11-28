@@ -3,7 +3,7 @@ import type { Storage, TeamQueries } from '../../storage/storage.js'
 import { narrowedToAFew, openCandidates, type CandidateOpening, type Candidates } from './candidates.js'
 import { comparableWorkPace, type ComparableWorkPace } from './comparableWorkPace.js'
 import { teamConnection, withTeamQueries, type Connecting } from './connection.js'
-import { finishedSinceFor, paceReachFor, readQuery, type QueryRead } from './queryRead.js'
+import { paceReachFor, readQuery, type QueryRead } from './queryRead.js'
 import { MILESTONE_QUERY, type QueryName, type StepQuery } from './stepQuery.js'
 import type { ReadClock } from './pace.js'
 import { trackerOf, type TrackerFacts } from './trackers.js'
@@ -292,7 +292,7 @@ export type StepQueryEdit = PicksEdit | { kind: 'editQuery'; query: string } | {
 
 /**
  * Seam B: changes the milestone query and saves it, then reads it once, as at `readAt`, open tickets and those
- * finished as far back as the milestone's cadence and skipped periods need, and the milestone query's as far as comparable work's read (`paceReachFor`). A change of the picks saves them with the query they join into (with
+ * finished as far back as the milestone's cadence, skips and comparable work's read need (`paceReachFor`). A change of the picks saves them with the query they join into (with
  * OR, in the order picked); a query edited by hand is saved as written. A change that changes nothing (a pick already
  * picked, a removal of none, the query as it was) saves and reads nothing; nor does an empty query read anything.
  * Before any of that, a hand-edited query with free text or an empty qualifier is refused, changing nothing. The
@@ -354,18 +354,15 @@ export async function changeStepQuery(
     return { kind: 'saved' }
   }
   const inputs = connecting.milestoneInputs.milestoneInputs(teamId)
-  // comparable work's read reaches back from its own last finished ticket once read (#424): the one before is another query's
-  const finishedSince =
-    stepQuery.kind === 'comparableWork' ? finishedSinceFor(readAt, inputs) : paceReachFor(connecting, teamId, readAt, inputs)
+  const finishedSince = paceReachFor(connecting, teamId, readAt, inputs)
   const read = await readQuery(connector, connecting.reads, { teamId, query: after.query, finishedSince, readAt })
   const rejection = read.ok ? undefined : rejectionOf(connection, read)
   if (rejection) return { kind: 'refused', query: after.query, refusal: rejection, ...(edit.kind !== 'editQuery' && { fromPicks: true as const }) }
   save()
   // one pick's read is the query's; a pick's own read failing leaves its chip without its pace, and nothing else
   if (stepQuery.kind === 'comparableWork' && after.picks.length > 1 && chipsShow(tracker, after)) {
-    // as far back as the read just saved needs, ended (`paceReachFor`)
-    const picksSince = paceReachFor(connecting, teamId, readAt, inputs)
-    for (const pick of after.picks) await readQuery(connector, connecting.reads, { teamId, query: pick.query, finishedSince: picksSince, readAt })
+    const since = paceReachFor(connecting, teamId, readAt, inputs)
+    for (const pick of after.picks) await readQuery(connector, connecting.reads, { teamId, query: pick.query, finishedSince: since, readAt })
   }
   return { kind: 'saved', read }
 }
