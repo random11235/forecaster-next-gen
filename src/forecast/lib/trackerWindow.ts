@@ -49,12 +49,11 @@ export interface TrackerWindow {
  */
 export function trackerWindow(
   pace: DatedCounts,
-  sides: Pick<SideBySide, 'from' | 'milestone' | 'comparableWork' | 'comparableWorkEnds'>,
+  { milestone, comparableWork, comparableWorkEnds }: Pick<SideBySide, 'milestone' | 'comparableWork' | 'comparableWorkEnds'>,
   skipped: readonly string[],
 ): TrackerWindow {
   const { counts, starts } = pace
-  const { milestone, comparableWork } = sides
-  const ends = sides.from === 'comparableWork' ? sides.comparableWorkEnds : undefined
+  const ends = comparableWorkEnds && starts.includes(comparableWorkEnds.start) ? comparableWorkEnds : undefined
   const last = ends ? starts.indexOf(ends.start) : counts.length - 1
   const isSkipped = (period: number): boolean => skipped.includes(starts[period]!)
   const finished = new Set([pace, milestone, comparableWork].flatMap((read) => read?.starts.filter((_, at) => read.counts[at]! > 0) ?? []))
@@ -98,7 +97,7 @@ export function windowSaid(bound: TrackerWindowBound, facts: BoundFacts, lastFin
 }
 
 /** What each bound says of the window, in one place: the reading's line, and the problem when it leaves no pace. */
-export const BOUND_SAID: Record<TrackerWindowBound, (facts: BoundFacts) => BoundSaid> = {
+const BOUND_SAID: Record<TrackerWindowBound, (facts: BoundFacts) => BoundSaid> = {
   full: ({ period }) => ({ periods: `last ${counted(TRACKER_PERIODS, period)}`, bars: true }),
   firstFinished: ({ period, window }) => ({
     periods: counted(window.counts.length, period),

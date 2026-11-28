@@ -83,7 +83,9 @@ describe('comparable work with an open ticket', () => {
     await comparableWork([{ id: 'like-open' }, ...LIKE_FINISHED])
 
     expect(await reading()).toMatchObject({ counts: [2, 3, 4, 0, 0, 0], lastFinished: undefined })
-    expect(await team.milestoneForecastView()).toMatchObject({ kind: 'forecast', pace: { counts: [2, 3, 4, 0, 0, 0] }, paceSaid: 'GitHub’s last 6 weeks' })
+    const view = await team.milestoneForecastView()
+    expect(view).toMatchObject({ kind: 'forecast', pace: { counts: [2, 3, 4, 0, 0, 0] }, paceSaid: 'GitHub’s last 6 weeks' })
+    expect(view.kind === 'forecast' && view.pace).not.toHaveProperty('lastFinished')
   })
 })
 

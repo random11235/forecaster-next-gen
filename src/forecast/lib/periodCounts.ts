@@ -87,8 +87,9 @@ interface SideBySideReads {
   /** Each of comparable work's picks with a complete read, its own finished tickets in the same periods, in the order picked. */
   picks: { query: string; counts: DatedCounts }[]
   /**
-   * With no open tickets in comparable work's read, where it ends: the period its last ticket finished in, and that
-   * ticket's day; none with one open, or with its last ticket finished in the last of the periods or after them.
+   * With pace from comparable work with no open tickets in its read, where it ends: the period its last ticket finished
+   * in, and that ticket's day; none with one open, with its last ticket finished in the last of the periods or after
+   * them, or with pace from the milestone's own.
    */
   comparableWorkEnds: ComparableWorkEnds | undefined
 }
@@ -209,9 +210,11 @@ export function sideBySide(
     const own = completeRead(read)
     return own ? [{ query, counts: counted(own) }] : []
   })
-  const comparableWorkEnds = comparableRead && endsOf(comparableRead, { ...laid, first, periods })
-  const both = { milestone, beforeStart, comparableWork, picks: picked, comparableWorkEnds }
-  if (usesComparable) return { counts: comparableWork, sides: { ...both, from: 'comparableWork', comparableWork } }
+  const both = { milestone, beforeStart, comparableWork, picks: picked, comparableWorkEnds: undefined }
+  if (usesComparable) {
+    const comparableWorkEnds = comparableRead && endsOf(comparableRead, { ...laid, first, periods })
+    return { counts: comparableWork, sides: { ...both, from: 'comparableWork', comparableWork, comparableWorkEnds } }
+  }
   if (milestone === undefined) return undefined
   return {
     counts: { counts: milestone.counts.slice(beforeStart), starts: milestone.starts.slice(beforeStart) },
