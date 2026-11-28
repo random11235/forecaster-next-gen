@@ -81,7 +81,7 @@ export const SKIP_FORMS: ReadonlyMap<string, (body: URLSearchParams) => SkipEdit
 /**
  * The Inputs screen: in the local server build, first its setup: the setup step the EM is on, the Connect step, the
  * query step the view shows (the Milestone step or the Comparable work step), or Check; or, once setup is closed, its
- * summary; in the browser build, that it reads no tracker. Then the milestone, its pace and the team's growth.
+ * summary; in the browser build, a note that the Forecaster also reads GitHub and Jira. Then the milestone, its pace and the team's growth.
  */
 export function renderInputsScreen(view: InputsScreen, keep: KeepOpening): string {
   const { inputs: screen, setup, step } = view

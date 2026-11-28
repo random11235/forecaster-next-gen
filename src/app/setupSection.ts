@@ -277,16 +277,17 @@ function flagHtml({ of, flag, change }: SummaryFlag): string {
 }
 
 /**
- * What the browser build shows in place of setup, which it hasn't (#396): that it reads no tracker, and that the app run
- * on the EM's own machine does, linking to how to run it, the README of the repo the build was made from, where it has one.
+ * What the browser build shows in place of setup, which it hasn't (#396): that the Forecaster also reads GitHub and Jira,
+ * linking to how to run it on the EM's own machine, the README of the repo the build was made from, where it has one, and
+ * that the inputs below do without (#403).
  */
 export function noSetupHtml(): string {
   const readme = FEEDBACK_REPO && `https://github.com/${FEEDBACK_REPO}#readme`
-  const ownMachine = readme
-    ? `<a href="${escapeHtml(readme)}" target="_blank" rel="noopener">run the Forecaster on your own machine</a>`
-    : 'run the Forecaster on your own machine'
+  const integration = readme
+    ? `<a href="${escapeHtml(readme)}" target="_blank" rel="noopener">integration with GitHub and Jira</a>`
+    : 'integration with GitHub and Jira'
   return summaryBoxHtml(
-    `      <span class="muted">This page reads no tracker: type the inputs below. To read the milestone’s tickets from GitHub or Jira, ${ownMachine}.</span>`,
+    `      <span class="muted">The Forecaster also supports ${integration}! Or you can just use the inputs below.</span>`,
   )
 }
 

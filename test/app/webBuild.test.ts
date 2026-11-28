@@ -105,7 +105,7 @@ describe('the web build’s Inputs screen (#396)', () => {
     const note = page.match(/<div class="setup-summary"[^>]*>([^]*?)<\/div>/)?.[1]
     return [note?.replace(/<[^>]*>/g, '').trim(), note?.match(/<a [^>]*>/)?.[0]]
   }
-  const NOTE = 'This page reads no tracker: type the inputs below. To read the milestone’s tickets from GitHub or Jira, run the Forecaster on your own machine.'
+  const NOTE = 'The Forecaster also supports integration with GitHub and Jira! Or you can just use the inputs below.'
 
   test('built for a repo, says how to run the Forecaster on your own machine: that repo’s README, in a new tab', async () => {
     const page = openBuiltScript(await webPage('a-fork/forecaster'))
