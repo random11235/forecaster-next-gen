@@ -60,7 +60,7 @@ Tests arrange through the module: test setup calls the module's own functions, n
 
 The tests of `test/app/`, the launch smoke test, the web build's, the browser scripts' and each screen's rendering as a component, are in [`architecture-test-seams-app.md`](architecture-test-seams-app.md). The component tests are not a fourth seam: they test `app/`'s rendering of the views Seam B gives, so the render functions' files are listed for `app` in `TEST_SEAMS` beside its other entry points.
 
-The tests of `scripts/`, the restart, the change-file check and the release among them, are in [`architecture-test-seams-scripts.md`](architecture-test-seams-scripts.md).
+The tests of `scripts/`, the restart, the change-file check and the release among them, and the factory's, in `factory/test/`, are in [`architecture-test-seams-scripts.md`](architecture-test-seams-scripts.md).
 
 The one exception is the PRNG: `engine/random.ts`, kept at `engine/`'s root as a second entry point beside `index.ts` for this alone (the rest of the engine is in `engine/lib/`), is checked against output vectors from the authors' reference C code for xoshiro128**, because a port must reproduce its exact stream and Seam A can't show that.
 

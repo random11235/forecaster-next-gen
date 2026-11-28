@@ -35,7 +35,7 @@ set -euo pipefail
 
 OWNER=random11235
 NUMBER=3
-MARK='<!-- forecaster-factory -->' # FACTORY_MARK in scripts/factoryTrust.ts
+MARK='<!-- forecaster-factory -->' # FACTORY_MARK in factory/factoryTrust.ts
 DRY_RUN=false
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=true
 

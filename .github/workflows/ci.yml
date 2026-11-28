@@ -5,7 +5,7 @@ on:
   push:
     branches: [main]
 
-# Read only, as a job that writes raises its own: only factory.yml may write to issues (scripts/factoryTrust.ts)
+# Read only, as a job that writes raises its own: only factory.yml may write to issues (factory/factoryTrust.ts)
 permissions:
   contents: read
 

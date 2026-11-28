@@ -4,7 +4,7 @@ name: Factory relay
 # GitHub runs a `pull_request_review_comment` workflow from the PR's own merge ref, so a PR that changes factory.yml
 # would run its own copy with the factory's secrets. This workflow holds none: it uploads the comment's id alone, and
 # its completed run starts factory.yml's `workflow_run`, which GitHub runs from the default branch. The factory fetches
-# the comment by that id itself and decides from what the API says whether it asks anything (scripts/factoryQuestion.ts),
+# the comment by that id itself and decides from what the API says whether it asks anything (factory/factoryQuestion.ts),
 # so a PR that changes this file can at most name another comment, which must still be a trusted @claude question.
 # A PR with a merge conflict starts no `pull_request_review_comment` run: ask in a conversation comment there.
 
@@ -16,6 +16,7 @@ permissions: {}
 
 jobs:
   relay:
+    # its mention is MENTION's, in factory.yml: GitHub shares no env between workflows, and a job's `if` reads none
     if: >-
       contains(github.event.comment.body, '@claude')
       && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)

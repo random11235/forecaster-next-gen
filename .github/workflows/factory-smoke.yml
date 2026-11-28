@@ -1,5 +1,5 @@
 # The factory's smoke test (#335): Claude Code runs in Sandcastle's bwrap() sandbox on a hosted runner, on a skill typed
-# as `/factory-smoke`, and scripts/factorySmoke.ts reports what it found. It builds nothing and pushes nothing. Started by
+# as `/factory-smoke`, and factory/factorySmoke.ts reports what it found. It builds nothing and pushes nothing. Started by
 # hand only; each run spends a little of the owner's model usage. Background: docs/research/sandcastle-factory.md.
 name: Factory smoke test
 
@@ -8,6 +8,12 @@ on:
 
 permissions:
   contents: read
+
+# factory.yml's config, repeated, as GitHub shares no env between workflows: factory/test/factorySetup.test.ts pins
+# that they match
+env:
+  NODE_MAJOR: 24
+  INSTALL_COMMAND: npm ci
 
 jobs:
   smoke:
@@ -18,8 +24,13 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup
-      - uses: ./.github/actions/sandbox
+      # Node and the locked dependencies, set up here, not by ci.yml's .github/actions/setup, so changing CI can't change it
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_MAJOR }}
+          cache: npm
+      - run: $INSTALL_COMMAND
+      - uses: ./factory/actions/sandbox
       # Sandcastle's merge-to-head strategy merges back into the branch checked out, so check one out.
       - name: Check out a branch for Sandcastle to merge into
         run: git checkout -B factory-smoke
@@ -31,4 +42,4 @@ jobs:
           FACTORY_TOKEN: decoy-factory-token
           GITHUB_TOKEN: decoy-github-token
           GH_TOKEN: decoy-gh-token
-        run: node scripts/factorySmoke.ts
+        run: node factory/factorySmoke.ts
