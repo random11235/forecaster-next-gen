@@ -4,6 +4,7 @@ import { inputsScreen, STEP_QUERIES, type InputsOpening, type InputsScreen, type
 import type { MilestoneForecastView } from './milestoneForecastView.js'
 import { followRenamedMilestone } from './milestoneRenamed.js'
 import { submitStepQuery, type StepQueryEdit } from './queryStep.js'
+import { reachBack } from './reachBack.js'
 import { submitSetup, type SetupEdit } from './setup.js'
 import { submitReadAgain } from './setupReads.js'
 import type { SetupStep } from './setupSteps.js'
@@ -105,8 +106,9 @@ export async function submit(team: TeamCall, edit: Edit, opening: SubmitOpening 
 }
 
 /**
- * An Inputs, Capacity or pace pattern form: its milestone renamed followed once saved; saved in place, the Inputs
- * screen to show; refused on the Inputs screen, that screen whole, the form as typed.
+ * An Inputs, Capacity or pace pattern form: its milestone renamed followed once saved; a cadence saved reading the
+ * tracker further back where its periods need it (`reachBack`, #415); saved in place, the Inputs screen to show;
+ * refused on the Inputs screen, that screen whole, the form as typed.
  */
 async function inputsFormSubmitted(team: TeamCall, edit: InputsEdit, opening: SubmitOpening): Promise<Outcome> {
   const { storage, teamId } = team
@@ -119,9 +121,20 @@ async function inputsFormSubmitted(team: TeamCall, edit: InputsEdit, opening: Su
     return refused(team, opening, { inputs: submitted.view, unlisted: inPlace })
   }
   const followed = await renameFollowed(team, { from: named, to: milestoneName() })
+  await cadenceReachedBack(team, edit)
   const said = followed && { followed }
   if (inPlace) return { kind: 'savedInPlace', view: await inputsScreen(team, opening, { unlisted: true }), ...said }
   return { kind: 'saved', next: { kind: 'screen', screen: submitted.next }, ...said }
+}
+
+/**
+ * After a cadence is saved, the pace's queries read again as far back as its periods need: a read made at a shorter
+ * cadence reaches too few of them whole. The browser build reads nothing.
+ */
+async function cadenceReachedBack({ reading, storage, teamId, at }: TeamCall, edit: InputsEdit): Promise<void> {
+  const inputs = storage.milestoneInputs(teamId)
+  if (!reading || edit.kind !== 'setCadence' || !inputs) return
+  await reachBack(reading, teamId, inputs, at.readAt)
 }
 
 /**

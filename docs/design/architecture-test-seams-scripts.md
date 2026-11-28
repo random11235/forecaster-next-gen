@@ -28,6 +28,7 @@ The factory's workflows (`.github/workflows/factory.yml`, which runs `scripts/fa
 
 - **`factoryAgent.test.ts`** tests `scripts/factoryAgent.ts`, the Claude Code agent the factory runs, on the command it builds, run through `sh -c` with a stand-in `claude`, as Sandcastle runs it. It throws if `claudeCode()` stops ending its command in `-p -`, which only a Sandcastle bump past the pinned 0.14.0 would do.
 - **`factoryTicket.test.ts`** tests `scripts/factoryTicket.ts`, the prompt for a ticket or a spec's ticket, on the ticket and its comments as GitHub's REST API gives them.
+- **`factoryDecisionLog.test.ts`** tests `scripts/factoryDecisionLog.ts`, the decision-log entry `publish` comments on the spec for a ticket merged into `spec/<n>`, on the agent's reply. The prompts read the log back, so `factoryTicket.test.ts` and `factoryQuestion.test.ts` cover it too.
 - **`factoryPullRequest.test.ts`** tests `scripts/factoryPullRequest.ts`, the body of the PR the factory opens, on the agent's reply.
 - **`factoryOutcome.test.ts`** tests `scripts/factoryOutcome.ts`, how a build ended, on what Sandcastle's `run()` returned or threw and Claude Code's stream-json. Sandcastle's errors come as its `run()` throws them, inside effect's FiberFailure, made with the effect and error classes Sandcastle bundles.
 - **`factoryFrontier.test.ts`** tests `scripts/factoryFrontier.ts`, what the factory does next on a spec, on the spec's sub-issues as GitHub's GraphQL API gives them.

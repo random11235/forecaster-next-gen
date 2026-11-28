@@ -7,18 +7,21 @@
 //
 // It writes `result` and `why` to the step's outputs (scripts/factoryOutcome.ts); only `built` passes. Into LOG_DIR go
 // the agent's stream-json as it comes (`transcript.jsonl`, so a stopped run keeps it), Sandcastle's log, and Claude
-// Code's session; into OUT_DIR, the PR body. The other inputs are environment variables too: CLAUDE_CODE_OAUTH_TOKEN,
-// TREE, TICKET_JSON, COMMENTS_JSON, SPEC_JSON (a spec's ticket only), BRANCH and RUN_URL.
+// Code's session; into OUT_DIR, the PR body, and for a spec's ticket its entry in the spec's decision log
+// (`decision.md`, scripts/factoryDecisionLog.ts). The other inputs are environment variables too:
+// CLAUDE_CODE_OAUTH_TOKEN, TREE, TICKET_JSON, COMMENTS_JSON, SPEC_JSON and SPEC_COMMENTS_JSON (a spec's ticket only),
+// BRANCH and RUN_URL.
 
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { run, type AgentStreamEvent } from '@ai-hero/sandcastle'
 import { bwrap } from '@ai-hero/sandcastle/sandboxes/bwrap'
 import { factoryAgent } from './factoryAgent.ts'
+import { decisionEntry } from './factoryDecisionLog.ts'
 import { buildOutcome, type BuildResult, type Ending } from './factoryOutcome.ts'
 import { pullRequestBody } from './factoryPullRequest.ts'
 import { prepareTree } from './factoryTree.ts'
-import { ticketPrompt, type Authored, type Ticket } from './factoryTicket.ts'
+import { ticketPrompt, type Authored, type Spec, type Ticket } from './factoryTicket.ts'
 
 const MODEL = 'opus'
 /** Claude Code stops after the turn that passes this, so a stuck run can't spend without end. */
@@ -49,8 +52,13 @@ async function build(logs: Logs): Promise<Ending> {
   // TICKET_JSON and COMMENTS_JSON: what a step fetched with `gh api`, the comments with `--paginate --slurp`, a list of pages
   const ticket = JSON.parse(readFileSync(env('TICKET_JSON'), 'utf8')) as Ticket
   const comments = (JSON.parse(readFileSync(env('COMMENTS_JSON'), 'utf8')) as Authored[][]).flat()
-  // SPEC_JSON, for a spec's ticket: the spec, fetched as the ticket is
-  const spec = process.env.SPEC_JSON ? (JSON.parse(readFileSync(process.env.SPEC_JSON, 'utf8')) as Ticket) : undefined
+  // SPEC_JSON and SPEC_COMMENTS_JSON, for a spec's ticket: the spec and its comments, fetched as the ticket's are
+  const spec: Spec | undefined = process.env.SPEC_JSON
+    ? {
+        issue: JSON.parse(readFileSync(process.env.SPEC_JSON, 'utf8')) as Ticket,
+        comments: (JSON.parse(readFileSync(env('SPEC_COMMENTS_JSON'), 'utf8')) as Authored[][]).flat(),
+      }
+    : undefined
   const tree = env('TREE')
   // the worktree holds only what git tracks: the dependencies, and the skills installed from skills-lock.json, go in
   const setup = prepareTree(process.cwd(), tree)
@@ -79,6 +87,7 @@ async function build(logs: Logs): Promise<Ending> {
     if (sessionFilePath && existsSync(sessionFilePath)) copyFileSync(sessionFilePath, join(logs.dir, `session-${at + 1}.jsonl`))
   }
   writeFileSync(join(outDir, 'pr-body.md'), pullRequestBody(ran.stdout, ticket.number, env('RUN_URL')))
+  if (spec) writeFileSync(join(outDir, 'decision.md'), decisionEntry(ticket, ran.stdout, env('BRANCH'), env('RUN_URL')))
   console.log(`The agent made ${ran.commits.length} commit(s), merged into ${env('BRANCH')}.`)
   return { commits: ran.commits.length, preservedWorktreePath: ran.preservedWorktreePath }
 }

@@ -41,7 +41,7 @@ export interface PaceReadingView {
   counts: number[]
   /**
    * The periods counted, as the source says them, and when they were read: "last 8 weeks · read 12 Nov 09:00"; "7
-   * weeks · GitHub has nothing before w/c 21 Sep · read …" when its reads run out first.
+   * weeks · the read reaches back to w/c 21 Sep · read …" when its reads run out first.
    */
   line: string
   /** With the quiet periods before the first finished ticket left out, from when: "From the first finished ticket, 3 Nov." */
