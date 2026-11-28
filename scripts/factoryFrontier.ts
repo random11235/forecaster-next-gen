@@ -9,6 +9,10 @@
 // while it is open and not merged into spec/<n>, as the ticket built on it then has its code. A parked ticket waits for
 // the owner, who takes the label off. A `ready-for-human` ticket waits for a person to build it locally and comment it
 // merged by hand.
+//
+// After a ticket merges, the factory starts its own next run on the spec (#338), one hop further along the chain; the
+// run its label started is hop 0. At HOP_CAP the chain stops rather than build, so a bug can't loop forever: labelling
+// the spec again starts a new chain at hop 0.
 
 import { factoryWords, isActionsBot, isTrusted, type Association, type Author } from './factoryTrust.ts'
 
@@ -56,10 +60,13 @@ const labelled =
 const parked = labelled('parked')
 const forAHuman = labelled('ready-for-human')
 
+/** How many times a spec's runs may chain before one stops, rather than build: at most this many tickets a label. */
+const HOP_CAP = 20
+
 const list = (numbers: readonly number[]): string => numbers.map((number) => `#${number}`).join(', ')
 
-/** The spec's next step, given its number and its sub-issues in order. */
-export function nextStep(spec: number, subIssues: readonly SubIssue[]): Next {
+/** The spec's next step, given its number, its sub-issues in order, and how many runs chained before this one. */
+export function nextStep(spec: number, subIssues: readonly SubIssue[], hop = 0): Next {
   if (subIssues.length === 0) return { action: 'stop', why: 'the spec has no tickets (sub-issues)' }
   const isDone = (ticket: SubIssue): boolean => ticket.state === 'CLOSED' || ticket.comments.nodes.some(mergedInto(spec))
   const done = new Set(subIssues.filter(isDone).map(({ number }) => number))
@@ -68,6 +75,9 @@ export function nextStep(spec: number, subIssues: readonly SubIssue[]): Next {
   const blockers = ({ blockedBy }: SubIssue): number[] =>
     blockedBy.nodes.filter(({ number, state }) => state === 'OPEN' && !done.has(number)).map(({ number }) => number)
   const ticket = left.find((each) => !parked(each) && !forAHuman(each) && blockers(each).length === 0)
+  if (ticket && hop >= HOP_CAP) {
+    return { action: 'stop', why: `its runs have chained ${HOP_CAP} times, the cap: label the spec ready-for-agent to build on` }
+  }
   if (ticket) return { action: 'build', ticket: ticket.number }
   const why = left.map((each) =>
     parked(each)
