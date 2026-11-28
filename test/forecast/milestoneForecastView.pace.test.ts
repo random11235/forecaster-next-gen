@@ -33,7 +33,7 @@ describe('the cadence', () => {
     forecast.dates.forEach(({ date }, index) => expect(date !== null && date > (DATES_FROM_1_SEP[index]?.date ?? '')).toBe(true))
   })
 
-  test('changing the cadence after the pace is entered gives no warning, and both screens read the pace per period of the new cadence (#409)', async () => {
+  test('a range kept through a cadence change is per sprint on both screens, with no warning', async () => {
     const team = await newTeam()
     await enter(team, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
 
@@ -49,7 +49,7 @@ describe('the cadence', () => {
     expect((await inputsScreenView(team)).milestone).toMatchObject({ cadenceDays: 3, period: 'sprint', paceRange: { low: 4, high: 8 }, notes: [] })
   })
 
-  test('typed counts saved at one cadence are read in the new one, with no warning, and the forecast draws from them (#409)', async () => {
+  test('typed counts kept through a cadence change are what the forecast draws from, with no warning', async () => {
     const team = await newTeam()
     await enter(team, { startDate: '2026-09-01', ticketsRemaining: '100' }, { low: '4', high: '8' })
     expect(await edit(team, { kind: 'setPaceCounts', counts: '2, 4, 6, 8, 4, 5, 3, 3, 0, 5' })).toEqual({ ok: true })

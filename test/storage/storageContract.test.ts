@@ -260,7 +260,7 @@ describe('browser storage the browser refuses', () => {
     expect(read).toHaveProperty('seenReads', { ticketsRemaining: undefined, pace: undefined })
   })
 
-  test('with a milestone stored with the cadence its pace was entered in, reads it without that cadence: a milestone has one (#409)', () => {
+  test('with a milestone stored with the cadence its pace was entered in, reads it without it', () => {
     const store = memoryStore()
     const stored = { teams: [TEAM], milestoneInputs: { team: { ...LAUNCH, paceCadenceDays: 7 } }, ambiguityRanges: {}, capacityEntries: {}, capacityOff: [] }
     store.setItem('forecaster', JSON.stringify(stored))

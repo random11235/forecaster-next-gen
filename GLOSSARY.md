@@ -15,7 +15,7 @@ _Avoid_: uncertainty, confidence (the forecast's "85% confident" is its confiden
 **Growth** (of a milestone): how many times its tickets remaining the milestone's work ends up, drawn in each trial from the range of its ambiguity.
 _Avoid_: split rate, scope creep
 
-**Cadence** (of a milestone): how many days one of the team's periods lasts. A milestone has one: its pace, typed or the tracker's, is per period of it, and changing it keeps a typed pace's numbers, read per period of the new cadence (#409).
+**Cadence** (of a milestone): how many days one of the team's periods lasts. A milestone has one, which its pace is per period of.
 
 **Period**: one stretch of a milestone's cadence, which the screens call a week at 7 days and a sprint at any other length.
 

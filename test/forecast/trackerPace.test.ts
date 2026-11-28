@@ -1,53 +1,14 @@
 import { beforeEach, describe, expect, test } from 'vitest'
 import type { Choice, Ticket } from '../../src/connectors/connector.js'
-import type { InputsEdit } from '../../src/forecast/index.js'
-import { finishedOn, finishedInWeeks as finishedInWeeksOf } from '../trackerScenario.js'
-import { CHECKOUT, checkoutFixture, CONNECTIONS, forecastingForTest, pick, type ForecastingForTest } from './forecastingForTest.js'
+import { finishedOn } from '../trackerScenario.js'
+import { CHECKOUT, pick } from './forecastingForTest.js'
+import { finishedInWeeks, OFFLINE, OPEN, READ_AT, trackerPaceScenario } from './trackerPaceScenario.js'
 
 // Pace following the tracker (#212): up to the 8 most recent whole periods it reads, the current one left out, quiet
-// ones 0, leaving out quiet periods before the first finished ticket.
+// ones 0, leaving out quiet periods before the first finished ticket. Arranged through trackerPaceScenario.ts.
 
-// Thursday 12 Nov, today; at the weekly cadence, with nothing skipped, the read reaches back 9 weeks, to 09:00 on
-// Thursday 10 Sep: the 8 whole weeks pace counts, and the current one.
-const READ_AT = '2026-11-12T09:00:00Z'
-// a Monday, long before the read reaches, so the milestone's own pace counts every week the read reaches whole
-const START = '2026-08-31'
-
-// The weeks the read reaches whole, from Monday 14 Sep; the current week, of 9 Nov, is left out.
-const WEEKS = ['2026-09-14', '2026-09-21', '2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26', '2026-11-02']
-
-/** Tickets finished `counts[i]` in the week of `WEEKS[i]`, on its Tuesday. */
-const finishedInWeeks = (counts: number[]): Ticket[] => finishedInWeeksOf(WEEKS, counts)
-
-const OFFLINE = { connected: false }
-
-const OPEN: Ticket[] = [{ id: 'o1' }, { id: 'o2' }, { id: 'o3' }]
-
-let team: ForecastingForTest
-
-beforeEach(async () => {
-  team = await forecastingForTest({ fixture: checkoutFixture([...OPEN, ...finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8])]) })
-})
-
-/** Each as the local server build shows it, with the tracker's reads; `OFFLINE` as the browser build does. */
-const build = (shown?: { connected: boolean }) => (shown?.connected === false ? team.browserBuild() : team)
-
-const submit = (edit: InputsEdit, shown?: { connected: boolean }) => build(shown).submit({ form: 'inputs', edit })
-
-const inputs = async (shown?: { connected: boolean }) => (await build(shown).inputsScreen()).inputs
-
-const forecast = (shown?: { connected: boolean }) => build(shown).milestoneForecastView()
-
-const connectGitHub = () => team.submit({ form: 'connection', edit: CONNECTIONS.github })
-
-/** The milestone at `cadenceDays`, with a pace range and typed counts kept, its tickets picked and read. */
-async function enterAndPick({ cadenceDays = '7' } = {}): Promise<void> {
-  await submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: START, ticketsRemaining: '30' })
-  await submit({ kind: 'setCadence', cadenceDays })
-  await submit({ kind: 'setPaceRange', low: '4', high: '8' })
-  await submit({ kind: 'setPaceCounts', counts: '1, 2, 3, 4' })
-  await pick(team, READ_AT)
-}
+const scenario = trackerPaceScenario()
+const { submit, inputs, forecast, connectGitHub, enterAndPick } = scenario
 
 describe('following GitHub', () => {
   beforeEach(async () => {
@@ -97,7 +58,7 @@ describe('the window', () => {
 
   /** Reads `tickets` as the milestone's finished tickets, then follows GitHub. */
   async function following(tickets: Ticket[], options?: { cadenceDays?: string }): Promise<void> {
-    team.fixture.reads[CHECKOUT.query] = { tickets: [...OPEN, ...tickets], incomplete: false }
+    scenario.team.fixture.reads[CHECKOUT.query] = { tickets: [...OPEN, ...tickets], incomplete: false }
     await enterAndPick(options)
     await submit({ kind: 'setPaceMode', paceMode: 'tracker' })
   }
@@ -125,7 +86,7 @@ describe('the window', () => {
     expect(await forecast()).toMatchObject({ kind: 'forecast', pace: { source: 'tracker', counts } })
   })
 
-  test('at a 3-day cadence changed from 7, with weekly counts typed, Inputs shows the 3-day counts the forecast is drawn from (#409)', async () => {
+  test('at a 3-day cadence changed from 7, Inputs shows the 3-day counts the forecast draws from', async () => {
     await enterAndPick()
     await submit({ kind: 'setCadence', cadenceDays: '3' })
     await submit({ kind: 'setPaceMode', paceMode: 'tracker' })
@@ -162,7 +123,7 @@ describe('the window', () => {
     await following([...finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]), ...finishedOn('read', '2026-11-10', 2)])
 
     // Tuesday 17 Nov: the week of 9 Nov has ended since the read, on Thursday 12 Nov, which saw only its first days
-    team.at('2026-11-17T09:00:00Z')
+    scenario.team.at('2026-11-17T09:00:00Z')
 
     expect((await inputs()).milestone.trackerPace?.reading).toMatchObject({
       counts: [3, 5, 6, 4, 7, 5, 6, 8],
@@ -174,11 +135,11 @@ describe('the window', () => {
 
   test('the window ends at the older of the two reads, and the line says so, though pace comes from the newer (#390)', async () => {
     const like: Choice = { kind: 'label', name: 'checkout-like', query: 'label:"checkout-like"' }
-    team.fixture.milestoneChoices = [
+    scenario.team.fixture.milestoneChoices = [
       { kind: 'milestone', choices: [CHECKOUT], pastLimit: false },
       { kind: 'label', choices: [like], pastLimit: false },
     ]
-    team.fixture.reads[like.query] = {
+    scenario.team.fixture.reads[like.query] = {
       tickets: [...finishedInWeeks([2, 3, 2, 3, 2, 3, 2, 3]), ...finishedOn('since', '2026-11-10', 4)].map((ticket) => ({
         ...ticket,
         id: `like-${ticket.id}`,
@@ -187,8 +148,8 @@ describe('the window', () => {
     }
     // the milestone read on Thursday 12 Nov; comparable work, which pace comes from, on Tuesday 17 Nov
     await following(finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]))
-    team.at('2026-11-17T09:00:00Z')
-    await pick(team, '2026-11-17T09:00:00Z', like, 'comparableWork')
+    scenario.team.at('2026-11-17T09:00:00Z')
+    await pick(scenario.team, '2026-11-17T09:00:00Z', like, 'comparableWork')
 
     expect((await inputs()).milestone.trackerPace?.reading).toMatchObject({
       // comparable work's read, on 17 Nov, reaches whole from w/c 21 Sep; the milestone's, on 12 Nov, up to w/c 2 Nov
@@ -201,7 +162,7 @@ describe('the window', () => {
     await following(finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]), { cadenceDays: '14' })
 
     // Thursday 10 Dec: the sprints of 9 and 23 Nov have ended since the read on 12 Nov, and that of 7 Dec is the current one
-    team.at('2026-12-10T09:00:00Z')
+    scenario.team.at('2026-12-10T09:00:00Z')
 
     expect((await inputs()).milestone.trackerPace?.reading).toMatchObject({
       counts: [8, 10, 12, 14],
@@ -241,16 +202,16 @@ describe('the window', () => {
 
   test('the first finished ticket is the first either read returns: comparable work’s quiet weeks after the milestone’s first finish count 0', async () => {
     const like: Choice = { kind: 'label', name: 'checkout-like', query: 'label:"checkout-like"' }
-    team.fixture.milestoneChoices = [
+    scenario.team.fixture.milestoneChoices = [
       { kind: 'milestone', choices: [CHECKOUT], pastLimit: false },
       { kind: 'label', choices: [like], pastLimit: false },
     ]
-    team.fixture.reads[like.query] = {
+    scenario.team.fixture.reads[like.query] = {
       tickets: finishedInWeeks([0, 0, 0, 0, 2, 3, 2, 3]).map((ticket) => ({ ...ticket, id: `like-${ticket.id}` })),
       incomplete: false,
     }
     await following(finishedInWeeks([0, 0, 1, 0, 0, 0, 0, 0]))
-    await pick(team, READ_AT, like, 'comparableWork')
+    await pick(scenario.team, READ_AT, like, 'comparableWork')
 
     expect((await inputs()).milestone.trackerPace?.reading).toMatchObject({
       counts: [0, 0, 2, 3, 2, 3],
@@ -318,7 +279,7 @@ describe('the window', () => {
 describe('an incomplete read', () => {
   test('with no other read to take pace from, pace is marked incomplete, and the forecast doesn’t use part of a pace', async () => {
     await connectGitHub()
-    team.fixture.reads[CHECKOUT.query] = { tickets: [...OPEN, ...finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8])], incomplete: true }
+    scenario.team.fixture.reads[CHECKOUT.query] = { tickets: [...OPEN, ...finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8])], incomplete: true }
     await enterAndPick()
     await submit({ kind: 'setPaceMode', paceMode: 'tracker' })
 
@@ -379,57 +340,6 @@ describe('switching pace', () => {
     expect(await submit({ kind: 'setPaceMode', paceMode: 'tracker' }, OFFLINE)).toMatchObject({
       kind: 'refused',
       view: { inputs: { refusal: { error: 'Choose the range or typed counts.' } } },
-    })
-  })
-})
-
-describe('the pace graph', () => {
-  const like: Choice = { kind: 'label', name: 'checkout-like', query: 'label:"checkout-like"' }
-  // the milestone started on Monday 5 Oct, so the weeks of 14, 21 and 28 Sep come before it
-  const STARTED = '2026-10-05'
-  const OWN = [5, 6, 4, 7, 5, 6, 8]
-  const LIKE = [2, 3, 2, 3, 2, 3, 2]
-
-  /** Follows GitHub, the milestone started on `STARTED`; with `comparable`, comparable work finished that many a week. */
-  async function following(comparable: number[] | undefined): Promise<void> {
-    await connectGitHub()
-    team.fixture.milestoneChoices = [
-      { kind: 'milestone', choices: [CHECKOUT], pastLimit: false },
-      { kind: 'label', choices: [like], pastLimit: false },
-    ]
-    const likeTickets = finishedInWeeks(comparable ?? []).map((ticket) => ({ ...ticket, id: `like-${ticket.id}` }))
-    team.fixture.reads[like.query] = { tickets: [{ id: 'like-open' }, ...likeTickets], incomplete: false }
-    await enterAndPick()
-    await submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: STARTED, ticketsRemaining: '30' })
-    if (comparable) await pick(team, READ_AT, like, 'comparableWork')
-    await submit({ kind: 'setPaceMode', paceMode: 'tracker' })
-  }
-
-  const trendOf = (view: Awaited<ReturnType<typeof forecast>>) => (view.kind === 'forecast' ? view.paceTrend : undefined)
-
-  test('with comparable work, it pairs its finished tickets with the milestone’s own each week, marking the weeks before the milestone started and the series pace comes from', async () => {
-    await following(LIKE)
-
-    // the read reaches 8 whole weeks, from 14 Sep: comparable work finished nothing in the last
-    const counts = [...LIKE, 0]
-    const paired = { from: 'comparableWork', comparableWork: counts, milestone: [3, ...OWN], beforeStart: 3 }
-    expect((await inputs()).milestone.paceTrend).toMatchObject({ counts, paired })
-    expect(trendOf(await forecast())).toMatchObject({ counts, paired })
-  })
-
-  test('with no comparable-work query, it shows the milestone’s own alone', async () => {
-    await following(undefined)
-
-    expect((await inputs()).milestone.paceTrend).toMatchObject({ counts: [4, 7, 5, 6, 8], paired: undefined })
-    expect(trendOf(await forecast())).toMatchObject({ counts: [4, 7, 5, 6, 8], paired: undefined })
-  })
-
-  test('with comparable work that finished nothing, pace falls back to the milestone’s own, paired with comparable work’s quiet weeks', async () => {
-    await following([0, 0, 0, 0, 0, 0, 0])
-
-    expect((await inputs()).milestone.paceTrend).toMatchObject({
-      counts: [4, 7, 5, 6, 8],
-      paired: { from: 'milestone', comparableWork: [0, 0, 0, 0, 0], milestone: [4, 7, 5, 6, 8], beforeStart: 0 },
     })
   })
 })

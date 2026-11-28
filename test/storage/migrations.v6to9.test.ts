@@ -102,18 +102,6 @@ describe('step 8: a data file from schema version 7, before the cadence the pace
 
     expect(storage.milestoneInputs('sample-team')).toMatchObject({ paceRange: undefined, paceCounts: [] })
   })
-
-  test('gives no warning once the cadence changes after the upgrade', async () => {
-    const storage = open(writeFile('v7.db', VERSION_7_SCHEMA, 7))
-
-    await forecasting(storage, '2026-09-01').submit({ form: 'inputs', edit: { kind: 'setCadence', cadenceDays: '7' } })
-
-    expect(await forecasting(storage, '2026-09-01').milestoneForecastView()).toMatchObject({
-      cadenceDays: 7,
-      pace: { source: 'range', low: 4, high: 8 },
-      warnings: [],
-    })
-  })
 })
 
 describe('step 9: a data file from schema version 8, before capacity', () => {

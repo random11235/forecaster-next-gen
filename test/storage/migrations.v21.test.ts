@@ -8,7 +8,7 @@ import { TEAM, VERSION_21_SCHEMA } from './pastSchemas.js'
 const TODAY = { now: () => '2026-09-01T09:00:00Z', timeZone: 'UTC' }
 
 describe('step 22: a data file from schema version 21, with the cadence its pace was entered in', () => {
-  test('drops the pace’s own cadence: the pace is read in the milestone’s cadence, with no warning, and survives reopening', async () => {
+  test('drops the pace’s own cadence, reading the pace in the milestone’s, with no warning', async () => {
     // entered weekly, then the cadence changed to 3-day sprints
     const file = writeFile('v21.db', `${VERSION_21_SCHEMA}\nUPDATE milestone_inputs SET cadence_days = 3, pace_cadence_days = 7 WHERE team_id = '${TEAM}';`, 21)
 
