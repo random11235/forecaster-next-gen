@@ -212,8 +212,9 @@ jobs:
   # Every ticket of the spec is in (scripts/factoryFrontier.ts says `open-pr`): opens the spec's one PR, from spec/<n>
   # to the default branch (#339), with FACTORY_TOKEN, so CI starts on it as on a ticket's PR. Not when an open PR from
   # spec/<n> is there already, so a later run, or the spec labelled again, opens no second; nor when spec/<n> isn't
-  # there. The body (scripts/factorySpecPullRequest.ts) links the spec, lists every ticket and gives the spec's decision
-  # log, with no closing keyword: `close` closes the spec and its tickets once it merges. `tell` says on the spec what
+  # there, or has no commits the default branch lacks, which GitHub opens no PR for. The body
+  # (scripts/factorySpecPullRequest.ts) links the spec, lists every ticket and says the spec's decision log is in its
+  # comments, with no closing keyword: `close` closes the spec and its tickets once it merges. `tell` says on the spec what
   # came of it. Only the default branch's code runs here, and this job's own GITHUB_TOKEN only reads.
   propose:
     needs: gate
@@ -227,6 +228,7 @@ jobs:
       pr: ${{ steps.find.outputs.pr || steps.open.outputs.pr }}
       had: ${{ steps.find.outputs.had }}
       missing: ${{ steps.find.outputs.missing }}
+      empty: ${{ steps.find.outputs.empty }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -236,7 +238,7 @@ jobs:
         with:
           node-version: 24 # NODE_MAJOR
       # A fork's PR from a branch of the same name isn't the spec's. git ls-remote exits 2 when the branch isn't there,
-      # and otherwise fails the step.
+      # and otherwise fails the step; a branch with nothing to merge, which a label again wouldn't change, is told apart.
       - name: Look for the spec's open PR, and its branch
         id: find
         shell: bash # with pipefail, so a failed `gh pr list` fails the step
@@ -250,23 +252,22 @@ jobs:
           git ls-remote --exit-code "$GITHUB_SERVER_URL/$REPO.git" "refs/heads/spec/$ISSUE" > /dev/null || found=$?
           if [ "$found" = 2 ]; then echo "missing=true" >> "$GITHUB_OUTPUT"
           elif [ "$found" != 0 ]; then echo "::error::Reading spec/$ISSUE failed"; exit 1
+          elif [ "$(gh api "repos/$REPO/compare/$BASE...spec/$ISSUE" --jq .ahead_by)" = 0 ]; then echo "empty=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Write the PR's title and body
-        if: steps.find.outputs.had != 'true' && steps.find.outputs.missing != 'true'
+        if: steps.find.outputs.had != 'true' && steps.find.outputs.missing != 'true' && steps.find.outputs.empty != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           SPEC_JSON: ${{ runner.temp }}/spec.json
           SUB_ISSUES_JSON: ${{ runner.temp }}/sub-issues.json
-          SPEC_COMMENTS_JSON: ${{ runner.temp }}/spec-comments.json
           OUT_DIR: ${{ runner.temp }}/spec-pr
         run: |
           gh api "repos/$REPO/issues/$ISSUE" > "$SPEC_JSON"
           gh api --paginate --slurp "repos/$REPO/issues/$ISSUE/sub_issues?per_page=100" > "$SUB_ISSUES_JSON"
-          gh api --paginate --slurp "repos/$REPO/issues/$ISSUE/comments" > "$SPEC_COMMENTS_JSON"
           node scripts/factorySpecOpen.ts
       - name: Open the PR
         id: open
-        if: steps.find.outputs.had != 'true' && steps.find.outputs.missing != 'true'
+        if: steps.find.outputs.had != 'true' && steps.find.outputs.missing != 'true' && steps.find.outputs.empty != 'true'
         env:
           GH_TOKEN: ${{ secrets.FACTORY_TOKEN }}
           OUT_DIR: ${{ runner.temp }}/spec-pr
@@ -303,6 +304,7 @@ jobs:
           PR: ${{ needs.propose.outputs.pr }}
           HAD: ${{ needs.propose.outputs.had }}
           MISSING: ${{ needs.propose.outputs.missing }}
+          EMPTY: ${{ needs.propose.outputs.empty }}
         run: |
           if [ "$GATE" = failure ]; then
             said="The factory built nothing: checking the issue, or picking a spec's next ticket, failed: the run's gate job says why"
@@ -310,6 +312,8 @@ jobs:
             said="Every ticket has merged into spec/$ISSUE or closed, but opening its PR to $BASE failed: the run's propose job says why. Label the spec ready-for-agent to try again"
           elif [ "$PROPOSING" = true ] && [ "$MISSING" = true ]; then
             said="The factory opened no PR: every ticket has closed or merged, but there's no spec/$ISSUE to open it from"
+          elif [ "$PROPOSING" = true ] && [ "$EMPTY" = true ]; then
+            said="The factory opened no PR: every ticket has closed or merged, but spec/$ISSUE has no commits $BASE lacks, so there's nothing to merge into $BASE"
           elif [ "$PROPOSING" = true ] && [ "$HAD" = true ]; then
             said="Every ticket has merged into spec/$ISSUE or closed, and its PR to $BASE is open already, so the factory opened no other: $PR"
           elif [ "$PROPOSING" = true ]; then
