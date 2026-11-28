@@ -2,6 +2,10 @@
 
 What each version of the app shipped, newest first. The version is the one in every screen's footer: a fix is in the app you're running if its version is the footer's or older. Each merge's release ([`docs/design/architecture.md`](docs/design/architecture.md#release)) writes its section here, a line from each change file (`changes/<ticket>.md`) a PR that changes the app adds: a PR doesn't edit the entries below ([`docs/agents/pull-requests.md`](docs/agents/pull-requests.md#version)).
 
+## 2.2.0 (2026-11-28)
+
+- With the milestone's own pace and nothing finished since its start date, pace says so and how many the tracker finished before it, rather than that the tracker has no finished tickets (#405, PR #406)
+
 ## 2.1.0 (2026-11-28)
 
 - Pace from comparable work with no open tickets, such as a closed epic, stops at its last finished ticket, and says so (#411, PR #412)
