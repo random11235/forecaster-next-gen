@@ -286,9 +286,7 @@ export function noSetupHtml(): string {
   const integration = readme
     ? `<a href="${escapeHtml(readme)}" target="_blank" rel="noopener">integration with GitHub and Jira</a>`
     : 'integration with GitHub and Jira'
-  return summaryBoxHtml(
-    `      <span class="muted">The Forecaster also supports ${integration}! Or you can just use the inputs below.</span>`,
-  )
+  return summaryBoxHtml(`      <span class="muted">The Forecaster also supports ${integration}! Or you can just use the inputs below.</span>`)
 }
 
 /** Connecting skipped: the inputs typed, as the MVP has them, with a way to connect a tracker after all; above the inputs. */

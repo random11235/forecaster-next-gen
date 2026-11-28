@@ -44,9 +44,7 @@ describe('the Inputs screen in the browser build', () => {
       'Typed counts',
     ])
     // in place of setup, that the Forecaster also reads GitHub and Jira, and the inputs do without (#396, #403)
-    expect(text(one(page, '.setup-summary'))).toBe(
-      'The Forecaster also supports integration with GitHub and Jira! Or you can just use the inputs below.',
-    )
+    expect(text(one(page, '.setup-summary'))).toBe('The Forecaster also supports integration with GitHub and Jira! Or you can just use the inputs below.')
     expect(hasRole(page, 'button', { name: /Connect/ })).toBe(false)
     expect(hasRole(page, 'alert')).toBe(false)
     expect(text(page)).not.toContain('⚠')
