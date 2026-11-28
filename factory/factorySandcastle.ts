@@ -16,7 +16,7 @@
 // The prompt will carry issue text, so it goes in as one shell word after `--`: Claude Code reads none of it as an
 // option. As an argument, it's in the command line, which anything in the sandbox can read from /proc/<pid>/cmdline.
 
-import { claudeCode, run, type AgentProvider, type AgentStreamEvent } from '@ai-hero/sandcastle'
+import { claudeCode, run, type AgentProvider, type AgentStreamEvent, type RunOptions } from '@ai-hero/sandcastle'
 import { bwrap } from '@ai-hero/sandcastle/sandboxes/bwrap'
 import { MAX_PROMPT_BYTES, shellWord } from './factoryShell.ts'
 
@@ -101,6 +101,9 @@ export function stdinAgent(model: string, options: FactoryAgentOptions): Factory
   return agentWith(model, options, (command, prompt, maxBudgetUsd) => ({ command: `${capped(command, maxBudgetUsd)} -p -`, stdin: prompt }))
 }
 
+/** A command the sandbox runs before the agent, and how long it may take. */
+export type SandboxInstall = { command: string; timeoutMs: number }
+
 /** One run of an agent in the bwrap() sandbox, in a worktree whose commits are merged into the branch checked out. */
 export type SandboxRun = {
   name: string
@@ -110,10 +113,12 @@ export type SandboxRun = {
   cwd?: string
   /** Set in the sandbox, beside what bwrap() sets. */
   sandboxEnv?: Record<string, string>
-  /** Copied from `cwd` into the worktree, and run in the sandbox before the agent (factory/factoryTree.ts). */
+  /** Untracked files and directories copied from `cwd` into the worktree (factory/factoryTree.ts). */
   copyToWorktree?: string[]
-  hooks?: { sandbox: { onSandboxReady: { command: string; timeoutMs: number }[] } }
+  /** How long copying them may take. */
   copyToWorktreeMs?: number
+  /** A command run in the sandbox, in the worktree, before the agent: the tree's own install (factory/factoryTree.ts). */
+  installInSandbox?: SandboxInstall
   /** The run fails once the agent writes nothing for this long. */
   idleTimeoutSeconds: number
   /** Where Sandcastle writes its log. */
@@ -131,18 +136,20 @@ export type SandboxRan = {
   sessionFiles: (string | undefined)[]
 }
 
-/** Runs the agent once, in the sandbox. What it throws, failureOf() reads. */
-export async function runInSandbox(options: SandboxRun): Promise<SandboxRan> {
-  const { onLine } = options
-  const ran = await run({
+/**
+ * The run, as Sandcastle's run() takes it, but its sandbox, which bwrap() makes only on Linux: the one place that knows
+ * Sandcastle's option shapes.
+ */
+export function sandcastleRun(options: SandboxRun): Omit<RunOptions, 'sandbox'> {
+  const { onLine, installInSandbox } = options
+  return {
     name: options.name,
     prompt: options.prompt,
     agent: options.agent,
     ...(options.cwd !== undefined && { cwd: options.cwd }),
-    sandbox: bwrap(options.sandboxEnv ? { env: options.sandboxEnv } : undefined),
     branchStrategy: { type: 'merge-to-head' },
     ...(options.copyToWorktree && { copyToWorktree: options.copyToWorktree }),
-    ...(options.hooks && { hooks: options.hooks }),
+    ...(installInSandbox && { hooks: { sandbox: { onSandboxReady: [{ command: installInSandbox.command, timeoutMs: installInSandbox.timeoutMs }] } } }),
     ...(options.copyToWorktreeMs !== undefined && { timeouts: { copyToWorktreeMs: options.copyToWorktreeMs } }),
     maxIterations: 1,
     idleTimeoutSeconds: options.idleTimeoutSeconds,
@@ -156,7 +163,12 @@ export async function runInSandbox(options: SandboxRun): Promise<SandboxRan> {
         },
       }),
     },
-  })
+  }
+}
+
+/** Runs the agent once, in the sandbox. What it throws, failureOf() reads. */
+export async function runInSandbox(options: SandboxRun): Promise<SandboxRan> {
+  const ran = await run({ ...sandcastleRun(options), sandbox: bwrap(options.sandboxEnv ? { env: options.sandboxEnv } : undefined) })
   return {
     stdout: ran.stdout,
     commits: ran.commits.length,

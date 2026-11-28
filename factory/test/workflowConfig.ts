@@ -2,11 +2,11 @@ import { readFileSync } from 'node:fs'
 import { factoryConfig, type FactoryConfig } from '../factoryConfig.ts'
 
 /**
- * The plain values of factory.yml's top-level `env:`, as the scripts' steps get them: `KEY: value`, quoted or not, its
- * comment stripped. Those set by an expression, `${{ }}`, are left out.
+ * The plain values of a workflow's top-level `env:`, factory.yml's unless named, as the scripts' steps get them:
+ * `KEY: value`, quoted or not, its comment stripped. Those set by an expression, `${{ }}`, are left out.
  */
-export function workflowEnv(): Record<string, string> {
-  const workflow = readFileSync(new URL('../../.github/workflows/factory.yml', import.meta.url), 'utf8')
+export function workflowEnv(file = 'factory.yml'): Record<string, string> {
+  const workflow = readFileSync(new URL(`../../.github/workflows/${file}`, import.meta.url), 'utf8')
   const block = /\nenv:\n((?: {2}[^\n]*\n|\s*#[^\n]*\n)*)/.exec(workflow)?.[1] ?? ''
   const entries = block.split('\n').flatMap((line) => {
     const entry = /^ {2}([A-Z_]+): (?:'([^']*)'|"([^"]*)"|([^#'"\s][^#]*?))\s*(?:#.*)?$/.exec(line)

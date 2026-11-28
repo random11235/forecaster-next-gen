@@ -7,16 +7,17 @@
 import { appendFileSync, cpSync, lstatSync, mkdirSync, readdirSync, readFileSync, symlinkSync, type Stats } from 'node:fs'
 import { join } from 'node:path'
 import { UnbuildableTree } from './factoryOutcome.ts'
+import type { SandboxInstall } from './factorySandcastle.ts'
 
-/** What Sandcastle copies into the worktree from the tree, and the commands it runs in the sandbox before the agent. */
+/** What goes into the worktree from the tree, and the install the sandbox runs before the agent, if any. */
 export type TreeSetup = {
   copyToWorktree: string[]
-  hooks?: { sandbox: { onSandboxReady: { command: string; timeoutMs: number }[] } }
+  installInSandbox?: SandboxInstall
 }
 
 const PACKAGE_FILES = ['package.json', 'package-lock.json']
 
-/** An install's time: about the setup action's `npm ci`, with room to spare. */
+/** An install's time: about the runner's own install, with room to spare. */
 const INSTALL_MS = 600_000
 
 /**
@@ -38,7 +39,7 @@ const plainText = (path: string): string | undefined => (statOf(path)?.isFile() 
  * Readies the tree for Sandcastle, or throws UnbuildableTree, and says what to copy into the worktree. The runner's
  * skills that the tree lacks are copied in: the ones it tracks stay its own. The runner's node_modules is linked in, to
  * be copied, when the tree's package files are the runner's, read only if plain files; otherwise the sandbox runs
- * `npm ci`, whose lifecycle scripts are then the tree's, in bwrap.
+ * `install`, the install command, whose lifecycle scripts are then the tree's, in bwrap.
  */
 export function prepareTree(runnerDir: string, treeDir: string, install: string): TreeSetup {
   for (const path of REFUSED_PATHS) {
@@ -60,7 +61,7 @@ export function prepareTree(runnerDir: string, treeDir: string, install: string)
     const theirs = plainText(join(treeDir, name))
     return theirs !== undefined && theirs === plainText(join(runnerDir, name))
   })
-  if (!same) return { copyToWorktree: ['.claude/skills'], hooks: { sandbox: { onSandboxReady: [{ command: install, timeoutMs: INSTALL_MS }] } } }
+  if (!same) return { copyToWorktree: ['.claude/skills'], installInSandbox: { command: install, timeoutMs: INSTALL_MS } }
   symlinkSync(join(runnerDir, 'node_modules'), join(treeDir, 'node_modules'))
   // .gitignore's `node_modules/` matches a directory, not a link to one, which would leave the tree dirty
   mkdirSync(join(treeDir, '.git/info'), { recursive: true })

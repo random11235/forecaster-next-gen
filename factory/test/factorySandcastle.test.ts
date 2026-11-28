@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 import { buildOutcome } from '../factoryOutcome.ts'
-import { factoryAgent, MAX_PROMPT_BYTES, readOnlyAgent, stdinAgent, withPromptArgument } from '../factorySandcastle.ts'
+import { factoryAgent, MAX_PROMPT_BYTES, readOnlyAgent, sandcastleRun, stdinAgent, withPromptArgument } from '../factorySandcastle.ts'
 // Sandcastle 0.14.0 bundles effect and doesn't export its errors: these are its own, as its run() throws them, from
 // Effect.runPromise. A Sandcastle bump renames the chunks, so this import fails rather than tests a stale shape.
 // @ts-expect-error -- a bundle chunk, with no types
@@ -97,6 +97,30 @@ describe("the factory's agent", () => {
     const agent = factoryAgent('haiku', { oauthToken: 'oauth', maxBudgetUsd: 0.5 })
 
     expect(agent.env).toEqual({ CLAUDE_CODE_OAUTH_TOKEN: 'oauth' })
+  })
+})
+
+describe("a run in the sandbox, as Sandcastle's run() takes it", () => {
+  const RUN = {
+    name: 'ticket-42',
+    prompt: 'hi',
+    agent: factoryAgent('haiku', { oauthToken: 'oauth', maxBudgetUsd: 0.5 }),
+    idleTimeoutSeconds: 60,
+    logPath: 'log',
+  }
+
+  test("installs in the sandbox, before the agent, as Sandcastle's sandbox onSandboxReady hook, and copies the files into the worktree", () => {
+    const options = sandcastleRun({ ...RUN, copyToWorktree: ['.claude/skills'], installInSandbox: { command: 'npm ci', timeoutMs: 600_000 } })
+
+    expect(options.hooks).toEqual({ sandbox: { onSandboxReady: [{ command: 'npm ci', timeoutMs: 600_000 }] } })
+    expect(options.copyToWorktree).toEqual(['.claude/skills'])
+  })
+
+  test('installs nothing and copies nothing when not asked to', () => {
+    const options = sandcastleRun(RUN)
+
+    expect(options.hooks).toBeUndefined()
+    expect(options.copyToWorktree).toBeUndefined()
   })
 })
 

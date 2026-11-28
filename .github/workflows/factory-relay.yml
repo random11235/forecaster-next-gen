@@ -16,6 +16,7 @@ permissions: {}
 
 jobs:
   relay:
+    # its mention is MENTION's, in factory.yml: GitHub shares no env between workflows, and a job's `if` reads none
     if: >-
       contains(github.event.comment.body, '@claude')
       && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)

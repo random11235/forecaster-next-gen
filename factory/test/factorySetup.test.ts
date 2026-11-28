@@ -27,3 +27,32 @@ test('the values a job sets where it cannot read the config are the config’s',
   const mentions = [factory, read('factory-relay.yml')].flatMap((text) => all(text, /contains\(github\.event\.comment\.body, '([^']*)'\)/g).flat())
   expect(mentions).toEqual(Array(2).fill(env.MENTION))
 })
+
+// GitHub shares no env between workflows, so the smoke test repeats the factory's Node and install, which it sets up as
+// the build does
+test('the smoke test installs the Node and runs the install command the config sets', () => {
+  const env = workflowEnv()
+  const smoke = readFileSync(new URL('factory-smoke.yml', DIR), 'utf8')
+
+  expect(workflowEnv('factory-smoke.yml')).toEqual({ NODE_MAJOR: env.NODE_MAJOR, INSTALL_COMMAND: env.INSTALL_COMMAND })
+  expect(smoke).toContain('node-version: ${{ env.NODE_MAJOR }}')
+  expect(smoke).toContain('run: $INSTALL_COMMAND')
+})
+
+// The comments, park reasons and step names name a label through its config: only a job's `if` and the concurrency
+// group, which can't read env, repeat one, as the test above pins
+test('factory.yml names a label outside its config only where it cannot read the config', () => {
+  const env = workflowEnv()
+  const code = readFileSync(new URL('factory.yml', DIR), 'utf8')
+    .split('\n')
+    .filter((line) => !/^\s*#/.test(line) && !/^ {2}[A-Z_]+_LABEL: /.test(line))
+    .map((line) =>
+      line
+        .replace(/ # [^$`'"]*$/, '')
+        .replace(/github\.event\.label\.name == '[^']*'/g, '')
+        .replace(/cancel-in-progress/g, ''),
+    )
+  const named = [env.TRIGGER_LABEL, env.IN_PROGRESS_LABEL, `\`${env.PARKED_LABEL}\``, `'${env.PARKED_LABEL}'`, `"${env.PARKED_LABEL}"`]
+
+  expect(code.filter((line) => named.some((label) => line.includes(label ?? '')))).toEqual([])
+})

@@ -369,7 +369,7 @@ jobs:
       # Cycle time starts here (docs/agents/issue-tracker.md); a parked ticket labelled again is a new start. The trigger
       # label comes off, so taking it off and on again while this run or its PR is open can't build the ticket twice. A
       # spec's comes off its spec, in `tell`: a spec never gets in-progress, as an epic doesn't.
-      - name: Label the ticket in-progress and comment the run link
+      - name: Label the ticket ${{ env.IN_PROGRESS_LABEL }} and comment the run link
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -524,8 +524,8 @@ jobs:
   # step, runs once that code has: an action runs with the job's ACTIONS_RUNTIME_TOKEN, which can write the default
   # branch's caches (an `issues` run is the default branch's), the npm cache `build` and CI restore among them; and
   # actions/checkout's post step runs git in the checkout, whose .git/config the agent's code could write. So the branch
-  # comes from a plain clone of this public repo, Node from nodejs.org, and nothing is cached. `npm ci` and
-  # `npm run check` run in bwrap: only the checkout writable; the environment cleared; /home (the runner's actions, its
+  # comes from a plain clone of this public repo, Node from nodejs.org, and nothing is cached. INSTALL_COMMAND and
+  # CHECK_COMMAND run in bwrap: only the checkout writable; the environment cleared; /home (the runner's actions, its
   # temp dir with the step command files), the runner's own directory, /run (docker's socket) and the runner's processes
   # out of sight; and no new privileges, so no sudo.
   check:
@@ -570,7 +570,7 @@ jobs:
         run: git -c core.hooksPath=/dev/null checkout --quiet "$BRANCH"
       # What the pre-push hook runs, which the push in `publish`, with hooks off, skips. The step's parent is the runner's
       # Runner.Worker, in <runner>/bin, which is hidden too, wherever the image puts it.
-      - name: INSTALL_COMMAND and CHECK_COMMAND, in bwrap
+      - name: ${{ env.INSTALL_COMMAND }} and ${{ env.CHECK_COMMAND }}, in bwrap
         id: check
         run: |
           worker=$(readlink -f "/proc/$PPID/exe")
@@ -778,7 +778,7 @@ jobs:
           if [ -n "$SPEC" ]; then starts_from="$BRANCH, or else $BASE"; else starts_from="$BASE"; fi
           # BUILD_WHY is factory/factoryOutcome.ts's reason: no commits, a dirty tree, the budget, the idle timeout, an error
           if [ "$TAMPERED" = true ]; then why="the agent's commits or the PR body changed after the build made them, so the factory didn't use them"
-          elif [ "$START_RESULT" != success ]; then why="labelling it in-progress failed"
+          elif [ "$START_RESULT" != success ]; then why="labelling it $IN_PROGRESS_LABEL failed"
           elif [ "$BUILD" = cancelled ]; then why="the build was cancelled, or ran past the job's $JOB_MINUTES-minute timeout"
           elif [ -z "$AGENT" ]; then why="the build job failed before any step ran, or lost its runner"
           elif [ "$AGENT" = skipped ]; then why="setting up the build failed, before the agent ran"

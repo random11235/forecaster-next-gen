@@ -1,6 +1,6 @@
 ---
 name: factory-smoke
-description: The factory's smoke test (#335), run in Sandcastle's sandbox on a GitHub runner by scripts/factorySmoke.ts. Says a word before any tool call, which shows the slash command expanded; lists the names in its tools' env and in Claude Code's own; and tries writes outside the working tree.
+description: The factory's smoke test (#335), run in Sandcastle's sandbox on a GitHub runner by factory/factorySmoke.ts. Says a word before any tool call, which shows the slash command expanded; lists the names in its tools' env and in Claude Code's own; and tries writes outside the working tree.
 disable-model-invocation: true
 ---
 

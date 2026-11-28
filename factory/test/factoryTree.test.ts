@@ -40,7 +40,7 @@ const COPY = { copyToWorktree: ['node_modules', '.claude/skills'] }
 
 const INSTALL = {
   copyToWorktree: ['.claude/skills'],
-  hooks: { sandbox: { onSandboxReady: [{ command: 'npm ci', timeoutMs: 600_000 }] } },
+  installInSandbox: { command: 'npm ci', timeoutMs: 600_000 },
 }
 
 describe('the tree the factory builds a ticket in, apart from the runner’s checkout', () => {
