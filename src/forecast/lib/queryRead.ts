@@ -2,8 +2,8 @@ import type { Connector, Failure } from '../../connectors/connector.js'
 import type { MilestoneInputs } from '../../model/milestoneInputs.js'
 import type { SavedRead } from '../../model/savedRead.js'
 import { DAY_MS } from '../../model/time.js'
-import type { SavedReadStorage } from '../../storage/storage.js'
-import { addDays } from './calendarDate.js'
+import type { SavedReadStorage, TeamQueries } from '../../storage/storage.js'
+import { addDays, daysBetween } from './calendarDate.js'
 
 // Reading a query, as far back as pace needs, and what a read says: tickets remaining, weeks read.
 
@@ -26,6 +26,41 @@ export function finishedSinceFor(readAt: string, inputs?: Pick<MilestoneInputs, 
   const skips = skipped.filter((start) => start >= furthest).length
   const weeks = Math.ceil(((TRACKER_PERIODS + skips + 1) * cadenceDays) / 7)
   return new Date(Date.parse(readAt) - weeks * 7 * DAY_MS).toISOString()
+}
+
+/**
+ * How far back the pace's queries are read, as at `readAt`: as `finishedSinceFor`, unless the team's comparable work
+ * has ended in its saved read in `queries`, no ticket open and its last finished before the last whole period. The
+ * window then ends at that ticket's period (#411), so they are read as far back from it as from a read made then
+ * (#424): the milestone query's too, as pace counts only the periods both reads reach.
+ */
+export function paceReachFor(
+  { milestoneQueries, reads }: TeamQueries,
+  teamId: string,
+  readAt: string,
+  inputs: Pick<MilestoneInputs, 'cadenceDays' | 'paceWindow' | 'startDate'> | undefined,
+): string {
+  const query = milestoneQueries.comparableWorkQuery(teamId)?.query
+  const last = query === undefined ? undefined : lastFinished(reads.savedRead({ teamId, query }))
+  return finishedSinceFor(last !== undefined && inputs && endsBefore(last, readAt, inputs) ? last : readAt, inputs)
+}
+
+/** The instant of the last ticket a complete read finished, with none open; none with one open, or none finished. */
+function lastFinished(read: SavedRead | undefined): string | undefined {
+  const whole = completeRead(read)
+  if (!whole || whole.tickets.some(({ finishedAt }) => finishedAt === undefined)) return undefined
+  const finishes = whole.tickets.flatMap(({ finishedAt }) => (finishedAt === undefined ? [] : [Date.parse(finishedAt)]))
+  return finishes.length === 0 ? undefined : new Date(Math.max(...finishes)).toISOString()
+}
+
+/**
+ * Whether `last` falls before the last whole period at `readAt`, the milestone's periods laid from its start date, on
+ * UTC days: the window ending there is short of what a read reaching back from `readAt` gives it.
+ */
+function endsBefore(last: string, readAt: string, { startDate, cadenceDays }: Pick<MilestoneInputs, 'cadenceDays' | 'startDate'>): boolean {
+  if (startDate === undefined) return false
+  const period = (instant: string): number => Math.floor(daysBetween(startDate, instant.slice(0, 10)) / cadenceDays)
+  return period(last) <= period(readAt) - 2
 }
 
 /** How many weeks back the read counts finished tickets: "finished in the last 9 weeks". */

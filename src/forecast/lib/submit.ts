@@ -94,11 +94,13 @@ export async function submit(team: TeamCall, edit: Edit, opening: SubmitOpening 
     }
     case 'readAgain':
       await submitReadAgain(connected(team), teamId, at.readAt)
+      await paceReachedBack(team, { ended: true })
       return { kind: 'saved', next: { kind: 'screen', screen: 'inputs' } }
     case 'stepQuery': {
       const submitted = await submitStepQuery(connected(team), teamId, edit.edit, at.readAt, STEP_QUERIES[edit.step])
       if (submitted.kind === 'refused') return again({ refused: { step: edit.step, query: submitted } })
       if (submitted.kind === 'confirmClear') return { kind: 'confirmClear', next: { kind: 'confirmingBack', step: edit.step } }
+      if (submitted.kind === 'saved') await paceReachedBack(team, { ended: true })
       // a query edited by hand stays open for editing; every other change goes back to finding
       return { kind: 'saved', next: { kind: edit.edit.kind === 'editQuery' ? 'editing' : 'step', step: edit.step } }
     }
@@ -131,10 +133,19 @@ async function inputsFormSubmitted(team: TeamCall, edit: InputsEdit, opening: Su
  * After a cadence is saved, the pace's queries read again as far back as its periods need: a read made at a shorter
  * cadence reaches too few of them whole. The browser build reads nothing.
  */
-async function cadenceReachedBack({ reading, storage, teamId, at }: TeamCall, edit: InputsEdit): Promise<void> {
+async function cadenceReachedBack(team: TeamCall, edit: InputsEdit): Promise<void> {
+  if (edit.kind === 'setCadence') await paceReachedBack(team, { ended: false })
+}
+
+/**
+ * After a read, the pace's queries read again as far back as comparable work's needs: ended, its window ends at its
+ * last finished ticket, which a read reaching back from today may not reach 8 periods before (#424). Not `ended`, as
+ * far back as the milestone's inputs need, where they changed.
+ */
+async function paceReachedBack({ reading, storage, teamId, at }: TeamCall, { ended }: { ended: boolean }): Promise<void> {
   const inputs = storage.milestoneInputs(teamId)
-  if (!reading || edit.kind !== 'setCadence' || !inputs) return
-  await reachBack(reading, teamId, inputs, at.readAt)
+  if (!reading || !inputs) return
+  await reachBack(reading, teamId, inputs, at.readAt, { ended })
 }
 
 /**

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from 'vitest'
 import type { Choice, Ticket } from '../../src/connectors/connector.js'
 import type { InputsEdit } from '../../src/forecast/index.js'
-import { finishedInWeeks as finishedInWeeksOf } from '../trackerScenario.js'
+import { addDay, finishedInWeeks as finishedInWeeksOf, finishedOn } from '../trackerScenario.js'
 import { CHECKOUT, checkoutFixture, CONNECTIONS, forecastingForTest, pick, readAgain, skip, type ForecastingForTest } from './forecastingForTest.js'
 
 // Pace from finished comparable work (#411): with no open tickets in comparable work's latest read, the window ends at
@@ -75,6 +75,31 @@ describe('comparable work with no open tickets', () => {
       ],
       counts: [2, 4],
     })
+  })
+})
+
+describe('at a 1-day cadence, comparable work finished before the read’s reach from today (#424)', () => {
+  // a ticket finished each day from 19 Oct to 30 Oct; read on 12 Nov, a 1-day cadence reaches back to 29 Oct alone
+  const DAYS = Array.from({ length: 12 }, (_, day) => addDay(`2026-10-${String(18 + day)}`))
+  const DAILY = DAYS.flatMap((day) => finishedOn('like', day, 1))
+  // the 8 days up to the last finished ticket's, 30 Oct
+  const LAST_8 = DAYS.slice(-8)
+
+  beforeEach(async () => {
+    await team.submit({ form: 'inputs', edit: { kind: 'setCadence', cadenceDays: '1' } })
+  })
+
+  test('picked, pace counts the 8 days up to its last finished ticket, not the 1 its read reached', async () => {
+    await comparableWork(DAILY)
+
+    expect(await reading()).toMatchObject({ counts: [1, 1, 1, 1, 1, 1, 1, 1], periods: LAST_8.map((start) => ({ start, count: 1 })) })
+  })
+
+  test('read again, the milestone’s query too, it still counts those 8 days', async () => {
+    await comparableWork(DAILY)
+    await readAgain(team, READ_AT)
+
+    expect(await reading()).toMatchObject({ counts: [1, 1, 1, 1, 1, 1, 1, 1], periods: LAST_8.map((start) => ({ start, count: 1 })) })
   })
 })
 
