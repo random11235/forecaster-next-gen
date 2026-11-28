@@ -86,6 +86,17 @@ interface SideBySideReads {
   comparableWork: DatedCounts | undefined
   /** Each of comparable work's picks with a complete read, its own finished tickets in the same periods, in the order picked. */
   picks: { query: string; counts: DatedCounts }[]
+  /**
+   * With no open tickets in comparable work's read, where it ends: the period its last ticket finished in, and that
+   * ticket's day; none with one open, or with its last ticket finished in the last of the periods or after them.
+   */
+  comparableWorkEnds: ComparableWorkEnds | undefined
+}
+
+/** Where finished comparable work ends: the start of the period its last ticket finished in, and that ticket's day. */
+export interface ComparableWorkEnds {
+  start: string
+  day: string
 }
 
 /** The team's saved reads pace is measured from, from the target `queries` keeps them in; it asks the tracker nothing. */
@@ -198,11 +209,29 @@ export function sideBySide(
     const own = completeRead(read)
     return own ? [{ query, counts: counted(own) }] : []
   })
-  const both = { milestone, beforeStart, comparableWork, picks: picked }
+  const comparableWorkEnds = comparableRead && endsOf(comparableRead, { ...laid, first, periods })
+  const both = { milestone, beforeStart, comparableWork, picks: picked, comparableWorkEnds }
   if (usesComparable) return { counts: comparableWork, sides: { ...both, from: 'comparableWork', comparableWork } }
   if (milestone === undefined) return undefined
   return {
     counts: { counts: milestone.counts.slice(beforeStart), starts: milestone.starts.slice(beforeStart) },
     sides: { ...both, from: 'milestone', milestone },
   }
+}
+
+/**
+ * Where a read with no open tickets ends (`ComparableWorkEnds`), among the `periods` from the `first`: none with a
+ * ticket open, or with its last ticket finished in the last of them or after.
+ */
+function endsOf(read: SavedRead, of: ReadCalendar & { startDate: string; first: number; periods: number }): ComparableWorkEnds | undefined {
+  if (read.tickets.some(({ finishedAt }) => finishedAt === undefined)) return undefined
+  // ISO calendar dates order as strings do
+  const day = read.tickets
+    .flatMap(({ finishedAt }) => (finishedAt === undefined ? [] : [calendarDayIn(of.timeZone)(finishedAt)]))
+    .sort()
+    .at(-1)
+  if (day === undefined) return undefined
+  const period = periodOn(day, of) - of.first
+  if (period < 0 || period >= of.periods - 1) return undefined
+  return { start: addDays(of.startDate, (of.first + period) * of.cadence), day }
 }

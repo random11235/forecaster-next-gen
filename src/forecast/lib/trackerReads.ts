@@ -46,6 +46,8 @@ export interface PaceReadingView {
   line: string
   /** With the quiet periods before the first finished ticket left out, from when: "From the first finished ticket, 3 Nov." */
   firstFinished: string | undefined
+  /** With finished comparable work ending the window, to when: "To the last finished ticket, 15 Nov: comparable work has no open tickets." */
+  lastFinished: string | undefined
   /**
    * The current period, left out until it ends, with the tickets finished in it so far: "This week, from 9 Nov, counts
    * once it ends: 2 finished so far."; or, read before it began, that the periods since count only what finished by then.
@@ -68,6 +70,7 @@ export function paceReadingView({ window, skipped, said, skippedLine, current, r
     counts: window.counts,
     line: `${said.periods} · read ${readOn}`,
     firstFinished: said.firstFinished,
+    lastFinished: said.lastFinished,
     current,
     skipped: skippedLine === undefined ? undefined : { line: skippedLine, starts: skipped.starts },
   }

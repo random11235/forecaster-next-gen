@@ -228,7 +228,8 @@ function comparedDate(percent: number, withCapacity: ForecastResult, atUsual: Fo
 /** The pace the dates come from, said in the milestone's `period`. */
 function paceSaid(pace: ForecastPace, period: PeriodName): string {
   if (pace.source === 'tracker')
-    return `${pace.tracker}’s last ${pace.counts.length === 1 ? period : counted(pace.counts.length, period)}${pace.skipped > 0 ? `, ${pace.skipped} skipped` : ''}`
+    // ending at finished comparable work's last ticket, its periods aren't the last
+    return `${pace.tracker}’s ${pace.lastFinished === undefined ? 'last ' : ''}${pace.counts.length === 1 && pace.lastFinished === undefined ? period : counted(pace.counts.length, period)}${pace.skipped > 0 ? `, ${pace.skipped} skipped` : ''}`
   return pace.source === 'counts' ? `typed counts, ${counted(pace.counts.length, period)}` : `${pace.low}–${pace.high} tickets per ${period} (range)`
 }
 

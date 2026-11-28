@@ -36,7 +36,7 @@ _Avoid_: rebaseline, new normal
 **Pace trend** (of a milestone): the counts in its pace window, typed or the tracker's, drawn as bars with the straight line that fits them best, for the EM to read; the forecast doesn't use it. Not the trend of forecast dates over time.
 _Avoid_: trend line, pace slope
 
-**Pace window** (of a milestone): the periods its pace is drawn from: every typed count, or, following the tracker, up to its 8 most recent whole periods from the first finished ticket, less any the EM's applied pace action leaves out. Counts outside it are kept, so undoing the action brings them back.
+**Pace window** (of a milestone): the periods its pace is drawn from: every typed count, or, following the tracker, up to its 8 most recent whole periods from the first finished ticket (to the last, for **Comparable work** with no open tickets), less any the EM's applied pace action leaves out. Counts outside it are kept, so undoing the action brings them back.
 
 **Skipped period** (of a milestone): a period of the tracker's that the EM leaves out of pace, such as a holiday week, named by the date it starts on. It belongs to the milestone, so it outlasts reads, and the pace window reaches further back past it; counting it again brings it back.
 _Avoid_: excluded week, ignored sprint
@@ -57,7 +57,7 @@ _Avoid_: integration, sync, account
 **Milestone query**: the query, in the connected tracker's own language (a GitHub search, or JQL on Jira), that picks out a milestone's tickets within the team's connection. The milestone is whatever it matches now. The EM writes it by picking epics, labels and milestones (fix versions on Jira), joined with OR, or by editing it by hand; a picked epic stands for every leaf beneath it, through any sub-epics.
 _Avoid_: selector, filter, scope
 
-**Comparable work** (of a milestone): recent work like the milestone's in type, capacity and ambiguity, picked out by a second, optional query the EM writes as the milestone query is written. Once added, it stands in for the milestone's own pace: pace comes from its finished tickets alone, and the milestone's own count only if the EM picks the milestone in it. KTLO usually isn't comparable work.
+**Comparable work** (of a milestone): recent work like the milestone's in type, capacity and ambiguity, picked out by a second, optional query the EM writes as the milestone query is written. Once added, it stands in for the milestone's own pace: pace comes from its finished tickets alone, and the milestone's own count only if the EM picks the milestone in it. Once its latest read has no open tickets, as when it is a closed epic, its pace stops at the period of its last finished ticket: the quiet periods after it aren't counted. KTLO usually isn't comparable work.
 _Avoid_: reference class, team throughput
 
 **Setup draft** (of a team): what the EM has chosen in the setup steps and not yet applied: queries and their reads, kept apart from the saved ones until "Use these", and thrown away by Cancel. While setup is open, the steps show it; the Milestone forecast screen never does.

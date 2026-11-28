@@ -248,7 +248,9 @@ function renderPaceSide(view: Forecast): string {
   return `
       <aside class="side" aria-label="Pace">
         <div class="heading"><h2>Pace</h2><a href="/inputs#pace">Change</a></div>
-        <p class="note">${escapeHtml(view.paceSaid)}</p>${renderPaceTrend(view.paceTrend, period, '        ')}${renderPacePattern(view.pacePattern, view.paceActionRefusal, view.horizonDate)}${renderCapacity(view.capacity, period)}
+        <p class="note">${escapeHtml(view.paceSaid)}</p>${
+          view.pace.source === 'tracker' && view.pace.lastFinished ? `\n        <p class="note">${escapeHtml(view.pace.lastFinished)}</p>` : ''
+        }${renderPaceTrend(view.paceTrend, period, '        ')}${renderPacePattern(view.pacePattern, view.paceActionRefusal, view.horizonDate)}${renderCapacity(view.capacity, period)}
       </aside>`
 }
 

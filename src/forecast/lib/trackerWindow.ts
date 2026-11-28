@@ -17,53 +17,64 @@ export type TrackerWindowBound = 'full' | 'reach' | 'firstFinished' | 'nothingFi
 /**
  * What a bound says of the window: its periods, as the reading's line says them; whether they are bars to show; with
  * the quiet periods before the first finished ticket left out, from when; and with none counted, the problem that
- * stops a forecast.
+ * stops a forecast; with finished comparable work ending it, to when.
  */
 export interface BoundSaid {
   periods: string
   bars: boolean
   firstFinished?: string
+  /** With finished comparable work ending the window, where: "To the last finished ticket, 15 Nov: comparable work has no open tickets." */
+  lastFinished?: string
   problem?: string
 }
 
-/** The tracker's window: the periods counted, the skipped ones it reaches back past, and what bounds it. */
+/**
+ * The tracker's window: the periods counted, the skipped ones it reaches back past, and what bounds it; and with
+ * finished comparable work ending it, the day of its last finished ticket.
+ */
 export interface TrackerWindow {
   window: DatedCounts
   skipped: DatedCounts
   bound: TrackerWindowBound
+  lastFinished: string | undefined
 }
 
 /**
  * The tracker's periods the pace counts, oldest first: of `pace` (every whole period its reads reach, the current one
  * left out), up to the `TRACKER_PERIODS` most recent, quiet ones 0, leaving out the quiet periods before the first
- * with a ticket finished in either read, the milestone's or comparable work's. A period the EM skipped (its start in
- * `skipped`) isn't counted: the window reaches back past it, so the one before counts instead. And what bounds it.
+ * with a ticket finished in either read, the milestone's or comparable work's. With pace from comparable work that has
+ * no open tickets, it ends at the period of its last finished ticket (`comparableWorkEnds`), leaving out those after:
+ * nothing comparable was left to finish (#411). A period the EM skipped (its start in `skipped`) isn't counted: the
+ * window reaches back past it, so the one before counts instead. And what bounds it.
  */
 export function trackerWindow(
   pace: DatedCounts,
-  { milestone, comparableWork }: Pick<SideBySide, 'milestone' | 'comparableWork'>,
+  sides: Pick<SideBySide, 'from' | 'milestone' | 'comparableWork' | 'comparableWorkEnds'>,
   skipped: readonly string[],
 ): TrackerWindow {
   const { counts, starts } = pace
+  const { milestone, comparableWork } = sides
+  const ends = sides.from === 'comparableWork' ? sides.comparableWorkEnds : undefined
+  const last = ends ? starts.indexOf(ends.start) : counts.length - 1
   const isSkipped = (period: number): boolean => skipped.includes(starts[period]!)
   const finished = new Set([pace, milestone, comparableWork].flatMap((read) => read?.starts.filter((_, at) => read.counts[at]! > 0) ?? []))
   const finishedIn = (period: number): boolean => finished.has(starts[period]!)
-  const first = starts.findIndex((_, period) => finishedIn(period) && !isSkipped(period))
+  const first = starts.findIndex((_, period) => period <= last && finishedIn(period) && !isSkipped(period))
   const passed: number[] = []
   const kept: number[] = []
   // the most recent first, back to the first finished ticket's period, passing over skipped ones
-  for (let period = counts.length - 1; period >= Math.max(first, 0) && kept.length < TRACKER_PERIODS; period--) {
+  for (let period = last; period >= Math.max(first, 0) && kept.length < TRACKER_PERIODS; period--) {
     if (isSkipped(period)) passed.unshift(period)
     else if (first >= 0) kept.unshift(period)
   }
   const dated = (periods: number[]): DatedCounts => ({ counts: periods.map((period) => counts[period]!), starts: periods.map((period) => starts[period]!) })
   const skips = dated(passed)
   if (first < 0) {
-    const bound = passed.length > 0 && passed.length === counts.length ? 'everySkipped' : passed.some(finishedIn) ? 'everyFinishedSkipped' : 'nothingFinished'
-    return { window: dated([]), skipped: skips, bound }
+    const bound = passed.length > 0 && passed.length === last + 1 ? 'everySkipped' : passed.some(finishedIn) ? 'everyFinishedSkipped' : 'nothingFinished'
+    return { window: dated([]), skipped: skips, bound, lastFinished: undefined }
   }
   const bound = kept.length === TRACKER_PERIODS ? 'full' : first > 0 ? 'firstFinished' : 'reach'
-  return { window: dated(kept), skipped: skips, bound }
+  return { window: dated(kept), skipped: skips, bound, lastFinished: ends?.day }
 }
 
 /** What a bound is said from: the tracker, the milestone's period, the window, the reads side by side and the counts pace comes from. */
@@ -73,6 +84,17 @@ export interface BoundFacts {
   window: DatedCounts
   sides: SideBySide
   counts: DatedCounts
+}
+
+/**
+ * What the window says of itself: what its bound says (`BOUND_SAID`), and, ending at finished comparable work's last
+ * ticket on `lastFinished`, that it stops there, its periods no longer the last.
+ */
+export function windowSaid(bound: TrackerWindowBound, facts: BoundFacts, lastFinished: string | undefined): BoundSaid {
+  const said = BOUND_SAID[bound](facts)
+  if (lastFinished === undefined) return said
+  const periods = bound === 'full' ? counted(TRACKER_PERIODS, facts.period) : said.periods
+  return { ...said, periods, lastFinished: `To the last finished ticket, ${dayMonth(lastFinished)}: comparable work has no open tickets.` }
 }
 
 /** What each bound says of the window, in one place: the reading's line, and the problem when it leaves no pace. */
