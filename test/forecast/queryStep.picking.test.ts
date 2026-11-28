@@ -17,6 +17,7 @@ import {
   stepView,
   add,
   remove,
+  edit,
 } from './queryStepScenario.js'
 
 // The Milestone step (#191): opening it, its lists of choices, and picking the milestone’s tickets.
@@ -243,39 +244,61 @@ describe('picking', () => {
   })
 })
 
-describe('a label among the picks (#416)', () => {
+describe('a query picking by a label (#416)', () => {
   const LEAF = 'Leaf tickets only. Epics include their sub-epics.'
 
-  test('the note says a label counts a ticket only while it has it, and what stays with a ticket until it’s finished', async () => {
+  test('the note says a label counts a ticket only while it has it, and what is usually kept on', async () => {
     const team = await connected()
 
     await change(team, add(payments))
     await change(team, add(bug))
 
     expect((await stepView(team)).note).toBe(
-      `${LEAF} A label counts a ticket only while the ticket has it: taken off as the ticket moves on or closes, the ticket leaves tickets remaining, and its finish leaves pace. A milestone or an epic stays with a ticket until it’s finished.`,
+      `${LEAF} A label counts a ticket only while the ticket has it: taken off while the ticket is open, it leaves tickets remaining, and its finish won’t count in pace; taken off as it closes, its finish leaves pace. A milestone or an epic is usually kept on a ticket until it’s finished.`,
     )
   })
 
-  test('on Jira, a fix version stays with a ticket in place of a milestone', async () => {
+  test('on Jira, it names a fix version in place of a milestone', async () => {
     const team = await connectedToJira(FIXTURE)
 
-    await change(team, add(repay))
+    await change(team, add({ kind: 'label', name: 'repayments', query: 'labels = "repayments"' }))
 
     expect((await stepView(team)).note).toBe(
-      `${LEAF} A label counts a ticket only while the ticket has it: taken off as the ticket moves on or closes, the ticket leaves tickets remaining, and its finish leaves pace. A fix version or an epic stays with a ticket until it’s finished.`,
+      `${LEAF} A label counts a ticket only while the ticket has it: taken off while the ticket is open, it leaves tickets remaining, and its finish won’t count in pace; taken off as it closes, its finish leaves pace. A fix version or an epic is usually kept on a ticket until it’s finished.`,
     )
   })
 
-  test('in the Comparable work step, whose open tickets don’t count, the note says only that its finish leaves pace', async () => {
+  test('in the Comparable work step, whose open tickets don’t count, it names only the finish', async () => {
     const team = await connected()
     onComparableWork(team)
 
     await change(team, add(bug), 'comparableWork')
 
     expect((await stepView(team, '', {}, 'comparableWork')).note).toBe(
-      `${LEAF} A label counts a ticket only while the ticket has it: taken off as the ticket moves on or closes, its finish leaves pace. A milestone or an epic stays with a ticket until it’s finished.`,
+      `${LEAF} A label counts a ticket only while the ticket has it: taken off before or as the ticket closes, its finish leaves pace. A milestone or an epic is usually kept on a ticket until it’s finished.`,
     )
+  })
+
+  test('a query edited by hand that picks by a label says so too, but not one that only leaves a label out', async () => {
+    const team = await connected()
+
+    await change(team, edit('milestone:"Payments v2" label:bug'))
+    const picking = (await stepView(team)).note
+    await change(team, edit('milestone:"Payments v2" -label:wontfix'))
+
+    expect(picking).toContain('A label counts a ticket only while the ticket has it')
+    expect((await stepView(team)).note).toBe(LEAF)
+  })
+
+  test('on Jira, a query edited by hand picks by a label with labels = or in, but not with != or not in', async () => {
+    const team = await connectedToJira(FIXTURE)
+
+    await change(team, edit('fixVersion = "2.0" AND LABELS in (bug, ui)'))
+    const picking = (await stepView(team)).note
+    await change(team, edit('fixVersion = "2.0" AND labels not in (wontfix) AND labels != spike'))
+
+    expect(picking).toContain('A label counts a ticket only while the ticket has it')
+    expect((await stepView(team)).note).toBe(LEAF)
   })
 
   test('with no label picked, the note is the leaf note alone', async () => {
