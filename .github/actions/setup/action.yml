@@ -1,5 +1,5 @@
 # What every job in ci.yml does after its checkout (a local action can't check out the repo it lives in): Node 24, with
-# npm's cache, and the locked dependencies.
+# npm's cache, and the locked dependencies. It is ci.yml's alone: the factory's jobs set up their own.
 name: Set up
 description: Node 24 and the locked dependencies (npm ci)
 runs:
@@ -7,7 +7,7 @@ runs:
   steps:
     - uses: actions/setup-node@v7
       with:
-        node-version: 24 # NODE_MAJOR in .github/workflows/factory.yml must match
+        node-version: 24
         cache: npm
     - run: npm ci
       shell: bash

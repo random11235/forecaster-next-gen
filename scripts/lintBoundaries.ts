@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
-const paths = process.argv.length > 2 ? process.argv.slice(2) : ['src', 'test', 'scripts']
+const paths = process.argv.length > 2 ? process.argv.slice(2) : ['src', 'test', 'scripts', 'factory']
 const depcruise = (outputType: string) =>
   spawnSync(
     process.execPath,

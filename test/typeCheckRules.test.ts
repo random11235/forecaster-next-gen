@@ -49,8 +49,8 @@ function typeCheckOffs({ file, source }: SourceFile): TypeCheckOff[] {
 }
 
 describe('type check rules', () => {
-  test('no file in src/, test/ or scripts/ has any in a type position, or a ! but on an index', () => {
-    const files = ['src', 'test', 'scripts'].flatMap((folder) => typeScriptSourcesUnder(join(root, folder), root))
+  test('no file in src/, test/, scripts/ or factory/ has any in a type position, or a ! but on an index', () => {
+    const files = ['src', 'test', 'scripts', 'factory'].flatMap((folder) => typeScriptSourcesUnder(join(root, folder), root))
 
     expect(files.map(({ file }) => file)).toContain('src/app/html.ts')
     expect(files.flatMap(typeCheckOffs)).toEqual([])
