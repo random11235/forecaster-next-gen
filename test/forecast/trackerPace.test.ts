@@ -261,8 +261,8 @@ describe('the window', () => {
     })
   })
 
-  // #405: a start date of today, as a new milestone's is, leaves no whole weeks of its own yet
-  test('with no week ended since the start date, it says so, and that what GitHub finished before it doesn’t count', async () => {
+  // #405: a start date in the current week, as today's is (a new milestone's), leaves no whole weeks of its own yet
+  test('with no week ended since the start date, it says what GitHub finished before it, which doesn’t count', async () => {
     await following(finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]))
 
     await submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-11-09', ticketsRemaining: '30' })
@@ -283,7 +283,7 @@ describe('the window', () => {
     })
   })
 
-  test('with nothing finished in the weeks since the start date, it says so, and what GitHub finished before it', async () => {
+  test('with nothing finished in the weeks since the start date, it says what GitHub finished before it', async () => {
     await following(finishedInWeeks([3, 5, 6, 4, 7, 5, 0, 0]))
 
     await submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-10-26', ticketsRemaining: '30' })
@@ -299,6 +299,50 @@ describe('the window', () => {
           input: 'pace',
           message:
             'The milestone’s own pace counts only the weeks since its start date, and nothing finished in them: the 30 tickets GitHub finished before it don’t count. Add comparable work, type counts, or switch pace to the range.',
+        },
+      ],
+    })
+  })
+
+  test('with no week ended since the start date and nothing finished before it, it says so', async () => {
+    await following([])
+
+    await submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-11-09', ticketsRemaining: '30' })
+
+    expect((await inputs()).milestone.trackerPace?.reading).toMatchObject({
+      line: 'no week since the start date has ended · GitHub finished none before it · read 12 Nov 09:00',
+    })
+    expect(await forecast()).toMatchObject({
+      kind: 'problems',
+      problems: [
+        {
+          input: 'pace',
+          message:
+            'The milestone’s own pace counts only the weeks since its start date, and none has ended yet. Add comparable work, type counts, or switch pace to the range.',
+        },
+      ],
+    })
+  })
+
+  test('with no week ended since the start date and comparable work that finished nothing, it doesn’t offer to add comparable work', async () => {
+    const like: Choice = { kind: 'label', name: 'checkout-like', query: 'label:"checkout-like"' }
+    team.fixture.milestoneChoices = [
+      { kind: 'milestone', choices: [CHECKOUT], pastLimit: false },
+      { kind: 'label', choices: [like], pastLimit: false },
+    ]
+    team.fixture.reads[like.query] = { tickets: [{ id: 'like-open' }], incomplete: false }
+    await following(finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]))
+    await pick(team, READ_AT, like, 'comparableWork')
+
+    await submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-11-09', ticketsRemaining: '30' })
+
+    expect(await forecast()).toMatchObject({
+      kind: 'problems',
+      problems: [
+        {
+          input: 'pace',
+          message:
+            'The milestone’s own pace counts only the weeks since its start date, and none has ended yet: the 44 tickets GitHub finished before it don’t count. Type counts, or switch pace to the range.',
         },
       ],
     })
