@@ -2,6 +2,10 @@
 
 What each version of the app shipped, newest first. The version is the one in every screen's footer: a fix is in the app you're running if its version is the footer's or older. Each merge's release ([`docs/design/architecture.md`](docs/design/architecture.md#release)) writes its section here, a line from each change file (`changes/<ticket>.md`) a PR that changes the app adds: a PR doesn't edit the entries below ([`docs/agents/pull-requests.md`](docs/agents/pull-requests.md#version)).
 
+## 2.5.0 (2026-11-28)
+
+- Shorter explanations on the Inputs screen (#419, PR #422)
+
 ## 2.4.0 (2026-11-28)
 
 - With a query that picks by a label, the Milestone and Comparable work steps say a label counts a ticket only while it has it, so one taken off as a ticket moves on or closes drops it and its finish, and that a milestone, fix version or epic is usually kept on a ticket until it's finished (#416, PR #418)
