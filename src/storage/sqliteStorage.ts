@@ -359,6 +359,11 @@ CREATE TABLE forecast_logs (
   PRIMARY KEY (team_id, id)
 );
 `,
+  // 22: a milestone has one cadence (#409): the cadence its pace was entered in, added by step 8, is dropped. The pace
+  // is read in the milestone's cadence, as the forecast reads it.
+  `
+ALTER TABLE milestone_inputs DROP COLUMN pace_cadence_days;
+`,
 ]
 
 /** The local server build's storage: everything, and the team's connection, saved reads, milestone query and comparable work's, and how its setup was closed. */

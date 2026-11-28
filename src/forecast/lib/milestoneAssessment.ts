@@ -52,12 +52,7 @@ export function assessMilestone(
 ): MilestoneAssessment {
   const pace = forecastPace(inUse)
   const tickets = ticketsInUse(inputs, measured)
-  const warnings = [
-    ...startDateWarnings(inputs, today),
-    ...paceWarnings(inputs, tickets.count, pace),
-    ...(inUse.source === 'tracker' ? [] : paceCadenceWarnings(inputs)),
-    ...paceNotes,
-  ]
+  const warnings = [...startDateWarnings(inputs, today), ...paceWarnings(inputs, tickets.count, pace), ...paceNotes]
   const problems = [
     ...(inputs.startDate === undefined ? [{ input: 'startDate', message: 'No start date is saved yet.' } as const] : []),
     ...(tickets.problem ? [{ input: 'ticketsRemaining', message: tickets.problem } as const] : []),
@@ -115,14 +110,6 @@ function paceWarnings(inputs: MilestoneInputs, ticketsRemaining: number | undefi
   const zeroPace = pace !== undefined && pace.source !== 'range' ? pace.counts.length > 0 && pace.counts.every((count) => count === 0) : pace?.high === 0
   if (workLeft && zeroPace) return [worded('pace', `At 0 tickets a ${periodName(inputs.cadenceDays)}, the work never finishes.`)]
   return []
-}
-
-/** A pace entered in another cadence: changing the cadence keeps its numbers, so 4–8 a week becomes 4–8 a sprint. */
-function paceCadenceWarnings({ cadenceDays, paceCadenceDays, paceRange, paceCounts }: MilestoneInputs): Warning[] {
-  const paceEntered = paceRange !== undefined || paceCounts.length > 0
-  if (!paceEntered || paceCadenceDays === undefined || paceCadenceDays === cadenceDays) return []
-  const check = 'Please verify that the per period numbers are aligned.'
-  return [{ input: 'pace', message: `Pace: cadence length has changed. ${check}`, beside: `Cadence length has changed. ${check}` }]
 }
 
 /** A warning worded the same on the forecast and beside its input. */

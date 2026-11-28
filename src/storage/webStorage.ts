@@ -13,12 +13,13 @@ export type { KeyValueStore } from './lib/webStore.js'
 /** Where the data is kept in the browser's storage: everything but the forecast ledger, as one JSON value. */
 const KEY = 'forecaster'
 
-/** Everything stored, by team ID. Fields are only ever added, so data from an earlier build still reads. */
+/** Everything stored, by team ID. Fields are added, or dropped as read, so data from an earlier build still reads. */
 interface Stored {
   teams: Team[]
   /**
    * Each team's milestone inputs, missing the fields added since the build that stored them: the pace window (#161),
-   * or sources, skips and reads seen (#210).
+   * or sources, skips and reads seen (#210). A build before #409 kept the cadence the pace was entered in too, which
+   * reading drops: a milestone has one cadence.
    */
   milestoneInputs: Record<
     string,
@@ -26,6 +27,7 @@ interface Stored {
       paceWindow?: Partial<MilestoneInputs['paceWindow']>
       ticketsSource?: MilestoneInputs['ticketsSource']
       seenReads?: Partial<MilestoneInputs['seenReads']>
+      paceCadenceDays?: unknown
     }
   >
   ambiguityRanges: Record<string, AmbiguityRanges>
@@ -115,9 +117,10 @@ export function openWebStorage(store: KeyValueStore | undefined): Storage {
 
 /**
  * The milestone inputs, with what an earlier build didn't store at its default: no action and no skips, tickets typed,
- * nothing seen. JSON drops an undefined `readAt`, so it is read back as undefined.
+ * nothing seen; and without the cadence a pace was entered in, which an earlier build kept. JSON drops an undefined
+ * `readAt`, so it is read back as undefined.
  */
-function withDefaults({ paceWindow, ticketsSource, seenReads, ...inputs }: Stored['milestoneInputs'][string]): MilestoneInputs {
+function withDefaults({ paceWindow, ticketsSource, seenReads, paceCadenceDays: _, ...inputs }: Stored['milestoneInputs'][string]): MilestoneInputs {
   return {
     ...inputs,
     ticketsSource: ticketsSource ?? 'typed',
@@ -145,7 +148,6 @@ const isStoredMilestoneInputs = (value: unknown): value is Stored['milestoneInpu
   isOneOf(PACE_MODES)(value.paceMode) &&
   optional(isRange)(value.paceRange) &&
   isPaceCounts(value.paceCounts) &&
-  optional(isNumber)(value.paceCadenceDays) &&
   optional(isStoredPaceWindow)(value.paceWindow) &&
   optional(isStoredSeenReads)(value.seenReads)
 

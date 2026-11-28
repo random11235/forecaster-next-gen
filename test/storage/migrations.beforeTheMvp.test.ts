@@ -44,7 +44,6 @@ INSERT INTO ambiguity_ranges (team_id, low_low, low_high, medium_low, medium_hig
     paceMode: 'range',
     paceRange: { low: 4, high: 8 },
     paceCounts: [],
-    paceCadenceDays: 7,
     paceWindow: { action: undefined, skippedPeriods: [] },
     ticketsSource: 'typed',
     seenReads: { ticketsRemaining: undefined, pace: undefined },
