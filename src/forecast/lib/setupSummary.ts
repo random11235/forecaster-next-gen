@@ -157,7 +157,7 @@ function rowOf(reading: SummaryReading, teamId: string, tracker: TrackerFacts, s
 }
 
 /** Why a row of several picks shows them without their counts: a read by hand reads each query whole; Check reads each pick. */
-const COUNTS_WAIT = 'Read again doesn’t count each pick. Change, then Check, does.'
+const COUNTS_WAIT = 'After Read again, picks show no counts. Change, then Check, counts them.'
 
 /**
  * A pick's count: the tickets its own read matched, open and finished. A lone pick's read is its query's. None for a

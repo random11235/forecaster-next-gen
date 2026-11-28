@@ -32,9 +32,7 @@ describe('the candidates', () => {
   test('none opened yet: says how to open one, and is kept in its opening for the script', () => {
     const page = shown({ groups: [], period: 'week' })
 
-    expect(text(page)).toBe(
-      'Candidates Open a candidate’s pace, or narrow the list to 5 or fewer, to compare it with the milestone.',
-    )
+    expect(text(page)).toBe('Candidates Open a candidate’s pace, or type to narrow the list to 5 or fewer, to compare it with the milestone.')
     expect(one(page, '.candidates').getAttribute('data-opening')).toBe('opening-1')
     expect(hasRole(page, 'list')).toBe(false)
   })

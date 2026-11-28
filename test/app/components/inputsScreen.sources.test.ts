@@ -105,7 +105,7 @@ describe('each source of tickets remaining and pace', () => {
     const weeks = one(following, 'details')
     expect(text(one(weeks, 'summary'))).toBe('Show weeks')
     weeks.setAttribute('open', '')
-    expect(text(weeks)).toContain('Skip an odd week (a holiday, say); the one before counts instead.')
+    expect(text(weeks)).toContain('Skip an unusual week (a holiday, say); the one before counts instead.')
     // a block for each week, holding its count, which posts them all as typed counts
     expect(allByRole(weeks, 'spinbutton').map((block) => block.getAttribute('value'))).toEqual(['5', '6', '4', '7', '5', '6', '8'])
     expect(postsTo(byRole(weeks, 'button', { name: 'Use as typed counts' }))).toBe('/inputs/pace-weeks#pace-counts')

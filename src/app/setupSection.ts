@@ -122,7 +122,7 @@ export function checkStepHtml(check: SetupCheck | undefined): string {
   const table =
     check === undefined
       ? ''
-      : `        <p class="muted">Values from ${escapeHtml(check.tracker)} update on each read; yours stay as you set them.</p>
+      : `        <p class="muted">Values from ${escapeHtml(check.tracker)} update on each read; yours stay as you set them. Choosing one keeps the other.</p>
         <table class="check">
           <thead>
             <tr><th scope="col"></th><th scope="col">Yours now</th><th scope="col">From ${escapeHtml(check.tracker)}</th><th scope="col">Use</th></tr>
@@ -277,16 +277,14 @@ function flagHtml({ of, flag, change }: SummaryFlag): string {
 }
 
 /**
- * What the browser build shows in place of setup, which it hasn't (#396): that the Forecaster also integrates with GitHub and Jira,
- * linking to how to run it on the EM's own machine, the README of the repo the build was made from, where it has one, and
- * that the inputs below will do without it (#403).
+ * What the browser build shows in place of setup, which it hasn't (#396): that the Forecaster can also connect to GitHub
+ * and Jira, linking to how to run it on the EM's own machine, the README of the repo the build was made from, where it
+ * has one (#403).
  */
 export function noSetupHtml(): string {
   const readme = FEEDBACK_REPO && `https://github.com/${FEEDBACK_REPO}#readme`
-  const integration = readme
-    ? `<a href="${escapeHtml(readme)}" target="_blank" rel="noopener">GitHub and Jira integration</a>`
-    : 'GitHub and Jira integration'
-  return summaryBoxHtml(`      <span class="muted">Also available: ${integration}.</span>`)
+  const connect = readme ? `<a href="${escapeHtml(readme)}" target="_blank" rel="noopener">connect to GitHub and Jira</a>` : 'connect to GitHub and Jira'
+  return summaryBoxHtml(`      <span class="muted">The Forecaster can also ${connect}.</span>`)
 }
 
 /** Connecting skipped: the inputs typed, as the MVP has them, with a way to connect a tracker after all; above the inputs. */

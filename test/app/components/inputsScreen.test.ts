@@ -37,14 +37,14 @@ describe('the Inputs screen in the browser build', () => {
     expect(byRole(milestone, 'spinbutton', { name: 'Tickets remaining' }).getAttribute('value')).toBe('')
     expect(hasRole(milestone, 'group', { name: 'Where tickets remaining comes from' })).toBe(false)
     expect(text(section(page, 'Pace'))).toContain(
-      'Tickets finished per week: a range from slow to good, or typed counts (4 to forecast, 8 to be reliable). Capacity is beside the forecast.',
+      'Tickets finished per week: a range from slow to good, or typed counts (at least 4 to forecast, 8 to be reliable). Capacity is under Pace on the Milestone forecast.',
     )
     expect(allByRole(byRole(page, 'group', { name: 'Pace the forecast uses' }), 'radio').map((radio) => accessibleName(radio))).toEqual([
       'Range',
       'Typed counts',
     ])
-    // in place of setup, that the Forecaster also integrates with GitHub and Jira, or the inputs do without (#396, #403)
-    expect(text(one(page, '.setup-summary'))).toBe('Also available: GitHub and Jira integration.')
+    // in place of setup, that the Forecaster can also connect to GitHub and Jira (#396, #403)
+    expect(text(one(page, '.setup-summary'))).toBe('The Forecaster can also connect to GitHub and Jira.')
     expect(hasRole(page, 'button', { name: /Connect/ })).toBe(false)
     expect(hasRole(page, 'alert')).toBe(false)
     expect(text(page)).not.toContain('⚠')
@@ -147,9 +147,7 @@ describe('the Inputs screen in the browser build', () => {
       ['High ambiguity, high end', '3'],
     ])
     expect(text(growth)).toContain('× the tickets remaining')
-    expect(text(growth)).toContain(
-      'Each simulation multiplies tickets remaining by a random value in the milestone’s range. Wider ranges spread the dates.',
-    )
+    expect(text(growth)).toContain('Each simulation multiplies tickets remaining by a random value in the milestone’s range. Wider ranges spread the dates.')
   })
 
   const GROWTH = { low: { low: '1', high: '1.5' }, medium: { low: '1', high: '2' }, high: { low: '1.5', high: '3' } }

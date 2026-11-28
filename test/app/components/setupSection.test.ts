@@ -145,7 +145,7 @@ describe('the Check step', () => {
     ])
   })
 
-  test('no start date yet: says pace counts from it', () => {
+  test('no start date yet: asks for it', () => {
     expect(rows({ ...check, pace: { ...unread, noStartDate: true } })[2]).toBe(
       'Pace 2–4 a week None yet: enter the milestone’s start date below. GitHub Range Choose',
     )

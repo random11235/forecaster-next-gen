@@ -48,7 +48,7 @@ export function paceSection(screen: InputsView, error: FormError, period: Period
   return inputSection(
     INPUT_LABELS.pace,
     INPUT_LABELS.pace,
-    `Tickets finished per ${period}: ${trackerPace ? `${escapeHtml(trackerPace.tracker)}’s ${period}s, ` : ''}a range from slow to good, or typed counts (${typedCounts.forForecast} to forecast, ${typedCounts.reliable} to be reliable). Capacity is beside the forecast.`,
+    `Tickets finished per ${period}: ${trackerPace ? `${escapeHtml(trackerPace.tracker)}’s ${period}s, ` : ''}a range from slow to good, or typed counts (at least ${typedCounts.forForecast} to forecast, ${typedCounts.reliable} to be reliable). Capacity is under Pace on the Milestone forecast.`,
     `        <form method="post" action="${formAction(PACE_MODE_TARGET)}">${errorLine(error('paceMode'))}
 ${radios('paceMode', 'Pace the forecast uses', modes, paceMode, name)}
           <div class="actions"><button type="submit" class="primary">Use this pace</button></div>
@@ -136,7 +136,7 @@ function trackerReading({ tracker, reading, incomplete, was }: TrackerPaceView, 
           <details class="week-blocks"${skipped ? ' open' : ''}>
             <summary>Show ${period}s</summary>
             <form method="post" action="/inputs/pace-weeks#pace-counts">
-              <p class="hint">Typing into a ${period} switches pace to typed counts. Skip an odd ${period} (a holiday, say); the one before counts instead.</p>
+              <p class="hint">Typing into a ${period} switches pace to typed counts. Skip an unusual ${period} (a holiday, say); the one before counts instead.</p>
               <div class="blocks">
               ${blocks}
               </div>

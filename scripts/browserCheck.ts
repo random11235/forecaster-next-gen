@@ -73,7 +73,7 @@ function check(build: Build, home: string): void {
     browser('errors', '--clear')
 
     browser('find', 'role', 'link', 'click', '--name', 'Inputs', '--exact')
-    browser('wait', '--text', 'how many tickets are left')
+    browser('wait', '--text', 'start date, and tickets remaining')
     browser('find', 'label', 'Name', 'fill', TYPED.name, '--exact')
     browser('find', 'label', 'Tickets remaining', 'fill', TYPED.ticketsRemaining, '--exact')
     browser('find', 'label', 'Low', 'fill', TYPED.low, '--exact')

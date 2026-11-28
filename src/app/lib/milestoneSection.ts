@@ -42,7 +42,7 @@ export function milestoneSection(screen: InputsView, error: FormError): Section 
   return inputSection(
     'Milestone',
     'Milestone',
-    'Its name, start date, and tickets left.',
+    'Its name, start date, and tickets remaining.',
     `        <form method="post" action="/inputs/milestone#milestone">${errorLine(error('milestone'))}
           <div class="fields">
             <label class="wide">${INPUT_LABELS.name} <input type="text" name="name" value="${escapeHtml(form.name)}" required></label>${notesFor('name', notes)}

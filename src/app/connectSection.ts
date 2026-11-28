@@ -35,7 +35,7 @@ export function connectSection(view: ConnectStep): string {
 }
 
 /** What the section says in its label column. */
-export const CONNECT_HINT = 'Read the milestone’s tickets from a GitHub repo or Jira project, or skip and type them.'
+export const CONNECT_HINT = 'Read the milestone’s tickets from a GitHub repo or Jira project, or skip and type the inputs.'
 
 function connectedBody(step: Extract<ConnectStep, { kind: 'connected' }>): string {
   const refused = step.refusal !== undefined
@@ -77,7 +77,7 @@ ${field('Account email', 'email', form.email, 'the account that made the token',
           <div class="fields">
               <label class="wide">Token <input type="password" name="token" value="" placeholder="${kind === 'connected' ? 'blank keeps the saved token' : 'read-only, never shown again'}" autocomplete="off"></label>
           </div>
-          <p class="note">Use a read-only token: on GitHub, a fine-grained token with <b>${escapeHtml(permissions.github)}</b> on the repo; on Jira, a scoped API token with <b>${escapeHtml(permissions.jira)}</b>. It stays in this computer’s keychain.</p>
+          <p class="note">Use a read-only token: on GitHub, a fine-grained token with <b>${escapeHtml(permissions.github)}</b> on the repo; on Jira, a scoped API token with <b>${escapeHtml(permissions.jira)}</b>. Nothing is written to the tracker; the token stays in this computer’s keychain.</p>
           <div class="actions">${skip}
             <button type="submit" class="primary">${button}</button>
           </div>

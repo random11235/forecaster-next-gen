@@ -172,7 +172,7 @@ function ambiguitySection(chosen: Ambiguity, { ranges, names }: GrowthView, erro
   return inputSection(
     'Ambiguity',
     'Ambiguity',
-    'How well the work is understood. The less, the more it may grow.',
+    'How well the work is understood. Less understood work may grow more.',
     `        <form method="post" action="/inputs/ambiguity#ambiguity">${errorLine(error)}
 ${radios('ambiguity', 'Ambiguity of the milestone', AMBIGUITIES, chosen, level)}
           <div class="actions"><button type="submit" class="primary">Save and forecast</button></div>

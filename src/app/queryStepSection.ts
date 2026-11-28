@@ -116,7 +116,7 @@ export const COMPARABLE_WORK_STEP: StepSection = stepSection({
   setupStep: 'comparableWork',
   id: SETUP_STEP_IDS.comparableWork,
   title: 'Comparable work',
-  hint: 'Optional. Recent work like this milestone, to measure pace from instead. Add this milestone too to count its own tickets.',
+  hint: 'Optional. Recent work like this milestone’s, to measure pace from instead of its own. Pick this milestone too to count its own tickets.',
   inputId: 'comparable-work-query',
   formsAt: '/inputs/comparable-work',
   findField: 'comparableFind',

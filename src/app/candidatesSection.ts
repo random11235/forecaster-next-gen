@@ -64,7 +64,7 @@ export function candidatesHtml(candidates: Candidates, opening: string, section:
   const { period } = candidates
   const note =
     candidates.groups.length === 0
-      ? `Open a candidate’s <b>pace</b>, or narrow the list to ${FEW_CANDIDATES} or fewer, to compare it with the milestone.`
+      ? `Open a candidate’s <b>pace</b>, or type to narrow the list to ${FEW_CANDIDATES} or fewer, to compare it with the milestone.`
       : candidates.milestoneOwn === undefined
         ? `Too few of the milestone’s own ${period}s to compare: listed by median.`
         : `Against the milestone’s own so far: ${number(candidates.milestoneOwn)} a ${period}.`
