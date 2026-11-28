@@ -2,6 +2,10 @@
 
 What each version of the app shipped, newest first. The version is the one in every screen's footer: a fix is in the app you're running if its version is the footer's or older. Each merge's release ([`docs/design/architecture.md`](docs/design/architecture.md#release)) writes its section here, a line from each change file (`changes/<ticket>.md`) a PR that changes the app adds: a PR doesn't edit the entries below ([`docs/agents/pull-requests.md`](docs/agents/pull-requests.md#version)).
 
+## 2.0.0 (2026-11-28)
+
+- A milestone has one cadence: changing it no longer warns that the cadence length has changed, and a typed pace is read per period of the new cadence, as the forecast reads it. The data file drops the cadence a pace was entered in (#409, PR #410)
+
 ## 1.8.0 (2026-11-28)
 
 - The web build's Inputs screen says, in plainer words, that the Forecaster also works with GitHub and Jira (#403, PR #404)
