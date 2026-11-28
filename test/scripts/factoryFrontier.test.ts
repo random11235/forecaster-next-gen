@@ -102,6 +102,28 @@ describe("the factory's next step on a spec", () => {
     })
   })
 
+  describe('on a run the chain started, capped at one hop for each of its tickets', () => {
+    const tickets = [ticket(12, { state: 'CLOSED' }), ticket(13, { comments: { nodes: [MERGED] } }), ticket(14)]
+
+    test("builds below the cap, a spec's last hop too", () => {
+      expect(nextStep(SPEC, tickets, 2)).toEqual({ action: 'build', ticket: 14 })
+    })
+
+    test('stops at the cap, though a ticket could be built, naming the cap and how to go on', () => {
+      expect(nextStep(SPEC, tickets, 3)).toEqual({
+        action: 'stop',
+        why: 'its runs have chained 3 times, once for each of its 3 tickets: label the spec ready-for-agent to build on',
+      })
+    })
+
+    test('lets a spec of more than 20 tickets chain once for each, with no fixed cap', () => {
+      const many = Array.from({ length: 30 }, (_, at) => ticket(100 + at))
+
+      expect(nextStep(SPEC, many, 29)).toEqual({ action: 'build', ticket: 100 })
+      expect(nextStep(SPEC, many, 30)).toMatchObject({ action: 'stop' })
+    })
+  })
+
   test('stops on a spec with no tickets', () => {
     expect(nextStep(SPEC, [])).toEqual({ action: 'stop', why: 'the spec has no tickets (sub-issues)' })
   })

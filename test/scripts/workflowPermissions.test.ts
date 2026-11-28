@@ -8,7 +8,7 @@ const WORKFLOWS = readdirSync(DIR).filter((name) => /\.ya?ml$/.test(name))
  * One `permissions:` of a workflow: its indent (0 for the workflow's own) and its grants, `scope: access`, `read-all` or
  * `write-all`, or the raw text of one this test can't read.
  */
-type Permissions = { indent: number; grants: string[] }
+type Permissions = { indent: number; at: number; grants: string[] }
 
 /**
  * Every `permissions:` in a workflow, read with its comments stripped, written as a block, a one-line flow map or one
@@ -31,11 +31,11 @@ const permissionsIn = (name: string): Permissions[] => {
     if (inline) {
       const map = /^\{(.*)\}$/.exec(inline)
       const entries = map ? map[1]!.split(',').filter((entry) => entry.trim()) : [inline]
-      return [{ indent, grants: entries.map(grant) }]
+      return [{ indent, at, grants: entries.map(grant) }]
     }
     const end = lines.findIndex((each, i) => i > at && each.trim() !== '' && each.search(/\S/) <= indent)
     const block = lines.slice(at + 1, end === -1 ? undefined : end).filter((each) => each.trim())
-    return [{ indent, grants: block.map(grant) }]
+    return [{ indent, at, grants: block.map(grant) }]
   })
 }
 
@@ -60,4 +60,23 @@ test('every workflow caps its own token at read, and only the factory grants a j
   }
   const granting = WORKFLOWS.filter((name) => permissionsIn(name).some(({ grants }) => grants.some(writesIssues)))
   expect(granting).toEqual(['factory.yml'])
+})
+
+/** The grants of a job's own `permissions:` in factory.yml, sorted, or undefined if it sets none. */
+const factoryJob = (job: string): string[] | undefined => {
+  const lines = readFileSync(new URL('factory.yml', DIR), 'utf8').split('\n')
+  const start = lines.findIndex((line) => line.replace(/\s#.*$/, '') === `  ${job}:`)
+  const next = lines.findIndex((line, at) => at > start && /^ {2}[a-z-]+:/.test(line))
+  const end = next === -1 ? lines.length : next
+  return permissionsIn('factory.yml')
+    .find(({ indent, at }) => indent === 4 && at > start && at < end)
+    ?.grants.slice()
+    .sort()
+}
+
+// The jobs that run on a spec's PR, which a merged PR's event starts with write access, run only the default branch's
+// code: their grants are pinned, so widening one is a change to review here
+test("the jobs that open and close a spec's PR to the default branch hold only the grants they need", () => {
+  expect(factoryJob('propose')).toEqual(['contents: read', 'issues: read', 'pull-requests: read'])
+  expect(factoryJob('close')).toEqual(['actions: write', 'contents: write', 'issues: write'])
 })

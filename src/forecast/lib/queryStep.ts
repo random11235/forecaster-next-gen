@@ -6,7 +6,7 @@ import { teamConnection, withTeamQueries, type Connecting } from './connection.j
 import { finishedSinceFor, readQuery, type QueryRead } from './queryRead.js'
 import { MILESTONE_QUERY, type QueryName, type StepQuery } from './stepQuery.js'
 import type { ReadClock } from './pace.js'
-import { trackerOf } from './trackers.js'
+import { trackerOf, type TrackerFacts } from './trackers.js'
 import { CHOICES_FAILED, foundInTracker, KEYCHAIN_FAILED, listedHere, markedThisMilestone, notPicked, type ChoiceList } from './choiceLists.js'
 import { readFlag, readLine, rejectionOf } from './readSaid.js'
 import { chipsShow, editedQuery, NO_QUERY, picksChanged, type PicksEdit } from './stepQueryEdit.js'
@@ -16,6 +16,25 @@ export type { ComparableWorkPace } from './comparableWorkPace.js'
 
 /** What the Milestone step says once, beside the milestone query: the only two things a read adds to it. */
 export const LEAF_NOTE = 'Leaf tickets only. Epics include their sub-epics.'
+
+/**
+ * What a query step adds to its note while its query picks by a label (#416): the query matches a ticket only while it
+ * has the label, so one the team takes off as the ticket moves through its workflow, or as it closes, loses the ticket
+ * and its finish. A read can't tell a ticket that lost its label from one taken out of the milestone. Comparable work's
+ * open tickets don't count, so for its query only the finish is lost.
+ */
+function labelNote(tracker: TrackerFacts, { kind }: StepQuery): string {
+  const lost =
+    kind === 'milestoneQuery'
+      ? 'taken off while the ticket is open, it leaves tickets remaining, and its finish won’t count in pace; taken off as it closes, its finish leaves pace'
+      : 'taken off before or as the ticket closes, its finish leaves pace'
+  return `A label counts a ticket only while the ticket has it: ${lost}. ${tracker.lastingKinds} is usually kept on a ticket until it’s finished.`
+}
+
+/** The note beside a query step's query: the leaf note, and the label note while the query picks by a label. */
+function noteFor(tracker: TrackerFacts, stepQuery: StepQuery, query: string): string {
+  return tracker.picksByLabel(query) ? `${LEAF_NOTE} ${labelNote(tracker, stepQuery)}` : LEAF_NOTE
+}
 
 /**
  * What a query step shows, in the local server build once connected: the choices to pick from, by kind; the picks, as
@@ -216,7 +235,7 @@ async function pickedQuery(
     lists: [],
     picks: saved.picks,
     query: saved.query,
-    note: LEAF_NOTE,
+    note: noteFor(tracker, stepQuery, saved.query),
     ...(read && !read.incomplete && { read: readLine(read, stepQuery) }),
     ...(read && readFlag(read, tracker.name, stepQuery)),
     ...(!editing && opening.refused?.fromPicks && { refusal: opening.refused.refusal }),
