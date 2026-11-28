@@ -77,16 +77,50 @@ describe("the factory's next step on a spec", () => {
     expect(nextStep(SPEC, tickets)).toEqual({ action: 'open-pr' })
   })
 
-  test('stops when every ticket left is parked or blocked, saying which and by what', () => {
+  test('skips a ticket for a human to build, for the next one that can be built', () => {
+    expect(nextStep(SPEC, [ticket(12, { labels: { nodes: [{ name: 'ready-for-human' }] } }), ticket(13)])).toEqual({ action: 'build', ticket: 13 })
+  })
+
+  test("counts a ticket for a human done once it merged into the spec's branch by hand", () => {
+    const merged = comment('OWNER', `${FACTORY_MARK}\nmerged into spec/${SPEC} by hand`)
+    const tickets = [ticket(12, { labels: { nodes: [{ name: 'ready-for-human' }] }, comments: { nodes: [merged] } })]
+
+    expect(nextStep(SPEC, tickets)).toEqual({ action: 'open-pr' })
+  })
+
+  test('stops when every ticket left is parked, for a human or blocked, saying which and by what', () => {
     const tickets = [
       ticket(12, { labels: { nodes: [{ name: 'parked' }] } }),
       ticket(13, { blockedBy: { nodes: [blocker(12, 'OPEN')] } }),
       ticket(14, { blockedBy: { nodes: [blocker(12, 'OPEN'), blocker(99, 'OPEN')] } }),
+      ticket(15, { labels: { nodes: [{ name: 'ready-for-human' }] } }),
     ]
 
     expect(nextStep(SPEC, tickets)).toEqual({
       action: 'stop',
-      why: 'no ticket can be built: #12 is parked; #13 is blocked by #12; #14 is blocked by #12, #99',
+      why: 'no ticket can be built: #12 is parked; #13 is blocked by #12; #14 is blocked by #12, #99; #15 is for a human to build',
+    })
+  })
+
+  describe('on a run the chain started, capped at one hop for each of its tickets', () => {
+    const tickets = [ticket(12, { state: 'CLOSED' }), ticket(13, { comments: { nodes: [MERGED] } }), ticket(14)]
+
+    test("builds below the cap, a spec's last hop too", () => {
+      expect(nextStep(SPEC, tickets, 2)).toEqual({ action: 'build', ticket: 14 })
+    })
+
+    test('stops at the cap, though a ticket could be built, naming the cap and how to go on', () => {
+      expect(nextStep(SPEC, tickets, 3)).toEqual({
+        action: 'stop',
+        why: 'its runs have chained 3 times, once for each of its 3 tickets: label the spec ready-for-agent to build on',
+      })
+    })
+
+    test('lets a spec of more than 20 tickets chain once for each, with no fixed cap', () => {
+      const many = Array.from({ length: 30 }, (_, at) => ticket(100 + at))
+
+      expect(nextStep(SPEC, many, 29)).toEqual({ action: 'build', ticket: 100 })
+      expect(nextStep(SPEC, many, 30)).toMatchObject({ action: 'stop' })
     })
   })
 

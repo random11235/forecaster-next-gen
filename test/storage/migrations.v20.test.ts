@@ -16,6 +16,6 @@ describe('step 21: a data file from schema version 20, before the forecast ledge
     open(file).saveForecastLog(logged)
 
     expect(open(file).forecastLogs(TEAM)).toEqual([{ ...logged, id: 1, createdAt: expect.stringMatching(ISO_INSTANT) }])
-    expect(versionOf(file)).toBe(21)
+    expect(versionOf(file)).toBe(22)
   })
 })

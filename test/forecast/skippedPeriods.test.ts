@@ -129,7 +129,7 @@ describe('skipping a period', () => {
     // the read of 09:00 reaches whole from 14 Sep: 6 weeks counted around the 2 skipped, and the line says where it runs out
     expect(await reading()).toMatchObject({
       counts: [3, 5, 6, 4, 6, 8],
-      line: '6 weeks · GitHub has nothing before w/c 14 Sep · read 12 Nov 09:00',
+      line: '6 weeks · the read reaches back to w/c 14 Sep · read 12 Nov 09:00',
       skipped: { starts: HOLIDAYS },
     })
   })

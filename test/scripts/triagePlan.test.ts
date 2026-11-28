@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { FACTORY_MARK } from '../../scripts/factoryTrust.ts'
+import { DECISION_MARK, FACTORY_MARK } from '../../scripts/factoryTrust.ts'
 import { BRIEF_MARK, checkPlan, TRIAGE_DISCLAIMER, type Write } from '../../scripts/triagePlan.ts'
 
 /** A batch of issues 5, 6 and 7, oldest first. */
@@ -182,6 +182,12 @@ describe("the triage plan's check, refusing", () => {
     expect(refusal(BATCH, { issues: [issue(5, { duplicate_of: 7 }), issue(6), issue(7)] })).toEqual({
       accepted: false,
       reasons: ['#5 is a duplicate of #7, which is newer, but the oldest must survive'],
+    })
+  })
+
+  test("refuses a comment holding the decision log's mark", () => {
+    expect(refusal(BATCH, { issues: [issue(5, { comment: `${DECISION_MARK}\n## #5 Decided` })] })).toMatchObject({
+      reasons: expect.arrayContaining(['issue 1 of the plan has a comment holding a mark only the check adds']),
     })
   })
 

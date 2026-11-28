@@ -24,7 +24,6 @@ export const LAUNCH: MilestoneInputs = {
   paceMode: 'counts',
   paceRange: { low: 5, high: 10 },
   paceCounts: [4, 7, 6],
-  paceCadenceDays: 14,
   paceWindow: { action: { kind: 'startFrom', date: '2026-10-12' }, skippedPeriods: [] },
   seenReads: { ticketsRemaining: undefined, pace: undefined },
 }

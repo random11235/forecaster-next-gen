@@ -2,6 +2,8 @@
 
 Part of the architecture design; the index is [`architecture.md`](architecture.md).
 
+These docs name each seam and how its tests drive it: the entry point, the harness, what is faked and why. What a test checks lives in the test, so a change to copy, a link or a screen's behaviour edits a seam doc only when it adds, removes or changes a seam.
+
 **Test seams.** There are three:
 
 - **Seam A** is `simulateCase`, tested with fixed seeds ([`engine.md`](engine.md)).

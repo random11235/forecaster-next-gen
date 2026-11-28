@@ -6,7 +6,7 @@
 // gets no state of its own. Only an issue the plan makes `ready-for-agent` is dispatched to the factory's build, and no
 // write adds `in-progress`, which only the build adds.
 
-import { FACTORY_MARK } from './factoryTrust.ts'
+import { DECISION_MARK, FACTORY_MARK } from './factoryTrust.ts'
 
 /** The category roles a triaged issue carries one of (`.claude/skills/triage/SKILL.md`). */
 export const CATEGORIES = ['bug', 'enhancement'] as const
@@ -125,7 +125,7 @@ function checkEntry(entry: unknown, index: number): CheckedEntry {
 }
 
 /** The marks the factory trusts a comment by, which the agent's own text may not hold. */
-const MARKS = [BRIEF_MARK, FACTORY_MARK]
+const MARKS = [BRIEF_MARK, FACTORY_MARK, DECISION_MARK]
 
 /** The batch itself: issue numbers, each once. */
 function batchProblems(batch: readonly number[]): string[] {

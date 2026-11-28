@@ -1,6 +1,6 @@
 # Forecast model: facts and samples
 
-Part of the forecast model design; the index is [`forecast-model.md`](forecast-model.md), which has the settings and the calibration ledger.
+Part of the forecast model design; the index is [`forecast-model.md`](forecast-model.md), which has the settings; the calibration ledger is in [`forecast-model-ledger.md`](forecast-model-ledger.md).
 
 ## Layer 1: observed facts (ingested)
 

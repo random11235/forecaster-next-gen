@@ -2,6 +2,30 @@
 
 What each version of the app shipped, newest first. The version is the one in every screen's footer: a fix is in the app you're running if its version is the footer's or older. Each merge's release ([`docs/design/architecture.md`](docs/design/architecture.md#release)) writes its section here, a line from each change file (`changes/<ticket>.md`) a PR that changes the app adds: a PR doesn't edit the entries below ([`docs/agents/pull-requests.md`](docs/agents/pull-requests.md#version)).
 
+## 2.4.0 (2026-11-28)
+
+- With a query that picks by a label, the Milestone and Comparable work steps say a label counts a ticket only while it has it, so one taken off as a ticket moves on or closes drops it and its finish, and that a milestone, fix version or epic is usually kept on a ticket until it's finished (#416, PR #418)
+
+## 2.3.0 (2026-11-28)
+
+- Changing the cadence reads the tracker as far back as the new periods need, and a pace window cut short by its read says "the read reaches back to", not that the tracker has nothing before it, offering Read again when too few periods count (#415, PR #417)
+
+## 2.2.0 (2026-11-28)
+
+- With the milestone's own pace and nothing finished since its start date, pace says so and how many the tracker finished before it, rather than that the tracker has no finished tickets (#405, PR #406)
+
+## 2.1.0 (2026-11-28)
+
+- Pace from comparable work with no open tickets, such as a closed epic, stops at its last finished ticket, and says so (#411, PR #412)
+
+## 2.0.0 (2026-11-28)
+
+- A milestone has one cadence: changing it no longer warns that the cadence length has changed, and a typed pace is read per period of the new cadence, as the forecast reads it. The data file drops the cadence a pace was entered in (#409, PR #410)
+
+## 1.8.0 (2026-11-28)
+
+- The web build's Inputs screen says, in plainer words, that the Forecaster also works with GitHub and Jira (#403, PR #404)
+
 ## 1.7.0 (2026-11-27)
 
 - The web build's Inputs screen says it reads no tracker, and links to how to run the Forecaster on your own machine, which reads tickets from GitHub or Jira (#396, PR #397)

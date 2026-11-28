@@ -73,7 +73,7 @@ const ALLOWED_BEYOND_SEAM: Exception[] = [
     imported: 'engine/index.js',
     why: 'the pace trend case expects the dates Seam A gives for the typed counts, an independent check of what Seam B shows',
   },
-  ...['test/storage/migrations.beforeTheMvp.test.ts', 'test/storage/migrations.v6to9.test.ts'].map((file) => ({
+  ...['test/storage/migrations.beforeTheMvp.test.ts', 'test/storage/migrations.v6to9.test.ts', 'test/storage/migrations.v21.test.ts'].map((file) => ({
     file,
     imported: 'forecast/index.js',
     why: "a migrated file is checked by what the forecast reads back from it, through Seam B's views",

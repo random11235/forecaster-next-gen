@@ -22,13 +22,13 @@ export function teamTables(db: DatabaseSync, transaction: Transaction): Omit<Sto
   const upsertMilestoneInputs = db.prepare(`
     INSERT INTO milestone_inputs
       (team_id, name, start_date, tickets_remaining, ambiguity, cadence_days, pace_mode, pace_low, pace_high, pace_counts,
-       pace_cadence_days, pace_window, tickets_source, seen_reads)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       pace_window, tickets_source, seen_reads)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (team_id) DO UPDATE SET
       name = excluded.name, start_date = excluded.start_date, tickets_remaining = excluded.tickets_remaining,
       ambiguity = excluded.ambiguity, cadence_days = excluded.cadence_days, pace_mode = excluded.pace_mode,
       pace_low = excluded.pace_low, pace_high = excluded.pace_high, pace_counts = excluded.pace_counts,
-      pace_cadence_days = excluded.pace_cadence_days, pace_window = excluded.pace_window,
+      pace_window = excluded.pace_window,
       tickets_source = excluded.tickets_source, seen_reads = excluded.seen_reads`)
   const selectMilestoneInputs = db.prepare('SELECT * FROM milestone_inputs WHERE team_id = ?')
   // medium_measured is left as it is: nothing reads it since measured growth went with the MVP (#84)
@@ -83,7 +83,6 @@ export function teamTables(db: DatabaseSync, transaction: Transaction): Omit<Sto
         inputs.paceRange?.low ?? null,
         inputs.paceRange?.high ?? null,
         JSON.stringify(inputs.paceCounts),
-        inputs.paceCadenceDays ?? null,
         JSON.stringify(inputs.paceWindow),
         inputs.ticketsSource,
         JSON.stringify(inputs.seenReads),
@@ -103,7 +102,6 @@ export function teamTables(db: DatabaseSync, transaction: Transaction): Omit<Sto
         paceMode: String(row.pace_mode) as PaceMode,
         paceRange: row.pace_low === null ? undefined : { low: Number(row.pace_low), high: Number(row.pace_high) },
         paceCounts: parseStored(String(row.pace_counts), 'milestone_inputs.pace_counts', isPaceCounts),
-        paceCadenceDays: row.pace_cadence_days === null ? undefined : Number(row.pace_cadence_days),
         paceWindow: paceWindowOf(String(row.pace_window)),
         ticketsSource: String(row.tickets_source) as TicketsSource,
         seenReads: seenReadsOf(String(row.seen_reads)),

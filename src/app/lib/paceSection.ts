@@ -101,9 +101,9 @@ function paceChip(trackerPace: TrackerPaceView | undefined, period: PeriodName):
 function trackerReading({ tracker, reading, incomplete, was }: TrackerPaceView, period: PeriodName, following: boolean): string {
   if (!reading)
     return `\n          <p class="reading-line">${period}s finished · ${escapeHtml(tracker)}, ${incomplete ? `read in part${incompleteMark(true)}` : 'not read yet'}</p>`
-  const { periods, counts, line, firstFinished, current, skipped } = reading
+  const { periods, counts, line, firstFinished, lastFinished, current, skipped } = reading
   const lines = `
-          <p class="reading-line">${escapeHtml(line)}</p>${firstFinished ? `\n          <p class="reading-line">${escapeHtml(firstFinished)}</p>` : ''}
+          <p class="reading-line">${escapeHtml(line)}</p>${[firstFinished, lastFinished].map((said) => (said ? `\n          <p class="reading-line">${escapeHtml(said)}</p>` : '')).join('')}
           <p class="reading-line">${escapeHtml(current)}</p>${
             was ? `\n          <p class="reading-line was">was ${was.counts.join(', ')} on ${escapeHtml(was.readOn)}</p>` : ''
           }${skipped ? countAgainLine(skipped.line, skipped.starts) : ''}`

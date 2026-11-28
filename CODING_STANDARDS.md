@@ -28,6 +28,10 @@ A decorator, guard or overlay that every caller must remember to apply is used o
 
 A test's title states one behaviour in about 100 characters: what goes in and what comes out. Context the cases share goes in the `describe`, and a `test.each` title names its case rather than printing its whole input. Flag a change whose added test lines are more than three times its added source lines, and name the tests that overlap: two tests pinning one behaviour through different seams, or a case table whose rows exercise the same branch.
 
+### Keep seam docs to seams
+
+The test-seam docs (`docs/design/architecture-test-seams*.md`) name each seam and how its tests drive it. Flag an edit to one that doesn't add, remove or change a seam: a sentence saying what one ticket's test checks (a note's wording, a link's target) restates the test, and goes stale with the next copy change.
+
 ### Treat stored shapes as one-way doors
 
 Stored shapes (schema steps, persisted JSON) outlive the branch. Flag implicit state inferred from what happens to be stored, and backfills that leave existing data in a state the new code misreads. Checks cover the rest: stored values are frozen by a snapshot ([`test/storage/storedValues.test.ts`](test/storage/storedValues.test.ts)), stored JSON is read through one checked parser ([`test/storedJsonRules.test.ts`](test/storedJsonRules.test.ts)), and every migration step has a pre-migration test ([`test/storage/migrationCoverage.test.ts`](test/storage/migrationCoverage.test.ts)).
