@@ -43,6 +43,8 @@ The PR doesn't set `version` in `package.json` or `package-lock.json`, or edit t
 - After each merge, the orchestrator updates the body: the ticket's status, its diff-sketch, and its demo screenshots, which replace the proposed ones for the states it builds.
 - The body ends with `Closes #n` for the spec and every ticket.
 
+The factory's spec PR, from `spec/<n>`, is generated and follows its own rules instead: [`factory.md`](factory.md#a-specs-pr).
+
 ## A PR merges only on a green `check` and `browser`
 
 A PR merges only when CI's `check` and `browser` jobs are both green: the two the release after a merge to `main` waits on. Nothing on GitHub enforces it (branch protection needs the repo public or on GitHub Pro), so the merger checks. Locally, the pre-push hook (`.husky/pre-push`, installed by `npm install`) runs `npm run check`, the checks CI's `check` job runs (the typecheck, the migration check, Prettier, the file-size limit and the change-file check on the branch's changes since `origin/main`, then the tests), and refuses a push that fails it. Don't bypass it with `--no-verify`.
