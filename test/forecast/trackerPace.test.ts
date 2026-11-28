@@ -125,6 +125,29 @@ describe('the window', () => {
     expect(await forecast()).toMatchObject({ kind: 'forecast', pace: { source: 'tracker', counts } })
   })
 
+  test('at a 3-day cadence changed from 7, with weekly counts typed, Inputs shows the 3-day counts the forecast is drawn from (#409)', async () => {
+    await enterAndPick()
+    await submit({ kind: 'setCadence', cadenceDays: '3' })
+    await submit({ kind: 'setPaceMode', paceMode: 'tracker' })
+
+    const { milestone } = await inputs()
+    expect(milestone).toMatchObject({ cadenceDays: 3, period: 'sprint', paceUsed: 'tracker' })
+    expect(milestone.notes.filter(({ input }) => input === 'pace')).toEqual([])
+    // 3-day sprints from 31 Aug: the last 8 whole ones before the current sprint of 11 Nov, the weeks' Tuesday finishes
+    // of 20 Oct, 27 Oct and 3 Nov each in one, the typed counts not among them
+    const sprints = ['2026-10-18', '2026-10-21', '2026-10-24', '2026-10-27', '2026-10-30', '2026-11-02', '2026-11-05', '2026-11-08']
+    const counts = [5, 0, 0, 6, 0, 8, 0, 0]
+    expect(milestone.trackerPace?.reading).toMatchObject({
+      periods: sprints.map((start, sprint) => ({ start, count: counts[sprint], skipped: false })),
+      counts,
+      line: 'last 8 sprints · read 12 Nov 09:00',
+    })
+    const forecastShown = await forecast()
+    expect(forecastShown).toMatchObject({ kind: 'forecast', cadenceDays: 3, pace: { source: 'tracker', counts } })
+    if (forecastShown.kind !== 'forecast') throw new Error('expected a forecast')
+    expect(forecastShown.warnings.filter(({ input }) => input === 'pace')).toEqual([])
+  })
+
   test('the current period, left out until it ends, is named with the tickets finished in it so far (#390)', async () => {
     // finished on Tuesday 10 Nov, in the current week of 9 Nov, before the read at 09:00 on Thursday 12 Nov
     await following([...finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]), ...finishedOn('current', '2026-11-10', 2)])

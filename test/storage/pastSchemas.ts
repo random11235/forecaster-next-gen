@@ -288,3 +288,17 @@ CREATE TABLE read_failures (
   PRIMARY KEY (team_id, of, query)
 );
 `
+
+/** Version 21's tables: version 20's, plus the forecast ledger as #27 shipped it. Kept verbatim: it is a past release. */
+export const VERSION_21_SCHEMA = `${VERSION_20_SCHEMA}
+CREATE TABLE forecast_logs (
+  team_id TEXT NOT NULL REFERENCES teams(id),
+  id INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  milestone_name TEXT NOT NULL,
+  app_version TEXT NOT NULL,
+  simulation_case TEXT NOT NULL,
+  result TEXT NOT NULL,
+  PRIMARY KEY (team_id, id)
+);
+`

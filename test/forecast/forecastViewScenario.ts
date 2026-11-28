@@ -52,7 +52,6 @@ export function keptFromBeforeTheMvp(team: ForecastingForTest, kept: Partial<Mil
     paceMode: 'range',
     paceRange: undefined,
     paceCounts: [],
-    paceCadenceDays: undefined,
     paceWindow: { action: undefined, skippedPeriods: [] },
     ticketsSource: 'typed',
     seenReads: { ticketsRemaining: undefined, pace: undefined },

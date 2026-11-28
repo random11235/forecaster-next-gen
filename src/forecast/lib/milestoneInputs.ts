@@ -257,7 +257,7 @@ function edited(
       if (low === undefined || high === undefined) return refuse('Enter whole numbers of tickets, 0 or more.')
       if (high > MAX_TICKETS_PER_PERIOD) return refuseAbovePerPeriodCap(saved)
       if (low > high) return refuse('The low end must not be above the high end.')
-      return { ...saved, paceRange: { low, high }, paceCadenceDays: saved.cadenceDays }
+      return { ...saved, paceRange: { low, high } }
     }
     case 'setAmbiguity': {
       const level = AMBIGUITIES.find((ambiguity) => ambiguity === edit.level)
@@ -273,7 +273,7 @@ function edited(
       const paceCounts = edit.kind === 'addPaceCount' ? [...saved.paceCounts, ...counts] : counts
       // typed while following the tracker, as into its opened weeks: pace switches to the typed counts
       const paceMode = saved.paceMode === 'tracker' ? 'counts' : saved.paceMode
-      return { ...saved, paceCounts, paceMode, paceCadenceDays: saved.cadenceDays }
+      return { ...saved, paceCounts, paceMode }
     }
     case 'removeLastPaceCount':
       return { ...saved, paceCounts: saved.paceCounts.slice(0, -1) }
@@ -304,7 +304,6 @@ export function newMilestone(teamId: string): MilestoneInputs {
     paceMode: 'range',
     paceRange: undefined,
     paceCounts: [],
-    paceCadenceDays: undefined,
     paceWindow: { action: undefined, skippedPeriods: [] },
     seenReads: { ticketsRemaining: undefined, pace: undefined },
   }

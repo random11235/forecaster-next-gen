@@ -30,7 +30,6 @@ describe('step 7: a data file from schema version 6, before milestone inputs', (
       ...left,
       ...defaults,
       paceRange: { low: 3, high: 7 },
-      paceCadenceDays: 7,
       paceWindow: { action: undefined, skippedPeriods: [] },
     })
     expect(storage.milestoneInputs('sample-team')).toEqual({
@@ -39,7 +38,6 @@ describe('step 7: a data file from schema version 6, before milestone inputs', (
       ...left,
       ...defaults,
       paceRange: undefined,
-      paceCadenceDays: undefined,
       paceWindow: { action: undefined, skippedPeriods: [] },
     })
   })
@@ -80,7 +78,6 @@ describe('step 7: a data file from schema version 6, before milestone inputs', (
       paceMode: 'counts' as const,
       paceRange: { low: 4, high: 8 },
       paceCounts: [6, 0, 9],
-      paceCadenceDays: 7,
       paceWindow: { action: undefined, skippedPeriods: [] },
       seenReads: { ticketsRemaining: undefined, pace: undefined },
     }
@@ -92,26 +89,29 @@ describe('step 7: a data file from schema version 6, before milestone inputs', (
 })
 
 describe('step 8: a data file from schema version 7, before the cadence the pace was entered in', () => {
-  test('counts a pace already saved as entered in its cadence, so it forecasts with no warning', async () => {
+  // step 8 added that cadence (#115) and step 22 drops it (#409): the pace is read in the milestone's cadence
+  test('keeps the pace saved, which forecasts with no warning', async () => {
     const storage = open(writeFile('v7.db', VERSION_7_SCHEMA, 7))
 
-    expect(storage.milestoneInputs(TEAM)).toMatchObject({ cadenceDays: 14, paceCadenceDays: 14 })
+    expect(storage.milestoneInputs(TEAM)).toMatchObject({ cadenceDays: 14, paceRange: { low: 4, high: 8 }, paceCounts: [6, 9] })
     expect(await forecasting(storage, '2026-09-01').milestoneForecastView()).toMatchObject({ kind: 'forecast', warnings: [] })
   })
 
   test('leaves a milestone with no pace yet without one', () => {
     const storage = open(writeFile('v7.db', VERSION_7_SCHEMA, 7))
 
-    expect(storage.milestoneInputs('sample-team')).toMatchObject({ paceRange: undefined, paceCounts: [], paceCadenceDays: undefined })
+    expect(storage.milestoneInputs('sample-team')).toMatchObject({ paceRange: undefined, paceCounts: [] })
   })
 
-  test('warns once the cadence changes after the upgrade', async () => {
+  test('gives no warning once the cadence changes after the upgrade', async () => {
     const storage = open(writeFile('v7.db', VERSION_7_SCHEMA, 7))
 
     await forecasting(storage, '2026-09-01').submit({ form: 'inputs', edit: { kind: 'setCadence', cadenceDays: '7' } })
 
     expect(await forecasting(storage, '2026-09-01').milestoneForecastView()).toMatchObject({
-      warnings: [{ input: 'pace', message: 'Pace: cadence length has changed. Please verify that the per period numbers are aligned.' }],
+      cadenceDays: 7,
+      pace: { source: 'range', low: 4, high: 8 },
+      warnings: [],
     })
   })
 })
