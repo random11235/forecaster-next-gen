@@ -61,10 +61,18 @@ describe("the factory's PR for a spec whose tickets are all in", () => {
 
     const { body } = specPullRequest(SPEC, [ticket(41), ticket(42)], log, RUN)
 
-    expect(body).not.toMatch(/\b(close[sd]?|fix(e[sd])?|resolve[sd]?):?\s+([\w.-]+\/[\w.-]+#\d|#\d|https?:\/\/)/i)
-    expect(body).toContain('`Fixes` #123, `closes`: owner/repo#7 and `RESOLVED` https://github.com/owner/repo/issues/9.')
+    expect(body).toContain('`Fixes #123`, `closes: owner/repo#7` and `RESOLVED https://github.com/owner/repo/issues/9`.')
     expect(body).toContain('Once it merges, the factory closes spec #40 and its 2 tickets, and deletes `spec/40`')
     expect(body).toMatch(new RegExp(`\n\nOpened by the factory in run ${RUN}\\.\n$`))
+  })
+
+  test("leaves a log entry's code spans and fenced blocks as they are", () => {
+    const fence = '```sh\ngit commit -m "Fixes #5"\n```'
+    const log = [entry(`## #41\n\nWrote \`Closes #41\` in the commit.\n\n${fence}`)]
+
+    const { body } = specPullRequest(SPEC, [ticket(41)], log, RUN)
+
+    expect(body).toContain(`Wrote \`Closes #41\` in the commit.\n\n${fence}\n`)
   })
 
   test("leaves out the decision log's latest entries that don't fit GitHub's limit, saying how many", () => {

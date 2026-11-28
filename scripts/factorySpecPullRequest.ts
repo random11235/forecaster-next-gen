@@ -2,8 +2,8 @@
 // the spec is in (#339), when scripts/factoryFrontier.ts says `open-pr`. Its body follows docs/agents/pull-requests.md
 // as far as a generated one can: a Summary opening with every ticket in a table, the spec's decision log
 // (scripts/factoryDecisionLog.ts) for what each ticket decided, then Evidence and Merge Danger. It uses no closing
-// keyword, and defuses those the log's entries hold: they stop at 10 issues, so the factory's `close` job closes the spec and its tickets once it merges
-// (scripts/factorySpecMerged.ts). scripts/factorySpecOpen.ts hands it the spec, its sub-issues and its comments.
+// keyword, and puts each one the log's entries hold in a code span with the issue it names: they stop at 10 issues,
+// so the factory's `close` job closes the spec and its tickets once it merges (scripts/factorySpecMerged.ts). scripts/factorySpecOpen.ts hands it the spec, its sub-issues and its comments.
 
 import { MAX_BODY } from './factoryPullRequest.ts'
 import { decisionLog, isTrusted, type Association, type Authored } from './factoryTrust.ts'
@@ -44,13 +44,15 @@ export function specPullRequest(
 const titleOf = ({ title, author_association }: SpecTicket): string | undefined => (isTrusted(author_association) ? title : undefined)
 
 /**
- * GitHub's closing keywords before an issue (`#n`, `owner/repo#n` or a URL), as an agent's body may hold them: merging the
- * PR would close that issue, even one outside the spec.
+ * A fenced block, an inline code span, or a closing keyword and the issue it names (`#n`, `owner/repo#n` or a URL), as an
+ * agent's body may hold one: merging the PR would close that issue, even one outside the spec.
  */
-const CLOSING = /\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?)(:?\s+)(?=#\d|[\w.-]+\/[\w.-]+#\d|https?:\/\/)/gi
+const CODE_OR_CLOSING =
+  /^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:^ {0,3}\1[ \t]*$|(?![\s\S]))|(`+)[\s\S]*?\2(?!`)|\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?\s+(?:[\w.-]+\/[\w.-]+#\d+|#\d+|https?:\/\/[^\s`]*\/\d+)/gim
 
-/** The text with each closing keyword in a code span, which GitHub doesn't read as one, so it still reads but closes nothing. */
-const defused = (text: string): string => text.replace(CLOSING, '`$1`$2')
+/** The text with each closing keyword and the issue it names put in one code span, leaving its code spans and fences as they are. */
+const defused = (text: string): string =>
+  text.replace(CODE_OR_CLOSING, (match: string, fence?: string, span?: string) => ((fence ?? span) ? match : `\`${match}\``))
 
 /** The spec's decision log as the body's section, its headings a level down, keeping the oldest entries that fit `room`. */
 function logSection(spec: number, comments: readonly Authored[], room: number): string {
