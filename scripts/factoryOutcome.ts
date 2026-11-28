@@ -1,6 +1,8 @@
 // How the factory's build of a ticket (scripts/factoryBuild.ts) ended, as the `result` and `why` it writes to its step's
 // outputs, which the `park` job of .github/workflows/factory.yml reads. Only `built` goes on to be checked and pushed.
 
+import { failureOf } from './factorySandcastle.ts'
+
 /**
  * The build's `result`. `started` is written first, so a step left at `started` was stopped mid-run (by its timeout, or
  * killed); one with no result at all crashed before it began.
@@ -12,7 +14,7 @@ export class UnbuildableTree extends Error {
   override name = 'UnbuildableTree'
 }
 
-/** How the build ended: with the agent's commits, or with what readying the tree or Sandcastle's `run()` threw. */
+/** How the build ended: with the agent's commits, or with what readying the tree or the sandbox's run threw (scripts/factorySandcastle.ts). */
 export type Ending = { commits: number; preservedWorktreePath?: string | undefined } | { error: unknown }
 
 /** Built, or a failure with why, as a park comment's reason. */
@@ -24,13 +26,12 @@ export function buildOutcome(ending: Ending, transcript: readonly string[]): Out
   if (budget) return { result: 'budget', why: budget }
   if ('error' in ending) {
     if (ending.error instanceof UnbuildableTree) return { result: 'unbuildable', why: ending.error.message }
-    const error = sandcastleError(ending.error)
-    if (tagOf(error) === 'AgentIdleTimeoutError') {
-      const { timeoutMs } = error as { timeoutMs?: unknown }
-      const quiet = typeof timeoutMs === 'number' ? `${timeoutMs / 60_000} minutes` : 'too long'
+    const failure = failureOf(ending.error)
+    if (failure.kind === 'idle-timeout') {
+      const quiet = failure.timeoutMs === undefined ? 'too long' : `${failure.timeoutMs / 60_000} minutes`
       return { result: 'idle-timeout', why: `the agent went ${quiet} without output, so Sandcastle stopped it` }
     }
-    return { result: 'error', why: `the build script failed: ${error instanceof Error ? error.message : String(error)}` }
+    return { result: 'error', why: `the build script failed: ${failure.message}` }
   }
   if (ending.commits === 0) return { result: 'no-commits', why: 'the agent made no commit' }
   if (ending.preservedWorktreePath) return { result: 'dirty', why: "the agent left changes it didn't commit" }
@@ -52,26 +53,3 @@ const parse = (line: string): Record<string, unknown> | undefined => {
     return undefined
   }
 }
-
-/** Where effect's FiberFailure, which Sandcastle's run() rethrows from Effect.runPromise, keeps its Cause. */
-const FIBER_FAILURE_CAUSE = Symbol.for('effect/Runtime/FiberFailure/Cause')
-
-/**
- * The error Sandcastle failed with, out of the FiberFailure run() throws: its Cause's first failure (`Fail`'s error,
- * or `Die`'s defect, through `Sequential` and `Parallel`). Anything else is itself.
- */
-function sandcastleError(thrown: unknown): unknown {
-  const cause = typeof thrown === 'object' && thrown !== null ? (thrown as Record<symbol, unknown>)[FIBER_FAILURE_CAUSE] : undefined
-  return cause === undefined ? thrown : (failure(cause) ?? thrown)
-}
-
-function failure(cause: unknown): unknown {
-  if (typeof cause !== 'object' || cause === null) return undefined
-  const node = cause as { _tag?: unknown; error?: unknown; defect?: unknown; left?: unknown; right?: unknown }
-  if (node._tag === 'Fail') return node.error
-  if (node._tag === 'Die') return node.defect
-  if (node._tag === 'Sequential' || node._tag === 'Parallel') return failure(node.left) ?? failure(node.right)
-  return undefined
-}
-
-const tagOf = (error: unknown): unknown => (typeof error === 'object' && error !== null ? (error as { _tag?: unknown })._tag : undefined)

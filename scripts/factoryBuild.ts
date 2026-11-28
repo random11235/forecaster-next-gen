@@ -14,12 +14,10 @@
 
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { run, type AgentStreamEvent } from '@ai-hero/sandcastle'
-import { bwrap } from '@ai-hero/sandcastle/sandboxes/bwrap'
-import { factoryAgent } from './factoryAgent.ts'
 import { decisionEntry } from './factoryDecisionLog.ts'
 import { buildOutcome, type BuildResult, type Ending } from './factoryOutcome.ts'
 import { pullRequestBody } from './factoryPullRequest.ts'
+import { factoryAgent, runInSandbox } from './factorySandcastle.ts'
 import { prepareTree } from './factoryTree.ts'
 import { ticketPrompt, type Authored, type Spec, type Ticket } from './factoryTicket.ts'
 
@@ -64,34 +62,26 @@ async function build(logs: Logs): Promise<Ending> {
   const tree = env('TREE')
   // the worktree holds only what git tracks: the dependencies, and the skills installed from skills-lock.json, go in
   const setup = prepareTree(process.cwd(), tree)
-  const ran = await run({
+  const ran = await runInSandbox({
     name: `ticket-${ticket.number}`,
     cwd: tree,
     prompt: ticketPrompt(ticket, comments, CHECK, spec),
     agent: factoryAgent(MODEL, { oauthToken: env('CLAUDE_CODE_OAUTH_TOKEN'), maxBudgetUsd: MAX_BUDGET_USD }),
     // the test suite runs for minutes, past Claude Code's 2-minute default for a Bash command
-    sandbox: bwrap({ env: { BASH_DEFAULT_TIMEOUT_MS: '900000' } }),
-    branchStrategy: { type: 'merge-to-head' },
+    sandboxEnv: { BASH_DEFAULT_TIMEOUT_MS: '900000' },
     ...setup,
-    timeouts: { copyToWorktreeMs: 600_000 },
-    maxIterations: 1,
+    copyToWorktreeMs: 600_000,
     idleTimeoutSeconds: 1200,
-    logging: {
-      type: 'file',
-      path: logs.sandcastle,
-      verbose: true,
-      onAgentStreamEvent: (event: AgentStreamEvent) => {
-        if (event.type === 'raw') appendFileSync(logs.transcript, `${event.line}\n`)
-      },
-    },
+    logPath: logs.sandcastle,
+    onLine: (line) => appendFileSync(logs.transcript, `${line}\n`),
   })
-  for (const [at, { sessionFilePath }] of ran.iterations.entries()) {
-    if (sessionFilePath && existsSync(sessionFilePath)) copyFileSync(sessionFilePath, join(logs.dir, `session-${at + 1}.jsonl`))
+  for (const [at, sessionFile] of ran.sessionFiles.entries()) {
+    if (sessionFile && existsSync(sessionFile)) copyFileSync(sessionFile, join(logs.dir, `session-${at + 1}.jsonl`))
   }
   writeFileSync(join(outDir, 'pr-body.md'), pullRequestBody(ran.stdout, ticket.number, env('RUN_URL')))
   if (spec) writeFileSync(join(outDir, 'decision.md'), decisionEntry(ticket, ran.stdout, env('BRANCH'), env('RUN_URL')))
-  console.log(`The agent made ${ran.commits.length} commit(s), merged into ${env('BRANCH')}.`)
-  return { commits: ran.commits.length, preservedWorktreePath: ran.preservedWorktreePath }
+  console.log(`The agent made ${ran.commits} commit(s), merged into ${env('BRANCH')}.`)
+  return { commits: ran.commits, preservedWorktreePath: ran.preservedWorktreePath }
 }
 
 let ending: Ending

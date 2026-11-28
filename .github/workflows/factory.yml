@@ -901,7 +901,7 @@ jobs:
   # A question: the `if` passes only a comment that may ask one, so most comments start no runner, and
   # scripts/factoryAsked.ts decides, before anything is installed: it imports no package (test/scripts/factoryAsked.test.ts).
   # Everything here only reads: the token, which stays outside the sandbox, and the agent's tools, Read, Grep and Glob,
-  # with no shell (scripts/factoryAgent.ts). What it needs from GitHub and git, a step fetches into its prompt. It
+  # with no shell (scripts/factorySandcastle.ts). What it needs from GitHub and git, a step fetches into its prompt. It
   # answers in OUT_DIR's reply.md, which `reply` posts.
   # A relayed question's issue is the PR the fetched comment names, so `asked` says which, and every later step and
   # `reply` take ISSUE from it rather than the event.

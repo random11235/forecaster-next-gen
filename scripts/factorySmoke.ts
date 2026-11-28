@@ -9,9 +9,7 @@ import { appendFileSync, existsSync, lstatSync, readFileSync, readlinkSync, real
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { run, type AgentProvider, type AgentStreamEvent } from '@ai-hero/sandcastle'
-import { bwrap } from '@ai-hero/sandcastle/sandboxes/bwrap'
-import { factoryAgent, stdinAgent } from './factoryAgent.ts'
+import { factoryAgent, runInSandbox, stdinAgent, type FactoryAgent } from './factorySandcastle.ts'
 import { hostWrite, reachedHost, type DirSeen, type FileSeen, type Seen, type Watched } from './smokeHost.ts'
 import { budgetVerdict, controlWrites, smokeVerdict, stdinNote, type Check, type Ending, type Write } from './smokeVerdict.ts'
 
@@ -126,24 +124,12 @@ const restore = () => {
 type Run = { stream: string[]; ending: Ending; commits: number }
 
 /** One run of the agent, logged to a file and its stream-json kept. */
-async function runAgent(name: string, prompt: string, agent: AgentProvider): Promise<Run> {
+async function runAgent(name: string, prompt: string, agent: FactoryAgent): Promise<Run> {
   const stream: string[] = []
-  const onAgentStreamEvent = (event: AgentStreamEvent) => {
-    if (event.type === 'raw') stream.push(event.line)
-  }
   const log = join(temp, `${name}.log`)
   try {
-    const result = await run({
-      name,
-      prompt,
-      agent,
-      sandbox: bwrap(),
-      branchStrategy: { type: 'merge-to-head' },
-      maxIterations: 1,
-      idleTimeoutSeconds: 120,
-      logging: { type: 'file', path: log, onAgentStreamEvent, verbose: true },
-    })
-    return { stream, ending: { stdout: result.stdout }, commits: result.commits.length }
+    const result = await runInSandbox({ name, prompt, agent, idleTimeoutSeconds: 120, logPath: log, onLine: (line) => stream.push(line) })
+    return { stream, ending: { stdout: result.stdout }, commits: result.commits }
   } catch (error: unknown) {
     return { stream, ending: { error: error instanceof Error ? error.message : String(error) }, commits: 0 }
   } finally {

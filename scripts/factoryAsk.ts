@@ -1,5 +1,5 @@
 // The factory's answer to a question (#380), run by .github/workflows/factory.yml's `ask` job once bwrap's probe has
-// passed: Claude Code, in Sandcastle's bwrap() sandbox, with tools that only read files (scripts/factoryAgent.ts), on the
+// passed: Claude Code, in Sandcastle's bwrap() sandbox, with tools that only read files (scripts/factorySandcastle.ts), on the
 // question and the issue a step fetched and the default branch's latest commits (scripts/factoryQuestion.ts), in the
 // runner's checkout of the default branch. It builds and pushes nothing, and the sandbox holds no GitHub token, only
 // the OAuth one: the `reply` job posts what it writes.
@@ -13,9 +13,6 @@
 import { execFileSync } from 'node:child_process'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { run, type AgentStreamEvent } from '@ai-hero/sandcastle'
-import { bwrap } from '@ai-hero/sandcastle/sandboxes/bwrap'
-import { readOnlyAgent } from './factoryAgent.ts'
 import { buildOutcome } from './factoryOutcome.ts'
 import {
   questionPrompt,
@@ -28,6 +25,7 @@ import {
   type PullRequest,
   type ReviewComment,
 } from './factoryQuestion.ts'
+import { readOnlyAgent, runInSandbox } from './factorySandcastle.ts'
 import type { Ticket } from './factoryTicket.ts'
 
 const MODEL = 'opus'
@@ -57,22 +55,13 @@ try {
   const comments = [...json<Comment[][]>('COMMENTS_JSON').flat(), ...json<Comment[][]>('REVIEW_COMMENTS_JSON').flat()]
   const spec = process.env.SPEC_JSON ? { issue: json<Ticket>('SPEC_JSON'), comments: json<Comment[][]>('SPEC_COMMENTS_JSON').flat() } : undefined
   const prompt = questionPrompt(event, json<Issue>('ISSUE_JSON'), comments, json<PullRequest[]>('PRS_JSON'), commits, spec)
-  const ran = await run({
+  const ran = await runInSandbox({
     name: `question-${event.issue.number}`,
     prompt,
     agent: readOnlyAgent(MODEL, { oauthToken: env('CLAUDE_CODE_OAUTH_TOKEN'), maxBudgetUsd: MAX_BUDGET_USD }),
-    sandbox: bwrap(),
-    branchStrategy: { type: 'merge-to-head' },
-    maxIterations: 1,
     idleTimeoutSeconds: 300,
-    logging: {
-      type: 'file',
-      path: sandcastleLog,
-      verbose: true,
-      onAgentStreamEvent: (each: AgentStreamEvent) => {
-        if (each.type === 'raw') appendFileSync(transcript, `${each.line}\n`)
-      },
-    },
+    logPath: sandcastleLog,
+    onLine: (line) => appendFileSync(transcript, `${line}\n`),
   })
   answered = { stdout: ran.stdout }
 } catch (error: unknown) {

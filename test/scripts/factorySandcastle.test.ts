@@ -1,9 +1,16 @@
 import { execFileSync } from 'node:child_process'
-import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
-import { factoryAgent, MAX_PROMPT_BYTES, readOnlyAgent, stdinAgent, withPromptArgument } from '../../scripts/factoryAgent.ts'
+import { buildOutcome } from '../../scripts/factoryOutcome.ts'
+import { factoryAgent, MAX_PROMPT_BYTES, readOnlyAgent, stdinAgent, withPromptArgument } from '../../scripts/factorySandcastle.ts'
+// Sandcastle 0.14.0 bundles effect and doesn't export its errors: these are its own, as its run() throws them, from
+// Effect.runPromise. A Sandcastle bump renames the chunks, so this import fails rather than tests a stale shape.
+// @ts-expect-error -- a bundle chunk, with no types
+import { AgentError, AgentIdleTimeoutError } from '../../node_modules/@ai-hero/sandcastle/dist/chunk-RDW7FNN6.js'
+// @ts-expect-error -- a bundle chunk, with no types
+import { Effect_exports as Effect } from '../../node_modules/@ai-hero/sandcastle/dist/chunk-STB2U7BB.js'
 
 const COMMAND = "claude --print --verbose --dangerously-skip-permissions --output-format stream-json --model 'haiku'"
 
@@ -91,4 +98,42 @@ describe("the factory's agent", () => {
 
     expect(agent.env).toEqual({ CLAUDE_CODE_OAUTH_TOKEN: 'oauth' })
   })
+})
+
+/** What Sandcastle's run() rejects with when its Effect fails with `error`. */
+async function rejection(error: unknown): Promise<unknown> {
+  return (Effect.runPromise(Effect.fail(error)) as Promise<never>).then(
+    () => undefined,
+    (thrown: unknown) => thrown,
+  )
+}
+
+describe("the factory build's outcome, from what Sandcastle's run() threw", () => {
+  test('is idle-timeout when Sandcastle stopped an agent that went quiet, from the FiberFailure run() rethrows', async () => {
+    const thrown = await rejection(new AgentIdleTimeoutError({ message: 'Agent idle for 1200 seconds', timeoutMs: 1_200_000 }))
+
+    expect(buildOutcome({ error: thrown }, [])).toEqual({
+      result: 'idle-timeout',
+      why: 'the agent went 20 minutes without output, so Sandcastle stopped it',
+    })
+  })
+
+  test("is error for any other failure, with its message, Sandcastle's unwrapped from its FiberFailure", async () => {
+    const thrown = await rejection(new AgentError({ message: 'claude exited 1' }))
+
+    expect(buildOutcome({ error: thrown }, [])).toEqual({ result: 'error', why: 'the build script failed: claude exited 1' })
+    expect(buildOutcome({ error: new Error('merge failed') }, [])).toEqual({ result: 'error', why: 'the build script failed: merge failed' })
+    expect(buildOutcome({ error: 'odd' }, [])).toEqual({ result: 'error', why: 'the build script failed: odd' })
+  })
+})
+
+test('is the only script that imports Sandcastle, and its test the only test', () => {
+  const importers = ['scripts', 'test/scripts'].flatMap((dir) =>
+    readdirSync(new URL(`../../${dir}`, import.meta.url))
+      .filter((name) => name.endsWith('.ts'))
+      .map((name) => `${dir}/${name}`)
+      .filter((path) => /^import[^'"]*?from '[^']*@ai-hero\/sandcastle/m.test(readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8'))),
+  )
+
+  expect(importers.sort()).toEqual(['scripts/factorySandcastle.ts', 'test/scripts/factorySandcastle.test.ts'])
 })
