@@ -105,16 +105,30 @@ const BOUND_SAID: Record<TrackerWindowBound, (facts: BoundFacts) => BoundSaid> =
     firstFinished: `From the first finished ticket, ${dayMonth(window.starts[0]!)}.`,
   }),
   reach: ({ tracker, period, window, sides }) => ({
-    // the milestone's own pace counts only the periods since its start date
-    periods: `${counted(window.counts.length, period)} · ${sides.from === 'milestone' && sides.beforeStart > 0 ? 'since the start date' : `${tracker} has nothing before ${periodOf(period, window.starts[0]!)}`}`,
+    periods: `${counted(window.counts.length, period)} · ${finishedBeforeStart(sides) !== undefined ? 'since the start date' : `${tracker} has nothing before ${periodOf(period, window.starts[0]!)}`}`,
     bars: true,
   }),
   // with nothing finished there are no bars
-  nothingFinished: ({ tracker, period, counts }) => ({
-    periods: `nothing finished in the ${counted(counts.counts.length, period)} ${tracker} reads`,
-    bars: false,
-    problem: `${tracker} has no finished tickets in the ${period}s it read, so there is no pace. Type counts, or switch pace to the range.`,
-  }),
+  nothingFinished: ({ tracker, period, counts, sides }) => {
+    const before = finishedBeforeStart(sides)
+    if (before === undefined) {
+      return {
+        periods: `nothing finished in the ${counted(counts.counts.length, period)} ${tracker} reads`,
+        bars: false,
+        problem: `${tracker} has no finished tickets in the ${period}s it read, so there is no pace. Type counts, or switch pace to the range.`,
+      }
+    }
+    // what finished before the start date is said, not hidden: it isn't that the tracker finished nothing (#405)
+    const ended = counts.counts.length > 0
+    const finishedBefore = before === 0 ? '' : `: the ${counted(before, 'ticket')} ${tracker} finished before it ${before === 1 ? 'doesn’t' : 'don’t'} count`
+    // comparable work that finished nothing is already added, so it isn't offered again
+    const advice = `${sides.comparableWork === undefined ? 'Add comparable work, type counts' : 'Type counts'}, or switch pace to the range.`
+    return {
+      periods: `${ended ? `nothing finished in the ${counted(counts.counts.length, period)} since the start date` : `no ${period} since the start date has ended`} · ${tracker} finished ${before === 0 ? 'none' : before} before it`,
+      bars: false,
+      problem: `The milestone’s own pace counts only the ${period}s since its start date, and ${ended ? 'nothing finished in them' : 'none has ended yet'}${finishedBefore}. ${advice}`,
+    }
+  },
   // with every period skipped, the bars show the gaps to count again
   everySkipped: ({ tracker, period }) => ({
     periods: `every ${period} skipped`,
@@ -126,6 +140,15 @@ const BOUND_SAID: Record<TrackerWindowBound, (facts: BoundFacts) => BoundSaid> =
     bars: true,
     problem: `Every ${period} that finished something is skipped, so ${tracker} gives no pace. Count a ${period} again, or use typed counts or the range.`,
   }),
+}
+
+/**
+ * With the milestone's own pace, which counts only the periods since its start date, the tickets its read finished in
+ * the periods it reaches before that date; none when pace is comparable work's, or the read reaches none before it.
+ */
+function finishedBeforeStart(sides: SideBySide): number | undefined {
+  if (sides.from !== 'milestone' || sides.beforeStart === 0) return undefined
+  return sides.milestone.counts.slice(0, sides.beforeStart).reduce((sum, count) => sum + count, 0)
 }
 
 /**

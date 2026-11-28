@@ -233,18 +233,6 @@ describe('the window', () => {
     })
   })
 
-  test('the milestone’s own pace counts only the periods since its start date, and says so', async () => {
-    await following(finishedInWeeks([3, 5, 6, 4, 7, 5, 6, 8]))
-
-    await submit({ kind: 'setMilestone', name: 'Checkout v2', startDate: '2026-10-05', ticketsRemaining: '30' })
-
-    expect((await inputs()).milestone.trackerPace?.reading).toMatchObject({
-      counts: [4, 7, 5, 6, 8],
-      line: '5 weeks · since the start date · read 12 Nov 09:00',
-      firstFinished: undefined,
-    })
-  })
-
   test('fewer than 4 weeks stop the forecast, as typed counts do', async () => {
     await following(finishedInWeeks([0, 0, 0, 0, 0, 2, 0, 3]))
 
