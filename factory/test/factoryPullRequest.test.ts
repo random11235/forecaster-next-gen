@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'vitest'
-import { pullRequestBody } from '../factoryPullRequest.ts'
+import { pullRequestBody as pullRequestBodyWith } from '../factoryPullRequest.ts'
+import { DEFAULTS } from './workflowConfig.ts'
+
+/** With the workflow's default check command. */
+const pullRequestBody = (reply: string, issue: number, runUrl: string) => pullRequestBodyWith(reply, issue, runUrl, DEFAULTS.checkCommand)
 
 describe("the factory's PR body", () => {
   const RUN = 'https://github.com/o/r/actions/runs/7'

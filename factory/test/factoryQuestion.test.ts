@@ -1,7 +1,19 @@
 import { describe, expect, test } from 'vitest'
-import { askedIn, askedOutputs, questionPrompt, relayedEvent, replyTo, type CommentEvent, type Issue, type ReviewComment } from '../factoryQuestion.ts'
+import * as question from '../factoryQuestion.ts'
+import { relayedEvent, type Answered, type Comment, type CommentEvent, type Issue, type PullRequest, type ReviewComment } from '../factoryQuestion.ts'
 import { MAX_PROMPT_BYTES } from '../factoryShell.ts'
-import { DECISION_MARK, FACTORY_MARK, type Association } from '../factoryTrust.ts'
+import type { Spec } from '../factoryTicket.ts'
+import { DECISION_MARK, type Association } from '../factoryTrust.ts'
+import { DEFAULTS } from './workflowConfig.ts'
+
+const FACTORY_MARK = DEFAULTS.mark
+
+// With the workflow's default mention, mark and labels
+const askedIn = (event: CommentEvent) => question.askedIn(event, DEFAULTS)
+const askedOutputs = (event: CommentEvent) => question.askedOutputs(event, DEFAULTS)
+const questionPrompt = (event: CommentEvent, issue: Issue, comments: readonly Comment[], prs: readonly PullRequest[], commits: string, spec?: Spec) =>
+  question.questionPrompt(event, issue, comments, prs, commits, DEFAULTS, spec)
+const replyTo = (comment: Comment, answered: Answered, runUrl: string) => question.replyTo(comment, answered, runUrl, DEFAULTS)
 
 const event = (body: string, association: Association = 'OWNER', type: 'User' | 'Bot' = 'User'): CommentEvent => ({
   issue: { number: 42 },
@@ -56,6 +68,14 @@ describe('whether a comment asks the factory a question', () => {
   test.each(['@claude is this finished?', 'Done yet, @Claude?', '(@claude) why?'])('the owner or a collaborator mentions @claude: %s', (body) => {
     expect(askedIn(event(body))).toBe(true)
     expect(askedIn(event(body, 'COLLABORATOR'))).toBe(true)
+  })
+
+  test('the configured mention asks, and @claude then asks nothing', () => {
+    const config = { ...DEFAULTS, mention: '@factory-bot' }
+
+    expect(question.askedIn(event('@Factory-Bot is this finished?'), config)).toBe(true)
+    expect(question.askedIn(event('@factory-bots is this finished?'), config)).toBe(false)
+    expect(question.askedIn(event('@claude is this finished?'), config)).toBe(false)
   })
 
   test.each([

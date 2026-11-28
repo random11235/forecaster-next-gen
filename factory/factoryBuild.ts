@@ -14,6 +14,7 @@
 
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { factoryConfig } from './factoryConfig.ts'
 import { decisionEntry } from './factoryDecisionLog.ts'
 import { buildOutcome, type BuildResult, type Ending } from './factoryOutcome.ts'
 import { pullRequestBody } from './factoryPullRequest.ts'
@@ -21,11 +22,11 @@ import { factoryAgent, runInSandbox } from './factorySandcastle.ts'
 import { prepareTree } from './factoryTree.ts'
 import { ticketPrompt, type Authored, type Spec, type Ticket } from './factoryTicket.ts'
 
-const MODEL = 'opus'
-/** Claude Code stops after the turn that passes this, so a stuck run can't spend without end. */
-const MAX_BUDGET_USD = 25
-/** What the workflow's `check` job runs on the agent's commits, which the prompt tells the agent. */
-const CHECK = 'npm run check'
+/**
+ * The build's model; its budget, after whose turn Claude Code stops, so a stuck run can't spend without end; and the
+ * check the workflow's `check` job runs on the agent's commits, which the prompt tells the agent.
+ */
+const config = factoryConfig()
 
 const output = (name: 'result' | 'why', value: string) => {
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${value}\n`)
@@ -61,12 +62,12 @@ async function build(logs: Logs): Promise<Ending> {
     : undefined
   const tree = env('TREE')
   // the worktree holds only what git tracks: the dependencies, and the skills installed from skills-lock.json, go in
-  const setup = prepareTree(process.cwd(), tree)
+  const setup = prepareTree(process.cwd(), tree, config.installCommand)
   const ran = await runInSandbox({
     name: `ticket-${ticket.number}`,
     cwd: tree,
-    prompt: ticketPrompt(ticket, comments, CHECK, spec),
-    agent: factoryAgent(MODEL, { oauthToken: env('CLAUDE_CODE_OAUTH_TOKEN'), maxBudgetUsd: MAX_BUDGET_USD }),
+    prompt: ticketPrompt(ticket, comments, config, spec),
+    agent: factoryAgent(config.model, { oauthToken: env('CLAUDE_CODE_OAUTH_TOKEN'), maxBudgetUsd: config.budgetUsd }),
     // the test suite runs for minutes, past Claude Code's 2-minute default for a Bash command
     sandboxEnv: { BASH_DEFAULT_TIMEOUT_MS: '900000' },
     ...setup,
@@ -78,7 +79,7 @@ async function build(logs: Logs): Promise<Ending> {
   for (const [at, sessionFile] of ran.sessionFiles.entries()) {
     if (sessionFile && existsSync(sessionFile)) copyFileSync(sessionFile, join(logs.dir, `session-${at + 1}.jsonl`))
   }
-  writeFileSync(join(outDir, 'pr-body.md'), pullRequestBody(ran.stdout, ticket.number, env('RUN_URL')))
+  writeFileSync(join(outDir, 'pr-body.md'), pullRequestBody(ran.stdout, ticket.number, env('RUN_URL'), config.checkCommand))
   if (spec) writeFileSync(join(outDir, 'decision.md'), decisionEntry(ticket, ran.stdout, env('BRANCH'), env('RUN_URL')))
   console.log(`The agent made ${ran.commits} commit(s), merged into ${env('BRANCH')}.`)
   return { commits: ran.commits, preservedWorktreePath: ran.preservedWorktreePath }

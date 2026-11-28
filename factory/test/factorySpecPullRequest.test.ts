@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'vitest'
-import { specPullRequest, type SpecTicket } from '../factorySpecPullRequest.ts'
+import { specPullRequest as specPullRequestWith, type SpecTicket } from '../factorySpecPullRequest.ts'
+import { DEFAULTS } from './workflowConfig.ts'
+
+/** With the workflow's default check command. */
+const specPullRequest = (spec: SpecTicket, tickets: readonly SpecTicket[], runUrl: string) => specPullRequestWith(spec, tickets, runUrl, DEFAULTS.checkCommand)
 
 const RUN = 'https://run/9'
 const SPEC: SpecTicket = { number: 40, title: 'Forecast a spec', state: 'open', author_association: 'OWNER' }

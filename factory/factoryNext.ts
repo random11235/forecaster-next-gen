@@ -4,6 +4,7 @@
 // to the step's outputs.
 
 import { appendFileSync, readFileSync } from 'node:fs'
+import { factoryConfig } from './factoryConfig.ts'
 import { nextStep, stepOutputs, subIssuesOf, type SubIssuesResponse } from './factoryFrontier.ts'
 
 const path = process.env.SPEC_JSON
@@ -12,6 +13,6 @@ if (!path) throw new Error('SPEC_JSON is not set')
 const hop = Number(process.env.HOP || 0)
 if (!Number.isInteger(spec) || spec <= 0) throw new Error('SPEC is not an issue number')
 if (!Number.isInteger(hop) || hop < 0) throw new Error('HOP is not a count of runs')
-const outputs = stepOutputs(nextStep(spec, subIssuesOf(JSON.parse(readFileSync(path, 'utf8')) as SubIssuesResponse), hop))
+const outputs = stepOutputs(nextStep(spec, subIssuesOf(JSON.parse(readFileSync(path, 'utf8')) as SubIssuesResponse), hop, factoryConfig()))
 console.log(outputs)
 if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, outputs)

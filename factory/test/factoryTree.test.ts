@@ -3,7 +3,11 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
 import { UnbuildableTree } from '../factoryOutcome.ts'
-import { ONLY_DIRECTORIES, prepareTree, REFUSED_PATHS } from '../factoryTree.ts'
+import { missingSkills, ONLY_DIRECTORIES, prepareTree as prepare, REFUSED_PATHS } from '../factoryTree.ts'
+import { DEFAULTS } from './workflowConfig.ts'
+
+/** Readies the tree with the workflow's default install command. */
+const prepareTree = (runnerDir: string, treeDir: string) => prepare(runnerDir, treeDir, DEFAULTS.installCommand)
 
 const made: string[] = []
 afterEach(() => {
@@ -102,6 +106,10 @@ describe('the tree the factory builds a ticket in, apart from the runner’s che
     expect(() => prepareTree(runner(), checkout({ ...PACKAGE, '.claude/skills': '' }))).toThrow(UnbuildableTree)
     expect(existsSync(join(elsewhere, 'tdd'))).toBe(false)
   })
+})
+
+test("the required skills the runner's checkout lacks are named, each one, in order", () => {
+  expect(missingSkills(runner(), ['implement', 'code-review', 'tdd', 'pr'])).toEqual(['code-review', 'pr'])
 })
 
 test("the factory's workflow refuses to push a branch holding what the build refuses", () => {

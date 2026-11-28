@@ -2,7 +2,10 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, test } from 'vitest'
 import { ticketPrompt, type Authored, type Ticket } from '../factoryTicket.ts'
 import { MAX_PROMPT_BYTES, shellWord } from '../factoryShell.ts'
-import { BRIEF_MARK, DECISION_MARK, FACTORY_MARK, type Association } from '../factoryTrust.ts'
+import { DECISION_MARK, type Association } from '../factoryTrust.ts'
+import { DEFAULTS } from './workflowConfig.ts'
+
+const { mark: FACTORY_MARK, briefMark: BRIEF_MARK } = DEFAULTS
 
 const TICKET: Ticket = {
   number: 42,
@@ -12,8 +15,8 @@ const TICKET: Ticket = {
   author_association: 'OWNER',
 }
 
-/** The check command the factory runs on the agent's commits. */
-const CHECK = 'pnpm verify'
+/** The workflow's config, with another check command for the factory to run on the agent's commits. */
+const CHECK = { ...DEFAULTS, checkCommand: 'pnpm verify' }
 
 const comment = (login: string, association: Association, body: string): Authored => ({ user: { login, type: 'User' }, author_association: association, body })
 

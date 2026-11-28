@@ -1,7 +1,14 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, test } from 'vitest'
-import { nextStep, stepOutputs, subIssuesOf, type SubIssue } from '../factoryFrontier.ts'
-import { FACTORY_MARK, type Association, type Author } from '../factoryTrust.ts'
+import type { FactoryConfig } from '../factoryConfig.ts'
+import { nextStep as frontierStep, stepOutputs, subIssuesOf, type SubIssue } from '../factoryFrontier.ts'
+import type { Association, Author } from '../factoryTrust.ts'
+import { DEFAULTS } from './workflowConfig.ts'
+
+const FACTORY_MARK = DEFAULTS.mark
+
+/** The spec's next step, with the workflow's default labels and mark unless the case gives its own. */
+const nextStep = (spec: number, subIssues: readonly SubIssue[], hop = 0, config: FactoryConfig = DEFAULTS) => frontierStep(spec, subIssues, hop, config)
 
 const SPEC = 9
 
@@ -121,6 +128,21 @@ describe("the factory's next step on a spec", () => {
 
       expect(nextStep(SPEC, many, 29)).toEqual({ action: 'build', ticket: 100 })
       expect(nextStep(SPEC, many, 30)).toMatchObject({ action: 'stop' })
+    })
+  })
+
+  test('reads the configured parked label and mark, and names the configured trigger label, not the defaults', () => {
+    const config = { ...DEFAULTS, parkedLabel: 'on-hold', triggerLabel: 'agent-go', mark: '<!-- other-factory -->' }
+    const tickets = [
+      ticket(11, { comments: { nodes: [comment('NONE', `<!-- other-factory -->\nmerged into spec/${SPEC}: https://run`, ACTIONS)] } }),
+      ticket(12, { labels: { nodes: [{ name: 'on-hold' }] } }),
+      ticket(13, { labels: { nodes: [{ name: 'parked' }] }, comments: { nodes: [MERGED] } }),
+    ]
+
+    expect(nextStep(SPEC, tickets, 0, config)).toEqual({ action: 'build', ticket: 13 })
+    expect(nextStep(SPEC, tickets, 3, config)).toEqual({
+      action: 'stop',
+      why: 'its runs have chained 3 times, once for each of its 3 tickets: label the spec agent-go to build on',
     })
   })
 

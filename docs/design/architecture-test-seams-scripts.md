@@ -24,7 +24,7 @@ None of `test/scripts/` is a forecasting seam. Each test file tests one script, 
 
 ## The factory
 
-The factory is its own module, `factory/`: its scripts at its root, their tests in `factory/test/`, and its composite actions in `factory/actions/`. The tests below are in `factory/test/`.
+The factory is its own module, `factory/`: its scripts at its root, their tests in `factory/test/`, and its composite actions in `factory/actions/`. The tests below are in `factory/test/`. They take the factory's config with the workflow's defaults, read from `factory.yml`'s top-level `env:` (`factory/test/workflowConfig.ts`), so a test that doesn't name a value runs on what GitHub's runners do.
 
 The factory's workflows (`.github/workflows/factory.yml`, which runs `factory/factoryBuild.ts`, `factory/factoryNext.ts`, `factory/factorySpecOpen.ts`, `factory/factorySpecClose.ts` and `factory/factoryAsk.ts`, and `factory-smoke.yml`, which runs `factory/factorySmoke.ts`) need a GitHub runner, bwrap and the OAuth token, so they are checked by real runs: the factory on throwaway tickets, recorded in each ticket's PR; the smoke test only when dispatched by hand, never in CI. The scripts they run are tested on what GitHub, Sandcastle and Claude Code give them:
 
@@ -36,9 +36,10 @@ The factory's workflows (`.github/workflows/factory.yml`, which runs `factory/fa
 - **`factoryFrontier.test.ts`** tests `factory/factoryFrontier.ts`, what the factory does next on a spec, on the spec's sub-issues as GitHub's GraphQL API gives them and how many runs chained before this one.
 - **`factorySpecPullRequest.test.ts`** tests `factory/factorySpecPullRequest.ts`, the title and body of a spec's PR to `main`, on the spec and its sub-issues as GitHub's REST API gives them.
 - **`factorySpecMerged.test.ts`** tests `factory/factorySpecMerged.ts`, what the factory does once a PR closes, on the `pull_request_target` event's PR and the spec and its sub-issues as GitHub's REST API gives them.
-- **`factoryTree.test.ts`** tests `factory/factoryTree.ts`, how the factory readies the tree it builds on, on the runner's and the tree's checkouts.
+- **`factoryTree.test.ts`** tests `factory/factoryTree.ts`, how the factory readies the tree it builds on and which required skills the runner lacks, on the runner's and the tree's checkouts.
+- **`factoryConfig.test.ts`** tests `factory/factoryConfig.ts`, the config every script reads, on the workflow's env. The scripts' own tests cover the values flowing through.
 - **`factoryQuestion.test.ts`** tests `factory/factoryQuestion.ts`, a question for the factory, on the comment that asks it, what the workflow fetched from GitHub's APIs, and the default branch's `git log`. **`factoryAsked.test.ts`** pins that `factory/factoryAsked.ts`, which the workflow runs before it installs anything, imports no package, through all it imports.
 - `factory/factoryTrust.ts`, whose words the factory believes, is tested through the prompts and the frontier.
-- **`workflowPermissions.test.ts`** reads the workflow files: what `factoryTrust.ts`'s github-actions rule rests on. **`factorySetup.test.ts`** reads them too: that the factory's set up their own Node and dependencies.
+- **`workflowPermissions.test.ts`** reads the workflow files: what `factoryTrust.ts`'s github-actions rule rests on. **`factorySetup.test.ts`** reads them too: that the factory's set up their own Node and dependencies, and that what a job sets where it can't read `env` matches the config.
 - **`smokeVerdict.test.ts`** tests `factory/smokeVerdict.ts`, the smoke test's checks, on Claude Code's stream-json, the agent's `<smoke-report>` and what changed on the host. **`smokeHost.test.ts`** tests `factory/smokeHost.ts`, whether a write reached the host and how to undo it, on what was at the target and its directory before the run and after. `factory/factorySmoke.ts` does the I/O.
 - **`triagePlan.test.ts`** tests `factory/triagePlan.ts`, the check between the triage agent's plan and any write (ADR 0006), on a batch's issue numbers and the plan as the agent returns it. Nothing runs it yet.

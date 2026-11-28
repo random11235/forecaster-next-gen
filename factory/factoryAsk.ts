@@ -13,6 +13,7 @@
 import { execFileSync } from 'node:child_process'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { factoryConfig } from './factoryConfig.ts'
 import { buildOutcome } from './factoryOutcome.ts'
 import {
   questionPrompt,
@@ -28,11 +29,8 @@ import {
 import { readOnlyAgent, runInSandbox } from './factorySandcastle.ts'
 import type { Ticket } from './factoryTicket.ts'
 
-const MODEL = 'opus'
-/** An answer reads and writes no code, so it needs far less than a build's $25. */
-const MAX_BUDGET_USD = 3
-/** How many of the default branch's commits the prompt lists. */
-const COMMITS = 30
+/** The workflow's config: a question's model, budget, idle timeout and commit count, and the mark and mention. */
+const config = factoryConfig()
 
 const env = (name: string): string => {
   const value = process.env[name]
@@ -51,15 +49,15 @@ const event = process.env.REVIEW_COMMENT_JSON ? relayedEvent(json<ReviewComment>
 
 let answered: Answered
 try {
-  const commits = execFileSync('git', ['log', `-n${COMMITS}`, '--date=short', '--format=%h %ad %s'], { encoding: 'utf8' })
+  const commits = execFileSync('git', ['log', `-n${config.askCommits}`, '--date=short', '--format=%h %ad %s'], { encoding: 'utf8' })
   const comments = [...json<Comment[][]>('COMMENTS_JSON').flat(), ...json<Comment[][]>('REVIEW_COMMENTS_JSON').flat()]
   const spec = process.env.SPEC_JSON ? { issue: json<Ticket>('SPEC_JSON'), comments: json<Comment[][]>('SPEC_COMMENTS_JSON').flat() } : undefined
-  const prompt = questionPrompt(event, json<Issue>('ISSUE_JSON'), comments, json<PullRequest[]>('PRS_JSON'), commits, spec)
+  const prompt = questionPrompt(event, json<Issue>('ISSUE_JSON'), comments, json<PullRequest[]>('PRS_JSON'), commits, config, spec)
   const ran = await runInSandbox({
     name: `question-${event.issue.number}`,
     prompt,
-    agent: readOnlyAgent(MODEL, { oauthToken: env('CLAUDE_CODE_OAUTH_TOKEN'), maxBudgetUsd: MAX_BUDGET_USD }),
-    idleTimeoutSeconds: 300,
+    agent: readOnlyAgent(config.askModel, { oauthToken: env('CLAUDE_CODE_OAUTH_TOKEN'), maxBudgetUsd: config.askBudgetUsd }),
+    idleTimeoutSeconds: config.askIdleSeconds,
     logPath: sandcastleLog,
     onLine: (line) => appendFileSync(transcript, `${line}\n`),
   })
@@ -71,7 +69,7 @@ try {
   answered = { why: 'why' in outcome ? outcome.why.split('\n')[0]!.slice(0, 300) : 'the agent failed' }
   process.exitCode = 1
 }
-writeFileSync(join(outDir, 'reply.md'), replyTo(event.comment, answered, env('RUN_URL')))
+writeFileSync(join(outDir, 'reply.md'), replyTo(event.comment, answered, env('RUN_URL'), config))
 if (existsSync(sandcastleLog)) {
   console.log('::group::Sandcastle log')
   console.log(readFileSync(sandcastleLog, 'utf8'))

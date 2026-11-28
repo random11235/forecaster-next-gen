@@ -7,6 +7,8 @@
 // spec/<n>, close nothing. Its head being in this repo means someone with write access pushed it, so it is the factory's
 // or the owner's.
 
+import type { FactoryConfig } from './factoryConfig.ts'
+
 /** A closed PR, as the `pull_request_target` event gives it: a deleted fork's head has no repo. */
 export type ClosedPullRequest = {
   merged: boolean
@@ -20,9 +22,6 @@ export type Issue = { number: number; state: 'open' | 'closed'; labels: readonly
 /** What to do to one issue: close it if it's open, and take these labels off. */
 export type Closing = { number: number; close: boolean; unlabel: string[] }
 
-/** The labels the Ticket lifecycle takes off an issue when it closes (docs/agents/issue-tracker.md). */
-const WORKFLOW_LABELS = ['ready-for-agent', 'in-progress']
-
 /** The spec whose PR merged, or undefined if the PR isn't a spec's from this repo into the default branch, or didn't merge. */
 export function mergedSpec({ merged, head, base }: ClosedPullRequest, defaultBranch: string): number | undefined {
   const spec = /^spec\/([1-9]\d*)$/.exec(head.ref)
@@ -30,9 +29,14 @@ export function mergedSpec({ merged, head, base }: ClosedPullRequest, defaultBra
   return Number(spec[1])
 }
 
-/** What closing the merged spec does to each ticket, in order, then the spec; undefined if it has no tickets, so is no spec. */
-export function closingPlan(spec: Issue, tickets: readonly Issue[]): Closing[] | undefined {
+/**
+ * What closing the merged spec does to each ticket, in order, then the spec; undefined if it has no tickets, so is no
+ * spec. It takes off the labels the Ticket lifecycle takes off an issue when it closes (docs/agents/issue-tracker.md):
+ * the config's trigger and in-progress labels.
+ */
+export function closingPlan(spec: Issue, tickets: readonly Issue[], config: Pick<FactoryConfig, 'triggerLabel' | 'inProgressLabel'>): Closing[] | undefined {
   if (tickets.length === 0) return undefined
+  const WORKFLOW_LABELS = [config.triggerLabel, config.inProgressLabel]
   return [...tickets, spec]
     .map(({ number, state, labels }) => ({
       number,

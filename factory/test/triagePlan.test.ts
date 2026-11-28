@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'vitest'
-import { DECISION_MARK, FACTORY_MARK } from '../factoryTrust.ts'
-import { BRIEF_MARK, checkPlan, TRIAGE_DISCLAIMER, type Write } from '../triagePlan.ts'
+import { DECISION_MARK } from '../factoryTrust.ts'
+import { checkPlan as checkPlanWith, TRIAGE_DISCLAIMER, type Write } from '../triagePlan.ts'
+import { DEFAULTS } from './workflowConfig.ts'
+
+const { mark: FACTORY_MARK, briefMark: BRIEF_MARK } = DEFAULTS
+
+/** With the workflow's default marks and trigger label. */
+const checkPlan = (batch: readonly number[], plan: unknown) => checkPlanWith(batch, plan, DEFAULTS)
 
 /** A batch of issues 5, 6 and 7, oldest first. */
 const BATCH = [5, 6, 7]

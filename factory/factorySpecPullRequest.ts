@@ -10,8 +10,8 @@ import { isTrusted, type Association } from './factoryTrust.ts'
 /** The spec or one of its tickets, as GitHub's REST API gives it. */
 export type SpecTicket = { number: number; title: string; state: 'open' | 'closed'; author_association: Association }
 
-/** The PR's title and body, for spec `spec` with its tickets in order, and the run opening it. */
-export function specPullRequest(spec: SpecTicket, tickets: readonly SpecTicket[], runUrl: string): { title: string; body: string } {
+/** The PR's title and body, for spec `spec` with its tickets in order, the run opening it, and the check each passed. */
+export function specPullRequest(spec: SpecTicket, tickets: readonly SpecTicket[], runUrl: string, check: string): { title: string; body: string } {
   const branch = `spec/${spec.number}`
   const rows = tickets.map((ticket) => {
     const status = ticket.state === 'closed' ? 'closed' : `merged into ${branch}`
@@ -24,7 +24,7 @@ export function specPullRequest(spec: SpecTicket, tickets: readonly SpecTicket[]
     ].join('\n'),
     `What each ticket decided is in spec #${spec.number}'s decision log, in its comments.`,
     '## Evidence',
-    `Each ticket's \`npm run check\` passed on \`${branch}\` with its commits, in the run its decision-log entry names. CI runs on this PR.`,
+    `Each ticket's \`${check}\` passed on \`${branch}\` with its commits, in the run its decision-log entry names. CI runs on this PR.`,
     '## Merge Danger',
     `Review the spec as a whole: its tickets merged into \`${branch}\` without a PR each. ` +
       `Once it merges, the factory closes spec #${spec.number} and its ${tickets.length} tickets, and deletes \`${branch}\`, ` +

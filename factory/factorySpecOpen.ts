@@ -4,6 +4,7 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { factoryConfig } from './factoryConfig.ts'
 import { specPullRequest, type SpecTicket } from './factorySpecPullRequest.ts'
 
 const read = <T>(name: string): T => {
@@ -13,7 +14,12 @@ const read = <T>(name: string): T => {
 }
 const out = process.env.OUT_DIR
 if (!out) throw new Error('OUT_DIR is not set')
-const { title, body } = specPullRequest(read<SpecTicket>('SPEC_JSON'), read<SpecTicket[][]>('SUB_ISSUES_JSON').flat(), process.env.RUN_URL ?? '')
+const { title, body } = specPullRequest(
+  read<SpecTicket>('SPEC_JSON'),
+  read<SpecTicket[][]>('SUB_ISSUES_JSON').flat(),
+  process.env.RUN_URL ?? '',
+  factoryConfig().checkCommand,
+)
 mkdirSync(out, { recursive: true })
 writeFileSync(join(out, 'title'), title)
 writeFileSync(join(out, 'body.md'), body)

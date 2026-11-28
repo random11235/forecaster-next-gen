@@ -19,9 +19,6 @@ const PACKAGE_FILES = ['package.json', 'package-lock.json']
 /** An install's time: about the setup action's `npm ci`, with room to spare. */
 const INSTALL_MS = 600_000
 
-/** The install runs the tree's lifecycle scripts, in the sandbox, which holds the agent's OAuth token (R3). */
-const INSTALL = 'npm ci'
-
 /**
  * What the factory won't build on, as a branch holds it, so won't push either (the workflow's publish job): Sandcastle
  * reads a tree's .sandcastle/.env into the sandbox's env, filling a key left empty from the host's, and the runner's
@@ -43,7 +40,7 @@ const plainText = (path: string): string | undefined => (statOf(path)?.isFile() 
  * be copied, when the tree's package files are the runner's, read only if plain files; otherwise the sandbox runs
  * `npm ci`, whose lifecycle scripts are then the tree's, in bwrap.
  */
-export function prepareTree(runnerDir: string, treeDir: string): TreeSetup {
+export function prepareTree(runnerDir: string, treeDir: string, install: string): TreeSetup {
   for (const path of REFUSED_PATHS) {
     if (statOf(join(treeDir, path))) throw new UnbuildableTree(`the branch holds ${path}, which the factory won't build on`)
   }
@@ -63,10 +60,14 @@ export function prepareTree(runnerDir: string, treeDir: string): TreeSetup {
     const theirs = plainText(join(treeDir, name))
     return theirs !== undefined && theirs === plainText(join(runnerDir, name))
   })
-  if (!same) return { copyToWorktree: ['.claude/skills'], hooks: { sandbox: { onSandboxReady: [{ command: INSTALL, timeoutMs: INSTALL_MS }] } } }
+  if (!same) return { copyToWorktree: ['.claude/skills'], hooks: { sandbox: { onSandboxReady: [{ command: install, timeoutMs: INSTALL_MS }] } } }
   symlinkSync(join(runnerDir, 'node_modules'), join(treeDir, 'node_modules'))
   // .gitignore's `node_modules/` matches a directory, not a link to one, which would leave the tree dirty
   mkdirSync(join(treeDir, '.git/info'), { recursive: true })
   appendFileSync(join(treeDir, '.git/info/exclude'), 'node_modules\n')
   return { copyToWorktree: ['node_modules', '.claude/skills'] }
 }
+
+/** The required skills the runner's checkout hasn't installed, each a `.claude/skills/<name>/SKILL.md`, in order. */
+export const missingSkills = (runnerDir: string, skills: readonly string[]): string[] =>
+  skills.filter((name) => !statOf(join(runnerDir, '.claude/skills', name, 'SKILL.md'))?.isFile())

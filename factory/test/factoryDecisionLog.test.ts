@@ -1,8 +1,11 @@
 import { describe, expect, test } from 'vitest'
 import { decisionEntry } from '../factoryDecisionLog.ts'
 import { MAX_BODY } from '../factoryPullRequest.ts'
-import { BRIEF_MARK, DECISION_MARK, FACTORY_MARK } from '../factoryTrust.ts'
+import { DECISION_MARK } from '../factoryTrust.ts'
 import type { Ticket } from '../factoryTicket.ts'
+import { DEFAULTS } from './workflowConfig.ts'
+
+const { mark: FACTORY_MARK, briefMark: BRIEF_MARK } = DEFAULTS
 
 const TICKET: Ticket = { number: 41, title: 'Show the forecast', body: 'Build it.', user: { login: 'owner', type: 'User' }, author_association: 'OWNER' }
 const RUN = 'https://run/7'

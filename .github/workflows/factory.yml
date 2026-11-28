@@ -69,12 +69,31 @@ env:
   REPO: ${{ github.repository }}
   BASE: ${{ github.event.repository.default_branch }}
   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-  MARK: '<!-- forecaster-factory -->' # FACTORY_MARK in factory/factoryTrust.ts
-  JOB_MINUTES: 90 # build's timeout-minutes, which can't read env
-  CHECK_MINUTES: 30 # check's timeout-minutes, likewise
-  # The Node check installs; each job's setup-node node-version, which can't read it, must match. The factory's jobs
-  # install Node and run npm ci themselves, never through ci.yml's .github/actions/setup, so changing CI can't change them.
+  # The factory's config: every repo-specific value it uses, with its default, written here alone. The scripts read them
+  # through factory/factoryConfig.ts, which fails on one left unset. A job's `if` and `timeout-minutes`, and the
+  # concurrency group, can't read env, so the few that need one name it in a comment, and
+  # factory/test/factorySetup.test.ts pins that they match.
+  TRIGGER_LABEL: ready-for-agent
+  PARKED_LABEL: parked
+  IN_PROGRESS_LABEL: in-progress
+  MARK: '<!-- forecaster-factory -->' # on every comment the factory makes (factory/factoryTrust.ts)
+  BRIEF_MARK: '<!-- forecaster-brief -->' # on triage's brief for a ticket
+  INSTALL_COMMAND: npm ci
+  CHECK_COMMAND: npm run check
+  REQUIRED_SKILLS: implement tdd code-review pr # the skills a build needs, checked before the agent runs
+  MODEL: opus
+  BUDGET_USD: 25 # Claude Code stops after the turn that passes it, so a stuck build can't spend without end
+  JOB_MINUTES: 90 # build's timeout-minutes
+  CHECK_MINUTES: 30 # check's timeout-minutes
+  # The Node the factory's jobs install. They install Node and run INSTALL_COMMAND themselves, never through ci.yml's
+  # .github/actions/setup, so changing CI can't change them.
   NODE_MAJOR: 24
+  MENTION: '@claude' # a comment by the owner or a collaborator that mentions it asks the factory a question
+  ASK_MODEL: opus
+  ASK_BUDGET_USD: 3 # an answer reads and writes no code, so it needs far less than a build
+  ASK_IDLE_SECONDS: 300
+  ASK_MINUTES: 30 # ask's timeout-minutes
+  ASK_COMMITS: 30 # how many of the default branch's commits a question's prompt lists
   # At most 75, JOB_MINUTES - 15, so the build job has time to bundle and upload the logs once the agent is stopped
   AGENT_MINUTES: ${{ vars.FACTORY_AGENT_MINUTES && fromJSON(vars.FACTORY_AGENT_MINUTES) > 75 && '75' || vars.FACTORY_AGENT_MINUTES || '70' }}
 
@@ -82,6 +101,7 @@ env:
 # alone): a second label event waits for the first run and doesn't cancel it. Only the trigger label shares the group,
 # so another label someone adds by hand can't take the one pending place from a waiting `ready-for-agent`. A spec's
 # dispatched next run shares its spec's group, so it waits for the run that started it to finish.
+# Its label is TRIGGER_LABEL's.
 concurrency:
   group: >-
     factory-issue-${{ (github.event.label.name == 'ready-for-agent' && github.event.issue.number)
@@ -94,7 +114,7 @@ jobs:
   # build ends the job with a notice; a spec with none, with `tell`'s comment. The jobs after take the ticket to build,
   # its branch, and the spec it's in, if any, from here.
   gate:
-    if: github.event.label.name == 'ready-for-agent' || github.event_name == 'workflow_dispatch'
+    if: github.event.label.name == 'ready-for-agent' || github.event_name == 'workflow_dispatch' # TRIGGER_LABEL
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -154,7 +174,7 @@ jobs:
           if [ "$state" != OPEN ]; then
             echo "::notice::#$ISSUE is closed: nothing to build."
           elif [ "$parent" != none ]; then
-            echo "::notice::#$ISSUE is a ticket of #$parent: label the spec, #$parent, ready-for-agent to build its next ticket."
+            echo "::notice::#$ISSUE is a ticket of #$parent: label the spec, #$parent, $TRIGGER_LABEL to build its next ticket."
           elif [ "$subs" != 0 ]; then
             echo "kind=spec" >> "$GITHUB_OUTPUT"
           elif [ "$EVENT" = workflow_dispatch ]; then
@@ -173,7 +193,7 @@ jobs:
       - if: steps.ticket.outputs.kind == 'spec'
         uses: actions/setup-node@v7
         with:
-          node-version: 24 # NODE_MAJOR
+          node-version: ${{ env.NODE_MAJOR }}
       # Writes `action` (build, open-pr or stop), and `ticket` or `why`, stopping at the hop cap. A spec holds at most 100
       # sub-issues.
       - name: Pick the spec's next ticket
@@ -238,7 +258,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v7
         with:
-          node-version: 24 # NODE_MAJOR
+          node-version: ${{ env.NODE_MAJOR }}
       # A fork's PR from a branch of the same name isn't the spec's. git ls-remote exits 2 when the branch isn't there,
       # and otherwise fails the step; a branch with nothing to merge, which a label again wouldn't change, is told apart.
       - name: Look for the spec's open PR, and its branch
@@ -284,6 +304,7 @@ jobs:
   # Nothing is parked here: a failed check, and a spec with nothing to build, are the owner's to see to.
   tell:
     needs: [gate, propose]
+    # its label is TRIGGER_LABEL's
     if: >-
       always() && (github.event.label.name == 'ready-for-agent' || github.event_name == 'workflow_dispatch')
       && needs.gate.outputs.allowed == 'true'
@@ -311,7 +332,7 @@ jobs:
           if [ "$GATE" = failure ]; then
             said="The factory built nothing: checking the issue, or picking a spec's next ticket, failed: the run's gate job says why"
           elif [ "$PROPOSING" = true ] && [ "$PROPOSE" != success ]; then
-            said="Every ticket has merged into spec/$ISSUE or closed, but opening its PR to $BASE failed: the run's propose job says why. Label the spec ready-for-agent to try again"
+            said="Every ticket has merged into spec/$ISSUE or closed, but opening its PR to $BASE failed: the run's propose job says why. Label the spec $TRIGGER_LABEL to try again"
           elif [ "$PROPOSING" = true ] && [ "$MISSING" = true ]; then
             said="The factory opened no PR: every ticket has closed or merged, but there's no spec/$ISSUE to open it from"
           elif [ "$PROPOSING" = true ] && [ "$EMPTY" = true ]; then
@@ -324,8 +345,8 @@ jobs:
           elif [ "$HOP" = 0 ]; then said="The factory is building #$TICKET on $BRANCH"
           else said="The factory is building #$TICKET on $BRANCH, its run $HOP chained since the spec was labelled"
           fi
-          if gh issue view "$ISSUE" --repo "$REPO" --json labels --jq '.labels[].name' | grep -qx ready-for-agent; then
-            gh issue edit "$ISSUE" --repo "$REPO" --remove-label ready-for-agent
+          if gh issue view "$ISSUE" --repo "$REPO" --json labels --jq '.labels[].name' | grep -qx "$TRIGGER_LABEL"; then
+            gh issue edit "$ISSUE" --repo "$REPO" --remove-label "$TRIGGER_LABEL"
           fi
           gh issue comment "$ISSUE" --repo "$REPO" --body "$MARK
           $said. $RUN_URL"
@@ -354,10 +375,10 @@ jobs:
         run: |
           labels=$(gh issue view "$TICKET" --repo "$REPO" --json labels --jq '.labels[].name')
           remove=()
-          for label in ready-for-agent parked; do
+          for label in "$TRIGGER_LABEL" "$PARKED_LABEL"; do
             if grep -qx "$label" <<< "$labels"; then remove+=(--remove-label "$label"); fi
           done
-          gh issue edit "$TICKET" --repo "$REPO" --add-label in-progress "${remove[@]}"
+          gh issue edit "$TICKET" --repo "$REPO" --add-label "$IN_PROGRESS_LABEL" "${remove[@]}"
           gh issue comment "$TICKET" --repo "$REPO" --body "$MARK
           The factory is building this ticket on $BRANCH: $RUN_URL"
       - name: Start the board sync
@@ -390,9 +411,9 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v7
         with:
-          node-version: 24 # NODE_MAJOR
+          node-version: ${{ env.NODE_MAJOR }}
           cache: npm
-      - run: npm ci
+      - run: $INSTALL_COMMAND
       - uses: ./factory/actions/sandbox
       # The runner's checkout stays on the default branch: its scripts, node_modules, hooks and skills are the only code
       # that runs here outside the sandbox. .husky/post-checkout, which npm ci's husky install hooked up, installs there
@@ -415,11 +436,10 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
           sh .husky/post-checkout HEAD HEAD 1
-          for skill in implement tdd code-review pr; do
-            test -f ".claude/skills/$skill/SKILL.md" && continue
+          if ! node factory/factorySkills.ts; then # REQUIRED_SKILLS, each named if missing
             npx -y skills experimental_install --no-frozen-lockfile </dev/null 2>&1 | tail -20 || true # the hook hides why it failed
-            echo "::error::the $skill skill isn't installed"; exit 1
-          done
+            exit 1
+          fi
           tree="$RUNNER_TEMP/tree"
           echo "TREE=$tree" >> "$GITHUB_ENV"
           git clone --quiet --no-checkout -c core.hooksPath=/dev/null "$GITHUB_SERVER_URL/$REPO.git" "$tree"
@@ -550,7 +570,7 @@ jobs:
         run: git -c core.hooksPath=/dev/null checkout --quiet "$BRANCH"
       # What the pre-push hook runs, which the push in `publish`, with hooks off, skips. The step's parent is the runner's
       # Runner.Worker, in <runner>/bin, which is hidden too, wherever the image puts it.
-      - name: npm ci and npm run check, in bwrap
+      - name: INSTALL_COMMAND and CHECK_COMMAND, in bwrap
         id: check
         run: |
           worker=$(readlink -f "/proc/$PPID/exe")
@@ -560,7 +580,7 @@ jobs:
             --tmpfs "${worker%/bin/*}" \
             --bind "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE" --chdir "$GITHUB_WORKSPACE" \
             --setenv HOME /tmp/home --setenv PATH /opt/node/bin:/usr/bin:/bin --setenv CI true --setenv CHECK_BASE "origin/$BASE" \
-            sh -c 'npm ci && npm run check'
+            sh -c "$INSTALL_COMMAND && $CHECK_COMMAND"
 
   publish:
     needs: [gate, build, check]
@@ -686,7 +706,7 @@ jobs:
           if ! gh workflow run factory.yml --repo "$REPO" --ref "$BASE" -f spec="$SPEC" -f hop="$((HOP + 1))"; then
             echo "::warning::the spec's next run didn't start"
             gh issue comment "$SPEC" --repo "$REPO" --body "$MARK
-          The factory stopped building this spec: #$TICKET merged into $BRANCH, but starting the spec's next run failed. Label the spec ready-for-agent to build on. $RUN_URL" \
+          The factory stopped building this spec: #$TICKET merged into $BRANCH, but starting the spec's next run failed. Label the spec $TRIGGER_LABEL to build on. $RUN_URL" \
               || echo "::warning::nor did the comment saying so reach #$SPEC"
           fi
 
@@ -722,7 +742,7 @@ jobs:
           REFUSED: ${{ needs.publish.outputs.refused }}
           UNBUILDABLE: ${{ needs.publish.outputs.unbuildable }}
         run: |
-          comment_by_hand="comment \`merged into $BRANCH\` by hand, opening with the factory's hidden mark \`$MARK\`, and take \`parked\` off"
+          comment_by_hand="comment \`merged into $BRANCH\` by hand, opening with the factory's hidden mark \`$MARK\`, and take \`$PARKED_LABEL\` off"
           # How far publish's push to spec/<n> got (`push`), the one step that reaches it:
           # - finished: it pushed, so only the merged comment after it can have failed
           # - unstarted: an earlier job, or publish before its push step, stopped, or build made nothing to push
@@ -769,7 +789,7 @@ jobs:
           elif [ -n "$BUILD_WHY" ]; then why="$BUILD_WHY"
           elif [ "$BUILD" != success ]; then why="bundling or uploading the agent's commits failed"
           elif [ "$CHECK" = cancelled ]; then why="the check was cancelled, or ran past its job's $CHECK_MINUTES-minute timeout"
-          elif [ "$CHECKED" = failure ]; then why="\`npm ci\` or \`npm run check\` failed on $BRANCH with the ticket's commits, or bwrap didn't start"
+          elif [ "$CHECKED" = failure ]; then why="\`$INSTALL_COMMAND\` or \`$CHECK_COMMAND\` failed on $BRANCH with the ticket's commits, or bwrap didn't start"
           elif [ "$CHECK" != success ]; then why="setting up the check failed, or its job lost its runner"
           elif [ "$REFUSED" = true ]; then why="the agent's commits change files under .github/, which the factory doesn't push"
           elif [ -n "$UNBUILDABLE" ]; then why="the agent's commits leave $UNBUILDABLE in the branch, which the factory won't build on, so it didn't push them"
@@ -792,18 +812,18 @@ jobs:
           elif [ "$REFUSED" = true ]; then todo="Build this ticket locally. "
           elif [ "$commits" = yes ]; then todo="To finish it, $comment_by_hand. "
           elif [ "$commits" = unknown ]; then
-            todo="If $BRANCH has the ticket's commits, $comment_by_hand; if not, take \`parked\` off and label the spec, #$SPEC,"
-            todo="$todo ready-for-agent again. "
-          elif [ "$commits" = no ]; then todo="To retry, take \`parked\` off and label the spec, #$SPEC, ready-for-agent again. "
+            todo="If $BRANCH has the ticket's commits, $comment_by_hand; if not, take \`$PARKED_LABEL\` off and label the spec, #$SPEC,"
+            todo="$todo $TRIGGER_LABEL again. "
+          elif [ "$commits" = no ]; then todo="To retry, take \`$PARKED_LABEL\` off and label the spec, #$SPEC, $TRIGGER_LABEL again. "
           fi
           # --force: another ticket's park may create it at the same moment
-          gh label create parked --force --repo "$REPO" --color B60205 --description 'The factory failed to build it; label it ready-for-agent again to retry'
+          gh label create "$PARKED_LABEL" --force --repo "$REPO" --color B60205 --description "The factory failed to build it; label it $TRIGGER_LABEL again to retry"
           labels=$(gh issue view "$TICKET" --repo "$REPO" --json labels --jq '.labels[].name')
           remove=()
-          for label in ready-for-agent in-progress; do
+          for label in "$TRIGGER_LABEL" "$IN_PROGRESS_LABEL"; do
             if grep -qx "$label" <<< "$labels"; then remove+=(--remove-label "$label"); fi
           done
-          gh issue edit "$TICKET" --repo "$REPO" --add-label parked "${remove[@]}"
+          gh issue edit "$TICKET" --repo "$REPO" --add-label "$PARKED_LABEL" "${remove[@]}"
           # factory-logs has files only once the agent step ran: not when build lost its runner, nor when its setup failed
           if [ "$RESULT" = unbuildable ]; then logs="The build stopped before the agent ran, so only the run's own log has it"
           elif [ -n "$AGENT" ] && [ "$AGENT" != skipped ]; then logs="The agent's transcript and Sandcastle's log are in the run's factory-logs artifact"
@@ -843,7 +863,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v7
         with:
-          node-version: 24 # NODE_MAJOR
+          node-version: ${{ env.NODE_MAJOR }}
       - name: Check that the PR is a spec's, from this repo into the default branch
         id: spec
         run: node factory/factorySpecClose.ts spec
@@ -885,7 +905,7 @@ jobs:
           if [ ${#failed[@]} -gt 0 ]; then
             echo "::error::Closing, or taking the labels off, failed for ${failed[*]}"
             gh issue comment "$SPEC" --repo "$REPO" --body "$MARK
-          The factory couldn't close, or take ready-for-agent and in-progress off, ${failed[*]}: see to them by hand. $RUN_URL"
+          The factory couldn't close, or take $TRIGGER_LABEL and $IN_PROGRESS_LABEL off, ${failed[*]}: see to them by hand. $RUN_URL"
             exit 1
           fi
       # A repo that deletes a merged PR's branch itself may have done it already
@@ -912,13 +932,14 @@ jobs:
   # A relayed question's issue is the PR the fetched comment names, so `asked` says which, and every later step and
   # `reply` take ISSUE from it rather than the event.
   ask:
+    # its mention is MENTION's
     if: >-
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')
       && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association))
       || (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request_review_comment'
       && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-24.04 # pinned, for bwrap, as build
-    timeout-minutes: 30
+    timeout-minutes: 30 # ASK_MINUTES
     permissions:
       contents: read
       issues: read
@@ -939,11 +960,11 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
-          fetch-depth: 30 # the commits factory/factoryAsk.ts lists in the prompt
+          fetch-depth: ${{ env.ASK_COMMITS }} # the commits factory/factoryAsk.ts lists in the prompt
           persist-credentials: false
       - uses: actions/setup-node@v7
         with:
-          node-version: 24 # NODE_MAJOR
+          node-version: ${{ env.NODE_MAJOR }}
       # The relay's run may be a PR's own copy, so only a number is taken from it: the comment, its author and its PR
       # come from the API
       - name: Fetch the review comment the relay named
@@ -962,7 +983,7 @@ jobs:
           REVIEW_COMMENT_JSON: ${{ github.event_name == 'workflow_run' && format('{0}/review-comment.json', runner.temp) || '' }}
         run: node factory/factoryAsked.ts
       - if: steps.asked.outputs.asked == 'true'
-        run: npm ci # on the Node installed above
+        run: $INSTALL_COMMAND # on the Node installed above
       - if: steps.asked.outputs.asked == 'true'
         uses: ./factory/actions/sandbox
       # GitHub fires issue_comment for a PR's comments too: a PR's own checks, or an issue's linked PRs' with theirs. An

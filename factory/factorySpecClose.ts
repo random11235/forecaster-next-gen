@@ -5,6 +5,7 @@
 // pages of its sub-issues, and writes the plan's lines to PLAN, or `none=true` to the outputs if it has no tickets.
 
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs'
+import { factoryConfig } from './factoryConfig.ts'
 import { closingLines, closingPlan, mergedSpec, type ClosedPullRequest, type Issue } from './factorySpecMerged.ts'
 
 const read = <T>(name: string): T => {
@@ -23,7 +24,7 @@ if (process.argv[2] === 'spec') {
   if (spec !== undefined) output(`spec=${spec}`)
 } else if (process.argv[2] === 'plan') {
   if (!process.env.PLAN) throw new Error('PLAN is not set')
-  const plan = closingPlan(read<Issue>('SPEC_JSON'), read<Issue[][]>('SUB_ISSUES_JSON').flat())
+  const plan = closingPlan(read<Issue>('SPEC_JSON'), read<Issue[][]>('SUB_ISSUES_JSON').flat(), factoryConfig())
   writeFileSync(process.env.PLAN, plan ? closingLines(plan) : '')
   if (plan) console.log(closingLines(plan))
   else {

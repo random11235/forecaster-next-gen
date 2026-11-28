@@ -1,4 +1,4 @@
-// What the factory (.github/workflows/factory.yml) does next on a spec labelled `ready-for-agent` (#337): build its
+// What the factory (.github/workflows/factory.yml) does next on a spec labelled with its trigger label (#337): build its
 // next ticket on spec/<n>, open the spec's PR to main once every ticket is in, or stop, saying why. A workflow step
 // fetches the spec's sub-issues with `gh api graphql` and factory/factoryNext.ts hands them over.
 //
@@ -15,6 +15,7 @@
 // spec's number of sub-issues it stops rather than build, so a bug that keeps picking the same ticket can't rebuild it
 // past that (R5 in docs/research/sandcastle-factory.md). Labelling the spec again starts a new chain at hop 0.
 
+import type { FactoryConfig } from './factoryConfig.ts'
 import { factoryWords, isActionsBot, isTrusted, type Association, type Author } from './factoryTrust.ts'
 
 type State = 'OPEN' | 'CLOSED'
@@ -50,23 +51,26 @@ export function subIssuesOf(response: SubIssuesResponse): SubIssue[] {
 
 /** The factory's comment, after its mark, saying the ticket merged into the spec's branch: the factory's, or by hand. */
 const mergedInto =
-  (spec: number) =>
+  (spec: number, mark: string) =>
   ({ body, authorAssociation, author }: Comment): boolean =>
-    (isActionsBot(author) || isTrusted(authorAssociation)) && new RegExp(`^merged into spec/${spec}\\b`, 'i').test(factoryWords(body) ?? '')
+    (isActionsBot(author) || isTrusted(authorAssociation)) && new RegExp(`^merged into spec/${spec}\\b`, 'i').test(factoryWords(body, mark) ?? '')
 
 const labelled =
   (label: string) =>
   ({ labels }: SubIssue): boolean =>
     labels.nodes.some(({ name }) => name === label)
-const parked = labelled('parked')
 const forAHuman = labelled('ready-for-human')
 
 const list = (numbers: readonly number[]): string => numbers.map((number) => `#${number}`).join(', ')
 
-/** The spec's next step, given its number, its sub-issues in order, and how many runs chained before this one. */
-export function nextStep(spec: number, subIssues: readonly SubIssue[], hop = 0): Next {
+/** The config's values the frontier reads: the factory's mark, the parked label, and the trigger label it names. */
+export type FrontierConfig = Pick<FactoryConfig, 'mark' | 'parkedLabel' | 'triggerLabel'>
+
+/** The spec's next step, given its number, its sub-issues in order, how many runs chained before this one, and the config. */
+export function nextStep(spec: number, subIssues: readonly SubIssue[], hop: number, config: FrontierConfig): Next {
   if (subIssues.length === 0) return { action: 'stop', why: 'the spec has no tickets (sub-issues)' }
-  const isDone = (ticket: SubIssue): boolean => ticket.state === 'CLOSED' || ticket.comments.nodes.some(mergedInto(spec))
+  const parked = labelled(config.parkedLabel)
+  const isDone = (ticket: SubIssue): boolean => ticket.state === 'CLOSED' || ticket.comments.nodes.some(mergedInto(spec, config.mark))
   const done = new Set(subIssues.filter(isDone).map(({ number }) => number))
   const left = subIssues.filter(({ number }) => !done.has(number))
   if (left.length === 0) return { action: 'open-pr' }
@@ -75,7 +79,7 @@ export function nextStep(spec: number, subIssues: readonly SubIssue[], hop = 0):
   const ticket = left.find((each) => !parked(each) && !forAHuman(each) && blockers(each).length === 0)
   const cap = subIssues.length
   if (ticket && hop >= cap) {
-    const why = `its runs have chained ${cap} times, once for each of its ${cap} tickets: label the spec ready-for-agent to build on`
+    const why = `its runs have chained ${cap} times, once for each of its ${cap} tickets: label the spec ${config.triggerLabel} to build on`
     return { action: 'stop', why }
   }
   if (ticket) return { action: 'build', ticket: ticket.number }

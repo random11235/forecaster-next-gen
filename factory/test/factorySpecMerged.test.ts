@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'vitest'
-import { closingLines, closingPlan, mergedSpec, type ClosedPullRequest, type Issue } from '../factorySpecMerged.ts'
+import { closingLines, closingPlan as planWith, mergedSpec, type ClosedPullRequest, type Issue } from '../factorySpecMerged.ts'
+import { DEFAULTS } from './workflowConfig.ts'
+
+/** With the workflow's default labels. */
+const closingPlan = (spec: Issue, tickets: readonly Issue[]) => planWith(spec, tickets, DEFAULTS)
 
 const REPO = 'owner/forecaster'
 

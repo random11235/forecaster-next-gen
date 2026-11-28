@@ -3,10 +3,10 @@
 
 /**
  * The PR's body: the one the agent wrote with `/pr` and ended its reply with, in a `<pr-body>` block, then the line
- * closing ticket `issue` and the run that built it, which the factory adds itself.
+ * closing ticket `issue` and the run that built it, which the factory adds itself. `check` is the command that passed.
  */
-export function pullRequestBody(reply: string, issue: number, runUrl: string): string {
-  const written = lastBlock(reply, 'pr-body')?.trim() || noBody(issue, runUrl)
+export function pullRequestBody(reply: string, issue: number, runUrl: string, check: string): string {
+  const written = lastBlock(reply, 'pr-body')?.trim() || noBody(issue, runUrl, check)
   const closing = `\n\nCloses #${issue}.\n\nBuilt by the factory in run ${runUrl}.\n`
   const cut = `\n\n(The agent's body was cut here: it was ${written.length} characters, more than a PR body holds.)`
   const room = MAX_BODY - closing.length - cut.length
@@ -24,9 +24,9 @@ export function lastBlock(reply: string, tag: string): string | undefined {
 export const MAX_BODY = 65_536
 
 /** A body in `/pr`'s sections for a PR whose agent wrote none. */
-const noBody = (issue: number, runUrl: string): string =>
+const noBody = (issue: number, runUrl: string, check: string): string =>
   [
     `## Summary\n\nThe factory built #${issue}, but its agent wrote no PR body: read the commits.`,
-    `## Evidence\n\n\`npm run check\` passed on the branch in run ${runUrl}.`,
+    `## Evidence\n\n\`${check}\` passed on the branch in run ${runUrl}.`,
     '## Merge Danger\n\nUnknown: with no body to say what changed, review the whole diff.',
   ].join('\n\n')
