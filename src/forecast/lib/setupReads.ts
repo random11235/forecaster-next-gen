@@ -2,7 +2,7 @@ import type { FailedRead, FailedReads, ReadFailures } from '../../model/readFail
 import type { SavedRead } from '../../model/savedRead.js'
 import type { SetupStorage } from '../../storage/storage.js'
 import { teamConnection, withTeamQueries } from './connection.js'
-import { finishedSinceFor, readQuery, type QueryRead } from './queryRead.js'
+import { paceReachFor, readQuery, type QueryRead } from './queryRead.js'
 import type { StepReading } from './queryStep.js'
 import { rejectionOf } from './readSaid.js'
 import { chipsShow } from './stepQueryEdit.js'
@@ -30,8 +30,9 @@ export async function readPicks(reading: StepReading, teamId: string, readAt: st
   if (!connected || connected.connector === 'keychainFailed') return
   const { connection, connector } = connected
   const { milestoneInputs, setup } = reading
-  const { milestoneQueries, reads } = withTeamQueries(reading, 'current')
-  const finishedSince = finishedSinceFor(readAt, milestoneInputs.milestoneInputs(teamId))
+  const current = withTeamQueries(reading, 'current')
+  const { milestoneQueries, reads } = current
+  const finishedSince = paceReachFor(current, teamId, readAt, milestoneInputs.milestoneInputs(teamId))
   for (const saved of [milestoneQueries.milestoneQuery(teamId), milestoneQueries.comparableWorkQuery(teamId)]) {
     if (!hasQuery(saved) || !chipsShow(trackerOf(connection), saved)) continue
     const queryRead = reads.savedRead({ teamId, query: saved.query })
@@ -79,7 +80,7 @@ export type ReadAgainSubmitted = { kind: 'read' | 'unchanged' | 'failed' }
 
 /**
  * Seam B: reads the milestone query again, and comparable work's when it has one, as at `readAt`, as far back as the
- * milestone's inputs need (`finishedSinceFor`); values following the tracker take each new read, typed ones stay as
+ * milestone's inputs and comparable work's read need (`paceReachFor`); values following the tracker take each new read, typed ones stay as
  * typed. Each of several picks is read at Check alone (`readPicks`), so its count is from then, its read now older
  * than its query's. Read only once setup is closed done, never while its steps are open, as the summary is shown only
  * then. A read that fails saves nothing, so its saved read stays in use, and why is kept, so the summary says it until
@@ -95,8 +96,9 @@ export async function submitReadAgain(reading: StepReading, teamId: string, read
   const { connection, connector } = connected
   if (connector === 'keychainFailed')
     return (keepFailed(reading.setup, teamId, { whole: { failure: 'keychainFailed', at: readAt }, queries: {} }), { kind: 'failed' })
-  const finishedSince = finishedSinceFor(readAt, reading.milestoneInputs.milestoneInputs(teamId))
-  const { milestoneQueries, reads } = withTeamQueries(reading, 'saved')
+  const saved = withTeamQueries(reading, 'saved')
+  const { milestoneQueries, reads } = saved
+  const finishedSince = paceReachFor(saved, teamId, readAt, reading.milestoneInputs.milestoneInputs(teamId))
   // a read made forgets why the last one failed; one failing whole stops there, the queries left as they were
   const queries: Record<string, FailedRead | undefined> = {}
   for (const stepQuery of [MILESTONE_QUERY, COMPARABLE_WORK]) {
