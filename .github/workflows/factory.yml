@@ -212,8 +212,9 @@ jobs:
   # Every ticket of the spec is in (scripts/factoryFrontier.ts says `open-pr`): opens the spec's one PR, from spec/<n>
   # to the default branch (#339), with FACTORY_TOKEN, so CI starts on it as on a ticket's PR. Not when an open PR from
   # spec/<n> is there already, so a later run, or the spec labelled again, opens no second; nor when spec/<n> isn't
-  # there, or has no commits the default branch lacks, which GitHub opens no PR for. The body (scripts/factorySpecPullRequest.ts) links the spec, lists every ticket and gives the spec's decision
-  # log, with no closing keyword: `close` closes the spec and its tickets once it merges. `tell` says on the spec what
+  # there, or has no commits the default branch lacks, which GitHub opens no PR for. The body
+  # (scripts/factorySpecPullRequest.ts) links the spec, lists every ticket and says the spec's decision log is in its
+  # comments, with no closing keyword: `close` closes the spec and its tickets once it merges. `tell` says on the spec what
   # came of it. Only the default branch's code runs here, and this job's own GITHUB_TOKEN only reads.
   propose:
     needs: gate
@@ -259,12 +260,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           SPEC_JSON: ${{ runner.temp }}/spec.json
           SUB_ISSUES_JSON: ${{ runner.temp }}/sub-issues.json
-          SPEC_COMMENTS_JSON: ${{ runner.temp }}/spec-comments.json
           OUT_DIR: ${{ runner.temp }}/spec-pr
         run: |
           gh api "repos/$REPO/issues/$ISSUE" > "$SPEC_JSON"
           gh api --paginate --slurp "repos/$REPO/issues/$ISSUE/sub_issues?per_page=100" > "$SUB_ISSUES_JSON"
-          gh api --paginate --slurp "repos/$REPO/issues/$ISSUE/comments" > "$SPEC_COMMENTS_JSON"
           node scripts/factorySpecOpen.ts
       - name: Open the PR
         id: open
